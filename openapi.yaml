@@ -2899,6 +2899,37 @@ paths:
                     (Pascal GTX 10xx, Maxwell GTX 9xx) need `int8` or `float32`.
                     See the README section "GPU Compute Type" for the per-GPU table.
                   example: auto
+                audioCueDetectionEnabled:
+                  type: boolean
+                  description: Master toggle for audio cue detection (#350). Off by default.
+                audioCueFreqMinHz:
+                  type: number
+                  description: Low edge (Hz) of the spectral fallback cue band.
+                  minimum: 20
+                  maximum: 20000
+                audioCueFreqMaxHz:
+                  type: number
+                  description: High edge (Hz) of the spectral fallback cue band. Must exceed the low edge.
+                  minimum: 20
+                  maximum: 20000
+                audioCueProminenceDb:
+                  type: number
+                  description: dB above the in-band baseline for a burst to count (spectral fallback).
+                  minimum: 1
+                  maximum: 40
+                audioCueMinConfidence:
+                  type: number
+                  description: Drop cues weaker than this.
+                  minimum: 0
+                  maximum: 1
+                audioCueTemplateScore:
+                  type: number
+                  description: ZNCC score a learned cue template must reach on another episode (default 0.75).
+                  minimum: 0
+                  maximum: 0.99
+                audioCueCreateFromPairs:
+                  type: boolean
+                  description: Opt-in cue-pair ad synthesis. Off by default.
                 positionalPriorEnabled:
                   type: boolean
                   description: |
@@ -5328,6 +5359,62 @@ components:
                 Compute precision for the local faster-whisper backend. `auto` resolves to float16
                 on CUDA and int8 on CPU; older GPUs automatically fall back through the chain
                 int8_float16 -> int8 -> float32 when float16 init fails.
+            isDefault:
+              type: boolean
+        audioCueDetectionEnabled:
+          type: object
+          description: Master toggle for audio cue detection (templates + spectral fallback). Off by default.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioCueFreqMinHz:
+          type: object
+          description: Low edge (Hz) of the spectral fallback's cue band.
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueFreqMaxHz:
+          type: object
+          description: High edge (Hz) of the spectral fallback's cue band.
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueProminenceDb:
+          type: object
+          description: dB above the in-band baseline a burst must rise to count as a cue (spectral fallback).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueMinConfidence:
+          type: object
+          description: Drop cues weaker than this. The model never sees a cue below 0.80.
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueTemplateScore:
+          type: object
+          description: ZNCC score (0-0.99, default 0.75) a learned cue template must reach to register on another episode.
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueCreateFromPairs:
+          type: object
+          description: Opt-in. Synthesize a cue-only ad when two high-confidence cues bracket a break the LLM missed (still reviewed). Off by default.
+          properties:
+            value:
+              type: boolean
             isDefault:
               type: boolean
         positionalPriorEnabled:
