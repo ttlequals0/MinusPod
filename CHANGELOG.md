@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.0] - 2026-06-18
+
+### Added
+
+- Per-podcast audio-cue templates (#350). The 2.8.6 cue detector flagged any short loudness burst in a frequency band; it could not tell one show's clink from another's swoosh and learned nothing across episodes. This release lets you mark the exact sound once on an episode waveform. The server stores its MFCC fingerprint (plus the raw PCM as a source of truth) and a normalized cross-correlation matcher finds that sound on every later episode, regardless of the band knobs. Templates take precedence per feed: when a feed has at least one enabled template the spectral detector is bypassed for that feed; otherwise it stays as the fallback. Both run only when the existing `audio_cue_detection_enabled` experiment is on.
+- Each match feeds the first-pass detector as an `audio_cue` signal (the model still has to find the ad copy in the transcript), and a boundary-snap pass shifts the start and end edges of an LLM-detected ad to the nearest high-confidence cue, capped by the reviewer's max boundary shift, so the cut lands on the chime instead of a beat into the spoken read.
+- Opt-in cue-pair gap-filling (`audio_cue_create_from_pairs`, off by default): when two high-confidence cues bracket a plausible break the LLM missed, a cue-only ad is synthesized for that span. It still goes through the reviewer. Nothing in this feature cuts without the LLM.
+- Capture and management UI on the feed detail page: bracket a 0.2 to 4 second cue on an episode's original-audio waveform with a snap-to-onset assist, save and preview the matches, then manage templates (enable, rename, delete) and run a diagnostic scan against any episode.
+- Local export and import: a template exports as a zip (a lossless WAV plus a JSON manifest) and imports into another install, where the MFCC is recomputed from the WAV. Two scope tiers, podcast and network, let a network reuse one cue across its shows.
+
+### Notes
+
+- Capture requires an episode's retained original audio, because a cue can sit inside a removed ad. `keep_original_audio` defaults to on; there is no backfill, so only episodes processed after this upgrade can be used to mark a cue. Storing raw PCM per template adds a small amount of disk (a 4 second 16 kHz mono cue is about 128 KB).
+
 ## [2.8.15] - 2026-06-18
 
 ### Fixed

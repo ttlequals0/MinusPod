@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.8.15
+  version: 2.9.0
   contact:
     name: MinusPod
   license:
@@ -57,6 +57,8 @@ tags:
     description: System status and maintenance
   - name: Search
     description: Full-text search across all content
+  - name: AudioCueTemplates
+    description: Per-podcast learned audio-cue (ding/stinger) templates (#350)
 
 paths:
   /auth/status:
@@ -4491,6 +4493,265 @@ paths:
         '400':
           description: confirm flag missing or not true
 
+  /feeds/{slug}/cue-templates:
+    get:
+      tags: [AudioCueTemplates]
+      summary: List a feed's audio-cue templates
+      operationId: listCueTemplates
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Templates for the feed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CueTemplate'
+        '404':
+          description: Feed not found
+    post:
+      tags: [AudioCueTemplates]
+      summary: Mark a new cue template from a window of an episode
+      description: >
+        Requires the episode's original (un-cut) audio to still be retained.
+        Decodes the marked window, extracts an MFCC fingerprint, and stores the
+        raw PCM as the source of truth. Selection must be 0.2 to 4 seconds.
+      operationId: createCueTemplate
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episodeId, startS, endS, label]
+              properties:
+                episodeId:
+                  type: string
+                startS:
+                  type: number
+                endS:
+                  type: number
+                label:
+                  type: string
+                  maxLength: 80
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  template:
+                    $ref: '#/components/schemas/CueTemplate'
+        '400':
+          description: Invalid selection or label
+        '404':
+          description: Feed or original audio not found
+
+  /cue-templates/{templateId}:
+    patch:
+      tags: [AudioCueTemplates]
+      summary: Rename, enable/disable, or change the scope of a template
+      operationId: updateCueTemplate
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label:
+                  type: string
+                  maxLength: 80
+                enabled:
+                  type: boolean
+                scope:
+                  type: string
+                  enum: [podcast, network]
+                networkId:
+                  type: string
+                  description: Required when promoting to network scope
+      responses:
+        '200':
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  template:
+                    $ref: '#/components/schemas/CueTemplate'
+        '404':
+          description: Template not found
+    delete:
+      tags: [AudioCueTemplates]
+      summary: Delete a cue template
+      operationId: deleteCueTemplate
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Deleted
+        '404':
+          description: Template not found
+
+  /cue-templates/{templateId}/export:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Export a template as a portable zip (lossless WAV + JSON manifest)
+      operationId: exportCueTemplate
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Zip archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Template not found
+        '422':
+          description: Template has no raw audio to export
+
+  /feeds/{slug}/cue-templates/import:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Import a cue template zip into a feed
+      description: >
+        The MFCC is recomputed from the WAV (a foreign blob is never trusted).
+        Imports land as podcast scope. Sample-rate and channel mismatches are
+        hard-rejected with no resampling.
+      operationId: importCueTemplate
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Template imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  template:
+                    $ref: '#/components/schemas/CueTemplate'
+        '400':
+          description: Invalid zip, manifest, or audio
+        '404':
+          description: Feed not found
+
+  /feeds/{slug}/episodes/{episode_id}/cue-scan:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Run every enabled template against an episode (diagnostic)
+      operationId: cueScanEpisode
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scoreThreshold:
+                  type: number
+                  description: Override the global threshold for this run only
+      responses:
+        '200':
+          description: Per-template peak scores and match times
+        '400':
+          description: Feed has no enabled templates
+        '404':
+          description: Feed or original audio not found
+
+  /feeds/{slug}/episodes/{episode_id}/cue-template-preview:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Run a single template against an episode
+      operationId: previewCueTemplate
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [templateId]
+              properties:
+                templateId:
+                  type: integer
+      responses:
+        '200':
+          description: Match times for the template
+        '404':
+          description: Template, feed, or original audio not found
+
 security:
   - sessionCookie: []
 
@@ -4562,6 +4823,40 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    CueTemplate:
+      type: object
+      description: A learned per-podcast audio-cue template (metadata; blobs omitted)
+      properties:
+        id:
+          type: integer
+        podcastId:
+          type: integer
+        label:
+          type: string
+        sourceEpisodeId:
+          type: string
+          nullable: true
+        sourceOffsetS:
+          type: number
+        durationS:
+          type: number
+        sampleRate:
+          type: integer
+        nCoeffs:
+          type: integer
+        scope:
+          type: string
+          enum: [podcast, network]
+        networkId:
+          type: string
+          nullable: true
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+        createdBy:
+          type: string
+          nullable: true
     BulkPatternOp:
       type: object
       required: [confirm, expected_count]

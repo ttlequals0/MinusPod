@@ -134,6 +134,7 @@ Audio analysis runs automatically on every episode (lightweight, uses only ffmpe
 - **Volume Analysis** - Detects loudness anomalies using EBU R128 measurement. Identifies sections mastered at different levels than the content baseline.
 - **Transition Detection** - Finds abrupt frame-to-frame loudness jumps that indicate dynamically inserted ad (DAI) boundaries. Pairs up/down transitions into candidate ad regions.
 - **Audio Enforcement** - After LLM detection, uncovered audio signals with ad language in the transcript are promoted to ads. DAI transitions with high confidence (>=0.8) or sponsor matches are also promoted. Existing ad boundaries are extended when signals partially overlap.
+- **Audio Cue Templates** - When a feed has a learned cue template (a marked ding or stinger), an MFCC normalized cross-correlation matcher finds that exact sound across the episode and emits an `audio_cue` signal at each occurrence. The cue is given to the model as supporting evidence, and after detection a boundary-snap pass moves the start and end of a detected ad to the nearest high-confidence cue (capped by the reviewer's max boundary shift). With the opt-in cue-pair setting on, two cues bracketing a break the model missed synthesize a cue-only ad that the reviewer still evaluates. The cue never cuts on its own: it refines edges and, when enabled, proposes missed breaks for review.
 
 ---
 

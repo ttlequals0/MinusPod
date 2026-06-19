@@ -89,6 +89,14 @@ Switching tabs preserves your selection, so you can refine bounds in either view
 
 Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher picks it up on future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
 
+### Audio Cue Templates
+
+If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound. Open the feed and expand Audio Cue Templates, then click `+ Mark cue` and pick a recent episode whose original audio is still retained. The picker only lists episodes that still have their original, since a cue can sit inside a removed ad.
+
+The mark dialog uses the same waveform as the ad editor. Drag the green and red pins to bracket the cue (0.2 to 4 seconds), or play to the sound and use Set START / Set END at the playhead. The Snap to onset assist nudges an edge to the nearest sharp amplitude rise so a short ding is easy to bracket tightly; turn it off for a ramped sound with no clean attack. Name the cue and Save, or Save and preview to see every place the cue matches on that episode before it goes live.
+
+Saved cues are listed with enable checkboxes and inline rename. Test on episode runs every enabled cue against any episode and reports each cue's peak match score, which is the value to tune Template match score against in Settings. Export downloads a cue as a portable zip (a lossless WAV plus a manifest) to share with another install; Import loads one back. On a feed that belongs to a network, Promote to network applies a cue to every show on that network.
+
 ### Screenshots
 
 #### Dashboard

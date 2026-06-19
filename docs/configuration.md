@@ -137,18 +137,24 @@ If you customized your system or verification prompt before this release, the up
 
 ### Audio Cue Detection
 
-Some shows play a short non-spoken cue, a chime or stinger, right before an ad break. The transcript cannot capture it, so detection lands a beat late. With this experiment on, an extra ffmpeg pass band-passes the audio to the cue's frequency band and flags brief loudness bursts that stand out from the in-band speech baseline. Each burst is passed to the detector as an `audio_cue` signal, the same way volume changes and DAI transitions already are.
+Some shows play a short non-spoken cue, a chime or stinger, right before an ad break. The transcript cannot capture it, so detection lands a beat late. The cue never marks an ad on its own. The model must still find ad content in the transcript, so the cue only sharpens an ad's boundaries rather than creating ads. There are two ways to find the cue, both gated by the master toggle below.
 
-The cue never marks an ad on its own. The model must still find ad content in the transcript, so the cue only sharpens an ad's start time rather than creating ads.
+**Per-feed templates (recommended).** Open a feed and expand Audio Cue Templates, then mark the exact sound once on a recent episode's waveform (see [the web interface guide](web-interface.md)). The server stores an MFCC fingerprint of your selection and a normalized cross-correlation matcher finds that same sound on every other episode of the feed, regardless of the band tuning below. When a feed has at least one enabled template the matcher is used for that feed instead of the spectral detector. A detected cue then refines the matched ad's edges: a high-confidence cue near an ad's start or end snaps that edge to the cue, capped by Max boundary shift, so the cut lands on the chime rather than a beat into or out of the spoken read.
+
+**Spectral fallback.** When a feed has no templates and this experiment is on, an extra ffmpeg pass band-passes the audio to the cue's frequency band and flags brief loudness bursts that stand out from the in-band speech baseline. Each burst is passed to the detector as an `audio_cue` signal, the same way volume changes and DAI transitions already are.
 
 Settings live under Experiments → Audio Cue Detection:
 
-- **Enable audio cue detection** - master toggle, off by default. Adds one extra ffmpeg pass per episode when on.
-- **Frequency band** - the low and high edges, in Hz, of the band the cue lives in. Chimes and bells usually sit between roughly 1.5 and 8 kHz. The low edge must be below the high edge.
-- **Prominence threshold** - how far above the in-band speech baseline, in dB, a sound must rise to count as a cue. Lower catches quieter cues but adds false positives.
+- **Enable audio cue detection** - master toggle, off by default. Turns on whichever mode applies to the feed.
+- **Frequency band** - the low and high edges, in Hz, of the band the spectral fallback listens in. Chimes and bells usually sit between roughly 1.5 and 8 kHz. The low edge must be below the high edge.
+- **Prominence threshold** - how far above the in-band speech baseline, in dB, a sound must rise to count as a cue in the spectral fallback. Lower catches quieter cues but adds false positives.
 - **Minimum confidence** - drops cues weaker than this. The model is never shown a cue below 0.80 confidence regardless of this value.
+- **Template match score** - the cross-correlation score a marked template must reach to register on another episode (0 to 0.99, default 0.75). Lower catches more occurrences but risks false matches. Applies only to feeds that have templates.
+- **Create ads from cue pairs** - off by default. When two high-confidence cues bracket a plausible break the model missed, synthesize a cue-only ad for that span. The reviewer still evaluates it. This relaxes the "cue is supporting evidence only" rule, so leave it off until you trust the matcher on a feed.
 
-The Stats page shows an Avg Audio Cues card and a Total Audio Cues figure. Both read zero until the experiment is enabled. Detection quality depends on the show, so start with one whose cue is clear and tune the band and prominence from there.
+Marking a cue requires the source episode's retained original audio, because a cue can sit inside a removed ad. `keep_original_audio` is on by default; there is no backfill, so only episodes processed after upgrading to 2.9.0 can be used to mark a cue. Each template also stores its raw audio so it can be exported as a lossless WAV and shared between your own or trusted installs.
+
+The Stats page shows an Avg Audio Cues card and a Total Audio Cues figure. Both read zero until the experiment is enabled. Detection quality depends on the show, so start with one whose cue is clear.
 
 ## Reprocessing
 
