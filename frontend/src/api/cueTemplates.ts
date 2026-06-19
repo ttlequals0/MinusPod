@@ -197,3 +197,33 @@ export async function getEpisodeLoudSpots(
     `/feeds/${slug}/episodes/${episodeId}/cue-loud-spots`,
   );
 }
+
+export type DetectedCueSource = 'template' | 'spectral' | 'loud_spot';
+
+export interface DetectedCue {
+  start: number;
+  end: number;
+  source: DetectedCueSource;
+  label: string | null;
+  cueType: CueTemplateType | null;
+  score: number | null;
+  prominenceDb: number | null;
+}
+
+export interface DetectedCuesResponse {
+  episodeId: string;
+  hasOriginalAudio: boolean;
+  detectedCues: DetectedCue[];
+}
+
+// Audio cues the analysis already found on an episode (persisted template /
+// spectral cues plus template-free loud spots), as candidates to promote into a
+// cue template.
+export async function getDetectedCues(
+  slug: string,
+  episodeId: string,
+): Promise<DetectedCuesResponse> {
+  return apiRequest<DetectedCuesResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/detected-cues`,
+  );
+}

@@ -514,6 +514,18 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved audio analysis to database")
 
+    def get_episode_audio_analysis(self, slug: str, episode_id: str):
+        """Return the raw audio_analysis_json for an episode, or None."""
+        conn = self.get_connection()
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return None
+        row = conn.execute(
+            "SELECT audio_analysis_json FROM episode_details WHERE episode_id = ?",
+            (db_episode_id,),
+        ).fetchone()
+        return row['audio_analysis_json'] if row else None
+
     def clear_episode_details(self, slug: str, episode_id: str):
         """Clear transcript and ad markers for an episode."""
         conn = self.get_connection()

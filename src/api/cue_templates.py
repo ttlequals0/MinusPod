@@ -31,6 +31,7 @@ from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
 )
 from audio_analysis.cue_detector import AudioCueDetector
+from audio_analysis.detected_cues import build_detected_cues
 from config import (
     AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
     AUDIO_CUE_CAPTURE_MAX_BY_TYPE,
@@ -523,6 +524,27 @@ def import_cue_template(slug):
     return json_response({'template': _template_to_meta_dict(row)}, status=201)
 
 
+def _scan_loud_spots(db, audio_path):
+    """Band-pass energy pass over original audio -> loud-spot dicts.
+
+    Surfaces every burst (min_confidence=0.0), sorted by start and capped at
+    MAX_LOUD_SPOTS. Each dict is {start, end, prominenceDb}. Raises on decode
+    failure; the caller decides whether that is fatal.
+    """
+    detector = AudioCueDetector(
+        freq_min_hz=db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
+        freq_max_hz=db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
+        prominence_db=db.get_setting_float('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
+        min_confidence=0.0,
+    )
+    signals = sorted(detector.detect(str(audio_path)), key=lambda s: s.start)[:MAX_LOUD_SPOTS]
+    return [
+        {'start': s.start, 'end': s.end,
+         'prominenceDb': (s.details or {}).get('prominence_db')}
+        for s in signals
+    ]
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/cue-loud-spots', methods=['GET'])
 @log_request
 def episode_loud_spots(slug, episode_id):
@@ -541,27 +563,54 @@ def episode_loud_spots(slug, episode_id):
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
     if err:
         return err
-
-    detector = AudioCueDetector(
-        freq_min_hz=db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
-        freq_max_hz=db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
-        prominence_db=db.get_setting_float('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
-        min_confidence=0.0,  # surface every burst, not just high-confidence ones
-    )
     try:
-        signals = detector.detect(str(audio_path))
+        loud_spots = _scan_loud_spots(db, audio_path)
     except Exception as e:
         return error_response(f'loud-spot scan failed: {e}', 500)
+    return json_response({'episodeId': episode_id, 'loudSpots': loud_spots})
 
-    signals = sorted(signals, key=lambda s: s.start)[:MAX_LOUD_SPOTS]
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/detected-cues', methods=['GET'])
+@log_request
+def episode_detected_cues(slug, episode_id):
+    """Audio cues the analysis already found on an episode -- persisted template
+    and spectral cues plus template-free loud spots -- as candidates the user can
+    promote into a per-feed cue template. Advisory only; nothing here cuts.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+
+    # Persisted audio_cue signals from the episode's saved analysis (free -- we
+    # already analyze the whole episode during processing).
+    cue_signals = []
+    raw = db.get_episode_audio_analysis(slug, episode_id)
+    if raw:
+        try:
+            data = json.loads(raw)
+            cue_signals = [s for s in (data.get('signals') or [])
+                           if s.get('signal_type') == 'audio_cue']
+        except (ValueError, TypeError):
+            cue_signals = []
+
+    # Template-free loud spots over the original audio. Needs retained audio; a
+    # template can only be cut from the original, so without it there is nothing
+    # to promote.
+    loud_spots = []
+    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
+    has_original_audio = err is None
+    if has_original_audio:
+        try:
+            loud_spots = _scan_loud_spots(db, audio_path)
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] detected-cues loud-spot scan failed: {e}")
+
     return json_response({
         'episodeId': episode_id,
-        'loudSpots': [
-            {
-                'start': s.start,
-                'end': s.end,
-                'prominenceDb': (s.details or {}).get('prominence_db'),
-            }
-            for s in signals
-        ],
+        'hasOriginalAudio': has_original_audio,
+        'detectedCues': build_detected_cues(cue_signals, loud_spots),
     })

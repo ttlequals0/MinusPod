@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.10.0
+  version: 2.10.1
   contact:
     name: MinusPod
   license:
@@ -4928,6 +4928,67 @@ paths:
                           nullable: true
         '404':
           description: Feed or original audio not found
+
+  /feeds/{slug}/episodes/{episode_id}/detected-cues:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Audio cues already found on an episode, as template candidates
+      description: |
+        Merges the episode's persisted cue signals (template + spectral) with a
+        template-free loud-spot pass over the original audio, labeled by source.
+        Each is a candidate the user can promote into a per-feed cue template.
+        Advisory only; nothing here changes the cut.
+      operationId: episodeDetectedCues
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detected cue candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  hasOriginalAudio:
+                    type: boolean
+                    description: False if the original audio was not retained (then loud spots are omitted and templates cannot be made)
+                  detectedCues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        source:
+                          type: string
+                          enum: [template, spectral, loud_spot]
+                        label:
+                          type: string
+                          nullable: true
+                        cueType:
+                          type: string
+                          nullable: true
+                        score:
+                          type: number
+                          nullable: true
+                        prominenceDb:
+                          type: number
+                          nullable: true
+        '404':
+          description: Feed not found
 
   /cue-detections/{detectionId}/verdict:
     post:

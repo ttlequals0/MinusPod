@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.1] - 2026-06-19
+
+### Added
+
+- Detected Cues panel on the episode page. Since the whole episode is already analyzed, it lists the candidate ad-break sounds found in the audio (persisted template and spectral cues plus template-free loud spots, labeled by source) and lets you promote any one into a per-feed cue template. "Make template" opens the capture tool pre-seeded with that sound's bounds, where you pick the cue type and save. This is a faster way to seed a feed's first template than hunting on the waveform. Backed by `GET /feeds/{slug}/episodes/{episode_id}/detected-cues`.
+
 ## [2.10.0] - 2026-06-19
 
 ### Fixed

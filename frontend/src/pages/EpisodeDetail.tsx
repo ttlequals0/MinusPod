@@ -13,6 +13,7 @@ import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
+import DetectedCuesSection from '../components/DetectedCuesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage } from './settings/settingsUtils';
 
@@ -738,6 +739,18 @@ function EpisodeDetail() {
             ))}
           </div>
           </CollapsibleSection>
+        </div>
+      )}
+
+      {slug && episodeId && episode.hasOriginalAudio && (
+        <div className="mb-6">
+          <DetectedCuesSection
+            slug={slug}
+            episodeId={episodeId}
+            episodeTitle={episode.title}
+            episodeDuration={episode.originalDuration ?? episode.duration ?? 0}
+            hasOriginalAudio={!!episode.hasOriginalAudio}
+          />
         </div>
       )}
 
