@@ -230,7 +230,7 @@ class AudioCueTemplateMatcher:
                 continue
             if chunk_mfcc.shape[0] < tpl.mfcc.shape[0]:
                 continue
-            scores = _sliding_cosine(chunk_mfcc, tpl.mfcc)
+            scores = _sliding_zncc(chunk_mfcc, tpl.mfcc)
             if not scores.size:
                 continue
             chunk_peak = float(scores.max())
@@ -274,7 +274,7 @@ class AudioCueTemplateMatcher:
         return kept
 
 
-def _sliding_cosine(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
+def _sliding_zncc(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
     """Sliding zero-mean normalized cross-correlation (ZNCC).
 
     Both inputs are float32 ``(n_frames, n_coeffs)``. Returns a 1D array of

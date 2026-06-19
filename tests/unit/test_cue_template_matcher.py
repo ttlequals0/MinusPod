@@ -4,7 +4,7 @@ import numpy as np
 from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher,
     _peak_pick,
-    _sliding_cosine,
+    _sliding_zncc,
 )
 from audio_analysis.cue_features import N_COEFFS, serialize_mfcc
 
@@ -20,13 +20,13 @@ def _make_template_row(mfcc: np.ndarray, *, template_id: int = 1,
     }
 
 
-def test_sliding_cosine_finds_perfect_match():
+def test_sliding_zncc_finds_perfect_match():
     rng = np.random.default_rng(42)
     template = rng.standard_normal((20, N_COEFFS)).astype(np.float32)
     haystack = rng.standard_normal((200, N_COEFFS)).astype(np.float32)
     plant_at = 70
     haystack[plant_at:plant_at + 20] = template
-    scores = _sliding_cosine(haystack, template)
+    scores = _sliding_zncc(haystack, template)
     assert scores.shape[0] == 200 - 20 + 1
     # Score at the planted index must dominate.
     best = int(np.argmax(scores))
@@ -34,11 +34,11 @@ def test_sliding_cosine_finds_perfect_match():
     assert scores[best] > 0.99
 
 
-def test_sliding_cosine_handles_too_short_haystack():
+def test_sliding_zncc_handles_too_short_haystack():
     rng = np.random.default_rng(0)
     template = rng.standard_normal((20, N_COEFFS)).astype(np.float32)
     haystack = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
-    scores = _sliding_cosine(haystack, template)
+    scores = _sliding_zncc(haystack, template)
     assert scores.size == 0
 
 

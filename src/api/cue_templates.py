@@ -139,6 +139,18 @@ def create_cue_template(slug):
     if end_s - start_s > cap_max:
         return error_response(f'selection must be at most {cap_max:g} seconds', 400)
 
+    # Optional scope (defaults to podcast). The UI creates podcast-scope and
+    # promotes via PATCH (which surfaces the blast radius), but the API accepts
+    # scope on create for programmatic clients.
+    scope = payload.get('scope', 'podcast')
+    if scope not in ('podcast', 'network'):
+        return error_response("scope must be 'podcast' or 'network'", 400)
+    network_id = None
+    if scope == 'network':
+        network_id = (payload.get('networkId') or '').strip()
+        if not network_id:
+            return error_response('networkId is required for network scope', 400)
+
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
     if err:
         return err
@@ -169,6 +181,8 @@ def create_cue_template(slug):
         mfcc_blob=serialize_mfcc(mfcc),
         pcm_blob=pcm_to_int16_bytes(pcm),
         pcm_sample_rate=SAMPLE_RATE_HZ,
+        scope=scope,
+        network_id=network_id,
     )
     logger.info(
         f"Cue template created: id={template_id} feed={slug} ep={episode_id} "
@@ -197,18 +211,22 @@ def update_cue_template_route(template_id):
             return error_response('label is too long (max 80 chars)', 400)
     if enabled is not None and not isinstance(enabled, bool):
         return error_response('enabled must be true or false', 400)
-    db.update_cue_template(template_id, label=new_label, enabled=enabled)
 
-    # Optional scope change (podcast <-> network promotion).
+    # Validate the optional scope change BEFORE any write so an invalid scope
+    # cannot leave a half-applied label/enabled change behind.
+    scope = None
+    network_id = None
     if 'scope' in payload:
         scope = payload.get('scope')
         if scope not in ('podcast', 'network'):
             return error_response("scope must be 'podcast' or 'network'", 400)
-        network_id = None
         if scope == 'network':
             network_id = (payload.get('networkId') or '').strip()
             if not network_id:
                 return error_response('networkId is required to promote to network scope', 400)
+
+    db.update_cue_template(template_id, label=new_label, enabled=enabled)
+    if scope is not None:
         db.promote_cue_template(template_id, scope, network_id)
 
     row = db.get_cue_template(template_id)
@@ -459,9 +477,11 @@ def import_cue_template(slug):
     try:
         with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
             if wf.getnchannels() != 1:
-                return error_response('cue.wav must be mono', 400)
+                return error_response(
+                    f'cue.wav must be mono (1 channel), got {wf.getnchannels()}', 400)
             if wf.getsampwidth() != 2:
-                return error_response('cue.wav must be 16-bit PCM', 400)
+                return error_response(
+                    f'cue.wav must be 16-bit PCM (2 bytes/sample), got {wf.getsampwidth()}', 400)
             sr = wf.getframerate()
             if sr != SAMPLE_RATE_HZ:
                 return error_response(
@@ -487,7 +507,7 @@ def import_cue_template(slug):
         n_coeffs=N_COEFFS,
         mfcc_blob=serialize_mfcc(mfcc),
         pcm_blob=frames,
-        pcm_sample_rate=sr,
+        pcm_sample_rate=SAMPLE_RATE_HZ,
         created_by='import',
     )
     logger.info(f"Cue template imported: id={template_id} feed={slug} label={label!r}")

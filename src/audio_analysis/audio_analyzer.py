@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from .base import AudioAnalysisResult
 from .volume_analyzer import VolumeAnalyzer
 from .transition_detector import TransitionDetector
+from .cue_template_matcher import AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE
 
 # Import from utils for consistent audio duration implementation
 from utils.audio import get_audio_duration
@@ -135,9 +136,6 @@ class AudioAnalyzer:
                 if feed_id is not None else []
             )
             if templates:
-                from .cue_template_matcher import (
-                    AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
-                )
                 score = self.db.get_setting_float(
                     'audio_cue_template_score', DEFAULT_MATCH_SCORE,
                 )

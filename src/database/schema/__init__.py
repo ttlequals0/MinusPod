@@ -139,6 +139,29 @@ class SchemaMixin:
             )
         """)
 
+        # Create audio_cue_templates table if not exists (must match SCHEMA_SQL exactly, #350)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS audio_cue_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                podcast_id INTEGER NOT NULL,
+                label TEXT NOT NULL,
+                source_episode_id TEXT,
+                source_offset_s REAL NOT NULL,
+                duration_s REAL NOT NULL,
+                sample_rate INTEGER NOT NULL,
+                n_coeffs INTEGER NOT NULL,
+                mfcc_blob BLOB NOT NULL,
+                pcm_blob BLOB,
+                pcm_sample_rate INTEGER,
+                scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
+                network_id TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                created_by TEXT DEFAULT 'user',
+                FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+            )
+        """)
+
         # Create audio_fingerprints table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audio_fingerprints (

@@ -211,8 +211,3 @@ def _pick_cue_for_end(
             best = cue
             best_key = key
     return best
-
-
-# Backwards-compatible alias: existing callers and tests reference the
-# old name. The implementation now handles both edges.
-snap_ad_starts_to_cues = snap_ad_boundaries_to_cues

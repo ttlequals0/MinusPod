@@ -64,32 +64,6 @@ class CueTemplateMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def list_cue_templates(
-        self, podcast_id: int, include_disabled: bool = True,
-    ) -> List[Dict]:
-        """All templates owned by a feed; mfcc blob included so the matcher needs one read.
-
-        This is podcast-ownership only (the ``podcast_id`` column). For the set
-        the matcher should actually run -- which also pulls in network-scoped
-        templates that apply to this feed -- use
-        :meth:`list_active_cue_templates_for_feed`.
-        """
-        conn = self.get_connection()
-        if include_disabled:
-            cursor = conn.execute(
-                "SELECT * FROM audio_cue_templates WHERE podcast_id = ? "
-                "ORDER BY created_at DESC",
-                (podcast_id,),
-            )
-        else:
-            cursor = conn.execute(
-                "SELECT * FROM audio_cue_templates "
-                "WHERE podcast_id = ? AND enabled = 1 "
-                "ORDER BY created_at DESC",
-                (podcast_id,),
-            )
-        return [dict(row) for row in cursor.fetchall()]
-
     def list_active_cue_templates_for_feed(self, podcast_id: int) -> List[Dict]:
         """Enabled templates that apply to a feed, most-specific-first.
 
