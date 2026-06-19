@@ -21,7 +21,7 @@ from flask import abort, request, send_file
 
 from api import (
     api, log_request, json_response, error_response,
-    get_database, get_storage,
+    get_database, get_storage, _get_version,
 )
 from audio_analysis.cue_features import (
     SAMPLE_RATE_HZ, N_COEFFS, compute_mfcc, decode_pcm_window,
@@ -37,7 +37,6 @@ from config import (
     AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT,
 )
 from utils.validation import is_valid_episode_id
-from version import __version__
 
 # Cap on loud-spot markers returned to the capture UI.
 MAX_LOUD_SPOTS = 200
@@ -408,7 +407,7 @@ def export_cue_template(template_id):
 
     manifest = {
         'schemaVersion': CUE_TEMPLATE_SCHEMA_VERSION,
-        'appVersion': __version__,
+        'appVersion': _get_version(),
         'label': row['label'],
         'cueType': row['cue_type'] if 'cue_type' in row.keys() else AUDIO_CUE_TYPE_DEFAULT,
         'durationS': row['duration_s'],

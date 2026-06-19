@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.1] - 2026-06-18
+
+### Fixed
+
+- Container failed to boot on 2.9.0: `src/api/cue_templates.py` imported `version` at module top level, but `version.py` sits at the repo root and gunicorn runs from `/app/src`, so the repo root is not on `sys.path` in the container and every worker crashed with `ModuleNotFoundError: No module named 'version'`. Tests passed because pytest puts the repo root on the path. Now uses the existing container-safe `_get_version()` helper, matching how the rest of `src/` reads the version. 2.9.0 should not be deployed.
+
 ## [2.9.0] - 2026-06-18
 
 ### Added
