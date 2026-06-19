@@ -9,12 +9,70 @@ evidence alongside the transcript and makes all ad/not-ad decisions itself.
 import logging
 from typing import Optional
 
-from config import AUDIO_CUE_ROLE_DEFAULT, AUDIO_CUE_ROLE_NON_AD
+from config import (
+    AUDIO_CUE_ROLE_DEFAULT,
+    AUDIO_CUE_ROLE_NON_AD,
+    AUDIO_CUE_SOURCE_SPECTRAL,
+    AUDIO_CUE_SOURCE_TEMPLATE,
+    AUDIO_CUE_TYPE_SHOW_INTRO,
+    AUDIO_CUE_TYPE_SHOW_OUTRO,
+)
 
 logger = logging.getLogger('podcast.audio_enforcer')
 
 # Only include signals above this confidence in the prompt
 MIN_SIGNAL_CONFIDENCE = 0.80
+
+
+def content_anchors(audio_analysis):
+    """Return ``(pre_roll_boundary, post_roll_boundary)`` in seconds (#350).
+
+    ``pre_roll_boundary`` is the start of the earliest show-intro cue (the show
+    begins there, so audio before it is likely a pre-roll ad).
+    ``post_roll_boundary`` is the end of the latest show-outro cue (the show
+    ends there, so audio after it is likely a post-roll ad). Either is ``None``
+    when no qualifying cue exists. Only cues at/above the prompt confidence
+    floor count; these anchors bias the model, they never cut on their own.
+    """
+    if not audio_analysis or not getattr(audio_analysis, 'signals', None):
+        return None, None
+    pre = None
+    post = None
+    for s in audio_analysis.get_signals_by_type('audio_cue'):
+        if s.confidence < MIN_SIGNAL_CONFIDENCE:
+            continue
+        cue_type = (s.details or {}).get('cue_type')
+        if cue_type == AUDIO_CUE_TYPE_SHOW_INTRO:
+            pre = s.start if pre is None else min(pre, s.start)
+        elif cue_type == AUDIO_CUE_TYPE_SHOW_OUTRO:
+            post = s.end if post is None else max(post, s.end)
+    return pre, post
+
+
+def _positional_guidance(window_start, window_end, pre_roll_boundary,
+                         post_roll_boundary):
+    """Pre/post-roll bias for a window that sits outside the content span."""
+    notes = []
+    if pre_roll_boundary is not None and window_start < pre_roll_boundary:
+        notes.append(
+            f"The show's intro marker is at {pre_roll_boundary:.0f}s; audio in "
+            f"this window BEFORE that time is pre-roll, where promotional content "
+            f"is more likely an ad (the show has not started yet)."
+        )
+    if post_roll_boundary is not None and window_end > post_roll_boundary:
+        notes.append(
+            f"The show's outro marker is at {post_roll_boundary:.0f}s; audio in "
+            f"this window AFTER that time is post-roll, where promotional content "
+            f"is more likely an ad (the show has ended)."
+        )
+    if not notes:
+        return ""
+    return (
+        "\n=== POSITION ===\n"
+        + " ".join(notes)
+        + " This is a bias only -- you must still find promotional copy in the "
+        "transcript to flag an ad.\n"
+    )
 
 
 class AudioEnforcer:
@@ -73,14 +131,14 @@ class AudioEnforcer:
                 # are the show's own open/close and must NOT move an ad boundary.
                 details = signal.details or {}
                 label = details.get('label')
-                source = details.get('source', 'spectral')
+                source = details.get('source', AUDIO_CUE_SOURCE_SPECTRAL)
                 role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
                 if role == AUDIO_CUE_ROLE_NON_AD:
                     descriptor = f'"{label}" marker' if label else 'Show intro/outro marker'
                     suffix = "marks the show's open/close, NOT an ad boundary"
                     has_non_ad_cue = True
                 else:
-                    descriptor = f'"{label}" cue' if (source == 'template' and label) else 'Audio cue (ding/stinger)'
+                    descriptor = f'"{label}" cue' if (source == AUDIO_CUE_SOURCE_TEMPLATE and label) else 'Audio cue (ding/stinger)'
                     suffix = 'often just before an ad break'
                     has_ad_cue = True
                 lines.append(
@@ -88,8 +146,13 @@ class AudioEnforcer:
                     f"({suffix}, confidence {signal.confidence:.0%})"
                 )
 
+        pre_roll_boundary, post_roll_boundary = content_anchors(audio_analysis)
+        positional_guidance = _positional_guidance(
+            window_start, window_end, pre_roll_boundary, post_roll_boundary)
+
         if not lines:
-            return ""
+            # No in-window signals, but a pre/post-roll position bias may apply.
+            return positional_guidance
 
         header = (
             "\n=== AUDIO SIGNALS ===\n"
@@ -125,4 +188,5 @@ class AudioEnforcer:
             "at it.\n"
         ) if has_non_ad_cue else ""
 
-        return header + "\n".join(lines) + "\n" + cue_guidance + non_ad_guidance
+        return (header + "\n".join(lines) + "\n"
+                + cue_guidance + non_ad_guidance + positional_guidance)

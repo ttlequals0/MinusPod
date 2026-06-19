@@ -64,6 +64,7 @@ export interface EpisodeDetail extends Episode {
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
   corrections?: EpisodeCorrection[];
+  cueDetections?: CueDetection[];
   originalDuration?: number;
   newDuration?: number;
   timeSaved?: number;
@@ -77,6 +78,24 @@ export interface EpisodeDetail extends Episode {
   inputTokens?: number;
   outputTokens?: number;
   llmCost?: number;
+}
+
+// Per-cue detection telemetry (#350 follow-up). One row per template cue the
+// matcher surfaced, with how detection used it and the user's review verdict.
+// Advisory only -- a verdict never changes the cut list.
+export interface CueDetection {
+  id: number;
+  template_id?: number | null;
+  label?: string | null;
+  cue_type?: string | null;
+  role?: string | null;
+  source: string;
+  start_s: number;
+  end_s: number;
+  match_score?: number | null;
+  confidence?: number | null;
+  outcome: 'snap' | 'pair' | 'none';
+  verdict: 'pending' | 'confirmed' | 'rejected';
 }
 
 export interface AdValidation {

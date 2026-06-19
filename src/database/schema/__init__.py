@@ -1324,6 +1324,50 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"audio_cue_templates table creation: {e}")
 
+        # Per-cue detection telemetry (#350 follow-up). Advisory-only table; no
+        # data loss risk (additive, never touched by other migrations). DDL kept
+        # byte-identical to SCHEMA_SQL in tables.py.
+        try:
+            fresh_cd = not self._table_exists(conn, 'cue_detections')
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cue_detections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    podcast_id INTEGER NOT NULL,
+                    episode_id TEXT NOT NULL,
+                    template_id INTEGER,
+                    label TEXT,
+                    cue_type TEXT,
+                    role TEXT,
+                    source TEXT NOT NULL DEFAULT 'template',
+                    start_s REAL NOT NULL,
+                    end_s REAL NOT NULL,
+                    match_score REAL,
+                    confidence REAL,
+                    outcome TEXT NOT NULL DEFAULT 'none' CHECK(outcome IN ('snap', 'pair', 'none')),
+                    verdict TEXT NOT NULL DEFAULT 'pending' CHECK(verdict IN ('pending', 'confirmed', 'rejected')),
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cue_detections_episode "
+                "ON cue_detections(episode_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cue_detections_feed "
+                "ON cue_detections(podcast_id, created_at DESC)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cue_detections_template "
+                "ON cue_detections(template_id)"
+            )
+            conn.commit()
+            if fresh_cd:
+                logger.info("Migration: Created cue_detections table")
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"cue_detections table creation: {e}")
+
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 

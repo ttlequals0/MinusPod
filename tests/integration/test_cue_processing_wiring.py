@@ -27,6 +27,7 @@ def _cue(start, end, conf=0.95, label='ding'):
 class _StubDB:
     def __init__(self, create_from_pairs):
         self._bools = {'audio_cue_create_from_pairs': create_from_pairs}
+        self.recorded = []
 
     def get_setting_bool(self, key, default=False):
         return self._bools.get(key, default)
@@ -39,6 +40,10 @@ class _StubDB:
 
     def upsert_episode(self, *a, **k):
         return 1
+
+    def record_cue_detections(self, podcast_id, episode_id, records):
+        self.recorded.append((podcast_id, episode_id, records))
+        return len(records)
 
 
 def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
@@ -60,7 +65,7 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
         _cue(360.0, 360.5),
     ]
 
-    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345')
+    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
     ads, count, _ = processing._detect_ads_first_pass(
         ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
         audio_analysis_result=analysis, progress_callback=None,
@@ -76,6 +81,13 @@ def test_first_pass_applies_cue_pair_and_snap(monkeypatch):
     assert 'cue_snap' in llm
     assert abs(llm['start'] - 99.55) < 0.01   # cue end (99.5) + 0.05 lead
 
+    # Telemetry wiring: every template cue recorded with its outcome (proves
+    # the pipeline calls build_cue_detection_records + record_cue_detections).
+    assert len(processing.db.recorded) == 1
+    pid, eid, records = processing.db.recorded[0]
+    assert pid == 1 and eid == 'abcdef012345'
+    assert sorted(r['outcome'] for r in records) == ['pair', 'pair', 'snap', 'snap']
+
 
 def test_first_pass_no_cue_pair_when_setting_off(monkeypatch):
     from main_app import processing
@@ -90,7 +102,7 @@ def test_first_pass_no_cue_pair_when_setting_off(monkeypatch):
     analysis = AudioAnalysisResult()
     analysis.signals = [_cue(300.0, 300.5), _cue(360.0, 360.5)]
 
-    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345')
+    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
     ads, _, _ = processing._detect_ads_first_pass(
         ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
         audio_analysis_result=analysis, progress_callback=None,

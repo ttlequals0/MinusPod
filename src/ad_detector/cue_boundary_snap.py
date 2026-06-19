@@ -20,8 +20,10 @@ from typing import Dict, List, Optional
 from config import (
     AUDIO_CUE_SNAP_CONFIDENCE,
     AUDIO_CUE_ROLE_DEFAULT,
+    AUDIO_CUE_SOURCE_SPECTRAL,
     AUDIO_CUE_START_EDGE_ROLES,
     AUDIO_CUE_END_EDGE_ROLES,
+    is_template_cue,
 )
 
 logger = logging.getLogger('podcast.claude.cue_snap')
@@ -63,7 +65,7 @@ def _snap_record(original: float, proposed: float, cue) -> Dict:
         'shift_seconds': round(proposed - original, 3),
         'template_id': details.get('template_id'),
         'label': details.get('label'),
-        'source': details.get('source', 'spectral'),
+        'source': details.get('source', AUDIO_CUE_SOURCE_SPECTRAL),
     }
 
 
@@ -94,7 +96,13 @@ def snap_ad_boundaries_to_cues(
     cues = audio_analysis_result.get_signals_by_type('audio_cue') if audio_analysis_result else []
     if not cues:
         return ads
-    cues = [c for c in cues if c.confidence >= min_confidence]
+    # Only template cues may move an ad edge. Spectral-fallback cues (no
+    # 'source' key) are too coarse to trust for boundary placement; they stay
+    # LLM-prompt evidence only, consistent with cue-pair synthesis.
+    cues = [
+        c for c in cues
+        if c.confidence >= min_confidence and is_template_cue(c.details)
+    ]
     if not cues:
         return ads
 

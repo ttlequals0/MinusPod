@@ -55,3 +55,42 @@ def test_intro_outro_cue_renders_non_ad_guidance():
     assert 'SHOW INTRO/OUTRO MARKERS' in out
     # And it does not pull in the ad-break cue guidance on its own.
     assert 'LABELLED AUDIO CUES' not in out
+
+
+# ---------------------------------------------------------------------------
+# Pre/post-roll positional anchors from show intro/outro cues
+# ---------------------------------------------------------------------------
+
+def _anchor_cue(start, end, cue_type, conf=0.95):
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'source': 'template', 'cue_type': cue_type,
+                 'role': 'non_ad', 'label': cue_type},
+    )
+
+
+def test_preroll_window_gets_position_bias():
+    enforcer = AudioEnforcer()
+    result = _result_with(_anchor_cue(30.0, 33.0, 'show_intro'))
+    # Window entirely before the intro -> pre-roll bias even with no in-window cue.
+    out = enforcer.format_for_window(result, 0.0, 25.0)
+    assert '=== POSITION ===' in out
+    assert 'pre-roll' in out
+
+
+def test_postroll_window_gets_position_bias():
+    enforcer = AudioEnforcer()
+    result = _result_with(_anchor_cue(3500.0, 3504.0, 'show_outro'))
+    out = enforcer.format_for_window(result, 3600.0, 3700.0)
+    assert 'post-roll' in out
+
+
+def test_in_content_window_has_no_position_bias():
+    enforcer = AudioEnforcer()
+    result = _result_with(
+        _anchor_cue(30.0, 33.0, 'show_intro'),
+        _anchor_cue(3500.0, 3504.0, 'show_outro'),
+    )
+    # A window well inside the content span gets no positional block.
+    out = enforcer.format_for_window(result, 1000.0, 1100.0)
+    assert '=== POSITION ===' not in out

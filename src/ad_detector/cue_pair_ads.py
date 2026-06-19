@@ -27,6 +27,7 @@ from config import (
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_START_EDGE_ROLES,
     AUDIO_CUE_END_EDGE_ROLES,
+    is_template_cue,
 )
 
 logger = logging.getLogger('podcast.claude.cue_pair')
@@ -85,8 +86,12 @@ def synthesize_ads_from_cue_pairs(
     if not audio_analysis_result:
         return list(ads)
     raw_cues = audio_analysis_result.get_signals_by_type('audio_cue')
-    # Keep every cue above the confidence floor; the opener/closer role checks
-    # below exclude 'non_ad' (intro/outro) cues, so no separate filter is needed.
+    # Only precise template cues may *create* ads. Spectral-fallback cues (no
+    # 'source' key) are too coarse to synthesize from: on a no-template feed a
+    # dense burst section pairs them into dozens of overlapping false ads. They
+    # still inform the LLM prompt as supporting evidence; they just cannot mint
+    # an ad on their own. The opener/closer role checks below additionally
+    # exclude 'non_ad' (intro/outro) cues.
     cues = sorted(
         (_Cue(
             start=float(c.start),
@@ -95,7 +100,8 @@ def synthesize_ads_from_cue_pairs(
             label=(c.details or {}).get('label'),
             template_id=(c.details or {}).get('template_id'),
             role=(c.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT),
-        ) for c in raw_cues if c.confidence >= min_confidence),
+        ) for c in raw_cues
+        if c.confidence >= min_confidence and is_template_cue(c.details)),
         key=lambda x: x.start,
     )
     if len(cues) < 2:
@@ -128,7 +134,7 @@ def synthesize_ads_from_cue_pairs(
                 break
             synth_start = round(cue_a.end + 0.05, 3)
             synth_end = round(cue_b.start - 0.05, 3)
-            if _covered_by_existing_ad(ads, synth_start, synth_end):
+            if _covered_by_existing_ad(new_ads, synth_start, synth_end):
                 consumed[i] = True
                 consumed[j] = True
                 break
@@ -178,7 +184,12 @@ def synthesize_ads_from_cue_pairs(
 
 
 def _covered_by_existing_ad(ads: List[Dict], start: float, end: float) -> bool:
-    """True iff an existing LLM ad overlaps ``[start, end]`` within the tolerance."""
+    """True iff an existing ad overlaps ``[start, end]`` within the tolerance.
+
+    ``ads`` is the growing list (input LLM ads plus already-synthesized spans),
+    so this both skips pairs an LLM ad already covers and prevents a clustered
+    or duplicated cue list from minting overlapping synthetic ads.
+    """
     for ad in ads:
         try:
             a_start = float(ad['start'])

@@ -330,6 +330,33 @@ CREATE TABLE IF NOT EXISTS audio_cue_templates (
 );
 CREATE INDEX IF NOT EXISTS idx_cue_templates_feed ON audio_cue_templates(podcast_id, enabled);
 CREATE INDEX IF NOT EXISTS idx_cue_templates_scope ON audio_cue_templates(scope, network_id, podcast_id) WHERE enabled = 1;
+
+-- cue_detections (per-cue telemetry, #350 follow-up). One row per template cue
+-- the matcher surfaced for an episode, with the match score and how detection
+-- used it (snap / pair / none) plus the user's review verdict. Advisory only:
+-- nothing here changes the cut list; it lets the user judge a feed's cues and
+-- tune thresholds. Rows for an episode are replaced on reprocess.
+CREATE TABLE IF NOT EXISTS cue_detections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL,
+    episode_id TEXT NOT NULL,
+    template_id INTEGER,
+    label TEXT,
+    cue_type TEXT,
+    role TEXT,
+    source TEXT NOT NULL DEFAULT 'template',
+    start_s REAL NOT NULL,
+    end_s REAL NOT NULL,
+    match_score REAL,
+    confidence REAL,
+    outcome TEXT NOT NULL DEFAULT 'none' CHECK(outcome IN ('snap', 'pair', 'none')),
+    verdict TEXT NOT NULL DEFAULT 'pending' CHECK(verdict IN ('pending', 'confirmed', 'rejected')),
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_cue_detections_episode ON cue_detections(episode_id);
+CREATE INDEX IF NOT EXISTS idx_cue_detections_feed ON cue_detections(podcast_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cue_detections_template ON cue_detections(template_id);
 """
 
 # Indexes that depend on columns added by migrations - created separately

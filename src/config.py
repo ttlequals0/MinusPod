@@ -220,6 +220,18 @@ AUDIO_CUE_TYPES = {
     'show_outro': ('show outro', 'non_ad'),
 }
 AUDIO_CUE_TYPE_DEFAULT = 'ad_break_boundary'
+# The two non_ad types that anchor where show content begins / ends. Audio
+# before the first intro or after the last outro is biased toward pre/post-roll
+# ads in the prompt (#350 follow-up).
+AUDIO_CUE_TYPE_SHOW_INTRO = 'show_intro'
+AUDIO_CUE_TYPE_SHOW_OUTRO = 'show_outro'
+# Per-type capture ceiling (seconds). Intro/outro stingers run longer than
+# ad-break dings, so they get a higher ceiling; every other type falls back to
+# the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default.
+AUDIO_CUE_CAPTURE_MAX_BY_TYPE = {
+    AUDIO_CUE_TYPE_SHOW_INTRO: 10.0,
+    AUDIO_CUE_TYPE_SHOW_OUTRO: 10.0,
+}
 
 
 def audio_cue_type_label(cue_type):
@@ -239,6 +251,16 @@ def audio_cue_type_role(cue_type):
 # the default type's role.
 AUDIO_CUE_ROLE_DEFAULT = audio_cue_type_role(AUDIO_CUE_TYPE_DEFAULT)  # 'boundary'
 AUDIO_CUE_ROLE_NON_AD = 'non_ad'  # intro/outro: never snaps or pairs
+# Cue signal source: a precise template match vs the coarse spectral fallback.
+# Only template cues may create ads or move ad edges; spectral cues are
+# LLM-prompt evidence only. Centralized so the gate is never re-typed.
+AUDIO_CUE_SOURCE_TEMPLATE = 'template'
+AUDIO_CUE_SOURCE_SPECTRAL = 'spectral'
+
+
+def is_template_cue(details):
+    """True if a cue's ``details`` mark it as a precise template match."""
+    return (details or {}).get('source') == AUDIO_CUE_SOURCE_TEMPLATE
 # Roles eligible to move each ad edge. Snap uses them per edge; cue-pair uses
 # the start set as openers and the end set as closers, so the all-boundary case
 # behaves as before and a 'start' cue can only open while an 'end' can only close.

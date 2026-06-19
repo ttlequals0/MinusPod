@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-06-19
+
+### Fixed
+
+- Cue-pair synthesis over-flagged a reprocessed episode into 42 ads, cutting a 61-minute show to 19 minutes. With `audio_cue_create_from_pairs` on, the synthesizer paired every `audio_cue` signal, including the coarse spectral fallback's. On a feed with no cue templates a dense burst of spectral cues paired into dozens of overlapping junk spans. Synthesis and boundary snap now act only on precise template cues; spectral cues stay prompt evidence and never mint or move a cut. Synthesized spans also dedup against each other, not just against the LLM's ads, so a clustered cue list can no longer produce overlapping duplicates.
+
+### Added
+
+- Cue Detections panel on the episode page. It lists every template cue the matcher surfaced, with the match score and how detection used the cue (paired into an ad, snapped an edge, or unused), and a confirm/reject verdict. Verdicts are advisory template-quality signals and never change the cut. The rows live in a new `cue_detections` table created automatically on upgrade.
+- Per-feed cue health on the feed page: match-score range, confirm rate, and paired/snapped counts, so you can judge a feed's cues before enabling cue-pair synthesis. The same data is available in aggregate via `GET /cue-detections/aggregate` for threshold tuning.
+- Intro/outro positional anchoring. The first show-intro cue marks where content starts and the last show-outro marks where it ends; the detector and reviewer treat audio before the first intro or after the last outro as more likely a pre/post-roll ad. It is a prompt bias, not an automatic cut.
+- Show-intro and show-outro cues can be captured up to 10 seconds (ad-break types stay at 4), since station idents and theme stings run longer than a break ding.
+
+### Changed
+
+- The Rejected Detections list on the episode page is collapsed by default.
+- A Docs link sits next to the existing API Docs link on the Settings page, pointing at the project documentation.
+
 ## [2.9.2] - 2026-06-19
 
 ### Fixed

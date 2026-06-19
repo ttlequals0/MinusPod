@@ -136,3 +136,43 @@ def test_intro_outro_cues_never_pair():
         _typed_cue(220.0, 220.5, 'non_ad'),
     )
     assert synthesize_ads_from_cue_pairs([], result) == []
+
+
+# ---------------------------------------------------------------------------
+# Source gating + synthesized-span dedup (over-flagging fix)
+# ---------------------------------------------------------------------------
+
+def _spectral_cue(start, end, conf=0.9):
+    # Spectral-fallback cues carry no 'source' key (band-pass burst detector).
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'prominence_db': 8.0, 'baseline_lufs': -30.0,
+                 'band_hz': [800, 2000]},
+    )
+
+
+def test_spectral_cues_never_synthesize():
+    # The over-flagging bug: on a no-template feed spectral cues paired into
+    # dozens of overlapping false ads. Source-gating yields zero synthesis even
+    # for a dense, perfectly pairable cluster.
+    result = _result_with(
+        _spectral_cue(100.0, 100.5),
+        _spectral_cue(200.0, 200.5),
+        _spectral_cue(300.0, 300.5),
+        _spectral_cue(400.0, 400.5),
+    )
+    assert synthesize_ads_from_cue_pairs([], result) == []
+
+
+def test_duplicate_cues_do_not_make_overlapping_ads():
+    # Near-duplicate template cues (cross-chunk match overlap) must not mint
+    # overlapping synthetic ads: each synthesized span dedups against the ones
+    # already produced, not just the input LLM ads.
+    result = _result_with(
+        _cue(100.0, 100.5),
+        _cue(100.3, 100.8),
+        _cue(200.0, 200.5),
+        _cue(200.3, 200.8),
+    )
+    ads = synthesize_ads_from_cue_pairs([], result)
+    assert len(ads) == 1

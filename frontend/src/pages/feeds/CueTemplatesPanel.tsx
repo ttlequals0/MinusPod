@@ -18,6 +18,7 @@ import {
   type CueTemplateScope,
   type CueTemplateType,
 } from '../../api/cueTemplates';
+import { getCueFeedAdvisory } from '../../api/cueDetections';
 import { getEpisode, getEpisodes, getFeed, getFeeds } from '../../api/feeds';
 import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
@@ -84,6 +85,14 @@ function CueTemplatesPanel({ slug }: Props) {
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
   const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 4;
+
+  // Per-feed cue health, so the user can judge a feed's cues before enabling
+  // cue-pair synthesis (#350 follow-up). Empty until episodes are processed.
+  const advisoryQuery = useQuery({
+    queryKey: ['cue-advisory', slug],
+    queryFn: () => getCueFeedAdvisory(slug),
+    enabled: !!slug,
+  });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
@@ -394,6 +403,32 @@ function CueTemplatesPanel({ slug }: Props) {
               </li>
             ))}
           </ul>
+        )}
+
+        {advisoryQuery.data && advisoryQuery.data.total > 0 && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <h4 className="text-sm font-semibold text-foreground mb-1">Cue health</h4>
+            <p className="text-xs text-muted-foreground mb-3">
+              How this feed's cues have performed across processed episodes -- use
+              it to judge whether to enable cue-pair synthesis.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {([
+                ['Detections', String(advisoryQuery.data.total)],
+                ['Paired / Snapped', `${advisoryQuery.data.paired} / ${advisoryQuery.data.snapped}`],
+                ['Confirm rate', advisoryQuery.data.confirmRate != null
+                  ? `${Math.round(advisoryQuery.data.confirmRate * 100)}%` : '--'],
+                ['Score range', advisoryQuery.data.minScore != null
+                  ? `${Math.round(advisoryQuery.data.minScore * 100)}-${Math.round((advisoryQuery.data.maxScore ?? 0) * 100)}%`
+                  : '--'],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
+                  <div className="text-xs text-muted-foreground">{label}</div>
+                  <div className="text-sm font-semibold text-foreground">{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </CollapsibleSection>
 

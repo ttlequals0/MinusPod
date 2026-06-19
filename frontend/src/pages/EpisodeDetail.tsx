@@ -12,6 +12,7 @@ import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
+import CueDetectionsSection from '../components/CueDetectionsSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage } from './settings/settingsUtils';
 
@@ -622,13 +623,13 @@ function EpisodeDetail() {
       )}
 
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6">
-          <h2 className="text-xl font-semibold text-foreground mb-4">
-            Rejected Detections ({episode.rejectedAdMarkers.length})
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              - kept in audio
-            </span>
-          </h2>
+        <div className="mb-6">
+          <CollapsibleSection
+            title={`Rejected Detections (${episode.rejectedAdMarkers.length})`}
+            subtitle="Flagged but kept in audio -- failed validation"
+            defaultOpen={false}
+            storageKey="episode-rejected-detections"
+          >
           <p className="text-sm text-muted-foreground mb-4">
             These detections were flagged but not removed due to validation failures.
           </p>
@@ -736,6 +737,17 @@ function EpisodeDetail() {
               </div>
             ))}
           </div>
+          </CollapsibleSection>
+        </div>
+      )}
+
+      {episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId && (
+        <div className="mb-6">
+          <CueDetectionsSection
+            slug={slug}
+            episodeId={episodeId}
+            detections={episode.cueDetections}
+          />
         </div>
       )}
 

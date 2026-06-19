@@ -16,6 +16,7 @@ from ad_detector import (
 )
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
+from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_reviewer import (
     AdReviewer, ReviewVerdict, split_resurrection_pool,
 )
@@ -433,6 +434,19 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         except Exception as e:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Cue boundary snap skipped: {e}"
+            )
+
+    # Record per-cue detection telemetry (advisory only; never alters the cuts).
+    # Captures every template cue with its match score and how detection used it
+    # (snap / pair / none) so the user can judge a feed's cues and tune thresholds.
+    podcast_id = getattr(ctx, 'podcast_id', None)
+    if audio_analysis_result and podcast_id:
+        try:
+            records = build_cue_detection_records(first_pass_ads, audio_analysis_result)
+            db.record_cue_detections(podcast_id, episode_id, records)
+        except Exception as e:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Cue detection telemetry skipped: {e}"
             )
 
     return first_pass_ads, len(first_pass_ads), ad_result

@@ -16,6 +16,7 @@ from config import (
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
 )
+from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_client import get_llm_max_retries, get_llm_timeout
@@ -187,6 +188,26 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
             lines.append(
                 "Do not anchor this ad's boundary to these markers; they are the "
                 "show's own intro/outro, not break stingers."
+            )
+        # Pre/post-roll position bias: an ad wholly outside the content span
+        # (before the first intro or after the last outro) is expected to be
+        # promotional, so lean toward keeping it.
+        pre_roll_boundary, post_roll_boundary = content_anchors(audio_analysis)
+        position_notes = []
+        if pre_roll_boundary is not None and ad_end <= pre_roll_boundary:
+            position_notes.append(
+                f"before the show's intro marker at {pre_roll_boundary:.0f}s "
+                f"(pre-roll zone)"
+            )
+        if post_roll_boundary is not None and ad_start >= post_roll_boundary:
+            position_notes.append(
+                f"after the show's outro marker at {post_roll_boundary:.0f}s "
+                f"(post-roll zone)"
+            )
+        if position_notes:
+            lines.append(
+                "POSITION: this ad sits " + " and ".join(position_notes)
+                + " -- promotional copy here is expected; lean toward keeping it."
             )
     if cue_pair:
         start_label = (cue_pair.get('start') or {}).get('label')

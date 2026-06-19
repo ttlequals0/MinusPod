@@ -15,6 +15,7 @@ import {
   getEpisodeLoudSpots,
   previewCueTemplate,
   CUE_TYPE_OPTIONS,
+  captureMaxForType,
   type CueTemplate,
   type CueTemplateMatch,
   type CueTemplateType,
@@ -59,7 +60,6 @@ function CueMarkModal({
   captureMaxSeconds = DEFAULT_MAX_REGION_SECONDS,
 }: CueMarkModalProps) {
   const MIN_REGION_SECONDS = captureMinSeconds;
-  const MAX_REGION_SECONDS = captureMaxSeconds;
   // Window always covers the entire episode -- zoom widens the inner
   // wavesurfer canvas inside an overflow-x scroller, with the scroll
   // following the playhead, so the user always sees the whole episode at
@@ -85,6 +85,12 @@ function CueMarkModal({
   const [startEditing, setStartEditing] = useState(false);
   const [endEditing, setEndEditing] = useState(false);
   const [cueType, setCueType] = useState<CueTemplateType>('ad_break_boundary');
+  // Capture ceiling follows the cue type: intro/outro stingers get a longer
+  // allowance than ad-break dings (mirrors the server-side bound).
+  const MAX_REGION_SECONDS = useMemo(
+    () => captureMaxForType(cueType, captureMaxSeconds),
+    [cueType, captureMaxSeconds],
+  );
   const [zoom, setZoom] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);

@@ -26,3 +26,67 @@
 # Revisit if: CTranslate2 / faster-whisper are upgraded, or if MinusPod
 # ever starts loading user-supplied torch artifacts.
 CVE-2025-3730
+
+
+# linux-libc-dev kernel CVEs (HIGH/CRITICAL, no upstream fix yet) -- 2026-06-19
+# ----------------------------------------------------------------------------
+# Every entry below is in linux-libc-dev, the Ubuntu 24.04 kernel-headers
+# package pulled in by the build toolchain. They describe host-kernel
+# vulnerabilities; a container image cannot patch the running kernel, and
+# Ubuntu has published no fixed version (Trivy status "affected", FixedVersion
+# empty). None is in an application dependency and none was introduced by
+# MinusPod code -- they are freshly-disclosed 2026 kernel CVEs that entered
+# Trivy's database after 2.9.2 was scanned. The kernel that actually runs is
+# the host's, on the host's patch cadence, not this image's headers.
+#
+# Revisit when Ubuntu ships fixes (FixedVersion will populate) and drop the
+# corresponding IDs.
+CVE-2025-40190
+CVE-2025-54518
+CVE-2025-71315
+CVE-2026-23240
+CVE-2026-23428
+CVE-2026-23450
+CVE-2026-23455
+CVE-2026-31402
+CVE-2026-31405
+CVE-2026-31413
+CVE-2026-31414
+CVE-2026-31436
+CVE-2026-31478
+CVE-2026-31536
+CVE-2026-31607
+CVE-2026-31637
+CVE-2026-31657
+CVE-2026-31659
+CVE-2026-31669
+CVE-2026-31705
+CVE-2026-43011
+CVE-2026-43037
+CVE-2026-43038
+CVE-2026-43083
+CVE-2026-43084
+CVE-2026-43185
+CVE-2026-43186
+CVE-2026-43198
+CVE-2026-43304
+CVE-2026-43341
+CVE-2026-43378
+CVE-2026-43406
+CVE-2026-43407
+CVE-2026-43493
+CVE-2026-43501
+CVE-2026-45972
+CVE-2026-45988
+CVE-2026-46043
+CVE-2026-46119
+CVE-2026-46135
+CVE-2026-46185
+CVE-2026-46195
+CVE-2026-46259
+CVE-2026-46273
+CVE-2026-46274
+CVE-2026-46275
+CVE-2026-46304
+CVE-2026-46319
+CVE-2026-46320

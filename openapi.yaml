@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.9.2
+  version: 2.10.0
   contact:
     name: MinusPod
   license:
@@ -4929,6 +4929,98 @@ paths:
         '404':
           description: Feed or original audio not found
 
+  /cue-detections/{detectionId}/verdict:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Confirm, reject, or reset a cue detection's review verdict
+      description: |
+        Advisory template-quality signal only. A verdict never changes an
+        episode's cut list; it records whether a template cue matched a real ad
+        boundary so a feed's cues can be judged and thresholds tuned.
+      operationId: setCueDetectionVerdict
+      parameters:
+        - name: detectionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verdict]
+              properties:
+                verdict:
+                  type: string
+                  enum: [pending, confirmed, rejected]
+      responses:
+        '200':
+          description: Updated verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  verdict:
+                    type: string
+                    enum: [pending, confirmed, rejected]
+        '400':
+          description: Invalid verdict
+        '404':
+          description: Cue detection not found
+
+  /feeds/{slug}/cue-detections/advisory:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Per-feed cue health summary
+      description: Outcome and verdict counts, match-score range, and confirm rate across the feed's processed episodes.
+      operationId: getCueFeedAdvisory
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Per-feed cue advisory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CueAdvisory'
+        '404':
+          description: Feed not found
+
+  /cue-detections/aggregate:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Global cue telemetry for threshold tuning
+      description: The per-feed advisory shape across all feeds, plus a match-score histogram.
+      operationId: getCueDetectionsAggregate
+      responses:
+        '200':
+          description: Aggregate cue telemetry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CueAdvisory'
+                  - type: object
+                    properties:
+                      scoreHistogram:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            scoreFrom:
+                              type: number
+                            count:
+                              type: integer
+
 security:
   - sessionCookie: []
 
@@ -5260,6 +5352,11 @@ components:
               description: Ads flagged but kept in audio (REJECT decision due to low confidence, invalid duration, etc.)
               items:
                 $ref: '#/components/schemas/AdMarker'
+            cueDetections:
+              type: array
+              description: Template cue detections for this episode (advisory telemetry; never changes the cut)
+              items:
+                $ref: '#/components/schemas/CueDetection'
             transcriptAvailable:
               type: boolean
             originalTranscriptAvailable:
@@ -5280,6 +5377,78 @@ components:
             llmCost:
               type: number
               description: Estimated LLM cost in USD for processing this episode
+
+    CueDetection:
+      type: object
+      description: One template cue the matcher surfaced for an episode (advisory telemetry).
+      properties:
+        id:
+          type: integer
+        template_id:
+          type: integer
+          nullable: true
+        label:
+          type: string
+          nullable: true
+        cue_type:
+          type: string
+          nullable: true
+          enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro]
+        role:
+          type: string
+          nullable: true
+        source:
+          type: string
+          description: Always 'template'; spectral cues are not recorded
+        start_s:
+          type: number
+        end_s:
+          type: number
+        match_score:
+          type: number
+          nullable: true
+        confidence:
+          type: number
+          nullable: true
+        outcome:
+          type: string
+          enum: [snap, pair, none]
+          description: How detection used the cue
+        verdict:
+          type: string
+          enum: [pending, confirmed, rejected]
+
+    CueAdvisory:
+      type: object
+      description: Aggregate cue telemetry for a feed (or globally).
+      properties:
+        total:
+          type: integer
+        snapped:
+          type: integer
+        paired:
+          type: integer
+        unused:
+          type: integer
+        confirmed:
+          type: integer
+        rejected:
+          type: integer
+        pending:
+          type: integer
+        avgScore:
+          type: number
+          nullable: true
+        minScore:
+          type: number
+          nullable: true
+        maxScore:
+          type: number
+          nullable: true
+        confirmRate:
+          type: number
+          nullable: true
+          description: confirmed / (confirmed + rejected), or null if none reviewed
 
     AdMarker:
       type: object

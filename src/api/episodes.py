@@ -178,6 +178,12 @@ def get_episode(slug, episode_id):
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode_id)
 
+    # Per-cue detection telemetry (advisory: template matches with score, how
+    # detection used each cue, and the user's verdict). Empty for episodes
+    # processed before cue templates existed.
+    cue_detections = db.list_cue_detections_for_episode(
+        episode['podcast_id'], episode_id)
+
     return json_response({
         'id': episode['episode_id'],
         'episodeId': episode['episode_id'],
@@ -203,6 +209,7 @@ def get_episode(slug, episode_id):
         'adMarkers': ad_markers,
         'rejectedAdMarkers': rejected_ad_markers,
         'corrections': corrections,
+        'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

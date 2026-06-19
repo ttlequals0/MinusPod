@@ -170,3 +170,26 @@ def test_non_ad_cue_never_snaps_either_edge():
     snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
     assert ads[0]['start'] == 100.0 and ads[0]['end'] == 160.0
     assert 'cue_snap' not in ads[0]
+
+
+# ---------------------------------------------------------------------------
+# Source gating (only template cues may move an edge)
+# ---------------------------------------------------------------------------
+
+def _spectral_cue(start, end, conf=0.9):
+    # Spectral-fallback cues carry no 'source' key.
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'prominence_db': 8.0, 'baseline_lufs': -30.0,
+                 'band_hz': [800, 2000]},
+    )
+
+
+def test_spectral_cue_does_not_snap_edge():
+    # A coarse spectral cue sitting exactly where a template cue would snap
+    # must not move the edge -- consistent with cue-pair source gating.
+    ads = [{'start': 100.0, 'end': 160.0}]
+    result = _result_with(_spectral_cue(98.0, 99.5))
+    snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
+    assert ads[0]['start'] == 100.0
+    assert 'cue_snap' not in ads[0]
