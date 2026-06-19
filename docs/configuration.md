@@ -163,7 +163,7 @@ The Stats page shows an Avg Audio Cues card and a Total Audio Cues figure. Both 
 
 Reprocessing an episode re-runs detection without re-fetching it from the source feed. Three modes are available from the episode menu and from the bulk feed actions:
 
-- **Reprocess** - uses the learned pattern database plus the LLM. Fastest path for routine re-detection.
+- **Reprocess** - uses the learned pattern database plus the LLM. Fastest option for routine re-detection.
 - **Full Analysis** - skips the pattern database for a fresh LLM-only pass.
 - **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped. Use it to iterate on detection settings or models without paying for transcription each time.
 

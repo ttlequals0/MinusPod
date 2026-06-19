@@ -4,7 +4,7 @@
 
 ---
 
-## Remote Access / Security
+## Remote access / security
 
 The docker-compose includes an optional Cloudflare tunnel service for secure remote access without port forwarding:
 
@@ -40,7 +40,7 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 
 Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. Treat the WARN as load-bearing: if you're behind a reverse proxy and it's still firing after a deploy, your lockout and rate limits are not working.
 
-### Security Recommendations
+### Security recommendations
 
 Operator checklist:
 
@@ -69,7 +69,7 @@ Rate limits are tracked per worker (memory-backed), so with the default two work
 
 Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response makes log lookup one `grep` instead of a guessing game. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
 
-## Data Storage
+## Data storage
 
 All data is stored in the `./data` directory:
 - `podcast.db` - SQLite database with feeds, episodes, and settings
@@ -122,7 +122,7 @@ curl -b cookies.txt https://your-minuspod/api/v1/patterns/export?include_correct
 
 `POST /api/v1/patterns/import` runs validation on the entire payload before any writes and wraps the delete/update/insert pass in a single `BEGIN IMMEDIATE` transaction. A malformed entry or mid-transaction error rolls back to the pre-import state; `replace` mode can no longer leave an empty pattern table on a bad payload. Modes are `merge` (update matches, add new), `replace` (wipe then import), or `supplement` (add new only).
 
-## Custom Assets (Optional)
+## Custom assets (optional)
 
 By default, a short audio marker is played where ads were removed. You can customize this by providing your own replacement audio:
 

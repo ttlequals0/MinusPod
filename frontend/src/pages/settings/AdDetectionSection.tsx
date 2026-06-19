@@ -31,7 +31,7 @@ function AdDetectionSection({
             <span>More Conservative (95%)</span>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            Controls how confident the system must be before removing an ad.
+            How confident the system must be before removing an ad.
             Lower values remove more potential ads but may include false positives.
           </p>
         </div>

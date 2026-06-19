@@ -1375,7 +1375,7 @@ function AdReviewModal({
             <label className="block text-sm font-medium text-foreground">
               Text template
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                (auto-populated from the transcript; edit before save)
+                (filled from the transcript; edit before save)
               </span>
               <textarea
                 value={textTemplateInput}
@@ -1407,7 +1407,7 @@ function AdReviewModal({
             <label htmlFor="sponsor" className="block text-sm font-medium text-foreground mb-1">
               Sponsor name
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                (so this confirmation can train Stage 2 - leave blank to skip pattern creation)
+                (trains Stage 2; leave blank to skip pattern creation)
               </span>
             </label>
             <input

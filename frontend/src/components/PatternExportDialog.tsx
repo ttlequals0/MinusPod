@@ -170,7 +170,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
         <div className="p-6 pb-3 border-b border-border">
           <h2 className="text-lg font-semibold mb-1">Export patterns</h2>
           <p className="text-sm text-muted-foreground">
-            Pick the patterns to include, then choose what to do with them.
+            Pick the patterns to include, then choose where they go.
           </p>
         </div>
 
@@ -201,8 +201,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
             <span>
               <span className="font-medium">Submit to community</span>
               <span className="block text-xs text-muted-foreground">
-                Build one bundle file with everything that passes the quality gates.
-                Commit it into a fork and open one PR. Community patterns are excluded automatically.
+                Bundle everything that passes the quality gates. Commit it to a fork and open a PR. Community patterns are excluded.
               </span>
             </span>
           </label>
@@ -242,7 +241,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
               {visiblePatterns.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-8">
                   {destination === 'community'
-                    ? 'Nothing to submit. Community patterns are excluded; only local or imported patterns can be shared.'
+                    ? 'Nothing to submit. Only local or imported patterns can be shared.'
                     : 'No patterns match the current filters.'}
                 </p>
               )}
@@ -401,7 +400,7 @@ function CommunityPreview({
       <div className="flex-1 overflow-y-auto p-3">
         {rejected.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            Every selected pattern passes the quality gates.
+            All selected patterns pass the quality gates.
           </p>
         ) : (
           <details open className="text-sm">

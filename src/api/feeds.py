@@ -191,7 +191,7 @@ def add_feed():
     if not slug:
         return error_response(
             "Could not derive a slug from the feed URL. "
-            "Please provide a 'slug' in the request.",
+            "Provide a 'slug' in the request.",
             400,
         )
 

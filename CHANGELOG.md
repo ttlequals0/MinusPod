@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.4] - 2026-06-19
+
+### Changed
+
+- Audited and shortened user-facing text. Docs went through a humanizer pass (sentence-case headings, plainer wording, no marketing tone), UI labels and descriptions were tightened, and several error messages were made clearer.
+
 ## [2.10.3] - 2026-06-19
 
 ### Fixed

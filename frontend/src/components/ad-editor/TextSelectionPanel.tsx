@@ -412,7 +412,7 @@ function TextSelectionPanel({
           ))}
         </select>
         <span className="text-xs text-muted-foreground">
-          Playback covers the selected span only. Selection snaps to word boundaries.
+          Plays the selected span only. Selection snaps to word boundaries.
         </span>
       </div>
     </div>

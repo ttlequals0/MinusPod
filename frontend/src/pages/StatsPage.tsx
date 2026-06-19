@@ -306,7 +306,7 @@ export default function StatsPage() {
           <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, and reprocess an episode to see stats here.
+              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, then reprocess an episode.
             </p>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">

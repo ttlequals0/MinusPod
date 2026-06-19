@@ -15,7 +15,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
 
-## Minimum Production Environment
+## Minimum production environment
 
 The full reference is in [Environment Variables](environment-variables.md). The four worth setting on day one:
 
@@ -28,7 +28,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 
 If you are behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher for multi-hop chains) so login lockout and per-IP rate limits key on the real client IP.
 
-## Health Monitoring
+## Health monitoring
 
 ```bash
 # Check health (no auth required)
@@ -47,9 +47,9 @@ curl http://localhost:8000/api/v1/health
 
 A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which.
 
-## Common Issues
+## Common issues
 
-### Episode Stuck in Processing
+### Episode stuck in processing
 
 ```bash
 # Check current processing status
@@ -62,19 +62,19 @@ curl -X POST http://localhost:8000/api/v1/feeds/{slug}/episodes/{id}/cancel
 docker-compose restart
 ```
 
-### Out of Memory
+### Out of memory
 
 1. Reduce Whisper model size: `WHISPER_MODEL=small` or `WHISPER_MODEL=tiny`
 2. Increase container memory limit
 3. For long episodes (>2 hours), expect 16GB+ RAM usage
 
-### Claude API Errors
+### Claude API errors
 
 - **Rate limited** - Built-in exponential backoff, wait 60s
 - **Authentication** - Check ANTHROPIC_API_KEY is valid
 - **Timeout** - Episode may be too long, try smaller segments
 
-### GPU Not Detected
+### GPU not detected
 
 ```bash
 # Check NVIDIA runtime
@@ -86,11 +86,11 @@ docker exec minuspod nvidia-smi
 
 If GPU not available, set `WHISPER_DEVICE=cpu` (slower but works).
 
-## Backup and Recovery
+## Backup and recovery
 
 There is no scheduled automatic backup. Use one of the two paths below.
 
-### On-Demand SQLite Backup (API)
+### On-demand SQLite backup (API)
 
 ```bash
 # Authenticated download via the API. Rate-limited to 6 requests/hour.
@@ -101,7 +101,7 @@ curl -sS -b cookies.txt \
 
 When `MINUSPOD_MASTER_PASSPHRASE` is set, the response is AES-GCM encrypted (filename ends `.db.enc`). Restoring it requires the same passphrase that created it; store the passphrase somewhere separate from the backup. Append `?encrypted=false` to download plaintext when you have another protection layer.
 
-### Manual Filesystem Backup
+### Manual filesystem backup
 
 ```bash
 # Stop the container to flush any in-flight writes
@@ -156,7 +156,7 @@ docker logs -f minuspod
 docker logs --tail 100 minuspod
 ```
 
-## Resource Usage
+## Resource usage
 
 | Component | CPU | RAM | GPU VRAM |
 |-----------|-----|-----|----------|
@@ -169,7 +169,7 @@ docker logs --tail 100 minuspod
 | Audio processing | High | 500 MB | - |
 | Transition detection | Low | 100 MB | - |
 
-## Cloudflare Tunnel (Optional)
+## Cloudflare tunnel (optional)
 
 For remote access without port forwarding:
 
@@ -183,7 +183,7 @@ docker-compose --profile tunnel up -d
 
 Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits will key on the tunnel sidecar's loopback address instead of the real client. Audit logs and auth-failure webhooks will also carry the wrong IP. Set the same flag when running behind nginx, Traefik, or any other reverse proxy.
 
-## Security Notes
+## Security notes
 
 - Set `MINUSPOD_MASTER_PASSPHRASE` to encrypt provider API keys at rest. Without it they sit as plaintext in the SQLite DB. See [Security & Storage](security-and-storage.md).
 - Set an `APP_PASSWORD` (or one via Settings > Security) before exposing the UI publicly.

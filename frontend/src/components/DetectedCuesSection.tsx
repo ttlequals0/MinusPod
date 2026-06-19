@@ -69,14 +69,13 @@ function DetectedCuesSection({
   return (
     <CollapsibleSection
       title="Detected Cues"
-      subtitle="Audio the analysis flagged -- promote one into a cue template"
+      subtitle="Turn a detected sound into a template"
       defaultOpen={false}
       storageKey="episode-detected-cues"
       onToggle={setExpanded}
     >
       <p className="text-sm text-muted-foreground mb-4">
-        Candidate ad-break sounds found in this episode's audio. Make a template
-        from one to start matching it on every future episode of this feed.
+        Candidate ad-break sounds in this episode. Make a template from one to match it on future episodes of this feed.
       </p>
 
       {cuesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}

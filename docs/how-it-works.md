@@ -46,7 +46,7 @@ The verification model can be configured separately from the first pass model in
 For long episodes, transcripts are processed in overlapping 10-minute windows:
 
 - **Window Size** - 10 minutes of transcript per API call
-- **Overlap** - 3 minutes between windows ensures ads at boundaries aren't missed
+- **Overlap** - 3 minutes between windows so ads at boundaries aren't missed
 - **Deduplication** - Ads detected in multiple windows are automatically merged
 
 A 60-minute episode is processed as 9 overlapping windows, with duplicate detections merged.
@@ -56,7 +56,7 @@ A 60-minute episode is processed as 9 overlapping windows, with duplicate detect
 To prevent memory issues from concurrent processing, episodes are processed one at a time:
 
 - Only one episode processes at a time (Whisper + FFmpeg are memory-intensive)
-- Processing runs in a background thread, keeping the UI responsive
+- Processing runs in a background thread, so the UI stays responsive
 - Episodes stuck in "processing" status reset automatically on server restart
 - View and cancel processing episodes in Settings
 

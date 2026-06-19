@@ -215,7 +215,7 @@ function CueTemplatesPanel({ slug }: Props) {
         originalAvailable = detail.hasOriginalAudio;
       }
       if (!originalAvailable) {
-        setActionError('That episode has no retained original audio. Pick a processed episode whose original audio was kept.');
+        setActionError('That episode has no retained original audio. Pick a processed one that kept it.');
         return;
       }
       setPickerOpen(false);
@@ -409,8 +409,8 @@ function CueTemplatesPanel({ slug }: Props) {
           <div className="mt-4 pt-4 border-t border-border">
             <h4 className="text-sm font-semibold text-foreground mb-1">Cue health</h4>
             <p className="text-xs text-muted-foreground mb-3">
-              How this feed's cues have performed across processed episodes -- use
-              it to judge whether to enable cue-pair synthesis.
+              How this feed's cues have done across processed episodes. Use it to
+              decide whether to enable cue-pair synthesis.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {([

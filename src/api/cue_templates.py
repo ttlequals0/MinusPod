@@ -173,7 +173,7 @@ def create_cue_template(slug):
     mfcc = compute_mfcc(pcm)
     if mfcc.shape[0] < 3:
         return error_response(
-            'selection too short after framing; widen the selection or pick a louder cue',
+            'selection too short; widen it or pick a louder cue',
             400,
         )
 
@@ -400,7 +400,7 @@ def export_cue_template(template_id):
     pcm_blob = row.get('pcm_blob')
     if not pcm_blob:
         return error_response(
-            'this template has no raw audio to export (created before raw-PCM storage)',
+            'this template has no raw audio to export',
             422,
         )
     sample_rate = int(row.get('pcm_sample_rate') or SAMPLE_RATE_HZ)

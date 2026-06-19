@@ -62,7 +62,7 @@ export function FeedTagsEditor({ slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Tags"
-        subtitle="Used to filter community ad patterns. RSS and episode tags are automatic; add or remove your own below."
+        subtitle="Filter community ad patterns. RSS and episode tags are automatic; edit your own below."
         defaultOpen={false}
         storageKey={`feed-tags-${slug}`}
       >
@@ -72,7 +72,7 @@ export function FeedTagsEditor({ slug }: Props) {
           <>
             {effective.length === 0 && (
               <p className="text-sm text-muted-foreground mb-3">
-                No tags yet. The next RSS refresh will populate iTunes categories automatically, or add one below.
+                No tags yet. The next RSS refresh adds iTunes categories, or add one below.
               </p>
             )}
 

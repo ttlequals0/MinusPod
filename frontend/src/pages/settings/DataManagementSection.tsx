@@ -137,7 +137,7 @@ function DataManagementSection({
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-semibold text-foreground">Database Backup</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Download a complete backup including feeds, episodes, patterns, sponsors, and settings.
+                Download a backup of feeds, episodes, patterns, sponsors, and settings.
               </p>
             </div>
           </div>

@@ -241,7 +241,7 @@ function Search() {
 
       {!debouncedQuery && (
         <div className="text-center py-12 text-muted-foreground">
-          <p>Enter a search term to find content</p>
+          <p>Enter a search term</p>
           {stats?.stats && (
             <p className="text-sm mt-2">
               {stats.stats.total || 0} items indexed

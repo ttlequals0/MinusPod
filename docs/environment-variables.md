@@ -39,7 +39,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-| `LOG_FORMAT` | `text` | `text` or `json`. JSON output plays nicely with log aggregators (Loki, CloudWatch). |
+| `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
 
 ### Security

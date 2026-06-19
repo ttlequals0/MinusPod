@@ -239,7 +239,7 @@ def split_pattern(pattern_id):
 
     if not new_ids:
         return error_response(
-            f'Pattern {pattern_id} does not need splitting or was not found',
+            f'Pattern {pattern_id} not found or has nothing to split',
             400
         )
 
@@ -1049,8 +1049,8 @@ def import_patterns():
 
     if _is_empty_replace_request(patterns, mode):
         return error_response(
-            'Empty patterns array with mode=replace would wipe the table; '
-            'pass mode=merge or mode=supplement for a round-trip',
+            'Empty patterns with mode=replace would wipe the table; '
+            'use mode=merge or mode=supplement instead',
             400,
         )
 

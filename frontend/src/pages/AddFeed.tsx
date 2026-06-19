@@ -51,9 +51,9 @@ function validateUrl(url: string): UrlValidation {
     isValid: true,
     error: null,
     warning: !looksLikeRss && isHttps
-      ? 'This URL may not be an RSS feed. Ensure it points to a valid podcast RSS feed.'
+      ? 'This may not be a podcast RSS feed.'
       : !isHttps
-        ? 'Consider using HTTPS for secure connections.'
+        ? 'Use HTTPS for a secure connection.'
         : null
   };
 }
@@ -369,7 +369,7 @@ function AddFeed() {
                 onChange={setAutoProcessOverride}
               />
               <p className="mt-1 text-sm text-muted-foreground">
-                Controls whether new episodes are automatically processed.
+                Automatically process new episodes.
               </p>
             </div>
 
@@ -494,7 +494,7 @@ function AddFeed() {
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Import from OPML</h2>
         <p className="text-sm text-muted-foreground">
-          Upload an OPML file to import multiple podcast feeds at once
+          Upload an OPML file to import multiple feeds
         </p>
 
         <div

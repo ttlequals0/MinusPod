@@ -38,7 +38,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
   return (
     <CollapsibleSection
       title="Cue Detections"
-      subtitle="Audio cue template matches -- advisory only, never changes the cut"
+      subtitle="Template matches. Advisory; never changes the cut."
       defaultOpen={false}
       storageKey="episode-cue-detections"
       headerRight={
@@ -48,8 +48,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
       }
     >
       <p className="text-sm text-muted-foreground mb-4">
-        Confirm a match that landed on a real ad boundary or reject a false one.
-        These verdicts tune the feed's cues; they do not add or remove ads.
+        Confirm a match on a real ad boundary, or reject a false one. Verdicts tune the feed's cues; they never add or remove ads.
       </p>
       <div className="space-y-2">
         {detections.map((d) => {

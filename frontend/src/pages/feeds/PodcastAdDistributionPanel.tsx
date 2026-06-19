@@ -49,8 +49,8 @@ function PanelBody({ data }: { data: AdDistribution }) {
   if (episodesConsidered === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No processed episodes yet. Once this feed has processed episodes, the
-        chart shows where in each episode ads have historically been cut.
+        No processed episodes yet. Once it has some, the chart shows where in
+        each episode ads have been cut.
       </p>
     );
   }
@@ -144,7 +144,7 @@ function PanelBody({ data }: { data: AdDistribution }) {
       ) : (
         <p className="text-xs text-muted-foreground">
           No consistent ad-break zone yet. Zones appear once enough recent
-          episodes place an ad at a similar point in the episode.
+          episodes put an ad at the same point.
         </p>
       )}
     </div>
@@ -162,7 +162,7 @@ function PodcastAdDistributionPanel({ slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Ad Distribution"
-        subtitle="Where ads have historically been cut across this feed's episodes"
+        subtitle="Where ads have been cut across this feed's episodes"
         defaultOpen={false}
         storageKey={`feed-ad-distribution-${slug}`}
       >
