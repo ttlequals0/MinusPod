@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Play, Pause, ZoomIn, ZoomOut, X,
-  SkipBack, SkipForward, Rewind, FastForward, Square,
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
 import { Pin } from './ad-editor/Pin';
 import { snapToOnset } from './ad-editor/snapToOnset';
+import TransportBar from './ad-editor/TransportBar';
+import ZoomControl from './ad-editor/ZoomControl';
+import { primaryBtn, ctrlBtn } from './ad-editor/controlStyles';
 import {
   formatTime,
   getThemeWaveformColors,
@@ -31,7 +31,6 @@ import {
 
 const DEFAULT_MIN_REGION_SECONDS = 0.2;
 const DEFAULT_MAX_REGION_SECONDS = 4.0;
-const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5] as const;
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
 // fit-to-modal scale leaves them as a single pixel. Allow deep zoom.
@@ -296,10 +295,7 @@ function CueMarkModal({
   };
 
   const clearSelectionStop = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && selectionStopRef.current) {
-      audio.removeEventListener('timeupdate', selectionStopRef.current);
-    }
+    if (selectionStopRef.current) selectionStopRef.current();
     selectionStopRef.current = null;
   }, []);
 
@@ -330,18 +326,27 @@ function CueMarkModal({
     const audio = audioRef.current;
     if (!audio) return;
     clearSelectionStop();
-    audio.currentTime = cueStart;
-    audio.play().catch(() => {});
-    const stop = () => {
-      const a = audioRef.current;
-      if (!a) return;
-      if (a.currentTime >= cueEnd) {
-        a.pause();
-        clearSelectionStop();
-      }
+    // Seek then play only once metadata is loaded -- a pre-load seek is dropped
+    // by Chrome/Safari and would play from the episode start.
+    const begin = () => {
+      audio.currentTime = cueStart;
+      const stop = () => {
+        const a = audioRef.current;
+        if (a && a.currentTime >= cueEnd) {
+          a.pause();
+          clearSelectionStop();
+        }
+      };
+      audio.addEventListener('timeupdate', stop);
+      selectionStopRef.current = () => audio.removeEventListener('timeupdate', stop);
+      audio.play().catch(() => {});
     };
-    selectionStopRef.current = stop;
-    audio.addEventListener('timeupdate', stop);
+    if (audio.readyState >= 1) {
+      begin();
+    } else {
+      audio.addEventListener('loadedmetadata', begin, { once: true });
+      selectionStopRef.current = () => audio.removeEventListener('loadedmetadata', begin);
+    }
   };
 
   const setStartAtPlayhead = useCallback(() => {
@@ -427,15 +432,6 @@ function CueMarkModal({
     }
   };
 
-  // Shared design-system recipes (match AdReviewModal / the app form controls).
-  const ghostBtn =
-    'border border-border text-foreground bg-card transition-colors ' +
-    'hover:bg-accent hover:text-accent-foreground hover:border-foreground/30 ' +
-    'disabled:opacity-40 disabled:cursor-not-allowed';
-  const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
-  const primaryBtn =
-    'bg-primary text-primary-foreground transition-colors hover:bg-primary/90 ' +
-    'disabled:opacity-50 disabled:cursor-not-allowed';
   const fieldCls =
     'rounded-lg border border-input bg-background text-foreground ' +
     'focus:outline-hidden focus:ring-2 focus:ring-ring';
@@ -588,85 +584,47 @@ function CueMarkModal({
           )}
         </div>
 
-        {/* Transport bar -- mirrors the "Add new ad" editor. */}
-        <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border flex-wrap">
-          <div className="flex items-center gap-0.5">
-            <button type="button" onClick={() => seekTo(cueStart)} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to START pin">
-              <SkipBack className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={() => seekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
-              <Rewind className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={togglePlay} className={`p-1.5 rounded-full ${primaryBtn}`} title="Play / pause">
-              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </button>
-            <button type="button" onClick={() => seekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">
-              <FastForward className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={() => seekTo(cueEnd)} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to END pin">
-              <SkipForward className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={stopPlayback} className={`p-1.5 rounded ${ghostBtn}`} title="Stop (pause + return to START)">
-              <Square className="w-4 h-4" />
-            </button>
-            <button type="button" onClick={playSelection} className={`${ctrlBtn} ml-0.5`} title="Play the bracketed selection only">
-              Play selection
-            </button>
-            <label className="relative inline-flex items-center ml-0.5" title="Playback speed">
-              <span className="sr-only">Playback speed</span>
-              <select
-                value={playbackRate}
-                onChange={(e) => setPlaybackRate(Number(e.target.value))}
-                aria-label="Playback speed"
-                className={`appearance-none h-7 pl-1.5 pr-4 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
-              >
-                {PLAYBACK_RATES.map((r) => (
-                  <option key={r} value={r}>{r}&times;</option>
-                ))}
-              </select>
-              <svg className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </label>
-          </div>
-          <div className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
-            <span className="text-foreground">{formatTime(playheadTime)}</span>
-            <span>/</span>
-            <span>{formatTime(regionDuration)} selection</span>
-            {inCue && (
-              <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 text-[10px] font-semibold uppercase tracking-wider">
-                in cue
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Zoom -- shared with the "Add new ad" editor. */}
+        <ZoomControl
+          value={zoom}
+          min={ZOOM_MIN}
+          max={ZOOM_MAX}
+          step={1}
+          onChange={setZoom}
+          onZoomIn={() => setZoom((z) => Math.min(ZOOM_MAX, +(z * 1.5).toFixed(2)))}
+          onZoomOut={() => setZoom((z) => Math.max(ZOOM_MIN, +(z / 1.5).toFixed(2)))}
+        />
 
-        {/* Zoom + snap + set-edge -- cue-specific controls. */}
+        {/* Playback transport -- shared with the "Add new ad" editor. */}
+        <TransportBar
+          isPlaying={isPlaying}
+          onTogglePlay={togglePlay}
+          onSeekToStart={() => seekTo(cueStart)}
+          onSeekToEnd={() => seekTo(cueEnd)}
+          onSeekRelative={seekRelative}
+          onStop={stopPlayback}
+          playbackRate={playbackRate}
+          onPlaybackRateChange={setPlaybackRate}
+          currentTime={playheadTime}
+          selectionDuration={regionDuration}
+          inSelection={inCue}
+          selectionLabel="in cue"
+          onPlaySelection={playSelection}
+        />
+
+        {/* Cue-specific controls: snap to onset + set edge at playhead. */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
-          <div className="flex items-center gap-1">
-            <button type="button" className={`p-1.5 rounded ${ghostBtn}`}
-              onClick={(e) => { const step = e.shiftKey ? 1.4 : 1.15; setZoom((z) => Math.max(ZOOM_MIN, z / step)); }}
-              aria-label="Zoom out" title="Shift+click for a coarse step">
-              <ZoomOut size={14} />
-            </button>
-            <span className="text-xs text-muted-foreground w-14 text-center font-mono">
-              {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
-            </span>
-            <button type="button" className={`p-1.5 rounded ${ghostBtn}`}
-              onClick={(e) => { const step = e.shiftKey ? 1.4 : 1.15; setZoom((z) => Math.min(ZOOM_MAX, z * step)); }}
-              aria-label="Zoom in" title="Shift+click for a coarse step">
-              <ZoomIn size={14} />
-            </button>
-          </div>
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <input type="checkbox" className="accent-primary" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
             Snap to onset
           </label>
           <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-emerald-500 whitespace-nowrap`} onClick={setStartAtPlayhead}>
-            Set START at playhead
+            <span className="sm:hidden">Set START</span>
+            <span className="hidden sm:inline">Set START at playhead</span>
           </button>
           <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-rose-500 whitespace-nowrap`} onClick={setEndAtPlayhead}>
-            Set END at playhead
+            <span className="sm:hidden">Set END</span>
+            <span className="hidden sm:inline">Set END at playhead</span>
           </button>
         </div>
 

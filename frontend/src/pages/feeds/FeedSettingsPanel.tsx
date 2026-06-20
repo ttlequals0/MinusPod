@@ -29,6 +29,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      // Surface a newly-typed custom network in every other feed's dropdown.
+      queryClient.invalidateQueries({ queryKey: ['networks'] });
       setIsEditingNetwork(false);
     },
   });

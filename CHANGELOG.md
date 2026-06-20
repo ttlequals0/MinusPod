@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.1] - 2026-06-20
+
+### Added
+
+- Custom networks are now selectable on other feeds. Set a custom network on one feed and it shows up in the Network dropdown on every other feed, so you can group same-creator shows without retyping the name. The `/networks` endpoint returns custom networks alongside the known ones.
+- A play button on each cue match. Audition the matched audio before you confirm or reject it; one match plays at a time.
+
+### Changed
+
+- The mark-cue dialog shares its transport bar and zoom control with the ad editor, so the two look and behave the same. Zoom is a slider now, and the playback controls fit on a phone.
+
+### Fixed
+
+- Auditioning a cue no longer starts from 0:00 when you click before the audio metadata has loaded. It waits for the metadata, then plays the right window.
+
 ## [2.11.0] - 2026-06-19
 
 ### Added

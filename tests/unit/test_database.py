@@ -46,6 +46,21 @@ class TestPodcastOperations:
 
         assert podcast is None
 
+    def test_get_custom_network_overrides(self, temp_db):
+        """Distinct non-empty network_id_override values across feeds."""
+        temp_db.create_podcast('show-a', 'http://x/a.xml', 'A')
+        temp_db.create_podcast('show-b', 'http://x/b.xml', 'B')
+        temp_db.create_podcast('show-c', 'http://x/c.xml', 'C')
+        temp_db.create_podcast('show-d', 'http://x/d.xml', 'D')
+        # Two feeds share one custom network; one is blank; one has none.
+        temp_db.update_podcast('show-a', network_id_override='Acme Audio')
+        temp_db.update_podcast('show-b', network_id_override='Acme Audio')
+        temp_db.update_podcast('show-c', network_id_override='   ')
+
+        result = temp_db.get_custom_network_overrides()
+
+        assert result == ['Acme Audio']
+
     def test_update_podcast(self, temp_db):
         """Update podcast fields."""
         slug = 'update-test'

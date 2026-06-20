@@ -1354,16 +1354,27 @@ def get_whisper_models():
 @api.route('/networks', methods=['GET'])
 @log_request
 def list_networks():
-    """List all known podcast networks for network override selection."""
+    """List known podcast networks plus operator-created custom networks.
+
+    Custom networks are distinct free-text network_id_override values set on any
+    feed; surfacing them lets a network created on one feed be selected from the
+    dropdown on every other feed. For a custom network the id and the display
+    name are the same string. Known networks win id collisions.
+    """
     from pattern_service import KNOWN_NETWORKS
 
-    networks = [
-        {'id': network_id, 'name': network_id.replace('_', ' ').title()}
+    networks = {
+        network_id: {'id': network_id, 'name': network_id.replace('_', ' ').title()}
         for network_id in KNOWN_NETWORKS.keys()
-    ]
+    }
+
+    db = get_database()
+    for override in db.get_custom_network_overrides():
+        if override not in networks:
+            networks[override] = {'id': override, 'name': override}
 
     return json_response({
-        'networks': sorted(networks, key=lambda x: x['name'])
+        'networks': sorted(networks.values(), key=lambda x: x['name'])
     })
 
 

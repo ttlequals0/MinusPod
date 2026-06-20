@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertCircle,
-  Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square,
-  ZoomIn, ZoomOut,
-} from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { getTranscriptSpan } from '../api/feeds';
@@ -12,6 +8,9 @@ import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
 import TextSelectionPanel from './ad-editor/TextSelectionPanel';
+import TransportBar from './ad-editor/TransportBar';
+import ZoomControl from './ad-editor/ZoomControl';
+import { ghostBtn, primaryBtn } from './ad-editor/controlStyles';
 import {
   parseTimeInput,
   formatTime,
@@ -97,7 +96,6 @@ const WINDOW_STEP_SECONDS = 60;
 // wheel-zoom, the +1m buttons, or by typing far-away timestamps.
 const CONTEXT_SECONDS = 30;
 const MIN_AD_DURATION = 1.0;
-const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 
 // ----------------------------------------------------------------------
 // Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
@@ -826,18 +824,13 @@ function AdReviewModal({
   // Style helpers -- explicit hover treatments so buttons clearly
   // highlight on mouseover instead of looking washed out.
 
-  const primaryBtn =
-    'bg-primary text-primary-foreground transition-all ' +
-    'hover:bg-primary hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-card ' +
-    'disabled:opacity-50 disabled:cursor-not-allowed';
+  // primaryBtn / ghostBtn come from the shared controlStyles so the transport,
+  // zoom, and action buttons all render from one source. destructiveBtn (Reject)
+  // is unique to this modal.
   const destructiveBtn =
     'bg-destructive text-destructive-foreground transition-all ' +
     'hover:bg-destructive hover:ring-2 hover:ring-destructive hover:ring-offset-2 hover:ring-offset-card ' +
     'disabled:opacity-50 disabled:cursor-not-allowed';
-  const ghostBtn =
-    'border border-border text-foreground bg-card transition-colors ' +
-    'hover:bg-accent hover:text-accent-foreground hover:border-foreground/30 ' +
-    'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-card disabled:hover:text-foreground disabled:hover:border-border';
 
   // ------------------------------------------------------------------
 
@@ -1124,32 +1117,16 @@ function AdReviewModal({
             )}
           </div>
 
-          {/* Zoom slider */}
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <button type="button" onClick={zoomOut}
-              disabled={zoom <= ZOOM_MIN + 0.01}
-              className={`p-1.5 rounded ${ghostBtn}`}
-              title="Zoom out (mouse wheel down)">
-              <ZoomOut className="w-3.5 h-3.5" />
-            </button>
-            <input
-              type="range"
-              min={ZOOM_MIN}
-              max={ZOOM_MAX}
-              step={0.1}
-              value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
-              className="flex-1 accent-primary"
-              title="Zoom"
-            />
-            <button type="button" onClick={zoomIn}
-              disabled={zoom >= ZOOM_MAX - 0.01}
-              className={`p-1.5 rounded ${ghostBtn}`}
-              title="Zoom in (mouse wheel up)">
-              <ZoomIn className="w-3.5 h-3.5" />
-            </button>
-            <span className="tabular-nums w-10 text-right">{zoom.toFixed(1)}×</span>
-          </div>
+          {/* Zoom -- shared with the "Mark cue" editor. */}
+          <ZoomControl
+            value={zoom}
+            min={ZOOM_MIN}
+            max={ZOOM_MAX}
+            step={0.1}
+            onChange={setZoom}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+          />
 
           {/* Full-episode scrubber: dim band = visible waveform window,
               bright fill = playback progress. */}
@@ -1287,70 +1264,21 @@ function AdReviewModal({
             onEnded={() => setIsPlaying(false)}
           />
 
-          {/* Transport bar */}
-          <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border flex-wrap">
-            <div className="flex items-center gap-0.5">
-              <button type="button" onClick={seekToAdStart}
-                className={`p-1.5 rounded ${ghostBtn}`}
-                title="Jump to START pin">
-                <SkipBack className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={() => seekRelative(-10)}
-                className={`p-1.5 rounded ${ghostBtn}`}
-                title="Back 10s">
-                <Rewind className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={togglePlay}
-                className={`p-1.5 rounded-full ${primaryBtn}`}
-                title="Play / pause (Space)">
-                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-              </button>
-              <button type="button" onClick={() => seekRelative(10)}
-                className={`p-1.5 rounded ${ghostBtn}`}
-                title="Forward 10s">
-                <FastForward className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={seekToAdEnd}
-                className={`p-1.5 rounded ${ghostBtn}`}
-                title="Jump to END pin">
-                <SkipForward className="w-4 h-4" />
-              </button>
-              <button type="button" onClick={stopPlayback}
-                className={`p-1.5 rounded ${ghostBtn}`}
-                title="Stop (pause + return to START)">
-                <Square className="w-4 h-4" />
-              </button>
-              <label className="relative inline-flex items-center ml-0.5" title="Playback speed">
-                <span className="sr-only">Playback speed</span>
-                <select
-                  value={playbackRate}
-                  onChange={(e) => setPlaybackRate(Number(e.target.value))}
-                  aria-label="Playback speed"
-                  className={`appearance-none h-7 pl-1.5 pr-4 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
-                >
-                  {PLAYBACK_RATES.map((r) => (
-                    <option key={r} value={r}>{r}&times;</option>
-                  ))}
-                </select>
-                <svg
-                  className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60"
-                  viewBox="0 0 12 12" fill="none" aria-hidden="true"
-                >
-                  <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </label>
-            </div>
-            <div className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
-              <span className="text-foreground">{formatTime(currentTime)}</span>
-              <span>/</span>
-              <span>{formatTime(adEnd - adStart)} selection</span>
-              {currentTime >= adStart && currentTime <= adEnd && (
-                <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 text-[10px] font-semibold uppercase tracking-wider">
-                  inside ad
-                </span>
-              )}
-            </div>
-          </div>
+          {/* Playback transport -- shared with the "Mark cue" editor. */}
+          <TransportBar
+            isPlaying={isPlaying}
+            onTogglePlay={togglePlay}
+            onSeekToStart={seekToAdStart}
+            onSeekToEnd={seekToAdEnd}
+            onSeekRelative={seekRelative}
+            onStop={stopPlayback}
+            playbackRate={playbackRate}
+            onPlaybackRateChange={setPlaybackRate}
+            currentTime={currentTime}
+            selectionDuration={adEnd - adStart}
+            inSelection={currentTime >= adStart && currentTime <= adEnd}
+            selectionLabel="inside ad"
+          />
 
           <div className="mt-2 text-xs text-muted-foreground">
             Drag the <span className="text-emerald-500 font-semibold">START</span> /{' '}

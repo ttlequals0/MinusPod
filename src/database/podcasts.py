@@ -24,6 +24,22 @@ class PodcastMixin:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_custom_network_overrides(self) -> List[str]:
+        """Distinct non-empty network_id_override values across all podcasts.
+
+        These are operator-typed free-text network names that act as both the id
+        and the display label. Surfacing them lets a network created on one feed
+        appear in the network dropdown of every other feed.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute("""
+            SELECT DISTINCT network_id_override
+            FROM podcasts
+            WHERE network_id_override IS NOT NULL
+              AND TRIM(network_id_override) != ''
+        """)
+        return [row['network_id_override'] for row in cursor.fetchall()]
+
     def get_podcast_by_slug(self, slug: str) -> Optional[Dict]:
         """Get podcast by slug with episode counts."""
         conn = self.get_connection()
