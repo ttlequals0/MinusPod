@@ -8,8 +8,9 @@
     "To learn more about Journavx, ask your doctor, call 1-833-589-PAIN or visit journavx.com."
   ],
   "avg_duration": null,
-  "sponsor": "Journavx",
+  "sponsor": "Vertex Pharmaceuticals",
   "sponsor_aliases": [
+    "Journavx",
     "Girnavix",
     "Gernavix",
     "Suzetrogene"
@@ -20,7 +21,7 @@
   ],
   "source_language": null,
   "community_id": "44f0b2d1-9eb7-40bf-a694-f67eb0a9631b",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.600117+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

@@ -10,8 +10,9 @@
     "Visit davado.com or call 1-877-844-8872."
   ],
   "avg_duration": 65.0,
-  "sponsor": "Dovato",
+  "sponsor": "Viiv Healthcare",
   "sponsor_aliases": [
+    "Dovato",
     "Dovado",
     "Devato",
     "Dolutegravir",
@@ -23,7 +24,7 @@
   ],
   "source_language": null,
   "community_id": "42362008-ce03-4876-9c46-59afcdbc43ff",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.375380+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

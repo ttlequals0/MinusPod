@@ -8,14 +8,16 @@
     "Visit TalkAboutPD.com."
   ],
   "avg_duration": 28.4,
-  "sponsor": "talkaboutpd.com",
-  "sponsor_aliases": [],
+  "sponsor": "Keenova",
+  "sponsor_aliases": [
+    "talkaboutpd.com"
+  ],
   "sponsor_tags": [
     "health"
   ],
   "source_language": null,
   "community_id": "7391620b-9c2b-43a0-82ce-9a8fc7cedba7",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.339897+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"
