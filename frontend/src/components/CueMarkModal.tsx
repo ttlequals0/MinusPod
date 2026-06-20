@@ -389,16 +389,19 @@ function CueMarkModal({
     }
   };
 
+  // Set-at-playhead only enforces the MIN gap (so the region stays ordered and
+  // non-zero); it deliberately does NOT clamp to the max. Length is validated
+  // at save, where the type-specific ceiling applies -- clamping here snapped a
+  // long intro/outro back to the ad-break 4s default mid-edit.
   const setStartAtPlayhead = useCallback(() => {
     const t = snapEnabled ? snapToOnset(playheadTime, peaks, peakResolutionMs) : playheadTime;
     let newEnd = cueEnd;
     if (t >= newEnd - MIN_REGION_SECONDS) {
       newEnd = Math.min(totalDuration, t + Math.max(MIN_REGION_SECONDS, 0.5));
     }
-    if (newEnd - t > MAX_REGION_SECONDS) newEnd = t + MAX_REGION_SECONDS;
     setCueStart(Math.max(0, t));
     setCueEnd(newEnd);
-  }, [playheadTime, cueEnd, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS, MAX_REGION_SECONDS]);
+  }, [playheadTime, cueEnd, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS]);
 
   const setEndAtPlayhead = useCallback(() => {
     const t = snapEnabled ? snapToOnset(playheadTime, peaks, peakResolutionMs) : playheadTime;
@@ -406,10 +409,9 @@ function CueMarkModal({
     if (t <= newStart + MIN_REGION_SECONDS) {
       newStart = Math.max(0, t - Math.max(MIN_REGION_SECONDS, 0.5));
     }
-    if (t - newStart > MAX_REGION_SECONDS) newStart = t - MAX_REGION_SECONDS;
     setCueStart(newStart);
     setCueEnd(Math.min(totalDuration, t));
-  }, [playheadTime, cueStart, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS, MAX_REGION_SECONDS]);
+  }, [playheadTime, cueStart, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS]);
 
   const regionDuration = cueEnd - cueStart;
   const regionDurationValid =

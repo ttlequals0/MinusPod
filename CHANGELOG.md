@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.1] - 2026-06-20
+
+### Fixed
+
+- Marking a long intro or outro no longer snaps the selection back to the 4s ad-break limit. "Set start/end at playhead" stopped clamping the length while you work; the length is checked only when you save, against the limit for the chosen cue type (60s for intro/outro, 4s for ad-break cues), with an inline note if it is out of range.
+
 ## [2.12.0] - 2026-06-20
 
 ### Added
