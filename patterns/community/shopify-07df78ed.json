@@ -15,13 +15,13 @@
   "sponsor": "Shopify",
   "sponsor_aliases": [],
   "sponsor_tags": [
-    "music",
-    "streaming",
+    "tech",
+    "saas",
     "universal"
   ],
   "source_language": null,
   "community_id": "07df78ed-9b7f-4600-a9b7-1aee45b5bfc7",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-27T02:31:11.364726+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

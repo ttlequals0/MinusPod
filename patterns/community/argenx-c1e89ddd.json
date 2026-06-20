@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "Living with a rare autoimmune condition can bring a lot of uncertainty but it can also bring people together in powerful ways Tune in for season six of Untold Stories Life with a Severe Autoimmune Condition a Ruby Studio production in partnership with Argenix This season, host Martine Hackett brings you fresh stories from people living with MG and CIDP and expands the conversation to people living with other rare conditions like myositis and IGAN. Through their stories, you'll learn what it's like to participate in clinical trials seeking new treatments, how connection fuels hope, and how people can support one another along the way. Because living with a rare disease isn't about getting through it, it's about moving forward together. Listen to Untold Stories, Life with a Severe Autoimmune Condition on the app or wherever you get your podcasts.",
+  "intro_variants": [
+    "Living with a rare autoimmune condition can bring a lot of uncertainty but it can also bring people together in powerful ways",
+    "Living with a rare autoimmune condition can bring a lot of uncertainty, but it can also bring people together in powerful ways.",
+    "Living with a rare autoimmune condition brings uncertainty, but it can also create community."
+  ],
+  "outro_variants": [
+    "Listen to Untold Stories, Life with a Severe Autoimmune Condition on the app or wherever you get your podcasts.",
+    "Listen to Untold Stories, Life with a Severe Autoimmune Condition on the iHeartRadio app or wherever you get your podcasts."
+  ],
+  "avg_duration": 52.0,
+  "sponsor": "Argenx",
+  "sponsor_aliases": [
+    "Untold Stories",
+    "Rare Well Done",
+    "Argenix"
+  ],
+  "sponsor_tags": [
+    "health",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "c1e89ddd-e6c9-40a5-9c16-ba6cfb1a7cd4",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.723141+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Support for this show comes from Odoo. Running a business is hard enough, so why make it harder with a dozen different apps that don't talk to each other? Introducing Odoo. It's the only business software you'll ever need. It's an all-in-one, fully integrated platform that makes your work easier. CRM, accounting, inventory, e-commerce, and more. And the best part? Odoo replaces multiple expensive platforms for a fraction of the cost. That's why over thousands of businesses have made the switch. So why not you? Try Odoo for free at Odoo.com. That's O-D-O-O dot com.",
+  "intro_variants": [
+    "Support for this show comes from Odoo."
+  ],
+  "outro_variants": [
+    "Try Odoo for free at Odoo.com.",
+    "That's O-D-O-O dot com."
+  ],
+  "avg_duration": 38.1,
+  "sponsor": "Odoo",
+  "sponsor_aliases": [
+    "odoo.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "saas"
+  ],
+  "source_language": null,
+  "community_id": "aadef540-c226-46f9-8ce0-65ceaa171fef",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.872895+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

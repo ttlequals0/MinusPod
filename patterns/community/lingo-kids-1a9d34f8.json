@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Every parent should know the car ride soundtrack. Are we there yet? How much longer? I'm bored. Well, if you're taking an extensive car ride anywhere and you've downloaded the Lingo Kids app prior to leaving the house, you may experience something strange, right, Chuck? That's right. You may experience silence from the backseat. Your kid may go an entire car ride without asking once if they were there yet. How about that? And by chance of miracle, they may even ask if you could drive longer. Yeah, that's the magic in Lingo Kids. Over 4,000 interactive games, songs, and shows, including their favorite Disney characters. It turns the longest drives into the easiest ones, and honestly, you won't understand why you didn't download it sooner. That's right. Lingo Kids is the number one entertainment platform for young kids, and it's free to download. Or, go plus with a Lingo Kids subscription and unlock even more content your kids won't be able to get enough of. You can save up to 60% on the yearly plan. Just search Lingo Kids in the App Store or Google Play. Lingo Kids. Everything kids love.",
+  "intro_variants": [
+    "Every parent should know the car ride soundtrack. Are we there yet? How much longer? I'm bored."
+  ],
+  "outro_variants": [
+    "Lingo Kids. Everything kids love."
+  ],
+  "avg_duration": 50.9,
+  "sponsor": "Lingo Kids",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "1a9d34f8-a300-415e-a5d8-ed5cbaa86c41",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.455342+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

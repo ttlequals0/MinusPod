@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "This is Diego from the Augusto Bob podcast. Kick off the FIFA World Cup 2026 in style. Why win your backyard setup when you can build it like Beckham with the assist of the Home Depot? Home Depot. Set your backyard stage with a thick green pitch, a sizzling grill, and a freshly stained deck, all designed to keep the party going long after the final whistle. And with fast free delivery, your watch party setup can be legendary. Go big at home, build it like Beckham for match day, the Home Depot. Official World Cup 2026 supporter, subject to availability.",
+  "intro_variants": [
+    "This is Diego from the Augusto Bob podcast. Kick off the FIFA World Cup 2026 in style."
+  ],
+  "outro_variants": [
+    "Go big at home, build it like Beckham for match day, the Home Depot. Official World Cup 2026 supporter, subject to availability."
+  ],
+  "avg_duration": 29.8,
+  "sponsor": "Home Depot",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "home_goods"
+  ],
+  "source_language": null,
+  "community_id": "43da4be5-bcd4-4ec5-851e-a8615801d443",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.105822+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

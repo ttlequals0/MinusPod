@@ -5,7 +5,9 @@
     "Unlike the people we normally talk about on the show, we are living in a time when internet connectivity is a standard part of life for most people."
   ],
   "outro_variants": [
-    "So visit Spectrum.com slash business to learn more. Restrictions apply. Service is not available in all areas."
+    "Restrictions apply. Service is not available in all areas.",
+    "Restrictions apply Service is not available in all areas",
+    "So visit spectrum.com slash business to learn more."
   ],
   "avg_duration": 119.4,
   "sponsor": "Spectrum Business",
@@ -17,7 +19,7 @@
   ],
   "source_language": null,
   "community_id": "feb1928f-6b38-4c2f-ab2e-c6eb369193ce",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.503041+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

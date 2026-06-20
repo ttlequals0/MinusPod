@@ -8,14 +8,16 @@
     "Start asking better questions and listen to Health vs. Hype on the app or wherever you get your podcasts."
   ],
   "avg_duration": 63.0,
-  "sponsor": "Health vs Hype",
-  "sponsor_aliases": [],
+  "sponsor": "American Medical Association",
+  "sponsor_aliases": [
+    "Health vs Hype"
+  ],
   "sponsor_tags": [
     "health"
   ],
   "source_language": null,
   "community_id": "1881ba6f-92c7-4f0c-b1fe-2e3cc828bc9e",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.285887+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Do you want to find a stress-free way to buy your next car? Start at CarMax and shop your way. If you want to browse with confidence, get pre-qualified online with no impact on your credit score and shop cars within your budget. From luxury cars to family rides, CarMax has options for almost every price range.",
+  "intro_variants": [
+    "Do you want to find a stress-free way to buy your next car?"
+  ],
+  "outro_variants": [
+    "From luxury cars to family rides, CarMax has options for almost every price range."
+  ],
+  "avg_duration": null,
+  "sponsor": "CarMax",
+  "sponsor_aliases": [
+    "Car Max"
+  ],
+  "sponsor_tags": [
+    "auto",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "5bda2793-6986-4e8b-b486-bb06797c3c34",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.838925+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

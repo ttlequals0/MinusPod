@@ -1,0 +1,31 @@
+{
+  "scope": "global",
+  "text_template": "Support for Today Explained comes from Atio, the A-I-C-R-M for modern teams. Atio connects to your email, calendar calls, product data, billing data, and more, so your CRM is always complete, always enriched, and always in sync. Bye, bye, bye. If you want a CRM built for how you want to work, you can check out Atio. You can go to atio.com slash todayexplained and you get 15% off your first year. That's A-T-T-I-O dot com slash todayexplained.",
+  "intro_variants": [
+    "Support for Today Explained comes from Atio, the A-I-C-R-M for modern teams.",
+    "Support for Today Explained comes from Attio, the AI CRM for modern teams."
+  ],
+  "outro_variants": [
+    "That's A-T-T-I-O dot com slash todayexplained.",
+    "That's A-T-T-I-O dot com slash today explained."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "Attio",
+  "sponsor_aliases": [
+    "attio.com",
+    "Atio",
+    "atio.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "technology",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "10cb9085-4e43-4fd2-96c5-6e68bfd79764",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.173130+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

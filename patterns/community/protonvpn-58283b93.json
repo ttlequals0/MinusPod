@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "Support for this show, Today Explained, is coming from ProtonVPN today. You know how dangerous the internet can be, but you still want to navigate the digital jungles without worrying about pop-up ads and data thieves. You Tarzan you. With ProtonVPN, it's easy to protect yourself from bad actors and annoying advertisements. ProtonVPN is a secure VPN securely designed for people who want to prioritize their digital privacy and security. It keeps what you do online private and lets you access the internet like it should work, open, secure, and on your terms. Proton says that unlike most VPNs, they're backed by strong European privacy laws and years of expertise creating a safer, faster, and more open internet for everyone. Sounds nice. It's easy to get started. Right now, ProtonVPN is offering our listeners 70% off a two-year plan when you go to ProtonVPN.com slash explained. That's P-R-O-T-O-N-V-P-N.com slash explained for 70% off your two-year plan. That's ProtonVPN.com slash explained.",
+  "intro_variants": [
+    "Support for this show, Today Explained, is coming from ProtonVPN today.",
+    "Support for Today Explained is coming from ProtonVPN."
+  ],
+  "outro_variants": [
+    "That's ProtonVPN.com slash explained.",
+    "That's P-R-O-T-O-N-V-P-N.com slash explained for 70% off your two-year plan."
+  ],
+  "avg_duration": 68.9,
+  "sponsor": "ProtonVPN",
+  "sponsor_aliases": [
+    "Proton VPN",
+    "protonvpn.com"
+  ],
+  "sponsor_tags": [
+    "technology",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "58283b93-864a-49c2-83f1-d1b64b76adb1",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.741990+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "With VrboCare, help is always ready, before, during, and after your stay. We've planned for the plot twists, so support is always available. Because a great trip starts with peace of mind.",
+  "intro_variants": [
+    "With VerboCare, help is always ready, before, during, and after your stay."
+  ],
+  "outro_variants": [
+    "We've planned for the plot twists, so support is always available. Because a great trip starts with peace of mind."
+  ],
+  "avg_duration": null,
+  "sponsor": "Vrbo",
+  "sponsor_aliases": [
+    "VrboCare",
+    "VerboCare"
+  ],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "1ce50633-1e33-410d-896e-4ec4c1c3439e",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.779108+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

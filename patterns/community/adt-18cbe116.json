@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "So you're considering getting a home security system, but you want something that fits your space. Well, with ADT Blue, it's easy to customize a system that's right for you and set it up yourself. Just pick the kit and monitoring plan that makes sense for your home. Let's say you're worried about package theft. The ADT Plus app can walk you through setting up a new doorbell camera kit. Once it's installed, ADT Pros can help you keep tabs on it 24-7, or you can manage it yourself from the ADT Plus app. There are no long-term contracts, so you can change your monitoring plan whenever you want. The flexibility doesn't end there. You can add to your system as you need to with things like extra cameras or motion sensors. Some life decisions are hard, but thanks to ADT Blue, you can DIY trusted ADT home security in a snap. Head to ADT.com slash BLU to build your system today.",
+  "intro_variants": [
+    "So you're considering getting a home security system, but you want something that fits your space."
+  ],
+  "outro_variants": [
+    "Head to ADT.com slash BLU to build your system today."
+  ],
+  "avg_duration": 72.1,
+  "sponsor": "ADT",
+  "sponsor_aliases": [
+    "adt.com"
+  ],
+  "sponsor_tags": [
+    "home_security",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "18cbe116-6e57-4277-9cd2-c717855b84a0",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.711516+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

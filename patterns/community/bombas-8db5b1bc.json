@@ -6,8 +6,11 @@
     "Support for Today Explained comes from Bombas."
   ],
   "outro_variants": [
-    "So head over to Bombas.com and use code SYSK for 20% off your first purchase. That's B-O-M-B-A-S dot com, code SYSK at checkout.",
-    "You can go to Bombas.com slash explained and use the code explained for 20% off your first purchase. That's B-O-M-B-A-S dot com slash explained, code explained at checkout."
+    "You can go to Bombas.com slash explained and use the code explained for 20% off your first purchase.",
+    "That's B-O-M-B-A-S dot com slash explained, code explained at checkout.",
+    "So head over to Bombas.com and use code SYSK for 20% off your first purchase.",
+    "So head over to Bombas.com and use code S-Y-S-K for 20% off your first purchase.",
+    "That's B-O-M-B-A-S dot com, code SYSK at checkout."
   ],
   "avg_duration": 33.7,
   "sponsor": "Bombas",
@@ -21,7 +24,7 @@
   ],
   "source_language": null,
   "community_id": "8db5b1bc-7d61-49da-a74d-1cef2ee2a641",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.145114+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

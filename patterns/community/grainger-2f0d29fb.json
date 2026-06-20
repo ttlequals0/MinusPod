@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Grainger knows when you're a procurement manager for an office park, you're not managing one building, you're managing all of them. And to stay ahead, you need to see through walls and around corners. Lights about to fail, filters ready to clog, HVAC on its last leg. If you wait until something breaks, you're already behind. Count on Grainger for quality products, easy reordering, and 24-7 support. Call 1-800-GRAINGER, click grainger.com, or just stop by. Grainger, for the ones who get it done.",
+  "intro_variants": [
+    "Grainger knows when you're a procurement manager for an office park, you're not managing one building, you're managing all of them."
+  ],
+  "outro_variants": [
+    "Grainger, for the ones who get it done."
+  ],
+  "avg_duration": 29.7,
+  "sponsor": "Grainger",
+  "sponsor_aliases": [
+    "grainger.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "2f0d29fb-9119-4f74-b3b2-86218d89bce6",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.096034+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

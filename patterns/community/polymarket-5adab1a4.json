@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Warning, if you're still using a sportsbook to bet on the finals, you're getting robbed. Delete that app and join the millions using Polymarket. Polymarket is a prediction market, not a sportsbook. You trade against other fans, not the house. That's more money for you and less for greedy sportsbooks. Available in all 50 states. Polymarket, your go-to prediction market for basketball's biggest stage. Download Polymarket and use promo code FIELD to unlock $50 free for your first trade. Trading not available in all jurisdictions. Check local regulations before trading. Restrictions and Eligibility Requirements Apply.",
+  "intro_variants": [
+    "Warning, if you're still using a sportsbook to bet on the finals, you're getting robbed."
+  ],
+  "outro_variants": [
+    "Check local regulations before trading. Restrictions and Eligibility Requirements Apply."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "Polymarket",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "gambling",
+    "technology"
+  ],
+  "source_language": null,
+  "community_id": "5adab1a4-ccad-4631-a488-16145f0f8f06",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.388998+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

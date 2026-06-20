@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "We all take good care the things that matter. Our homes, our pets, our cars. Are you doing the same for your brain? Acting early to protect brain health may help reduce the risk of dementia from conditions like Alzheimer's disease. Studies have found that up to 45% of dementia cases may be prevented or delayed by managing risk factors you can change. Make brain health a priority. Ask your doctor about your risk factors and for a cognitive assessment. Learn more at brainhealthmatters.com.",
+  "intro_variants": [
+    "We all take good care the things that matter."
+  ],
+  "outro_variants": [
+    "Learn more at brainhealthmatters.com."
+  ],
+  "avg_duration": 29.7,
+  "sponsor": "Eli Lilly",
+  "sponsor_aliases": [
+    "brainhealthmatters.com"
+  ],
+  "sponsor_tags": [
+    "health",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "26e44280-e55d-4cc9-9c76-6e9868b6a64e",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:12.813930+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

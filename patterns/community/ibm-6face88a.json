@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "Hello, hello. This is Malcolm Glebel from Smart Talks with IBM. Today, we're diving into a fascinating conversation with Stefano Pallard, head of fan development for Scuderia Ferrari HP. HHP. Your pronunciation is, it's strongly American. It's more Scuderia, Ferrari. I'm still working on rolling my R's. But what I was able to learn from Stefano was the importance of engaging the Tifosi, the Ferrari superfans in the digital age. Ferrari fans and superfans want to be part of something, want to belong to something. So they want to be part of a community and ultimately they want to be part of a winning team. You've got Ferrari, which is a long, long time. and a strong history, design history. And now you're interacting in a kind of digital space. I'm curious how you balance those two traditions. When it comes to fan engagement, it's really digital technology and digital channels are being able to create a deeper connection with our fans. To learn more about how Ferrari and IBM are using technology to build deeper connections with fans, visit ibm.com slash Ferrari.",
+  "intro_variants": [
+    "Hello, hello. This is Malcolm Glebel from Smart Talks with IBM."
+  ],
+  "outro_variants": [
+    "To learn more about how Ferrari and IBM are using technology to build deeper connections with fans, visit ibm.com slash Ferrari."
+  ],
+  "avg_duration": 69.0,
+  "sponsor": "IBM",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "automotive"
+  ],
+  "source_language": null,
+  "community_id": "6face88a-d1ed-4ef2-84cc-b431a48841fb",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.253564+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

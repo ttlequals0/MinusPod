@@ -5,7 +5,9 @@
     "Hey mom, now that I have an afterschool job, I think I want to buy a drum kit. Okay, rockstar. Let's look at your account."
   ],
   "outro_variants": [
-    "Visit your local Chase branch and get started. Account subject to approval, JPMorgan Chase Bank, N.A. Member FDIC."
+    "Visit your local Chase branch and get started. Account subject to approval.",
+    "JPMorgan Chase Bank, N.A. Member FDIC.",
+    "JPMorgan Chase Bank, NAMember FDIC."
   ],
   "avg_duration": null,
   "sponsor": "JP Morgan Chase",
@@ -19,7 +21,7 @@
   ],
   "source_language": null,
   "community_id": "c88cda7b-bdd8-4e14-a977-1508e5cc0e4d",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-27T02:27:14Z",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

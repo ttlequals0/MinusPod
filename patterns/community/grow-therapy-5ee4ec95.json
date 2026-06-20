@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from Grow Therapy. A lot of people talk about summer like it's supposed to be relaxed and carefree, but if this season brings up money stress, body stress, family stress, or social stress, that's real too. Guys. Grow Therapy can help with that. All of that. All of those. Whether it's your first time in therapy or your 50th, hello, Grow makes it easier to find a therapist who fits you, not the other way around. They can connect you with thousands of independent licensed therapists across the United States offering both virtual and in-person sessions, nights, and also weekends. Whatever challenges you're facing, Grow Therapy is here to help. Grow accepts over 125 insurance. insurance plans. Sessions average $21 with insurance and some pay as little as $0 depending on their plan. You can visit growtherapy.com slash explained today to get started. That's growtherapy.com slash explained. Availability and coverage vary by state and insurance plan.",
+  "intro_variants": [
+    "Support for the show today comes from Grow Therapy."
+  ],
+  "outro_variants": [
+    "Availability and coverage vary by state and insurance plan."
+  ],
+  "avg_duration": 61.9,
+  "sponsor": "Grow Therapy",
+  "sponsor_aliases": [
+    "growtherapy.com"
+  ],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "5ee4ec95-3c37-4026-af06-cf71dc1dfed9",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.812826+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "New finance tools pop up every year but not all of them are built to scale with your business The American Express Corporate Program combines flexible cards real insights and smart controls to help support growing businesses with the reliability protection and expert support that comes with American Express Connect with a member of the American Express team live at 1-855-531-3491.",
+  "intro_variants": [
+    "New finance tools pop up every year but not all of them are built to scale with your business"
+  ],
+  "outro_variants": [
+    "Connect with a member of the American Express team live at 1-855-531-3491."
+  ],
+  "avg_duration": 29.5,
+  "sponsor": "American Express",
+  "sponsor_aliases": [
+    "americanexpress.com",
+    "AmericanExpress"
+  ],
+  "sponsor_tags": [
+    "business",
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "16a2bfde-36a7-496b-9d98-f0ad50bd832d",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.783925+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

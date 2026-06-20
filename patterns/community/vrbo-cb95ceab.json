@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Booking a Vrbo vacation rental means you get Vrbo care and 24-7 life support, verified reviews from real guests, and top-rated homes with the Love by Guest filter. I just booked my Vrbo because there was a sweet wine fridge. We all have our reasons. If you know, you Vrbo. Terms apply. See Vrbo.com slash trust for details.",
+  "intro_variants": [
+    "Booking a Vrbo vacation rental means you get Vrbo care and 24-7 life support",
+    "Booking a Vrbo vacation rental means you get Vrbo care and 24-7 live support"
+  ],
+  "outro_variants": [
+    "See Vrbo.com slash trust for details."
+  ],
+  "avg_duration": 16.7,
+  "sponsor": "Vrbo",
+  "sponsor_aliases": [
+    "VrboCare"
+  ],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "cb95ceab-8a59-4994-9377-8a9f6b3d2e6e",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.388081+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

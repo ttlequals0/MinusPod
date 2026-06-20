@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "New markdowns up to 70% off are at Nordstrom Rack stores now. Stock up and stay big on shoes, tops, dresses, accessories, and more must-haves for summer. Join the Nordic Club to unlock exclusive discounts, shop new arrivals first, and more. Plus, buy online and pick up at your favorite rack store for free. Great brands, great prices. That's why you rack.",
+  "intro_variants": [
+    "New markdowns up to 70% off are at Nordstrom Rack stores now."
+  ],
+  "outro_variants": [
+    "Great brands, great prices. That's why you rack."
+  ],
+  "avg_duration": 23.2,
+  "sponsor": "Nordstrom",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "home_goods",
+    "kids_family",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "4638daf7-b870-4182-99bd-1d2e20f00251",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.804398+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

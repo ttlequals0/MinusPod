@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "This is Dr. Joy from Therapy for Black Girls. A fresh sparkling kitchen? Yes, please. The scrubbing it takes to get one? Not a favorite. That's why you'll love Dawn Power Wash Dish Spray. From everyday dishes to the toughest messes, it makes clean up twice as fast. Less scrubbing, more living. Find Dawn Power Wash Dish Spray at your favorite retailer.",
+  "intro_variants": [
+    "This is Dr. Joy from Therapy for Black Girls. A fresh sparkling kitchen? Yes, please."
+  ],
+  "outro_variants": [
+    "Find Dawn Power Wash Dish Spray at your favorite retailer."
+  ],
+  "avg_duration": 20.5,
+  "sponsor": "Dawn Power Wash",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "home_goods",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "ed7198ec-36a2-41ad-9618-ba1dbc878f1c",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.728688+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

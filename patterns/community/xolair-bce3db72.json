@@ -8,8 +8,10 @@
     "This is an advertisement for Zolaire paid for by Genentech and Novartis."
   ],
   "avg_duration": 103.7,
-  "sponsor": "Zolaire",
+  "sponsor": "Xolair",
   "sponsor_aliases": [
+    "Zolaire",
+    "xolair.com",
     "zolaire.com",
     "omalizumab",
     "Genentech",
@@ -21,7 +23,7 @@
   ],
   "source_language": null,
   "community_id": "bce3db72-4300-4ea1-aca7-2637457bb9d6",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.563804+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

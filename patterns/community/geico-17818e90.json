@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "When I got a new car, I thought my insurance premium would increase and empty my bank account. Like, if Fetween won the lottery. I've invested most of my winnings in chicken tenders, because they're bomb. But bro, I bought a house, and it's sick, bro. I'm thinking the floor is gonna be all trampoline, bro, with a helipad on the roof. The contractor said it's structurally unsound, but they're just being babies. But switching to Geico saved me hundreds, so my bank account is safe. It feels good to save some hard-earned cash. It feels good to Geico.",
+  "intro_variants": [
+    "When I got a new car, I thought my insurance premium would increase and empty my bank account."
+  ],
+  "outro_variants": [
+    "It feels good to Geico."
+  ],
+  "avg_duration": 42.9,
+  "sponsor": "Geico",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "insurance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "17818e90-05b6-49fb-844d-ca8912e4a2f1",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.813572+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "Patrick loves dining out. Omar loves takeout. And Katie, she cooks from scratch. Because no two people are the same, so their credit cards shouldn't treat them the same. That's why we made the TD Cash credit card. It lets you choose which spend categories earn unlimited 3% cash back, and cash back, like on dining, groceries, or gas. It's how TD is making banking more human. Terms and conditions apply. See td.com slash cash for details.",
+  "intro_variants": [
+    "Patrick loves dining out. Omar loves takeout. And Katie, she cooks from scratch."
+  ],
+  "outro_variants": [
+    "See td.com slash cash for details.",
+    "See td slash cash for details",
+    "It's how TD is making banking more human."
+  ],
+  "avg_duration": 29.0,
+  "sponsor": "TD",
+  "sponsor_aliases": [
+    "TD card",
+    "TD Bank",
+    "Toronto-Dominion Bank",
+    "td.com"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "648ccacf-0034-41ad-b31b-953f53895ce2",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.831983+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

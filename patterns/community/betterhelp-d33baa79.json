@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "Support for today's show comes from BetterHelp. Summer is here, which means travel is picking up, the kids are out of school, and fun is in the air. But juggling it can be a lot. So if you're feeling overwhelmed, counting down the days until school returns, or just worried you're missing critical days of sunshine, BetterHelp is here. BetterHelp can match you with a licensed therapist who can help you through it all. Just fill out a short questionnaire to identify your preferences, or if it's not the right fit, you can switch at any time. You don't have to say yes to everything this summer. You can find support in therapy. Sign up and get 10% off at BetterHelp.com slash America Actually. That's Better, H-E-L-P.com slash America Actually.",
+  "intro_variants": [
+    "Support for today's show comes from BetterHelp."
+  ],
+  "outro_variants": [
+    "That's Better H-E-L-P.com slash America Actually.",
+    "That's BetterHelp.com slash America Actually."
+  ],
+  "avg_duration": 47.8,
+  "sponsor": "BetterHelp",
+  "sponsor_aliases": [
+    "Better Help",
+    "betterhelp.com"
+  ],
+  "sponsor_tags": [
+    "health",
+    "mental_health",
+    "personal_care",
+    "self_improvement",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "d33baa79-6126-4140-8263-56f8446350fb",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.899453+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

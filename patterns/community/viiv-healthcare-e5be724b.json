@@ -1,0 +1,34 @@
+{
+  "scope": "global",
+  "text_template": "The Old Gays are back with Silver Linings, their lovable podcast from Ruby Studio in partnership with Veve Healthcare. Robert, Mick, Bill, and Jesse strut back down memory lane for season two, sharing lessons on life, love, and loss. These are the kind of insights that only come from experience. So tune in to Silver Linings with the Old Gaze on the app or wherever you get your podcasts.",
+  "intro_variants": [
+    "The Old Gays are back with Silver Linings, their lovable podcast from Ruby Studio in partnership with Veve Healthcare.",
+    "The Old Gaze are back with Silver Linings, their lovable podcast from Ruby Studio in partnership with Veve Healthcare.",
+    "Guess who's back in the house? The old gays return for season two of Silver Linings, their hit podcast from iHeart's Ruby Studio in partnership with Veeve Healthcare."
+  ],
+  "outro_variants": [
+    "So tune in to Silver Linings with the Old Gaze on the app or wherever you get your podcasts.",
+    "So tune in to Silver Linings with the Old Gays on the app or wherever you get your podcasts.",
+    "So tune in to Silver Linings with the Old Gaze on the iHeartRadio app, Apple Podcasts, or wherever you get your podcasts.",
+    "Listen to Silver Linings available on the app or wherever you get your podcasts."
+  ],
+  "avg_duration": 59.9,
+  "sponsor": "Viiv Healthcare",
+  "sponsor_aliases": [
+    "Devato",
+    "Dolutegravir",
+    "Lamivudine",
+    "Dovato",
+    "Veeve Healthcare",
+    "Veve Healthcare"
+  ],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "e5be724b-7b45-4dc7-a7b3-7a06200b931c",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.796374+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

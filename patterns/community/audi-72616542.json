@@ -3,10 +3,15 @@
   "text_template": "With the all new Audi Q3. The answer is always yes. Yes to adventure. Yes to escape. Yes to right now. The all new Audi Q3 made for the yes life.",
   "intro_variants": [
     "With the all new Audi Q3. The answer is always yes.",
-    "With the all new Audi Q3, The answer is always yes."
+    "With the all new Audi Q3, The answer is always yes.",
+    "With the all-new Audi Q3, the answer's always yes.",
+    "Picture this. A curve in the road. A change in plans. Well, what do you say? With the all-new Audi Q3, the answer's always yes."
   ],
   "outro_variants": [
-    "The all new Audi Q3 made for the yes life."
+    "The all new Audi Q3 made for the yes life.",
+    "The all new Audi Q3, made for the yes life.",
+    "The all-new Audi Q3, made for the yes life.",
+    "The all-new Audi Q3. Made for the yes life."
   ],
   "avg_duration": 25.0,
   "sponsor": "Audi",
@@ -17,7 +22,7 @@
   ],
   "source_language": null,
   "community_id": "72616542-5fc8-40ad-b885-4401603693c7",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-05T00:54:04.766995+00:00",
   "submitted_app_version": "2.6.2",
   "sponsor_match": "exact"

@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Feel like you're being told to wave a magic AI wand and everything will just get better? Sure, AI can chat and summarize, but what about big business problems, like rerouting stock through a canal that won't unblock? Enterprise AI needs context for that, so Celonis provides it. The Celonis context model gives AI operational clarity, so agents know how your unique business runs and how to improve it. Meet the model at C-E-L-O-N-I-S dot com slash context.",
+  "intro_variants": [
+    "Feel like you're being told to wave a magic AI wand and everything will just get better?"
+  ],
+  "outro_variants": [
+    "Meet the model at C-E-L-O-N-I-S dot com slash context."
+  ],
+  "avg_duration": 32.4,
+  "sponsor": "Celonis",
+  "sponsor_aliases": [
+    "celonis.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "technology"
+  ],
+  "source_language": null,
+  "community_id": "0dd1065c-45f3-4f62-9e47-a68afdd95746",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.951219+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

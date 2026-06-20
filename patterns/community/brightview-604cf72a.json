@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "Residents at Brightview Senior Living Communities enjoy enhanced possibilities, independence, and choice every day. Brightview Catonsville offers vibrant independent living, assisted living, and memory care with engaging daily programs and personalized support. Enjoy chef-prepared meals, safety and security, transportation, resort-style amenities, and high-quality care designed around your lifestyle. It's a place where comfort meets connection. Discover more at brightviewseniorliving.com. Equal Housing Opportunity.",
+  "intro_variants": [
+    "Residents at Brightview Senior Living Communities enjoy enhanced possibilities, independence, and choice every day."
+  ],
+  "outro_variants": [
+    "Discover more at brightviewseniorliving.com. Equal Housing Opportunity."
+  ],
+  "avg_duration": 59.3,
+  "sponsor": "Brightview",
+  "sponsor_aliases": [
+    "brightviewseniorliving.com"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "604cf72a-0fef-4d5d-ae2b-e9c5afe517de",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.397636+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

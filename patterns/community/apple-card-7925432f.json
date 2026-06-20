@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "This message is brought to you by AppleCard. For a limited time, when you get a new AppleCard and purchase AirPods Pro 3 at Apple, you can earn back the cost. Up to 250 daily cash. New AirPods Pro and up to $250 bonus daily cash back? Now that's music to my ears. Subject to credit approval, limitations and spend requirements apply. AppleCard is issued by Goldman Sachs Bank USA Salt Lake City branch. Terms and more at apple.co slash AirPods.",
+  "intro_variants": [
+    "This message is brought to you by AppleCard."
+  ],
+  "outro_variants": [
+    "Terms and more at apple.co slash AirPods."
+  ],
+  "avg_duration": 28.3,
+  "sponsor": "Apple Card",
+  "sponsor_aliases": [
+    "AppleCard",
+    "applecard.com"
+  ],
+  "sponsor_tags": [
+    "finance"
+  ],
+  "source_language": null,
+  "community_id": "7925432f-bc8b-4353-9a7d-e38df2d7f0e9",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.776484+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

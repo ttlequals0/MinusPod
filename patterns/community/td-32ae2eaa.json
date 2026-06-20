@@ -11,10 +11,12 @@
     "That's how TD's making banking more human."
   ],
   "avg_duration": null,
-  "sponsor": "TD card",
+  "sponsor": "TD",
   "sponsor_aliases": [
+    "TD card",
     "TD Bank",
-    "Toronto-Dominion Bank"
+    "Toronto-Dominion Bank",
+    "td.com"
   ],
   "sponsor_tags": [
     "finance",
@@ -22,7 +24,7 @@
   ],
   "source_language": null,
   "community_id": "32ae2eaa-3148-4b7e-9d96-e7fc59576ed1",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-27T02:31:11.364726+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

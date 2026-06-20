@@ -1,0 +1,29 @@
+{
+  "scope": "global",
+  "text_template": "Support for Today Explained comes from Vanta. What's one thing in business, Vanta asks, that's spreading as fast as AI? AI risks, says Vanta. Saks, says Vanta. Every new tool that your team signs up for, every vendor that turns on AI features, every new integration has the potential to create a risky situation for your company. And most security programs were not built for AI's pace of growth. Enter Vanta. Vanta is the leading agentic trust platform used by over 16,000 fast-moving companies to ensure they're always audit ready. And now Vanta is helping companies like yours watch for the risks that show up between those audits across your vendors. Your AI tools, your whole environment. The Vanna agent works like a 24-7 GRC engineer in the background, finding issues, drafting fixes, cutting vendor assessment time by up to 50%, whether you're a fast-growing startup or a global enterprise. Vanta is here to help you automate your security and compliance and earn and prove trust. You can get started today at Vanta.com slash Explained. That's V-A-N-T-A dot com slash Explained.",
+  "intro_variants": [
+    "Support for Today Explained comes from Vanta."
+  ],
+  "outro_variants": [
+    "That's V-A-N-T-A dot com slash Explained.",
+    "You can get started today at Vanta.com slash Explained.",
+    "You can get started today at Vanna.com slash Explained. That's V-A-N-T-A dot com slash Explained."
+  ],
+  "avg_duration": 63.1,
+  "sponsor": "Vanta",
+  "sponsor_aliases": [
+    "vanta.com",
+    "vanna.com"
+  ],
+  "sponsor_tags": [
+    "tech",
+    "security",
+    "saas"
+  ],
+  "source_language": null,
+  "community_id": "9b4fe10a-1826-40fc-97a8-b2f9a94f2ce0",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.772246+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

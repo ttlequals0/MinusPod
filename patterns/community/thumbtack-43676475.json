@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Recommendations can be amazing. I mean, maybe someone recommended that TV show you've been obsessed with lately. But when it comes to home projects, it's different. If you don't like a show, you might lose a few minutes. If you hire a friend of a friend of a friend to fix a leaky ceiling, you could end up with a flooded kitchen. Maybe I know a guy just isn't enough for your home. That's why Thumbtack works so well. They'll match you with a top-rated local pro, and you can see photos of past work, credentials, and reviews all right in the app. For your next home project, try Thumbtack. Hire the right pro today.",
+  "intro_variants": [
+    "Recommendations can be amazing. I mean, maybe someone recommended that TV show you've been obsessed with lately."
+  ],
+  "outro_variants": [
+    "For your next home project, try Thumbtack. Hire the right pro today."
+  ],
+  "avg_duration": 37.6,
+  "sponsor": "Thumbtack",
+  "sponsor_aliases": [
+    "Thumb Tack",
+    "thumbtack.com"
+  ],
+  "sponsor_tags": [
+    "home_goods",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "43676475-854b-4e52-84b0-89f303fd36ef",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:12.801176+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}
