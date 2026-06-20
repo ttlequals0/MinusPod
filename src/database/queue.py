@@ -112,7 +112,7 @@ class QueueMixin:
 
 
     def get_next_queued_episode(self) -> Optional[Dict]:
-        """Get the next pending episode from the queue (FIFO order)."""
+        """Get the next pending episode from the queue (FIFO order, read-only)."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
@@ -124,6 +124,43 @@ class QueueMixin:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def claim_next_queued_episode(self) -> Optional[Dict]:
+        """Atomically claim the next pending episode, marking it 'processing'.
+
+        Closes the SELECT-then-mark gap in get_next_queued_episode: the
+        conditional ``UPDATE ... WHERE status='pending'`` plus the rowcount
+        guard means only one consumer can win a given row (SQLite serializes
+        the writes), so the dequeue is safe even if a second queue consumer is
+        ever added. Returns the claimed row (status='processing'), or None if
+        the queue is empty. On the rare lost race it tries the next pending row.
+        """
+        conn = self.get_connection()
+        for _ in range(5):
+            row = conn.execute(
+                """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+                   FROM auto_process_queue q
+                   JOIN podcasts p ON q.podcast_id = p.id
+                   WHERE q.status = 'pending'
+                   ORDER BY q.created_at ASC
+                   LIMIT 1"""
+            ).fetchone()
+            if row is None:
+                return None
+            cursor = conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'processing',
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ? AND status = 'pending'""",
+                (row['id'],),
+            )
+            conn.commit()
+            if cursor.rowcount == 1:
+                claimed = dict(row)
+                claimed['status'] = 'processing'
+                return claimed
+            # Lost the race to another consumer; try the next pending row.
+        return None
 
     def update_queue_status(self, queue_id: int, status: str,
                             error_message: str = None) -> bool:

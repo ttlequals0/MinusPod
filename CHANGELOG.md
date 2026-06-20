@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.2] - 2026-06-20
+
+### Fixed
+
+- The cue-capture waveform no longer goes blank when you zoom in, especially near the end of a long episode. It used to render the whole episode as one giant canvas and zoom by widening it, but the waveform library stops drawing past about 16000 pixels, so the zoomed-in far end showed nothing. Zooming now narrows the rendered span to about one screen-width and a full-episode scrubber lets you pan, so the waveform stays drawn at any zoom while keeping the whole-episode view at 1x.
+
+### Changed
+
+- Hardened the auto-process queue: the next episode is now claimed atomically (a single conditional update) instead of selected and then marked, so the dequeue stays correct even if a second queue worker is ever added. No behavior change with the current single worker.
+
 ## [2.12.1] - 2026-06-20
 
 ### Fixed

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
@@ -75,8 +75,6 @@ function CueMarkModal({
       : Math.min(totalDuration, 1.0),
   }), [initialStart, initialEnd, totalDuration]);
 
-  const windowStart = 0;
-  const windowEnd = totalDuration;
   const [cueStart, setCueStart] = useState(defaults.cueStart);
   const [cueEnd, setCueEnd] = useState(defaults.cueEnd);
   const [playheadTime, setPlayheadTime] = useState(0);
@@ -93,6 +91,21 @@ function CueMarkModal({
     [cueType, captureMaxSeconds],
   );
   const [zoom, setZoom] = useState(1);
+  // Windowed rendering: zoom narrows the rendered time-span (kept to about one
+  // screen-width at any zoom) instead of widening a giant canvas. wavesurfer
+  // caps its render at ~16000px and leaves everything past that blank, so the
+  // old "whole episode, zoom widens the canvas" approach went blank at the far
+  // end. At 1x the window is the whole episode. Deferred so dragging the zoom
+  // slider / scrubber stays responsive while the windowed peaks re-fetch.
+  const [windowCenter, setWindowCenter] = useState(() => (defaults.cueStart + defaults.cueEnd) / 2);
+  const deferredZoom = useDeferredValue(zoom);
+  const deferredCenter = useDeferredValue(windowCenter);
+  const { windowStart, windowEnd } = useMemo(() => {
+    const winDur = Math.min(totalDuration, Math.max(0.5, totalDuration / Math.max(1, deferredZoom)));
+    let start = Math.max(0, Math.min(totalDuration - winDur, deferredCenter - winDur / 2));
+    if (!Number.isFinite(start)) start = 0;
+    return { windowStart: start, windowEnd: start + winDur };
+  }, [deferredZoom, deferredCenter, totalDuration]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [snapEnabled, setSnapEnabled] = useState(true);
@@ -117,6 +130,7 @@ function CueMarkModal({
   const scrollRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  const scrubberRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const startInputRef = useRef<HTMLInputElement | null>(null);
   const endInputRef = useRef<HTMLInputElement | null>(null);
@@ -125,12 +139,26 @@ function CueMarkModal({
   // pauses unrelated playback the next time the playhead crosses the end pin.
   const selectionStopRef = useRef<(() => void) | null>(null);
 
+  // Fetch the whole episode's peaks ONCE (stable), then slice the current
+  // window out client-side. Re-fetching per window would null `peaks` on every
+  // zoom/pan tick, flashing the pins and waveform; slicing keeps the loaded
+  // peaks stable so only the rendered slice changes.
   const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, windowStart, windowEnd, resetTick,
+    podcastSlug, episodeId, 0, totalDuration, resetTick,
   );
 
   const audioUrl = `/api/v1/feeds/${podcastSlug}/episodes/${episodeId}/original.mp3`;
   const windowDuration = Math.max(0.001, windowEnd - windowStart);
+
+  // Peaks for just the visible window (a slice of the full-episode peaks).
+  const windowPeaks = useMemo(() => {
+    if (!peaks) return null;
+    const bucket = peakResolutionMs / 1000;
+    if (!(bucket > 0)) return peaks;
+    const startIdx = Math.max(0, Math.floor(windowStart / bucket));
+    const endIdx = Math.min(peaks.length, Math.ceil(windowEnd / bucket));
+    return endIdx > startIdx ? peaks.slice(startIdx, endIdx) : peaks;
+  }, [peaks, peakResolutionMs, windowStart, windowEnd]);
 
   // Close on Escape, matching the rest of the app's modal behaviour.
   useEffect(() => {
@@ -154,8 +182,34 @@ function CueMarkModal({
 
   const seekTo = useCallback((t: number) => {
     const audio = audioRef.current;
-    if (audio) audio.currentTime = Math.max(0, Math.min(totalDuration, t));
+    const clamped = Math.max(0, Math.min(totalDuration, t));
+    if (audio) audio.currentTime = clamped;
+    // Recenter the rendered window on the jump target so it stays visible when
+    // zoomed in (a no-op at 1x where the window is the whole episode).
+    setWindowCenter(clamped);
   }, [totalDuration]);
+
+  // Full-episode scrubber: drag to pan the zoomed window across the episode.
+  const panToClientX = useCallback((clientX: number) => {
+    const el = scrubberRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setWindowCenter(frac * totalDuration);
+  }, [totalDuration]);
+  const onScrubberPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    panToClientX(e.clientX);
+    const move = (ev: PointerEvent) => panToClientX(ev.clientX);
+    const end = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  };
 
   // The scan runs in a background thread server-side; poll until it reports
   // done. `force` re-runs after an error rather than re-reading the cache.
@@ -200,20 +254,28 @@ function CueMarkModal({
     }
   }, []);
 
+  // Snap an ABSOLUTE time to the nearest onset. The peaks are for the current
+  // window [windowStart, windowEnd], so convert to/from window-relative before
+  // indexing them (snapToOnset assumes peaks[0] == time 0).
+  const snapAbs = useCallback((t: number): number => {
+    if (!snapEnabled) return t;
+    return windowStart + snapToOnset(t - windowStart, windowPeaks, peakResolutionMs);
+  }, [snapEnabled, windowStart, windowPeaks, peakResolutionMs]);
+
   // Snap a candidate boundary to the nearest onset when the assist is on,
   // then clamp so the region stays inside [MIN, MAX] and ordered.
   const snapStartTo = useCallback((t: number): number => {
-    const snapped = snapEnabled ? snapToOnset(t, peaks, peakResolutionMs) : t;
-    return Math.max(windowStart, Math.min(cueEnd - MIN_REGION_SECONDS, snapped));
-  }, [snapEnabled, peaks, peakResolutionMs, cueEnd, MIN_REGION_SECONDS]);
+    return Math.max(0, Math.min(cueEnd - MIN_REGION_SECONDS, snapAbs(t)));
+  }, [snapAbs, cueEnd, MIN_REGION_SECONDS]);
   const snapEndTo = useCallback((t: number): number => {
-    const snapped = snapEnabled ? snapToOnset(t, peaks, peakResolutionMs) : t;
-    return Math.max(cueStart + MIN_REGION_SECONDS, Math.min(windowEnd, snapped));
-  }, [snapEnabled, peaks, peakResolutionMs, cueStart, windowEnd, MIN_REGION_SECONDS]);
+    return Math.max(cueStart + MIN_REGION_SECONDS, Math.min(totalDuration, snapAbs(t)));
+  }, [snapAbs, cueStart, totalDuration, MIN_REGION_SECONDS]);
 
-  // Mount wavesurfer when peaks arrive.
+  // Mount wavesurfer for the current window's peak slice. Re-renders when the
+  // window changes (zoom/pan); the slice keeps the canvas width at one screen
+  // so wavesurfer never has to render past its ~16000px cap.
   useEffect(() => {
-    if (!waveformRef.current || !peaks) return;
+    if (!waveformRef.current || !windowPeaks) return;
     // Color the bars with the theme accent (primary) so the capture waveform is
     // vividly themed -- matching how the ad editor's waveform reads in each
     // theme rather than the muted grey wavesurfer would otherwise show at rest.
@@ -222,7 +284,7 @@ function CueMarkModal({
       container: waveformRef.current,
       height: 110,
       normalize: true,
-      peaks: [peaks],
+      peaks: [windowPeaks],
       duration: windowDuration,
       waveColor: themeWave.progressColor,
       progressColor: themeWave.progressColor,
@@ -248,33 +310,7 @@ function CueMarkModal({
       ws.destroy();
       wsRef.current = null;
     };
-  }, [peaks, windowStart, windowDuration]);
-
-  // Zoom = scale wavesurfer's px/sec and grow the overlay so the pins (which
-  // position by % against the overlay) stay anchored as the inner canvas
-  // widens. After resize, scroll so the playhead stays centred.
-  useEffect(() => {
-    const ws = wsRef.current;
-    const sc = scrollRef.current;
-    const overlay = overlayRef.current;
-    const audio = audioRef.current;
-    if (!ws || !sc || !overlay) return;
-    const fitPxPerSec = sc.clientWidth / Math.max(0.001, windowDuration);
-    const targetPxPerSec = fitPxPerSec * zoom;
-    const targetWidth = windowDuration * targetPxPerSec;
-    overlay.style.minWidth = `${targetWidth}px`;
-    try {
-      ws.zoom(targetPxPerSec);
-    } catch {
-      /* ws not ready */
-    }
-    requestAnimationFrame(() => {
-      if (!audio) return;
-      const playheadX = ((audio.currentTime - windowStart) / windowDuration) * targetWidth;
-      const desiredLeft = playheadX - sc.clientWidth / 2;
-      sc.scrollLeft = Math.max(0, Math.min(targetWidth - sc.clientWidth, desiredLeft));
-    });
-  }, [zoom, peaks, windowDuration, windowStart]);
+  }, [windowPeaks, windowStart, windowDuration]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -322,14 +358,14 @@ function CueMarkModal({
   const commitStart = () => {
     const v = parseTimeInput(startInput);
     if (v == null) { setStartInput(formatTime(cueStart)); return; }
-    const clamped = Math.max(windowStart, Math.min(windowEnd, v));
+    const clamped = Math.max(0, Math.min(totalDuration, v));
     setCueStart(clamped);
     setStartInput(formatTime(clamped));
   };
   const commitEnd = () => {
     const v = parseTimeInput(endInput);
     if (v == null) { setEndInput(formatTime(cueEnd)); return; }
-    const clamped = Math.max(windowStart, Math.min(windowEnd, v));
+    const clamped = Math.max(0, Math.min(totalDuration, v));
     setCueEnd(clamped);
     setEndInput(formatTime(clamped));
   };
@@ -394,24 +430,24 @@ function CueMarkModal({
   // at save, where the type-specific ceiling applies -- clamping here snapped a
   // long intro/outro back to the ad-break 4s default mid-edit.
   const setStartAtPlayhead = useCallback(() => {
-    const t = snapEnabled ? snapToOnset(playheadTime, peaks, peakResolutionMs) : playheadTime;
+    const t = snapAbs(playheadTime);
     let newEnd = cueEnd;
     if (t >= newEnd - MIN_REGION_SECONDS) {
       newEnd = Math.min(totalDuration, t + Math.max(MIN_REGION_SECONDS, 0.5));
     }
     setCueStart(Math.max(0, t));
     setCueEnd(newEnd);
-  }, [playheadTime, cueEnd, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS]);
+  }, [snapAbs, playheadTime, cueEnd, totalDuration, MIN_REGION_SECONDS]);
 
   const setEndAtPlayhead = useCallback(() => {
-    const t = snapEnabled ? snapToOnset(playheadTime, peaks, peakResolutionMs) : playheadTime;
+    const t = snapAbs(playheadTime);
     let newStart = cueStart;
     if (t <= newStart + MIN_REGION_SECONDS) {
       newStart = Math.max(0, t - Math.max(MIN_REGION_SECONDS, 0.5));
     }
     setCueStart(newStart);
     setCueEnd(Math.min(totalDuration, t));
-  }, [playheadTime, cueStart, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS]);
+  }, [snapAbs, playheadTime, cueStart, totalDuration, MIN_REGION_SECONDS]);
 
   const regionDuration = cueEnd - cueStart;
   const regionDurationValid =
@@ -519,7 +555,7 @@ function CueMarkModal({
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
-        <div ref={scrollRef} className="overflow-x-auto border border-border rounded-lg bg-secondary/40 min-h-[140px]">
+        <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
             <div ref={waveformRef} />
             {/* Selected-cue region highlight -- same amber fill the ad editor
@@ -600,6 +636,43 @@ function CueMarkModal({
             )}
           </div>
         </div>
+
+        {/* Full-episode scrubber: shows where the zoomed window sits and lets
+            the user pan across the whole episode (only useful when zoomed). */}
+        {zoom > 1 && totalDuration > 0 && (
+          <div className="mt-2">
+            <div
+              ref={scrubberRef}
+              role="slider"
+              aria-label="Episode position"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(totalDuration)}
+              aria-valuenow={Math.round(windowCenter)}
+              tabIndex={0}
+              onPointerDown={onScrubberPointerDown}
+              className="relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none focus:outline-hidden focus:ring-2 focus:ring-ring"
+            >
+              <div
+                className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
+                style={{
+                  left: `${(windowStart / totalDuration) * 100}%`,
+                  width: `${Math.max(1, ((windowEnd - windowStart) / totalDuration) * 100)}%`,
+                }}
+                aria-hidden
+              />
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-amber-500 pointer-events-none"
+                style={{ left: `${(playheadTime / totalDuration) * 100}%` }}
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+              <span>{formatTime(windowStart)}</span>
+              <span>showing {formatTime(windowEnd - windowStart)}</span>
+              <span>{formatTime(windowEnd)}</span>
+            </div>
+          </div>
+        )}
 
         {peaksError && (
           <p className="text-sm text-destructive mt-2">

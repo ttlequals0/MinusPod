@@ -98,8 +98,8 @@ def background_queue_processor():
                 if retry_count > 0:
                     refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
 
-            # Get next queued episode
-            queued = db.get_next_queued_episode()
+            # Atomically claim the next queued episode (marks it 'processing').
+            queued = db.claim_next_queued_episode()
 
             if queued:
                 queue_id = queued['id']
@@ -111,28 +111,29 @@ def background_queue_processor():
                 published_at = queued.get('published_at')
                 description = queued.get('description')
 
-                # Auto-process gate: skip if disabled, UNLESS the episode was
-                # explicitly reprocessed by a user (reprocess_requested_at set).
-                if not db.is_auto_process_enabled_for_podcast(slug):
-                    episode_row = db.get_episode(slug, episode_id)
-                    user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
-                    if not user_requested:
-                        db.update_queue_status(queue_id, 'completed', 'Auto-process disabled for this feed')
-                        refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
-                        continue
-                    refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
-
-                refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
-
                 try:
+                    # Auto-process gate (inside the try so a gate error reverts the
+                    # claimed row instead of leaving it stuck in 'processing'): skip
+                    # if disabled, UNLESS the episode was explicitly reprocessed by a
+                    # user (reprocess_requested_at set).
+                    if not db.is_auto_process_enabled_for_podcast(slug):
+                        episode_row = db.get_episode(slug, episode_id)
+                        user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
+                        if not user_requested:
+                            db.update_queue_status(queue_id, 'completed', 'Auto-process disabled for this feed')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
+                            continue
+                        refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
+
+                    refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
+
                     # Try to start background processing using the existing queue
                     started, reason = start_background_processing(
                         slug, episode_id, original_url, title, podcast_name, description, None, published_at
                     )
 
                     if started:
-                        # Only mark as processing AFTER we successfully acquired the lock
-                        db.update_queue_status(queue_id, 'processing')
+                        # Row was already claimed 'processing' by claim_next_queued_episode.
                         # Reset backoff on successful start
                         backoff_seconds = 30
                         # Wait for processing to complete (poll status).
@@ -170,7 +171,9 @@ def background_queue_processor():
                             else:
                                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-process failed (transient), will auto-retry: {error_msg}")
                     elif reason == "already_processing":
-                        # Episode is already being processed, wait with backoff
+                        # Episode is already being processed elsewhere. Release our
+                        # claim back to 'pending' so it is re-checked later, then wait.
+                        db.update_queue_status(queue_id, 'pending')
                         refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting {backoff_seconds}s...")
                         shutdown_event.wait(timeout=backoff_seconds)
                         backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes

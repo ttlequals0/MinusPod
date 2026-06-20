@@ -546,6 +546,25 @@ class TestResetFailedQueueItems:
         )
         conn.commit()
 
+    def test_claim_next_marks_processing_and_is_exclusive(self, temp_db):
+        """claim_next_queued_episode atomically claims each pending row once."""
+        pid = self._setup_podcast_and_episode(temp_db, 'cpod', 'cep1', 'pending')
+        temp_db.upsert_episode('cpod', 'cep2',
+                               original_url='https://example.com/cep2.mp3', status='pending')
+        self._queue_item(temp_db, pid, 'cep1', status='pending')
+        self._queue_item(temp_db, pid, 'cep2', status='pending')
+
+        first = temp_db.claim_next_queued_episode()
+        second = temp_db.claim_next_queued_episode()
+        third = temp_db.claim_next_queued_episode()
+
+        assert first is not None and second is not None
+        assert first['status'] == 'processing' and second['status'] == 'processing'
+        assert {first['episode_id'], second['episode_id']} == {'cep1', 'cep2'}
+        # Both claimed, nothing pending left.
+        assert third is None
+        assert temp_db.get_next_queued_episode() is None
+
     def test_resets_eligible_transient_failure(self, temp_db):
         """Failed queue items with transient episode failure should be reset to pending."""
         pid = self._setup_podcast_and_episode(temp_db, 'pod1', 'ep1', 'failed', retry_count=0)
