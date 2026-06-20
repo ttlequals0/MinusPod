@@ -2,6 +2,7 @@
 import pytest
 import sys
 import os
+import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -45,6 +46,32 @@ class TestPodcastOperations:
         podcast = temp_db.get_podcast_by_slug('nonexistent-slug')
 
         assert podcast is None
+
+    def test_cue_candidate_scan_state_machine(self, temp_db):
+        pid = temp_db.create_podcast('scan-feed', 'http://x/sf.xml', 'SF')
+        # First claim starts a scan; a second concurrent claim sees it running.
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep1', 900) == 'started'
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep1', 900) == 'scanning'
+        # Result makes it readable; claim returns 'ready' and the row round-trips.
+        temp_db.save_cue_candidate_scan_result(
+            pid, 'ep1', [{'start': 1.0, 'end': 2.0, 'prominenceDb': 3.0, 'count': 4}])
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep1', 900) == 'ready'
+        row = temp_db.get_cue_candidate_scan(pid, 'ep1')
+        assert row['status'] == 'ready'
+        assert json.loads(row['candidates_json'])[0]['count'] == 4
+        # force reclaims a ready row for a fresh scan.
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep1', 900, force=True) == 'started'
+
+    def test_cue_candidate_scan_error_and_staleness(self, temp_db):
+        pid = temp_db.create_podcast('scan-feed2', 'http://x/sf2.xml', 'SF2')
+        temp_db.claim_cue_candidate_scan(pid, 'ep2', 900)
+        temp_db.save_cue_candidate_scan_error(pid, 'ep2', 'boom')
+        # A fresh error is reported (so the UI can stop polling), not re-run.
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep2', 900) == 'error'
+        # force reclaims the error for a retry.
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep2', 900, force=True) == 'started'
+        # A scan older than the stale window is reclaimable without force.
+        assert temp_db.claim_cue_candidate_scan(pid, 'ep2', 0) == 'started'
 
     def test_get_custom_network_overrides(self, temp_db):
         """Distinct non-empty network_id_override values across feeds."""

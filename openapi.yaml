@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.11.1
+  version: 2.12.0
   contact:
     name: MinusPod
   license:
@@ -4562,6 +4562,11 @@ paths:
     get:
       tags: [AudioCueTemplates]
       summary: List a feed's audio-cue templates
+      description: >
+        Returns the feed's own templates plus any network-scope templates
+        shared from sibling feeds on the same network. Shared templates carry
+        `owned: false` and are read-only in the UI (managed on the feed that
+        created them).
       operationId: listCueTemplates
       parameters:
         - name: slug
@@ -5000,9 +5005,12 @@ paths:
       summary: Find recurring sounds in an episode as cue-template candidates
       description: |
         On-demand scan. Decodes the original audio, detects loud bursts,
-        computes each burst's MFCC, and clusters by acoustic similarity.
-        Returns only sounds that repeat (a real cue recurs; a laugh or music
-        hit does not). Slow, so the UI calls it on an explicit action.
+        computes each burst's MFCC, and clusters by acoustic similarity;
+        returns only sounds that repeat (a real cue recurs; a laugh or music
+        hit does not). The decode is slow (90s+ on a long episode), so the scan
+        runs in a background thread and the result is cached. Poll this endpoint
+        until `status` is `ready` (candidates attached) or `error`. Pass
+        `rescan=1` to force a fresh scan after an error.
       operationId: episodeCueCandidates
       parameters:
         - name: slug
@@ -5015,9 +5023,16 @@ paths:
           required: true
           schema:
             type: string
+        - name: rescan
+          in: query
+          required: false
+          description: Force a fresh scan, ignoring any cached result
+          schema:
+            type: string
+            enum: ['1', 'true', 'yes']
       responses:
         '200':
-          description: Recurring cue candidates, most-recurring first
+          description: Scan status, with candidates once ready (most-recurring first)
           content:
             application/json:
               schema:
@@ -5025,6 +5040,15 @@ paths:
                 properties:
                   episodeId:
                     type: string
+                  status:
+                    type: string
+                    enum: [scanning, ready, error]
+                    description: |
+                      `scanning` (poll again shortly), `ready` (candidates
+                      attached), or `error` (scan failed; see `error`).
+                  error:
+                    type: string
+                    description: Present when status is error
                   candidates:
                     type: array
                     items:
@@ -5258,6 +5282,11 @@ components:
         createdBy:
           type: string
           nullable: true
+        owned:
+          type: boolean
+          description: >
+            Listing only. False for a network template shared from another feed
+            in this network (read-only here, managed on the feed that created it).
     BulkPatternOp:
       type: object
       required: [confirm, expected_count]

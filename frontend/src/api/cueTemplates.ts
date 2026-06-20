@@ -51,6 +51,9 @@ export interface CueTemplate {
   enabled: boolean;
   createdAt: string;
   createdBy: string | null;
+  // False for a network template shared from another feed in this network;
+  // such rows are read-only here and managed on the feed that created them.
+  owned?: boolean;
 }
 
 export interface CueTemplateListResponse {
@@ -183,18 +186,28 @@ export interface CueCandidate {
   count: number;
 }
 
+export type CueCandidateScanStatus = 'scanning' | 'ready' | 'error';
+
 export interface CueCandidatesResponse {
   episodeId: string;
+  // Background-scan status. Older servers omit it; treat a missing status with
+  // candidates present as 'ready'.
+  status?: CueCandidateScanStatus;
   candidates: CueCandidate[];
+  error?: string;
 }
 
 // On-demand scan: decode the audio, cluster loud bursts by similarity, and
-// return only sounds that recur (the ones worth templating). Slow.
+// return only sounds that recur (the ones worth templating). The scan is slow,
+// so the server runs it in the background and returns a status to poll; pass
+// rescan to force a fresh run after an error.
 export async function getCueCandidates(
   slug: string,
   episodeId: string,
+  rescan = false,
 ): Promise<CueCandidatesResponse> {
+  const query = rescan ? '?rescan=1' : '';
   return apiRequest<CueCandidatesResponse>(
-    `/feeds/${slug}/episodes/${episodeId}/cue-candidates`,
+    `/feeds/${slug}/episodes/${episodeId}/cue-candidates${query}`,
   );
 }

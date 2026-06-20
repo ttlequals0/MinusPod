@@ -133,6 +133,28 @@ def test_active_resolution_uses_network_id_override(temp_db):
     assert rows[0]['network_id'] == 'creator-x'
 
 
+def test_ui_listing_includes_sibling_network_templates(temp_db):
+    # Two feeds on one manual network. A network template captured on feed A
+    # must appear in feed B's UI listing (marked not-owned by the API layer),
+    # while a podcast-scope template on A must not leak to B.
+    pid_a = temp_db.create_podcast('ui-a', 'http://x/uia.xml', 'UI A')
+    pid_b = temp_db.create_podcast('ui-b', 'http://x/uib.xml', 'UI B')
+    temp_db.update_podcast('ui-a', network_id_override='creator-z')
+    temp_db.update_podcast('ui-b', network_id_override='creator-z')
+
+    net_tid = _create(temp_db, pid_a, scope='network', network_id='creator-z')
+    _create(temp_db, pid_a, cue_type='ad_break_start', scope='podcast', seed=1)
+    own_b = _create(temp_db, pid_b, cue_type='ad_break_end', scope='podcast', seed=2)
+
+    b_rows = temp_db.list_cue_templates_for_feed_ui(pid_b)
+    ids = [r['id'] for r in b_rows]
+    assert net_tid in ids          # sibling network template is visible
+    assert own_b in ids            # feed B's own template is visible
+    assert len(b_rows) == 2        # A's podcast-scope template did not leak
+    # Own rows sort ahead of shared network rows.
+    assert b_rows[0]['podcast_id'] == pid_b
+
+
 def test_active_resolution_blank_override_falls_back_to_network_id(temp_db):
     # A blank override stored as '' (not NULL) must not shadow the auto-detected
     # network_id; the feed still resolves its network-scope templates.

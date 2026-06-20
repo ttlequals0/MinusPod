@@ -301,6 +301,8 @@ function CueTemplatesPanel({ slug }: Props) {
                     type="checkbox"
                     checked={t.enabled}
                     onChange={() => handleToggle(t)}
+                    disabled={t.owned === false}
+                    title={t.owned === false ? 'Managed on the feed that created it' : undefined}
                     aria-label={`Enable cue ${t.label}`}
                   />
                   <div className="flex-1 min-w-0">
@@ -351,52 +353,60 @@ function CueTemplatesPanel({ slug }: Props) {
                     >
                       Export
                     </a>
-                    {(t.scope === 'network' || networkId) && (
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => handlePromote(t)}
-                        title={
-                          t.scope === 'network'
-                            ? 'Limit this cue to this feed only'
-                            : `Apply this cue to every feed on network "${networkId}"`
-                        }
-                      >
-                        {t.scope === 'network' ? 'Make podcast-only' : 'Promote to network'}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => startEditType(t)}
-                    >
-                      Change type
-                    </button>
-                    {confirmDeleteId === t.id ? (
+                    {t.owned === false ? (
+                      <span className="text-xs text-muted-foreground italic">
+                        Shared from this network
+                      </span>
+                    ) : (
                       <>
-                        <button
-                          type="button"
-                          className="text-xs text-destructive font-medium"
-                          onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
-                        >
-                          Confirm
-                        </button>
+                        {(t.scope === 'network' || networkId) && (
+                          <button
+                            type="button"
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => handlePromote(t)}
+                            title={
+                              t.scope === 'network'
+                                ? 'Limit this cue to this feed only'
+                                : `Apply this cue to every feed on network "${networkId}"`
+                            }
+                          >
+                            {t.scope === 'network' ? 'Make podcast-only' : 'Promote to network'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="text-xs text-muted-foreground hover:text-foreground"
-                          onClick={() => setConfirmDeleteId(null)}
+                          onClick={() => startEditType(t)}
                         >
-                          Cancel
+                          Change type
                         </button>
+                        {confirmDeleteId === t.id ? (
+                          <>
+                            <button
+                              type="button"
+                              className="text-xs text-destructive font-medium"
+                              onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => setConfirmDeleteId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="text-xs text-destructive hover:text-destructive/80"
+                            onClick={() => setConfirmDeleteId(t.id)}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="text-xs text-destructive hover:text-destructive/80"
-                        onClick={() => setConfirmDeleteId(t.id)}
-                      >
-                        Delete
-                      </button>
                     )}
                   </div>
                 )}

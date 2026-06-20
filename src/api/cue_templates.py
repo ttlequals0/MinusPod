@@ -14,6 +14,7 @@ Routes mounted under the ``/api/v1`` blueprint:
 import io
 import json
 import logging
+import threading
 import wave
 import zipfile
 
@@ -38,6 +39,7 @@ from config import (
     AUDIO_CUE_CAPTURE_MAX_BY_TYPE,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
     AUDIO_CUE_RECURRENCE_SIMILARITY, AUDIO_CUE_RECURRENCE_MIN_COUNT,
+    AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS,
     AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, is_template_cue,
 )
 from utils.validation import is_valid_episode_id
@@ -97,13 +99,23 @@ def _template_to_meta_dict(row: dict) -> dict:
 @api.route('/feeds/<slug>/cue-templates', methods=['GET'])
 @log_request
 def list_cue_templates(slug):
-    """List all cue templates for a feed."""
+    """List a feed's cue templates, including network templates from siblings.
+
+    A template promoted to network scope on any feed in the network is shown
+    here too, flagged ``owned: false`` so the UI can render it read-only (it is
+    managed on the feed that created it).
+    """
     db = get_database()
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('feed not found', 404)
-    rows = db.list_cue_templates_metadata(podcast['id'])
-    return json_response({'templates': [_template_to_meta_dict(r) for r in rows]})
+    rows = db.list_cue_templates_for_feed_ui(podcast['id'])
+    templates = []
+    for r in rows:
+        meta = _template_to_meta_dict(r)
+        meta['owned'] = r['podcast_id'] == podcast['id']
+        templates.append(meta)
+    return json_response({'templates': templates})
 
 
 @api.route('/feeds/<slug>/cue-templates', methods=['POST'])
@@ -204,7 +216,15 @@ def create_cue_template(slug):
 @api.route('/cue-templates/<int:template_id>', methods=['PATCH'])
 @log_request
 def update_cue_template_route(template_id):
-    """Rename / enable / disable a template."""
+    """Rename / enable / disable a template.
+
+    Addressed by global id with no feed scoping: a network template shared into
+    a sibling feed renders read-only in that feed's panel (the UI `owned` flag),
+    but the mutation itself is intentionally not feed-gated -- the app runs
+    behind one shared operator password, so this guards against an accidental
+    edit, not an adversary. Add a server-side ownership check here if per-feed
+    auth is ever introduced.
+    """
     db = get_database()
     row = db.get_cue_template(template_id)
     if not row:
@@ -611,28 +631,14 @@ def episode_detected_cues(slug, episode_id):
     })
 
 
-@api.route('/feeds/<slug>/episodes/<episode_id>/cue-candidates', methods=['GET'])
-@log_request
-def episode_cue_candidates(slug, episode_id):
-    """Find RECURRING sounds in an episode as cue-template candidates (on-demand).
+def _run_cue_candidate_scan(podcast_id, episode_id, audio_path, similarity, min_count):
+    """Background worker: decode the episode, cluster recurring sounds, persist.
 
-    Decodes the original audio once, detects loud bursts, computes each burst's
-    MFCC, and clusters by acoustic similarity. Only sounds that repeat are
-    returned (a real cue does; a laugh or music hit does not), cutting dozens of
-    one-off spikes down to the few worth templating. Slow (full decode), so the
-    UI calls it on an explicit action.
+    Runs off the request thread because the full decode takes 90s+ on a long
+    show, past the reverse-proxy timeout. Uses its own thread-local DB
+    connection (the Database singleton hands each thread its own).
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
     db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
-    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
-    if err:
-        return err
-
     try:
         spots = _scan_loud_spots(db, audio_path)
         # Decode the episode to PCM once and slice each burst in memory, instead
@@ -646,21 +652,72 @@ def episode_cue_candidates(slug, episode_id):
             mfcc = compute_mfcc(full_pcm[a:b])
             if mfcc.shape[0] >= 3:
                 enriched.append({**s, 'mfcc': mfcc})
-        candidates = cluster_recurring(
-            enriched,
-            similarity=db.get_setting_float(
-                'audio_cue_recurrence_similarity', AUDIO_CUE_RECURRENCE_SIMILARITY),
-            min_count=int(db.get_setting_float(
-                'audio_cue_recurrence_min_count', AUDIO_CUE_RECURRENCE_MIN_COUNT)),
-        )
-    except Exception as e:
-        return error_response(f'cue candidate scan failed: {e}', 500)
-
-    return json_response({
-        'episodeId': episode_id,
-        'candidates': [
+        candidates = cluster_recurring(enriched, similarity=similarity, min_count=min_count)
+        db.save_cue_candidate_scan_result(podcast_id, episode_id, [
             {'start': c['start'], 'end': c['end'],
              'prominenceDb': c.get('prominenceDb'), 'count': c['count']}
             for c in candidates
-        ],
-    })
+        ])
+    except Exception as e:
+        logger.exception('cue candidate scan failed for %s/%s', podcast_id, episode_id)
+        db.save_cue_candidate_scan_error(podcast_id, episode_id, str(e))
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/cue-candidates', methods=['GET'])
+@log_request
+def episode_cue_candidates(slug, episode_id):
+    """Find RECURRING sounds in an episode as cue-template candidates (on-demand).
+
+    Detects loud bursts, computes each burst's MFCC, and clusters by acoustic
+    similarity; only sounds that repeat are returned (a real cue does; a laugh
+    or music hit does not). The scan decodes the whole episode and is slow, so
+    it runs in a background thread and this endpoint returns a status the UI
+    polls: 'scanning' (in progress), 'ready' (candidates attached), or 'error'.
+    Pass ?rescan=1 to force a fresh scan.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+    podcast_id = podcast['id']
+    force = request.args.get('rescan') in ('1', 'true', 'yes')
+
+    state = db.claim_cue_candidate_scan(
+        podcast_id, episode_id, AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS, force=force)
+
+    if state == 'ready':
+        row = db.get_cue_candidate_scan(podcast_id, episode_id)
+        return json_response({
+            'episodeId': episode_id, 'status': 'ready',
+            'candidates': json.loads((row or {}).get('candidates_json') or '[]'),
+        })
+    if state == 'scanning':
+        return json_response({'episodeId': episode_id, 'status': 'scanning', 'candidates': []})
+    if state == 'error':
+        row = db.get_cue_candidate_scan(podcast_id, episode_id)
+        return json_response({
+            'episodeId': episode_id, 'status': 'error',
+            'error': (row or {}).get('error') or 'cue candidate scan failed',
+            'candidates': [],
+        })
+
+    # state == 'started': resolve the audio and run the scan in the background.
+    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
+    if err:
+        db.save_cue_candidate_scan_error(
+            podcast_id, episode_id, 'original audio not retained for this episode')
+        return err
+    similarity = db.get_setting_float(
+        'audio_cue_recurrence_similarity', AUDIO_CUE_RECURRENCE_SIMILARITY)
+    min_count = int(db.get_setting_float(
+        'audio_cue_recurrence_min_count', AUDIO_CUE_RECURRENCE_MIN_COUNT))
+    threading.Thread(
+        target=_run_cue_candidate_scan,
+        args=(podcast_id, episode_id, audio_path, similarity, min_count),
+        daemon=True,
+        name=f'cue-candidates-{episode_id}',
+    ).start()
+    return json_response({'episodeId': episode_id, 'status': 'scanning', 'candidates': []})

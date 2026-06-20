@@ -206,6 +206,10 @@ AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
 # similarity and only sounds that recur at least MIN_COUNT times are suggested.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.75   # peak sliding-ZNCC to call two bursts the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
+# The recurrence scan decodes the whole episode (90s+ on a long show), so it
+# runs in a background thread and the result is cached. A scan row older than
+# this is treated as crashed/expired and reclaimable for a fresh run.
+AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS = 900
 
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a
 # dropdown, never freeform text, so the phrase fed to the LLM prompt is always

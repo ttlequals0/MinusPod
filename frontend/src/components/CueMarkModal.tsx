@@ -31,6 +31,7 @@ import {
 
 const DEFAULT_MIN_REGION_SECONDS = 0.2;
 const DEFAULT_MAX_REGION_SECONDS = 4.0;
+const SCAN_FAILED_MESSAGE = 'Recurring-sound scan failed.';
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
 // fit-to-modal scale leaves them as a single pixel. Allow deep zoom.
@@ -103,6 +104,11 @@ function CueMarkModal({
   // the scan is slow, so it runs only when the user asks for it.
   const [candidates, setCandidates] = useState<CueCandidate[] | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const candidatePollRef = useRef<number | null>(null);
+  // Bumped on each new scan and on unmount, so a stale fetch's resolution bails
+  // instead of scheduling a poll or calling setState on a dead component.
+  const candidateRunRef = useRef(0);
   const resetTick = 0;
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -151,14 +157,48 @@ function CueMarkModal({
     if (audio) audio.currentTime = Math.max(0, Math.min(totalDuration, t));
   }, [totalDuration]);
 
-  const findCandidates = useCallback(() => {
+  // The scan runs in a background thread server-side; poll until it reports
+  // done. `force` re-runs after an error rather than re-reading the cache.
+  const findCandidates = useCallback((force = false) => {
+    if (candidatePollRef.current) {
+      clearTimeout(candidatePollRef.current);
+      candidatePollRef.current = null;
+    }
+    const run = ++candidateRunRef.current;
     setCandidatesLoading(true);
-    setError(null);
-    getCueCandidates(podcastSlug, episodeId)
-      .then((res) => setCandidates(res.candidates))
-      .catch(() => setCandidates([]))
-      .finally(() => setCandidatesLoading(false));
+    setCandidatesError(null);
+    const step = (forceThis: boolean) => {
+      getCueCandidates(podcastSlug, episodeId, forceThis)
+        .then((res) => {
+          if (run !== candidateRunRef.current) return; // superseded or unmounted
+          if (res.status === 'scanning') {
+            candidatePollRef.current = window.setTimeout(() => step(false), 3000);
+            return;
+          }
+          setCandidates(res.candidates);
+          setCandidatesLoading(false);
+          if (res.status === 'error') {
+            setCandidatesError(res.error || SCAN_FAILED_MESSAGE);
+          }
+        })
+        .catch(() => {
+          if (run !== candidateRunRef.current) return;
+          setCandidates([]);
+          setCandidatesLoading(false);
+          setCandidatesError(SCAN_FAILED_MESSAGE);
+        });
+    };
+    step(force);
   }, [podcastSlug, episodeId]);
+
+  // Invalidate any in-flight scan and stop polling if the modal closes mid-scan.
+  useEffect(() => () => {
+    candidateRunRef.current++;
+    if (candidatePollRef.current) {
+      clearTimeout(candidatePollRef.current);
+      candidatePollRef.current = null;
+    }
+  }, []);
 
   // Snap a candidate boundary to the nearest onset when the assist is on,
   // then clamp so the region stays inside [MIN, MAX] and ordered.
@@ -570,12 +610,17 @@ function CueMarkModal({
           <button
             type="button"
             className={ctrlBtn}
-            onClick={findCandidates}
+            onClick={() => findCandidates(!!candidatesError)}
             disabled={candidatesLoading}
           >
-            {candidatesLoading ? 'Finding recurring sounds...' : 'Find recurring sounds'}
+            {candidatesLoading
+              ? 'Finding recurring sounds...'
+              : candidatesError ? 'Try again' : 'Find recurring sounds'}
           </button>
-          {candidates !== null && !candidatesLoading && (
+          {candidatesError && !candidatesLoading && (
+            <span className="text-xs text-destructive">{candidatesError}</span>
+          )}
+          {candidates !== null && !candidatesLoading && !candidatesError && (
             <span className="text-xs text-muted-foreground">
               {candidates.length === 0
                 ? 'No recurring sounds found.'

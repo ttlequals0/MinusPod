@@ -1368,6 +1368,29 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"cue_detections table creation: {e}")
 
+        # cue_candidate_scans: cached result of the on-demand recurring-sound
+        # scan. Additive, no data-loss risk. DDL byte-identical to SCHEMA_SQL.
+        try:
+            fresh_ccs = not self._table_exists(conn, 'cue_candidate_scans')
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cue_candidate_scans (
+                    podcast_id INTEGER NOT NULL,
+                    episode_id TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'scanning' CHECK(status IN ('scanning', 'ready', 'error')),
+                    candidates_json TEXT,
+                    error TEXT,
+                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    PRIMARY KEY (podcast_id, episode_id),
+                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+                )
+            """)
+            conn.commit()
+            if fresh_ccs:
+                logger.info("Migration: Created cue_candidate_scans table")
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"cue_candidate_scans table creation: {e}")
+
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 

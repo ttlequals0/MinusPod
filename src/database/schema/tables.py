@@ -357,6 +357,21 @@ CREATE TABLE IF NOT EXISTS cue_detections (
 CREATE INDEX IF NOT EXISTS idx_cue_detections_episode ON cue_detections(episode_id);
 CREATE INDEX IF NOT EXISTS idx_cue_detections_feed ON cue_detections(podcast_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_cue_detections_template ON cue_detections(template_id);
+
+-- Cached result of the on-demand "find recurring sounds" scan (#350 follow-up).
+-- The scan decodes the whole episode and is slow (90s+ on a long show), so it
+-- runs in a background thread and the API polls this row instead of blocking
+-- the request past the proxy timeout. One row per (feed, episode).
+CREATE TABLE IF NOT EXISTS cue_candidate_scans (
+    podcast_id INTEGER NOT NULL,
+    episode_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'scanning' CHECK(status IN ('scanning', 'ready', 'error')),
+    candidates_json TEXT,
+    error TEXT,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (podcast_id, episode_id),
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+);
 """
 
 # Indexes that depend on columns added by migrations - created separately

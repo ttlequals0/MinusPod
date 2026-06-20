@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.12.0] - 2026-06-20
+
+### Added
+
+- A network template now shows up on every feed in its network. Promote a cue to network scope on one feed and it appears in the cue-templates panel of each sibling feed, marked read-only there (you manage it from the feed that made it).
+
+### Changed
+
+- "Find recurring sounds" no longer times out on long episodes. The scan decodes the whole episode, which takes a minute or more on a two-hour show, so it now runs in the background and the panel polls until it is done instead of holding the request open until the proxy gives up with a 504.
+- Renamed the cue-match outcome "Unused" to "LLM cue". These cues were sent to the model as evidence and often shaped a boundary; they just did not trigger the mechanical edge-snap, so "unused" read as if they were ignored. The badge tooltip now explains each outcome.
+
 ## [2.11.1] - 2026-06-20
 
 ### Added

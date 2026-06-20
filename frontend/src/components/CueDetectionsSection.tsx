@@ -20,10 +20,22 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-const OUTCOME_META: Record<CueDetection['outcome'], { label: string; className: string }> = {
-  pair: { label: 'Paired', className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400' },
-  snap: { label: 'Snapped', className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
-  none: { label: 'Unused', className: 'bg-muted text-muted-foreground' },
+const OUTCOME_META: Record<CueDetection['outcome'], { label: string; className: string; title: string }> = {
+  pair: {
+    label: 'Paired',
+    className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
+    title: 'Two cues bracketed and created an ad',
+  },
+  snap: {
+    label: 'Snapped',
+    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    title: 'Moved an ad edge onto this cue',
+  },
+  none: {
+    label: 'LLM cue',
+    className: 'bg-muted text-muted-foreground',
+    title: 'Sent to the model as evidence; did not move an ad edge',
+  },
 };
 
 function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSectionProps) {
@@ -133,7 +145,10 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       {cueTypeLabel(d.cue_type as CueTemplateType)}
                     </span>
                   )}
-                  <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${outcome.className}`}>
+                  <span
+                    title={outcome.title}
+                    className={`px-1.5 py-0.5 text-xs rounded font-medium ${outcome.className}`}
+                  >
                     {outcome.label}
                   </span>
                   {d.match_score != null && (

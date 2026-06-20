@@ -36,15 +36,31 @@ function CueCandidatesSection({
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
   const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 4;
 
-  // Decodes the whole episode, so only runs on an explicit scan.
+  // Decodes the whole episode in a background thread, so only runs on an
+  // explicit scan and polls until the server reports the scan is done.
   const candidatesQuery = useQuery({
     queryKey: ['cue-candidates', slug, episodeId],
     queryFn: () => getCueCandidates(slug, episodeId),
     enabled: scanned,
     staleTime: Infinity,
+    refetchInterval: (query) =>
+      query.state.data?.status === 'scanning' ? 3000 : false,
   });
 
-  const candidates: CueCandidate[] = candidatesQuery.data?.candidates ?? [];
+  const data = candidatesQuery.data;
+  const candidates: CueCandidate[] = data?.candidates ?? [];
+  const scanning = scanned && (candidatesQuery.isLoading || data?.status === 'scanning');
+  const scanError = data?.status === 'error'
+    ? (data.error || 'Scan failed.')
+    : (candidatesQuery.error ? 'Scan failed. Try again.' : null);
+  const noneFound = data?.status === 'ready' && candidates.length === 0;
+
+  const rescan = () =>
+    queryClient.fetchQuery({
+      queryKey: ['cue-candidates', slug, episodeId],
+      queryFn: () => getCueCandidates(slug, episodeId, true),
+      staleTime: 0,
+    });
 
   const makeTemplate = (start: number, end: number) =>
     setSeed({ start, end: Math.min(end, start + captureMaxSeconds) });
@@ -72,15 +88,18 @@ function CueCandidatesSection({
         </button>
       )}
 
-      {scanned && candidatesQuery.isLoading && (
+      {scanning && (
         <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <LoadingSpinner size="sm" inline className="w-4 h-4" /> Scanning audio, this can take a moment...
+          <LoadingSpinner size="sm" inline className="w-4 h-4" /> Scanning audio, this can take a minute on a long episode...
         </p>
       )}
-      {scanned && candidatesQuery.error && (
-        <p className="text-sm text-destructive">Scan failed. Try again.</p>
+      {!scanning && scanError && (
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-destructive">{scanError}</p>
+          <button onClick={() => rescan()} className={makeBtn}>Try again</button>
+        </div>
       )}
-      {scanned && candidatesQuery.data && candidates.length === 0 && (
+      {noneFound && (
         <p className="text-sm text-muted-foreground">No recurring sounds found.</p>
       )}
 
