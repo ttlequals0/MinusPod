@@ -14,7 +14,9 @@
   "sponsor_aliases": [
     "homeserve.com"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "home_goods"
+  ],
   "source_language": null,
   "community_id": "04dac105-d7eb-4bf2-b29a-8c5814dd6696",
   "version": 1,

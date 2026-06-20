@@ -10,7 +10,10 @@
   "avg_duration": 76.1,
   "sponsor": "CleanMyMac",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "dtc",
+    "technology"
+  ],
   "source_language": null,
   "community_id": "92f79e3e-af25-45c8-802f-f18b04e60db8",
   "version": 1,

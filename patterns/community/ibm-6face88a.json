@@ -10,7 +10,9 @@
   "avg_duration": 69.0,
   "sponsor": "IBM",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "automotive"
+  ],
   "source_language": null,
   "community_id": "6face88a-d1ed-4ef2-84cc-b431a48841fb",
   "version": 1,

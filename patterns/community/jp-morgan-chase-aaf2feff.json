@@ -14,7 +14,10 @@
     "JPMorgan Chase",
     "The Unshakeables"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "aaf2feff-bb35-4766-ae76-69b9ba21a25b",
   "version": 1,

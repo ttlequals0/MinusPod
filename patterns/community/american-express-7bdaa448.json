@@ -13,7 +13,11 @@
     "americanexpress.com",
     "AmericanExpress"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "finance",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "7bdaa448-98ab-48c5-82c4-4c4b5dce77b6",
   "version": 1,

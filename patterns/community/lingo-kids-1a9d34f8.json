@@ -10,7 +10,10 @@
   "avg_duration": 50.9,
   "sponsor": "Lingo Kids",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "1a9d34f8-a300-415e-a5d8-ed5cbaa86c41",
   "version": 1,

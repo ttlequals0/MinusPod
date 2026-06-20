@@ -15,7 +15,11 @@
   "avg_duration": 64.3,
   "sponsor": "Granola.ai",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "bf937654-1dfd-4468-953a-71d1e2f072fe",
   "version": 1,

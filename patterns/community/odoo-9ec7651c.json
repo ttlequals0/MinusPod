@@ -13,7 +13,10 @@
   "sponsor_aliases": [
     "odoo.com"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "saas"
+  ],
   "source_language": null,
   "community_id": "9ec7651c-03db-4aed-b9f8-2359f16f846b",
   "version": 1,

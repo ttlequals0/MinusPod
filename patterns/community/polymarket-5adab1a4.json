@@ -10,7 +10,10 @@
   "avg_duration": 29.9,
   "sponsor": "Polymarket",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "gambling",
+    "technology"
+  ],
   "source_language": null,
   "community_id": "5adab1a4-ccad-4631-a488-16145f0f8f06",
   "version": 1,

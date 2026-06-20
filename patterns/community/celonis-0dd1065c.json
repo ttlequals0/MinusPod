@@ -12,7 +12,11 @@
   "sponsor_aliases": [
     "celonis.com"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "technology"
+  ],
   "source_language": null,
   "community_id": "0dd1065c-45f3-4f62-9e47-a68afdd95746",
   "version": 1,

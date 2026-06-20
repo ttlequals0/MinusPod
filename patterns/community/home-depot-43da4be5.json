@@ -10,7 +10,9 @@
   "avg_duration": 29.8,
   "sponsor": "Home Depot",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "home_goods"
+  ],
   "source_language": null,
   "community_id": "43da4be5-bcd4-4ec5-851e-a8615801d443",
   "version": 1,

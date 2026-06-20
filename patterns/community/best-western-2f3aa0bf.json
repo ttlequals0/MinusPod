@@ -13,7 +13,10 @@
   "sponsor_aliases": [
     "bestwestern.com"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "2f3aa0bf-543f-4a3b-8632-f5adef42a39f",
   "version": 1,

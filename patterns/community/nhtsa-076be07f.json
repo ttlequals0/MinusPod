@@ -10,7 +10,10 @@
   "avg_duration": 27.7,
   "sponsor": "NHTSA",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "automotive",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "076be07f-d971-4fb3-9a0d-60fa2643cba2",
   "version": 1,

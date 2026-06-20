@@ -10,7 +10,11 @@
   "avg_duration": 14.8,
   "sponsor": "Finn.ai",
   "sponsor_aliases": [],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "technology"
+  ],
   "source_language": null,
   "community_id": "e7e15a09-ad70-4a35-aae3-9a460e23dfb3",
   "version": 1,

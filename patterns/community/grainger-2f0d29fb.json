@@ -12,7 +12,10 @@
   "sponsor_aliases": [
     "grainger.com"
   ],
-  "sponsor_tags": [],
+  "sponsor_tags": [
+    "business",
+    "universal"
+  ],
   "source_language": null,
   "community_id": "2f0d29fb-9119-4f74-b3b2-86218d89bce6",
   "version": 1,
