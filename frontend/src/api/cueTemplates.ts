@@ -27,8 +27,8 @@ export function cueTypeLabel(cueType: CueTemplateType): string {
 // Intro/outro stingers run longer than ad-break dings; other types fall back to
 // the global capture-max setting. The server enforces the same bound.
 const CAPTURE_MAX_BY_TYPE: Partial<Record<CueTemplateType, number>> = {
-  show_intro: 10,
-  show_outro: 10,
+  show_intro: 60,
+  show_outro: 60,
 };
 
 export function captureMaxForType(cueType: CueTemplateType, globalMax: number): number {
@@ -173,58 +173,6 @@ export async function scanEpisodeCues(
   return apiRequest<CueScanResponse>(
     `/feeds/${slug}/episodes/${episodeId}/cue-scan`,
     { method: 'POST', body },
-  );
-}
-
-export interface LoudSpot {
-  start: number;
-  end: number;
-  prominenceDb: number | null;
-}
-
-export interface LoudSpotsResponse {
-  episodeId: string;
-  loudSpots: LoudSpot[];
-}
-
-// Template-free energy pass over an episode: candidate "loud spots" to help
-// locate a cue to bracket in the capture waveform.
-export async function getEpisodeLoudSpots(
-  slug: string,
-  episodeId: string,
-): Promise<LoudSpotsResponse> {
-  return apiRequest<LoudSpotsResponse>(
-    `/feeds/${slug}/episodes/${episodeId}/cue-loud-spots`,
-  );
-}
-
-export type DetectedCueSource = 'template' | 'spectral' | 'loud_spot';
-
-export interface DetectedCue {
-  start: number;
-  end: number;
-  source: DetectedCueSource;
-  label: string | null;
-  cueType: CueTemplateType | null;
-  score: number | null;
-  prominenceDb: number | null;
-}
-
-export interface DetectedCuesResponse {
-  episodeId: string;
-  hasOriginalAudio: boolean;
-  detectedCues: DetectedCue[];
-}
-
-// Audio cues the analysis already found on an episode (persisted template /
-// spectral cues plus template-free loud spots), as candidates to promote into a
-// cue template.
-export async function getDetectedCues(
-  slug: string,
-  episodeId: string,
-): Promise<DetectedCuesResponse> {
-  return apiRequest<DetectedCuesResponse>(
-    `/feeds/${slug}/episodes/${episodeId}/detected-cues`,
   );
 }
 

@@ -80,10 +80,12 @@ class CueTemplateMixin:
         network. Podcast-scope rows sort ahead of network-scope ones so the
         matcher and snap see the feed's own cues first.
 
-        Note: the network match uses ``podcasts.network_id``. Network-scope
-        capture/promotion (and any override precedence) lands in PR3; until
-        then every created template is podcast-scope, so the network branch is
-        dormant in production but exercised by unit tests.
+        The network match uses the feed's effective network -- a non-empty
+        ``network_id_override`` when set, else the auto-detected ``network_id``.
+        This lets a manually-assigned network (same creator, no auto-detected
+        network) link feeds for promotion. ``NULLIF(..., '')`` guards a blank
+        override stored as an empty string rather than NULL, which COALESCE
+        alone would not fall through.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -92,7 +94,8 @@ class CueTemplateMixin:
                    (scope = 'podcast' AND podcast_id = ?)
                    OR (scope = 'network' AND network_id IS NOT NULL
                        AND network_id = (
-                           SELECT network_id FROM podcasts WHERE id = ?
+                           SELECT COALESCE(NULLIF(network_id_override, ''), network_id)
+                           FROM podcasts WHERE id = ?
                        ))
                )
                ORDER BY (scope = 'podcast') DESC, created_at DESC""",

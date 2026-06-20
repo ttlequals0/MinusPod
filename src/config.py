@@ -234,8 +234,8 @@ AUDIO_CUE_TYPE_SHOW_OUTRO = 'show_outro'
 # ad-break dings, so they get a higher ceiling; every other type falls back to
 # the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default.
 AUDIO_CUE_CAPTURE_MAX_BY_TYPE = {
-    AUDIO_CUE_TYPE_SHOW_INTRO: 10.0,
-    AUDIO_CUE_TYPE_SHOW_OUTRO: 10.0,
+    AUDIO_CUE_TYPE_SHOW_INTRO: 60.0,
+    AUDIO_CUE_TYPE_SHOW_OUTRO: 60.0,
 }
 
 

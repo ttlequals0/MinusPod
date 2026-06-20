@@ -35,12 +35,14 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
     },
   });
 
+  const hasPending = detections.some((d) => d.verdict === 'pending');
+
   return (
     <CollapsibleSection
-      title="Cue Detections"
-      subtitle="Template matches. Advisory; never changes the cut."
-      defaultOpen={false}
-      storageKey="episode-cue-detections"
+      title="Cue Matches"
+      subtitle="Confirm or reject each template cue match"
+      defaultOpen={hasPending}
+      storageKey={`episode-cue-detections-${episodeId}`}
       headerRight={
         <span className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground">
           {detections.length}

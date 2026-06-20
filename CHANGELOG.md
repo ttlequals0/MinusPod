@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] - 2026-06-19
+
+### Added
+
+- Manual networks. Some feeds share a creator but have no network, so auto-detect cannot link them. You can now set a custom network on a feed under Feed settings -> Network -> Custom network, and feeds with the same name form a network. Once a feed has a network, "Promote to network" in the cue-template panel applies a cue to every feed on it. Cue matching uses the override network first, then the auto-detected one.
+
+### Changed
+
+- Show intro and outro cues capture up to 60s (was 10s). Some outros run longer than the old cap allowed; ad-break cues stay at 4s.
+- The mark-cue dialog matches the ad editor: the same transport bar (skip, rewind, play, stop, speed), the same time-input behavior, and outside clicks no longer close it.
+- The capture dialog finds recurring sounds on demand instead of scanning loud spots on open. Its markers are the sounds that repeat across the episode, each labeled with its repeat count.
+- The two episode cue sections are renamed and reordered. "Cue Matches" (confirm or reject each template match) sits above "Cue Candidates" (scan for a recurring sound to template), and opens by default when a match is waiting on a verdict.
+
+### Fixed
+
+- Time codes typed into the mark-cue Start and End fields no longer reset; a trailing ".0" sticks.
+- The play/pause button no longer stays on pause after the audio finishes, and "Play selection" no longer pauses later playback at the end pin.
+- A blank network override stored as an empty string no longer hides a feed's auto-detected network from cue matching.
+
 ## [2.10.5] - 2026-06-19
 
 ### Changed

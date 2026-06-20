@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.10.5
+  version: 2.11.0
   contact:
     name: MinusPod
   license:
@@ -456,7 +456,11 @@ paths:
                   type:
                     - string
                     - 'null'
-                  description: Override network ID (null to use auto-detected)
+                  description: >-
+                    Network to assign this feed to: a known network id, or a
+                    custom name that links feeds sharing the same value (null
+                    uses the auto-detected network). The effective network is
+                    the override when set, else the auto-detected one.
                 daiPlatform:
                   type: string
                   description: DAI platform identifier (e.g., megaphone, acast)

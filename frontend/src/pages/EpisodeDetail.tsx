@@ -13,7 +13,7 @@ import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
-import DetectedCuesSection from '../components/DetectedCuesSection';
+import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage } from './settings/settingsUtils';
 
@@ -742,24 +742,24 @@ function EpisodeDetail() {
         </div>
       )}
 
-      {slug && episodeId && episode.hasOriginalAudio && (
-        <div className="mb-6">
-          <DetectedCuesSection
-            slug={slug}
-            episodeId={episodeId}
-            episodeTitle={episode.title}
-            episodeDuration={episode.originalDuration ?? episode.duration ?? 0}
-            hasOriginalAudio={!!episode.hasOriginalAudio}
-          />
-        </div>
-      )}
-
       {episode.cueDetections && episode.cueDetections.length > 0 && slug && episodeId && (
         <div className="mb-6">
           <CueDetectionsSection
             slug={slug}
             episodeId={episodeId}
             detections={episode.cueDetections}
+          />
+        </div>
+      )}
+
+      {slug && episodeId && episode.hasOriginalAudio && (
+        <div className="mb-6">
+          <CueCandidatesSection
+            slug={slug}
+            episodeId={episodeId}
+            episodeTitle={episode.title}
+            episodeDuration={episode.originalDuration ?? episode.duration ?? 0}
+            hasOriginalAudio={!!episode.hasOriginalAudio}
           />
         </div>
       )}

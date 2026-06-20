@@ -117,6 +117,36 @@ def test_active_resolution_includes_network_scope_most_specific_first(temp_db):
     assert rows[0]['cue_type'] == 'ad_break_start'
 
 
+def test_active_resolution_uses_network_id_override(temp_db):
+    # Same-creator feeds with no auto-detected network: a manual
+    # network_id_override links them, so a network-scope template captured on
+    # one feed must apply to the other.
+    pid_k = temp_db.create_podcast('show-k', 'http://x/k.xml', 'Show K')
+    pid_l = temp_db.create_podcast('show-l', 'http://x/l.xml', 'Show L')
+    temp_db.update_podcast('show-k', network_id_override='creator-x')
+    temp_db.update_podcast('show-l', network_id_override='creator-x')
+
+    _create(temp_db, pid_k, scope='network', network_id='creator-x')
+
+    rows = temp_db.list_active_cue_templates_for_feed(pid_l)
+    assert [r['scope'] for r in rows] == ['network']
+    assert rows[0]['network_id'] == 'creator-x'
+
+
+def test_active_resolution_blank_override_falls_back_to_network_id(temp_db):
+    # A blank override stored as '' (not NULL) must not shadow the auto-detected
+    # network_id; the feed still resolves its network-scope templates.
+    pid_m = temp_db.create_podcast('show-m', 'http://x/m.xml', 'Show M')
+    pid_n = temp_db.create_podcast('show-n', 'http://x/n.xml', 'Show N')
+    temp_db.update_podcast('show-m', network_id='net-9')
+    temp_db.update_podcast('show-n', network_id='net-9', network_id_override='')
+
+    _create(temp_db, pid_m, scope='network', network_id='net-9')
+
+    rows = temp_db.list_active_cue_templates_for_feed(pid_n)
+    assert [r['network_id'] for r in rows] == ['net-9']
+
+
 def test_active_resolution_excludes_disabled_and_other_networks(temp_db):
     pid = temp_db.create_podcast('show-i', 'http://x/i.xml', 'Show I')
     temp_db.update_podcast('show-i', network_id='net-2')

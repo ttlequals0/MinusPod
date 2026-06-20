@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Pause, ZoomIn, ZoomOut, X } from 'lucide-react';
+import {
+  Play, Pause, ZoomIn, ZoomOut, X,
+  SkipBack, SkipForward, Rewind, FastForward, Square,
+} from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
 import { Pin } from './ad-editor/Pin';
@@ -12,19 +15,19 @@ import {
 import {
   createCueTemplate,
   deleteCueTemplate,
-  getEpisodeLoudSpots,
+  getCueCandidates,
   previewCueTemplate,
   CUE_TYPE_OPTIONS,
   captureMaxForType,
   type CueTemplate,
   type CueTemplateMatch,
   type CueTemplateType,
-  type LoudSpot,
+  type CueCandidate,
 } from '../api/cueTemplates';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
-// sound. Tuned for short stingers: 0.2 - 4s region with a deep-zoom waveform.
+// sound, and the same transport bar.
 
 const DEFAULT_MIN_REGION_SECONDS = 0.2;
 const DEFAULT_MAX_REGION_SECONDS = 4.0;
@@ -77,13 +80,11 @@ function CueMarkModal({
   const [cueStart, setCueStart] = useState(defaults.cueStart);
   const [cueEnd, setCueEnd] = useState(defaults.cueEnd);
   const [playheadTime, setPlayheadTime] = useState(0);
-  // Text-input edit buffers. While not focused the inputs display the derived
-  // formatTime(cueStart/cueEnd) so a pin drag or set-at-playhead is reflected
-  // without a setState-in-effect sync; the buffer is seeded on focus.
+  // Time-input edit buffers, kept in sync with cueStart/cueEnd ONLY while the
+  // input is not focused (mirrors AdReviewModal), so typing is never stomped
+  // mid-edit and a pin drag still updates the displayed value.
   const [startInput, setStartInput] = useState(() => formatTime(defaults.cueStart));
   const [endInput, setEndInput] = useState(() => formatTime(defaults.cueEnd));
-  const [startEditing, setStartEditing] = useState(false);
-  const [endEditing, setEndEditing] = useState(false);
   const [cueType, setCueType] = useState<CueTemplateType>('ad_break_boundary');
   // Capture ceiling follows the cue type: intro/outro stingers get a longer
   // allowance than ad-break dings (mirrors the server-side bound).
@@ -99,8 +100,10 @@ function CueMarkModal({
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewMatches, setPreviewMatches] = useState<CueTemplateMatch[] | null>(null);
-  const [loudSpots, setLoudSpots] = useState<LoudSpot[]>([]);
-  const [loudSpotsLoading, setLoudSpotsLoading] = useState(true);
+  // Recurring-sound candidates (on-demand). Raw loud spots were too noisy and
+  // the scan is slow, so it runs only when the user asks for it.
+  const [candidates, setCandidates] = useState<CueCandidate[] | null>(null);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
   const resetTick = 0;
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -110,6 +113,12 @@ function CueMarkModal({
   const audioRef = useRef<HTMLAudioElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const startInputRef = useRef<HTMLInputElement | null>(null);
+  const endInputRef = useRef<HTMLInputElement | null>(null);
+  // The timeupdate listener that stops "Play selection" at the end pin. Held in
+  // a ref so a manual transport action cancels it -- otherwise it lingers and
+  // pauses unrelated playback the next time the playhead crosses the end pin.
+  const selectionStopRef = useRef<(() => void) | null>(null);
 
   const { peaks, peakResolutionMs, peaksError } = usePeaks(
     podcastSlug, episodeId, windowStart, windowEnd, resetTick,
@@ -129,21 +138,28 @@ function CueMarkModal({
   // inside it.
   useEffect(() => { dialogRef.current?.focus(); }, []);
 
-  // Fetch template-free "loud spots" (energy bursts) to mark on the waveform so
-  // the user can jump to candidate cue locations.
+  // Keep the time-input buffers in sync with the bounds when the field is not
+  // focused (pin drag / set-at-playhead), without stomping an in-progress edit.
   useEffect(() => {
-    let cancelled = false;
-    getEpisodeLoudSpots(podcastSlug, episodeId)
-      .then((res) => { if (!cancelled) setLoudSpots(res.loudSpots); })
-      .catch(() => { if (!cancelled) setLoudSpots([]); })
-      .finally(() => { if (!cancelled) setLoudSpotsLoading(false); });
-    return () => { cancelled = true; };
-  }, [podcastSlug, episodeId]);
+    if (document.activeElement !== startInputRef.current) setStartInput(formatTime(cueStart));
+  }, [cueStart]);
+  useEffect(() => {
+    if (document.activeElement !== endInputRef.current) setEndInput(formatTime(cueEnd));
+  }, [cueEnd]);
 
   const seekTo = useCallback((t: number) => {
     const audio = audioRef.current;
-    if (audio) audio.currentTime = Math.max(0, t);
-  }, []);
+    if (audio) audio.currentTime = Math.max(0, Math.min(totalDuration, t));
+  }, [totalDuration]);
+
+  const findCandidates = useCallback(() => {
+    setCandidatesLoading(true);
+    setError(null);
+    getCueCandidates(podcastSlug, episodeId)
+      .then((res) => setCandidates(res.candidates))
+      .catch(() => setCandidates([]))
+      .finally(() => setCandidatesLoading(false));
+  }, [podcastSlug, episodeId]);
 
   // Snap a candidate boundary to the nearest onset when the assist is on,
   // then clamp so the region stays inside [MIN, MAX] and ordered.
@@ -161,8 +177,7 @@ function CueMarkModal({
     if (!waveformRef.current || !peaks) return;
     // Color the bars with the theme accent (primary) so the capture waveform is
     // vividly themed -- matching how the ad editor's waveform reads in each
-    // theme (green in hulu, orange in gruvbox, cyan in slate) rather than the
-    // muted grey wavesurfer would otherwise show at rest.
+    // theme rather than the muted grey wavesurfer would otherwise show at rest.
     const themeWave = getThemeWaveformColors();
     const ws = WaveSurfer.create({
       container: waveformRef.current,
@@ -222,23 +237,6 @@ function CueMarkModal({
     });
   }, [zoom, peaks, windowDuration, windowStart]);
 
-  // Audio playback wiring.
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onEnd = () => setIsPlaying(false);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('ended', onEnd);
-    return () => {
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('ended', onEnd);
-    };
-  }, []);
-
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) audio.playbackRate = playbackRate;
@@ -280,20 +278,35 @@ function CueMarkModal({
     return () => window.cancelAnimationFrame(raf);
   }, [windowStart, windowDuration]);
 
+  // Commit clamps only to absolute episode bounds (not cross-field), so editing
+  // one field never stomps the other; start < end is enforced at Save.
   const commitStart = () => {
     const v = parseTimeInput(startInput);
-    if (v != null) setCueStart(Math.max(windowStart, Math.min(cueEnd - MIN_REGION_SECONDS, v)));
-    else setStartInput(formatTime(cueStart));
+    if (v == null) { setStartInput(formatTime(cueStart)); return; }
+    const clamped = Math.max(windowStart, Math.min(windowEnd, v));
+    setCueStart(clamped);
+    setStartInput(formatTime(clamped));
   };
   const commitEnd = () => {
     const v = parseTimeInput(endInput);
-    if (v != null) setCueEnd(Math.max(cueStart + MIN_REGION_SECONDS, Math.min(windowEnd, v)));
-    else setEndInput(formatTime(cueEnd));
+    if (v == null) { setEndInput(formatTime(cueEnd)); return; }
+    const clamped = Math.max(windowStart, Math.min(windowEnd, v));
+    setCueEnd(clamped);
+    setEndInput(formatTime(clamped));
   };
+
+  const clearSelectionStop = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && selectionStopRef.current) {
+      audio.removeEventListener('timeupdate', selectionStopRef.current);
+    }
+    selectionStopRef.current = null;
+  }, []);
 
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    clearSelectionStop();
     if (audio.paused) {
       audio.play().catch(() => {});
     } else {
@@ -301,18 +314,33 @@ function CueMarkModal({
     }
   };
 
+  const seekRelative = (delta: number) => {
+    const audio = audioRef.current;
+    if (audio) audio.currentTime = Math.max(0, Math.min(totalDuration, audio.currentTime + delta));
+  };
+  const stopPlayback = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    clearSelectionStop();
+    audio.pause();
+    audio.currentTime = cueStart;
+  };
+
   const playSelection = () => {
     const audio = audioRef.current;
     if (!audio) return;
+    clearSelectionStop();
     audio.currentTime = cueStart;
     audio.play().catch(() => {});
     const stop = () => {
-      if (!audioRef.current) return;
-      if (audioRef.current.currentTime >= cueEnd) {
-        audioRef.current.pause();
-        audioRef.current.removeEventListener('timeupdate', stop);
+      const a = audioRef.current;
+      if (!a) return;
+      if (a.currentTime >= cueEnd) {
+        a.pause();
+        clearSelectionStop();
       }
     };
+    selectionStopRef.current = stop;
     audio.addEventListener('timeupdate', stop);
   };
 
@@ -411,11 +439,16 @@ function CueMarkModal({
   const fieldCls =
     'rounded-lg border border-input bg-background text-foreground ' +
     'focus:outline-hidden focus:ring-2 focus:ring-ring';
+  const inCue = playheadTime >= cueStart && playheadTime <= cueEnd;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        // Data-entry modal: never auto-close on an outside click (an accidental
+        // tap would lose the bracket). Only X / Cancel / Escape close it.
+        if (e.target !== e.currentTarget) return;
+      }}
     >
       <div
         ref={dialogRef}
@@ -451,10 +484,8 @@ function CueMarkModal({
         <div ref={scrollRef} className="overflow-x-auto border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
             <div ref={waveformRef} />
-            {/* Selected-cue region highlight -- the analogue of the ad editor's
-                selection window, using the same amber fill (rgba(245,158,11,.18))
-                that modal uses, which also matches this modal's amber playhead.
-                Sits above the waveform, below the loud-spots/pins/playhead. */}
+            {/* Selected-cue region highlight -- same amber fill the ad editor
+                uses for its selection window. Below the markers/pins/playhead. */}
             {peaks && windowDuration > 0 && (
               <div
                 className="absolute inset-y-0 z-[4] pointer-events-none"
@@ -466,8 +497,7 @@ function CueMarkModal({
                 aria-hidden
               />
             )}
-            {/* Amber playhead -- same visual language as the ad editor cursor so
-                it is not confused with the green/red boundary pins. */}
+            {/* Amber playhead, same as the ad editor cursor. */}
             <div
               ref={cursorRef}
               className="absolute inset-y-0 -translate-x-1/2 z-20 pointer-events-none"
@@ -480,22 +510,26 @@ function CueMarkModal({
               </div>
               <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
             </div>
-            {/* Loud-spot jump markers: template-free energy bursts to hunt the
-                cue in. Click to seek; thin so they sit under the boundary pins. */}
-            {loudSpots.map((spot, i) => {
-              const rel = (spot.start - windowStart) / windowDuration;
+            {/* Recurring-sound markers: the sounds that repeat across the
+                episode (the cue candidates). Click to jump; full-height and
+                tinted so they read clearly under the boundary pins. */}
+            {(candidates ?? []).map((c) => {
+              const rel = (c.start - windowStart) / windowDuration;
               if (rel < 0 || rel > 1) return null;
               return (
                 <button
-                  key={i}
+                  key={`${c.start}-${c.end}`}
                   type="button"
-                  onClick={() => seekTo(spot.start)}
-                  title={`Loud spot at ${formatTime(spot.start)}${spot.prominenceDb != null ? ` (+${spot.prominenceDb} dB)` : ''} - click to jump`}
-                  aria-label={`Jump to loud spot at ${formatTime(spot.start)}`}
-                  className="absolute top-0 -translate-x-1/2 z-[5] h-3.5 w-3 cursor-pointer"
+                  onClick={() => seekTo(c.start)}
+                  title={`Recurs ${c.count}x, first at ${formatTime(c.start)} - click to jump`}
+                  aria-label={`Jump to recurring sound at ${formatTime(c.start)}`}
+                  className="absolute inset-y-0 -translate-x-1/2 z-[5] w-3 cursor-pointer group"
                   style={{ left: `${rel * 100}%` }}
                 >
-                  <span className="block mx-auto h-3.5 w-0.5 bg-primary/70 hover:bg-primary" />
+                  <span className="block mx-auto h-full w-0.5 bg-sky-500/60 group-hover:bg-sky-500" />
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 px-1 rounded-b bg-sky-500 text-white text-[9px] font-bold leading-tight">
+                    {c.count}x
+                  </span>
                 </button>
               );
             })}
@@ -534,90 +568,104 @@ function CueMarkModal({
             Could not load waveform: {peaksError}
           </p>
         )}
-        {loudSpotsLoading ? (
-          <p className="text-xs text-muted-foreground mt-1">Scanning for loud spots...</p>
-        ) : loudSpots.length > 0 ? (
-          <p className="text-xs text-muted-foreground mt-1">
-            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} (ticks) - tap one to jump.
-          </p>
-        ) : null}
 
-        {/* Playback + zoom + snap. Wraps cleanly on a phone. */}
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          <button type="button" className={`${ctrlBtn} flex items-center gap-1`} onClick={togglePlay}>
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-            {isPlaying ? 'Pause' : 'Play'}
-          </button>
-          <button type="button" className={ctrlBtn} onClick={playSelection}>
-            Play selection
-          </button>
-          <select
-            value={playbackRate}
-            onChange={(e) => setPlaybackRate(Number(e.target.value))}
-            className={`px-2 py-1.5 ${fieldCls} text-sm`}
-            aria-label="Playback speed"
+        {/* Find recurring sounds (on-demand -- the scan decodes the episode). */}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <button
+            type="button"
+            className={ctrlBtn}
+            onClick={findCandidates}
+            disabled={candidatesLoading}
           >
-            {PLAYBACK_RATES.map((r) => (
-              <option key={r} value={r}>{r}x</option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1 sm:ml-2">
-            <button
-              type="button"
-              className={`p-1.5 rounded ${ghostBtn}`}
-              onClick={(e) => {
-                const step = e.shiftKey ? 1.4 : 1.15;
-                setZoom((z) => Math.max(ZOOM_MIN, z / step));
-              }}
-              aria-label="Zoom out"
-              title="Shift+click for a coarse step"
-            >
+            {candidatesLoading ? 'Finding recurring sounds...' : 'Find recurring sounds'}
+          </button>
+          {candidates !== null && !candidatesLoading && (
+            <span className="text-xs text-muted-foreground">
+              {candidates.length === 0
+                ? 'No recurring sounds found.'
+                : `${candidates.length} recurring sound${candidates.length === 1 ? '' : 's'} (markers) - tap one to jump.`}
+            </span>
+          )}
+        </div>
+
+        {/* Transport bar -- mirrors the "Add new ad" editor. */}
+        <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border flex-wrap">
+          <div className="flex items-center gap-0.5">
+            <button type="button" onClick={() => seekTo(cueStart)} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to START pin">
+              <SkipBack className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => seekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
+              <Rewind className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={togglePlay} className={`p-1.5 rounded-full ${primaryBtn}`} title="Play / pause">
+              {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </button>
+            <button type="button" onClick={() => seekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">
+              <FastForward className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => seekTo(cueEnd)} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to END pin">
+              <SkipForward className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={stopPlayback} className={`p-1.5 rounded ${ghostBtn}`} title="Stop (pause + return to START)">
+              <Square className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={playSelection} className={`${ctrlBtn} ml-0.5`} title="Play the bracketed selection only">
+              Play selection
+            </button>
+            <label className="relative inline-flex items-center ml-0.5" title="Playback speed">
+              <span className="sr-only">Playback speed</span>
+              <select
+                value={playbackRate}
+                onChange={(e) => setPlaybackRate(Number(e.target.value))}
+                aria-label="Playback speed"
+                className={`appearance-none h-7 pl-1.5 pr-4 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+              >
+                {PLAYBACK_RATES.map((r) => (
+                  <option key={r} value={r}>{r}&times;</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </label>
+          </div>
+          <div className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
+            <span className="text-foreground">{formatTime(playheadTime)}</span>
+            <span>/</span>
+            <span>{formatTime(regionDuration)} selection</span>
+            {inCue && (
+              <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500 text-[10px] font-semibold uppercase tracking-wider">
+                in cue
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Zoom + snap + set-edge -- cue-specific controls. */}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <div className="flex items-center gap-1">
+            <button type="button" className={`p-1.5 rounded ${ghostBtn}`}
+              onClick={(e) => { const step = e.shiftKey ? 1.4 : 1.15; setZoom((z) => Math.max(ZOOM_MIN, z / step)); }}
+              aria-label="Zoom out" title="Shift+click for a coarse step">
               <ZoomOut size={14} />
             </button>
             <span className="text-xs text-muted-foreground w-14 text-center font-mono">
               {zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)}x
             </span>
-            <button
-              type="button"
-              className={`p-1.5 rounded ${ghostBtn}`}
-              onClick={(e) => {
-                const step = e.shiftKey ? 1.4 : 1.15;
-                setZoom((z) => Math.min(ZOOM_MAX, z * step));
-              }}
-              aria-label="Zoom in"
-              title="Shift+click for a coarse step"
-            >
+            <button type="button" className={`p-1.5 rounded ${ghostBtn}`}
+              onClick={(e) => { const step = e.shiftKey ? 1.4 : 1.15; setZoom((z) => Math.min(ZOOM_MAX, z * step)); }}
+              aria-label="Zoom in" title="Shift+click for a coarse step">
               <ZoomIn size={14} />
             </button>
           </div>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
-            <input
-              type="checkbox"
-              className="accent-primary"
-              checked={snapEnabled}
-              onChange={(e) => setSnapEnabled(e.target.checked)}
-            />
+            <input type="checkbox" className="accent-primary" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
             Snap to onset
           </label>
-          <span className="text-xs text-muted-foreground w-full sm:w-auto sm:ml-auto font-mono">
-            playhead {formatTime(playheadTime)} - {peakResolutionMs}ms/peak
-          </span>
-        </div>
-
-        {/* Set-edge buttons: full-width pair on a phone, natural size on desktop. */}
-        <div className="flex gap-2 mt-2">
-          <button
-            type="button"
-            className={`flex-1 sm:flex-none ${ctrlBtn} text-emerald-500 whitespace-nowrap`}
-            onClick={setStartAtPlayhead}
-          >
+          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-emerald-500 whitespace-nowrap`} onClick={setStartAtPlayhead}>
             Set START at playhead
           </button>
-          <button
-            type="button"
-            className={`flex-1 sm:flex-none ${ctrlBtn} text-rose-500 whitespace-nowrap`}
-            onClick={setEndAtPlayhead}
-          >
+          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-rose-500 whitespace-nowrap`} onClick={setEndAtPlayhead}>
             Set END at playhead
           </button>
         </div>
@@ -628,12 +676,16 @@ function CueMarkModal({
             <label className="block text-xs text-muted-foreground" htmlFor="cue-start-in">Start</label>
             <input
               id="cue-start-in"
+              ref={startInputRef}
               type="text"
-              value={startEditing ? startInput : formatTime(cueStart)}
-              onFocus={() => { setStartInput(formatTime(cueStart)); setStartEditing(true); }}
+              inputMode="decimal"
+              value={startInput}
               onChange={(e) => setStartInput(e.target.value)}
-              onBlur={() => { commitStart(); setStartEditing(false); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              onBlur={commitStart}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                else if (e.key === 'Escape') { e.preventDefault(); setStartInput(formatTime(cueStart)); (e.target as HTMLInputElement).blur(); }
+              }}
               className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-emerald-500`}
             />
           </div>
@@ -641,12 +693,16 @@ function CueMarkModal({
             <label className="block text-xs text-muted-foreground" htmlFor="cue-end-in">End</label>
             <input
               id="cue-end-in"
+              ref={endInputRef}
               type="text"
-              value={endEditing ? endInput : formatTime(cueEnd)}
-              onFocus={() => { setEndInput(formatTime(cueEnd)); setEndEditing(true); }}
+              inputMode="decimal"
+              value={endInput}
               onChange={(e) => setEndInput(e.target.value)}
-              onBlur={() => { commitEnd(); setEndEditing(false); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              onBlur={commitEnd}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                else if (e.key === 'Escape') { e.preventDefault(); setEndInput(formatTime(cueEnd)); (e.target as HTMLInputElement).blur(); }
+              }}
               className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-rose-500`}
             />
           </div>
@@ -655,6 +711,15 @@ function CueMarkModal({
             <span className={regionDurationValid ? 'font-medium' : 'font-medium text-destructive'}>
               {regionDuration.toFixed(2)}s
             </span>
+            {!regionDurationValid && (
+              <span className="ml-2 text-xs text-destructive">
+                {regionDuration <= 0
+                  ? 'Start must be before end'
+                  : regionDuration < MIN_REGION_SECONDS
+                    ? `Min ${MIN_REGION_SECONDS}s`
+                    : `Max ${MAX_REGION_SECONDS}s`}
+              </span>
+            )}
           </p>
           <div className="flex-1 min-w-[220px]">
             <label className="block text-xs text-muted-foreground" htmlFor="cue-type-in">Cue type</label>
@@ -690,7 +755,14 @@ function CueMarkModal({
 
         {error && <p className="text-sm text-destructive mt-3">{error}</p>}
 
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onEnded={() => setIsPlaying(false)}
+        />
 
         <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
           Matched by sound alone - if it also plays outside ad breaks, cuts can land wrong.
