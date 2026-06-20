@@ -75,6 +75,21 @@ def _normalize_title_override(value):
     return val, None
 
 
+def _normalize_detection_mode(value):
+    """Validate the per-feed ad-detection mode (#350 keep-content).
+
+    Returns (db_value, error). None / empty / 'blacklist' all clear the override
+    to the default ad-removal behavior (stored NULL). 'keep_content' is stored.
+    Any other value is rejected.
+    """
+    from config import DETECTION_MODES, DETECTION_MODE_BLACKLIST
+    if value in (None, '', DETECTION_MODE_BLACKLIST):
+        return None, None
+    if value in DETECTION_MODES:
+        return value, None
+    return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
+
+
 def _slug_from_url_path(source_url: str) -> Optional[str]:
     # Final-resort slug derivation when neither an upstream OPML title nor
     # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
@@ -114,6 +129,7 @@ def list_feeds():
             'slug': podcast['slug'],
             'title': podcast['title'] or podcast['slug'],
             'titleOverride': podcast.get('title_override'),
+            'detectionMode': podcast.get('detection_mode'),
             'sourceUrl': podcast['source_url'],
             'feedUrl': feed_url,
             'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
@@ -487,6 +503,7 @@ def get_feed(slug):
         'autoProcessOverride': auto_process_override_result,
         'languageOverride': podcast.get('language_override'),
         'titleOverride': podcast.get('title_override'),
+        'detectionMode': podcast.get('detection_mode'),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
@@ -539,6 +556,12 @@ def update_feed(slug):
             return error_response(title_err, 400)
         updates['title_override'] = title_val
 
+    if 'detectionMode' in data:
+        mode_val, mode_err = _normalize_detection_mode(data['detectionMode'])
+        if mode_err:
+            return error_response(mode_err, 400)
+        updates['detection_mode'] = mode_val
+
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
         max_ep = data['maxEpisodes']
@@ -590,6 +613,7 @@ def update_feed(slug):
             'networkIdOverride': podcast.get('network_id_override'),
             'languageOverride': podcast.get('language_override'),
             'titleOverride': podcast.get('title_override'),
+            'detectionMode': podcast.get('detection_mode'),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"

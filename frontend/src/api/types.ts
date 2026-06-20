@@ -16,6 +16,7 @@ export interface Feed {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionMode?: string | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

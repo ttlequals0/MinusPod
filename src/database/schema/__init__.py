@@ -419,6 +419,7 @@ class SchemaMixin:
             ('auto_process_override', 'TEXT'),
             ('language_override', 'TEXT'),
             ('title_override', 'TEXT'),
+            ('detection_mode', 'TEXT'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),

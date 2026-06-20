@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2026-06-20
+
+### Added
+
+- Keep-content detection mode, opt-in per feed (Feed settings -> Detection). It is for feeds whose ads are dynamically inserted and keep changing, so there is no stable ad to match. Instead of asking the model which spans are ads, it asks which spans are the show, then removes everything else. It defaults off; every feed keeps the normal ad-removal behavior unless you switch it on. The mode is experimental and guarded: if the model labels too little of the episode as content, the removal would cut too much, a single cut runs too long, or a content pass comes back empty, the feed falls back to normal ad removal for that episode. The guards catch the gross cases but can still miss a single mislabeled stretch, so check episodes before trusting it on a feed.
+
 ## [2.12.2] - 2026-06-20
 
 ### Fixed

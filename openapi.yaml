@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.12.2
+  version: 2.13.0
   contact:
     name: MinusPod
   license:
@@ -480,6 +480,15 @@ paths:
                     - 'null'
                   maxLength: 500
                   description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375). Survives RSS refreshes. Null or empty clears it and falls back to the source feed title.
+                detectionMode:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - blacklist
+                    - keep_content
+                    - null
+                  description: Per-feed ad-detection mode. 'keep_content' (experimental) has the LLM label show content and removes everything else; null or 'blacklist' is the default, which labels and removes ads.
                 maxEpisodes:
                   type:
                     - integer
@@ -5425,6 +5434,15 @@ components:
             - string
             - 'null'
           description: Per-feed display title shown to subscribers in the generated RSS feed (issue 375); null falls back to the source feed title.
+        detectionMode:
+          type:
+            - string
+            - 'null'
+          enum:
+            - blacklist
+            - keep_content
+            - null
+          description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior.
         maxEpisodes:
           type:
             - integer

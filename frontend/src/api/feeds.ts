@@ -174,6 +174,7 @@ export interface UpdateFeedPayload {
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
   titleOverride?: string | null;
+  detectionMode?: string | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

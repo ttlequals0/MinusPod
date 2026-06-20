@@ -220,6 +220,30 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Per-feed detection mode (experimental keep-content inversion) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Detection:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.detectionMode || 'blacklist'}
+                onChange={(e) => updateMutation.mutate({ detectionMode: e.target.value })}
+                disabled={updateMutation.isPending}
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+              >
+                <option value="blacklist">Remove ads (default)</option>
+                <option value="keep_content">Keep content only (experimental)</option>
+              </select>
+              {feed.detectionMode === 'keep_content' && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Removes everything the model does not mark as show content. For feeds with
+                  unrecognizable inserted ads. Safety checks revert to normal removal when the
+                  labeling looks off, but they can miss a single mislabeled stretch and cut real
+                  audio. Check each episode.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>

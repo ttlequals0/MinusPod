@@ -211,6 +211,44 @@ AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a soun
 # this is treated as crashed/expired and reclaimable for a fresh run.
 AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS = 900
 
+# Keep-content (whitelist) detection mode -- OPT-IN per feed, default blacklist.
+# In this mode the LLM labels substantive show content and we remove the
+# COMPLEMENT (everything that is not content). It targets feeds with
+# unrecognizable programmatic (DAI) ads where the host content is easier to
+# identify than the ads. The failure mode is silent content deletion (an
+# under-labeled content list cuts real show audio), so these gates abort to
+# normal blacklist detection rather than trust a suspicious content pass.
+# Coverage and removed-fraction are complements at these defaults (0.55 + 0.45
+# = 1.0), so they enforce the same boundary unless tuned apart -- keep both as
+# independent knobs: max_removed can be set stricter than 1 - min_coverage.
+KEEP_CONTENT_MIN_COVERAGE = 0.55          # content must cover >= this fraction or abort
+KEEP_CONTENT_MAX_REMOVED_FRACTION = 0.45  # inverted cuts may remove <= this or abort
+KEEP_CONTENT_EDGE_PAD_SECONDS = 1.5       # grow each content span by this (keep a speech buffer)
+KEEP_CONTENT_MIN_GAP_SECONDS = 8.0        # content spans closer than this are bridged (kept)
+KEEP_CONTENT_MIN_AD_SECONDS = 1.0         # drop inverted ad slivers shorter than this
+KEEP_CONTENT_MAX_SINGLE_AD_FRACTION = 0.25  # one cut > this fraction looks like a missing content window -> abort
+KEEP_CONTENT_MAX_SINGLE_AD_SECONDS = 420.0  # absolute cap: one cut longer than this (7 min) -> abort (the fraction gate is too loose on multi-hour episodes)
+
+DETECTION_MODE_BLACKLIST = 'blacklist'
+DETECTION_MODE_KEEP_CONTENT = 'keep_content'
+DETECTION_MODES = (DETECTION_MODE_BLACKLIST, DETECTION_MODE_KEEP_CONTENT)
+
+
+def resolve_detection_mode(db, slug):
+    """Per-feed detection mode, defaulting to blacklist (today's behavior).
+
+    Keep-content is deliberately PER-FEED ONLY -- there is no global default
+    that could silently flip every feed to content-cutting. An unknown value
+    falls back to blacklist so a bad value can never enable content cutting.
+    """
+    mode = None
+    try:
+        if db and slug:
+            mode = db.get_podcast_detection_mode(slug)
+    except Exception:
+        return DETECTION_MODE_BLACKLIST
+    return mode if mode in DETECTION_MODES else DETECTION_MODE_BLACKLIST
+
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a
 # dropdown, never freeform text, so the phrase fed to the LLM prompt is always
 # consistent and the matching role is explicit. Maps type key -> (canonical

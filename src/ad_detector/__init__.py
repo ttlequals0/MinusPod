@@ -34,7 +34,17 @@ from config import (
     resolve_stage_tunables,
     get_stage_tunable,
     resolve_env_backed_default,
+    resolve_detection_mode,
+    DETECTION_MODE_KEEP_CONTENT,
+    KEEP_CONTENT_MIN_COVERAGE,
+    KEEP_CONTENT_MAX_REMOVED_FRACTION,
+    KEEP_CONTENT_EDGE_PAD_SECONDS,
+    KEEP_CONTENT_MIN_GAP_SECONDS,
+    KEEP_CONTENT_MIN_AD_SECONDS,
+    KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
+    KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
 )
+from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from utils.constants import (
@@ -818,6 +828,81 @@ class AdDetector:
             logger.error(f"[{slug}:{episode_id}] Ad detection failed: {e}")
             return {"ads": [], "status": "failed", "error": str(e), "retryable": is_retryable_error(e)}
 
+    def _detect_keep_content_ads(self, segments, *, model, slug, episode_id,
+                                 podcast_name, episode_title, description_section,
+                                 llm_timeout, max_retries):
+        """Keep-content mode: label show content, invert to ad spans.
+
+        Returns the inverted ad list, or None if the content pass produced no
+        spans or the safety gates failed (the caller then falls back to normal
+        blacklist detection rather than risk deleting real show audio).
+        """
+        windows = create_windows(segments)
+        total_duration = segments[-1]['end'] if segments else 0
+        content_spans = []
+        for idx, window in enumerate(windows):
+            transcript_lines = [
+                f"[{s['start']:.1f}s - {s['end']:.1f}s] {s['text']}"
+                for s in window['segments']
+            ]
+            prompt = format_window_prompt(
+                podcast_name=podcast_name, episode_title=episode_title,
+                description_section=description_section,
+                transcript_lines=transcript_lines,
+                window_index=idx, total_windows=len(windows),
+                window_start=window['start'], window_end=window['end'],
+                audio_context="",
+            )
+            response, _err = self._call_llm_for_window(
+                model=model, system_prompt=CONTENT_SYSTEM_PROMPT, prompt=prompt,
+                llm_timeout=llm_timeout, max_retries=max_retries,
+                slug=slug, episode_id=episode_id,
+                window_label=f"Content {idx + 1}", pass_name=PASS_AD_DETECTION_1,
+            )
+            # A failed window means we do NOT know what is content there; cutting
+            # its complement would risk deleting real show audio that the
+            # aggregate coverage gate (which sees the OTHER windows) would not
+            # catch. Abort the whole inversion -> fall back to blacklist.
+            if not response:
+                logger.warning(
+                    f"[{slug}:{episode_id}] keep-content window {idx + 1} returned "
+                    f"no response; aborting to blacklist")
+                return None
+            items, _method = extract_json_ads_array(response.content, slug, episode_id)
+            win_start, win_end = window['start'], window['end']
+            for item in items or []:
+                try:
+                    s, e = float(item.get('start')), float(item.get('end'))
+                except (TypeError, ValueError, AttributeError):
+                    continue
+                # Clamp to THIS window's bounds and drop spans that fall outside
+                # it -- a window-relative timestamp from a later window would
+                # otherwise land in the episode head, masking that the window's
+                # real content went unlabeled.
+                s = max(win_start, s)
+                e = min(win_end, e)
+                if e > s:
+                    content_spans.append({'start': s, 'end': e})
+
+        ads = invert_content_to_ads(
+            content_spans, total_duration,
+            edge_pad=KEEP_CONTENT_EDGE_PAD_SECONDS, min_gap=KEEP_CONTENT_MIN_GAP_SECONDS,
+            min_coverage=KEEP_CONTENT_MIN_COVERAGE,
+            max_removed_fraction=KEEP_CONTENT_MAX_REMOVED_FRACTION,
+            min_ad_seconds=KEEP_CONTENT_MIN_AD_SECONDS,
+            max_single_ad_fraction=KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
+            max_single_ad_seconds=KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
+        )
+        if ads is None:
+            logger.warning(
+                f"[{slug}:{episode_id}] keep-content gates failed "
+                f"({len(content_spans)} content spans); falling back to blacklist")
+        else:
+            logger.info(
+                f"[{slug}:{episode_id}] keep-content: {len(content_spans)} content "
+                f"spans inverted to {len(ads)} ad spans")
+        return ads
+
     def process_transcript(self, segments: List[Dict], podcast_name: str = "Unknown",
                           episode_title: str = "Unknown", slug: str = None,
                           episode_id: str = None, episode_description: str = None,
@@ -1013,15 +1098,50 @@ class AdDetector:
         # Stage 3: Claude API for remaining content
         logger.info(f"[{slug}:{episode_id}] Stage 3: Claude API detection")
 
-        # If we found pattern matches, we can potentially skip Claude for covered regions
-        # For now, we still run Claude on full transcript but mark pattern-detected regions
-        result = self.detect_ads(
-            segments, podcast_name, episode_title, slug, episode_id, episode_description,
-            podcast_description=podcast_description,
-            progress_callback=progress_callback,
-            audio_analysis=audio_analysis,
-            positional_prior_hint=positional_prior_hint
-        )
+        # Keep-content (whitelist) mode -- opt-in per feed. Label the show
+        # content and remove the complement. If the content pass produces
+        # nothing or trips the safety gates, fall through to normal blacklist
+        # detection so we never silently delete real show audio.
+        result = None
+        # Ensure self.db is built before resolving the per-feed mode -- on the
+        # first run after a worker restart it is still None, which would
+        # silently resolve every feed to blacklist. _ensure_deps is idempotent
+        # and preserves test stubs.
+        self._ensure_deps()
+        detection_mode = resolve_detection_mode(self.db, slug)
+        if detection_mode == DETECTION_MODE_KEEP_CONTENT:
+            logger.info(f"[{slug}:{episode_id}] Stage 3: keep-content (whitelist) mode")
+            try:
+                self.initialize_client()
+                model = self.get_model()
+                kc_desc = ""
+                if podcast_description:
+                    kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
+                if episode_description:
+                    kc_desc += f"Episode Description:\n{episode_description}\n"
+                inverted = self._detect_keep_content_ads(
+                    segments, model=model, slug=slug, episode_id=episode_id,
+                    podcast_name=podcast_name, episode_title=episode_title,
+                    description_section=kc_desc,
+                    llm_timeout=get_llm_timeout(), max_retries=get_llm_max_retries(),
+                )
+                if inverted is not None:
+                    result = {"ads": inverted, "status": "success",
+                              "raw_response": "", "prompt": "keep-content inversion",
+                              "model": model}
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] keep-content errored, "
+                               f"falling back to blacklist: {e}")
+
+        # Blacklist default (or keep-content fallback): normal ad detection.
+        if result is None:
+            result = self.detect_ads(
+                segments, podcast_name, episode_title, slug, episode_id, episode_description,
+                podcast_description=podcast_description,
+                progress_callback=progress_callback,
+                audio_analysis=audio_analysis,
+                positional_prior_hint=positional_prior_hint
+            )
 
         if result is None:
             result = {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}
@@ -1094,7 +1214,12 @@ class AdDetector:
                             cross_episode_skipped += 1
                             continue
 
-                portion['detection_stage'] = 'claude'
+                # Keep-content (inverted) spans are complement-of-content, not
+                # LLM-identified ad text, so preserve their stage to keep them
+                # OUT of text-pattern learning (which is gated on 'claude').
+                portion['detection_stage'] = (
+                    'keep_content' if ad.get('detection_stage') == 'keep_content' else 'claude'
+                )
                 all_ads.append(portion)
 
         if cross_episode_skipped > 0:
