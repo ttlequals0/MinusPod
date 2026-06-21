@@ -870,6 +870,7 @@ class AdDetector:
                 return None
             items, _method = extract_json_ads_array(response.content, slug, episode_id)
             win_start, win_end = window['start'], window['end']
+            win_span_count = 0
             for item in items or []:
                 try:
                     s, e = float(item.get('start')), float(item.get('end'))
@@ -883,8 +884,14 @@ class AdDetector:
                 e = min(win_end, e)
                 if e > s:
                     content_spans.append({'start': s, 'end': e})
+                    win_span_count += 1
+            # Per-window content count surfaces which window under-labeled when
+            # the gates later reject the inversion.
+            logger.info(
+                f"[{slug}:{episode_id}] keep-content window {idx + 1}/{len(windows)} "
+                f"({win_start / 60:.1f}-{win_end / 60:.1f}min): {win_span_count} content span(s)")
 
-        ads = invert_content_to_ads(
+        ads, info = invert_content_to_ads(
             content_spans, total_duration,
             edge_pad=KEEP_CONTENT_EDGE_PAD_SECONDS, min_gap=KEEP_CONTENT_MIN_GAP_SECONDS,
             min_coverage=KEEP_CONTENT_MIN_COVERAGE,
@@ -895,12 +902,16 @@ class AdDetector:
         )
         if ads is None:
             logger.warning(
-                f"[{slug}:{episode_id}] keep-content gates failed "
-                f"({len(content_spans)} content spans); falling back to blacklist")
+                f"[{slug}:{episode_id}] keep-content gates failed: gate={info['failed_gate']} "
+                f"raw_spans={len(content_spans)} merged_spans={info['merged_content_spans']} "
+                f"coverage={info['coverage']:.2f} removed={info['removed_fraction']:.2f} "
+                f"longest_cut={info['longest_cut_seconds']:.0f}s/{info['longest_cut_fraction']:.2f}; "
+                f"falling back to blacklist")
         else:
             logger.info(
-                f"[{slug}:{episode_id}] keep-content: {len(content_spans)} content "
-                f"spans inverted to {len(ads)} ad spans")
+                f"[{slug}:{episode_id}] keep-content: raw_spans={len(content_spans)} "
+                f"merged_spans={info['merged_content_spans']} coverage={info['coverage']:.2f} "
+                f"removed={info['removed_fraction']:.2f} -> {len(ads)} ad spans")
         return ads
 
     def process_transcript(self, segments: List[Dict], podcast_name: str = "Unknown",

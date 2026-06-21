@@ -13,7 +13,13 @@ GATES = dict(
 
 
 def _ads(content, total, **over):
-    return invert_content_to_ads(content, total, **{**GATES, **over})
+    ads, _info = invert_content_to_ads(content, total, **{**GATES, **over})
+    return ads
+
+
+def _info(content, total, **over):
+    _ads_unused, info = invert_content_to_ads(content, total, **{**GATES, **over})
+    return info
 
 
 def test_basic_inversion_complements_content():
@@ -88,6 +94,41 @@ def test_max_single_ad_seconds_aborts_long_absolute_cut():
 def test_empty_or_zero_duration_returns_none():
     assert _ads([], 100) is None
     assert _ads([{'start': 0, 'end': 50}], 0) is None
+
+
+def test_info_attributes_the_failing_gate():
+    # zero duration
+    assert _info([{'start': 0, 'end': 50}], 0)['failed_gate'] == 'zero_duration'
+    # no usable content spans
+    assert _info([], 100)['failed_gate'] == 'empty_content'
+    # coverage too low (40% < 0.55)
+    cov = _info([{'start': 0, 'end': 40}], 100)
+    assert cov['failed_gate'] == 'coverage'
+    assert cov['coverage'] < 0.55
+    # removed fraction over a tighter cap
+    rem = _info([{'start': 0, 'end': 60}], 100, max_removed_fraction=0.30)
+    assert rem['failed_gate'] == 'removed_fraction'
+    assert rem['removed_fraction'] > 0.30
+    # one cut over the fraction cap
+    frac = _info([{'start': 0, 'end': 50}, {'start': 80, 'end': 100}], 100,
+                 max_single_ad_fraction=0.20)
+    assert frac['failed_gate'] == 'single_cut_fraction'
+    assert frac['longest_cut_fraction'] > 0.20
+    # one cut over the absolute seconds cap (passes the fraction gate)
+    secs = _info([{'start': 0, 'end': 3000}, {'start': 3500, 'end': 7200}], 7200)
+    assert secs['failed_gate'] == 'single_cut_seconds'
+    assert secs['longest_cut_seconds'] > 420
+
+
+def test_info_clean_on_success():
+    # Assert both halves together: a clean verdict pairs with a real ad list.
+    ads, info = invert_content_to_ads(
+        [{'start': 0, 'end': 50}, {'start': 80, 'end': 100}], 100, **GATES)
+    assert info['failed_gate'] is None
+    assert ads and len(ads) == 1
+    assert info['merged_content_spans'] == 2
+    assert info['coverage'] > 0.55
+    assert info['longest_cut_seconds'] > 0
 
 
 def test_end_ads_when_content_starts_late_and_ends_early():

@@ -74,28 +74,45 @@ def invert_content_to_ads(
     min_ad_seconds: float,
     max_single_ad_fraction: float,
     max_single_ad_seconds: float,
-) -> Optional[List[Dict]]:
-    """Ad spans = the complement of the content spans, or None if a gate fails.
+) -> Tuple[Optional[List[Dict]], Dict]:
+    """Invert content spans to ad spans, gated for safety.
 
-    Gates (any failure returns None so the caller reverts to blacklist mode):
-      - content must cover at least ``min_coverage`` of the episode
-      - the inverted cuts must remove no more than ``max_removed_fraction``
-      - no single inverted cut may exceed ``max_single_ad_fraction`` of the
-        episode OR ``max_single_ad_seconds`` (a giant contiguous cut means a
-        whole content window went unlabeled -- coverage/removed gates miss this
-        because they are near complementary; the fraction gate alone is too
-        loose on multi-hour episodes, so the absolute cap backstops it)
+    Returns ``(ads, info)``. ``ads`` is the complement of the content spans, or
+    ``None`` if a gate fails (the caller then reverts to blacklist mode). ``info``
+    is ALWAYS populated with the metrics and the name of the gate that failed
+    (``failed_gate`` is ``None`` on success) so the caller can log why an
+    inversion was rejected and the thresholds can be tuned.
+
+    Gates (evaluated in order; the first failure sets ``failed_gate``):
+      - ``coverage``: content must cover at least ``min_coverage`` of the episode
+      - ``removed_fraction``: the inverted cuts must remove no more than
+        ``max_removed_fraction``
+      - ``single_cut_fraction`` / ``single_cut_seconds``: no single inverted cut
+        may exceed ``max_single_ad_fraction`` of the episode OR
+        ``max_single_ad_seconds`` (a giant contiguous cut means a whole content
+        window went unlabeled -- coverage/removed gates miss this because they
+        are near complementary; the fraction gate alone is too loose on
+        multi-hour episodes, so the absolute cap backstops it)
     Inverted ad slivers shorter than ``min_ad_seconds`` are dropped.
     """
+    info: Dict = {
+        'merged_content_spans': 0,
+        'coverage': 0.0,
+        'removed_fraction': 0.0,
+        'longest_cut_seconds': 0.0,
+        'longest_cut_fraction': 0.0,
+        'failed_gate': None,
+    }
     if total_duration <= 0:
-        return None
+        info['failed_gate'] = 'zero_duration'
+        return None, info
     content = _normalize_content_spans(content_spans, total_duration, edge_pad, min_gap)
+    info['merged_content_spans'] = len(content)
     if not content:
-        return None
+        info['failed_gate'] = 'empty_content'
+        return None, info
 
     coverage = sum(b - a for a, b in content) / total_duration
-    if coverage < min_coverage:
-        return None
 
     ads: List[Tuple[float, float]] = []
     cursor = 0.0
@@ -107,19 +124,31 @@ def invert_content_to_ads(
         ads.append((cursor, total_duration))
 
     removed = sum(b - a for a, b in ads) / total_duration
-    if removed > max_removed_fraction:
-        return None
-
-    # A single huge contiguous cut means a whole content window went unlabeled.
-    # Gate on both the episode fraction and an absolute seconds cap (the
-    # fraction is too permissive on multi-hour shows).
     longest_cut = max((b - a for a, b in ads), default=0.0)
-    if longest_cut / total_duration > max_single_ad_fraction:
-        return None
-    if longest_cut > max_single_ad_seconds:
-        return None
+    longest_cut_fraction = longest_cut / total_duration
 
-    return [
+    # Record the full picture before gating so a rejection logs every metric,
+    # not just the one that tripped.
+    info['coverage'] = round(coverage, 4)
+    info['removed_fraction'] = round(removed, 4)
+    info['longest_cut_seconds'] = round(longest_cut, 1)
+    info['longest_cut_fraction'] = round(longest_cut_fraction, 4)
+
+    if coverage < min_coverage:
+        info['failed_gate'] = 'coverage'
+        return None, info
+    if removed > max_removed_fraction:
+        info['failed_gate'] = 'removed_fraction'
+        return None, info
+    # A single huge contiguous cut means a whole content window went unlabeled.
+    if longest_cut_fraction > max_single_ad_fraction:
+        info['failed_gate'] = 'single_cut_fraction'
+        return None, info
+    if longest_cut > max_single_ad_seconds:
+        info['failed_gate'] = 'single_cut_seconds'
+        return None, info
+
+    inverted = [
         {
             'start': round(a, 2),
             'end': round(b, 2),
@@ -131,3 +160,4 @@ def invert_content_to_ads(
         for a, b in ads
         if b - a >= min_ad_seconds
     ]
+    return inverted, info

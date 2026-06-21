@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.1] - 2026-06-20
+
+### Changed
+
+- When keep-content mode falls back to normal ad removal, the log now says why. The old line just printed the content-span count, so a fallback was opaque. It now names the gate that tripped (coverage, removed fraction, or a single cut too long) and prints the numbers behind it (coverage, removed fraction, longest cut), plus a per-window content-span count so you can see which window the model under-labeled. No behavior change; this is logging only.
+
 ## [2.13.0] - 2026-06-20
 
 ### Added
@@ -998,8 +1004,8 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Fixed
 
-- **Fingerprint slow-fallback no longer burns 10 minutes when the audio is bad for fpcalc.** When `_generate_full_fingerprint` fails (e.g. fpcalc rejects an MP3 with "Invalid data found when processing input"), the per-window fallback used to inherit the full 600-second timeout — every window scan also called fpcalc, almost always produced zero new matches, and ate the entire budget before timing out. The fallback now caps at 90 seconds via a new `FALLBACK_SLOW_TIMEOUT` constant. Stage 1 still tries; it just doesn't block Stage 2 + Stage 3 for ten minutes on broken audio. Caught from production logs (cordkillers-only-audio episode that took 14 min on pass 1 alone).
-- **`processing_timeouts._resolve` was silently falling back to env / defaults every refresh tick.** The `from database import get_database` import is invalid — `get_database` lives in the `api` package — and the try/except swallowed the resulting ImportError. Fixed the import path. Effect: user-configured `processing_soft_timeout_seconds` / `processing_hard_timeout_seconds` are now actually read from the DB instead of being silently shadowed by env-var fallbacks.
+- **Fingerprint slow-fallback no longer burns 10 minutes when the audio is bad for fpcalc.** When `_generate_full_fingerprint` fails (e.g. fpcalc rejects an MP3 with "Invalid data found when processing input"), the per-window fallback used to inherit the full 600-second timeout: every window scan also called fpcalc, almost always produced zero new matches, and ate the entire budget before timing out. The fallback now caps at 90 seconds via a new `FALLBACK_SLOW_TIMEOUT` constant. Stage 1 still tries; it just doesn't block Stage 2 + Stage 3 for ten minutes on broken audio. Caught from production logs (cordkillers-only-audio episode that took 14 min on pass 1 alone).
+- **`processing_timeouts._resolve` was silently falling back to env / defaults every refresh tick.** The `from database import get_database` import is invalid (`get_database` lives in the `api` package) and the try/except swallowed the resulting ImportError. Fixed the import path. Effect: user-configured `processing_soft_timeout_seconds` / `processing_hard_timeout_seconds` are now actually read from the DB instead of being silently shadowed by env-var fallbacks.
 - **`community_sync` no longer WARNs every 15 minutes when the manifest URL returns 404.** A 404 is the expected state when upstream hasn't published a manifest yet (e.g., the feature branch hasn't merged to main). Now logged at INFO level with an explanatory message. Non-404 fetch failures still log as WARNING so real problems stay visible.
 - **`set_podcast_tags` short-circuits the episode-aggregation pass when the incoming RSS tags are already covered by the row's union.** Pre-fix: every feed refresh on a 300-episode podcast did one SELECT + 300 JSON parses across all episodes even when nothing was going to change. Now a single subset check before the heavy work. Materially lower SQLite write contention with the queue processor on instances with large feeds.
 
@@ -1007,15 +1013,15 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Fixed
 
-- **Reviewer-trim now actually trims** instead of rebuilding the template from one episode's transcription. `rewrite_pattern_from_bounds` takes the original AND new bounds, computes the head/tail transcript slices, and splices them out of the existing `text_template` only when they appear at its start/end. The earlier behavior (Operation 2 "full replace within threshold") was a misnomer — it fit the template to a single episode and risked breaking matches on episodes that had captured the cleaner version. `intro_variants` / `outro_variants` get the same prefix/suffix trim so they stay aligned. Returns False when neither head nor tail slice matches the existing template, leaving the pattern untouched.
+- **Reviewer-trim now actually trims** instead of rebuilding the template from one episode's transcription. `rewrite_pattern_from_bounds` takes the original AND new bounds, computes the head/tail transcript slices, and splices them out of the existing `text_template` only when they appear at its start/end. The earlier behavior (Operation 2 "full replace within threshold") was a misnomer: it fit the template to a single episode and risked breaking matches on episodes that had captured the cleaner version. `intro_variants` / `outro_variants` get the same prefix/suffix trim so they stay aligned. Returns False when neither head nor tail slice matches the existing template, leaving the pattern untouched.
 - **`community_sync.apply_manifest` now reads `manifest['vocabulary_version']`.** When the manifest carries a vocabulary newer than the app's, the sync writes a warning to the log and a `vocabulary_warning` field into `community_sync_last_summary` so the operator can spot a stale image. Non-integer values are caught and logged cleanly instead of crashing the sync.
 - **Hardcoded `ttlequals0/MinusPod` is now a single constant.** `GITHUB_REPO` and `COMMUNITY_MANIFEST_URL` live in `src/utils/community_tags.py`; the export pipeline and sync job both import from there. One source of truth for the upstream identity.
-- **`MANIFEST_VERSION` and `VOCABULARY_VERSION` moved out of `src/tools/generate_manifest.py`** (a build-time CLI) into `src/utils/community_tags.py` next to the vocabulary loader. Both the generator and the sync job import from there. Removes a wrong-direction runtime → build-time layering import.
+- **`MANIFEST_VERSION` and `VOCABULARY_VERSION` moved out of `src/tools/generate_manifest.py`** (a build-time CLI) into `src/utils/community_tags.py` next to the vocabulary loader. Both the generator and the sync job import from there. Removes a wrong-direction runtime -> build-time layering import.
 - **`pattern_service.py` no longer imports from `api/`.** Switched the transcript helper to `from utils.text import extract_text_in_range` directly. Service layer importing from API layer was the wrong dependency direction and would have become a circular import.
 
 ### Added
 
-- **`.github/workflows/labeler.yml`** wiring `actions/labeler@v5` to apply `.github/labeler.yml` on PRs. The path-glob for `pattern` existed since 2.4.0 but nothing invoked it — community-pattern PRs will now get the label automatically.
+- **`.github/workflows/labeler.yml`** wiring `actions/labeler@v5` to apply `.github/labeler.yml` on PRs. The path-glob for `pattern` existed since 2.4.0 but nothing invoked it; community-pattern PRs will now get the label automatically.
 
 ## [2.4.1] - 2026-05-14
 
@@ -1023,27 +1029,27 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 - **Per-feed tag editor.** New "Tags" card on every feed-detail page. Shows the effective tag set grouped by source (RSS / episode / user), with an "+ Add tag" button that opens a grouped picker of the remaining vocabulary tags. User-added tags carry an inline X to remove them, and saves are auto-applied via `PUT /api/v1/feeds/{slug}/tags`. This was the missing companion UI to the backend endpoint shipped in 2.4.0.
 - **Multi-select pattern export.** The Patterns page **Export** button now opens a dialog with a checkbox per pattern (Select-all, optional include-disabled / include-corrections flags) instead of dumping the whole local pattern DB. `GET /api/v1/patterns/export` gained an `?ids=1,2,3` filter to support this.
-- **Per-row Submit-to-community / Protect-from-sync buttons in the desktop pattern table.** Previously only the mobile card layout had these — desktop reviewers had to switch viewports. New 9th "Actions" column hosts them.
-- **`GET /api/v1/tags/vocabulary`** — returns the canonical 49-tag vocabulary plus per-tag descriptions, grouped into podcast_genres / sponsor_industries / special_tags. Used by the new tag picker.
+- **Per-row Submit-to-community / Protect-from-sync buttons in the desktop pattern table.** Previously only the mobile card layout had these, so desktop reviewers had to switch viewports. New 9th "Actions" column hosts them.
+- **`GET /api/v1/tags/vocabulary`**: returns the canonical 49-tag vocabulary plus per-tag descriptions, grouped into podcast_genres / sponsor_industries / special_tags. Used by the new tag picker.
 
 ### Changed
 
 - Tag vocabulary loading is now cached (`utils.community_tags.vocabulary_payload` with `@lru_cache(maxsize=1)`); the CSV is parsed once at process start instead of per request. Frontend cache: `staleTime: Infinity` since vocabulary ships with the app image.
 - `/tags/vocabulary` lives at `src/api/tags.py` (was inline in `sponsors.py`); no behavior change, better discoverability.
-- TypeScript now exports `PATTERN_SOURCES` and `PatternSource` from `frontend/src/api/patterns.ts`, mirroring the Python `PATTERN_SOURCES` frozenset — frontend and backend can no longer drift on source-discriminator spellings.
+- TypeScript now exports `PATTERN_SOURCES` and `PatternSource` from `frontend/src/api/patterns.ts`, mirroring the Python `PATTERN_SOURCES` frozenset, so frontend and backend can no longer drift on source-discriminator spellings.
 
 ### Fixed
 
 - **`community_sync.apply_manifest` version stamping**: was using `dict.setdefault('version', manifest_version)` which silently kept a stale `version` carried in the inner `data` dict. Now assigns unconditionally so the manifest's version is authoritative for the `import_community_pattern` version gate.
 - **CodeQL py/reflective-xss in bulk-op endpoints**: hardened `_resolve_bulk_target` so `ids` and `expected_count` are coerced to integers up front. Non-integer payloads return 400 with a clean message instead of being f-stringed into the response body.
 - **Inline CREATE TABLE shape drift**: `_create_new_tables_only` definitions for `ad_patterns` and `known_sponsors` were missing the 2.4.0 columns; brought back into sync with `SCHEMA_SQL`. End state was already correct via the ALTER TABLE migrations, but the "must match SCHEMA_SQL exactly" comment invariant is now true again.
-- **Sponsor reseed migration order**: moved `_reseed_known_sponsors` to run AFTER `_migrate_sponsor_fk` and the Zyn cleanups so it operates on the post-dedup canonical state. Previously a v2.1.x → 2.4.x jump could let dedup discard the freshly-tagged row.
+- **Sponsor reseed migration order**: moved `_reseed_known_sponsors` to run AFTER `_migrate_sponsor_fk` and the Zyn cleanups so it operates on the post-dedup canonical state. Previously a v2.1.x -> 2.4.x jump could let dedup discard the freshly-tagged row.
 
 ## [2.4.0] - 2026-05-14
 
 ### Added
 
-- **Community ad patterns.** Patterns can now be shared via the `patterns/community/` directory in the GitHub repository. A new "Submit to community" button on each local pattern row runs an export pipeline (quality gates, PII strip, sponsor classification, metadata strip) and opens a prefilled GitHub PR. A new GitHub Action validates incoming PRs against the same gates and a three-tier dedupe (95%+ duplicate, 75–95% variant, <75% distinct) before the maintainer reviews them.
+- **Community ad patterns.** Patterns can now be shared via the `patterns/community/` directory in the GitHub repository. A new "Submit to community" button on each local pattern row runs an export pipeline (quality gates, PII strip, sponsor classification, metadata strip) and opens a prefilled GitHub PR. A new GitHub Action validates incoming PRs against the same gates and a three-tier dedupe (95%+ duplicate, 75-95% variant, <75% distinct) before the maintainer reviews them.
 - **49-tag vocabulary + tagging system.** Sponsors and podcasts now carry tags from a 48-entry vocabulary (`src/seed_data/tag_vocabulary.csv`) plus a special `universal` flag for sponsors with broad appeal. Community patterns only enter the text-matching loop when their sponsor's tags overlap the podcast's tags, when the sponsor is `universal`, or when either side has no tags. Local patterns bypass tag filtering entirely.
 - **Authoritative sponsor seed.** A new schema migration loads 255 sponsors (with aliases and tags) from `src/seed_data/sponsors_final.csv`. Migration semantics: UPDATE on name match (preserves `ad_patterns.sponsor_id` FKs), INSERT new, soft-delete (`is_active=0`) any pre-existing sponsor whose name is not in the seed.
 - **Auto-pull / sync.** Optional opt-in: when enabled, the server polls `https://raw.githubusercontent.com/ttlequals0/MinusPod/main/patterns/community/index.json` on a configurable cron (default Sunday 3am UTC) and applies INSERT / UPDATE / DELETE against community patterns. The new "Protect from sync" toggle on each community pattern row pins it so a future manifest can't overwrite or delete it.
@@ -1074,11 +1080,11 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Changed
 
-- **Edit Ads now defaults to a small window around the detected ad again** (±30s context, capped at 360s). 2.3.1 made every open default to the full episode, which lost the boundary-detail view that made review-mode useful in the first place. Create-new-ad still defaults to the full episode. If the user types a far-away timestamp in review mode, the window auto-expands to include the new pin.
+- **Edit Ads now defaults to a small window around the detected ad again** (+/-30s context, capped at 360s). 2.3.1 made every open default to the full episode, which lost the boundary-detail view that made review-mode useful in the first place. Create-new-ad still defaults to the full episode. If the user types a far-away timestamp in review mode, the window auto-expands to include the new pin.
 
 ### Added
 
-- **Full-episode play scrubber** under the zoom slider. Click or drag anywhere on the bar to jump to that point in the audio, regardless of how the waveform is zoomed. Two overlapping fills: a dim band shows the slice currently rendered in the waveform; a brighter fill tracks playback. Keyboard: Arrow keys seek ±5s, Shift+Arrow ±10s, Home/End jump to ends. Pointer move is rAF-coalesced so dragging doesn't thrash the audio element.
+- **Full-episode play scrubber** under the zoom slider. Click or drag anywhere on the bar to jump to that point in the audio, regardless of how the waveform is zoomed. Two overlapping fills: a dim band shows the slice currently rendered in the waveform; a brighter fill tracks playback. Keyboard: Arrow keys seek +/-5s, Shift+Arrow +/-10s, Home/End jump to ends. Pointer move is rAF-coalesced so dragging doesn't thrash the audio element.
 
 ## [2.3.1] - 2026-05-13
 
@@ -1086,7 +1092,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 - **Ad editor waveform defaulted to a 6-minute view**, so on long episodes the pins jumped off-screen the moment you typed real timestamps. Default now spans the full episode. When zoomed in, typing a time outside the viewport scrolls the wavesurfer to bring the pin into view.
 - **Time inputs auto-reset on blur** when Start > End, blocking you from typing Start=34:50 then End=37:20. Each input now clamps only to `[0, episodeDuration]`. Cross-field validation moves to Save: invalid selection disables Save, reds the inputs, and shows an inline error.
-- **No playback speed control** in the ad editor. Added a 0.5×–2× dropdown next to the play button.
+- **No playback speed control** in the ad editor. Added a 0.5x-2x dropdown next to the play button.
 
 ### Changed
 
@@ -1096,7 +1102,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Added
 
-- **Per-stage LLM tunables (#222).** Temperature, max_tokens, and reasoning controls per pass: ad detection (pass 1), reviewer, verification (pass 2), chapter boundary detection, and chapter title generation. The reviewer uses one set of values across both of its invocations. Reasoning is provider-aware — Anthropic takes a numeric token budget (1024-65536) that maps to the `thinking` block; OpenAI, OpenRouter, and Ollama take an effort enum (`none`, `low`, `medium`, `high`). Budget and level live in separate DB keys so a value set on one provider survives switching to another and back.
+- **Per-stage LLM tunables (#222).** Temperature, max_tokens, and reasoning controls per pass: ad detection (pass 1), reviewer, verification (pass 2), chapter boundary detection, and chapter title generation. The reviewer uses one set of values across both of its invocations. Reasoning is provider-aware: Anthropic takes a numeric token budget (1024-65536) that maps to the `thinking` block; OpenAI, OpenRouter, and Ollama take an effort enum (`none`, `low`, `medium`, `high`). Budget and level live in separate DB keys so a value set on one provider survives switching to another and back.
 - **4xx fallback on rejected tunables.** When the provider returns 4xx because the user's values don't fit the model, the call is logged at WARNING and retried once with built-in defaults. The flag is keyed by `(episode_id, pass_name)` so parallel episodes don't share state. It clears at the start of the next pass.
 - **Ollama context window (`OLLAMA_NUM_CTX`).** Ollama defaults to a small context (often 2048) and silently drops prompt text that doesn't fit, so ad detection fails with no visible error. Setting this to the model's trained context limit (8192+) avoids that.
 - Env vars for every tunable; setting one makes the matching control read-only in Settings with a note pointing at the variable. Full list in `.env.example`.
@@ -1141,13 +1147,13 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Fixed
 
-- **Playback starts at the ad, not at episode origin.** When the user clicked Play on a review-mode editor for a mid-roll or post-roll ad, audio was starting at `0:00` because of a race between the `loadedmetadata` seed and the user's Play click. `togglePlay` now snaps the cursor to `adStart - 2` if the cursor is parked far before the visible window. The seed effect's stale `currentTime < 0.1` guard is removed (the togglePlay safety net handles the race) and `audioUrl` is added to the seed effect's deps so toggling Processed ↔ Original re-seeds the cursor.
+- **Playback starts at the ad, not at episode origin.** When the user clicked Play on a review-mode editor for a mid-roll or post-roll ad, audio was starting at `0:00` because of a race between the `loadedmetadata` seed and the user's Play click. `togglePlay` now snaps the cursor to `adStart - 2` if the cursor is parked far before the visible window. The seed effect's stale `currentTime < 0.1` guard is removed (the togglePlay safety net handles the race) and `audioUrl` is added to the seed effect's deps so toggling Processed <-> Original re-seeds the cursor.
 
 ## [2.2.8] - 2026-05-13
 
 ### Fixed
 
-- **Closing the new-ad modal no longer "leaves a second popup behind".** The 2.2.6 sync useEffect was overriding the user's Cancel — `handleClose` set `internalCreateMode = false`, the modal flipped to review for a frame, then the effect re-imposed `createMode = true` from the parent prop and flipped it back to create. The user perceived this as a stacked review modal appearing under the create form. `handleClose` now tracks whether create mode was entered via the in-modal `+ Add new ad` (returns to review) vs the page-header button (closes entirely). The sync useEffect is now one-way: it only flips into create mode on a fresh prop transition, never overrides an internal close.
+- **Closing the new-ad modal no longer "leaves a second popup behind".** The 2.2.6 sync useEffect was overriding the user's Cancel: `handleClose` set `internalCreateMode = false`, the modal flipped to review for a frame, then the effect re-imposed `createMode = true` from the parent prop and flipped it back to create. The user perceived this as a stacked review modal appearing under the create form. `handleClose` now tracks whether create mode was entered via the in-modal `+ Add new ad` (returns to review) vs the page-header button (closes entirely). The sync useEffect is now one-way: it only flips into create mode on a fresh prop transition, never overrides an internal close.
 - **Sponsor autocomplete dropdown now has an opaque background.** Swapped `bg-popover` (`--popover` was never defined in the theme, so it resolved to transparent) for `bg-card`, plus `z-20` and `shadow-lg` so the dropdown reads as a popover above the form fields.
 - **Waveform colors follow the active theme.** Wavesurfer's `waveColor` and `progressColor` are now read from the `--muted-foreground` and `--primary` CSS variables at mount time, so switching themes (Slate, Dracula, Catppuccin, Nord, etc.) updates the waveform palette on next open.
 
@@ -1161,7 +1167,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 ### Changed / Fixed
 
 - **Manually-created ads now display sponsor + reason on the page row.** Backend synthesizes a `<sponsor>: manually added ad` reason when the user leaves Reason blank; frontend adds a sponsor chip alongside the time range and a `Manual` (amber) detection-stage badge.
-- **Modal can no longer be dismissed accidentally.** Backdrop close switched to `onMouseDown` with an `e.target === e.currentTarget` guard, so only clicks on the bare backdrop area trigger close. In create mode, backdrop close is disabled entirely — the user must use Cancel or X to dismiss a form they're filling out.
+- **Modal can no longer be dismissed accidentally.** Backdrop close switched to `onMouseDown` with an `e.target === e.currentTarget` guard, so only clicks on the bare backdrop area trigger close. In create mode, backdrop close is disabled entirely, so the user must use Cancel or X to dismiss a form they're filling out.
 - **Diagnostic logs for reprocess.** Stage 2 (text pattern) now logs `considered N patterns, matched M`. Database init logs `Pattern catalog: ad_patterns active=N, known_sponsors active=M`. Lets us distinguish "Stage 2 had 0 patterns to consider" from "Stage 2 considered many but matched 0" from "Claude returned 0".
 
 ### PWA
@@ -1173,12 +1179,12 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 ### Fixed
 
 - **Crash after `Save & Next` on a create-ad submission.** `getAdCorrection` at `EpisodeDetail.tsx:180` dereferenced `c.original_bounds.start` for every correction in the list. `'create'` corrections legitimately have `original_bounds=null` (no original bounds for a brand-new marker), so the first one to land after the new correction posted crashed the page with `TypeError: Cannot read properties of null (reading 'start')`. Added a null guard on the find predicate.
-- **Transcript text now refreshes when the user moves a pin in create mode.** Dropped the "only when empty" guard on the `/transcript-span` auto-fill effect. The text template is meant to be derived from the current window, so the fetch now always overwrites the field; manual edits get clobbered when the user drags a pin (acceptable trade-off — see follow-up note in plan).
+- **Transcript text now refreshes when the user moves a pin in create mode.** Dropped the "only when empty" guard on the `/transcript-span` auto-fill effect. The text template is meant to be derived from the current window, so the fetch now always overwrites the field; manual edits get clobbered when the user drags a pin (acceptable trade-off, see follow-up note in plan).
 - **`+ Add new ad` from a review-mode modal no longer bleeds review state into the create form.** AdEditor now sets a `key` prop on `<AdReviewModal>` that changes on mode flip and on ad switching, forcing React to remount the modal so all `useState` hooks re-initialize from the `defaults` useMemo cleanly.
 
 ### Changed
 
-- Window-times row in the modal header now reads `Window: 0:00.0 – 4:02.1` instead of two unlabeled numbers flanking the checkbox + Reset button.
+- Window-times row in the modal header now reads `Window: 0:00.0 - 4:02.1` instead of two unlabeled numbers flanking the checkbox + Reset button.
 
 ## [2.2.5] - 2026-05-12
 
@@ -1711,7 +1717,7 @@ Dependency rollup. No application-behavior changes. Every Dependabot PR open aft
 
 ### Added
 - `WHISPER_COMPUTE_TYPE` setting (env var, DB setting, and Settings > Transcription dropdown) with values `auto`, `float16`, `int8_float16`, `int8`, `float32`. Default `auto` resolves to `float16` on CUDA and `int8` on CPU, preserving prior behavior when unset. Reported and prototyped by @zuhaibzia in issue #139.
-- Automatic compute-type fallback in `WhisperModelSingleton.get_instance`: when the resolved type is `float16` on CUDA and model init raises (Pascal GTX 10xx, Maxwell GTX 9xx, Jetson TX2 — CTranslate2 does not support fp16 below compute capability 7.0), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails still raises so a bad value isn't masked.
+- Automatic compute-type fallback in `WhisperModelSingleton.get_instance`: when the resolved type is `float16` on CUDA and model init raises (Pascal GTX 10xx, Maxwell GTX 9xx, Jetson TX2; CTranslate2 does not support fp16 below compute capability 7.0), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails still raises so a bad value isn't masked.
 - README "GPU Compute Type" subsection with a per-GPU recommendation table and links to the CTranslate2 quantization docs and NVIDIA's CUDA compute-capability list.
 
 ### Changed
@@ -1858,7 +1864,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.6.0] - 2026-04-14
 
 ### Added
-- **Review mode in the Ad Editor** (issue #129). The ad editor now retains the pre-cut (original) audio alongside the processed output and exposes a "Processed / Original" toggle above the editor. Switching to Original plays the untouched download at the ad's original timestamps, so boundary adjustments can be verified by ear — no more fixing cuts blind from the transcript. The toggle disables itself with an explanatory tooltip for episodes that have no retained original (processed before this release, setting off, or expired by retention).
+- **Review mode in the Ad Editor** (issue #129). The ad editor now retains the pre-cut (original) audio alongside the processed output and exposes a "Processed / Original" toggle above the editor. Switching to Original plays the untouched download at the ad's original timestamps, so boundary adjustments can be verified by ear, no more fixing cuts blind from the transcript. The toggle disables itself with an explanatory tooltip for episodes that have no retained original (processed before this release, setting off, or expired by retention).
 - New settings: `GET`/`PUT /api/v1/settings/audio` with `keepOriginalAudio` (default `true`). Exposed in the UI as a toggle under Storage & Retention. Roughly doubles per-episode audio storage when on.
 - New endpoint: `GET /api/v1/feeds/{slug}/episodes/{episodeId}/original.mp3` streams the retained original; 404s when not available. Supports Range requests.
 - Episode responses now include `hasOriginalAudio` and `originalAudioUrl`.
@@ -1882,7 +1888,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.5.2] - 2026-04-13
 
 ### Fixed
-- Stop spurious `Failed to list models for provider 'anthropic': No Anthropic API key provided` ERRORs on Settings page load. The Settings UI no longer fires the models query against the hardcoded default provider before `getSettings` returns — the query is gated on `settingsLoading`. Backend also demotes the "no key" preview failure from ERROR to INFO; other list_models failures still log ERROR.
+- Stop spurious `Failed to list models for provider 'anthropic': No Anthropic API key provided` ERRORs on Settings page load. The Settings UI no longer fires the models query against the hardcoded default provider before `getSettings` returns; the query is gated on `settingsLoading`. Backend also demotes the "no key" preview failure from ERROR to INFO; other list_models failures still log ERROR.
 
 ## [1.5.1] - 2026-04-13
 
@@ -1906,7 +1912,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.4.1] - 2026-04-13
 
 ### Fixed
-- After an LLM provider change, prune saved ad-detection / verification / chapters model IDs that the new provider's live `/v1/models` does not advertise. Previously an OpenRouter-style tag (e.g. `minimax-m2`, `kimi-k2:1t`) configured against one provider survived a switch to Ollama Cloud and every window silently failed with `not_found_error` — the server returned HTTP 200 with an error envelope, the parser treated the window as "no ads found," and an entire episode processed with zero detections. The prune uses the raw `client.list_models()` list (bypassing `_ensure_configured_models_present`, which would re-inject the stale IDs), and falls back to `reset_setting` so the new provider's default model takes over.
+- After an LLM provider change, prune saved ad-detection / verification / chapters model IDs that the new provider's live `/v1/models` does not advertise. Previously an OpenRouter-style tag (e.g. `minimax-m2`, `kimi-k2:1t`) configured against one provider survived a switch to Ollama Cloud and every window silently failed with `not_found_error`: the server returned HTTP 200 with an error envelope, the parser treated the window as "no ads found," and an entire episode processed with zero detections. The prune uses the raw `client.list_models()` list (bypassing `_ensure_configured_models_present`, which would re-inject the stale IDs), and falls back to `reset_setting` so the new provider's default model takes over.
 
 ## [1.4.0] - 2026-04-13
 
@@ -1919,7 +1925,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.3.2] - 2026-04-13
 
 ### Security
-- Close CodeQL #33 (py/clear-text-logging-sensitive-data). The helper log introduced in 1.3.1 took `rows: int` — a count — but CodeQL's inter-procedural taint tracking follows the return value of `secrets_crypto.rotate(db, old, new)` because the function is called with password-named arguments, so the `rotated` count inherits taint and any log sink reachable from it is flagged. Remove the success log entirely; the 200 response body already includes `{rotated: N}` for audit, and failure paths still log via `logger.exception`.
+- Close CodeQL #33 (py/clear-text-logging-sensitive-data). The helper log introduced in 1.3.1 took `rows: int` (a count), but CodeQL's inter-procedural taint tracking follows the return value of `secrets_crypto.rotate(db, old, new)` because the function is called with password-named arguments, so the `rotated` count inherits taint and any log sink reachable from it is flagged. Remove the success log entirely; the 200 response body already includes `{rotated: N}` for audit, and failure paths still log via `logger.exception`.
 
 ## [1.3.1] - 2026-04-13
 
@@ -1934,7 +1940,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.2.2] - 2026-04-13
 
 ### Changed
-- Rework provider key UI. The separate "Providers & API Keys" card introduced in 1.2.0 duplicated the existing LLM and Transcription sections. Key inputs now live inline inside `LLMProviderSection` (contextual to the selected provider) and `TranscriptionSection` (for the Whisper remote backend), with a three-state status chip (Stored encrypted / Using env fallback / Not set) and Save / Test / Clear affordances that only appear when relevant. When `MINUSPOD_MASTER_PASSPHRASE` is unset the input collapses to a one-line "Setup required" note in place — no separate banner.
+- Rework provider key UI. The separate "Providers & API Keys" card introduced in 1.2.0 duplicated the existing LLM and Transcription sections. Key inputs now live inline inside `LLMProviderSection` (contextual to the selected provider) and `TranscriptionSection` (for the Whisper remote backend), with a three-state status chip (Stored encrypted / Using env fallback / Not set) and Save / Test / Clear affordances that only appear when relevant. When `MINUSPOD_MASTER_PASSPHRASE` is unset the input collapses to a one-line "Setup required" note in place, no separate banner.
 - Remove dead plaintext-save state (`openrouterApiKey`, `whisperApiConfig.apiKey`, `apiKeyConfigured`) from the Settings page and its types; saves now always route through `/api/v1/settings/providers/<name>`.
 
 ## [1.2.1] - 2026-04-13
