@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.14.0
+  version: 2.15.0
   contact:
     name: MinusPod
   license:
@@ -1956,15 +1956,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /patterns/merge-suggestions:
+    get:
+      tags:
+        - Patterns
+      summary: Suggested pattern merges
+      description: |
+        Same-sponsor near-duplicate pattern clusters that could fold into one
+        row. Clusters are precomputed and cached server-side (keyed on each
+        sponsor group's text signature). Patterns without a sponsor are never
+        clustered.
+      operationId: getMergeSuggestions
+      responses:
+        '200':
+          description: Cluster suggestions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        sponsor_id:
+                          type: integer
+                          nullable: true
+                        sponsor:
+                          type: string
+                          nullable: true
+                        suggested_keep_id:
+                          type: integer
+                          description: Keep-target chosen by the tiebreaker
+                        pattern_ids:
+                          type: array
+                          items:
+                            type: integer
+                        count:
+                          type: integer
+                        result_intro_variant_count:
+                          type: integer
+                        result_outro_variant_count:
+                          type: integer
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /patterns/merge:
     post:
       tags:
         - Patterns
       summary: Merge patterns
       description: |
-        Merge multiple patterns into a single pattern. The kept pattern receives
-        the combined confirmation and false positive counts from all merged patterns.
-        Corrections are reassigned and merged patterns are deleted.
+        Fold patterns into a single kept pattern. The kept pattern keeps its own
+        text_template (so its audio fingerprint stays valid) and receives the
+        combined confirmation and false-positive counts plus the unioned
+        intro/outro variants (deduped, capped at five per side). Corrections are
+        reassigned, and the merged rows and their audio fingerprints are deleted.
+        All patterns must share the kept pattern's sponsor (cross-sponsor merges
+        are rejected). Merging reads below 75% similarity is allowed but returns
+        an advisory `warning`.
       operationId: mergePatterns
       requestBody:
         required: true
@@ -2002,6 +2053,13 @@ paths:
                     type: integer
                   total_false_positives:
                     type: integer
+                  intro_variant_count:
+                    type: integer
+                  outro_variant_count:
+                    type: integer
+                  warning:
+                    type: string
+                    description: Present when a merged pair is below 75% similar
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':

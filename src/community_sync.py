@@ -33,10 +33,14 @@ from utils.time import parse_iso_datetime, utc_now_iso
 
 logger = logging.getLogger('podcast.community_sync')
 HTTP_TIMEOUT = 20
-# Generous cap for a JSON manifest; current production manifests are well
-# under 64 KB, but leave headroom for future growth before the SSRF guard
-# trips.
-MANIFEST_MAX_BYTES = 256 * 1024
+# Cap for the JSON manifest body before deserialisation (an SSRF/DoS guard,
+# since the body is buffered in memory). The manifest still embeds every
+# pattern inline and so grows with the catalog -- it was at ~74% of the old
+# 256 KB cap, so this raises the ceiling to 1 MB for headroom. This is an
+# interim measure; the durable fix is a thin index plus incremental per-pattern
+# fetch (tracked separately), which keeps the manifest small regardless of
+# catalog size.
+MANIFEST_MAX_BYTES = 1024 * 1024
 DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 
 

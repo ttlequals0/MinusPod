@@ -108,3 +108,30 @@ def test_sync_now_records_settings_state(db, monkeypatch):
     assert db.get_setting('community_sync_last_error') == ''
     stored = json.loads(db.get_setting('community_sync_last_summary'))
     assert stored['inserted'] == 1
+
+
+def test_fetch_manifest_accepts_body_over_old_cap(monkeypatch):
+    """The raised cap (1 MB) accepts a manifest larger than the old 256 KB
+    ceiling; a deterministic ~512 KB body sits between the two."""
+    import community_sync
+
+    payload = {'manifest_version': 1, 'patterns': [_pattern_entry('cid-0')]}
+    payload['patterns'][0]['data']['text_template'] = 'x' * (512 * 1024)
+    body = json.dumps(payload).encode('utf-8')
+    assert 256 * 1024 < len(body) < community_sync.MANIFEST_MAX_BYTES
+
+    class _FakeResp:
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size=65536):
+            for i in range(0, len(body), chunk_size):
+                yield body[i:i + chunk_size]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(community_sync, 'safe_get', lambda *a, **k: _FakeResp())
+    result = community_sync._fetch_manifest('https://example.com/index.json')
+    assert result['manifest_version'] == 1
+    assert len(result['patterns']) == 1

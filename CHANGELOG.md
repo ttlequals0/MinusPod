@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] - 2026-06-20
+
+### Added
+
+- Pattern merge now folds near-duplicate same-sponsor patterns into one row. The kept pattern keeps its own text; the others' intro/outro phrases are added to it as variants, deduped and capped at five per side. The Patterns page shows merge suggestions for same-sponsor patterns that read like the same ad, and you can drop individual rows before folding. Merging different sponsors is blocked. Merging reads that are less than 75 percent similar is allowed but warns first.
+
+### Changed
+
+- Manually created patterns now get intro/outro variants derived from their text instead of starting empty, so they get the same boundary placement as auto-created patterns.
+- Auto-promotion unions variants through the same shared helper, so a promoted pattern's variant arrays are deduped and bounded instead of growing without limit.
+- Raised the community manifest size cap from 256 KB to 1 MB. The manifest still embeds every pattern inline, so it grows with the catalog and had reached about 74 percent of the old cap. This is an interim bump; a thin index with incremental fetch is the durable fix and is tracked for a follow-up.
+
+### Fixed
+
+- Merging patterns now deletes the folded rows' audio fingerprints instead of leaving them orphaned. A fingerprint is the audio hash of that row's specific read, so it must not outlive the row or attach to a different one.
+
 ## [2.14.0] - 2026-06-20
 
 ### Added
