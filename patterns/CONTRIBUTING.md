@@ -125,9 +125,9 @@ The sponsor name is looked up in the seed list. An exact or alias match passes s
 
 The action canonicalizes the new pattern's text (lowercase, strip punctuation, remove stopwords, dates, day names) and compares it against every existing community pattern for the same sponsor:
 
-- **95% or higher similarity** → DUPLICATE. PR rejected. Comment points to the existing pattern.
-- **75% to 94% similarity** → VARIANT. PR passes. Comment suggests merging the new text into the existing pattern's variants list. The maintainer decides during review.
-- **Less than 75% similarity** → DISTINCT. Accepted as a new pattern.
+- **95% or higher similarity** -> DUPLICATE. PR rejected. Comment points to the existing pattern.
+- **75% to 94% similarity** -> VARIANT. PR passes. Comment suggests merging the new text into the existing pattern's variants list. The maintainer decides during review.
+- **Less than 75% similarity** -> DISTINCT. Accepted as a new pattern.
 
 Genuinely different ads from the same sponsor are expected. NordVPN has had many ad scripts; each one is a distinct pattern.
 
@@ -171,8 +171,6 @@ Open an issue on the main MinusPod repo if:
 - A sponsor needs to be added to the seed list
 - The PR validator gives an unclear error
 - A pattern was incorrectly rejected as a duplicate
-
-This document evolves with the project.
 
 -----
 

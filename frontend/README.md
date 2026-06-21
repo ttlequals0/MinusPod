@@ -31,43 +31,43 @@ npm run lint
 
 ```
 src/
-├── api/              # API client and types
-│   ├── auth.ts       # Authentication endpoints
-│   ├── client.ts     # Base fetch API wrapper
-│   ├── feeds.ts      # Feed/episode endpoints
-│   ├── history.ts    # History endpoints
-│   ├── patterns.ts   # Pattern endpoints
-│   ├── search.ts     # Search endpoints
-│   ├── settings.ts   # Settings endpoints
-│   ├── sponsors.ts   # Sponsor endpoints
-│   └── types.ts      # TypeScript interfaces
-├── components/       # Reusable components
-│   ├── EpisodeList.tsx
-│   ├── FeedCard.tsx
-│   ├── FeedListItem.tsx
-│   ├── GlobalStatusBar.tsx
-│   ├── Layout.tsx
-│   ├── LoadingSpinner.tsx
-│   ├── PatternDetailModal.tsx
-│   └── AdEditor.tsx
-├── context/          # React contexts
-│   ├── AuthContext.tsx
-│   └── ThemeContext.tsx
-├── hooks/            # Custom hooks
-│   └── useTranscriptKeyboard.ts
-├── pages/            # Route pages
-│   ├── AddFeed.tsx
-│   ├── Dashboard.tsx
-│   ├── EpisodeDetail.tsx
-│   ├── FeedDetail.tsx
-│   ├── HistoryPage.tsx
-│   ├── Login.tsx
-│   ├── PatternsPage.tsx
-│   ├── Search.tsx
-│   └── Settings.tsx
-├── App.tsx           # Route configuration
-├── main.tsx          # Entry point
-└── index.css         # Global styles
+|-- api/              # API client and types
+|   |-- auth.ts       # Authentication endpoints
+|   |-- client.ts     # Base fetch API wrapper
+|   |-- feeds.ts      # Feed/episode endpoints
+|   |-- history.ts    # History endpoints
+|   |-- patterns.ts   # Pattern endpoints
+|   |-- search.ts     # Search endpoints
+|   |-- settings.ts   # Settings endpoints
+|   |-- sponsors.ts   # Sponsor endpoints
+|   `-- types.ts      # TypeScript interfaces
+|-- components/       # Reusable components
+|   |-- EpisodeList.tsx
+|   |-- FeedCard.tsx
+|   |-- FeedListItem.tsx
+|   |-- GlobalStatusBar.tsx
+|   |-- Layout.tsx
+|   |-- LoadingSpinner.tsx
+|   |-- PatternDetailModal.tsx
+|   `-- AdEditor.tsx
+|-- context/          # React contexts
+|   |-- AuthContext.tsx
+|   `-- ThemeContext.tsx
+|-- hooks/            # Custom hooks
+|   `-- useTranscriptKeyboard.ts
+|-- pages/            # Route pages
+|   |-- AddFeed.tsx
+|   |-- Dashboard.tsx
+|   |-- EpisodeDetail.tsx
+|   |-- FeedDetail.tsx
+|   |-- HistoryPage.tsx
+|   |-- Login.tsx
+|   |-- PatternsPage.tsx
+|   |-- Search.tsx
+|   `-- Settings.tsx
+|-- App.tsx           # Route configuration
+|-- main.tsx          # Entry point
+`-- index.css         # Global styles
 ```
 
 ## Key Patterns

@@ -8,13 +8,13 @@ This directory holds the crowdsourced ad pattern set. Each file is one pattern. 
 
 ```
 patterns/
-├── README.md                  ← this file
-├── CONTRIBUTING.md            ← submitter-facing PR explainer
-├── community/
-│   ├── index.json             ← manifest published to clients
-│   ├── <sponsor>-<uuid>.json  ← one file per pattern
-│   └── ...
-└── vocabulary.json            ← reference copy of the canonical tag list (canonical version lives in the app code)
+|-- README.md                  <- this file
+|-- CONTRIBUTING.md            <- submitter-facing PR explainer
+|-- community/
+|   |-- index.json             <- manifest published to clients
+|   |-- <sponsor>-<uuid>.json  <- one file per pattern
+|   `-- ...
+`-- vocabulary.json            <- reference copy of the canonical tag list (canonical version lives in the app code)
 ```
 
 -----
@@ -121,11 +121,11 @@ A community pattern is eligible for a podcast when ANY of the following is true:
 1. The sponsor has no tags (fallback)
 1. The podcast has no tags (fallback)
 
-This filter runs before any fuzzy text matching. Patterns filtered out by tags never enter the matching loop, which is how the system stays fast as the community set grows.
+This filter runs before any fuzzy text matching. Patterns filtered out by tags never enter the matching loop, so cost stays bounded as the community set grows.
 
 ### Podcast tagging
 
-Podcasts carry their own tag set from the same vocabulary. The effective tag set is the union of three sources. The RSS `<itunes:category>` is parsed when the podcast is added, mapped to vocabulary tags via a fixed table (e.g. `Technology` → `technology`, `True Crime` → `true_crime`). Episode-level RSS category tags add to the effective set for that episode. User-added tags entered through the UI are useful when the RSS metadata is missing or wrong, or when a specific episode departs from the podcast's normal genre.
+Podcasts carry their own tag set from the same vocabulary. The effective tag set is the union of three sources. The RSS `<itunes:category>` is parsed when the podcast is added, mapped to vocabulary tags via a fixed table (e.g. `Technology` -> `technology`, `True Crime` -> `true_crime`). Episode-level RSS category tags add to the effective set for that episode. User-added tags entered through the UI are useful when the RSS metadata is missing or wrong, or when a specific episode departs from the podcast's normal genre.
 
 User-added tags never override or replace RSS-derived tags; they only add to them. A podcast with no tags from any source falls back to matching all community patterns (matching rule 4).
 

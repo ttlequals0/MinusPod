@@ -6,7 +6,7 @@
 
 ## Configuration
 
-All configuration is managed through the web UI or REST API. No config files needed.
+All configuration is in the web UI or REST API. No config files needed.
 
 ### Adding Feeds
 
@@ -113,7 +113,7 @@ When to enable it:
 
 Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With the default Claude pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
 
-Settings live under Experiments → Ad Reviewer:
+Settings live under Experiments -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
 - **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
