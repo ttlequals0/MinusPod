@@ -112,7 +112,10 @@ def merge_suggestions(patterns: Sequence[dict]) -> List[dict]:
         out.extend(clusters)
 
     # Drop cache entries for sponsors no longer present in this snapshot.
+    # pop(.., None): the cache is a per-process dict shared across gthread
+    # workers, so another thread may have evicted the key already.
     live = set(groups)
-    for sid in [s for s in _CACHE if s not in live]:
-        _CACHE.pop(sid, None)
+    for sid in list(_CACHE):
+        if sid not in live:
+            _CACHE.pop(sid, None)
     return out

@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from itertools import combinations
 from typing import Optional
 
 from utils.time import utc_now_iso, parse_iso_datetime
@@ -431,56 +432,54 @@ def merge_patterns():
     all_patterns = [keep_pattern] + merge_patterns_list
     canon = [canonicalize_for_dedupe(p.get('text_template') or '') for p in all_patterns]
     low_similarity = any(
-        similarity(canon[i], canon[j]) < VARIANT_THRESHOLD
-        for i in range(len(canon)) for j in range(i + 1, len(canon))
+        similarity(a, b) < VARIANT_THRESHOLD for a, b in combinations(canon, 2)
     )
 
+    # Sum up confirmation and false positive counts
+    total_confirmations = keep_pattern.get('confirmation_count', 0)
+    total_false_positives = keep_pattern.get('false_positive_count', 0)
+    for pattern in merge_patterns_list:
+        total_confirmations += pattern.get('confirmation_count', 0)
+        total_false_positives += pattern.get('false_positive_count', 0)
+
+    # Fold every read's intro/outro into the kept row. Its own text_template
+    # stays canonical, so its audio fingerprint (keyed to that text) stays valid;
+    # the folded templates survive as variants. Computed before the transaction
+    # (pure, no DB writes).
+    intro_variants, outro_variants = merge_variants(all_patterns)
+
     try:
-        conn = db.get_connection()
+        # One atomic transaction: the stat/variant update, corrections move, and
+        # both deletes commit together, and the context manager rolls back on any
+        # exception (api-settings-patterns-5).
+        with db.transaction() as conn:
+            db._update_ad_pattern_conn(conn, keep_id,
+                confirmation_count=total_confirmations,
+                false_positive_count=total_false_positives,
+                intro_variants=intro_variants,
+                outro_variants=outro_variants,
+            )
 
-        # Sum up confirmation and false positive counts
-        total_confirmations = keep_pattern.get('confirmation_count', 0)
-        total_false_positives = keep_pattern.get('false_positive_count', 0)
-        for pattern in merge_patterns_list:
-            total_confirmations += pattern.get('confirmation_count', 0)
-            total_false_positives += pattern.get('false_positive_count', 0)
-
-        # Fold every read's intro/outro into the kept row. Its own
-        # text_template stays canonical, so its audio fingerprint (keyed to that
-        # text) stays valid; the folded templates survive as variants.
-        intro_variants, outro_variants = merge_variants(all_patterns)
-
-        # Update the kept pattern on the same connection (no inner commit) so the
-        # stat/variant update, corrections move, and deletes below are one atomic
-        # transaction (api-settings-patterns-5).
-        db._update_ad_pattern_conn(conn, keep_id,
-            confirmation_count=total_confirmations,
-            false_positive_count=total_false_positives,
-            intro_variants=intro_variants,
-            outro_variants=outro_variants,
-        )
-
-        placeholders = ','.join('?' * len(merge_id_list))
-        # Move corrections to kept pattern
-        conn.execute(
-            f'''UPDATE pattern_corrections
-                SET pattern_id = ?
-                WHERE pattern_id IN ({placeholders})''',
-            [keep_id] + merge_id_list
-        )
-        # A folded row's fingerprint is the audio hash of ITS read, not the kept
-        # row's; pattern_id is UNIQUE with no cascade, so delete it here rather
-        # than orphan it or attach audio the kept row's text does not describe.
-        conn.execute(
-            f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
-            merge_id_list
-        )
-        # Delete merged patterns
-        conn.execute(
-            f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
-            merge_id_list
-        )
-        conn.commit()
+            placeholders = ','.join('?' * len(merge_id_list))
+            # Move corrections to kept pattern
+            conn.execute(
+                f'''UPDATE pattern_corrections
+                    SET pattern_id = ?
+                    WHERE pattern_id IN ({placeholders})''',
+                [keep_id] + merge_id_list
+            )
+            # A folded row's fingerprint is the audio hash of ITS read, not the
+            # kept row's; pattern_id is UNIQUE with no cascade, so delete it here
+            # rather than orphan it or attach audio the kept row does not describe.
+            conn.execute(
+                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
+                merge_id_list
+            )
+            # Delete merged patterns
+            conn.execute(
+                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+                merge_id_list
+            )
 
         resp = {
             'message': f'Merged {len(merge_id_list)} patterns into pattern {keep_id}',

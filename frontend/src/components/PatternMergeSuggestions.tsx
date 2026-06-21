@@ -70,7 +70,11 @@ function SuggestionCard({
           disabled={busy || mergeIds.length === 0}
           className="px-3 py-1.5 text-sm rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          {busy ? 'Merging...' : `Merge ${mergeIds.length + 1} into 1`}
+          {busy
+            ? 'Merging...'
+            : mergeIds.length === 0
+              ? 'Select rows to merge'
+              : `Merge ${mergeIds.length + 1} into 1`}
         </button>
       </div>
       <p className="text-xs text-muted-foreground mb-2">
