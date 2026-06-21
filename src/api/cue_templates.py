@@ -37,7 +37,9 @@ from audio_analysis.cue_recurrence import cluster_recurring
 from config import (
     AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
     AUDIO_CUE_CAPTURE_MAX_BY_TYPE,
-    AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
+    AUDIO_CUE_FREQ_MAX_HZ,
+    AUDIO_CUE_SCAN_FREQ_MIN_HZ, AUDIO_CUE_SCAN_PROMINENCE_DB,
+    AUDIO_CUE_SCAN_RELEASE_DB, AUDIO_CUE_SCAN_MAX_DURATION_SECONDS,
     AUDIO_CUE_RECURRENCE_SIMILARITY, AUDIO_CUE_RECURRENCE_MIN_COUNT,
     AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS,
     AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, AUDIO_CUE_TYPE_SHOW_INTRO,
@@ -553,21 +555,37 @@ def import_cue_template(slug):
 def _scan_loud_spots(db, audio_path):
     """Band-pass energy pass over original audio -> loud-spot dicts.
 
-    Surfaces every burst (min_confidence=0.0), sorted by start and capped at
-    MAX_LOUD_SPOTS. Each dict is {start, end, prominenceDb}. Raises on decode
-    failure; the caller decides whether that is fatal.
+    Uses the generous discovery profile (config.AUDIO_CUE_SCAN_*), not the
+    precise live-detection band: it reaches lower in frequency, triggers on a
+    smaller rise, captures each burst's full attack/decay via the release
+    threshold, and allows long sustained sounds. This surfaces the sustained,
+    bass/broadband musical stings real ad breaks use, which the live band misses.
+    The recurrence filter downstream keeps false positives down.
+
+    Surfaces every burst (min_confidence=0.0). Each dict is
+    {start, end, prominenceDb}. Raises on decode failure; the caller decides
+    whether that is fatal.
     """
     detector = AudioCueDetector(
-        freq_min_hz=db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
-        freq_max_hz=db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
-        prominence_db=db.get_setting_float('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
+        freq_min_hz=AUDIO_CUE_SCAN_FREQ_MIN_HZ,
+        freq_max_hz=AUDIO_CUE_FREQ_MAX_HZ,
+        prominence_db=AUDIO_CUE_SCAN_PROMINENCE_DB,
         min_confidence=0.0,
+        max_duration=AUDIO_CUE_SCAN_MAX_DURATION_SECONDS,
+        release_db=AUDIO_CUE_SCAN_RELEASE_DB,
     )
-    signals = sorted(detector.detect(str(audio_path)), key=lambda s: s.start)[:MAX_LOUD_SPOTS]
+    # Cap by prominence (strongest first), not by start time, so a recurring
+    # sting late in the episode is not crowded out of the cap by early chatter;
+    # return the survivors in time order for the UI.
+    spots = sorted(
+        detector.detect(str(audio_path)),
+        key=lambda s: (s.details or {}).get('prominence_db') or 0.0,
+        reverse=True,
+    )[:MAX_LOUD_SPOTS]
     return [
         {'start': s.start, 'end': s.end,
          'prominenceDb': (s.details or {}).get('prominence_db')}
-        for s in signals
+        for s in sorted(spots, key=lambda s: s.start)
     ]
 
 

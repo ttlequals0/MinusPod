@@ -61,6 +61,7 @@ class AudioCueDetector:
         min_confidence: float = AUDIO_CUE_MIN_CONFIDENCE,
         min_duration: float = AUDIO_CUE_MIN_DURATION,
         max_duration: float = AUDIO_CUE_MAX_DURATION,
+        release_db: float = None,
     ):
         self.freq_min_hz = freq_min_hz
         self.freq_max_hz = freq_max_hz
@@ -68,6 +69,12 @@ class AudioCueDetector:
         self.min_confidence = min_confidence
         self.min_duration = min_duration
         self.max_duration = max_duration
+        # When set, bursts are detected at prominence_db but their EXTENT runs
+        # from where the signal rose above this lower threshold to where it falls
+        # back below it -- capturing the attack/decay of a sustained sting rather
+        # than just the loud middle. None keeps the single-threshold behavior
+        # used by precise live detection.
+        self.release_db = release_db
 
     def detect(self, audio_path: str) -> List[AudioSegmentSignal]:
         """Return audio_cue signals for ``audio_path`` (empty on any failure)."""
@@ -153,6 +160,8 @@ class AudioCueDetector:
         self, measurements: List[Tuple[float, float]], baseline: float
     ) -> List[AudioSegmentSignal]:
         """Group consecutive above-threshold frames into candidate cues."""
+        if self.release_db is not None:
+            return self._find_bursts_hysteresis(measurements, baseline)
         signals: List[AudioSegmentSignal] = []
         in_burst = False
         burst_start = 0.0
@@ -175,6 +184,49 @@ class AudioCueDetector:
 
         if in_burst:
             self._maybe_emit(signals, burst_start, last_ts, peak_prominence, baseline)
+
+        return signals
+
+    def _find_bursts_hysteresis(
+        self, measurements: List[Tuple[float, float]], baseline: float
+    ) -> List[AudioSegmentSignal]:
+        """Dual-threshold burst detection for the discovery scan.
+
+        A run of frames above the lower ``release_db`` defines a candidate's
+        extent (attack through decay); it is only emitted if the louder
+        ``prominence_db`` detect threshold was crossed somewhere inside it. This
+        captures a sustained sting's full envelope, where the single-threshold
+        path would clip it to just the frames above the detect threshold.
+        """
+        signals: List[AudioSegmentSignal] = []
+        run_active = False
+        run_start = 0.0
+        last_above_release = 0.0
+        peak_prominence = 0.0
+        crossed_high = False
+
+        for ts, loudness in measurements:
+            prominence = loudness - baseline
+            if prominence > self.release_db:
+                if not run_active:
+                    run_active = True
+                    run_start = ts
+                    peak_prominence = prominence
+                    crossed_high = prominence > self.prominence_db
+                else:
+                    peak_prominence = max(peak_prominence, prominence)
+                    crossed_high = crossed_high or prominence > self.prominence_db
+                last_above_release = ts
+            elif run_active:
+                if crossed_high:
+                    self._maybe_emit(
+                        signals, run_start, last_above_release, peak_prominence, baseline)
+                run_active = False
+                crossed_high = False
+                peak_prominence = 0.0
+
+        if run_active and crossed_high:
+            self._maybe_emit(signals, run_start, last_above_release, peak_prominence, baseline)
 
         return signals
 

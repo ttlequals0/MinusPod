@@ -9,6 +9,11 @@ interface CollapsibleSectionProps {
   headerRight?: ReactNode;
   storageKey?: string;
   onToggle?: (isOpen: boolean) => void;
+  // When true, children are only mounted while the section is open. Use for
+  // children that misbehave when rendered into a zero-size collapsed container
+  // (e.g. recharts ResponsiveContainer logs width(-1)/height(-1)). Default
+  // false keeps children mounted while collapsed, preserving their state.
+  unmountWhenClosed?: boolean;
 }
 
 function CollapsibleSection({
@@ -19,6 +24,7 @@ function CollapsibleSection({
   headerRight,
   storageKey,
   onToggle,
+  unmountWhenClosed = false,
 }: CollapsibleSectionProps) {
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
 
@@ -103,7 +109,7 @@ function CollapsibleSection({
         className={`overflow-hidden ${maxHeight !== 'none' && maxHeight !== '0px' ? 'transition-[max-height] duration-300 ease-in-out' : ''}`}
       >
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
-          {children}
+          {(!unmountWhenClosed || isOpen) && children}
         </div>
       </div>
     </div>

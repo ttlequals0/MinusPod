@@ -208,6 +208,17 @@ AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
 # similarity and only sounds that recur at least MIN_COUNT times are suggested.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.75   # peak sliding-ZNCC to call two bursts the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
+# Generous discovery profile for the candidate scan (and the capture-UI loud
+# spots), separate from the precise live-detection band above. Real ad-break
+# sounds are often sustained, bass/broadband musical stings rather than short
+# high-band dings, so the scan reaches lower in frequency, triggers on a smaller
+# rise, captures the full attack/decay via a release threshold, and allows long
+# sounds. The recurrence filter (MIN_COUNT identical occurrences) is what keeps
+# false positives down, so the burst detector itself can afford to be loose.
+AUDIO_CUE_SCAN_FREQ_MIN_HZ = 500.0       # reach below the 1.5kHz live floor to catch bass stings
+AUDIO_CUE_SCAN_PROMINENCE_DB = 6.0       # dB over baseline to START a candidate burst (vs 9 live)
+AUDIO_CUE_SCAN_RELEASE_DB = 3.0          # extend the burst out to where it falls within this of baseline
+AUDIO_CUE_SCAN_MAX_DURATION_SECONDS = 12.0  # allow sustained musical beds (live cap is 2s)
 # The recurrence scan decodes the whole episode (90s+ on a long show), so it
 # runs in a background thread and the result is cached. A scan row older than
 # this is treated as crashed/expired and reclaimable for a fresh run.

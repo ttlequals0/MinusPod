@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.0] - 2026-06-21
+
+### Changed
+
+- The "Find cue candidates" scan now uses a more generous discovery profile so it surfaces the sustained, bass/broadband musical stings real ad breaks use, not just short high-pitched dings. It reaches lower in frequency (500Hz, vs the 1.5kHz live floor), triggers on a smaller rise above the baseline, captures each sound's full attack and decay instead of just the loud middle, and allows long sounds (up to 12s, where live detection caps at 2s). The recurrence filter (a sound must repeat to be suggested) still removes one-off noise, and live cue detection is unchanged. Candidate loud-spots are now kept by strength rather than by time, so a recurring sting late in an episode is not crowded out of the cap.
+
+### Fixed
+
+- The Ad Distribution chart no longer logs a recharts width(-1)/height(-1) warning: its collapsible section now mounts the chart only when opened, so it never renders into a zero-size collapsed container.
+- Added the standard `<meta name="mobile-web-app-capable">` tag alongside the deprecated apple-prefixed one.
+
 ## [2.16.0] - 2026-06-20
 
 ### Changed

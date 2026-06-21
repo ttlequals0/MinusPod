@@ -165,6 +165,7 @@ function PodcastAdDistributionPanel({ slug }: Props) {
         subtitle="Where ads have been cut across this feed's episodes"
         defaultOpen={false}
         storageKey={`feed-ad-distribution-${slug}`}
+        unmountWhenClosed
       >
         {isLoading && <LoadingSpinner size="sm" className="my-2" />}
         {error && (
