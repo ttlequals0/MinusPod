@@ -9,6 +9,7 @@ import {
   triggerCommunitySync, getCommunitySyncStatus,
 } from '../api/community';
 import PatternDetailModal from '../components/PatternDetailModal';
+import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
@@ -321,6 +322,9 @@ function PatternsPage() {
           </div>
         </div>
       )}
+
+      {/* Merge suggestions (#399): same-sponsor near-duplicate clusters */}
+      <PatternMergeSuggestions onMerged={() => refetch()} />
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">

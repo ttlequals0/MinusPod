@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.0] - 2026-06-20
+
+### Changed
+
+- Community pattern sync now uses a thin manifest index instead of embedding every pattern inline. Each index entry carries a content hash and a file path; the client fetches only the per-pattern files whose hash is new or changed, so a routine sync transfers almost nothing and the index stays small as the catalog grows (44 KB now, where the inline manifest was 190 KB and rising). The update gate is the content hash rather than the version number, so a reverted pattern re-syncs. Clients still read the older inline manifest during rollout, and the protected-from-sync and anti-mass-delete guards are unchanged.
+
+### Added
+
+- content_hash column on ad_patterns (additive migration, no data loss). Existing community rows have no hash until the first sync after upgrade, which re-fetches each pattern once to populate it, then stays quiet.
+
+## [2.15.0] - 2026-06-20
+
+### Added
+
+- Pattern merge now folds near-duplicate same-sponsor patterns into one row. The kept pattern keeps its own text; the others' intro/outro phrases are added to it as variants, deduped and capped at five per side. The Patterns page shows merge suggestions for same-sponsor patterns that read like the same ad, and you can drop individual rows before folding. Merging different sponsors is blocked. Merging reads that are less than 75 percent similar is allowed but warns first.
+
+### Changed
+
+- Manually created patterns now get intro/outro variants derived from their text instead of starting empty, so they get the same boundary placement as auto-created patterns.
+- Auto-promotion unions variants through the same shared helper, so a promoted pattern's variant arrays are deduped and bounded instead of growing without limit.
+- Raised the community manifest size cap from 256 KB to 1 MB. The manifest still embeds every pattern inline, so it grows with the catalog and had reached about 74 percent of the old cap. This is an interim bump; a thin index with incremental fetch is the durable fix and is tracked for a follow-up.
+
+### Fixed
+
+- Merging patterns now deletes the folded rows' audio fingerprints instead of leaving them orphaned. A fingerprint is the audio hash of that row's specific read, so it must not outlive the row or attach to a different one.
+
 ## [2.14.0] - 2026-06-20
 
 ### Added

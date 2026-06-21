@@ -169,7 +169,8 @@ class PatternMixin:
                           version: int = 1,
                           submitted_app_version: str = None,
                           protected_from_sync: int = 0,
-                          source_language: str = None) -> int:
+                          source_language: str = None,
+                          content_hash: str = None) -> int:
         """Insert an ad pattern on the caller's connection without committing.
         Lets a multi-statement caller (e.g. replace-mode import) own the
         transaction boundary so the whole batch is atomic. Returns pattern ID."""
@@ -179,15 +180,15 @@ class PatternMixin:
                 intro_variants, outro_variants, created_from_episode_id,
                 avg_duration, duration_samples, created_by,
                 source, community_id, version, submitted_app_version, protected_from_sync,
-                source_language)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source_language, content_hash)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
              json.dumps(intro_variants or []), json.dumps(outro_variants or []),
              created_from_episode_id,
              duration, 1 if duration is not None else 0,
              created_by,
              source, community_id, version, submitted_app_version, protected_from_sync,
-             source_language)
+             source_language, content_hash)
         )
         return cursor.lastrowid
 
@@ -206,7 +207,7 @@ class PatternMixin:
                        'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason',
                        'avg_duration', 'duration_samples', 'created_by',
                        'source', 'community_id', 'version', 'submitted_app_version',
-                       'protected_from_sync', 'source_language'):
+                       'protected_from_sync', 'source_language', 'content_hash'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('intro_variants', 'outro_variants'):

@@ -20,6 +20,7 @@ from config import (
     SPONSOR_GLOBAL_THRESHOLD
 )
 from text_pattern_matcher import TextPatternMatcher
+from pattern_variants import merge_variants
 from utils.constants import (
     canonical_sponsor,
     is_sponsor_reasoning_rationale,
@@ -405,27 +406,16 @@ class PatternService:
             if len(patterns) < 2:
                 return None
 
-            # Collect all variants
-            all_intros = set()
-            all_outros = set()
+            # Union intro/outro variants through the shared helper so they are
+            # deduped and capped (the old set() union grew unbounded and lost
+            # order).
+            merged_intros, merged_outros = merge_variants(patterns)
             sponsors = set()
             best_template = None
             best_template_len = 0
             best_confirmation = 0
 
             for pattern in patterns:
-                # Collect intro variants
-                intros = pattern.get('intro_variants', '[]')
-                if isinstance(intros, str):
-                    intros = json.loads(intros)
-                all_intros.update(intros)
-
-                # Collect outro variants
-                outros = pattern.get('outro_variants', '[]')
-                if isinstance(outros, str):
-                    outros = json.loads(outros)
-                all_outros.update(outros)
-
                 # Collect sponsors
                 if pattern.get('sponsor'):
                     sponsors.add(pattern['sponsor'])
@@ -489,8 +479,8 @@ class PatternService:
                 scope=target_scope,
                 text_template=best_template,
                 sponsor_id=merged_sponsor_id,
-                intro_variants=list(all_intros),
-                outro_variants=list(all_outros),
+                intro_variants=merged_intros,
+                outro_variants=merged_outros,
                 source_language=merged_language,
             )
 
@@ -1064,6 +1054,7 @@ class PatternService:
 
         community_id = data['community_id']
         version = int(data.get('version') or 1)
+        content_hash = data.get('content_hash')
 
         sponsor_name = data['sponsor']
         sponsor_id = get_or_create_known_sponsor(self.db, sponsor_name)
@@ -1076,8 +1067,13 @@ class PatternService:
                     f"is protected; skipping"
                 )
                 return existing['id']
-            if version <= int(existing.get('version') or 1):
-                # Same or older version -- no-op.
+            # Update gate. With a content_hash (thin-index sync), update when the
+            # hash differs -- version is no longer the control. Without one
+            # (manual import of a pattern file), fall back to version-greater-than.
+            if content_hash is not None:
+                if content_hash == existing.get('content_hash'):
+                    return existing['id']
+            elif version <= int(existing.get('version') or 1):
                 return existing['id']
 
             self.db.update_ad_pattern(
@@ -1089,6 +1085,7 @@ class PatternService:
                 version=version,
                 submitted_app_version=data.get('submitted_app_version'),
                 source_language=data.get('source_language'),
+                content_hash=content_hash,
             )
             return existing['id']
 
@@ -1113,5 +1110,6 @@ class PatternService:
             submitted_app_version=data.get('submitted_app_version'),
             protected_from_sync=0,
             source_language=data.get('source_language'),
+            content_hash=content_hash,
         )
         return pattern_id

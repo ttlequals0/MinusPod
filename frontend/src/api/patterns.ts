@@ -202,6 +202,50 @@ export async function bulkDisablePatterns(args: {
   });
 }
 
+export interface MergeSuggestionMember {
+  id: number;
+  text_template: string;
+  confirmation_count: number;
+  false_positive_count: number;
+}
+
+export interface MergeSuggestion {
+  sponsor_id: number | null;
+  sponsor: string | null;
+  suggested_keep_id: number;
+  pattern_ids: number[];
+  count: number;
+  members: MergeSuggestionMember[];
+  result_intro_variant_count: number;
+  result_outro_variant_count: number;
+}
+
+export async function getMergeSuggestions(): Promise<MergeSuggestion[]> {
+  const res = await apiRequest<{ suggestions: MergeSuggestion[] }>('/patterns/merge-suggestions');
+  return res.suggestions;
+}
+
+export interface MergePatternsResult {
+  message: string;
+  kept_pattern_id: number;
+  merged_count: number;
+  total_confirmations: number;
+  total_false_positives: number;
+  intro_variant_count: number;
+  outro_variant_count: number;
+  warning?: string;
+}
+
+export async function mergePatterns(args: {
+  keep_id: number;
+  merge_ids: number[];
+}): Promise<MergePatternsResult> {
+  return apiRequest<MergePatternsResult>('/patterns/merge', {
+    method: 'POST',
+    body: args,
+  });
+}
+
 export interface CommunityExportResult {
   payload: Record<string, unknown>;
   filename: string;

@@ -2,10 +2,14 @@
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from itertools import combinations
 from typing import Optional
 
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
+from pattern_variants import derive_intro_outro, merge_variants
+from pattern_clusters import merge_suggestions
+from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
 
 from flask import Response, request
 
@@ -339,6 +343,42 @@ def deduplicate_patterns():
         return error_response('Deduplication failed', 500)
 
 
+@api.route('/patterns/merge-suggestions', methods=['GET'])
+@log_request
+def get_merge_suggestions():
+    """Same-sponsor pattern clusters that could fold into one row (#399).
+
+    Clusters are precomputed and cached server-side (keyed on each sponsor
+    group's text signature); the frontend only renders them and never computes
+    similarity itself.
+    """
+    db = get_database()
+    patterns = db.get_ad_patterns(active_only=True)
+    by_id = {p['id']: p for p in patterns}
+
+    enriched = []
+    for s in merge_suggestions(patterns):
+        members = [by_id[i] for i in s['pattern_ids'] if i in by_id]
+        # The variant arrays a fold would produce, so the UI can preview it
+        # without recomputing anything.
+        intro_variants, outro_variants = merge_variants(members)
+        enriched.append({
+            **s,
+            'members': [
+                {
+                    'id': m['id'],
+                    'text_template': (m.get('text_template') or '')[:300],
+                    'confirmation_count': m.get('confirmation_count', 0),
+                    'false_positive_count': m.get('false_positive_count', 0),
+                }
+                for m in members
+            ],
+            'result_intro_variant_count': len(intro_variants),
+            'result_outro_variant_count': len(outro_variants),
+        })
+    return json_response({'suggestions': enriched})
+
+
 @api.route('/patterns/merge', methods=['POST'])
 @log_request
 def merge_patterns():
@@ -367,59 +407,96 @@ def merge_patterns():
     if not keep_pattern:
         return error_response(f'Pattern {keep_id} not found', 404)
 
+    # Fetch the folded rows once; every one must share the kept pattern's
+    # sponsor (folding different sponsors would make the survivor match
+    # unrelated ads). sponsor_id None == None is allowed.
+    keep_sponsor_id = keep_pattern.get('sponsor_id')
+    merge_patterns_list = []
     for merge_id in merge_ids:
         if merge_id == keep_id:
             continue
         pattern = db.get_ad_pattern_by_id(merge_id)
         if not pattern:
             return error_response(f'Pattern {merge_id} not found', 404)
+        if pattern.get('sponsor_id') != keep_sponsor_id:
+            return error_response('Cannot merge patterns with different sponsors', 400)
+        merge_patterns_list.append(pattern)
+
+    merge_id_list = [p['id'] for p in merge_patterns_list]
+    if not merge_id_list:
+        return error_response('No distinct patterns to merge', 400)
+
+    # Advisory only: warn (do not block) when the hand-picked set contains a
+    # pair below the variant-similarity threshold. The user may be folding
+    # genuinely different reads of the same sponsor on purpose.
+    all_patterns = [keep_pattern] + merge_patterns_list
+    canon = [canonicalize_for_dedupe(p.get('text_template') or '') for p in all_patterns]
+    low_similarity = any(
+        similarity(a, b) < VARIANT_THRESHOLD for a, b in combinations(canon, 2)
+    )
+
+    # Sum up confirmation and false positive counts
+    total_confirmations = keep_pattern.get('confirmation_count', 0)
+    total_false_positives = keep_pattern.get('false_positive_count', 0)
+    for pattern in merge_patterns_list:
+        total_confirmations += pattern.get('confirmation_count', 0)
+        total_false_positives += pattern.get('false_positive_count', 0)
+
+    # Fold every read's intro/outro into the kept row. Its own text_template
+    # stays canonical, so its audio fingerprint (keyed to that text) stays valid;
+    # the folded templates survive as variants. Computed before the transaction
+    # (pure, no DB writes).
+    intro_variants, outro_variants = merge_variants(all_patterns)
 
     try:
-        conn = db.get_connection()
+        # One atomic transaction: the stat/variant update, corrections move, and
+        # both deletes commit together, and the context manager rolls back on any
+        # exception (api-settings-patterns-5).
+        with db.transaction() as conn:
+            db._update_ad_pattern_conn(conn, keep_id,
+                confirmation_count=total_confirmations,
+                false_positive_count=total_false_positives,
+                intro_variants=intro_variants,
+                outro_variants=outro_variants,
+            )
 
-        # Sum up confirmation and false positive counts
-        total_confirmations = keep_pattern.get('confirmation_count', 0)
-        total_false_positives = keep_pattern.get('false_positive_count', 0)
+            placeholders = ','.join('?' * len(merge_id_list))
+            # Move corrections to kept pattern
+            conn.execute(
+                f'''UPDATE pattern_corrections
+                    SET pattern_id = ?
+                    WHERE pattern_id IN ({placeholders})''',
+                [keep_id] + merge_id_list
+            )
+            # A folded row's fingerprint is the audio hash of ITS read, not the
+            # kept row's; pattern_id is UNIQUE with no cascade, so delete it here
+            # rather than orphan it or attach audio the kept row does not describe.
+            conn.execute(
+                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
+                merge_id_list
+            )
+            # Delete merged patterns
+            conn.execute(
+                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+                merge_id_list
+            )
 
-        for merge_id in merge_ids:
-            if merge_id == keep_id:
-                continue
-            pattern = db.get_ad_pattern_by_id(merge_id)
-            total_confirmations += pattern.get('confirmation_count', 0)
-            total_false_positives += pattern.get('false_positive_count', 0)
-
-        # Update the kept pattern with merged stats on the same connection (no
-        # inner commit) so the stat update, corrections move, and pattern
-        # deletes below are one atomic transaction (api-settings-patterns-5).
-        db._update_ad_pattern_conn(conn, keep_id,
-            confirmation_count=total_confirmations,
-            false_positive_count=total_false_positives
-        )
-
-        # Move corrections to kept pattern
-        placeholders = ','.join('?' * len(merge_ids))
-        conn.execute(
-            f'''UPDATE pattern_corrections
-                SET pattern_id = ?
-                WHERE pattern_id IN ({placeholders})''',
-            [keep_id] + merge_ids
-        )
-
-        # Delete merged patterns
-        conn.execute(
-            f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
-            merge_ids
-        )
-        conn.commit()
-
-        return json_response({
-            'message': f'Merged {len(merge_ids)} patterns into pattern {keep_id}',
+        resp = {
+            'message': f'Merged {len(merge_id_list)} patterns into pattern {keep_id}',
             'kept_pattern_id': keep_id,
-            'merged_count': len(merge_ids),
+            'merged_count': len(merge_id_list),
             'total_confirmations': total_confirmations,
-            'total_false_positives': total_false_positives
-        })
-    except Exception as e:
+            'total_false_positives': total_false_positives,
+            'intro_variant_count': len(intro_variants),
+            'outro_variant_count': len(outro_variants),
+        }
+        if low_similarity:
+            resp['warning'] = (
+                'Some selected patterns are less than 75% similar; '
+                'they may be different ad reads.'
+            )
+        return json_response(resp)
+    except Exception:
         logger.exception("Pattern merge failed")
         return error_response('Merge failed', 500)
 
@@ -536,12 +613,17 @@ def _submit_correction_create(db, slug, episode_id, data):
     # Create the pattern; figure out podcast scope params from the episode row.
     podcast_id_str = episode.get('slug') if scope == 'podcast' else None
     network_id = episode.get('network_id') if scope == 'global' else None
+    # Manual patterns were born with empty variant arrays, giving them worse
+    # boundary placement than auto-created ones; derive intro/outro up front.
+    intro_variants, outro_variants = derive_intro_outro(text_template)
     new_pattern_id = db.create_ad_pattern(
         scope=scope,
         text_template=text_template,
         sponsor_id=sponsor_id,
         podcast_id=podcast_id_str,
         network_id=network_id,
+        intro_variants=intro_variants,
+        outro_variants=outro_variants,
         created_from_episode_id=episode_id,
         duration=end - start,
         created_by='user',
@@ -614,13 +696,14 @@ def _resolve_or_create_pattern_from_text(
         return None
 
     sponsor_id = get_or_create_known_sponsor(db, sponsor)
+    intro_variants, outro_variants = derive_intro_outro(ad_text)
     new_pattern_id = db.create_ad_pattern(
         scope='podcast',
         podcast_id=podcast_id_str,
         text_template=ad_text,
         sponsor_id=sponsor_id,
-        intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
-        outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
+        intro_variants=intro_variants,
+        outro_variants=outro_variants,
         created_from_episode_id=episode_id,
     )
     logger.info(
