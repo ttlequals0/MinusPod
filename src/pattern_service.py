@@ -1054,6 +1054,7 @@ class PatternService:
 
         community_id = data['community_id']
         version = int(data.get('version') or 1)
+        content_hash = data.get('content_hash')
 
         sponsor_name = data['sponsor']
         sponsor_id = get_or_create_known_sponsor(self.db, sponsor_name)
@@ -1066,8 +1067,13 @@ class PatternService:
                     f"is protected; skipping"
                 )
                 return existing['id']
-            if version <= int(existing.get('version') or 1):
-                # Same or older version -- no-op.
+            # Update gate. With a content_hash (thin-index sync), update when the
+            # hash differs -- version is no longer the control. Without one
+            # (manual import of a pattern file), fall back to version-greater-than.
+            if content_hash is not None:
+                if content_hash == existing.get('content_hash'):
+                    return existing['id']
+            elif version <= int(existing.get('version') or 1):
                 return existing['id']
 
             self.db.update_ad_pattern(
@@ -1079,6 +1085,7 @@ class PatternService:
                 version=version,
                 submitted_app_version=data.get('submitted_app_version'),
                 source_language=data.get('source_language'),
+                content_hash=content_hash,
             )
             return existing['id']
 
@@ -1103,5 +1110,6 @@ class PatternService:
             submitted_app_version=data.get('submitted_app_version'),
             protected_from_sync=0,
             source_language=data.get('source_language'),
+            content_hash=content_hash,
         )
         return pattern_id

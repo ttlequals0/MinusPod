@@ -510,6 +510,13 @@ class SchemaMixin:
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'source_language', 'TEXT', ap_cols)
 
+        # content_hash (#400): hash of the published per-pattern file the
+        # community row synced from. The thin-index sync diffs this to skip
+        # unchanged rows. Existing community rows have none after deploy, so the
+        # first sync re-fetches each once to populate it (one-time, expected).
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'content_hash', 'TEXT', ap_cols)
+
         # Indexes for source filtering and community_id lookup (idempotent)
         try:
             conn.execute(

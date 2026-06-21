@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
@@ -16,17 +17,32 @@ UNIVERSAL_TAG = 'universal'
 # both the export pipeline's prefilled-PR URL builder and the sync job's
 # manifest fetch URL.
 GITHUB_REPO = 'ttlequals0/MinusPod'
-COMMUNITY_MANIFEST_URL = (
-    f'https://raw.githubusercontent.com/{GITHUB_REPO}/main/patterns/community/index.json'
+# Per-pattern files and the index live side by side under this directory; the
+# sync client builds each per-pattern fetch URL as COMMUNITY_PATTERN_BASE_URL +
+# the index entry's `path`.
+COMMUNITY_PATTERN_BASE_URL = (
+    f'https://raw.githubusercontent.com/{GITHUB_REPO}/main/patterns/community/'
 )
+COMMUNITY_MANIFEST_URL = COMMUNITY_PATTERN_BASE_URL + 'index.json'
 
 # Schema versions. MANIFEST_VERSION bumps when the manifest envelope shape
 # changes; VOCABULARY_VERSION bumps when the tag list is added to / removed
 # from. Both ship with the app image; this module is the single owner -- the
 # manifest generator and the sync job both import these constants, not their
 # own copies.
-MANIFEST_VERSION = 1
+# v2 (#400): thin index -- entries carry content_hash + path instead of inline
+# `data`; the client fetches only changed per-pattern files. Clients still read
+# v1 inline manifests for backward compatibility during rollout.
+MANIFEST_VERSION = 2
 VOCABULARY_VERSION = 1
+
+
+def content_hash_for_bytes(raw: bytes) -> str:
+    """Content hash of a published per-pattern file, over its raw bytes exactly
+    as published. The manifest generator and the sync client MUST both call this
+    on the same bytes, or every row reads as changed on every sync. Never hash a
+    re-serialized dict (key order / whitespace diverge)."""
+    return hashlib.sha256(raw).hexdigest()
 
 # Community submission bundle: format string + version, used by the export
 # builder (community_export.build_bundle), the PR-side validator, and the

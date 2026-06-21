@@ -21,7 +21,11 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from utils.community_tags import COMMUNITY_MANIFEST_URL, VOCABULARY_VERSION
+from utils.community_tags import (
+    COMMUNITY_MANIFEST_URL,
+    COMMUNITY_PATTERN_BASE_URL,
+    VOCABULARY_VERSION,
+)
 from utils.cron import is_due
 from utils.safe_http import (
     ResponseTooLargeError,
@@ -41,6 +45,9 @@ HTTP_TIMEOUT = 20
 # fetch (tracked separately), which keeps the manifest small regardless of
 # catalog size.
 MANIFEST_MAX_BYTES = 1024 * 1024
+# Cap for a single per-pattern file in the thin-index (#400) incremental fetch.
+# A pattern is a few KB (text_template is gated at 3500 chars); 256 KB is ample.
+PATTERN_FILE_MAX_BYTES = 256 * 1024
 DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 
 
@@ -85,6 +92,33 @@ def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     return json.loads(body.decode('utf-8'))
 
 
+def _fetch_pattern_file(path: str) -> Dict[str, Any]:
+    """Fetch one per-pattern file referenced by a thin-index entry's `path`.
+
+    `path` is a bare filename from the trusted manifest; reject anything with a
+    directory component so a malformed/compromised manifest can't pull an
+    arbitrary path off the host. Routed through the same SSRF-checked, size-
+    capped path as the manifest fetch.
+    """
+    if not path or '/' in path or '\\' in path or '..' in path or not path.endswith('.json'):
+        raise ValueError(f'unsafe pattern path: {path!r}')
+    resp = safe_get(
+        COMMUNITY_PATTERN_BASE_URL + path,
+        trust=URLTrust.OPERATOR_CONFIGURED,
+        timeout=HTTP_TIMEOUT,
+        stream=True,
+    )
+    try:
+        resp.raise_for_status()
+        try:
+            body = read_response_capped(resp, PATTERN_FILE_MAX_BYTES)
+        except ResponseTooLargeError as e:
+            raise requests.RequestException(f'pattern file exceeded size cap: {e}') from e
+    finally:
+        resp.close()
+    return json.loads(body.decode('utf-8'))
+
+
 def _validate_manifest(manifest: Dict[str, Any]) -> None:
     if not isinstance(manifest, dict):
         raise ValueError('manifest is not a JSON object')
@@ -97,10 +131,16 @@ def _validate_manifest(manifest: Dict[str, Any]) -> None:
 def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     """Apply manifest entries against ad_patterns. Returns summary counts.
 
-    Semantics (plan section 9):
-    - new community_id -> INSERT (source=community, protected_from_sync=0)
-    - existing community_id, higher version -> UPDATE unless protected_from_sync=1
-    - community_id missing from manifest -> DELETE unless protected_from_sync=1
+    Handles both manifest shapes:
+    - v2 thin index (#400): entries carry `content_hash` + `path`. Diff the hash
+      against the row's stored content_hash; fetch the per-pattern file only when
+      it differs or is new. Version stops being the update control.
+    - v1 inline: entries carry `data`. Kept for backward compatibility during
+      rollout (the published manifest may still be v1); applied via the old
+      version-greater-than gate.
+
+    Reconcile: a community_id missing from the manifest is deleted unless
+    protected_from_sync=1 or the anti-mass-delete guard trips.
     """
     from pattern_service import PatternService
 
@@ -117,36 +157,58 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
             continue
         community_id = entry.get('community_id')
         data = entry.get('data')
-        if not community_id or not data:
+        content_hash = entry.get('content_hash')
+        path = entry.get('path')
+        # A thin entry needs content_hash + path; an inline entry needs data.
+        if not community_id or (not data and not (content_hash and path)):
             errors += 1
             continue
         incoming_ids.add(community_id)
-        valid_entries.append((community_id, data, entry.get('version', 1)))
+        valid_entries.append((community_id, data, content_hash, path, entry.get('version', 1)))
 
     existing_by_cid = db.find_patterns_by_community_ids(list(incoming_ids))
 
-    for community_id, data, manifest_version in valid_entries:
+    for community_id, data, content_hash, path, manifest_version in valid_entries:
         existing = existing_by_cid.get(community_id)
-        # Stamp version from manifest entry. The manifest's per-entry
-        # version is authoritative -- overwrite anything carried in the
-        # inner `data` dict so version-gating in import_community_pattern
-        # compares the manifest's number, not the payload's stale one.
-        data_with_version = dict(data)
-        data_with_version['community_id'] = community_id
-        data_with_version['version'] = manifest_version
         try:
-            if existing is None:
-                pattern_service.import_community_pattern(data_with_version)
-                inserts += 1
-            else:
-                if existing.get('protected_from_sync'):
+            if data is not None:
+                # v1 inline: apply the embedded body with the version gate.
+                data_with_version = dict(data)
+                data_with_version['community_id'] = community_id
+                data_with_version['version'] = manifest_version
+                if existing is None:
+                    pattern_service.import_community_pattern(data_with_version)
+                    inserts += 1
+                elif existing.get('protected_from_sync'):
                     skips += 1
-                    continue
-                if int(data_with_version['version']) > int(existing.get('version') or 1):
+                elif int(manifest_version) > int(existing.get('version') or 1):
                     pattern_service.import_community_pattern(data_with_version)
                     updates += 1
                 else:
                     skips += 1
+                continue
+
+            # v2 thin: skip protected and hash-unchanged rows WITHOUT fetching.
+            if existing is not None:
+                if existing.get('protected_from_sync'):
+                    skips += 1
+                    continue
+                if existing.get('content_hash') == content_hash:
+                    skips += 1
+                    continue
+
+            fetched = _fetch_pattern_file(path)
+            fetched['community_id'] = community_id
+            fetched['version'] = manifest_version
+            # Store the index's content_hash on the row; the equivalence test
+            # pins it to content_hash_for_bytes of the published file, so an
+            # unchanged file reads as unchanged next sync.
+            fetched['content_hash'] = content_hash
+            pattern_service.import_community_pattern(fetched)
+            if existing is None:
+                inserts += 1
+            else:
+                updates += 1
         except Exception as e:
             errors += 1
             logger.warning(f"community_sync: failed to apply {community_id}: {e}")

@@ -140,7 +140,8 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     version INTEGER NOT NULL DEFAULT 1,
     submitted_app_version TEXT,
     protected_from_sync INTEGER NOT NULL DEFAULT 0,
-    source_language TEXT
+    source_language TEXT,
+    content_hash TEXT
 );
 
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)

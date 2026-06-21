@@ -33,6 +33,7 @@ from utils.community_tags import (  # noqa: E402, F401
     BUNDLE_FORMAT,
     MANIFEST_VERSION,
     VOCABULARY_VERSION,
+    content_hash_for_bytes,
     iter_bundle_patterns,
 )
 
@@ -59,39 +60,41 @@ def _flatten_to_patterns(path: Path, data: Any) -> List[Dict[str, Any]]:
 
 
 def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
-    """Read every <sponsor>-<uuid>.json in `directory`, excluding index.json.
+    """Read every <sponsor>-<uuid>.json in `directory`, excluding index.json,
+    and return one THIN index entry per pattern: community_id, version,
+    content_hash, and path (the filename).
 
-    Returns the parsed pattern dicts sorted by `submitted_at` so the
-    manifest order is deterministic across regenerations. Bundle files
-    are flattened so each contained pattern becomes its own manifest entry.
+    The content_hash is over the file's raw published bytes (not a reserialized
+    dict), so the sync client can recompute the identical value from the fetched
+    file. Bundle files contribute one entry per contained pattern, all sharing
+    that file's path and hash. Sorted by community_id for a deterministic order.
     """
-    patterns: List[Dict[str, Any]] = []
+    entries: List[Dict[str, Any]] = []
     for path in sorted(directory.glob('*.json')):
         if path.name == 'index.json':
             continue
         try:
-            with path.open('r', encoding='utf-8') as fh:
-                data = json.load(fh)
-        except (json.JSONDecodeError, OSError) as e:
+            raw = path.read_bytes()
+            data = json.loads(raw.decode('utf-8'))
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as e:
             print(f'WARN: skipping {path.name}: {e}', file=sys.stderr)
             continue
-        patterns.extend(_flatten_to_patterns(path, data))
-    # Coerce to str so a stray non-string submitted_at that slipped past
-    # validation can't crash the sort with a TypeError (tools-cli-2).
-    patterns.sort(key=lambda d: (str(d.get('submitted_at') or ''), str(d.get('community_id') or '')))
-    return patterns
+        chash = content_hash_for_bytes(raw)
+        for p in _flatten_to_patterns(path, data):
+            entries.append({
+                'community_id': p['community_id'],
+                'version': int(p.get('version') or 1),
+                'content_hash': chash,
+                'path': path.name,
+            })
+    entries.sort(key=lambda e: str(e.get('community_id') or ''))
+    return entries
 
 
-def build_manifest(patterns: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Build the manifest document from the loaded pattern dicts."""
-    entries = [
-        {
-            'community_id': p['community_id'],
-            'version': int(p.get('version') or 1),
-            'data': p,
-        }
-        for p in patterns
-    ]
+def build_manifest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Wrap the thin index entries in the manifest envelope (#400). Entries
+    carry content_hash + path; the full pattern body is no longer inlined, so
+    the manifest stays small regardless of catalog size."""
     return {
         'manifest_version': MANIFEST_VERSION,
         'published_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),

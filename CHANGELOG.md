@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.0] - 2026-06-20
+
+### Changed
+
+- Community pattern sync now uses a thin manifest index instead of embedding every pattern inline. Each index entry carries a content hash and a file path; the client fetches only the per-pattern files whose hash is new or changed, so a routine sync transfers almost nothing and the index stays small as the catalog grows (44 KB now, where the inline manifest was 190 KB and rising). The update gate is the content hash rather than the version number, so a reverted pattern re-syncs. Clients still read the older inline manifest during rollout, and the protected-from-sync and anti-mass-delete guards are unchanged.
+
+### Added
+
+- content_hash column on ad_patterns (additive migration, no data loss). Existing community rows have no hash until the first sync after upgrade, which re-fetches each pattern once to populate it, then stays quiet.
+
 ## [2.15.0] - 2026-06-20
 
 ### Added
