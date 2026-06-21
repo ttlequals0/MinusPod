@@ -197,7 +197,9 @@ AUDIO_CUE_TEMPLATE_SCORE = 0.75
 # change; the defaults match the values the feature shipped with.
 AUDIO_CUE_SNAP_CONFIDENCE = 0.80        # Min cue confidence to move an ad edge
 AUDIO_CUE_CAPTURE_MIN_SECONDS = 0.20    # Shortest cue a user may bracket (match-reliability floor)
-AUDIO_CUE_CAPTURE_MAX_SECONDS = 4.0     # Longest cue a user may bracket
+AUDIO_CUE_CAPTURE_MAX_SECONDS = 10.0    # Longest cue a user may bracket
+AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS = 60.0  # Longest show-intro stinger a user may bracket
+AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS = 60.0  # Longest show-outro stinger a user may bracket
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
@@ -274,10 +276,12 @@ AUDIO_CUE_TYPE_SHOW_INTRO = 'show_intro'
 AUDIO_CUE_TYPE_SHOW_OUTRO = 'show_outro'
 # Per-type capture ceiling (seconds). Intro/outro stingers run longer than
 # ad-break dings, so they get a higher ceiling; every other type falls back to
-# the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default.
+# the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default. These are the DEFAULTS only;
+# the show-intro/outro ceilings are DB-settable per the audio_cue_capture_max_
+# intro/outro_seconds settings, read live in api/cue_templates.py.
 AUDIO_CUE_CAPTURE_MAX_BY_TYPE = {
-    AUDIO_CUE_TYPE_SHOW_INTRO: 60.0,
-    AUDIO_CUE_TYPE_SHOW_OUTRO: 60.0,
+    AUDIO_CUE_TYPE_SHOW_INTRO: AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS,
+    AUDIO_CUE_TYPE_SHOW_OUTRO: AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
 }
 
 

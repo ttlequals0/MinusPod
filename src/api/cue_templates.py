@@ -40,7 +40,8 @@ from config import (
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
     AUDIO_CUE_RECURRENCE_SIMILARITY, AUDIO_CUE_RECURRENCE_MIN_COUNT,
     AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS,
-    AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, is_template_cue,
+    AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, AUDIO_CUE_TYPE_SHOW_INTRO,
+    is_template_cue,
 )
 from utils.validation import is_valid_episode_id
 
@@ -150,11 +151,14 @@ def create_cue_template(slug):
             'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
     cap_min = db.get_setting_float('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
     cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
-    # Intro/outro stingers may run longer than the ad-break ceiling; never below
-    # the user's global setting for the ad-break types.
-    type_max = AUDIO_CUE_CAPTURE_MAX_BY_TYPE.get(cue_type)
-    if type_max is not None:
-        cap_max = max(cap_max, type_max)
+    # Intro/outro stingers may run longer than the ad-break ceiling and are
+    # DB-settable per type; never drop below the user's global ad-break setting.
+    if cue_type in AUDIO_CUE_CAPTURE_MAX_BY_TYPE:
+        type_db_key = ('audio_cue_capture_max_intro_seconds'
+                       if cue_type == AUDIO_CUE_TYPE_SHOW_INTRO
+                       else 'audio_cue_capture_max_outro_seconds')
+        cap_max = max(cap_max, db.get_setting_float(
+            type_db_key, AUDIO_CUE_CAPTURE_MAX_BY_TYPE[cue_type]))
     if end_s - start_s < cap_min:
         return error_response(f'selection must be at least {cap_min:g} seconds', 400)
     if end_s - start_s > cap_max:

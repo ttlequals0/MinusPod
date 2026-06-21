@@ -84,7 +84,9 @@ function CueTemplatesPanel({ slug }: Props) {
   // configured audio_cue_capture_min/max_seconds.
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
-  const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 4;
+  const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 10;
+  const captureMaxIntroSeconds = settingsQuery.data?.audioCueCaptureMaxIntroSeconds?.value ?? 60;
+  const captureMaxOutroSeconds = settingsQuery.data?.audioCueCaptureMaxOutroSeconds?.value ?? 60;
 
   // Per-feed cue health, so the user can judge a feed's cues before enabling
   // cue-pair synthesis (#350 follow-up). Empty until episodes are processed.
@@ -457,6 +459,8 @@ function CueTemplatesPanel({ slug }: Props) {
           onFinalSave={runAutoVerify}
           captureMinSeconds={captureMinSeconds}
           captureMaxSeconds={captureMaxSeconds}
+          captureMaxIntroSeconds={captureMaxIntroSeconds}
+          captureMaxOutroSeconds={captureMaxOutroSeconds}
         />
       )}
 

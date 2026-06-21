@@ -34,7 +34,9 @@ function CueCandidatesSection({
 
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
-  const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 4;
+  const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 10;
+  const captureMaxIntroSeconds = settingsQuery.data?.audioCueCaptureMaxIntroSeconds?.value ?? 60;
+  const captureMaxOutroSeconds = settingsQuery.data?.audioCueCaptureMaxOutroSeconds?.value ?? 60;
 
   // Decodes the whole episode in a background thread, so only runs on an
   // explicit scan and polls until the server reports the scan is done.
@@ -144,6 +146,8 @@ function CueCandidatesSection({
           initialEnd={seed.end}
           captureMinSeconds={captureMinSeconds}
           captureMaxSeconds={captureMaxSeconds}
+          captureMaxIntroSeconds={captureMaxIntroSeconds}
+          captureMaxOutroSeconds={captureMaxOutroSeconds}
           onClose={() => setSeed(null)}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] })}
           onFinalSave={() => setSeed(null)}

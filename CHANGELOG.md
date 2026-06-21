@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0] - 2026-06-20
+
+### Added
+
+- Show-intro and show-outro cue capture maximums are now tuneable in Settings -> Audio Cue Detection, under Advanced tuning, with one field each. They were fixed at 60s in code, so a feed with a longer show intro or a shorter outro had no way to change the ceiling. Both default to 60s and accept 0.05 to 120s; the server reads the matching setting when you bracket an intro or outro stinger.
+
+### Changed
+
+- The default "Capture maximum length (s)" for cues is now 10s, raised from 4s. This is the ceiling for ad-break cues; a feed that already saved its own value keeps it. Show intro and outro stingers use their own higher, tuneable ceilings.
+
+### Fixed
+
+- "Reset all settings to defaults" now resets the Audio Cue Detection settings. The reset endpoint already listed them, but the database reset map did not, so each call was a silent no-op (the same gap that was fixed for the reviewer prompts earlier). Every audio cue value now reverts to its default on reset.
+- Numeric ad-detection settings now reject a NaN value. JSON parsing accepts NaN, and a NaN passed both ends of the range check, so it could be stored and then poison later comparisons. The validator now requires a finite number.
+
 ## [2.13.1] - 2026-06-20
 
 ### Changed

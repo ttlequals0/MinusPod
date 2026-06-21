@@ -1,6 +1,7 @@
 """Settings routes: /settings/* endpoints."""
 import json
 import logging
+import math
 import os
 import threading
 import uuid
@@ -117,6 +118,7 @@ def get_settings():
         AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
         AUDIO_CUE_TEMPLATE_SCORE, AUDIO_CUE_SNAP_CONFIDENCE,
         AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
+        AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS, AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
         AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
         AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
     )
@@ -332,6 +334,8 @@ def get_settings():
     audio_cue_snap_conf = _cue_num('audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE)
     audio_cue_capture_min = _cue_num('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
     audio_cue_capture_max = _cue_num('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
+    audio_cue_capture_max_intro = _cue_num('audio_cue_capture_max_intro_seconds', AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS)
+    audio_cue_capture_max_outro = _cue_num('audio_cue_capture_max_outro_seconds', AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS)
     audio_cue_pair_conf = _cue_num('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE)
     audio_cue_pair_min_break = _cue_num('audio_cue_pair_min_break_seconds', AUDIO_CUE_PAIR_MIN_BREAK_SECONDS)
     audio_cue_pair_max_break = _cue_num('audio_cue_pair_max_break_seconds', AUDIO_CUE_PAIR_MAX_BREAK_SECONDS)
@@ -380,6 +384,8 @@ def get_settings():
         'audioCueSnapConfidence': _sv('audio_cue_snap_confidence', audio_cue_snap_conf),
         'audioCueCaptureMinSeconds': _sv('audio_cue_capture_min_seconds', audio_cue_capture_min),
         'audioCueCaptureMaxSeconds': _sv('audio_cue_capture_max_seconds', audio_cue_capture_max),
+        'audioCueCaptureMaxIntroSeconds': _sv('audio_cue_capture_max_intro_seconds', audio_cue_capture_max_intro),
+        'audioCueCaptureMaxOutroSeconds': _sv('audio_cue_capture_max_outro_seconds', audio_cue_capture_max_outro),
         'audioCuePairConfidence': _sv('audio_cue_pair_confidence', audio_cue_pair_conf),
         'audioCuePairMinBreakSeconds': _sv('audio_cue_pair_min_break_seconds', audio_cue_pair_min_break),
         'audioCuePairMaxBreakSeconds': _sv('audio_cue_pair_max_break_seconds', audio_cue_pair_max_break),
@@ -441,6 +447,8 @@ def get_settings():
             'audioCueSnapConfidence': AUDIO_CUE_SNAP_CONFIDENCE,
             'audioCueCaptureMinSeconds': AUDIO_CUE_CAPTURE_MIN_SECONDS,
             'audioCueCaptureMaxSeconds': AUDIO_CUE_CAPTURE_MAX_SECONDS,
+            'audioCueCaptureMaxIntroSeconds': AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS,
+            'audioCueCaptureMaxOutroSeconds': AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
             'audioCuePairConfidence': AUDIO_CUE_PAIR_CONFIDENCE,
             'audioCuePairMinBreakSeconds': AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
             'audioCuePairMaxBreakSeconds': AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
@@ -947,6 +955,8 @@ def _apply_audio_cue_fields(db, data):
         ('audioCueSnapConfidence', 'audio_cue_snap_confidence', 0.0, 1.0),
         ('audioCueCaptureMinSeconds', 'audio_cue_capture_min_seconds', 0.05, 10.0),
         ('audioCueCaptureMaxSeconds', 'audio_cue_capture_max_seconds', 0.05, 30.0),
+        ('audioCueCaptureMaxIntroSeconds', 'audio_cue_capture_max_intro_seconds', 0.05, 120.0),
+        ('audioCueCaptureMaxOutroSeconds', 'audio_cue_capture_max_outro_seconds', 0.05, 120.0),
         ('audioCuePairConfidence', 'audio_cue_pair_confidence', 0.0, 1.0),
         ('audioCuePairMinBreakSeconds', 'audio_cue_pair_min_break_seconds', 1.0, 600.0),
         ('audioCuePairMaxBreakSeconds', 'audio_cue_pair_max_break_seconds', 1.0, 3600.0),
@@ -957,7 +967,9 @@ def _apply_audio_cue_fields(db, data):
             value = float(data[field_name])
         except (TypeError, ValueError):
             return json_response({'error': f'{field_name} must be a number'}, 400)
-        if value < lo or value > hi:
+        # JSON parsing accepts NaN/Infinity; NaN slips past the range check below
+        # (nan < lo and nan > hi are both False), so reject non-finite explicitly.
+        if not math.isfinite(value) or value < lo or value > hi:
             return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
         parsed[field_name] = value
         writes.append((db_key, str(value)))
@@ -1180,6 +1192,8 @@ def reset_ad_detection_settings():
     db.reset_setting('audio_cue_snap_confidence')
     db.reset_setting('audio_cue_capture_min_seconds')
     db.reset_setting('audio_cue_capture_max_seconds')
+    db.reset_setting('audio_cue_capture_max_intro_seconds')
+    db.reset_setting('audio_cue_capture_max_outro_seconds')
     db.reset_setting('audio_cue_pair_confidence')
     db.reset_setting('audio_cue_pair_min_break_seconds')
     db.reset_setting('audio_cue_pair_max_break_seconds')

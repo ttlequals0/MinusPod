@@ -13,6 +13,8 @@ export interface AudioCueState {
   snapConfidence: number;
   captureMinSeconds: number;
   captureMaxSeconds: number;
+  captureMaxIntroSeconds: number;
+  captureMaxOutroSeconds: number;
   pairConfidence: number;
   pairMinBreakSeconds: number;
   pairMaxBreakSeconds: number;
@@ -26,6 +28,7 @@ interface AudioCueDetectionSectionProps {
 type NumericKey =
   | 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence' | 'templateScore'
   | 'snapConfidence' | 'captureMinSeconds' | 'captureMaxSeconds'
+  | 'captureMaxIntroSeconds' | 'captureMaxOutroSeconds'
   | 'pairConfidence' | 'pairMinBreakSeconds' | 'pairMaxBreakSeconds';
 
 const inputClass =
@@ -199,8 +202,12 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 'Minimum cue confidence before a cue may move an ad edge. Higher is stricter.')}
               {numRow('captureMinSeconds', 'audioCueCaptureMinSeconds', 'Capture minimum length (s)', 0.05, 10, 0.05, 0.2,
                 'Shortest cue you may bracket; a floor that keeps very short sounds from matching everything.')}
-              {numRow('captureMaxSeconds', 'audioCueCaptureMaxSeconds', 'Capture maximum length (s)', 0.05, 30, 0.5, 4,
+              {numRow('captureMaxSeconds', 'audioCueCaptureMaxSeconds', 'Capture maximum length (s)', 0.05, 30, 0.5, 10,
                 'Longest cue you may bracket.')}
+              {numRow('captureMaxIntroSeconds', 'audioCueCaptureMaxIntroSeconds', 'Show-intro capture maximum (s)', 0.05, 120, 1, 60,
+                'Longest show-intro stinger you may bracket. Intros run longer than ad-break dings.')}
+              {numRow('captureMaxOutroSeconds', 'audioCueCaptureMaxOutroSeconds', 'Show-outro capture maximum (s)', 0.05, 120, 1, 60,
+                'Longest show-outro stinger you may bracket. Outros run longer than ad-break dings.')}
               {numRow('pairConfidence', 'audioCuePairConfidence', 'Cue-pair confidence floor', 0, 1, 0.05, 0.85,
                 'Minimum cue confidence to synthesize an ad from a cue pair. Higher than the snap floor because this creates an ad rather than refining one.')}
               {numRow('pairMinBreakSeconds', 'audioCuePairMinBreakSeconds', 'Cue-pair minimum break (s)', 1, 600, 5, 30,

@@ -104,6 +104,14 @@ class SettingsMixin:
         from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
         from chapters_generator import CHAPTERS_MODEL
         from config import PROVIDER_ANTHROPIC, STAGE_TUNABLE_DEFAULTS
+        from config import (
+            AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
+            AUDIO_CUE_MIN_CONFIDENCE, AUDIO_CUE_TEMPLATE_SCORE, AUDIO_CUE_SNAP_CONFIDENCE,
+            AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
+            AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS, AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
+            AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
+            AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
+        )
         from llm_client import get_effective_provider
         from secrets_crypto import SECRET_SETTING_KEYS
 
@@ -162,6 +170,24 @@ class SettingsMixin:
             'vad_gap_start_min_seconds': os.environ.get('VAD_GAP_START_MIN_SECONDS', '3.0'),
             'vad_gap_mid_min_seconds': os.environ.get('VAD_GAP_MID_MIN_SECONDS', '8.0'),
             'vad_gap_tail_min_seconds': os.environ.get('VAD_GAP_TAIL_MIN_SECONDS', '3.0'),
+            # Audio cue detection (#350). These have no env overrides; the reset
+            # endpoint lists them but they were absent here, making the reset a
+            # silent no-op (same gap as Issue #301's reviewer prompts).
+            'audio_cue_detection_enabled': 'false',
+            'audio_cue_freq_min_hz': str(AUDIO_CUE_FREQ_MIN_HZ),
+            'audio_cue_freq_max_hz': str(AUDIO_CUE_FREQ_MAX_HZ),
+            'audio_cue_prominence_db': str(AUDIO_CUE_PROMINENCE_DB),
+            'audio_cue_min_confidence': str(AUDIO_CUE_MIN_CONFIDENCE),
+            'audio_cue_create_from_pairs': 'false',
+            'audio_cue_template_score': str(AUDIO_CUE_TEMPLATE_SCORE),
+            'audio_cue_snap_confidence': str(AUDIO_CUE_SNAP_CONFIDENCE),
+            'audio_cue_capture_min_seconds': str(AUDIO_CUE_CAPTURE_MIN_SECONDS),
+            'audio_cue_capture_max_seconds': str(AUDIO_CUE_CAPTURE_MAX_SECONDS),
+            'audio_cue_capture_max_intro_seconds': str(AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS),
+            'audio_cue_capture_max_outro_seconds': str(AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS),
+            'audio_cue_pair_confidence': str(AUDIO_CUE_PAIR_CONFIDENCE),
+            'audio_cue_pair_min_break_seconds': str(AUDIO_CUE_PAIR_MIN_BREAK_SECONDS),
+            'audio_cue_pair_max_break_seconds': str(AUDIO_CUE_PAIR_MAX_BREAK_SECONDS),
         }
 
         if key in defaults:

@@ -516,3 +516,95 @@ class TestAdDetectionParallelWindowsValidation:
         data = self._get_settings(client)
         assert data['adDetectionParallelWindows']['value'] == 4
         assert data['adDetectionParallelWindows']['isDefault'] is True
+
+
+class TestAudioCueCaptureIntroOutroValidation:
+    """Issue #350 follow-up: the show-intro / show-outro cue capture ceilings
+    are DB-settable (audio_cue_capture_max_intro/outro_seconds) instead of a
+    hardcoded 60s. Round-trip, range validation (0.05-120), and reset."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_intro_outro_with_default_60(self, client):
+        data = self._get_settings(client)
+        for key in ('audioCueCaptureMaxIntroSeconds', 'audioCueCaptureMaxOutroSeconds'):
+            assert key in data
+            assert data[key]['value'] == 60.0
+            assert data[key]['isDefault'] is True
+            assert data['defaults'][key] == 60.0
+
+    def test_put_persists_valid_intro_outro(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'audioCueCaptureMaxIntroSeconds': 90,
+                'audioCueCaptureMaxOutroSeconds': 25,
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+
+        data = self._get_settings(client)
+        assert data['audioCueCaptureMaxIntroSeconds']['value'] == 90
+        assert data['audioCueCaptureMaxIntroSeconds']['isDefault'] is False
+        assert data['audioCueCaptureMaxOutroSeconds']['value'] == 25
+
+    def test_put_rejects_over_ceiling(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioCueCaptureMaxIntroSeconds': 121}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'audioCueCaptureMaxIntroSeconds' in json.loads(resp.data)['error']
+
+    def test_put_rejects_below_floor(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioCueCaptureMaxOutroSeconds': 0.0}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'audioCueCaptureMaxOutroSeconds' in json.loads(resp.data)['error']
+
+    def test_put_rejects_non_number(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioCueCaptureMaxIntroSeconds': 'long'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_put_rejects_nan(self, client):
+        # JSON parsing accepts NaN, and nan<lo / nan>hi are both False, so a
+        # plain range check would let it through. The finite guard must reject it.
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioCueCaptureMaxIntroSeconds': float('nan')}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'audioCueCaptureMaxIntroSeconds' in json.loads(resp.data)['error']
+
+    def test_reset_restores_default_60(self, client):
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'audioCueCaptureMaxIntroSeconds': 100,
+                'audioCueCaptureMaxOutroSeconds': 15,
+            }),
+            content_type='application/json',
+        )
+        assert self._get_settings(client)['audioCueCaptureMaxIntroSeconds']['value'] == 100
+
+        resp = client.post('/api/v1/settings/ad-detection/reset')
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['audioCueCaptureMaxIntroSeconds']['value'] == 60.0
+        assert data['audioCueCaptureMaxIntroSeconds']['isDefault'] is True
+        assert data['audioCueCaptureMaxOutroSeconds']['value'] == 60.0
+        assert data['audioCueCaptureMaxOutroSeconds']['isDefault'] is True

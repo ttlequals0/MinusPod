@@ -203,6 +203,8 @@ export interface Settings {
   audioCueSnapConfidence: SettingValueNumber;
   audioCueCaptureMinSeconds: SettingValueNumber;
   audioCueCaptureMaxSeconds: SettingValueNumber;
+  audioCueCaptureMaxIntroSeconds: SettingValueNumber;
+  audioCueCaptureMaxOutroSeconds: SettingValueNumber;
   audioCuePairConfidence: SettingValueNumber;
   audioCuePairMinBreakSeconds: SettingValueNumber;
   audioCuePairMaxBreakSeconds: SettingValueNumber;
@@ -269,6 +271,8 @@ export interface Settings {
     audioCueSnapConfidence: number;
     audioCueCaptureMinSeconds: number;
     audioCueCaptureMaxSeconds: number;
+    audioCueCaptureMaxIntroSeconds: number;
+    audioCueCaptureMaxOutroSeconds: number;
     audioCuePairConfidence: number;
     audioCuePairMinBreakSeconds: number;
     audioCuePairMaxBreakSeconds: number;
@@ -309,6 +313,8 @@ export interface UpdateSettingsPayload {
   audioCueSnapConfidence?: number;
   audioCueCaptureMinSeconds?: number;
   audioCueCaptureMaxSeconds?: number;
+  audioCueCaptureMaxIntroSeconds?: number;
+  audioCueCaptureMaxOutroSeconds?: number;
   audioCuePairConfidence?: number;
   audioCuePairMinBreakSeconds?: number;
   audioCuePairMaxBreakSeconds?: number;

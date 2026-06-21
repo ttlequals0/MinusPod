@@ -83,7 +83,9 @@ function Settings() {
     createFromPairs: false,
     snapConfidence: 0.8,
     captureMinSeconds: 0.2,
-    captureMaxSeconds: 4,
+    captureMaxSeconds: 10,
+    captureMaxIntroSeconds: 60,
+    captureMaxOutroSeconds: 60,
     pairConfidence: 0.85,
     pairMinBreakSeconds: 30,
     pairMaxBreakSeconds: 480,
@@ -327,7 +329,9 @@ function Settings() {
         createFromPairs: settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false,
         snapConfidence: settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8,
         captureMinSeconds: settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2,
-        captureMaxSeconds: settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 4,
+        captureMaxSeconds: settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10,
+        captureMaxIntroSeconds: settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60,
+        captureMaxOutroSeconds: settings.audioCueCaptureMaxOutroSeconds?.value ?? d.audioCueCaptureMaxOutroSeconds ?? 60,
         pairConfidence: settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85,
         pairMinBreakSeconds: settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30,
         pairMaxBreakSeconds: settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480,
@@ -388,7 +392,9 @@ function Settings() {
     if (audioCue.createFromPairs !== (settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false)) payload.audioCueCreateFromPairs = audioCue.createFromPairs;
     if (audioCue.snapConfidence !== (settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8)) payload.audioCueSnapConfidence = audioCue.snapConfidence;
     if (audioCue.captureMinSeconds !== (settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2)) payload.audioCueCaptureMinSeconds = audioCue.captureMinSeconds;
-    if (audioCue.captureMaxSeconds !== (settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 4)) payload.audioCueCaptureMaxSeconds = audioCue.captureMaxSeconds;
+    if (audioCue.captureMaxSeconds !== (settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10)) payload.audioCueCaptureMaxSeconds = audioCue.captureMaxSeconds;
+    if (audioCue.captureMaxIntroSeconds !== (settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60)) payload.audioCueCaptureMaxIntroSeconds = audioCue.captureMaxIntroSeconds;
+    if (audioCue.captureMaxOutroSeconds !== (settings.audioCueCaptureMaxOutroSeconds?.value ?? d.audioCueCaptureMaxOutroSeconds ?? 60)) payload.audioCueCaptureMaxOutroSeconds = audioCue.captureMaxOutroSeconds;
     if (audioCue.pairConfidence !== (settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85)) payload.audioCuePairConfidence = audioCue.pairConfidence;
     if (audioCue.pairMinBreakSeconds !== (settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30)) payload.audioCuePairMinBreakSeconds = audioCue.pairMinBreakSeconds;
     if (audioCue.pairMaxBreakSeconds !== (settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480)) payload.audioCuePairMaxBreakSeconds = audioCue.pairMaxBreakSeconds;

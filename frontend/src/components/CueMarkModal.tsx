@@ -30,7 +30,9 @@ import {
 // sound, and the same transport bar.
 
 const DEFAULT_MIN_REGION_SECONDS = 0.2;
-const DEFAULT_MAX_REGION_SECONDS = 4.0;
+const DEFAULT_MAX_REGION_SECONDS = 10.0;
+const DEFAULT_MAX_INTRO_SECONDS = 60.0;
+const DEFAULT_MAX_OUTRO_SECONDS = 60.0;
 const SCAN_FAILED_MESSAGE = 'Recurring-sound scan failed.';
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
@@ -54,6 +56,10 @@ export interface CueMarkModalProps {
   // Capture length bounds (the audio_cue_capture_min/max_seconds settings).
   captureMinSeconds?: number;
   captureMaxSeconds?: number;
+  // Per-type ceilings for show intro/outro stingers (audio_cue_capture_max_
+  // intro/outro_seconds settings).
+  captureMaxIntroSeconds?: number;
+  captureMaxOutroSeconds?: number;
 }
 
 function CueMarkModal({
@@ -61,6 +67,8 @@ function CueMarkModal({
   initialStart, initialEnd, onClose, onSaved, onFinalSave,
   captureMinSeconds = DEFAULT_MIN_REGION_SECONDS,
   captureMaxSeconds = DEFAULT_MAX_REGION_SECONDS,
+  captureMaxIntroSeconds = DEFAULT_MAX_INTRO_SECONDS,
+  captureMaxOutroSeconds = DEFAULT_MAX_OUTRO_SECONDS,
 }: CueMarkModalProps) {
   const MIN_REGION_SECONDS = captureMinSeconds;
   // Window always covers the entire episode -- zoom widens the inner
@@ -87,8 +95,8 @@ function CueMarkModal({
   // Capture ceiling follows the cue type: intro/outro stingers get a longer
   // allowance than ad-break dings (mirrors the server-side bound).
   const MAX_REGION_SECONDS = useMemo(
-    () => captureMaxForType(cueType, captureMaxSeconds),
-    [cueType, captureMaxSeconds],
+    () => captureMaxForType(cueType, captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds),
+    [cueType, captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds],
   );
   const [zoom, setZoom] = useState(1);
   // Windowed rendering: zoom narrows the rendered time-span (kept to about one

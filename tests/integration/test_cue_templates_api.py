@@ -135,6 +135,23 @@ def test_create_missing_episode_404(app_client, seeded):
     assert r.status_code == 404
 
 
+def test_intro_capture_ceiling_reads_db_setting(app_client, seeded):
+    # The show-intro per-type ceiling is the DB setting
+    # audio_cue_capture_max_intro_seconds, not the hardcoded constant. Lower it
+    # to 20s and a 30s show-intro selection must fail the cap gate (which runs
+    # before any audio decode, like the too-short check above). The default 60s
+    # ceiling would have let 30s through.
+    hdr = _csrf(app_client)
+    slug, ep = seeded['slug'], seeded['episode_id']
+    base = f'/api/v1/feeds/{slug}/cue-templates'
+    assert app_client.put('/api/v1/settings/ad-detection',
+                          json={'audioCueCaptureMaxIntroSeconds': 20}, headers=hdr).status_code == 200
+    r = app_client.post(base, json={'episodeId': ep, 'startS': 0.0, 'endS': 30.0,
+                                    'cueType': 'show_intro'}, headers=hdr)
+    assert r.status_code == 400
+    assert 'at most 20' in r.get_json().get('error', '')
+
+
 # --- audio-backed CRUD + scan/preview/loud-spots --------------------------
 
 def test_full_lifecycle(app_client, seeded):

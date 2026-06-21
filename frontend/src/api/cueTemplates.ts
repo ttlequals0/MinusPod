@@ -23,17 +23,19 @@ export function cueTypeLabel(cueType: CueTemplateType): string {
   return CUE_TYPE_OPTIONS.find((o) => o.value === cueType)?.label ?? cueType;
 }
 
-// Per-type capture ceiling (seconds), mirroring config.AUDIO_CUE_CAPTURE_MAX_BY_TYPE.
-// Intro/outro stingers run longer than ad-break dings; other types fall back to
-// the global capture-max setting. The server enforces the same bound.
-const CAPTURE_MAX_BY_TYPE: Partial<Record<CueTemplateType, number>> = {
-  show_intro: 60,
-  show_outro: 60,
-};
-
-export function captureMaxForType(cueType: CueTemplateType, globalMax: number): number {
-  const typeMax = CAPTURE_MAX_BY_TYPE[cueType];
-  return typeMax != null ? Math.max(globalMax, typeMax) : globalMax;
+// Per-type capture ceiling (seconds). Intro/outro stingers run longer than
+// ad-break dings; their ceilings are the DB-settable audio_cue_capture_max_
+// intro/outro_seconds settings, passed in here. Other types fall back to the
+// global capture-max setting. The server enforces the same bound.
+export function captureMaxForType(
+  cueType: CueTemplateType,
+  globalMax: number,
+  introMax: number,
+  outroMax: number,
+): number {
+  if (cueType === 'show_intro') return Math.max(globalMax, introMax);
+  if (cueType === 'show_outro') return Math.max(globalMax, outroMax);
+  return globalMax;
 }
 
 export interface CueTemplate {
