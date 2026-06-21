@@ -19,7 +19,6 @@ import os
 import re
 import sys
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,24 +32,24 @@ from community_export import find_foreign_sponsors  # noqa: E402
 from utils.community_tags import (  # noqa: E402
     BUNDLE_FORMAT,
     BUNDLE_NAME_PREFIX,
-    CANONICAL_DAYS,
-    CANONICAL_MONTHS,
-    CANONICAL_RELATIVE_TIME,
-    CANONICAL_STOPWORDS,
-    DATE_REGEX,
     DOMAIN_TLDS,
     TRAILING_TRUNCATION_STOPWORDS,
-    YEAR_REGEX,
     expected_filename,
     iter_bundle_patterns,
     sponsor_seed,
     valid_tags,
 )
+# Similarity helpers + bands live in the shared module so the validator and the
+# runtime merge/clustering paths use one implementation. Re-exported here for
+# callers that import them from this module.
+from utils.pattern_similarity import (  # noqa: E402,F401
+    DUPLICATE_THRESHOLD,
+    VARIANT_THRESHOLD,
+    canonicalize_for_dedupe,
+    similarity,
+)
 
 logger = logging.getLogger('community_pattern_validator')
-
-DUPLICATE_THRESHOLD = 0.95
-VARIANT_THRESHOLD = 0.75
 
 REQUIRED_FIELDS = ('community_id', 'text_template', 'sponsor', 'version', 'submitted_at')
 
@@ -67,38 +66,6 @@ class ValidationResult:
     diff_snippet: Optional[str] = None
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-
-
-def canonicalize_for_dedupe(text: str) -> str:
-    """Return the canonical form of `text` used for dedupe comparison only.
-
-    Mirrors plan section 8.5: lowercase -> strip date/year tokens (BEFORE
-    punctuation removal, otherwise '12/31' becomes '12 31' and slips past)
-    -> punctuation->space -> collapse whitespace -> strip stopwords / day
-    / month / relative-time tokens -> trim. Original text is not modified.
-    """
-    if not text:
-        return ''
-    s = text.lower()
-    # Date-format strings and 4-digit years must be removed BEFORE punctuation
-    # → space, otherwise '12/31' becomes '12 31' and slips through the date regex.
-    s = DATE_REGEX.sub(' ', s)
-    s = YEAR_REGEX.sub(' ', s)
-    s = re.sub(r'[^a-z0-9\s]+', ' ', s)
-    s = re.sub(r'\s+', ' ', s).strip()
-    if not s:
-        return ''
-    tokens = s.split(' ')
-    drop = CANONICAL_STOPWORDS | CANONICAL_DAYS | CANONICAL_MONTHS | CANONICAL_RELATIVE_TIME
-    kept = [t for t in tokens if t and t not in drop]
-    return ' '.join(kept)
-
-
-def similarity(a: str, b: str) -> float:
-    """Compute similarity ratio between two canonicalized strings."""
-    if not a or not b:
-        return 0.0
-    return SequenceMatcher(None, a, b).ratio()
 
 
 def _classify_sponsor(sponsor_name: str, seed: List[Dict[str, Any]]) -> str:
