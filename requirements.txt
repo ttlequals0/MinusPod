@@ -807,9 +807,9 @@ httpx==0.28.1 \
     #   anthropic
     #   huggingface-hub
     #   openai
-huggingface-hub==1.19.0 \
-    --hash=sha256:1dc72e1f6b4d6df6b30eb72e57d00514ef453d660f04af2b87f0e67267f31ee0 \
-    --hash=sha256:fd771622182d40977272a923953ee3b1b13538f9f8a7f5d78398f10af0f1c0bd
+huggingface-hub==1.20.1 \
+    --hash=sha256:274448a45c1ba6f112fe2fb168ead05574c654faa156904157a84085cfae14bd \
+    --hash=sha256:9f6d63bfbeab2d2a8357200a9bc4f18cd2c8bfac9579f792f5922e77bf6471d0
     # via
     #   -r requirements.in
     #   faster-whisper
