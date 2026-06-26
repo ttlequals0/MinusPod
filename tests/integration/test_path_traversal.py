@@ -4,11 +4,13 @@ Unit tests in test_path_containment cover Storage directly; these
 exercise the HTTP routes to confirm a traversal payload cannot leak
 through to the filesystem via a request.
 """
+import io
 import os
 import sys
 import tempfile
 
 import pytest
+from PIL import Image
 
 _test_data_dir = tempfile.mkdtemp(prefix='pathtrav_test_')
 os.environ.setdefault('SECRET_KEY', 'pathtrav-test-secret')
@@ -23,6 +25,7 @@ database.Database.__init__.__defaults__ = (_test_data_dir,)
 storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 from main_app import app
+import main_app.routes as routes_mod
 
 
 @pytest.fixture
@@ -48,6 +51,7 @@ def test_traversal_slug_never_returns_200(client, slug):
     handler must translate into a 4xx."""
     for path in (
         f"/api/v1/feeds/{slug}/artwork",
+        f"/episodes/{slug}/cover-minuspod.jpg",
     ):
         response = client.get(path)
         assert response.status_code < 200 or response.status_code >= 300
@@ -108,3 +112,33 @@ def test_public_slug_routes_reject_traversal(client, slug):
     for suffix in ('.mp3', '.vtt', '/chapters.json'):
         response = client.get(f"/episodes/{slug}/abc123def456{suffix}")
         assert response.status_code in (404, 301, 308)
+
+
+def _png_bytes():
+    buf = io.BytesIO()
+    Image.new('RGB', (200, 200), (255, 255, 255)).save(buf, 'PNG')
+    return buf.getvalue()
+
+
+def test_minuspod_cover_serves_badged_jpeg(client):
+    """The public /episodes/<slug>/cover-minuspod.jpg route (issue #420) serves
+    the badged cover so podcast apps can fetch it from the feed host. Seed via
+    the exact storage the handler reads (routes_mod.storage) so the test is
+    immune to per-test singleton swaps."""
+    slug = 'cover-ok'
+    st = routes_mod.storage
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png_bytes(), 'image/png', 'https://example.com/a.png')
+
+    response = client.get(f'/episodes/{slug}/cover-minuspod.jpg')
+    assert response.status_code == 200
+    assert response.mimetype == 'image/jpeg'
+    assert response.headers.get('Access-Control-Allow-Origin') == '*'
+
+
+def test_minuspod_cover_404_without_art(client):
+    slug = 'cover-none'
+    st = routes_mod.storage
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    response = client.get(f'/episodes/{slug}/cover-minuspod.jpg')
+    assert response.status_code == 404

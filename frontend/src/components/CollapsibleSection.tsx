@@ -98,7 +98,7 @@ function CollapsibleSection({
       >
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-          {subtitle && (
+          {subtitle && expanded && (
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </div>

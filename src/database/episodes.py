@@ -103,6 +103,45 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_episode_neighbors(self, slug: str, episode_id: str) -> Dict[str, Optional[Dict]]:
+        """Adjacent episodes in the same feed, by the feed's default newest-first
+        order. The total order is (COALESCE(published_at, created_at), id); `id`
+        is a stable tiebreak so episodes sharing a timestamp are deterministic.
+        'previous' is the newer neighbor (up the list), 'next' the older one
+        (down the list); either is None at a feed boundary. Each ref is
+        {'id': episode_id, 'title': title}.
+        """
+        empty = {'previous': None, 'next': None}
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return empty
+        podcast_id = podcast['id']
+        conn = self.get_connection()
+
+        cur = conn.execute(
+            """SELECT id, COALESCE(published_at, created_at) AS k
+               FROM episodes WHERE podcast_id = ? AND episode_id = ?""",
+            (podcast_id, episode_id)
+        ).fetchone()
+        if not cur:
+            return empty
+
+        def _neighbor(comparison: str, direction: str) -> Optional[Dict]:
+            row = conn.execute(
+                f"""SELECT episode_id, title FROM episodes
+                    WHERE podcast_id = ?
+                      AND (COALESCE(published_at, created_at), id) {comparison} (?, ?)
+                    ORDER BY COALESCE(published_at, created_at) {direction}, id {direction}
+                    LIMIT 1""",
+                (podcast_id, cur['k'], cur['id'])
+            ).fetchone()
+            return {'id': row['episode_id'], 'title': row['title']} if row else None
+
+        return {
+            'previous': _neighbor('>', 'ASC'),   # newer: smallest key above current
+            'next': _neighbor('<', 'DESC'),      # older: largest key below current
+        }
+
     def get_episode_by_id(self, db_id: int) -> Optional[Dict]:
         """Get episode by database ID."""
         conn = self.get_connection()

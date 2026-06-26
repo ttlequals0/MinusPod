@@ -275,34 +275,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
-        # Modify feed URLs (pass storage to include Podcasting 2.0 tags).
-        # Both feed_cap and processed_only resolve per-feed override -> global
-        # default -> hard fallback via the database mixin.
-        feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
-        extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
-
-        # When the resolved value is True, hide upstream entries that have
-        # not finished processing so auto-downloading clients don't hit 503.
-        processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
-        processed_ids = None
-        if processed_only:
-            statuses, _ = db.get_episode_statuses_for_podcast(slug)
-            processed_ids = {eid for eid, status in statuses.items()
-                             if status == 'processed'}
-
-        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
-                                               max_episodes=feed_cap,
-                                               extra_episodes=extra_episodes,
-                                               processed_only=processed_only,
-                                               processed_episode_ids=processed_ids,
-                                               parsed_feed=parsed_feed,
-                                               title_override=(podcast or {}).get('title_override'))
-
-        # Save modified RSS
-        storage.save_rss(slug, modified_rss)
-
-        # Update last_checked timestamp
-        db.update_podcast(slug, last_checked_at=utc_now_iso())
+        # Rebuild and persist the served RSS for the current feed/output settings.
+        _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
 
         refresh_logger.debug(f"[{slug}] RSS refresh complete")
         status_service.complete_feed_refresh(slug, 0)
@@ -345,3 +319,75 @@ def refresh_all_feeds(force: bool = False):
     except Exception as e:
         refresh_logger.error(f"RSS refresh failed: {e}")
         return False
+
+
+def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
+    """Run modify_feed for the current feed/output settings and persist the
+    served RSS. Both feed_cap and processed_only resolve per-feed override ->
+    global default -> hard fallback via the database mixin.
+    """
+    feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
+    extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
+
+    # When the resolved value is True, hide upstream entries that have not
+    # finished processing so auto-downloading clients don't hit 503.
+    processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
+    processed_ids = None
+    if processed_only:
+        statuses, _ = db.get_episode_statuses_for_podcast(slug)
+        processed_ids = {eid for eid, status in statuses.items()
+                         if status == 'processed'}
+
+    watermark_artwork = db.get_setting_bool('artwork_watermark_enabled', False)
+    modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
+                                          max_episodes=feed_cap,
+                                          extra_episodes=extra_episodes,
+                                          processed_only=processed_only,
+                                          processed_episode_ids=processed_ids,
+                                          parsed_feed=parsed_feed,
+                                          title_override=(podcast or {}).get('title_override'),
+                                          watermark_artwork=watermark_artwork)
+    storage.save_rss(slug, modified_rss)
+    db.update_podcast(slug, last_checked_at=utc_now_iso())
+
+
+def refresh_feed_artwork(slug, podcast=None):
+    """Re-pull a feed's cover art and rebuild its served RSS so the cover-art
+    badge setting (issue #420) takes effect -- without re-discovering or queuing
+    episodes (so it never triggers processing). Returns True on success.
+    """
+    podcast = podcast or db.get_podcast_by_slug(slug)
+    if not podcast or not podcast.get('source_url'):
+        return False
+    try:
+        # Re-pull the source cover; save_artwork drops the cached badge variant
+        # so it recomposites with the current setting.
+        if podcast.get('artwork_url'):
+            storage.download_artwork(slug, podcast['artwork_url'])
+        feed_content = rss_parser.fetch_feed(podcast['source_url'])
+        if not feed_content:
+            return False
+        parsed_feed = rss_parser.parse_feed(feed_content)
+        _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
+        return True
+    except Exception as e:
+        refresh_logger.warning(f"[{slug}] artwork refresh failed: {e}")
+        return False
+
+
+def refresh_all_artwork():
+    """Re-pull every feed's cover and rebuild its served RSS so the cover-art
+    badge setting applies. Returns the number of feeds refreshed.
+    """
+    feed_map = get_feed_map()
+    count = 0
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(refresh_feed_artwork, slug): slug
+                   for slug in feed_map}
+        for future in as_completed(futures):
+            try:
+                if future.result():
+                    count += 1
+            except Exception as e:
+                refresh_logger.error(f"[{futures[future]}] artwork refresh failed: {e}")
+    return count

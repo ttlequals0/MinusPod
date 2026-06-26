@@ -120,6 +120,12 @@ export async function refreshAllFeeds(
   });
 }
 
+export async function refreshAllArtwork(): Promise<{ message: string; feedCount: number }> {
+  return apiRequest<{ message: string; feedCount: number }>('/feeds/refresh-artwork', {
+    method: 'POST',
+  });
+}
+
 export interface EpisodesResponse {
   episodes: Episode[];
   total: number;

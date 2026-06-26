@@ -229,6 +229,7 @@ def get_episode(slug, episode_id):
         'verificationPrompt': episode.get('second_pass_prompt'),
         'verificationResponse': episode.get('second_pass_response'),
         'artworkUrl': episode.get('artwork_url'),
+        'navigation': db.get_episode_neighbors(slug, episode_id),
         **_get_episode_token_fields(db, episode_id),
     })
 

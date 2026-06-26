@@ -153,6 +153,10 @@ def get_settings():
         settings, 'only_expose_processed_default', 'false')
     only_expose_processed_default = (
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
+    artwork_watermark_value = _setting_value(
+        settings, 'artwork_watermark_enabled', 'false')
+    artwork_watermark_enabled = (
+        artwork_watermark_value.lower() in ('true', '1', 'yes'))
 
     try:
         max_feed_episodes = int(_setting_value(settings, 'max_feed_episodes', '300'))
@@ -356,6 +360,8 @@ def get_settings():
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
+        'artworkWatermarkEnabled': _sv(
+            'artwork_watermark_enabled', artwork_watermark_enabled),
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersModel': _sv('chapters_model', chapters_model),
@@ -422,6 +428,7 @@ def get_settings():
             'autoProcessEnabled': True,
             'maxFeedEpisodes': 300,
             'onlyExposeProcessedDefault': False,
+            'artworkWatermarkEnabled': False,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
             'chaptersModel': CHAPTERS_MODEL,
@@ -600,6 +607,11 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
         db.set_setting('only_expose_processed_default', value, is_default=False)
         logger.info(f"Updated only-expose-processed default to: {value}")
+
+    if 'artworkWatermarkEnabled' in data:
+        value = 'true' if data['artworkWatermarkEnabled'] else 'false'
+        db.set_setting('artwork_watermark_enabled', value, is_default=False)
+        logger.info(f"Updated artwork watermark to: {value}")
 
     if 'vttTranscriptsEnabled' in data:
         value = 'true' if data['vttTranscriptsEnabled'] else 'false'

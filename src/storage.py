@@ -9,6 +9,7 @@ import tempfile
 import shutil
 
 from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH
+from artwork_watermark import composite_watermark
 from utils.episode_paths import episode_filename
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
@@ -492,6 +493,10 @@ class Storage:
                 if old_path.exists() and old_path != artwork_path:
                     old_path.unlink()
 
+            # Drop the cached watermark variant so it regenerates from the new
+            # source the next time it's requested.
+            (podcast_dir / "artwork-minuspod.jpg").unlink(missing_ok=True)
+
             # Update database
             self.db.update_podcast(
                 slug,
@@ -522,6 +527,45 @@ class Storage:
                     return f.read(), content_type
 
         return None
+
+    def get_watermarked_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
+        """Cover art with the MinusPod badge composited (issue #420), cached on
+        disk as artwork-minuspod.jpg. Returns (jpeg_bytes, 'image/jpeg'), or None
+        when there is no source artwork or compositing fails. save_artwork clears
+        the cached variant when the source changes."""
+        podcast_dir = self.get_podcast_dir(slug)
+        variant_path = podcast_dir / "artwork-minuspod.jpg"
+
+        if variant_path.exists():
+            try:
+                with open(variant_path, 'rb') as f:
+                    return f.read(), 'image/jpeg'
+            except OSError as e:
+                logger.warning(f"[{slug}] failed reading watermark cache: {e}")
+
+        source = self.get_artwork(slug)
+        if not source:
+            return None
+        composited = composite_watermark(source[0])
+        if not composited:
+            return None
+
+        try:
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                             dir=podcast_dir, suffix='.tmp') as tmp:
+                tmp.write(composited)
+                tmp_path = tmp.name
+            os.replace(tmp_path, variant_path)
+        except OSError as e:
+            logger.warning(f"[{slug}] failed caching watermark: {e}")
+
+        return composited, 'image/jpeg'
+
+    def has_artwork(self, slug: str) -> bool:
+        """True if any cached source artwork file exists (no read)."""
+        podcast_dir = self.get_podcast_dir(slug)
+        return any((podcast_dir / f"artwork{ext}").exists()
+                   for ext in ('.jpg', '.png', '.gif', '.webp'))
 
     def download_artwork(self, slug: str, artwork_url: str) -> bool:
         """Download and cache podcast artwork.

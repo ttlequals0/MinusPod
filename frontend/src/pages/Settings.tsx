@@ -29,6 +29,8 @@ import AIModelsSection from './settings/AIModelsSection';
 import StageTunablesSection from './settings/StageTunablesSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
+import CoverArtSection from './settings/CoverArtSection';
+import { refreshAllArtwork } from '../api/feeds';
 import AdDetectionSection from './settings/AdDetectionSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
@@ -160,6 +162,7 @@ function Settings() {
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
+  const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('');
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
@@ -378,6 +381,7 @@ function Settings() {
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? d.autoProcessEnabled);
       setMaxFeedEpisodes(settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes);
       setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault);
+      setArtworkWatermarkEnabled(settings.artworkWatermarkEnabled?.value ?? d.artworkWatermarkEnabled);
       setAudioBitrate(settings.audioBitrate?.value || d.audioBitrate);
       setAudioNormalizeEnabled(settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled);
       setAudioNormalizeIntensity(settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity);
@@ -485,6 +489,7 @@ function Settings() {
 
     if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;
     if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault)) payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
+    if (artworkWatermarkEnabled !== (settings.artworkWatermarkEnabled?.value ?? d.artworkWatermarkEnabled)) payload.artworkWatermarkEnabled = artworkWatermarkEnabled;
     if (vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? d.vttTranscriptsEnabled)) payload.vttTranscriptsEnabled = vttTranscriptsEnabled;
     if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? d.chaptersEnabled)) payload.chaptersEnabled = chaptersEnabled;
     if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes)) payload.maxFeedEpisodes = maxFeedEpisodes;
@@ -507,7 +512,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -572,6 +577,10 @@ function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
+  });
+
+  const refreshArtworkMutation = useMutation({
+    mutationFn: refreshAllArtwork,
   });
 
   const resetMutation = useMutation({
@@ -845,6 +854,13 @@ function Settings() {
         chaptersEnabled={chaptersEnabled}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
+      />
+
+      <CoverArtSection
+        artworkWatermarkEnabled={artworkWatermarkEnabled}
+        onArtworkWatermarkEnabledChange={setArtworkWatermarkEnabled}
+        onRefreshArtwork={() => refreshArtworkMutation.mutate()}
+        refreshArtworkPending={refreshArtworkMutation.isPending}
       />
 
       <SettingsGroupHeader title="Data & Security" />

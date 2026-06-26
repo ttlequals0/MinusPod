@@ -736,6 +736,24 @@ def refresh_all_feeds():
         return error_response('Failed to refresh feeds', 500)
 
 
+@api.route('/feeds/refresh-artwork', methods=['POST'])
+@limiter.limit("2 per minute")
+@log_request
+def refresh_artwork():
+    """Re-pull cover art for all feeds and rebuild their served RSS so the
+    cover-art badge setting (issue #420) takes effect. Unlike a feed refresh,
+    this does not re-discover or queue episodes, so it never triggers processing.
+    """
+    try:
+        from main_app.feeds import refresh_all_artwork
+        count = refresh_all_artwork()
+        logger.info(f"Refreshed artwork for {count} feed(s)")
+        return json_response({'message': 'Artwork refreshed', 'feedCount': count})
+    except Exception:
+        logger.exception("Failed to refresh artwork")
+        return error_response('Failed to refresh artwork', 500)
+
+
 def _extract_artwork_url_from_feed(source_url: str) -> Optional[str]:
     """Extract artwork URL from a podcast's RSS feed."""
     try:

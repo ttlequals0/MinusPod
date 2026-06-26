@@ -1,7 +1,9 @@
 import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, getFeed, getOriginalTranscript, reprocessEpisode, regenerateChapters } from '../api/feeds';
+import { EpisodeNeighbor } from '../api/types';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Artwork from '../components/Artwork';
@@ -24,6 +26,47 @@ function TranscriptBlock({ text }: { text: string }) {
         {text}
       </pre>
     </div>
+  );
+}
+
+// One prev/next control. `side` is chronological so the label never confuses:
+// "Newer" steps up the newest-first feed, "Older" steps down. A null neighbor
+// (feed boundary) renders disabled. The neighbor title shows on hover.
+function EpisodeNavLink({ slug, neighbor, side }: {
+  slug: string;
+  neighbor: EpisodeNeighbor | null;
+  side: 'newer' | 'older';
+}) {
+  const label = side === 'newer' ? 'Newer' : 'Older';
+  const icon = side === 'newer'
+    ? <ChevronLeft className="w-4 h-4" />
+    : <ChevronRight className="w-4 h-4" />;
+  const base = 'inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm border transition-colors';
+
+  if (!neighbor) {
+    return (
+      <span
+        className={`${base} border-border text-muted-foreground/40 cursor-not-allowed`}
+        aria-disabled="true"
+        title={`No ${label.toLowerCase()} episode`}
+      >
+        {side === 'newer' && icon}
+        <span className="hidden sm:inline">{label}</span>
+        {side === 'older' && icon}
+      </span>
+    );
+  }
+  return (
+    <Link
+      to={`/feeds/${slug}/episodes/${neighbor.id}`}
+      className={`${base} border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground hover:border-foreground/30`}
+      title={`${label} episode: ${neighbor.title}`}
+      aria-label={`${label} episode: ${neighbor.title}`}
+    >
+      {side === 'newer' && icon}
+      <span className="hidden sm:inline">{label}</span>
+      {side === 'older' && icon}
+    </Link>
   );
 }
 
@@ -224,9 +267,17 @@ function EpisodeDetail() {
 
   return (
     <div>
-      <Link to={`/feeds/${slug}`} className="text-primary hover:underline mb-4 inline-block">
-        Back to Feed
-      </Link>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <Link to={`/feeds/${slug}`} className="text-primary hover:underline inline-block">
+          Back to Feed
+        </Link>
+        {episode.navigation && (
+          <nav className="flex items-center gap-1.5" aria-label="Adjacent episodes">
+            <EpisodeNavLink slug={slug!} neighbor={episode.navigation.previous} side="newer" />
+            <EpisodeNavLink slug={slug!} neighbor={episode.navigation.next} side="older" />
+          </nav>
+        )}
+      </div>
 
       <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="flex gap-4">

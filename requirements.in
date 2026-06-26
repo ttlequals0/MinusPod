@@ -21,6 +21,9 @@ requests>=2.34.2
 # HTML parsing (pricepertoken.com pricing scraper)
 beautifulsoup4>=4.15.0
 
+# Image processing (cover-art watermark overlay)
+pillow>=11.0.0
+
 # Utilities
 feedparser==6.0.12
 python-slugify==8.0.4

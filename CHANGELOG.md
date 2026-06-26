@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.2] - 2026-06-26
+
+### Fixed
+
+- The cover-art badge now reaches podcast apps. The served feed pointed its channel image at the `/api/v1` artwork endpoint, which the public feed host blocks (403), so apps never fetched the badged cover. The badge is now served from `/episodes/<slug>/cover-minuspod.jpg` -- the same public path the feed already uses for audio and transcripts. Re-run "Refresh all artwork" (or wait for the next feed refresh) after upgrading.
+
+## [2.24.1] - 2026-06-26
+
+### Added
+
+- A "Refresh all artwork" button under Settings -> Output -> Cover Art, plus a `POST /feeds/refresh-artwork` endpoint. It re-pulls each feed's cover and rebuilds the served feeds so a change to the cover-art badge setting shows up, without re-discovering or queuing episodes -- so it never starts processing. Your podcast app still re-fetches the feed on its own schedule.
+
+### Changed
+
+- Settings and episode pages now hide a card's description while the card is collapsed, so collapsed sections show just their title.
+
+## [2.24.0] - 2026-06-26
+
+### Added
+
+- Previous/next episode controls on the episode page, next to "Back to Feed". They follow the feed's newest-first order -- right goes to the older episode, left to the newer one -- so you can move between adjacent episodes without going back to the feed list (issue #417).
+- An optional MinusPod badge on served cover art. Turn it on under Settings -> Output -> Cover Art and the feed's channel art gets a small badge in the bottom-right corner, so the filtered version is easy to tell apart from the original in a podcast app. Off by default (issue #420).
+
 ## [2.23.1] - 2026-06-26
 
 ### Added

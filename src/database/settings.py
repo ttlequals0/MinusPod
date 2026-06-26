@@ -153,6 +153,7 @@ class SettingsMixin:
             'openai_base_url': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
+            'artwork_watermark_enabled': 'false',
             'audio_bitrate': '128k',
             'audio_normalize_enabled': 'false',
             'audio_normalize_intensity': 'normal',
