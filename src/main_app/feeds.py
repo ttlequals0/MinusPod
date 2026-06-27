@@ -360,10 +360,13 @@ def refresh_feed_artwork(slug, podcast=None):
     if not podcast or not podcast.get('source_url'):
         return False
     try:
-        # Re-pull the source cover; save_artwork drops the cached badge variant
-        # so it recomposites with the current setting.
+        # Re-pull the source cover (a no-op when it is already cached, which
+        # skips save_artwork), then drop the cached badge variant explicitly so
+        # it recomposites with the current badge rendering and toggle even when
+        # the upstream cover itself has not changed.
         if podcast.get('artwork_url'):
             storage.download_artwork(slug, podcast['artwork_url'])
+        storage.clear_watermark_cache(slug)
         feed_content = rss_parser.fetch_feed(podcast['source_url'])
         if not feed_content:
             return False

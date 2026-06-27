@@ -30,6 +30,9 @@ _ALLOWED_IMAGE_TYPES = frozenset({
     'image/webp',
 })
 
+# Cached cover-art badge variant (issue #420), one per podcast dir.
+_WATERMARK_VARIANT = "artwork-minuspod.jpg"
+
 
 def _detect_image_mime(data: bytes) -> Optional[str]:
     """Return the canonical Content-Type for ``data`` based on file magic,
@@ -495,7 +498,7 @@ class Storage:
 
             # Drop the cached watermark variant so it regenerates from the new
             # source the next time it's requested.
-            (podcast_dir / "artwork-minuspod.jpg").unlink(missing_ok=True)
+            self.clear_watermark_cache(slug)
 
             # Update database
             self.db.update_podcast(
@@ -528,13 +531,21 @@ class Storage:
 
         return None
 
+    def clear_watermark_cache(self, slug: str) -> None:
+        """Drop the cached MinusPod badge variant (issue #420) so it recomposites
+        on the next request. Called when a new source cover is saved and by the
+        artwork refresh, so a change to the badge rendering or the toggle takes
+        effect even when the upstream cover itself is unchanged."""
+        variant_path = self.get_podcast_dir(slug) / _WATERMARK_VARIANT
+        variant_path.unlink(missing_ok=True)
+
     def get_watermarked_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
         """Cover art with the MinusPod badge composited (issue #420), cached on
         disk as artwork-minuspod.jpg. Returns (jpeg_bytes, 'image/jpeg'), or None
-        when there is no source artwork or compositing fails. save_artwork clears
-        the cached variant when the source changes."""
+        when there is no source artwork or compositing fails. save_artwork and the
+        artwork refresh clear the cached variant so it recomposites."""
         podcast_dir = self.get_podcast_dir(slug)
-        variant_path = podcast_dir / "artwork-minuspod.jpg"
+        variant_path = podcast_dir / _WATERMARK_VARIANT
 
         if variant_path.exists():
             try:

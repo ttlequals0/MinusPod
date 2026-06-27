@@ -84,6 +84,24 @@ def test_refresh_feed_artwork_rebuilds_served_rss_with_badge():
     assert 'https://example.com/art.png' not in served
 
 
+def test_refresh_feed_artwork_drops_cached_badge_variant():
+    # Regression: on a cache-hit cover, download_artwork no-ops and never drops
+    # the badge variant, so refresh must drop it explicitly to recomposite with
+    # the current rendering/setting (issue #420).
+    slug = 'art-recomposite'
+    _seed(slug)
+    mf.db.set_setting('artwork_watermark_enabled', 'true')
+    mf.storage.get_watermarked_artwork(slug)  # create the cached badge variant
+    variant = mf.storage.get_podcast_dir(slug) / 'artwork-minuspod.jpg'
+    assert variant.exists()
+    # download_artwork returns True without touching the variant (cache-hit
+    # no-op), so only the explicit clear can remove it.
+    with patch.object(mf.rss_parser, 'fetch_feed', return_value=_feed_xml()), \
+         patch.object(mf.storage, 'download_artwork', return_value=True):
+        assert mf.refresh_feed_artwork(slug) is True
+    assert not variant.exists()
+
+
 def test_refresh_feed_artwork_uses_upstream_when_disabled():
     slug = 'art-off'
     _seed(slug)
