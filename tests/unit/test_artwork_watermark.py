@@ -63,6 +63,21 @@ def test_composite_outputs_jpeg_and_darkens_bottom_right():
     assert bottom_right < top_left - 5          # badge darkened the corner
 
 
+def test_composite_badge_has_solid_dark_backing():
+    # Regression for issue #420: the badge was the colorful waveform on a
+    # transparent background, so it vanished on dark/busy covers. The fix gives
+    # it a solid dark chip behind the mark. On a white cover the old badge left
+    # the corner white (only thin pastel bars); the chip fills it dark.
+    out = artwork_watermark.composite_watermark(_png())  # white cover
+    assert out is not None
+    composed = Image.open(io.BytesIO(out)).convert('RGB')
+    badge = composed.crop((300, 300, 392, 392))  # badge bounds, bottom-right
+    lum = [sum(p) / 3 for p in badge.getdata()]
+    dark_frac = sum(1 for v in lum if v < 80) / len(lum)
+    assert dark_frac > 0.4                       # chip fill dominates the corner
+    assert min(lum) < 40                         # the fill is genuinely dark
+
+
 def test_composite_returns_none_when_badge_missing(monkeypatch):
     monkeypatch.setattr(artwork_watermark, 'badge_path', lambda: None)
     assert artwork_watermark.composite_watermark(_png()) is None

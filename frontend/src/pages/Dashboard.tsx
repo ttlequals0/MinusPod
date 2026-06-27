@@ -7,13 +7,14 @@ import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 
 function Dashboard() {
   const queryClient = useQueryClient();
   const [refreshingSlug, setRefreshingSlug] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useLocalStorageState<'grid' | 'list'>('dashboardViewMode', 'grid');
-  const [sortBy, setSortBy] = useLocalStorageState<'recent' | 'title'>('dashboardSortBy', 'recent');
+  const [sortBy, setSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
 
   const { data: feeds, isLoading, error } = useQuery({
     queryKey: ['feeds'],
@@ -58,17 +59,7 @@ function Dashboard() {
     refreshMutation.mutate({ slug, options });
   };
 
-  const sortedFeeds = useMemo(() => {
-    if (!feeds) return [];
-    return [...feeds].sort((a, b) => {
-      if (sortBy === 'recent') {
-        const dateA = a.lastEpisodeDate ? new Date(a.lastEpisodeDate).getTime() : 0;
-        const dateB = b.lastEpisodeDate ? new Date(b.lastEpisodeDate).getTime() : 0;
-        return dateB - dateA;
-      }
-      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-    });
-  }, [feeds, sortBy]);
+  const sortedFeeds = useMemo(() => (feeds ? sortFeeds(feeds, sortBy) : []), [feeds, sortBy]);
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;

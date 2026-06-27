@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.0] - 2026-06-26
+
+### Added
+
+- Previous/next feed controls on the feed page, next to "Back to Dashboard". They follow the dashboard's current sort, so right and left step to the feeds shown on either side of this one without going back to the list. The labels read "Newer"/"Older" when the dashboard is sorted by recent activity and "Prev"/"Next" when it is sorted A-Z (issue #417).
+
+### Fixed
+
+- The cover-art badge stays visible on dark and busy cover art. It was the MinusPod waveform on a transparent background, so it washed out against anything that was not light. It now sits on a dark rounded chip with a thin light ring and a soft shadow. Re-run "Refresh all artwork" (or wait for the next feed refresh) after upgrading so the new badge replaces the cached one.
+
 ## [2.24.2] - 2026-06-26
 
 ### Fixed

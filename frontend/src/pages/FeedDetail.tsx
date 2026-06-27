@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
+import { getFeed, getFeeds, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import PrevNextLink from '../components/PrevNextLink';
 import Artwork from '../components/Artwork';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
@@ -61,6 +64,20 @@ function FeedDetail() {
     queryFn: () => getFeed(slug!),
     enabled: !!slug,
   });
+
+  // Prev/next nav across feeds (issue #417 follow-up). Reuse the dashboard's
+  // cached list and its sort so adjacency matches the list the user clicked from.
+  const { data: feeds } = useQuery({ queryKey: ['feeds'], queryFn: getFeeds });
+  const [feedSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
+  const { prevFeed, nextFeed } = useMemo(() => {
+    if (!feeds || !slug) return { prevFeed: null, nextFeed: null };
+    const ordered = sortFeeds(feeds, feedSortBy);
+    const i = ordered.findIndex((f) => f.slug === slug);
+    if (i === -1) return { prevFeed: null, nextFeed: null };
+    return { prevFeed: ordered[i - 1] ?? null, nextFeed: ordered[i + 1] ?? null };
+  }, [feeds, feedSortBy, slug]);
+  const prevLabel = feedSortBy === 'recent' ? 'Newer' : 'Prev';
+  const nextLabel = feedSortBy === 'recent' ? 'Older' : 'Next';
 
   const { data: episodesData, isLoading: episodesLoading } = useQuery({
     queryKey: ['episodes', slug, page, pageSize, statusFilter, sortBy, sortDir],
@@ -185,9 +202,27 @@ function FeedDetail() {
 
   return (
     <div>
-      <Link to="/" className="text-primary hover:underline mb-4 inline-block">
-        Back to Dashboard
-      </Link>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <Link to="/" className="text-primary hover:underline inline-block">
+          Back to Dashboard
+        </Link>
+        {feeds && feeds.length > 1 && (
+          <nav className="flex items-center gap-1.5" aria-label="Adjacent feeds">
+            <PrevNextLink
+              side="prev"
+              label={prevLabel}
+              to={prevFeed ? `/feeds/${prevFeed.slug}` : null}
+              title={prevFeed ? `${prevLabel} feed: ${feedDisplayTitle(prevFeed)}` : `No ${prevLabel.toLowerCase()} feed`}
+            />
+            <PrevNextLink
+              side="next"
+              label={nextLabel}
+              to={nextFeed ? `/feeds/${nextFeed.slug}` : null}
+              title={nextFeed ? `${nextLabel} feed: ${feedDisplayTitle(nextFeed)}` : `No ${nextLabel.toLowerCase()} feed`}
+            />
+          </nav>
+        )}
+      </div>
 
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
