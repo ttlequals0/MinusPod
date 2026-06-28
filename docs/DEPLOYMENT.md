@@ -185,7 +185,7 @@ Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits w
 ## Security notes
 
 - Set `MINUSPOD_MASTER_PASSPHRASE` to encrypt provider API keys at rest. Without it they sit as plaintext in the SQLite DB. See [Security & Storage](security-and-storage.md).
-- Set a password in Settings > Security before exposing the UI publicly.
+- Set a password in Settings > Security before exposing the UI publicly. Without one the instance is fully open: anyone who can reach it can read everything, change settings, delete feeds, and download a full database backup. The password is the only gate on the API.
 - Use `SESSION_COOKIE_SECURE=true` whenever you serve over HTTPS. Default is `true`; set to `false` only for plain-HTTP localhost development.
 - RSS feed URLs contain a slug but no auth, so podcast apps can fetch them. Treat slugs as semi-private.
 - Cloudflare Tunnel or a VPN is recommended for remote access. Direct port-forwarding works but skips Cloudflare's WAF.

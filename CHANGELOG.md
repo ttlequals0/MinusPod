@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.0] - 2026-06-27
+
+### Changed
+
+- An instance with no app password set is now fully functional, the same as one with a password. Before this, the API blocked feed deletion, system maintenance, and the database backup with a 403 until a password was set, so you could add feeds but not delete them, and the dashboard swallowed the error so the delete appeared to do nothing (issue #431). The password is now the only gate on the API: set one under Settings > Security to protect the instance, or run without one and accept that it is fully open.
+
+### Security
+
+- A no-password instance is unprotected: anyone who can reach it can read everything, change settings, delete feeds, and download a full database backup over the API. With `MINUSPOD_MASTER_PASSPHRASE` unset, that backup includes the session-signing key and provider keys in plaintext. Set a password before exposing the instance. This reverts the pre-bootstrap restrictions added in 2.6.0.
+
+### Fixed
+
+- The dashboard now surfaces an error when a feed delete or refresh fails, instead of silently doing nothing (issue #431).
+- The Set Password field's minimum-length check now matches the server at 12 characters; it previously allowed 9-to-11 character values the server then rejected.
+
 ## [2.25.2] - 2026-06-27
 
 ### Fixed

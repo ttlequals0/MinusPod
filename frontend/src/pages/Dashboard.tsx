@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
@@ -15,6 +15,8 @@ function Dashboard() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useLocalStorageState<'grid' | 'list'>('dashboardViewMode', 'grid');
   const [sortBy, setSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: feeds, isLoading, error } = useQuery({
     queryKey: ['feeds'],
@@ -24,7 +26,8 @@ function Dashboard() {
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
       refreshFeed(slug, options),
-    onMutate: ({ slug }) => setRefreshingSlug(slug),
+    onMutate: ({ slug }) => { setRefreshingSlug(slug); setActionError(null); },
+    onError: (err) => setActionError((err as Error).message),
     onSettled: () => {
       setRefreshingSlug(null);
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
@@ -33,25 +36,30 @@ function Dashboard() {
 
   const refreshAllMutation = useMutation({
     mutationFn: refreshAllFeeds,
+    onMutate: () => setActionError(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
     },
+    onError: (err) => setActionError((err as Error).message),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteFeed,
+    onMutate: () => setActionError(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       setDeleteConfirm(null);
     },
+    onError: (err) => { setDeleteConfirm(null); setActionError((err as Error).message); },
   });
 
   const handleDelete = (slug: string) => {
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
     if (deleteConfirm === slug) {
       deleteMutation.mutate(slug);
     } else {
       setDeleteConfirm(slug);
-      setTimeout(() => setDeleteConfirm(null), 3000);
+      deleteTimerRef.current = setTimeout(() => setDeleteConfirm(null), 3000);
     }
   };
 
@@ -226,9 +234,27 @@ function Dashboard() {
         </div>
       )}
 
-      {deleteConfirm && (
-        <div className="fixed bottom-4 right-4 bg-card border border-border rounded-lg p-4 shadow-lg">
-          <p className="text-sm text-foreground">Click delete again to confirm</p>
+      {(deleteConfirm || actionError) && (
+        <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
+          {actionError && (
+            <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
+              <span className="flex-1">{actionError}</span>
+              <button
+                onClick={() => setActionError(null)}
+                aria-label="Dismiss error"
+                className="shrink-0 text-destructive/70 hover:text-destructive"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+          {deleteConfirm && (
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+              <p className="text-sm text-foreground">Click delete again to confirm</p>
+            </div>
+          )}
         </div>
       )}
 

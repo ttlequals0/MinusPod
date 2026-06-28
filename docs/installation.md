@@ -50,6 +50,8 @@ docker-compose up -d
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
+A fresh install has no password, so the instance is fully open until you set one under Settings > Security: anyone who can reach it can manage feeds, change settings, and download the whole database. Set a password before exposing it beyond localhost.
+
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
 ### CPU-only image (no GPU)

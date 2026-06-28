@@ -37,6 +37,16 @@ def client():
         yield c
 
 
+def test_no_password_allows_feed_mutation(client):
+    """v2.26.0: with no app password set, the API is fully open -- a mutating
+    request is not blocked by an auth gate. DELETE on an unknown feed reaches the
+    handler and 404s; the old pre-bootstrap guard returned 403 here. Reads still
+    work."""
+    resp = client.delete('/api/v1/feeds/no-such-feed')
+    assert resp.status_code == 404
+    assert client.get('/api/v1/feeds').status_code == 200
+
+
 @pytest.mark.parametrize("slug", [
     "..",
     "../etc",

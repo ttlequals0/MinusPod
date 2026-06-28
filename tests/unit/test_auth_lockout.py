@@ -8,6 +8,7 @@ from database.auth_lockout import (
     LOCKOUT_DURATION_MINUTES,
     LOCKOUT_THRESHOLD,
 )
+from utils.validation import is_public_ip_for_lockout
 
 
 def test_no_lockout_without_failures(temp_db):
@@ -72,3 +73,13 @@ def test_cleanup_removes_expired_rows(temp_db):
     deleted = temp_db.cleanup_auth_failures()
     assert deleted == 1
     assert temp_db.check_lockout(ip) is None
+
+
+def test_ipv4_mapped_ipv6_public_counts_as_public():
+    assert is_public_ip_for_lockout('::ffff:8.8.8.8') is True
+    assert is_public_ip_for_lockout('8.8.8.8') is True
+
+
+def test_ipv4_mapped_ipv6_private_does_not_count_as_public():
+    assert is_public_ip_for_lockout('::ffff:192.168.1.1') is False
+    assert is_public_ip_for_lockout('192.168.1.1') is False

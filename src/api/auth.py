@@ -171,7 +171,7 @@ def auth_set_password():
     Request body:
     {
         "currentPassword": "old-password",  // Required if password is set
-        "newPassword": "new-password"       // Min 8 characters
+        "newPassword": "new-password"       // Min 12 characters
     }
 
     To remove password protection, set newPassword to empty string or null.

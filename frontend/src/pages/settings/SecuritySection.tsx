@@ -3,6 +3,8 @@ import { rotateMasterPassphrase } from '../../api/providers';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword } from '../../api/auth';
 
+const MIN_PASSWORD_LENGTH = 12;
+
 interface SecuritySectionProps {
   cryptoReady?: boolean;
   isPasswordSet: boolean;
@@ -79,8 +81,8 @@ function SecuritySection({
       return;
     }
 
-    if (newPassword && newPassword.length < 8) {
-      setPasswordError('Password must be at least 8 characters');
+    if (newPassword && newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
       return;
     }
 
@@ -123,7 +125,7 @@ function SecuritySection({
       {!isPasswordSet && (
         <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
           <p className="text-sm text-yellow-600 dark:text-yellow-400">
-            This application has no password protection. Anyone with network access can view and modify data.
+            This instance has no password, so anyone with network access has full control: they can read everything, change settings, delete feeds, and download a complete database backup. Set a password below to protect it.
           </p>
         </div>
       )}
@@ -156,7 +158,7 @@ function SecuritySection({
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 12 characters'}
+            placeholder={isPasswordSet ? 'Leave empty to remove password' : `Minimum ${MIN_PASSWORD_LENGTH} characters`}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           />
         </div>
