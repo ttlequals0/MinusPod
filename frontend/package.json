@@ -18,7 +18,7 @@
     "react-dom": "^19.2.7",
     "react-is": "^19.2.7",
     "react-router-dom": "^7.18.0",
-    "recharts": "^3.8.1",
+    "recharts": "^3.9.0",
     "swagger-ui-dist": "^5.32.8",
     "tailwind-merge": "^3.6.0",
     "wavesurfer.js": "^7.12.7"
