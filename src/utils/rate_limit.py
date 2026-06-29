@@ -112,3 +112,102 @@ def parse_groq_rate_limit_body(body: Any) -> Optional[dict]:
         return None
 
     return {"limit": limit, "used": used, "requested": requested}
+
+
+# Google/Gemini RPC 429 bodies (also seen via OpenRouter's OpenAI-compatible path)
+# put the recommended wait in the body, not the Retry-After header: a RetryInfo
+# detail (retryDelay: "4s") and/or a "Please retry in 4.2s" hint in the message.
+_GOOGLE_RETRY_IN_RE = re.compile(r"retry in\s+([\d.]+)\s*s", re.IGNORECASE)
+_DURATION_RE = re.compile(r"^([\d.]+)\s*s$", re.IGNORECASE)
+
+
+def _coerce_google_error(body: Any) -> Optional[dict]:
+    """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
+
+    Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
+    return None so callers can fall back to a regex over ``str(body)``.
+    """
+    payload = body
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (ValueError, TypeError):
+            return None
+    if isinstance(payload, list):
+        payload = payload[0] if payload else None
+    if isinstance(payload, dict):
+        err = payload.get("error")
+        return err if isinstance(err, dict) else payload
+    return None
+
+
+def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> Optional[float]:
+    """Seconds-to-wait from a Google 429 body, or None.
+
+    Prefers the structured RetryInfo detail (``retryDelay: "4s"``); falls back to a
+    "Please retry in <n>s" hint in the message, then to the raw repr. Clamped to
+    ``[0, max_seconds]``. Returns None when no delay is present.
+    """
+    err = _coerce_google_error(body)
+    seconds = None
+    if isinstance(err, dict):
+        for detail in err.get("details") or []:
+            if isinstance(detail, dict) and "RetryInfo" in str(detail.get("@type", "")):
+                m = _DURATION_RE.match(str(detail.get("retryDelay", "")).strip())
+                if m:
+                    seconds = float(m.group(1))
+                    break
+        if seconds is None:
+            m = _GOOGLE_RETRY_IN_RE.search(str(err.get("message") or ""))
+            if m:
+                seconds = float(m.group(1))
+    if seconds is None:
+        m = _GOOGLE_RETRY_IN_RE.search(str(body))
+        if m:
+            seconds = float(m.group(1))
+    if seconds is None:
+        return None
+    return min(max(seconds, 0.0), max_seconds)
+
+
+def parse_google_daily_quota(body: Any) -> Optional[dict]:
+    """Detect a Google free-tier DAILY quota exhaustion (cannot recover today).
+
+    Returns ``{limit, model, quota_id}`` when the 429 is RESOURCE_EXHAUSTED with a
+    per-day quota (a QuotaFailure violation whose ``quotaId`` contains "PerDay", or
+    "per day" in the message). Per-minute limits and other 429s return None so they
+    stay on the normal retry path.
+    """
+    err = _coerce_google_error(body)
+    if not isinstance(err, dict):
+        return None
+    status = str(err.get("status") or "")
+    if "RESOURCE_EXHAUSTED" not in status and "RESOURCE_EXHAUSTED" not in str(body):
+        return None
+    message = str(err.get("message") or "")
+
+    quota_id = None
+    limit = None
+    model = None
+    for detail in err.get("details") or []:
+        if not isinstance(detail, dict) or "QuotaFailure" not in str(detail.get("@type", "")):
+            continue
+        for v in detail.get("violations") or []:
+            if "perday" in str(v.get("quotaId") or "").lower():
+                quota_id = str(v.get("quotaId"))
+                try:
+                    limit = int(v["quotaValue"]) if v.get("quotaValue") is not None else None
+                except (TypeError, ValueError):
+                    limit = None
+                model = (v.get("quotaDimensions") or {}).get("model")
+                break
+        if quota_id:
+            break
+
+    if quota_id is None and "per day" not in message.lower():
+        return None
+    if limit is None:
+        m = re.search(r"limit:\s*(\d+)", message)
+        if m:
+            limit = int(m.group(1))
+    return {"limit": limit, "model": model, "quota_id": quota_id or "per-day"}

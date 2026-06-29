@@ -28,7 +28,10 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
-from utils.rate_limit import parse_retry_after, parse_groq_rate_limit_body
+from utils.rate_limit import (
+    parse_retry_after, parse_groq_rate_limit_body,
+    parse_google_retry_delay, parse_google_daily_quota,
+)
 from utils.http import safe_url_for_log
 from utils.ttl_cache import TTLCache
 
@@ -1499,18 +1502,34 @@ def is_structural_rate_limit_error(error: Exception) -> bool:
     return classify_structural_rate_limit(error) is not None
 
 
-def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> Optional[float]:
-    """Pull a `Retry-After` value from a provider rate-limit exception.
+def classify_daily_quota_exhaustion(error: Exception) -> Optional[dict]:
+    """Detect a Google/Gemini free-tier daily-quota 429 (cannot recover this run).
 
-    Both the Anthropic and OpenAI SDKs attach the original ``httpx.Response``
-    to error instances as ``error.response``. We read the header off that
-    response and run it through ``parse_retry_after``. Returns ``None`` when
-    the header is absent or the response object isn't reachable, so callers
-    can fall through to their existing backoff curve.
+    Returns ``{limit, model, quota_id}`` when the error is a rate limit whose body
+    is a per-day RESOURCE_EXHAUSTED quota; None otherwise (per-minute and other
+    429s stay on the retry path, honoring any body retryDelay).
+    """
+    if not is_rate_limit_error(error):
+        return None
+    return parse_google_daily_quota(extract_error_body(error) or str(error))
+
+
+def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> Optional[float]:
+    """Pull a recommended wait (seconds) from a provider rate-limit exception.
+
+    Reads the `Retry-After` header off the attached ``httpx.Response`` first; when
+    that is absent (Google/Gemini, including via OpenRouter, put the wait in the
+    body instead), falls back to the body's RetryInfo ``retryDelay`` / "retry in
+    Ns" hint. Returns ``None`` when neither is present so callers fall through to
+    their existing backoff curve.
     """
     response = getattr(error, 'response', None)
     headers = getattr(response, 'headers', None) if response is not None else None
-    if headers is None:
-        return None
-    raw = headers.get('Retry-After') or headers.get('retry-after')
-    return parse_retry_after(raw, max_seconds=max_seconds)
+    if headers is not None:
+        raw = headers.get('Retry-After') or headers.get('retry-after')
+        parsed = parse_retry_after(raw, max_seconds=max_seconds)
+        if parsed is not None:
+            return parsed
+    # No usable header: Google/Gemini (incl. via OpenRouter) put the recommended
+    # wait in the body (RetryInfo.retryDelay / "retry in Ns").
+    return parse_google_retry_delay(extract_error_body(error), max_seconds=max_seconds)

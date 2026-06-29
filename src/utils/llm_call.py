@@ -8,6 +8,7 @@ from llm_client import (
     is_retryable_error,
     is_rate_limit_error,
     classify_structural_rate_limit,
+    classify_daily_quota_exhaustion,
     is_auth_error,
     extract_retry_after,
     get_effective_provider,
@@ -93,6 +94,21 @@ def call_llm_for_window(
             return response, None
         except Exception as e:
             last_error = e
+            daily_quota = classify_daily_quota_exhaustion(e)
+            if daily_quota is not None:
+                provider = get_effective_provider()
+                limit = daily_quota.get('limit')
+                actionable = (
+                    f"{provider} free-tier daily quota"
+                    + (f" (limit {limit})" if limit else "")
+                    + " exhausted; retry tomorrow, raise the tier, or switch provider."
+                )
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label} daily quota exhausted: {actionable}"
+                )
+                # Cannot recover within this run; excluded from the retry paths.
+                last_error = StructuralRateLimitError(actionable)
+                break
             structural = classify_structural_rate_limit(e)
             if structural is not None:
                 provider = get_effective_provider()
