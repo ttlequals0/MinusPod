@@ -90,8 +90,7 @@ def _window_similarity(arr, anchor, win):
 
 def _pair_similarity(arr, a, b, length):
     """Bit-similarity (0-1) of the two length-``length`` windows at ``a`` and ``b``."""
-    bad = int(_popcount32(arr[a:a + length] ^ arr[b:b + length]).sum())
-    return 1.0 - bad / (length * 32)
+    return _cross_pair_similarity(arr, a, arr, b, length)
 
 
 def _greedy_hit_positions(sim, similarity, min_gap, claimed=None):
@@ -132,6 +131,100 @@ def _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity):
     min_gap = max(1, int(round(AUDIO_CUE_FP_MIN_GAP_SECONDS * fps)))
     sim = _window_similarity(arr, anchor, win)
     return len(_greedy_hit_positions(sim, similarity, min_gap))
+
+
+def _cross_pair_similarity(a_arr, a, b_arr, b, length):
+    """Bit-similarity (0-1) of ``a_arr[a:a+length]`` vs ``b_arr[b:b+length]``.
+
+    Cross-array twin of :func:`_pair_similarity` (which compares two windows in
+    one array). Same bit-error-rate metric.
+    """
+    bad = int(_popcount32(a_arr[a:a + length] ^ b_arr[b:b + length]).sum())
+    return 1.0 - bad / (length * 32)
+
+
+def _find_shared_segments(target, siblings, win, similarity, min_matches,
+                          min_len, max_len, step=None):
+    """Every contiguous run of ``target`` that also appears in at least
+    ``min_matches`` of the ``siblings`` fingerprint arrays.
+
+    Pure function over raw Chromaprint int arrays. For each probe start in the
+    target, find each sibling's best-matching offset, then grow the run -- both
+    backward (to the true onset) and forward -- one ``step``-sized slice at a time,
+    keeping it while >= ``min_matches`` siblings still match that *new* slice
+    (incremental, so it stops at the real boundary rather than riding a strong
+    prefix's cumulative average). Returns a list of ``(start, end, match_count)``
+    runs as indices into ``target``, ordered left to right and non-overlapping
+    (each found run is skipped past). Real intros/outros play once per episode but
+    recur across episodes, which is exactly such a shared head/tail run; a show can
+    have several (theme plus a recurring sponsor read), so all are returned.
+    """
+    target = np.asarray(target, dtype=np.int64).astype(np.uint32)
+    sibs = [np.asarray(s, dtype=np.int64).astype(np.uint32) for s in siblings]
+    sibs = [s for s in sibs if len(s) >= win]
+    if len(target) < win or len(sibs) < min_matches:
+        return []
+    if step is None:
+        step = max(1, win // 2)
+
+    def _slice_ok(alive, p, length):
+        """Survivors of ``alive`` whose run [p, p+length) (sibling-aligned) matches."""
+        out = []
+        for s, o in alive:
+            so = o + (p - a)  # sibling index aligned to probe anchor `a`
+            if so >= 0 and so + length <= len(s) \
+                    and _cross_pair_similarity(target, p, s, so, length) >= similarity:
+                out.append((s, o))
+        return out
+
+    found = []
+    a = 0
+    claimed_until = 0  # backward walk floor: never re-enter an already-emitted run
+    while a + win <= len(target):
+        # Each sibling's best offset for the probe window at `a`.
+        alive = []
+        for s in sibs:
+            region = _window_similarity(np.concatenate([target[a:a + win], s]), 0, win)[win:]
+            if region.size:
+                o = int(np.argmax(region))
+                if region[o] >= similarity:
+                    alive.append((s, o))
+        if len(alive) < min_matches:
+            a += step
+            continue
+        lo, hi = a, a + win
+        # Walk backward to the onset (not past an already-emitted run), then
+        # forward, intersecting survivors so the final set matches the whole
+        # [lo, hi]; bound the emitted length by max_len.
+        while lo - step >= claimed_until and (hi - (lo - step)) <= max_len:
+            cand = _slice_ok(alive, lo - step, step)
+            if len(cand) < min_matches:
+                break
+            alive, lo = cand, lo - step
+        while hi + step <= len(target) and (hi + step - lo) <= max_len:
+            cand = _slice_ok(alive, hi, step)
+            if len(cand) < min_matches:
+                break
+            alive, hi = cand, hi + step
+        if len(alive) >= min_matches and (hi - lo) >= min_len:
+            found.append((lo, hi, len(alive)))
+            seg_end = hi
+            if hi + step - lo > max_len:
+                # The run was capped at max_len while the shared sound continues;
+                # skip past its true end so one long segment yields one candidate,
+                # not overlapping max_len fragments. (When the run instead ended at
+                # its real boundary, hi already is that end -- no skip needed.)
+                tail = alive
+                while seg_end + step <= len(target):
+                    cand = _slice_ok(tail, seg_end, step)
+                    if len(cand) < min_matches:
+                        break
+                    tail, seg_end = cand, seg_end + step
+            claimed_until = seg_end
+            a = max(seg_end, a + step)
+        else:
+            a += step
+    return found
 
 
 def _discover_repeats(raw_ints, fp_duration, similarity, min_count):
@@ -520,19 +613,22 @@ class AudioFingerprinter:
             logger.error(f"Full-file fingerprint generation failed: {e}")
             return None
 
-    def discover_recurring_spots(self, audio_path, *, similarity, min_count):
+    def discover_recurring_spots(self, audio_path, *, similarity, min_count,
+                                 target_fingerprint=None):
         """Find recurring sounds in an episode as cue-template candidates.
 
         Generates one full-file raw Chromaprint fingerprint, then surfaces the
         windows that recur at least ``min_count`` times. Loudness-independent,
-        so it catches level-matched stings the loudness scan misses.
+        so it catches level-matched stings the loudness scan misses. Pass
+        ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``) to
+        reuse a fingerprint the caller has, avoiding a second fpcalc pass.
 
         Returns candidate dicts {start, end, count} in descending recurrence
         order, or [] if fpcalc is unavailable or fails.
         """
         if not self._fpcalc_path:
             return []
-        full_fp = self._generate_full_fingerprint(audio_path)
+        full_fp = target_fingerprint or self._generate_full_fingerprint(audio_path)
         if full_fp is None:
             logger.warning(
                 "Cue candidate discovery: full-file fingerprint failed for %s",
@@ -544,6 +640,78 @@ class AudioFingerprinter:
             "Cue candidate discovery: %d candidates from %d subfingerprints (%.0fs)",
             len(candidates), len(raw_ints), fp_duration)
         return candidates
+
+    def discover_cross_episode_cues(self, target_path, sibling_paths, *,
+                                    head_seconds, tail_seconds, window_seconds,
+                                    similarity, min_matches, min_duration,
+                                    max_duration, max_per_zone, target_fingerprint=None):
+        """Find intro/outro cues by comparing this episode's head and tail
+        fingerprint against recent completed sibling episodes.
+
+        A real intro/outro plays once per episode (so within-episode recurrence
+        misses it) but recurs across episodes near the start/end. Pass
+        ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``) to
+        reuse a fingerprint the caller has. Returns
+        ``[{start, end, kind: 'intro'|'outro', episodeMatches}]``, or [] when
+        fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
+        """
+        if not self.is_available():
+            return []
+        target_fp = target_fingerprint or self._generate_full_fingerprint(target_path)
+        if target_fp is None or not target_fp[0] or target_fp[1] <= 0:
+            return []
+        t_ints, t_dur = target_fp
+
+        sib_fps = []
+        for path in sibling_paths:
+            fp = self._generate_full_fingerprint(path)
+            if fp and fp[0] and fp[1] > 0:
+                sib_fps.append(fp)
+        if len(sib_fps) < min_matches:
+            return []
+
+        fps = len(t_ints) / t_dur
+        win = max(4, int(round(window_seconds * fps)))
+        min_len = max(win, int(round(min_duration * fps)))
+        max_len = max(min_len, int(round(max_duration * fps)))
+
+        # Head and tail zones are split at the episode midpoint so they never
+        # overlap, even on short episodes -- otherwise one shared segment would be
+        # emitted as both intro and outro.
+        def _head(ints, dur):
+            n = len(ints)
+            want = max(win, int(round(head_seconds * (n / dur))))
+            return ints[:min(want, n // 2)]
+
+        def _tail(ints, dur):
+            n = len(ints)
+            want = max(win, int(round(tail_seconds * (n / dur))))
+            return ints[max(n - want, n // 2):]
+
+        out = []
+        intros = _find_shared_segments(
+            _head(t_ints, t_dur), [_head(s, d) for s, d in sib_fps],
+            win, similarity, min_matches, min_len, max_len)
+        for a, b, count in intros[:max_per_zone]:
+            out.append({'start': round(a / fps, 2), 'end': round(b / fps, 2),
+                        'kind': 'intro', 'episodeMatches': count})
+
+        t_tail = _tail(t_ints, t_dur)
+        tail_offset = (len(t_ints) - len(t_tail)) / fps
+        outros = _find_shared_segments(
+            t_tail, [_tail(s, d) for s, d in sib_fps],
+            win, similarity, min_matches, min_len, max_len)
+        # Keep the runs nearest the episode end -- the true sign-off outro is the
+        # last tail run, not the earliest. (Guard the -0 slice: outros[-0:] is the
+        # whole list, which would ignore a max_per_zone of 0.)
+        for a, b, count in (outros[-max_per_zone:] if max_per_zone > 0 else []):
+            out.append({'start': round(tail_offset + a / fps, 2),
+                        'end': round(tail_offset + b / fps, 2),
+                        'kind': 'outro', 'episodeMatches': count})
+
+        logger.info("Cross-episode cue discovery: %d intro/outro from %d siblings",
+                    len(out), len(sib_fps))
+        return out
 
     def count_self_matches(self, audio_path, start_s, end_s, *, similarity):
         """Count how many times a captured cue window recurs in its episode.

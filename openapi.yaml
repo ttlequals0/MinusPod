@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.26.0
+  version: 2.27.3
   contact:
     name: MinusPod
   license:
@@ -4824,7 +4824,7 @@ paths:
   /cue-templates/{templateId}/export:
     get:
       tags: [AudioCueTemplates]
-      summary: Export a template as a portable zip (lossless WAV + JSON manifest)
+      summary: Export a template as a portable zip (lossless FLAC + JSON manifest)
       operationId: exportCueTemplate
       parameters:
         - name: templateId
@@ -4850,7 +4850,8 @@ paths:
       tags: [AudioCueTemplates]
       summary: Import a cue template zip into a feed
       description: >
-        The MFCC is recomputed from the WAV (a foreign blob is never trusted).
+        Accepts a v2 zip (cue.flac) or a legacy v1 zip (cue.wav). The MFCC is
+        recomputed from the decoded audio (a foreign blob is never trusted).
         Imports land as podcast scope. Sample-rate and channel mismatches are
         hard-rejected with no resampling.
       operationId: importCueTemplate
@@ -5108,15 +5109,16 @@ paths:
   /feeds/{slug}/episodes/{episode_id}/cue-candidates:
     get:
       tags: [AudioCueTemplates]
-      summary: Find recurring sounds in an episode as cue-template candidates
+      summary: Find cue-template candidates in an episode
       description: |
-        On-demand scan. Decodes the original audio, detects loud bursts,
-        computes each burst's MFCC, and clusters by acoustic similarity;
-        returns only sounds that repeat (a real cue recurs; a laugh or music
-        hit does not). The decode is slow (90s+ on a long episode), so the scan
-        runs in a background thread and the result is cached. Poll this endpoint
-        until `status` is `ready` (candidates attached) or `error`. Pass
-        `rescan=1` to force a fresh scan after an error.
+        On-demand scan combining within-episode recurring sounds (fingerprint
+        self-repeat, for ad-break stings) with cross-episode intro/outro segments
+        (head/tail audio shared across recent completed sibling episodes), so
+        candidates cover all cue types. Each candidate carries a `kind` and a
+        `suggestedType` hint. The decode is slow (90s+ on a long episode), so the
+        scan runs in a background thread and the result is cached. Poll this
+        endpoint until `status` is `ready` or `error`. Pass `rescan=1` to force a
+        fresh scan after an error.
       operationId: episodeCueCandidates
       parameters:
         - name: slug
@@ -5136,9 +5138,16 @@ paths:
           schema:
             type: string
             enum: ['1', 'true', 'yes']
+        - name: peek
+          in: query
+          required: false
+          description: Read-only -- return a cached result or 'idle' without starting a scan
+          schema:
+            type: string
+            enum: ['1', 'true', 'yes']
       responses:
         '200':
-          description: Scan status, with candidates once ready (most-recurring first)
+          description: Scan status, with candidates once ready (intro/outro first, then recurring by count)
           content:
             application/json:
               schema:
@@ -5148,10 +5157,11 @@ paths:
                     type: string
                   status:
                     type: string
-                    enum: [scanning, ready, error]
+                    enum: [scanning, ready, error, idle]
                     description: |
                       `scanning` (poll again shortly), `ready` (candidates
-                      attached), or `error` (scan failed; see `error`).
+                      attached), `error` (scan failed; see `error`), or `idle`
+                      (peek found no cached scan; none was started).
                   error:
                     type: string
                     description: Present when status is error
@@ -5164,12 +5174,23 @@ paths:
                           type: number
                         end:
                           type: number
-                        prominenceDb:
-                          type: number
-                          nullable: true
+                        kind:
+                          type: string
+                          enum: [recurring, intro, outro]
+                          description: recurring (repeats within the episode), or intro/outro (shared across sibling episodes)
                         count:
                           type: integer
-                          description: How many times the sound recurs in the episode
+                          nullable: true
+                          description: Recurring candidates only -- times the sound recurs within the episode
+                        episodeMatches:
+                          type: integer
+                          nullable: true
+                          description: Intro/outro candidates only -- how many sibling episodes share the segment
+                        suggestedType:
+                          type: string
+                          nullable: true
+                          enum: [show_intro, show_outro]
+                          description: Capture-type hint (show_intro/show_outro for intro/outro; null for recurring)
         '404':
           description: Feed or original audio not found
 

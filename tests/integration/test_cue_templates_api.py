@@ -193,7 +193,7 @@ def test_full_lifecycle(app_client, seeded):
     assert exp.status_code == 200
     assert exp.mimetype == 'application/zip'
     with zipfile.ZipFile(io.BytesIO(exp.get_data())) as z:
-        assert {'cue.wav', 'template.json'} <= set(z.namelist())
+        assert {'cue.flac', 'template.json'} <= set(z.namelist())
 
     # import it back into the same feed
     imp = app_client.post(

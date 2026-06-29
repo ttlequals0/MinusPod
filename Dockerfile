@@ -74,8 +74,8 @@ RUN pip install --no-cache-dir \
 
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && rm -rf /root/.cache /tmp/* \
+RUN pip install --no-cache-dir -r requirements.txt
+RUN rm -rf /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)

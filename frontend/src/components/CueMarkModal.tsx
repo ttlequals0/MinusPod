@@ -18,6 +18,8 @@ import {
   createCueTemplate,
   deleteCueTemplate,
   getCueCandidates,
+  cueCandidateLabel,
+  cueTypeIsNonAd,
   previewCueTemplate,
   CUE_TYPE_OPTIONS,
   captureMaxForType,
@@ -35,7 +37,7 @@ const DEFAULT_MIN_REGION_SECONDS = 0.2;
 const DEFAULT_MAX_REGION_SECONDS = 10.0;
 const DEFAULT_MAX_INTRO_SECONDS = 60.0;
 const DEFAULT_MAX_OUTRO_SECONDS = 60.0;
-const SCAN_FAILED_MESSAGE = 'Recurring-sound scan failed.';
+const SCAN_FAILED_MESSAGE = 'Audio-cue scan failed.';
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
 // fit-to-modal scale leaves them as a single pixel. Allow deep zoom.
@@ -48,6 +50,8 @@ export interface CueMarkModalProps {
   episodeDuration: number;
   initialStart?: number;
   initialEnd?: number;
+  // Preselected capture type (e.g. a positional hint from a cue candidate).
+  initialCueType?: CueTemplateType;
   onClose: () => void;
   // Fired whenever a template is persisted (create or preview) so the list can
   // refresh.
@@ -66,7 +70,7 @@ export interface CueMarkModalProps {
 
 function CueMarkModal({
   podcastSlug, episodeId, episodeTitle, episodeDuration,
-  initialStart, initialEnd, onClose, onSaved, onFinalSave,
+  initialStart, initialEnd, initialCueType, onClose, onSaved, onFinalSave,
   captureMinSeconds = DEFAULT_MIN_REGION_SECONDS,
   captureMaxSeconds = DEFAULT_MAX_REGION_SECONDS,
   captureMaxIntroSeconds = DEFAULT_MAX_INTRO_SECONDS,
@@ -78,12 +82,20 @@ function CueMarkModal({
   // following the playhead, so the user always sees the whole episode at
   // 1x and zooms into the playhead position.
   const totalDuration = Math.max(0.001, episodeDuration);
-  const defaults = useMemo(() => ({
-    cueStart: typeof initialStart === 'number' ? initialStart : 0,
-    cueEnd: typeof initialEnd === 'number'
+  const defaults = useMemo(() => {
+    const start = typeof initialStart === 'number' ? initialStart : 0;
+    const rawEnd = typeof initialEnd === 'number'
       ? initialEnd
-      : Math.min(totalDuration, 1.0),
-  }), [initialStart, initialEnd, totalDuration]);
+      : Math.min(totalDuration, 1.0);
+    // Clamp the seeded region to the chosen cue type's ceiling (intro/outro get
+    // 60s, others 10s) so a long candidate is not pre-truncated to the wrong max.
+    const maxLen = captureMaxForType(
+      initialCueType ?? 'ad_break_boundary',
+      captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds,
+    );
+    return { cueStart: start, cueEnd: Math.min(rawEnd, start + maxLen, totalDuration) };
+  }, [initialStart, initialEnd, initialCueType, totalDuration,
+      captureMaxSeconds, captureMaxIntroSeconds, captureMaxOutroSeconds]);
 
   const [cueStart, setCueStart] = useState(defaults.cueStart);
   const [cueEnd, setCueEnd] = useState(defaults.cueEnd);
@@ -93,7 +105,7 @@ function CueMarkModal({
   // mid-edit and a pin drag still updates the displayed value.
   const [startInput, setStartInput] = useState(() => formatTime(defaults.cueStart));
   const [endInput, setEndInput] = useState(() => formatTime(defaults.cueEnd));
-  const [cueType, setCueType] = useState<CueTemplateType>('ad_break_boundary');
+  const [cueType, setCueType] = useState<CueTemplateType>(initialCueType ?? 'ad_break_boundary');
   // Capture ceiling follows the cue type: intro/outro stingers get a longer
   // allowance than ad-break dings (mirrors the server-side bound).
   const MAX_REGION_SECONDS = useMemo(
@@ -123,10 +135,15 @@ function CueMarkModal({
   // recur in its source episode. Keyed to the bracket so re-bracketing re-warns,
   // and a second Save of the same bracket goes through.
   const [weakWarning, setWeakWarning] = useState<string | null>(null);
+  // Non-ad types (show intro/outro/transition) are never cut. A segment at an
+  // episode's start/end is often a recurring ad, so saving one requires an
+  // explicit acknowledgement -- keyed to the bracket+type it was given for, so it
+  // auto-invalidates on any re-bracket or type change (no setState-in-effect).
+  const [nonAdAckKey, setNonAdAckKey] = useState<string | null>(null);
   const weakWarnedForRef = useRef<string | null>(null);
   const [previewMatches, setPreviewMatches] = useState<CueTemplateMatch[] | null>(null);
-  // Recurring-sound candidates (on-demand fingerprint scan). Raw loud spots were too noisy and
-  // the scan is slow, so it runs only when the user asks for it.
+  // Audio-cue candidates (on-demand scan: fingerprint recurrence + loud spots).
+  // The scan is slow, so it runs only when the user asks for it.
   const [candidates, setCandidates] = useState<CueCandidate[] | null>(null);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
@@ -258,6 +275,22 @@ function CueMarkModal({
       candidatePollRef.current = null;
     }
   }, []);
+
+  // Show suggestion markers when the capture tool opens IF a scan is already
+  // cached -- a read-only peek, so opening the tool to view/tweak a template
+  // never triggers a server-side scan. The explicit button still runs one.
+  useEffect(() => {
+    const run = candidateRunRef.current;
+    getCueCandidates(podcastSlug, episodeId, false, true)
+      .then((res) => {
+        // Bail if a user-triggered scan started meanwhile, so a late peek can't
+        // clobber fresher results (findCandidates bumps candidateRunRef).
+        if (run === candidateRunRef.current && res.status === 'ready') {
+          setCandidates(res.candidates);
+        }
+      })
+      .catch(() => { /* peek is best-effort */ });
+  }, [podcastSlug, episodeId]);
 
   // Snap an ABSOLUTE time to the nearest onset. The peaks are for the current
   // window [windowStart, windowEnd], so convert to/from window-relative before
@@ -455,7 +488,12 @@ function CueMarkModal({
   const regionDuration = cueEnd - cueStart;
   const regionDurationValid =
     regionDuration >= MIN_REGION_SECONDS && regionDuration <= MAX_REGION_SECONDS;
-  const canSave = regionDurationValid && !saving;
+  const isNonAd = cueTypeIsNonAd(cueType);
+  // The ack counts only while the bracket and type match what it was given for,
+  // so dragging to a new region or switching type silently revokes it.
+  const cueKey = `${cueStart.toFixed(3)}-${cueEnd.toFixed(3)}-${cueType}`;
+  const nonAdAck = nonAdAckKey === cueKey;
+  const canSave = regionDurationValid && !saving && (!isNonAd || nonAdAck);
 
   // The last persisted template for the current selection. Save-and-preview and
   // Save reuse it when the bounds and type have not changed, so previewing
@@ -490,11 +528,10 @@ function CueMarkModal({
     setWeakWarning(null);
     try {
       const template = await ensureTemplate();
-      const bracketKey = `${cueStart.toFixed(3)}-${cueEnd.toFixed(3)}-${cueType}`;
-      if (template.weakCue && weakWarnedForRef.current !== bracketKey) {
+      if (template.weakCue && weakWarnedForRef.current !== cueKey) {
         // First save of this weak bracket: flag it and stay open so the user
         // can pick a recurring sound, or click Save again to keep it anyway.
-        weakWarnedForRef.current = bracketKey;
+        weakWarnedForRef.current = cueKey;
         setWeakWarning(
           'This sound appears only once in this episode, so it cannot bracket '
           + 'an ad break. Pick a sound that repeats, or click Save cue again to '
@@ -601,27 +638,41 @@ function CueMarkModal({
               </div>
               <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
             </div>
-            {/* Recurring-sound markers: the sounds that repeat across the
-                episode (the cue candidates). Click to jump; full-height and
-                tinted so they read clearly under the boundary pins. */}
+            {/* Cue-candidate markers: each candidate's full [start, end] span is
+                shaded (recurring stings sky, cross-episode intro/outro amber) with
+                a labeled, clickable badge. The band is visual only so it does not
+                block waveform drag-select; the badge jumps to the candidate. */}
             {(candidates ?? []).map((c) => {
-              const rel = (c.start - windowStart) / windowDuration;
-              if (rel < 0 || rel > 1) return null;
+              const startRel = (c.start - windowStart) / windowDuration;
+              const endRel = (c.end - windowStart) / windowDuration;
+              if (endRel <= 0 || startRel >= 1) return null; // outside the window
+              const isXep = c.kind === 'intro' || c.kind === 'outro';
+              const clampedStart = Math.max(0, startRel);
+              const left = clampedStart * 100;
+              const width = Math.max(0.5, (Math.min(1, endRel) - clampedStart) * 100);
               return (
-                <button
-                  key={`${c.start}-${c.end}`}
-                  type="button"
-                  onClick={() => seekTo(c.start)}
-                  title={`Recurs ${c.count}x, first at ${formatTime(c.start)} - click to jump`}
-                  aria-label={`Jump to recurring sound at ${formatTime(c.start)}`}
-                  className="absolute inset-y-0 -translate-x-1/2 z-[5] w-3 cursor-pointer group"
-                  style={{ left: `${rel * 100}%` }}
+                <div
+                  key={`${c.kind ?? 'recurring'}-${c.start}-${c.end}`}
+                  className="absolute inset-y-0 z-[5] pointer-events-none"
+                  style={{ left: `${left}%`, width: `${width}%` }}
                 >
-                  <span className="block mx-auto h-full w-0.5 bg-sky-500/60 group-hover:bg-sky-500" />
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 px-1 rounded-b bg-sky-500 text-white text-[9px] font-bold leading-tight">
-                    {c.count}x
-                  </span>
-                </button>
+                  <span className={`block h-full w-full ${
+                    isXep
+                      ? 'bg-amber-500/20 border-x border-amber-500/50'
+                      : 'bg-sky-500/20 border-x border-sky-500/50'
+                  }`} />
+                  <button
+                    type="button"
+                    onClick={() => seekTo(c.start)}
+                    title={`${cueCandidateLabel(c)}, ${formatTime(c.start)} - ${formatTime(c.end)} - click to jump`}
+                    aria-label={`Cue candidate ${cueCandidateLabel(c)} at ${formatTime(c.start)}`}
+                    className={`pointer-events-auto absolute top-0 left-0 px-1 rounded-br text-white text-[9px] font-bold leading-tight whitespace-nowrap cursor-pointer ${
+                      isXep ? 'bg-amber-500 hover:bg-amber-600' : 'bg-sky-500 hover:bg-sky-600'
+                    }`}
+                  >
+                    {cueCandidateLabel(c)}
+                  </button>
+                </div>
               );
             })}
             {/* Pins. */}
@@ -697,7 +748,7 @@ function CueMarkModal({
           </p>
         )}
 
-        {/* Find recurring sounds (on-demand -- the scan decodes the episode). */}
+        {/* Find audio cues (on-demand -- the scan decodes the episode). */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <button
             type="button"
@@ -706,8 +757,8 @@ function CueMarkModal({
             disabled={candidatesLoading}
           >
             {candidatesLoading
-              ? 'Finding recurring sounds...'
-              : candidatesError ? 'Try again' : 'Find recurring sounds'}
+              ? 'Finding audio cues...'
+              : candidatesError ? 'Try again' : 'Find audio cues'}
           </button>
           {candidatesError && !candidatesLoading && (
             <span className="text-xs text-destructive">{candidatesError}</span>
@@ -715,8 +766,8 @@ function CueMarkModal({
           {candidates !== null && !candidatesLoading && !candidatesError && (
             <span className="text-xs text-muted-foreground">
               {candidates.length === 0
-                ? 'No recurring sounds found.'
-                : `${candidates.length} recurring sound${candidates.length === 1 ? '' : 's'} (markers) - tap one to jump.`}
+                ? 'No audio cues found.'
+                : `${candidates.length} audio cue${candidates.length === 1 ? '' : 's'} (markers) - tap one to jump.`}
             </span>
           )}
         </div>
@@ -827,6 +878,20 @@ function CueMarkModal({
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            {isNonAd && (
+              <label className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={nonAdAck}
+                  onChange={(e) => setNonAdAckKey(e.target.checked ? cueKey : null)}
+                />
+                <span>
+                  This is show content (intro, outro, or transition), not an ad.
+                  It will be marked non-ad and never cut.
+                </span>
+              </label>
+            )}
           </div>
         </div>
 

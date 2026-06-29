@@ -222,6 +222,21 @@ AUDIO_CUE_PAIR_MAX_BREAK_FRACTION = 0.5
 # non-ad cluster nearly ties the real sting), so do not go below ~0.72.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.73   # fingerprint bit-similarity to call two windows the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
+# Cross-episode intro/outro detection (candidate scan). Real intros/outros play
+# once per episode, so within-episode recurrence cannot see them, but they recur
+# ACROSS episodes near the start/end. We fingerprint this episode's head and tail
+# and look for a segment that also appears in the head/tail of recent COMPLETED
+# sibling episodes; a segment is only suggested when it recurs in >= MIN_MATCHES
+# of them, so one-off loud dialogue is never flagged.
+AUDIO_CUE_XEP_HEAD_SECONDS = 180.0     # how much of the episode start to scan for an intro
+AUDIO_CUE_XEP_TAIL_SECONDS = 120.0     # how much of the episode end to scan for an outro
+AUDIO_CUE_XEP_MAX_SIBLINGS = 5         # most recent completed siblings to compare against
+AUDIO_CUE_XEP_SIBLING_LOOKBACK = 30    # completed episodes to scan for ones with retained audio
+AUDIO_CUE_XEP_MIN_MATCHES = 2          # a segment must recur in >= this many siblings
+AUDIO_CUE_XEP_MIN_DURATION = 3.0       # ignore matches shorter than a real intro/outro
+AUDIO_CUE_XEP_MAX_DURATION = 30.0      # cap a suggested intro/outro span
+AUDIO_CUE_XEP_MAX_PER_ZONE = 3         # most intro (and outro) candidates to surface per episode
+AUDIO_CUE_XEP_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY  # bit-similarity threshold for a cross-episode match
 # Fingerprint self-repeat discovery internals (candidate scan). The probe window
 # seeds LSH buckets; each bucket's first member anchors a full self-scan whose
 # segment is then grown to its true length and its whole extent claimed so a long
@@ -243,7 +258,7 @@ AUDIO_CUE_FP_MAX_CANDIDATES = 10         # cap on candidates returned to the UI
 AUDIO_CUE_SCAN_FREQ_MIN_HZ = 500.0       # reach below the 1.5kHz live floor to catch bass stings
 AUDIO_CUE_SCAN_PROMINENCE_DB = 6.0       # dB over baseline to START a candidate burst (vs 9 live)
 AUDIO_CUE_SCAN_RELEASE_DB = 3.0          # extend the burst out to where it falls within this of baseline
-AUDIO_CUE_SCAN_MAX_DURATION_SECONDS = 12.0  # allow sustained musical beds (live cap is 2s)
+AUDIO_CUE_SCAN_MAX_DURATION_SECONDS = 12.0  # allow sustained musical beds (live cap is 2s); candidate scan overrides to the longer per-type cap
 # The recurrence scan decodes the whole episode (90s+ on a long show), so it
 # runs in a background thread and the result is cached. A scan row older than
 # this is treated as crashed/expired and reclaimable for a fresh run.

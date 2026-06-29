@@ -188,13 +188,34 @@ export async function scanEpisodeCues(
   );
 }
 
+export type CueCandidateKind = 'recurring' | 'intro' | 'outro';
+
 export interface CueCandidate {
   start: number;
   end: number;
-  count: number;
+  // 'recurring' (repeats within the episode -- an ad-break sting) or 'intro'/
+  // 'outro' (a head/tail segment shared across sibling episodes). Older servers
+  // omit kind and only returned recurring candidates, so missing = recurring.
+  kind?: CueCandidateKind;
+  count?: number;          // recurring: times the sound recurs within the episode
+  episodeMatches?: number; // intro/outro: how many sibling episodes share it
+  suggestedType?: CueTemplateType | null;  // capture-type hint
 }
 
-export type CueCandidateScanStatus = 'scanning' | 'ready' | 'error';
+// Short badge label for a candidate.
+export function cueCandidateLabel(c: CueCandidate): string {
+  if (c.kind === 'intro') return `Intro (in ${c.episodeMatches ?? '?'} eps)`;
+  if (c.kind === 'outro') return `Outro (in ${c.episodeMatches ?? '?'} eps)`;
+  return `Repeats ${c.count ?? '?'}x`;
+}
+
+// Cue types the backend treats as non-ad (never cut) -- mirrors the 'non_ad' role
+// in AUDIO_CUE_TYPES (src/config.py). Keep in sync when adding a non-ad type.
+export function cueTypeIsNonAd(t: CueTemplateType): boolean {
+  return t === 'show_intro' || t === 'show_outro' || t === 'content_transition';
+}
+
+export type CueCandidateScanStatus = 'scanning' | 'ready' | 'error' | 'idle';
 
 export interface CueCandidatesResponse {
   episodeId: string;
@@ -213,8 +234,10 @@ export async function getCueCandidates(
   slug: string,
   episodeId: string,
   rescan = false,
+  peek = false,
 ): Promise<CueCandidatesResponse> {
-  const query = rescan ? '?rescan=1' : '';
+  // peek returns the cached result (or status 'idle') without starting a scan.
+  const query = peek ? '?peek=1' : rescan ? '?rescan=1' : '';
   return apiRequest<CueCandidatesResponse>(
     `/feeds/${slug}/episodes/${episodeId}/cue-candidates${query}`,
   );

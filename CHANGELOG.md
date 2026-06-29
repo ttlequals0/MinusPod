@@ -6,6 +6,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.3] - 2026-06-28
+
+### Fixed
+
+- Cue suggestion markers are visible in the capture tool again. They load when the tool opens (instead of only after a separate scan) and render as labeled shaded spans across each candidate's full length, rather than unlabeled ticks pinned to the episode edges that read as missing when a scan returned only an intro or outro.
+
+### Changed
+
+- The "Find audio cues" scan surfaces up to three recurring intros and three outros a feed shares across episodes, not just one of each, so a show with both a theme and a recurring sponsor read shows both. It also skips any sound already captured as a cue template, so the scan only suggests new cues.
+- Saving a cue as a non-ad type (show intro, show outro, or content transition) now requires confirming it is the show's own audio and not an ad. These types are exempt from cutting, and a recurring segment at an episode's start or end is often a pre-roll or post-roll ad, so the confirmation stops a recurring ad from being marked non-ad and left in.
+
+## [2.27.2] - 2026-06-28
+
+### Changed
+
+- The "Find audio cues" scan now finds intros and outros by comparing the episode against recent completed episodes, replacing the one-off loud-spot pass added in 2.27.0. That pass surfaced short bursts of loud dialogue rather than cues (on one episode 19 of 20 suggestions were 0.6-to-2.3-second blips), because a real intro or outro plays once per episode and the within-episode recurrence scan cannot see it. The scan now fingerprints the episode's first three minutes and last two minutes and looks for a segment that also appears near the start or end of the five most recent completed episodes; a segment is suggested as an intro or outro only when it recurs in at least two of them. Within-episode recurring stings (ad breaks) are still found and listed alongside.
+
+### Fixed
+
+- A failed dependency install no longer ships a broken image. The Dockerfile ran the pip install and a cache-cleanup step in one chain ending in `|| true`, so a pip failure exited zero and the build succeeded without the dependencies; one such build shipped an image with no gunicorn that crash-looped on deploy. The install is now its own step that fails the build, with the cleanup separated out. Mirrored in the CPU Dockerfile.
+
+## [2.27.1] - 2026-06-28
+
+### Changed
+
+- Renamed the audio-cue capture action to "Find audio cues" (from "Find cue candidates") in both the episode panel and the capture tool, and the panel section is now titled "Audio Cues".
+
+## [2.27.0] - 2026-06-28
+
+### Added
+
+- The cue candidate scan now surfaces one-off intros, outros, and bumpers, not just sounds that repeat across an episode. It combines the recurrence scan with a loud-spot pass and tags each candidate with a positional cue-type hint (intro near the start, outro near the end) that the capture tool preselects. Candidate length now reaches the longest per-type ceiling (60 seconds for intro and outro), so a long stinger is captured in full instead of being clipped to the 10-second ad-break limit.
+
+### Changed
+
+- Cue templates export as a lossless FLAC instead of an uncompressed WAV, which roughly halves the shared file. Import accepts both the new FLAC packs and older WAV packs, and still recomputes the MFCC from the audio rather than trusting a shared feature blob.
+
+### Fixed
+
+- The transcription model no longer invents sponsor names such as "Wegovy, Ozempic, Mounjaro" in silent gaps. Those names were seeded into the vocabulary hint given to Whisper, and on quiet audio Whisper echoed the hint back into the transcript verbatim; the ad detector then cut those gaps as ad breaks on shows that never ran the ad. The drug names and other bare common-English words (calm, indeed, audible) are no longer seeded, so Whisper is not primed to emit them and the scrubber no longer deletes real speech that uses those words. The hint and the prompt-leakage scrubber are now built from one shared list so they cannot drift, and the scrubber removes an echoed run of sponsor names at any length while leaving a genuine sponsor mention (one with real speech around the brand) intact.
+
 ## [2.26.0] - 2026-06-27
 
 ### Changed

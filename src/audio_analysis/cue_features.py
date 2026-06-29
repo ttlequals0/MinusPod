@@ -20,6 +20,7 @@ normalization is applied -- see the note in :func:`compute_mfcc`.
 """
 from __future__ import annotations
 
+import json
 import logging
 import subprocess
 from pathlib import Path
@@ -168,16 +169,7 @@ def decode_pcm_window(audio_path: Path | str,
         cmd += ['-t', f'{duration:.3f}']
     cmd += ['-ac', '1', '-ar', str(sample_rate), '-f', 's16le', 'pipe:1']
 
-    try:
-        proc = tracked_run(cmd, capture_output=True, timeout=FFT_TIMEOUT_S)
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"ffmpeg decode timed out after {FFT_TIMEOUT_S}s") from e
-
-    if proc.returncode != 0:
-        stderr = (proc.stderr or b'').decode('utf-8', errors='replace')[:500]
-        raise RuntimeError(f"ffmpeg exit {proc.returncode}: {stderr}")
-
-    raw = proc.stdout or b''
+    raw = _run_ffmpeg_pipe(cmd, op_desc='ffmpeg decode')
     if not raw:
         raise RuntimeError("ffmpeg produced no audio data (empty window?)")
 
@@ -219,3 +211,73 @@ def deserialize_mfcc(blob: bytes, n_coeffs: int) -> np.ndarray:
             f"mfcc blob size {arr.size} not divisible by n_coeffs {n_coeffs}"
         )
     return arr.reshape(-1, n_coeffs).astype(np.float32)
+
+
+def _run_ffmpeg_pipe(cmd, input_bytes: Optional[bytes] = None,
+                     op_desc: str = 'ffmpeg', timeout: float = FFT_TIMEOUT_S) -> bytes:
+    """Run an ffmpeg/ffprobe subprocess and return its stdout bytes.
+
+    ``input_bytes`` is fed on stdin when given (else the command reads a file or
+    needs no input). Raises ``RuntimeError`` on timeout or non-zero exit.
+    """
+    try:
+        proc = tracked_run(cmd, input=input_bytes, capture_output=True,
+                           timeout=timeout)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"{op_desc} timed out") from e
+    if proc.returncode != 0:
+        stderr = (proc.stderr or b'').decode('utf-8', errors='replace')[:300]
+        raise RuntimeError(f"{op_desc} exit {proc.returncode}: {stderr}")
+    return proc.stdout or b''
+
+
+def _probe_audio_stream(data: bytes):
+    """Return ``(sample_rate, channels)`` of the first audio stream via ffprobe.
+
+    Used to reject a mismatched stream BEFORE decoding it, so a crafted
+    high-sample-rate / multi-channel file cannot be expanded into an enormous
+    in-memory PCM buffer first.
+    """
+    cmd = [
+        'ffprobe', '-v', 'error', '-select_streams', 'a:0',
+        '-show_entries', 'stream=sample_rate,channels', '-of', 'json', 'pipe:0',
+    ]
+    out = _run_ffmpeg_pipe(cmd, data, op_desc='ffprobe')
+    try:
+        streams = (json.loads(out or b'{}') or {}).get('streams') or []
+    except (ValueError, TypeError) as e:
+        raise RuntimeError(f"could not read audio metadata: {e}")
+    if not streams:
+        raise RuntimeError("no audio stream found")
+    return int(streams[0].get('sample_rate') or 0), int(streams[0].get('channels') or 0)
+
+
+def pcm_to_flac(pcm_bytes: bytes, sample_rate: int) -> bytes:
+    """Encode int16 mono PCM to a FLAC byte stream (lossless, ~half the size)."""
+    cmd = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-f', 's16le', '-ar', str(sample_rate), '-ac', '1', '-i', 'pipe:0',
+        '-c:a', 'flac', '-f', 'flac', 'pipe:1',
+    ]
+    return _run_ffmpeg_pipe(cmd, bytes(pcm_bytes), op_desc='FLAC encode')
+
+
+def flac_to_wav(flac_bytes: bytes, max_seconds: float,
+                sample_rate: int = SAMPLE_RATE_HZ) -> bytes:
+    """Decode a FLAC stream to a 16-bit PCM WAV at its source rate/channels.
+
+    Rejects any stream that is not mono ``sample_rate`` BEFORE decoding (no
+    resampling or downmixing), so a crafted high-rate / multi-channel FLAC
+    cannot blow up into a multi-GB in-memory WAV. ``max_seconds`` additionally
+    bounds the decoded duration as a zip-bomb guard against a long silent FLAC.
+    """
+    sr, channels = _probe_audio_stream(flac_bytes)
+    if sr != sample_rate or channels != 1:
+        raise RuntimeError(
+            f"cue audio must be mono {sample_rate} Hz, got {channels}ch {sr}Hz")
+    cmd = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-i', 'pipe:0', '-t', str(max_seconds),
+        '-c:a', 'pcm_s16le', '-f', 'wav', 'pipe:1',
+    ]
+    return _run_ffmpeg_pipe(cmd, flac_bytes, op_desc='FLAC decode')

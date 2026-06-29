@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from './CollapsibleSection';
 import LoadingSpinner from './LoadingSpinner';
 import CueMarkModal from './CueMarkModal';
-import { getCueCandidates, type CueCandidate } from '../api/cueTemplates';
+import {
+  getCueCandidates, cueCandidateLabel,
+  type CueCandidate, type CueTemplateType,
+} from '../api/cueTemplates';
 import { getSettings } from '../api/settings';
 
 interface CueCandidatesSectionProps {
@@ -30,7 +33,9 @@ function CueCandidatesSection({
 }: CueCandidatesSectionProps) {
   const queryClient = useQueryClient();
   const [scanned, setScanned] = useState(false);
-  const [seed, setSeed] = useState<{ start: number; end: number } | null>(null);
+  const [seed, setSeed] = useState<
+    { start: number; end: number; cueType?: CueTemplateType } | null
+  >(null);
 
   // Inline preview: one shared <audio> plays just the candidate's [start, end]
   // span so a candidate can be heard without opening the capture modal.
@@ -73,7 +78,9 @@ function CueCandidatesSection({
       staleTime: 0,
     });
 
-  const candidateKey = (c: CueCandidate) => `${c.start}-${c.end}`;
+  // Include kind: an intro and a recurring hit can share start/end on short
+  // episodes, and a bare start-end key would collide (dup React keys + preview state).
+  const candidateKey = (c: CueCandidate) => `${c.kind ?? 'recurring'}-${c.start}-${c.end}`;
 
   const stopPreview = () => {
     reqRef.current += 1;
@@ -137,21 +144,24 @@ function CueCandidatesSection({
     if (previewStopRef.current) previewStopRef.current();
   }, []);
 
-  const makeTemplate = (start: number, end: number) => {
+  const makeTemplate = (c: CueCandidate) => {
     stopPreview();
-    setSeed({ start, end: Math.min(end, start + captureMaxSeconds) });
+    // Seed the capture type from the positional hint and pass the full span;
+    // the modal clamps the region to the chosen type's ceiling, so switching
+    // type there clamps against the right ceiling instead of a pre-truncated one.
+    setSeed({ start: c.start, end: c.end, cueType: c.suggestedType ?? undefined });
   };
 
   return (
     <CollapsibleSection
-      title="Cue Candidates"
-      subtitle="Find a recurring sound to make a cue template"
+      title="Audio Cues"
+      subtitle="Find an audio cue to make a cue template"
       defaultOpen={false}
       storageKey={`episode-cue-candidates-${episodeId}`}
     >
       <p className="text-sm text-muted-foreground mb-3">
-        Scan the audio for sounds that repeat across the episode -- the kind worth
-        templating. One-off sounds are skipped.
+        Scan for audio cues: ad-break stings that repeat within the episode, plus
+        intros and outros shared with other episodes of this feed.
       </p>
 
       {!scanned && (
@@ -161,7 +171,7 @@ function CueCandidatesSection({
           title={hasOriginalAudio ? '' : 'Original audio not retained for this episode'}
           className={makeBtn}
         >
-          Find cue candidates
+          Find audio cues
         </button>
       )}
 
@@ -177,7 +187,7 @@ function CueCandidatesSection({
         </div>
       )}
       {noneFound && (
-        <p className="text-sm text-muted-foreground">No recurring sounds found.</p>
+        <p className="text-sm text-muted-foreground">No audio cues found.</p>
       )}
 
       {candidates.length > 0 && (
@@ -212,12 +222,16 @@ function CueCandidatesSection({
                     <span className="font-mono text-sm text-foreground">
                       {formatTime(c.start)} - {formatTime(c.end)}
                     </span>
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                      Repeats {c.count}x
+                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                      c.kind === 'intro' || c.kind === 'outro'
+                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                        : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                    }`}>
+                      {cueCandidateLabel(c)}
                     </span>
                   </div>
                   <button
-                    onClick={() => makeTemplate(c.start, c.end)}
+                    onClick={() => makeTemplate(c)}
                     disabled={!hasOriginalAudio}
                     title={hasOriginalAudio ? 'Open the capture tool to make a template'
                       : 'Original audio not retained for this episode'}
@@ -246,6 +260,7 @@ function CueCandidatesSection({
           episodeDuration={episodeDuration}
           initialStart={seed.start}
           initialEnd={seed.end}
+          initialCueType={seed.cueType}
           captureMinSeconds={captureMinSeconds}
           captureMaxSeconds={captureMaxSeconds}
           captureMaxIntroSeconds={captureMaxIntroSeconds}

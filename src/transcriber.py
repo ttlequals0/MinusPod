@@ -68,17 +68,26 @@ BATCH_SIZE_TIERS = [
     (float('inf'), 4),  # > 120 min: batch_size=4
 ]
 
-# Podcast-aware initial prompt with sponsor vocabulary
-AD_VOCABULARY = (
-    "promo code, discount code, use code, "
-    "sponsored by, brought to you by, "
-    "Athletic Greens, AG1, BetterHelp, Squarespace, NordVPN, "
-    "ExpressVPN, HelloFresh, Audible, Masterclass, ZipRecruiter, "
-    "Raycon, Manscaped, Stamps.com, Indeed, LinkedIn, "
-    "SimpliSafe, Casper, Helix Sleep, Brooklinen, Bombas, "
-    "Calm, Headspace, Mint Mobile, Dollar Shave Club, "
-    "Wegovy, Ozempic, Mounjaro"
-)
+# Podcast-aware initial prompt with sponsor vocabulary. Whisper sometimes
+# regurgitates its own initial_prompt into silent gaps, so every term in this
+# list is also the scrubber's vocabulary: VOCABULARY_HALLUCINATION_PATTERNS
+# below derives from it, so a term cannot be seeded without being scrubbable.
+# (The podcast name, also interpolated into the prompt by get_initial_prompt,
+# is not a fixed vocabulary term and is intentionally not covered here.)
+# Do NOT add bare words that also occur in ordinary editorial speech: a seeded
+# term that is common English (GLP-1 drug names like Wegovy/Ozempic/Mounjaro;
+# words like calm/indeed/audible) gets hallucinated into gaps AND makes the
+# scrubber delete real speech. Keep only distinctive brand spellings.
+AD_VOCABULARY_TERMS = [
+    "promo code", "discount code", "use code",
+    "sponsored by", "brought to you by",
+    "Athletic Greens", "AG1", "BetterHelp", "Squarespace", "NordVPN",
+    "ExpressVPN", "HelloFresh", "Masterclass", "ZipRecruiter",
+    "Raycon", "Manscaped", "Stamps.com", "LinkedIn",
+    "SimpliSafe", "Casper", "Helix Sleep", "Brooklinen", "Bombas",
+    "Headspace", "Mint Mobile", "Dollar Shave Club",
+]
+AD_VOCABULARY = ", ".join(AD_VOCABULARY_TERMS)
 
 # Hallucination patterns to filter out (Whisper artifacts)
 HALLUCINATION_PATTERNS = re.compile(
@@ -90,16 +99,59 @@ HALLUCINATION_PATTERNS = re.compile(
     re.IGNORECASE
 )
 
-# Vocabulary hallucination patterns (Whisper sometimes outputs the initial prompt)
-# These are partial matches - if any of these appear, the segment is likely a hallucination
-VOCABULARY_HALLUCINATION_PATTERNS = re.compile(
-    r'(promo code|discount code|use code|sponsored by|brought to you by|'
-    r'Athletic Greens|AG1|BetterHelp|Squarespace|NordVPN|ExpressVPN|'
-    r'HelloFresh|Audible|Masterclass|ZipRecruiter|Raycon|Manscaped|'
-    r'Stamps\.com|Indeed|LinkedIn|SimpliSafe|Casper|Helix Sleep|'
-    r'Brooklinen|Bombas|Calm|Headspace|Mint Mobile|Dollar Shave Club)',
-    re.IGNORECASE
-)
+# Vocabulary hallucination scrubbing (Whisper sometimes outputs the initial
+# prompt). The pattern derives from AD_VOCABULARY_TERMS so the scrubber always
+# covers exactly what we seed; _is_vocabulary_regurgitation (used by
+# filter_hallucinations) then decides whether a matching segment is a bare
+# vocabulary list (drop it) or real speech around a brand (keep it).
+def _compile_vocabulary_pattern(terms):
+    """Alternation over the seeded terms, or a never-match pattern when empty.
+
+    An empty term list must NOT compile to ``()``: that matches every string
+    and would blank the transcript.
+    """
+    if not terms:
+        return re.compile(r'(?!x)x')  # matches nothing
+    return re.compile(
+        "(?:" + "|".join(re.escape(term) for term in terms) + ")",
+        re.IGNORECASE,
+    )
+
+
+VOCABULARY_HALLUCINATION_PATTERNS = _compile_vocabulary_pattern(AD_VOCABULARY_TERMS)
+
+# Max fraction of a segment's letters that may remain after removing seeded
+# terms for it to still count as regurgitation (a bare vocabulary list) rather
+# than real speech that merely names a sponsor.
+_VOCAB_REGURGITATION_MAX_RESIDUE = 0.15
+
+
+def _letter_count(text):
+    """Count alphabetic characters, Unicode-aware so non-Latin speech counts.
+
+    A regex like ``[^a-z]`` would treat Chinese/Cyrillic/etc. as non-letters
+    and undercount the residue, wrongly scrubbing real non-English speech.
+    """
+    return sum(1 for c in text if c.isalpha())
+
+
+def _is_vocabulary_regurgitation(text):
+    """True when a segment is essentially a list of seeded vocabulary terms.
+
+    Whisper echoing its initial_prompt produces runs of sponsor names with no
+    connective speech. Strip the seeded terms; if almost no alphabetic content
+    remains, it is regurgitation, however long. A genuine sponsor mention keeps
+    real words around the brand and is left alone. Length-independent, so a long
+    multi-brand run is caught as readily as a single echoed term.
+    """
+    # Cheap reject first: most segments contain no seeded term at all.
+    if not VOCABULARY_HALLUCINATION_PATTERNS.search(text):
+        return False
+    total = _letter_count(text)
+    if not total:
+        return False
+    residue = _letter_count(VOCABULARY_HALLUCINATION_PATTERNS.sub(' ', text))
+    return residue <= _VOCAB_REGURGITATION_MAX_RESIDUE * total
 
 
 def split_long_segments(segments: List[Dict]) -> List[Dict]:
@@ -933,15 +985,12 @@ class Transcriber:
             if HALLUCINATION_PATTERNS.match(text):
                 logger.debug("Filtered hallucination segment (%d chars)", len(text))
                 continue
-            # Filter vocabulary hallucinations (Whisper outputs the initial prompt)
-            # Only filter short segments that are primarily vocabulary words
-            if len(text) < 100 and VOCABULARY_HALLUCINATION_PATTERNS.search(text):
-                # Check if the text is mostly vocabulary (not real speech with sponsor mention)
-                # Real ad reads are typically longer and have more context
-                word_count = len(text.split())
-                if word_count < 15:
-                    logger.debug("Filtered vocabulary hallucination (%d chars)", len(text))
-                    continue
+            # Whisper sometimes echoes its initial_prompt vocabulary into a
+            # silent gap. Drop a segment that is essentially a list of seeded
+            # terms (any length); a genuine sponsor mention keeps real speech.
+            if _is_vocabulary_regurgitation(text):
+                logger.debug("Filtered vocabulary hallucination (%d chars)", len(text))
+                continue
             # Skip repeated segments (Whisper loop artifacts)
             if filtered and text == filtered[-1].get('text', '').strip():
                 logger.debug("Filtered repeated segment (%d chars)", len(text))
