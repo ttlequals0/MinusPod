@@ -137,9 +137,15 @@ class _ResponseError(Exception):
 
 
 class TestErrorClassifier:
-    @pytest.mark.parametrize("status", [400, 401, 403, 404, 422])
+    @pytest.mark.parametrize("status", [400, 422])
     def test_4xx_non_rate_limit_is_eligible(self, status):
         assert is_fallback_eligible_error(_StatusError(status)) is True
+
+    @pytest.mark.parametrize("status", [401, 403, 404])
+    def test_auth_and_not_found_are_not_eligible(self, status):
+        # 401/403 (auth) and 404 (model/resource not-found) are not tunable
+        # rejections; retrying with defaults fails identically.
+        assert is_fallback_eligible_error(_StatusError(status)) is False
 
     def test_429_is_not_eligible(self):
         assert is_fallback_eligible_error(_StatusError(429)) is False

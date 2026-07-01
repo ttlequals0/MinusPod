@@ -240,27 +240,30 @@ class RSSParser:
                 stream=True,
                 headers={'User-Agent': APP_USER_AGENT},
             )
-            response.raise_for_status()
-            if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
-                logger.warning(
-                    "RSS fetch rejected on content-type: url=%s content_type=%r",
-                    url, response.headers.get('Content-Type'),
-                )
-                _get_rss_circuit_breaker(url).record_failure()
-                return None
-            max_bytes = _max_rss_bytes()
             try:
-                body = read_response_capped(response, max_bytes)
-            except ResponseTooLargeError:
-                logger.warning(
-                    "feed_size_cap_exceeded: url=%s max=%d",
-                    safe_url_for_log(url), max_bytes,
-                )
-                _get_rss_circuit_breaker(url).record_failure()
-                return None
-            logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
-            _get_rss_circuit_breaker(url).record_success()
-            return body.decode('utf-8', errors='replace')
+                response.raise_for_status()
+                if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
+                    logger.warning(
+                        "RSS fetch rejected on content-type: url=%s content_type=%r",
+                        url, response.headers.get('Content-Type'),
+                    )
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None
+                max_bytes = _max_rss_bytes()
+                try:
+                    body = read_response_capped(response, max_bytes)
+                except ResponseTooLargeError:
+                    logger.warning(
+                        "feed_size_cap_exceeded: url=%s max=%d",
+                        safe_url_for_log(url), max_bytes,
+                    )
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None
+                logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
+                _get_rss_circuit_breaker(url).record_success()
+                return body.decode('utf-8', errors='replace')
+            finally:
+                response.close()
         except SSRFError as e:
             logger.warning(f"SSRF blocked in fetch_feed: {e} (url={safe_url_for_log(url)})")
             return None
@@ -473,7 +476,7 @@ class RSSParser:
             return None
 
     @staticmethod
-    def extract_podcast_artwork_url(feed_content_or_parsed) -> Optional[str]:
+    def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> Optional[str]:
         """Channel-level podcast artwork URL.
 
         feedparser flattens ``<itunes:image>`` across the whole document, so
@@ -496,23 +499,23 @@ class RSSParser:
         if not feed_content_or_parsed:
             return None
 
-        if isinstance(feed_content_or_parsed, (str, bytes)):
-            try:
-                payload = (feed_content_or_parsed.encode('utf-8')
-                           if isinstance(feed_content_or_parsed, str)
-                           else feed_content_or_parsed)
-                root = defused_fromstring(payload)
-            except Exception:
-                return None
-
-            channel = None
-            for child in list(root) if root is not None else []:
-                tag = getattr(child, 'tag', '')
-                if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
-                    channel = child
-                    break
+        if channel is not None or isinstance(feed_content_or_parsed, (str, bytes)):
             if channel is None:
-                return None
+                try:
+                    payload = (feed_content_or_parsed.encode('utf-8')
+                               if isinstance(feed_content_or_parsed, str)
+                               else feed_content_or_parsed)
+                    root = defused_fromstring(payload)
+                except Exception:
+                    return None
+
+                for child in list(root) if root is not None else []:
+                    tag = getattr(child, 'tag', '')
+                    if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
+                        channel = child
+                        break
+                if channel is None:
+                    return None
 
             ITUNES_NS_TAGS = (
                 '{http://www.itunes.com/dtds/podcast-1.0.dtd}image',
@@ -550,18 +553,9 @@ class RSSParser:
         return None
 
     @staticmethod
-    def extract_podcast_categories(parsed_feed) -> List[str]:
-        """Extract iTunes category strings (top-level + subcategory) from a parsed feed.
-
-        Returns the raw category labels exactly as they appear in the feed.
-        Callers map them through `utils.community_tags.map_itunes_category`.
-        """
-        if not parsed_feed or not parsed_feed.feed:
-            return []
+    def _dedup_category_labels(tags) -> List[str]:
+        """Extract term/label strings from a feedparser tags list, order-preserving dedup."""
         labels: List[str] = []
-        feed = parsed_feed.feed
-        # feedparser exposes RSS-level categories on .tags as a list of dicts.
-        tags = feed.get('tags', []) if hasattr(feed, 'get') else getattr(feed, 'tags', [])
         for t in tags or []:
             label = None
             if isinstance(t, dict):
@@ -570,7 +564,6 @@ class RSSParser:
                 label = getattr(t, 'term', None) or getattr(t, 'label', None)
             if label and isinstance(label, str):
                 labels.append(label.strip())
-        # Dedup while preserving order.
         seen = set()
         out: List[str] = []
         for lab in labels:
@@ -580,27 +573,26 @@ class RSSParser:
         return out
 
     @staticmethod
+    def extract_podcast_categories(parsed_feed) -> List[str]:
+        """Extract iTunes category strings (top-level + subcategory) from a parsed feed.
+
+        Returns the raw category labels exactly as they appear in the feed.
+        Callers map them through `utils.community_tags.map_itunes_category`.
+        """
+        if not parsed_feed or not parsed_feed.feed:
+            return []
+        feed = parsed_feed.feed
+        # feedparser exposes RSS-level categories on .tags as a list of dicts.
+        tags = feed.get('tags', []) if hasattr(feed, 'get') else getattr(feed, 'tags', [])
+        return RSSParser._dedup_category_labels(tags)
+
+    @staticmethod
     def extract_episode_categories(entry) -> List[str]:
         """Extract iTunes category strings from a single feedparser entry."""
         if entry is None:
             return []
         tags = entry.get('tags', []) if hasattr(entry, 'get') else getattr(entry, 'tags', [])
-        labels: List[str] = []
-        for t in tags or []:
-            label = None
-            if isinstance(t, dict):
-                label = t.get('term') or t.get('label')
-            else:
-                label = getattr(t, 'term', None) or getattr(t, 'label', None)
-            if label and isinstance(label, str):
-                labels.append(label.strip())
-        seen = set()
-        out: List[str] = []
-        for lab in labels:
-            if lab not in seen:
-                seen.add(lab)
-                out.append(lab)
-        return out
+        return RSSParser._dedup_category_labels(tags)
 
     def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
         """Generate consistent episode ID from GUID or URL.
@@ -624,8 +616,8 @@ class RSSParser:
         """
         if guid and guid.strip():
             clean_guid = guid.strip()
-            return hashlib.md5(clean_guid.encode()).hexdigest()[:12]
-        return hashlib.md5(episode_url.encode()).hexdigest()[:12]
+            return hashlib.md5(clean_guid.encode(), usedforsecurity=False).hexdigest()[:12]
+        return hashlib.md5(episode_url.encode(), usedforsecurity=False).hexdigest()[:12]
 
     def modify_feed(self, feed_content: str, slug: str, storage=None,
                     max_episodes: int = 300,
@@ -681,17 +673,35 @@ class RSSParser:
         lines.append(f'<description><![CDATA[{self._escape_cdata(self._get_channel_description(channel))}]]></description>')
         lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
 
+        # Parse the raw feed XML once and locate <channel>, then thread the
+        # element through the channel-metadata / artwork / PC2 helpers so a
+        # single modify_feed call parses feed_content once instead of three
+        # times. On any parse failure channel_elem stays None and each helper
+        # falls back to its own re-parse (preserving error logging).
+        channel_elem = None
+        try:
+            _raw_payload = feed_content.encode('utf-8') if isinstance(feed_content, str) else feed_content
+            _raw_root = defused_fromstring(_raw_payload)
+        except Exception:
+            _raw_root = None
+        if _raw_root is not None:
+            for _child in list(_raw_root):
+                _tag = getattr(_child, 'tag', '')
+                if isinstance(_tag, str) and (_tag == 'channel' or _tag.endswith('}channel')):
+                    channel_elem = _child
+                    break
+
         # Pass through standard RSS + iTunes channel metadata from upstream
         # (author, category, explicit, owner, etc.). Required by Apple
         # Podcasts and most apps; without these the feed is silently
         # dropped from the directory and artwork won't render.
-        self._emit_channel_metadata_passthrough(lines, feed_content)
+        self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem)
 
         # Channel artwork: take the correct channel-level URL from raw XML
         # (feedparser corrupts feed.image.href with per-episode itunes:image
         # overrides). Emit BOTH the standard <image> block and the
         # <itunes:image> tag that Apple Podcasts and most apps prefer.
-        artwork_url = self.extract_podcast_artwork_url(feed_content)
+        artwork_url = self.extract_podcast_artwork_url(feed_content, channel=channel_elem)
         # When the watermark is enabled and we have the cover cached, point the
         # channel image at our badge-overlaid variant so podcast apps show the
         # filtered feed is distinct (issue #420). This is podcast-level artwork,
@@ -712,7 +722,7 @@ class RSSParser:
 
         # Channel-level Podcasting 2.0 tags: minted guid, passthrough of safe
         # upstream tags, ai-content disclosure. See docs/podcasting-2.0.md.
-        self._emit_channel_pc2_tags(lines, feed_content, slug)
+        self._emit_channel_pc2_tags(lines, feed_content, slug, channel=channel_elem)
 
         # Limit to most recent episodes to keep feed size manageable
         # Pocket Casts and other apps may reject very large feeds (>1MB)
@@ -973,7 +983,7 @@ class RSSParser:
             return f'<podcast:{local}{attr_str} />'
         return f'<podcast:{local}{attr_str}>{text_xml}{"".join(child_xml)}</podcast:{local}>'
 
-    def _parse_upstream_channel_pc2_tags(self, feed_content: str) -> Dict:
+    def _parse_upstream_channel_pc2_tags(self, feed_content: str, channel=None) -> Dict:
         # Never raises. Returns ``{"locked": None, "passthrough": []}`` on any
         # parse failure so the feed still builds with our minted guid and
         # ai-content disclosure even when upstream XML is malformed.
@@ -981,34 +991,34 @@ class RSSParser:
         if not feed_content:
             return result
 
-        try:
-            payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
-            root = defused_fromstring(payload)
-        except DefusedXmlException as e:
-            # Mirror the xml_forbidden_construct event in parse_feed so an
-            # operator scanning logs sees the same signal at the same level.
-            logger.warning(
-                "Upstream feed rejected during channel-PC2 parse: %s",
-                type(e).__name__,
-                extra={
-                    'event': 'xml_forbidden_construct',
-                    'construct': type(e).__name__,
-                    'phase': 'pc2_channel_parse',
-                },
-            )
-            return result
-        except Exception as e:
-            logger.debug("PC2 channel parse failed (%s); skipping passthrough", type(e).__name__)
-            return result
-
-        channel = None
-        for child in list(root) if root is not None else []:
-            tag = getattr(child, "tag", "")
-            if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
-                channel = child
-                break
         if channel is None:
-            return result
+            try:
+                payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
+                root = defused_fromstring(payload)
+            except DefusedXmlException as e:
+                # Mirror the xml_forbidden_construct event in parse_feed so an
+                # operator scanning logs sees the same signal at the same level.
+                logger.warning(
+                    "Upstream feed rejected during channel-PC2 parse: %s",
+                    type(e).__name__,
+                    extra={
+                        'event': 'xml_forbidden_construct',
+                        'construct': type(e).__name__,
+                        'phase': 'pc2_channel_parse',
+                    },
+                )
+                return result
+            except Exception as e:
+                logger.debug("PC2 channel parse failed (%s); skipping passthrough", type(e).__name__)
+                return result
+
+            for child in list(root) if root is not None else []:
+                tag = getattr(child, "tag", "")
+                if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
+                    channel = child
+                    break
+            if channel is None:
+                return result
 
         for elem in channel:
             if not _is_podcast_element(elem):
@@ -1076,7 +1086,7 @@ class RSSParser:
             return f'<{emit_prefix}{local}{attr_str} />'
         return f'<{emit_prefix}{local}{attr_str}>{text_xml}{"".join(child_xml)}</{emit_prefix}{local}>'
 
-    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str) -> None:
+    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None) -> None:
         # Pass through standard RSS and iTunes channel-level metadata from
         # upstream. Apple Podcasts and most podcast apps require several of
         # the iTunes tags (author/category/explicit/owner) to ingest a feed
@@ -1086,19 +1096,19 @@ class RSSParser:
         # and ``<generator>`` (identifies the proxy).
         if not feed_content:
             return
-        try:
-            payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
-            root = defused_fromstring(payload)
-        except Exception:
-            root = None
+        if channel is None:
+            try:
+                payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
+                root = defused_fromstring(payload)
+            except Exception:
+                root = None
 
-        channel = None
-        if root is not None:
-            for child in list(root):
-                tag = getattr(child, "tag", "")
-                if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
-                    channel = child
-                    break
+            if root is not None:
+                for child in list(root):
+                    tag = getattr(child, "tag", "")
+                    if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
+                        channel = child
+                        break
 
         if channel is not None:
             itunes_prefix = "{" + _ITUNES_NS + "}"
@@ -1119,7 +1129,7 @@ class RSSParser:
         lines.append(f'<lastBuildDate>{format_datetime(datetime.now(timezone.utc))}</lastBuildDate>')
         lines.append('<generator>MinusPod</generator>')
 
-    def _emit_channel_pc2_tags(self, lines: list, feed_content: str, slug: str) -> None:
+    def _emit_channel_pc2_tags(self, lines: list, feed_content: str, slug: str, channel=None) -> None:
         # Emission order matches docs/podcasting-2.0.md: minted guid first,
         # then locked (upstream or default "yes"), then the passthrough set,
         # then the ai-content disclosure last.
@@ -1132,7 +1142,7 @@ class RSSParser:
         if guid:
             lines.append(f'<podcast:guid>{self._escape_xml(guid)}</podcast:guid>')
 
-        upstream = self._parse_upstream_channel_pc2_tags(feed_content)
+        upstream = self._parse_upstream_channel_pc2_tags(feed_content, channel=channel)
 
         upstream_locked_value = ""
         if upstream["locked"] is not None:

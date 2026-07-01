@@ -411,7 +411,7 @@ def _try_become_background_leader() -> bool:
         # Keep file handle open (lock released when process exits)
         _try_become_background_leader._lock_file = lock_file
         return True
-    except (IOError, OSError):
+    except OSError:
         return False
 
 

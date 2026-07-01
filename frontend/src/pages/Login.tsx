@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -15,8 +15,7 @@ function Login() {
   if (isAuthenticated || !isPasswordSet) {
     const redirectUrl = sessionStorage.getItem('loginRedirect') || '/';
     sessionStorage.removeItem('loginRedirect');
-    navigate(redirectUrl, { replace: true });
-    return null;
+    return <Navigate to={redirectUrl} replace />;
   }
 
   const handleSubmit = async (e: FormEvent) => {

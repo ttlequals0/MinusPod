@@ -35,7 +35,6 @@ interface AdEditorProps {
   audioUrl?: string;
   onCorrection: (correction: AdCorrection) => void;
   onClose?: () => void;
-  initialSeekTime?: number;
   selectedAdIndex?: number;
   onSelectedAdIndexChange?: (index: number) => void;
   // When true, the editor opens directly in 'create' mode for marking a

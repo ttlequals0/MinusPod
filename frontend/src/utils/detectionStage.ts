@@ -6,7 +6,11 @@ export type DetectionStage =
   | 'language'
   | 'verification'
   | 'manual'
-  | 'cue_pair';
+  | 'cue_pair'
+  | 'keep_content'
+  | 'vad_gap'
+  | 'heuristic_preroll'
+  | 'heuristic_postroll';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -40,5 +44,21 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   cue_pair: {
     label: 'Cue pair',
     className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
+  },
+  keep_content: {
+    label: 'Keep-content',
+    className: 'bg-teal-500/20 text-teal-600 dark:text-teal-400',
+  },
+  vad_gap: {
+    label: 'VAD gap',
+    className: 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400',
+  },
+  heuristic_preroll: {
+    label: 'Pre-roll',
+    className: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+  },
+  heuristic_postroll: {
+    label: 'Post-roll',
+    className: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
   },
 };

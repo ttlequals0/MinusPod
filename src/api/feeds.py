@@ -228,6 +228,21 @@ def add_feed():
     if existing:
         return error_response(f'Feed with slug "{slug}" already exists', 409)
 
+    # Validate optional fields before creating the row so a bad value cannot
+    # leave an orphaned, unrefreshed feed that then blocks retry with 409.
+    max_ep = data.get('maxEpisodes')
+    if max_ep is not None:
+        try:
+            max_ep = max(10, min(int(max_ep), 500))
+        except (ValueError, TypeError):
+            return error_response('maxEpisodes must be an integer', 400)
+
+    lang_val = None
+    if 'languageOverride' in data:
+        lang_val, lang_err = _normalize_language_override(data['languageOverride'])
+        if lang_err:
+            return error_response(lang_err, 400)
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
@@ -239,19 +254,13 @@ def add_feed():
         if db_value is not None:
             db.update_podcast(slug, auto_process_override=db_value)
 
-        # Apply max_episodes if provided
-        max_ep = data.get('maxEpisodes')
+        # Apply max_episodes if provided (validated above)
         if max_ep is not None:
-            max_ep = max(10, min(int(max_ep), 500))
             db.update_podcast(slug, max_episodes=max_ep)
 
-        # Apply language override if provided at creation time
-        if 'languageOverride' in data:
-            lang_val, lang_err = _normalize_language_override(data['languageOverride'])
-            if lang_err:
-                return error_response(lang_err, 400)
-            if lang_val is not None:
-                db.update_podcast(slug, language_override=lang_val)
+        # Apply language override if provided (validated above)
+        if lang_val is not None:
+            db.update_podcast(slug, language_override=lang_val)
 
         if 'onlyExposeProcessedEpisodes' in data:
             db.update_podcast(

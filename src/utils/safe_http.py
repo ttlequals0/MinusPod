@@ -43,27 +43,6 @@ class URLTrust(enum.Enum):
     FEED_CONTENT = "feed_content"
 
 
-class RedirectContext(enum.Enum):
-    AUDIO_ENCLOSURE = "audio_enclosure"
-    ARTWORK = "artwork"
-    FEED = "feed"
-    LLM = "llm"
-    WHISPER = "whisper"
-    WEBHOOK = "webhook"
-    PRICING = "pricing"
-
-
-REDIRECT_LIMITS: dict[RedirectContext, int] = {
-    RedirectContext.AUDIO_ENCLOSURE: 10,
-    RedirectContext.ARTWORK: 5,
-    RedirectContext.FEED: 5,
-    RedirectContext.LLM: 3,
-    RedirectContext.WHISPER: 3,
-    RedirectContext.WEBHOOK: 3,
-    RedirectContext.PRICING: 3,
-}
-
-
 class ResponseTooLargeError(Exception):
     """Raised when a streamed response exceeds the caller-supplied cap."""
 

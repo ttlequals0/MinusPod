@@ -5,8 +5,6 @@ import pytest
 
 from utils.safe_http import (
     URLTrust,
-    RedirectContext,
-    REDIRECT_LIMITS,
     ResponseTooLargeError,
     read_response_capped,
     _reject_https_downgrade,
@@ -14,11 +12,6 @@ from utils.safe_http import (
     safe_get,
 )
 from utils.url import SSRFError
-
-
-def test_redirect_limits_covers_all_contexts():
-    for ctx in RedirectContext:
-        assert ctx in REDIRECT_LIMITS
 
 
 def test_read_response_capped_accepts_under_cap():

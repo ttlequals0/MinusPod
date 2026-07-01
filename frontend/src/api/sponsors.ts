@@ -20,10 +20,6 @@ export async function addSponsor(sponsor: {
   });
 }
 
-export async function getSponsor(id: number): Promise<Sponsor> {
-  return apiRequest<Sponsor>(`/sponsors/${id}`);
-}
-
 export async function updateSponsor(
   id: number,
   updates: {

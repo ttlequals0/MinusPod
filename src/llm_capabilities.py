@@ -74,7 +74,7 @@ def get_pass_defaults(pass_name: str) -> PassDefaults:
     try:
         return _DEFAULTS[pass_name]
     except KeyError:
-        raise ValueError(f"Unknown pass_name: {pass_name!r}")
+        raise ValueError(f"Unknown pass_name: {pass_name!r}") from None
 
 
 def translate_reasoning_effort(
@@ -127,5 +127,10 @@ def is_fallback_eligible_error(error: Exception) -> bool:
     try:
         status_int = int(status)
     except (TypeError, ValueError):
+        return False
+    # Auth (401/403) and model/resource not-found (404) are not tunable
+    # rejections; a retry with default tunables fails identically and would
+    # poison the pass via set_fallback. Route them through the normal error path.
+    if status_int in (401, 403, 404):
         return False
     return 400 <= status_int < 500

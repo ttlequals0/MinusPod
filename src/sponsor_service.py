@@ -208,14 +208,6 @@ class SponsorService:
         self._refresh_cache_if_needed()
         return self._cache_sponsors or []
 
-    def get_sponsor_names(self) -> List[str]:
-        """Flat list of all sponsor names + aliases."""
-        names = []
-        for sponsor in self.get_sponsors():
-            names.append(sponsor['name'])
-            names.extend(self._parse_aliases(sponsor.get('aliases', '[]')))
-        return names
-
     def find_sponsor_in_text(self, text: str) -> Optional[str]:
         """Identify sponsor mentioned in text. Returns canonical sponsor name or None.
 
@@ -233,33 +225,12 @@ class SponsorService:
 
         return None
 
-    def get_sponsors_in_text(self, text: str) -> List[str]:
-        """Find all sponsors mentioned in text. Returns list of canonical names.
-
-        Uses precompiled word-boundary patterns to avoid false positives from short
-        names appearing inside longer words. Names/aliases shorter than 3 characters
-        are skipped.
-        """
-        if not text:
-            return []
-
-        self._refresh_cache_if_needed()
-        found = []
-        for name, pattern in self._compiled_patterns.items():
-            if pattern.search(text):
-                found.append(name)
-        return found
-
     # ========== Export for Claude prompt / Whisper ==========
 
     def get_claude_sponsor_list(self) -> str:
         """Format sponsors for Claude prompt."""
         sponsors = self.get_sponsors()
         return ', '.join(s['name'] for s in sponsors)
-
-    def get_normalization_dict(self) -> Dict[str, str]:
-        """For Whisper post-processing. Returns {pattern: replacement}."""
-        return {n['pattern']: n['replacement'] for n in self.get_normalizations()}
 
     # ========== Sponsor Extraction from Text ==========
 

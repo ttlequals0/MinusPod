@@ -2,7 +2,7 @@
 import json
 import logging
 from email.utils import parsedate_to_datetime
-from typing import Optional, Dict, List, Tuple
+from typing import ClassVar, Optional, Dict, List, Tuple
 
 from utils.constants import EpisodeStatus
 
@@ -29,7 +29,7 @@ def normalize_published_at(value: Optional[str]) -> Optional[str]:
 class EpisodeMixin:
     """Episode management methods."""
 
-    VALID_SORT_COLUMNS = {'published_at', 'created_at', 'episode_number', 'title', 'status'}
+    VALID_SORT_COLUMNS: ClassVar[set] = {'published_at', 'created_at', 'episode_number', 'title', 'status'}
 
     def get_episodes(self, slug: str, status: str = None,
                      limit: int = 50, offset: int = 0,
@@ -179,42 +179,11 @@ class EpisodeMixin:
                 title_date_to_id[(row['title'], row['published_at'])] = row['episode_id']
         return id_to_status, title_date_to_id
 
-    def get_episode_by_title_and_date(self, slug: str, title: str, published_at: str) -> Optional[Dict]:
-        """Get episode by title and publish date (for deduplication).
-
-        This catches cases where the same episode has different IDs due to
-        changing RSS GUIDs or dynamic URL parameters.
-
-        Args:
-            slug: Podcast slug
-            title: Episode title (exact match)
-            published_at: Publish date in ISO format
-
-        Returns:
-            Episode dict if found, None otherwise
-        """
-        if not title or not published_at:
-            return None
-
-        conn = self.get_connection()
-        podcast = self.get_podcast_by_slug(slug)
-        if not podcast:
-            return None
-
-        cursor = conn.execute(
-            """SELECT e.*, p.slug FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
-               WHERE p.slug = ? AND e.title = ? AND e.published_at = ?""",
-            (slug, title, published_at)
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
-
     def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
         """Insert or update an episode. Returns episode database ID."""
         conn = self.get_connection()
 
-        if 'published_at' in kwargs and kwargs['published_at']:
+        if kwargs.get('published_at'):
             kwargs['published_at'] = normalize_published_at(kwargs['published_at'])
 
         # Get podcast ID
@@ -634,41 +603,6 @@ class EpisodeMixin:
             (db_episode_id,)
         ).fetchone()
         return row is not None
-
-    def reset_episode_status(self, slug: str, episode_id: str):
-        """Reset episode status to pending for reprocessing."""
-        conn = self.get_connection()
-
-        podcast = self.get_podcast_by_slug(slug)
-        if not podcast:
-            return
-
-        conn.execute(
-            """UPDATE episodes
-               SET status = 'pending',
-                   processed_file = NULL,
-                   original_file = NULL,
-                   processed_at = NULL,
-                   original_duration = NULL,
-                   new_duration = NULL,
-                   ads_removed = NULL,
-                   error_message = NULL,
-                   retry_count = 0,
-                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE podcast_id = ? AND episode_id = ?""",
-            (podcast['id'], episode_id)
-        )
-        # Also clear the queue-side attempt counter so the next auto-retry
-        # after a manual reprocess starts at the 5-min step, not whatever
-        # step the previous failure left us on.
-        conn.execute(
-            """UPDATE auto_process_queue
-               SET attempts = 0
-               WHERE podcast_id = ? AND episode_id = ?""",
-            (podcast['id'], episode_id)
-        )
-        conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending (retry_count + queue attempts reset)")
 
     def get_processed_episodes_for_feed(self, podcast_id: int) -> List[Dict]:
         """Get all processed episodes with files for inclusion in RSS feed."""

@@ -496,7 +496,7 @@ def _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
         all_ads.append(preroll_ad)
         audio_logger.info(f"[{slug}:{episode_id}] Heuristic pre-roll: 0.0s-{preroll_ad['end']:.1f}s")
 
-    postroll_ad = detect_postroll(segments, all_ads, episode_duration=episode_duration)
+    postroll_ad = detect_postroll(segments, all_ads, episode_duration=episode_duration, skip_patterns=skip_patterns)
     if postroll_ad:
         all_ads.append(postroll_ad)
         audio_logger.info(f"[{slug}:{episode_id}] Heuristic post-roll: {postroll_ad['start']:.1f}s-{postroll_ad['end']:.1f}s")
@@ -1008,7 +1008,7 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
         verification_ads_original.append(mapped)
         audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic pre-roll: 0.0s-{preroll_v['end']:.1f}s")
 
-    postroll_v = detect_postroll(verification_segments, verification_ads_processed, episode_duration=processed_dur)
+    postroll_v = detect_postroll(verification_segments, verification_ads_processed, episode_duration=processed_dur, skip_patterns=skip_patterns)
     if postroll_v:
         verification_ads_processed.append(postroll_v)
         mapped = postroll_v.copy()

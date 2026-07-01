@@ -200,7 +200,7 @@ class AudioCueTemplateMatcher:
                 break
             chunk_start = chunk_end - CHUNK_OVERLAP_SECONDS
 
-        for template_id, matches in per_template_matches.items():
+        for matches in per_template_matches.values():
             if not matches:
                 continue
             matches.sort(key=lambda s: s.confidence, reverse=True)

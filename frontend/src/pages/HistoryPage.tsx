@@ -12,6 +12,7 @@ import { getFeeds } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { ProcessingHistoryEntry } from '../api/types';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { Pagination } from '../components/Pagination';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost';
@@ -127,23 +128,6 @@ function HistoryPage() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.round(seconds % 60);
     return `${mins}m ${secs}s`;
-  };
-
-  // Generate page numbers with ellipsis for large page counts
-  const getPageNumbers = (current: number, total: number): (number | 'ellipsis')[] => {
-    const pages: (number | 'ellipsis')[] = [];
-    if (total <= 7) {
-      for (let i = 1; i <= total; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (current > 3) pages.push('ellipsis');
-      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
-        pages.push(i);
-      }
-      if (current < total - 2) pages.push('ellipsis');
-      pages.push(total);
-    }
-    return pages;
   };
 
   if (isLoading) {
@@ -390,46 +374,7 @@ function HistoryPage() {
       </div>
 
       {/* Pagination - outside desktop/mobile divs for visibility on all screens */}
-      {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-4 py-3 bg-card border border-border rounded-lg">
-          <div className="text-sm text-muted-foreground">
-            Page {page} of {totalPages} ({historyData?.total || 0} total)
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-            >
-              Previous
-            </button>
-            {getPageNumbers(page, totalPages).map((p, i) =>
-              p === 'ellipsis' ? (
-                <span key={`e${i}`} className="px-2 text-muted-foreground">...</span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    p === page
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                  }`}
-                >
-                  {p}
-                </button>
-              )
-            )}
-            <button
-              onClick={() => setPage(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages}
-              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} total={historyData?.total || 0} onPage={setPage} />
     </div>
   );
 }

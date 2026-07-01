@@ -154,6 +154,18 @@ def count_brand_occurrences(text: str, sponsor_row: Optional[Dict]) -> int:
     return max((text_lower.count(c) for c in candidates), default=0)
 
 
+def get_sponsor_row_or_stub(db, sponsor):
+    """Return the known-sponsor row for `sponsor`, or a name-only stub
+    ({'name': sponsor, 'aliases': '[]'}) when there is no DB or no stored
+    sponsor, so brand matching still works against the bare sponsor string.
+    """
+    if db:
+        row = db.get_known_sponsor_by_name(sponsor)
+        if row:
+            return row
+    return {'name': sponsor, 'aliases': '[]'}
+
+
 def declared_sponsor_names_lower(sponsor_row: Optional[Dict]) -> set:
     """Return the lowercased name + aliases set for a known_sponsors row.
 

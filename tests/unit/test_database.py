@@ -300,7 +300,7 @@ class TestPatternDuration:
         """duration_samples increments with each update."""
         pattern_id = temp_db.create_ad_pattern(scope='global')
 
-        for i in range(5):
+        for _ in range(5):
             temp_db.update_pattern_duration(pattern_id, 60.0)
 
         row = self._get_duration_fields(temp_db, pattern_id)
@@ -701,44 +701,6 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 0
-
-
-class TestResetEpisodeStatusClearsQueueAttempts:
-    """reset_episode_status clears both episodes.retry_count AND auto_process_queue.attempts (2.0.5)."""
-
-    def test_reset_clears_both_counters(self, temp_db):
-        from config import MAX_EPISODE_RETRIES
-        assert MAX_EPISODE_RETRIES == 4
-
-        temp_db.create_podcast('pod-reset', 'https://example.com/pod-reset.xml', 'pod-reset')
-        temp_db.upsert_episode('pod-reset', 'ep-reset',
-                               original_url='https://example.com/ep-reset.mp3',
-                               status='failed',
-                               retry_count=3)
-        podcast = temp_db.get_podcast_by_slug('pod-reset')
-        conn = temp_db.get_connection()
-        conn.execute(
-            """INSERT INTO auto_process_queue
-               (podcast_id, episode_id, original_url, title, status, attempts, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
-            (podcast['id'], 'ep-reset', 'https://example.com/ep-reset.mp3',
-             'Test', 'failed', 3)
-        )
-        conn.commit()
-
-        temp_db.reset_episode_status('pod-reset', 'ep-reset')
-
-        episode = temp_db.get_episode('pod-reset', 'ep-reset')
-        assert episode['status'] == 'pending'
-        assert episode['retry_count'] == 0
-
-        cursor = conn.execute(
-            "SELECT attempts FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
-            (podcast['id'], 'ep-reset')
-        )
-        row = cursor.fetchone()
-        assert row is not None
-        assert row['attempts'] == 0
 
 
 class TestTokenUsage:

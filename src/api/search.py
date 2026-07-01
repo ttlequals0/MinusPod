@@ -35,7 +35,7 @@ def search():
         return error_response('Invalid type. Use: episode, podcast, pattern, sponsor', 400)
 
     try:
-        limit = min(int(request.args.get('limit', 50)), 100)
+        limit = max(1, min(int(request.args.get('limit', 50)), 100))
     except ValueError:
         limit = 50
 

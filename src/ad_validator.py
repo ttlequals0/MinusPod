@@ -1,7 +1,7 @@
 """Post-detection validation for ad markers."""
 import re
 import logging
-from typing import List, Dict
+from typing import ClassVar, Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -73,7 +73,7 @@ class AdValidator:
         re.IGNORECASE
     )
 
-    VAGUE_REASONS = [
+    VAGUE_REASONS: ClassVar[List[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
         'possible ad', 'likely ad', 'advertisement segment'
     ]

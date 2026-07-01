@@ -575,7 +575,9 @@ class SchemaMixin:
                         status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','processed','failed','permanently_failed')),
                         retry_count INTEGER DEFAULT 0,
                         processed_file TEXT,
+                        original_file TEXT,
                         processed_at TEXT,
+                        processed_version INTEGER DEFAULT 0,
                         original_duration REAL,
                         new_duration REAL,
                         ads_removed INTEGER DEFAULT 0,
@@ -584,6 +586,8 @@ class SchemaMixin:
                         error_message TEXT,
                         ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
                         artwork_url TEXT,
+                        episode_number INTEGER,
+                        tags TEXT NOT NULL DEFAULT '[]',
                         reprocess_mode TEXT,
                         reprocess_requested_at TEXT,
                         published_at TEXT,
@@ -661,7 +665,9 @@ class SchemaMixin:
                         status TEXT DEFAULT 'pending' CHECK(status IN ('discovered','pending','processing','processed','failed','permanently_failed')),
                         retry_count INTEGER DEFAULT 0,
                         processed_file TEXT,
+                        original_file TEXT,
                         processed_at TEXT,
+                        processed_version INTEGER DEFAULT 0,
                         original_duration REAL,
                         new_duration REAL,
                         ads_removed INTEGER DEFAULT 0,
@@ -670,6 +676,8 @@ class SchemaMixin:
                         error_message TEXT,
                         ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
                         artwork_url TEXT,
+                        episode_number INTEGER,
+                        tags TEXT NOT NULL DEFAULT '[]',
                         reprocess_mode TEXT,
                         reprocess_requested_at TEXT,
                         published_at TEXT,
@@ -2158,7 +2166,7 @@ class SchemaMixin:
                 if reasons:
                     disabled.append((pid, sponsor_name, occ, '; '.join(reasons)))
 
-            for pid, sponsor_name, occ, reason in disabled:
+            for pid, _sponsor_name, _occ, reason in disabled:
                 conn.execute(
                     "UPDATE ad_patterns SET is_active = 0, "
                     "disabled_reason = ? WHERE id = ?",

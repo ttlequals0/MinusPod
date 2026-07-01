@@ -1,3 +1,5 @@
+import type { DetectionStage } from '../utils/detectionStage';
+
 export interface Feed {
   slug: string;
   title: string;
@@ -130,7 +132,7 @@ export interface AdSegment {
   confidence: number;
   reason?: string;
   sponsor?: string;
-  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification' | 'manual' | 'cue_pair';
+  detection_stage?: DetectionStage;
   // Present when an audio cue snapped this ad's start/end edge (#350).
   cue_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
@@ -466,24 +468,6 @@ export interface SystemStatus {
     cryptoReady: boolean;
     plaintextSecretsCount: number;
   };
-}
-
-export interface TokenUsageModel {
-  modelId: string;
-  displayName: string;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCost: number;
-  callCount: number;
-  inputCostPerMtok: number | null;
-  outputCostPerMtok: number | null;
-}
-
-export interface TokenUsageSummary {
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  totalCost: number;
-  models: TokenUsageModel[];
 }
 
 export interface Sponsor {

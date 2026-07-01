@@ -23,6 +23,7 @@ Configuration via environment variables:
 import logging
 import os
 import threading
+from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
@@ -1312,6 +1313,49 @@ def verify_llm_connection() -> bool:
 # Backward compatibility helpers
 # =============================================================================
 
+def _anthropic_exc():
+    """anthropic SDK module if its errors are importable, else None."""
+    if not ANTHROPIC_ERRORS_AVAILABLE:
+        return None
+    import anthropic
+    return anthropic
+
+
+class _AbsentOpenAIError(Exception):
+    """Sentinel for an openai error class missing from the installed SDK.
+
+    Returned in place of a renamed/removed class so callers' isinstance checks
+    degrade to 'not this error' instead of raising AttributeError.
+    """
+
+
+_OPENAI_ERROR_NAMES = (
+    'APIConnectionError', 'RateLimitError', 'InternalServerError',
+    'APIError', 'AuthenticationError', 'NotFoundError',
+)
+
+
+def _openai_exc():
+    """Namespace of openai error classes if openai is installed, else None.
+
+    Each name resolves to the SDK's class if present, else a sentinel that no
+    real error matches, so a future SDK that drops or renames an error class
+    can't crash the error-classification path with AttributeError.
+    """
+    try:
+        import openai
+    except ImportError:
+        return None
+    return SimpleNamespace(**{
+        name: getattr(openai, name, _AbsentOpenAIError)
+        for name in _OPENAI_ERROR_NAMES
+    })
+
+
+def _provider_status_code(error) -> Optional[int]:
+    return getattr(error, 'status_code', None)
+
+
 def is_retryable_error(error: Exception) -> bool:
     """Check if an error is retryable (transient).
 
@@ -1322,32 +1366,25 @@ def is_retryable_error(error: Exception) -> bool:
     if isinstance(error, StructuralRateLimitError):
         return False
     # Anthropic errors
-    if ANTHROPIC_ERRORS_AVAILABLE:
-        from anthropic import APIConnectionError, RateLimitError, InternalServerError, APIError
-        if isinstance(error, (APIConnectionError, RateLimitError, InternalServerError)):
+    a = _anthropic_exc()
+    if a is not None:
+        if isinstance(error, (a.APIConnectionError, a.RateLimitError, a.InternalServerError)):
             return True
         # Check for specific status codes in generic APIError
-        if isinstance(error, APIError):
-            status = getattr(error, 'status_code', None)
-            if status in (429, 500, 502, 503, 529):
+        if isinstance(error, a.APIError):
+            if _provider_status_code(error) in (429, 500, 502, 503, 529):
                 return True
             return False  # Non-retryable Anthropic error -- don't fall to string matching
 
     # OpenAI errors
-    try:
-        from openai import APIConnectionError as OpenAIConnectionError
-        from openai import RateLimitError as OpenAIRateLimitError
-        from openai import InternalServerError as OpenAIInternalError
-        from openai import APIError as OpenAIAPIError
-        if isinstance(error, (OpenAIConnectionError, OpenAIRateLimitError, OpenAIInternalError)):
+    o = _openai_exc()
+    if o is not None:
+        if isinstance(error, (o.APIConnectionError, o.RateLimitError, o.InternalServerError)):
             return True
-        if isinstance(error, OpenAIAPIError):
-            status = getattr(error, 'status_code', None)
-            if status in (429, 500, 502, 503, 529):
+        if isinstance(error, o.APIError):
+            if _provider_status_code(error) in (429, 500, 502, 503, 529):
                 return True
             return False  # Non-retryable OpenAI error
-    except ImportError:
-        pass
 
     # Generic network errors - check error message patterns
     error_str = str(error).lower()
@@ -1357,40 +1394,29 @@ def is_retryable_error(error: Exception) -> bool:
 
 def is_llm_api_error(error: Exception) -> bool:
     """Check if error is any Anthropic or OpenAI API error type."""
-    if ANTHROPIC_ERRORS_AVAILABLE:
-        from anthropic import APIError
-        if isinstance(error, APIError):
-            return True
-    try:
-        from openai import APIError as OpenAIAPIError
-        if isinstance(error, OpenAIAPIError):
-            return True
-    except ImportError:
-        pass
+    a = _anthropic_exc()
+    if a is not None and isinstance(error, a.APIError):
+        return True
+    o = _openai_exc()
+    if o is not None and isinstance(error, o.APIError):
+        return True
     return False
 
 
 def is_auth_error(error: Exception) -> bool:
     """Check if error is an LLM authentication/authorization failure (401/403)."""
-    if ANTHROPIC_ERRORS_AVAILABLE:
-        from anthropic import APIError, AuthenticationError, PermissionDeniedError
-        if isinstance(error, (AuthenticationError, PermissionDeniedError)):
+    a = _anthropic_exc()
+    if a is not None:
+        if isinstance(error, (a.AuthenticationError, a.PermissionDeniedError)):
             return True
-        if isinstance(error, APIError):
-            status = getattr(error, 'status_code', None)
-            if status in (401, 403):
-                return True
-    try:
-        from openai import AuthenticationError as OpenAIAuthError
-        if isinstance(error, OpenAIAuthError):
+        if isinstance(error, a.APIError) and _provider_status_code(error) in (401, 403):
             return True
-        from openai import APIError as OpenAIAPIError
-        if isinstance(error, OpenAIAPIError):
-            status = getattr(error, 'status_code', None)
-            if status in (401, 403):
-                return True
-    except ImportError:
-        pass
+    o = _openai_exc()
+    if o is not None:
+        if isinstance(error, o.AuthenticationError):
+            return True
+        if isinstance(error, o.APIError) and _provider_status_code(error) in (401, 403):
+            return True
     return False
 
 
@@ -1404,22 +1430,19 @@ def is_not_found_error(error: Exception) -> bool:
     """
     if error is None:
         return False
-    if ANTHROPIC_ERRORS_AVAILABLE:
-        from anthropic import APIError, NotFoundError
-        if isinstance(error, NotFoundError):
+    a = _anthropic_exc()
+    if a is not None:
+        if isinstance(error, a.NotFoundError):
             return True
-        if isinstance(error, APIError) and getattr(error, 'status_code', None) == 404:
+        if isinstance(error, a.APIError) and _provider_status_code(error) == 404:
             return True
-    try:
-        from openai import NotFoundError as OpenAINotFoundError
-        from openai import APIError as OpenAIAPIError
-        if isinstance(error, OpenAINotFoundError):
+    o = _openai_exc()
+    if o is not None:
+        if isinstance(error, o.NotFoundError):
             return True
-        if isinstance(error, OpenAIAPIError) and getattr(error, 'status_code', None) == 404:
+        if isinstance(error, o.APIError) and _provider_status_code(error) == 404:
             return True
-    except ImportError:
-        pass
-    if getattr(error, 'status_code', None) == 404:
+    if _provider_status_code(error) == 404:
         return True
     err_text = str(error).lower()
     return 'not_found' in err_text or 'not found' in err_text
@@ -1431,18 +1454,14 @@ def is_rate_limit_error(error: Exception) -> bool:
     Used for special handling (longer backoff).
     """
     # Check Anthropic RateLimitError
-    if ANTHROPIC_ERRORS_AVAILABLE:
-        from anthropic import RateLimitError
-        if isinstance(error, RateLimitError):
-            return True
+    a = _anthropic_exc()
+    if a is not None and isinstance(error, a.RateLimitError):
+        return True
 
     # Check OpenAI RateLimitError
-    try:
-        from openai import RateLimitError as OpenAIRateLimitError
-        if isinstance(error, OpenAIRateLimitError):
-            return True
-    except ImportError:
-        pass
+    o = _openai_exc()
+    if o is not None and isinstance(error, o.RateLimitError):
+        return True
 
     # Check error message for rate limit indicators
     error_str = str(error).lower()
@@ -1494,11 +1513,6 @@ def classify_structural_rate_limit(error: Exception) -> Optional[dict]:
     if limit is None or requested is None:
         return None
     return parsed if requested > limit else None
-
-
-def is_structural_rate_limit_error(error: Exception) -> bool:
-    """Backwards-compatible boolean classifier built on classify_structural_rate_limit."""
-    return classify_structural_rate_limit(error) is not None
 
 
 def classify_daily_quota_exhaustion(error: Exception) -> Optional[dict]:

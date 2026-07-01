@@ -67,10 +67,7 @@ def is_ciphertext(value: str | None) -> bool:
 
 def _has_ciphertext_secrets(db) -> bool:
     """True if any provider-secret row still holds enc:v1: ciphertext."""
-    for key in SECRET_SETTING_KEYS:
-        if is_ciphertext(db.get_setting(key)):
-            return True
-    return False
+    return any(is_ciphertext(db.get_setting(key)) for key in SECRET_SETTING_KEYS)
 
 
 def _load_or_create_salt(db) -> bytes:

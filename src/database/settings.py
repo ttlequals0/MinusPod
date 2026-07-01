@@ -52,16 +52,6 @@ class SettingsMixin:
         except (TypeError, ValueError):
             return default
 
-    def get_setting_int(self, key: str, default: int = 0) -> int:
-        """Get a setting as int, returning `default` on missing/invalid values."""
-        v = self.get_setting(key)
-        if v is None:
-            return default
-        try:
-            return int(float(v))
-        except (TypeError, ValueError):
-            return default
-
     def get_all_settings(self) -> Dict[str, Any]:
         """Get all settings as a dictionary."""
         conn = self.get_connection()
@@ -168,6 +158,7 @@ class SettingsMixin:
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
             'whisper_compute_type': os.environ.get('WHISPER_COMPUTE_TYPE', 'auto'),
+            'whisper_language': os.environ.get('WHISPER_LANGUAGE') or 'en',
             'vad_gap_detection_enabled': os.environ.get('VAD_GAP_DETECTION_ENABLED', 'true'),
             'vad_gap_start_min_seconds': os.environ.get('VAD_GAP_START_MIN_SECONDS', '3.0'),
             'vad_gap_mid_min_seconds': os.environ.get('VAD_GAP_MID_MIN_SECONDS', '8.0'),

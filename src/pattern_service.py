@@ -33,6 +33,7 @@ from community_export import (
     find_foreign_sponsors,
     declared_sponsor_names_lower,
     count_brand_occurrences,
+    get_sponsor_row_or_stub,
 )
 
 # Verification-miss thresholds re-exported for back-compat with existing
@@ -888,10 +889,7 @@ class PatternService:
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
                 window_text = extract_text_from_segments(segments, start_s, end_s)
-                sponsor_row = (
-                    self.db.get_known_sponsor_by_name(sponsor)
-                    if self.db else None
-                ) or {'name': sponsor, 'aliases': '[]'}
+                sponsor_row = get_sponsor_row_or_stub(self.db, sponsor)
                 occurrences = count_brand_occurrences(window_text, sponsor_row)
                 if occurrences < 2:
                     logger.info(

@@ -6,7 +6,7 @@ Provides shared audio file operations used across multiple modules.
 import logging
 import os
 import subprocess
-from typing import Dict, Optional, Tuple
+from typing import ClassVar, Dict, Optional, Tuple
 
 from config import FFPROBE_TIMEOUT
 from utils.subprocess_registry import tracked_run
@@ -56,7 +56,7 @@ class AudioMetadata:
     """
 
     _MAX_CACHE_SIZE = 500
-    _cache: Dict[str, Tuple[float, float]] = {}  # path -> (duration, mtime)
+    _cache: ClassVar[Dict[str, Tuple[float, float]]] = {}  # path -> (duration, mtime)
 
     @classmethod
     def get_duration(cls, path: str) -> Optional[float]:

@@ -13,7 +13,7 @@ export interface WaveformWindow {
   windowEnd: number;
   windowCenter: number;
   /** Pan the window so this time is centered (no zoom change). */
-  setWindowCenter: (t: number) => void;
+  setWindowCenter: (t: number | ((prev: number) => number)) => void;
   /** Set absolute zoom, recentering on anchorTime (defaults to the live playhead). */
   setZoom: (z: number, anchorTime?: number) => void;
   /** Multiply zoom, recentering on anchorTime (defaults to the live playhead). */

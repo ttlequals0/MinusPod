@@ -919,6 +919,11 @@ def submit_correction(slug, episode_id):
     elif correction_type == 'adjust':
         return _handle_adjust_correction(db, slug, episode_id, original_ad, data)
 
+    # Exhaustive above: the earlier correction_type guard restricts values to
+    # create/confirm/reject/adjust. Kept as a defensive backstop so a future
+    # type added to validation but not to this dispatch returns 400, not a 500.
+    return error_response('Invalid correction type', 400)
+
 
 # ========== Import/Export Endpoints ==========
 

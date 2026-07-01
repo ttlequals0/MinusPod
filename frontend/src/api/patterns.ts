@@ -131,10 +131,6 @@ export async function getPatterns(params?: {
   return response.patterns;
 }
 
-export async function getPattern(id: number): Promise<AdPattern> {
-  return apiRequest<AdPattern>(`/patterns/${id}`);
-}
-
 export async function updatePattern(
   id: number,
   updates: {
@@ -178,28 +174,6 @@ export interface BulkPatternResult {
   deleted?: number;
   disabled?: number;
   ids: number[];
-}
-
-export async function bulkDeletePatterns(args: {
-  ids?: number[];
-  source?: 'local' | 'community' | 'imported';
-  expected_count: number;
-}): Promise<BulkPatternResult> {
-  return apiRequest<BulkPatternResult>(`/patterns/bulk-delete`, {
-    method: 'POST',
-    body: { ...args, confirm: true },
-  });
-}
-
-export async function bulkDisablePatterns(args: {
-  ids?: number[];
-  source?: 'local' | 'community' | 'imported';
-  expected_count: number;
-}): Promise<BulkPatternResult> {
-  return apiRequest<BulkPatternResult>(`/patterns/bulk-disable`, {
-    method: 'POST',
-    body: { ...args, confirm: true },
-  });
 }
 
 export interface MergeSuggestionMember {
@@ -246,14 +220,6 @@ export async function mergePatterns(args: {
   });
 }
 
-export interface CommunityExportResult {
-  payload: Record<string, unknown>;
-  filename: string;
-  pr_url: string;
-  too_large: boolean;
-  sponsor_match: 'exact' | 'alias' | 'fuzzy' | 'unknown';
-}
-
 export interface PatternOverride {
   sponsor?: string;
   sponsor_aliases?: string[];
@@ -261,12 +227,6 @@ export interface PatternOverride {
 }
 
 export type PatternOverrides = Record<number, PatternOverride>;
-
-export async function submitPatternToCommunity(id: number): Promise<CommunityExportResult> {
-  return apiRequest<CommunityExportResult>(`/patterns/${id}/submit-to-community`, {
-    method: 'POST',
-  });
-}
 
 export interface BundlePreviewRejection {
   id: number;

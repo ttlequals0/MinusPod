@@ -27,7 +27,7 @@ def get_available_system_memory_gb() -> Optional[float]:
                     kb = int(line.split()[1])
                     gb = kb / (1024 * 1024)
                     return gb
-    except (FileNotFoundError, IOError, ValueError):
+    except (OSError, FileNotFoundError, ValueError):
         pass
 
     # Fall back to psutil if available

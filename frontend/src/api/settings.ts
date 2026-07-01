@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings, ProcessingTimeouts } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -44,10 +44,6 @@ export async function refreshModels(): Promise<{ models: ClaudeModel[]; count: n
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
-}
-
-export async function getTokenUsage(): Promise<TokenUsageSummary> {
-  return apiRequest<TokenUsageSummary>('/system/token-usage');
 }
 
 export async function runCleanup(): Promise<{ message: string; episodesRemoved: number; spaceFreedMb: number }> {

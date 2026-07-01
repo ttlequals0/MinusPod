@@ -17,12 +17,6 @@ class FingerprintMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_all_audio_fingerprints(self) -> List[Dict]:
-        """Get all audio fingerprints."""
-        conn = self.get_connection()
-        cursor = conn.execute("SELECT * FROM audio_fingerprints")
-        return [dict(row) for row in cursor.fetchall()]
-
     def get_all_fingerprints_with_sponsors(self) -> List[Dict]:
         """Get all audio fingerprints with sponsor names from ad_patterns (single JOIN)."""
         conn = self.get_connection()

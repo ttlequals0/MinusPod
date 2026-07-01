@@ -757,6 +757,35 @@ class AudioFingerprinter:
 
         return decoded
 
+    def _scan_preamble(
+        self, scan_start_time, last_log_time, position, total_duration,
+        timeout, match_count, cancel_event
+    ):
+        """Shared per-iteration timeout/cancel/progress bookkeeping for scans.
+
+        Returns (action, last_log_time) where action is one of
+        "timeout", "cancel", or "continue".
+        """
+        now = time.time()
+        elapsed = now - scan_start_time
+        if elapsed > timeout:
+            logger.warning(
+                f"Fingerprint scan timed out after {elapsed:.0f}s "
+                f"at {position:.1f}s/{total_duration:.1f}s with {match_count} matches"
+            )
+            return "timeout", last_log_time
+        if cancel_event and cancel_event.is_set():
+            logger.info(f"Fingerprint scan cancelled at {position:.1f}s/{total_duration:.1f}s")
+            return "cancel", last_log_time
+        if now - last_log_time >= 60:
+            pct = (position / total_duration) * 100
+            logger.info(
+                f"Fingerprint scan progress: {position:.1f}s/{total_duration:.1f}s "
+                f"({pct:.0f}%), {match_count} matches, {elapsed:.0f}s elapsed"
+            )
+            last_log_time = now
+        return "continue", last_log_time
+
     def _find_matches_fast(
         self,
         raw_ints: List[int],
@@ -779,27 +808,12 @@ class AudioFingerprinter:
         position = 0.0
 
         while position < total_duration - MIN_SEGMENT_DURATION:
-            now = time.time()
-            elapsed = now - scan_start_time
-
-            if elapsed > timeout:
-                logger.warning(
-                    f"Fingerprint scan timed out after {elapsed:.0f}s "
-                    f"at {position:.1f}s/{total_duration:.1f}s with {len(matches)} matches"
-                )
+            action, last_log_time = self._scan_preamble(
+                scan_start_time, last_log_time, position, total_duration,
+                timeout, len(matches), cancel_event
+            )
+            if action != "continue":
                 break
-
-            if cancel_event and cancel_event.is_set():
-                logger.info(f"Fingerprint scan cancelled at {position:.1f}s/{total_duration:.1f}s")
-                break
-
-            if now - last_log_time >= 60:
-                pct = (position / total_duration) * 100
-                logger.info(
-                    f"Fingerprint scan progress: {position:.1f}s/{total_duration:.1f}s "
-                    f"({pct:.0f}%), {len(matches)} matches, {elapsed:.0f}s elapsed"
-                )
-                last_log_time = now
 
             # Compute indices into raw_ints for current window (avoid list copy)
             start_idx = int(position * ints_per_second)
@@ -920,30 +934,13 @@ class AudioFingerprinter:
         last_log_time = scan_start_time
         position = 0.0
         while position < total_duration - MIN_SEGMENT_DURATION:
-            now = time.time()
-            elapsed = now - scan_start_time
-
-            # Timeout check
-            if elapsed > slow_timeout:
-                logger.warning(
-                    f"Fingerprint scan timed out after {elapsed:.0f}s "
-                    f"at {position:.1f}s/{total_duration:.1f}s with {len(matches)} matches"
-                )
+            action, last_log_time = self._scan_preamble(
+                scan_start_time, last_log_time, position, total_duration,
+                slow_timeout, len(matches), cancel_event
+            )
+            if action != "continue":
                 break
 
-            # Cancel check
-            if cancel_event and cancel_event.is_set():
-                logger.info(f"Fingerprint scan cancelled at {position:.1f}s/{total_duration:.1f}s")
-                break
-
-            # Progress logging every 60s
-            if now - last_log_time >= 60:
-                pct = (position / total_duration) * 100
-                logger.info(
-                    f"Fingerprint scan progress: {position:.1f}s/{total_duration:.1f}s "
-                    f"({pct:.0f}%), {len(matches)} matches, {elapsed:.0f}s elapsed"
-                )
-                last_log_time = now
             # Bail out if all known fingerprints are broken/corrupt
             if len(broken_patterns) >= len(known_fingerprints):
                 logger.info("All known fingerprints are broken/skipped, ending scan early")

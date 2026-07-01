@@ -3,26 +3,13 @@ import logging
 from typing import List, Dict, Optional
 
 from config import SEGMENT_AD_COVERAGE_THRESHOLD
-from utils.time import parse_timestamp, format_vtt_timestamp, adjust_timestamp
+from utils.time import format_vtt_timestamp, adjust_timestamp
 
 logger = logging.getLogger(__name__)
 
 
 class TranscriptGenerator:
     """Generate WebVTT transcripts from Whisper segments with timestamp adjustment."""
-
-    def is_segment_in_ad(self, segment: Dict, ads_removed: List[Dict]) -> bool:
-        """Check if a removed ad (or several together) cover the segment.
-
-        Returns True when the union of all removed-ad overlaps covers >80% of
-        the segment. Measuring against the union, not each ad alone, is what
-        catches a segment split across two adjacent cuts: a pass-1 cut and a
-        pass-2 re-cut can each take ~half of a straddling segment without
-        either reaching 80% on its own, yet together remove almost all of it.
-        Checking ads individually left that segment (and its ad text) in the
-        transcript even though the audio for it was gone.
-        """
-        return self._ad_coverage(segment, ads_removed) > SEGMENT_AD_COVERAGE_THRESHOLD
 
     def _ad_coverage(self, segment: Dict, ads_removed: List[Dict]) -> float:
         """Fraction of the segment covered by the union of removed-ad overlaps."""
@@ -180,41 +167,3 @@ class TranscriptGenerator:
 
         logger.info(f"Generated text transcript with {len(lines)} segments")
         return "\n".join(lines)
-
-    def generate_vtt_from_text(
-        self,
-        transcript_text: str,
-        ads_removed: List[Dict]
-    ) -> Optional[str]:
-        """Generate VTT from stored transcript text format.
-
-        The stored format is:
-        [HH:MM:SS.sss --> HH:MM:SS.sss] Text content
-        """
-        if not transcript_text:
-            return None
-
-        segments = []
-        for line in transcript_text.split('\n'):
-            line = line.strip()
-            if not line or not line.startswith('['):
-                continue
-
-            try:
-                time_part, text_part = line.split('] ', 1)
-                time_range = time_part.strip('[')
-                start_str, end_str = time_range.split(' --> ')
-
-                segments.append({
-                    'start': parse_timestamp(start_str),
-                    'end': parse_timestamp(end_str),
-                    'text': text_part
-                })
-            except (ValueError, IndexError):
-                continue
-
-        if not segments:
-            logger.warning("VTT parsing returned empty segments from transcript text")
-            return None
-
-        return self.generate_vtt(segments, ads_removed)

@@ -7,7 +7,7 @@ identifies the structural case only, and that ambiguous inputs fall back
 to the existing transient retry path.
 """
 
-from llm_client import is_structural_rate_limit_error
+from llm_client import classify_structural_rate_limit
 
 
 class _FakeResponse:
@@ -40,7 +40,7 @@ class TestStructuralClassifier:
             }
         }
         err = _FakeRateLimitError(body=body)
-        assert is_structural_rate_limit_error(err) is True
+        assert classify_structural_rate_limit(err) is not None
 
     def test_requested_below_limit_returns_false(self):
         body = {
@@ -50,7 +50,7 @@ class TestStructuralClassifier:
             }
         }
         err = _FakeRateLimitError(body=body)
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_requested_equals_limit_returns_false(self):
         body = {
@@ -60,33 +60,33 @@ class TestStructuralClassifier:
             }
         }
         err = _FakeRateLimitError(body=body)
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_requests_per_minute_returns_false(self):
         body = {
             "error": {"message": "requests per minute (RPM): Limit 30, Requested ~40"}
         }
         err = _FakeRateLimitError(body=body)
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_unparseable_body_returns_false(self):
         err = _FakeRateLimitError(body="garbage that does not match")
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_no_body_or_response_returns_false(self):
         err = _FakeRateLimitError(message="rate limit hit")
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_non_rate_limit_error_returns_false(self):
         err = _FakeError(message="connection timeout")
-        assert is_structural_rate_limit_error(err) is False
+        assert classify_structural_rate_limit(err) is None
 
     def test_message_string_fallback(self):
         err = _FakeRateLimitError(
             message="429 rate limit reached on tokens per minute (TPM): "
                     "Limit 5000, Used 100, Requested ~9000",
         )
-        assert is_structural_rate_limit_error(err) is True
+        assert classify_structural_rate_limit(err) is not None
 
     def test_response_text_fallback(self):
         body_text = (
@@ -94,7 +94,7 @@ class TestStructuralClassifier:
             'Requested ~7000","type":"tokens","code":"rate_limit_exceeded"}}'
         )
         err = _FakeRateLimitError(response=_FakeResponse(text=body_text))
-        assert is_structural_rate_limit_error(err) is True
+        assert classify_structural_rate_limit(err) is not None
 
 
 class TestRetryLoopFastFail:

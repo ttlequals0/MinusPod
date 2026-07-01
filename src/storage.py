@@ -190,35 +190,6 @@ class Storage:
             "last_checked": podcast.get('last_checked_at')
         }
 
-    def save_data_json(self, slug: str, data: Dict[str, Any]) -> None:
-        """Save episode data to SQLite."""
-        # Ensure podcast exists
-        podcast = self.db.get_podcast_by_slug(slug)
-        if not podcast:
-            self.db.create_podcast(slug, "")
-
-        # Update last_checked
-        if data.get('last_checked'):
-            self.db.update_podcast(slug, last_checked_at=data['last_checked'])
-
-        # Upsert episodes
-        for episode_id, ep_data in data.get('episodes', {}).items():
-            self.db.upsert_episode(
-                slug,
-                episode_id,
-                original_url=ep_data.get('original_url', ''),
-                title=ep_data.get('title'),
-                status=ep_data.get('status', 'pending'),
-                processed_file=ep_data.get('processed_file'),
-                processed_at=ep_data.get('processed_at') or ep_data.get('failed_at'),
-                original_duration=ep_data.get('original_duration'),
-                new_duration=ep_data.get('new_duration'),
-                ads_removed=ep_data.get('ads_removed', 0),
-                error_message=ep_data.get('error')
-            )
-
-        logger.debug(f"[{slug}] Saved data to database")
-
     def _validated_episode_leaf(self, slug: str, episode_id: str, filename: str) -> Path:
         """Return a resolved path inside the episodes directory for ``slug``.
 
@@ -445,21 +416,6 @@ class Storage:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
 
         logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
-
-    def save_verification_data(self, slug: str, episode_id: str,
-                               verification_prompt: str = None,
-                               verification_response: str = None) -> None:
-        """Save verification pass detection data to database."""
-        try:
-            self.db.save_episode_details(
-                slug, episode_id,
-                second_pass_prompt=verification_prompt,
-                second_pass_response=verification_response
-            )
-        except ValueError:
-            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, verification data not saved")
-
-        logger.debug(f"[{slug}:{episode_id}] Saved verification detection data")
 
 
     # ========== Artwork Methods ==========

@@ -168,17 +168,20 @@ def detect_postroll(
     segments: List[Dict],
     existing_ads: List[Dict],
     episode_duration: float = 0,
+    skip_patterns: bool = False,
 ) -> Optional[Dict]:
     """Detect post-roll ad after the show sign-off.
 
     Searches backward from the end for the last sign-off pattern.
-    If transcript content after it matches >= MIN_AD_PATTERN_MATCHES ad
+    If transcript content after it matches >= threshold ad
     patterns, creates an ad marker.
 
     Args:
         segments: Transcript segments with 'start', 'end', 'text' keys
         existing_ads: Already-detected ads to avoid duplicates
         episode_duration: Total episode duration (from audio file)
+        skip_patterns: When True (Full reprocess mode), lower match threshold
+            from MIN_AD_PATTERN_MATCHES to 1 since Stages 1 & 2 are skipped
 
     Returns:
         Ad marker dict if post-roll detected, None otherwise
@@ -213,7 +216,8 @@ def detect_postroll(
     postroll_text = get_transcript_text_for_range(segments, signoff_time, episode_end)
     match_count = _count_ad_patterns(postroll_text)
 
-    if match_count < MIN_AD_PATTERN_MATCHES:
+    threshold = 1 if skip_patterns else MIN_AD_PATTERN_MATCHES
+    if match_count < threshold:
         return None
 
     confidence = min(0.7 + (match_count * 0.05), 0.95)

@@ -5,6 +5,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from transcript_generator import TranscriptGenerator
+from config import SEGMENT_AD_COVERAGE_THRESHOLD
 
 
 def _seg(start, end, text='words'):
@@ -16,11 +17,11 @@ class TestIsSegmentInAd:
         self.gen = TranscriptGenerator()
 
     def test_no_ads_keeps_segment(self):
-        assert self.gen.is_segment_in_ad(_seg(10.0, 20.0), []) is False
+        assert (self.gen._ad_coverage(_seg(10.0, 20.0), []) > SEGMENT_AD_COVERAGE_THRESHOLD) is False
 
     def test_segment_entirely_in_ad_is_dropped(self):
         ads = [{'start': 5.0, 'end': 25.0}]
-        assert self.gen.is_segment_in_ad(_seg(10.0, 20.0), ads) is True
+        assert (self.gen._ad_coverage(_seg(10.0, 20.0), ads) > SEGMENT_AD_COVERAGE_THRESHOLD) is True
 
     def test_segment_split_across_two_adjacent_cuts_is_dropped(self):
         # The Grainger case: one segment straddles a pass-1 cut end and a
@@ -31,20 +32,20 @@ class TestIsSegmentInAd:
             {'start': 1969.0, 'end': 2046.0},  # pass-1 cut, overlaps 11.4s (43%)
             {'start': 2047.5, 'end': 2075.0},  # pass-2 recut, overlaps 13.9s (52%)
         ]
-        assert self.gen.is_segment_in_ad(seg, ads) is True
+        assert (self.gen._ad_coverage(seg, ads) > SEGMENT_AD_COVERAGE_THRESHOLD) is True
 
     def test_low_total_overlap_keeps_segment(self):
         # Only ~30% of the segment overlaps a cut -> kept.
         seg = _seg(100.0, 120.0)              # 20s
         ads = [{'start': 114.0, 'end': 130.0}]  # overlaps 6s (30%)
-        assert self.gen.is_segment_in_ad(seg, ads) is False
+        assert (self.gen._ad_coverage(seg, ads) > SEGMENT_AD_COVERAGE_THRESHOLD) is False
 
     def test_overlapping_ads_not_double_counted(self):
         # Two cuts over the same first half: naive summation would be 50 + 40 =
         # 90% (> threshold, wrongly dropped); the union is 50% so it is kept.
         seg = _seg(0.0, 100.0)
         ads = [{'start': 0.0, 'end': 50.0}, {'start': 10.0, 'end': 50.0}]
-        assert self.gen.is_segment_in_ad(seg, ads) is False
+        assert (self.gen._ad_coverage(seg, ads) > SEGMENT_AD_COVERAGE_THRESHOLD) is False
 
 
 def _words(spec):

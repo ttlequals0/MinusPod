@@ -158,10 +158,6 @@ export async function getOriginalTranscript(slug: string, episodeId: string): Pr
   return response.originalTranscript;
 }
 
-export async function getArtwork(slug: string): Promise<string> {
-  return `/api/v1/feeds/${slug}/artwork`;
-}
-
 export async function reprocessEpisode(
   slug: string,
   episodeId: string,

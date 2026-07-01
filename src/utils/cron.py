@@ -109,7 +109,7 @@ def _matches(dt: datetime, sets: Tuple[Set[int], Set[int], Set[int], Set[int], S
     # Vixie semantics: if both DOM and DOW are constrained (not full sets),
     # match on EITHER. If only one is constrained, use only that one.
     dom_full = dom_s == set(range(1, 32))
-    dow_full = dow_s == set(range(0, 7))
+    dow_full = dow_s == set(range(7))
     if dom_full and dow_full:
         return True
     if dom_full:

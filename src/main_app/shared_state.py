@@ -20,7 +20,7 @@ class _BoundedSet:
 
     def __init__(self, maxsize: int) -> None:
         self._maxsize = maxsize
-        self._order: "OrderedDict[Hashable, None]" = OrderedDict()
+        self._order: OrderedDict[Hashable, None] = OrderedDict()
         self._lock = threading.Lock()
 
     def __contains__(self, key: Hashable) -> bool:

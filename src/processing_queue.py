@@ -147,28 +147,29 @@ class ProcessingQueue:
         # This process doesn't hold the lock. Probe if ANY process does.
         # If we can acquire an exclusive flock, no one holds it -> orphaned.
         try:
-            probe_fd = open(self._lock_file_path, 'w')
-            try:
-                fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                # Lock acquired -> no process was holding it -> state is orphaned
-                fcntl.flock(probe_fd, fcntl.LOCK_UN)
-                probe_fd.close()
-                logger.warning(
-                    f"Clearing orphaned queue state: {current[0]}:{current[1]} "
-                    f"({elapsed/60:.0f} min, no process holds lock)"
-                )
-                self._write_state(None, None, None)
-                _sync_status_clear(current[0], current[1])
-                return True
-            except BlockingIOError:
-                # Another process holds the lock -> job is running in another worker
-                probe_fd.close()
-                if self._is_stale(state):
+            # Context manager closes the probe fd on every exit path, including
+            # a non-BlockingIOError OSError from flock (the inner except only
+            # catches BlockingIOError, so that case would otherwise leak the fd).
+            with open(self._lock_file_path, 'w') as probe_fd:
+                try:
+                    fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    # Lock acquired -> no process was holding it -> state is orphaned
+                    fcntl.flock(probe_fd, fcntl.LOCK_UN)
                     logger.warning(
-                        f"Long-running job in another worker: {current[0]}:{current[1]} "
-                        f"({elapsed/60:.0f} min)"
+                        f"Clearing orphaned queue state: {current[0]}:{current[1]} "
+                        f"({elapsed/60:.0f} min, no process holds lock)"
                     )
-                return False
+                    self._write_state(None, None, None)
+                    _sync_status_clear(current[0], current[1])
+                    return True
+                except BlockingIOError:
+                    # Another process holds the lock -> job is running in another worker
+                    if self._is_stale(state):
+                        logger.warning(
+                            f"Long-running job in another worker: {current[0]}:{current[1]} "
+                            f"({elapsed/60:.0f} min)"
+                        )
+                    return False
         except OSError as e:
             logger.debug(f"Could not probe lock file: {e}")
             # Fall back to time-based staleness only

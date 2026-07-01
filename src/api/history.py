@@ -47,24 +47,7 @@ def get_processing_history():
     )
 
     # Transform for API response
-    history = []
-    for entry in entries:
-        history.append({
-            'id': entry['id'],
-            'podcastSlug': entry['podcast_slug'],
-            'podcastTitle': entry['podcast_title'],
-            'episodeId': entry['episode_id'],
-            'episodeTitle': entry['episode_title'],
-            'processedAt': entry['processed_at'],
-            'processingDurationSeconds': entry['processing_duration_seconds'],
-            'status': entry['status'],
-            'adsDetected': entry['ads_detected'],
-            'errorMessage': entry['error_message'],
-            'reprocessNumber': entry['reprocess_number'],
-            'inputTokens': entry.get('input_tokens', 0) or 0,
-            'outputTokens': entry.get('output_tokens', 0) or 0,
-            'llmCost': round(entry.get('llm_cost', 0.0) or 0.0, 6),
-        })
+    history = [_row_to_json_entry(entry) for entry in entries]
 
     return json_response({
         'history': history,

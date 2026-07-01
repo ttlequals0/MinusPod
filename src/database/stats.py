@@ -440,16 +440,6 @@ class StatsMixin:
             'total_llm_cost': round(row['total_llm_cost'], 6),
         }
 
-    def get_episode_reprocess_count(self, podcast_id: int, episode_id: str) -> int:
-        """Get the number of times an episode has been processed."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT COUNT(*) FROM processing_history
-               WHERE podcast_id = ? AND episode_id = ?""",
-            (podcast_id, episode_id)
-        )
-        return cursor.fetchone()[0]
-
     def get_episode_token_usage(self, episode_id: str) -> Optional[Dict]:
         """Get token usage for the most recent completed processing of an episode.
         Returns {input_tokens, output_tokens, llm_cost} or None."""
@@ -469,16 +459,6 @@ class StatsMixin:
             'output_tokens': row['output_tokens'] or 0,
             'llm_cost': row['llm_cost'] or 0.0,
         }
-
-    def export_processing_history(self, status_filter: str = None,
-                                   podcast_slug: str = None) -> List[Dict]:
-        """Export all processing history (no pagination) for export.
-
-        Kept as a materialised list for callers that need random access;
-        for large-table exports use :meth:`iter_processing_history_rows`
-        instead, which yields ``sqlite3.Row`` objects lazily.
-        """
-        return list(self.iter_processing_history_rows(status_filter, podcast_slug))
 
     def iter_processing_history_rows(self, status_filter: str = None,
                                      podcast_slug: str = None):

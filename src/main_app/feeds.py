@@ -23,7 +23,6 @@ feed_logger = logging.getLogger('podcast.feed')
 
 # Initialize caches for performance
 _feed_cache = TTLCache(ttl_seconds=30)
-_parsed_feeds_cache = TTLCache(ttl_seconds=60)
 
 # Coalesce back-to-back refreshes of the same feed. When a PocketCasts
 # poll triggers serve_rss's on-demand refresh at the same moment the
@@ -52,25 +51,6 @@ def invalidate_feed_cache():
     _feed_cache.invalidate('all_feeds')
 
 
-def get_parsed_feed(slug: str, source_url: str):
-    """Get cached parsed feed or parse fresh.
-
-    Reduces redundant RSS fetching and parsing by caching parsed feeds
-    for 60 seconds.
-    """
-    cached = _parsed_feeds_cache.get(slug)
-    if cached is not None:
-        refresh_logger.debug(f"[{slug}] Using cached parsed feed")
-        return cached
-
-    feed_content = rss_parser.fetch_feed(source_url)
-    if feed_content:
-        parsed = rss_parser.parse_feed(feed_content)
-        _parsed_feeds_cache.set(slug, parsed)
-        return parsed
-    return None
-
-
 def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
     """Refresh RSS feed for a podcast.
 
@@ -83,7 +63,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
     """
     if not force and _refresh_coalesce.get(slug) is not None:
         refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
-        return
+        return None
     _refresh_coalesce.set(slug, True)
 
     try:

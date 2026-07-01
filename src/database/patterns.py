@@ -73,18 +73,6 @@ class PatternMixin:
         )
         return {row['community_id']: dict(row) for row in cursor.fetchall()}
 
-    def active_pattern_exists_for_sponsor(self, sponsor: str) -> bool:
-        """Return True if any active ad_patterns row exists for this sponsor (case-insensitive)."""
-        if not sponsor:
-            return False
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "SELECT 1 FROM ad_patterns WHERE is_active = 1 "
-            "AND lower(sponsor) = lower(?) LIMIT 1",
-            (sponsor,)
-        )
-        return cursor.fetchone() is not None
-
     def get_active_pattern_sponsors(self) -> set:
         """Return a lowercase set of sponsor names with active patterns.
 

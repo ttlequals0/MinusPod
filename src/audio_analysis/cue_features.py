@@ -308,7 +308,7 @@ def _probe_audio_stream(data: bytes):
     try:
         streams = (json.loads(out or b'{}') or {}).get('streams') or []
     except (ValueError, TypeError) as e:
-        raise RuntimeError(f"could not read audio metadata: {e}")
+        raise RuntimeError(f"could not read audio metadata: {e}") from e
     if not streams:
         raise RuntimeError("no audio stream found")
     return int(streams[0].get('sample_rate') or 0), int(streams[0].get('channels') or 0)

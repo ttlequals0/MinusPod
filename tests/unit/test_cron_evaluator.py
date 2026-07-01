@@ -45,7 +45,7 @@ def test_parse_field_handles_lists_and_steps():
     assert hour == {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22}
     assert dom == set(range(1, 32))
     assert month == set(range(1, 13))
-    assert dow == set(range(0, 7))
+    assert dow == set(range(7))
 
 
 def test_next_fire_sunday_3am():

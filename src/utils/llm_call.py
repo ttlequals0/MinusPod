@@ -156,16 +156,15 @@ def call_llm_for_window(
                     )
                 time.sleep(delay)
                 continue
-            else:
-                logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
-                if is_auth_error(e):
-                    from webhook_service import fire_auth_failure_event
-                    provider = get_effective_provider()
-                    fire_auth_failure_event(
-                        provider, model, str(e),
-                        getattr(e, 'status_code', None),
-                    )
-                break
+            logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
+            if is_auth_error(e):
+                from webhook_service import fire_auth_failure_event
+                provider = get_effective_provider()
+                fire_auth_failure_event(
+                    provider, model, str(e),
+                    getattr(e, 'status_code', None),
+                )
+            break
 
     if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, delay in enumerate([2, 5], 1):

@@ -4,7 +4,6 @@ import tempfile
 import os
 import re
 import subprocess
-import hashlib
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
@@ -30,7 +29,7 @@ from config import (
     MEMORY_SAFETY_MARGIN,
     WHISPER_MEMORY_PROFILES,
     WHISPER_DEFAULT_PROFILE,
-    BROWSER_USER_AGENT, APP_USER_AGENT,
+    BROWSER_USER_AGENT,
     FFMPEG_LONG_TIMEOUT,
     FFMPEG_SHORT_TIMEOUT,
     FFMPEG_CHUNK_TIMEOUT,
@@ -54,9 +53,6 @@ import ctranslate2
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 logger = logging.getLogger(__name__)
-
-# Maximum segment duration for precise ad detection
-MAX_SEGMENT_DURATION = 15.0  # seconds
 
 # Batch size tiers based on audio duration (in seconds)
 # Longer episodes need smaller batches to avoid CUDA OOM
@@ -151,56 +147,6 @@ def _is_vocabulary_regurgitation(text):
         return False
     residue = _letter_count(VOCABULARY_HALLUCINATION_PATTERNS.sub(' ', text))
     return residue <= _VOCAB_REGURGITATION_MAX_RESIDUE * total
-
-
-def split_long_segments(segments: List[Dict]) -> List[Dict]:
-    """Split segments longer than MAX_SEGMENT_DURATION using word timestamps.
-
-    This improves ad detection precision by giving Claude finer-grained
-    timestamp boundaries to work with.
-    """
-    result = []
-    for segment in segments:
-        duration = segment['end'] - segment['start']
-        if duration <= MAX_SEGMENT_DURATION:
-            result.append(segment)
-            continue
-
-        # If we have word-level timestamps, split on word boundaries
-        words = segment.get('words', [])
-        if words:
-            current_chunk = {'start': segment['start'], 'text': ''}
-            for word in words:
-                # Get word text - handle both dict and object formats
-                word_text = word.get('word', '') if isinstance(word, dict) else getattr(word, 'word', '')
-                word_end = word.get('end', segment['end']) if isinstance(word, dict) else getattr(word, 'end', segment['end'])
-
-                current_chunk['text'] += word_text
-
-                # Check if chunk duration exceeds target
-                chunk_duration = word_end - current_chunk['start']
-                if chunk_duration >= MAX_SEGMENT_DURATION:
-                    current_chunk['end'] = word_end
-                    result.append({
-                        'start': current_chunk['start'],
-                        'end': current_chunk['end'],
-                        'text': current_chunk['text'].strip()
-                    })
-                    current_chunk = {'start': word_end, 'text': ''}
-
-            # Add remaining words as final chunk
-            if current_chunk['text'].strip():
-                current_chunk['end'] = segment['end']
-                result.append({
-                    'start': current_chunk['start'],
-                    'end': current_chunk['end'],
-                    'text': current_chunk['text'].strip()
-                })
-        else:
-            # No word timestamps - keep as is
-            result.append(segment)
-
-    return result
 
 
 def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> Optional[str]:
@@ -1241,94 +1187,6 @@ class Transcriber:
             logger.error(f"Failed to download audio: {e}")
             return None
 
-    def download_audio_with_resume(self, url: str, timeout: int = 600) -> Optional[str]:
-        """Download audio file with resume support for interrupted downloads.
-
-        Uses consistent temp file path based on URL hash so interrupted downloads
-        can be resumed. Supports HTTP Range requests for partial content retrieval.
-
-        Args:
-            url: Audio file URL
-            timeout: Read timeout in seconds (default 10 minutes)
-
-        Returns:
-            Path to downloaded file, or None on failure
-        """
-        # Generate consistent temp path based on URL hash
-        url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
-        temp_path = os.path.join(tempfile.gettempdir(), f'podcast_dl_{url_hash}.mp3')
-
-        downloaded = 0
-        if os.path.exists(temp_path):
-            downloaded = os.path.getsize(temp_path)
-            logger.info(f"Resuming download from {downloaded} bytes: {safe_url_for_log(url)}")
-
-        headers = {
-            'User-Agent': f'Mozilla/5.0 (compatible; {APP_USER_AGENT})',
-            'Accept': '*/*',
-        }
-        if downloaded > 0:
-            headers['Range'] = f'bytes={downloaded}-'
-
-        try:
-            response = safe_get(
-                url,
-                trust=URLTrust.FEED_CONTENT,
-                timeout=(10, timeout),
-                max_redirects=HTTP_MAX_REDIRECTS_FEED,
-                stream=True,
-                headers=headers,
-            )
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in download_audio_with_resume: {e}")
-            return None
-
-        try:
-
-            # Check if server supports range requests
-            if downloaded > 0 and response.status_code == 200:
-                # Server doesn't support resume (returned full file), start fresh
-                logger.info("Server doesn't support resume, starting fresh download")
-                downloaded = 0
-                try:
-                    os.remove(temp_path)
-                except OSError:
-                    pass
-
-            response.raise_for_status()
-
-            # Validate file size
-            content_length = response.headers.get('Content-Length')
-            if content_length:
-                total_size = int(content_length) + downloaded
-                size_mb = total_size / (1024 * 1024)
-                if size_mb > 500:
-                    logger.error(f"Audio file too large: {size_mb:.1f}MB (max 500MB)")
-                    return None
-                logger.info(f"Audio file size: {size_mb:.1f}MB")
-
-            # Cap the total download independent of Content-Length (transcription-1/5).
-            max_bytes = 500 * 1024 * 1024
-            mode = 'ab' if downloaded > 0 else 'wb'
-            with open(temp_path, mode) as f:
-                try:
-                    stream_to_file_capped(response, f, max_bytes, already=downloaded)
-                except ResponseTooLargeError:
-                    logger.error(f"Audio stream over {max_bytes // (1024 * 1024)}MB cap: {safe_url_for_log(url)}")
-                    try:
-                        os.remove(temp_path)
-                    except OSError:
-                        pass
-                    return None
-
-            logger.info(f"Downloaded audio to: {temp_path}")
-            return temp_path
-
-        except Exception as e:
-            logger.error(f"Download failed (partial file kept for resume): {e}")
-            # Keep partial file for resume on next attempt
-            return None
-
     def transcribe(
         self,
         audio_path: str,
@@ -1516,9 +1374,8 @@ class Transcriber:
                         # Clear cache and retry
                         self.clear_cuda_cache()
                         continue
-                    else:
-                        # Non-OOM error or max retries reached
-                        raise
+                    # Non-OOM error or max retries reached
+                    raise
 
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
@@ -1606,7 +1463,7 @@ class Transcriber:
                 for seg in segs:
                     seg['start'] += c_start
                     seg['end'] += c_start
-                    if 'words' in seg and seg['words']:
+                    if seg.get('words'):
                         for word in seg['words']:
                             word['start'] += c_start
                             word['end'] += c_start
@@ -1845,7 +1702,7 @@ class Transcriber:
                     seg['start'] += chunk_start
                     seg['end'] += chunk_start
                     # Adjust word timestamps too if present
-                    if 'words' in seg and seg['words']:
+                    if seg.get('words'):
                         for word in seg['words']:
                             word['start'] += chunk_start
                             word['end'] += chunk_start
@@ -1888,10 +1745,9 @@ class Transcriber:
                     WhisperModelSingleton.unload_model()
                     # Don't advance chunk_start - retry from same position
                     continue
-                else:
-                    # Non-OOM error or max retries reached
-                    logger.error(f"Chunk {chunk_num + 1} failed: {e}")
-                    raise
+                # Non-OOM error or max retries reached
+                logger.error(f"Chunk {chunk_num + 1} failed: {e}")
+                raise
 
             finally:
                 # Clean up chunk file
@@ -1940,35 +1796,3 @@ class Transcriber:
             end_ts = format_vtt_timestamp(segment['end'])
             lines.append(f"[{start_ts} --> {end_ts}] {segment['text']}")
         return '\n'.join(lines)
-
-    def process_episode(self, episode_url: str) -> Optional[Dict]:
-        """Complete transcription pipeline for an episode."""
-        audio_path = None
-        try:
-            # Download audio
-            audio_path = self.download_audio(episode_url)
-            if not audio_path:
-                return None
-
-            # Transcribe
-            segments = self.transcribe(audio_path)
-            if not segments:
-                return None
-
-            # Format transcript
-            transcript_text = self.segments_to_text(segments)
-
-            return {
-                "segments": segments,
-                "transcript": transcript_text,
-                "segment_count": len(segments),
-                "duration": segments[-1]['end'] if segments else 0
-            }
-        finally:
-            # Clean up temp file
-            if audio_path and os.path.exists(audio_path):
-                try:
-                    os.unlink(audio_path)
-                    logger.info(f"Cleaned up temp file: {audio_path}")
-                except OSError:
-                    pass

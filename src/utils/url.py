@@ -71,12 +71,12 @@ def validate_url(url: str) -> str:
     try:
         addrinfos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        raise SSRFError(f"Cannot resolve hostname: {hostname!r}")
+        raise SSRFError(f"Cannot resolve hostname: {hostname!r}") from None
 
     if not addrinfos:
         raise SSRFError(f"No addresses found for hostname: {hostname!r}")
 
-    for family, _type, _proto, _canonname, sockaddr in addrinfos:
+    for _family, _type, _proto, _canonname, sockaddr in addrinfos:
         ip_str = sockaddr[0]
 
         # Explicit cloud metadata block
@@ -86,7 +86,7 @@ def validate_url(url: str) -> str:
         try:
             addr = ipaddress.ip_address(ip_str)
         except ValueError:
-            raise SSRFError(f"Invalid resolved IP: {ip_str}")
+            raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
 
         if addr.is_loopback:
             raise SSRFError(f"Blocked loopback IP: {ip_str}")
@@ -161,7 +161,7 @@ def validate_base_url(url: str) -> str:
         try:
             addr = ipaddress.ip_address(ip_str)
         except ValueError:
-            raise SSRFError(f"Invalid resolved IP: {ip_str}")
+            raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
         if addr.is_link_local:
             raise SSRFError(f"Blocked link-local IP: {ip_str}")
 

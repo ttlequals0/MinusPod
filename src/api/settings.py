@@ -554,7 +554,7 @@ def _apply_prompt_fields(db, data):
         if payload_key in data:
             db.set_setting(db_key, str(data[payload_key] or ''), is_default=False)
             logger.info(f"Updated {db_key}")
-    return None
+    return
 
 
 def _apply_review_fields(db, data):
@@ -601,7 +601,7 @@ def _apply_model_fields(db, data):
     if 'chaptersModel' in data:
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
-    return None
+    return
 
 
 def _apply_processing_flags(db, data):
@@ -650,7 +650,7 @@ def _apply_min_cut_confidence(db, data):
         value = max(0.50, min(0.95, float(data['minCutConfidence'])))
         db.set_setting('min_cut_confidence', str(value), is_default=False)
         logger.info(f"Updated min cut confidence to: {value}")
-    return None
+    return
 
 
 def _apply_audio_fields(db, data):
@@ -805,7 +805,7 @@ def _apply_provider_fields(db, data):
         provider_changed = True
 
     if 'openrouterApiKey' in data:
-        key = data['openrouterApiKey'].strip()
+        key = (data['openrouterApiKey'] or '').strip()
         if key and not key.startswith('sk-or-'):
             return json_response({'error': 'OpenRouter API key must start with sk-or-'}, 400)
         try:
@@ -932,11 +932,7 @@ def _apply_whisper_fields(db, data):
 def _apply_vad_gap_fields(db, data):
     """Persist VAD gap-detection toggle plus the three positive-float thresholds."""
     if 'vadGapDetectionEnabled' in data:
-        raw = data['vadGapDetectionEnabled']
-        if isinstance(raw, bool):
-            enabled = raw
-        else:
-            enabled = str(raw).strip().lower() in ('true', '1', 'yes')
+        enabled = coerce_bool_setting(data['vadGapDetectionEnabled'])
         db.set_setting('vad_gap_detection_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated vad_gap_detection_enabled to: {enabled}")
 
@@ -969,13 +965,11 @@ def _apply_audio_cue_fields(db, data):
     writes = []  # (db_key, str_value) applied only after all validation passes
 
     if 'audioCueDetectionEnabled' in data:
-        raw = data['audioCueDetectionEnabled']
-        enabled = raw if isinstance(raw, bool) else str(raw).strip().lower() in ('true', '1', 'yes')
+        enabled = coerce_bool_setting(data['audioCueDetectionEnabled'])
         writes.append(('audio_cue_detection_enabled', 'true' if enabled else 'false'))
 
     if 'audioCueCreateFromPairs' in data:
-        raw = data['audioCueCreateFromPairs']
-        enabled = raw if isinstance(raw, bool) else str(raw).strip().lower() in ('true', '1', 'yes')
+        enabled = coerce_bool_setting(data['audioCueCreateFromPairs'])
         writes.append(('audio_cue_create_from_pairs', 'true' if enabled else 'false'))
 
     parsed = {}
@@ -1031,7 +1025,7 @@ def _apply_positional_prior_fields(db, data):
         enabled = coerce_bool_setting(data['positionalPriorEnabled'])
         db.set_setting('positional_prior_enabled', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated positional_prior_enabled to: {enabled}")
-    return None
+    return
 
 
 def _apply_podcast_index_fields(db, data):
@@ -1210,6 +1204,7 @@ def reset_ad_detection_settings():
     db.reset_setting('whisper_api_key')
     db.reset_setting('whisper_api_model')
     db.reset_setting('whisper_compute_type')
+    db.reset_setting('whisper_language')
     db.reset_setting('skip_flac_compression')
     db.reset_setting('vad_gap_detection_enabled')
     db.reset_setting('vad_gap_start_min_seconds')

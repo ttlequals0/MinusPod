@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
-from utils.time import ranges_overlap
-
 
 class SignalType(Enum):
     """Types of audio signals that can be detected."""
@@ -40,10 +38,6 @@ class AudioSegmentSignal:
         """Duration of this signal in seconds."""
         return self.end - self.start
 
-    def overlaps(self, other: 'AudioSegmentSignal', tolerance: float = 0) -> bool:
-        """Check if this signal overlaps with another."""
-        return ranges_overlap(self.start, self.end, other.start, other.end, tolerance)
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -54,17 +48,6 @@ class AudioSegmentSignal:
             'duration': self.duration,
             'details': self.details
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AudioSegmentSignal':
-        """Create from dictionary."""
-        return cls(
-            start=data['start'],
-            end=data['end'],
-            signal_type=data['signal_type'],
-            confidence=data['confidence'],
-            details=data.get('details', {})
-        )
 
 
 @dataclass
@@ -102,13 +85,6 @@ class AudioAnalysisResult:
     analysis_time_seconds: float = 0.0
     errors: List[str] = field(default_factory=list)
 
-    def get_signals_in_range(self, start: float, end: float) -> List[AudioSegmentSignal]:
-        """Get all signals that overlap with the given time range."""
-        return [
-            s for s in self.signals
-            if s.start < end and s.end > start
-        ]
-
     def get_signals_by_type(self, signal_type: str) -> List[AudioSegmentSignal]:
         """Get all signals of a specific type."""
         return [s for s in self.signals if s.signal_type == signal_type]
@@ -121,15 +97,3 @@ class AudioAnalysisResult:
             'analysis_time_seconds': self.analysis_time_seconds,
             'errors': self.errors
         }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AudioAnalysisResult':
-        """Create from dictionary."""
-        signals = [AudioSegmentSignal.from_dict(s) for s in data.get('signals', [])]
-
-        return cls(
-            signals=signals,
-            loudness_baseline=data.get('loudness_baseline'),
-            analysis_time_seconds=data.get('analysis_time_seconds', 0.0),
-            errors=data.get('errors', [])
-        )

@@ -74,8 +74,8 @@ def list_episodes(slug):
     # otherwise filtering by the status the client was handed returns nothing.
     if status == EpisodeStatus.COMPLETED.value:
         status = EpisodeStatus.PROCESSED.value
-    limit = min(int(request.args.get('limit', 25)), 500)
-    offset = int(request.args.get('offset', 0))
+    limit = min(max(1, request.args.get('limit', 25, type=int)), 500)
+    offset = max(0, request.args.get('offset', 0, type=int))
     sort_by = request.args.get('sort_by', 'published_at')
     sort_dir = request.args.get('sort_dir', 'desc')
 
@@ -881,8 +881,7 @@ def retry_ad_detection(slug, episode_id):
         try:
             # Load podcast tags for community-pattern eligibility.
             try:
-                _pod_row = db.get_podcast_by_slug(slug)
-                _tags_json = _pod_row.get('tags') if _pod_row else None
+                _tags_json = podcast.get('tags') if podcast else None
                 podcast_tags = set(json.loads(_tags_json)) if _tags_json else None
             except Exception:
                 podcast_tags = None

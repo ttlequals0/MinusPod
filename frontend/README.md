@@ -54,7 +54,6 @@ src/
 |   |-- AuthContext.tsx
 |   `-- ThemeContext.tsx
 |-- hooks/            # Custom hooks
-|   `-- useTranscriptKeyboard.ts
 |-- pages/            # Route pages
 |   |-- AddFeed.tsx
 |   |-- Dashboard.tsx

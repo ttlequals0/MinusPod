@@ -79,10 +79,11 @@ class CleanupService:
                     value = self.db.get_setting(f'cleanup_{key}')
                     if value is not None:
                         # Convert to appropriate type
-                        if key in ('auto_vacuum',):
+                        if key in ('auto_vacuum', 'backup_enabled'):
                             settings[key] = value.lower() in ('true', '1', 'yes')
                         elif key in ('episode_days', 'pattern_stale_days', 'pattern_purge_days',
-                                     'confidence_decay_percent', 'min_confirmations_to_decay'):
+                                     'confidence_decay_percent', 'min_confirmations_to_decay',
+                                     'backup_keep_count'):
                             settings[key] = int(value)
                         else:
                             settings[key] = value

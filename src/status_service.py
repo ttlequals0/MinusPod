@@ -148,7 +148,7 @@ class StatusService:
                 self._write_status_file(status)
 
             return status
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return self._empty_status()
 
     def _write_status_file(self, status: dict):
@@ -163,7 +163,7 @@ class StatusService:
                 finally:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
             os.rename(temp_file, STATUS_FILE)
-        except IOError:
+        except OSError:
             pass  # Best effort - don't crash on write failures
 
     def set_server_start_time(self, start_time: float):
@@ -408,14 +408,23 @@ class StatusService:
         # re-entrant callback can't hold the lock or hit a mutated list.
         with self._status_lock:
             subscribers = list(self._subscribers)
+        warned = getattr(self, '_warned_subscribers', None)
+        if warned is None:
+            warned = self._warned_subscribers = set()
         for callback in subscribers:
             try:
                 callback(status)
+                warned.discard(callback)
             except Exception as e:
-                # A subscriber error must not break the broadcast loop, but a
-                # persistently failing listener should surface at the default
-                # log level rather than being silently dropped.
-                logger.warning(f"Status subscriber callback failed: {e}")
+                # A subscriber error must not break the broadcast loop. Surface
+                # the first failure at warning so it isn't silently dropped, then
+                # drop to debug so a persistently broken listener can't spam a
+                # warning on every status update.
+                if callback in warned:
+                    logger.debug(f"Status subscriber callback still failing: {e}")
+                else:
+                    warned.add(callback)
+                    logger.warning(f"Status subscriber callback failed: {e}")
 
     def to_dict(self) -> dict:
         """Convert current status to JSON-serializable dict."""

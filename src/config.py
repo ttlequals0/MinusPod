@@ -497,12 +497,6 @@ OPENROUTER_ROUTER_ALIASES = (
     ('openrouter/auto', 'OpenRouter: Auto (routes to best model for the prompt)'),
 )
 
-MASTER_PASSPHRASE = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
-
-
-def provider_crypto_ready() -> bool:
-    return bool(MASTER_PASSPHRASE)
-
 # ============================================================
 # LLM Pricing Configuration
 # ============================================================

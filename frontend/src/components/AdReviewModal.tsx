@@ -568,8 +568,8 @@ function AdReviewModal({
   // Window pan / reset. In the window-width model the rendered view IS the
   // window, so the `,`/`.` keys pan windowCenter rather than growing a fetch
   // span. Span size is changed by zoom.
-  const panBack = () => setWindowCenter(windowCenter - WINDOW_STEP_SECONDS);
-  const panForward = () => setWindowCenter(windowCenter + WINDOW_STEP_SECONDS);
+  const panBack = () => setWindowCenter((c) => c - WINDOW_STEP_SECONDS);
+  const panForward = () => setWindowCenter((c) => c + WINDOW_STEP_SECONDS);
   const resetView = () => {
     resetWindow(initialCenter);
     // Anchor the zoom on initialCenter, not the playhead, so Reset lands on the
@@ -626,18 +626,6 @@ function AdReviewModal({
     }
   }, [adEnd]);
 
-  // Recenter the rendered window so a just-committed pin is visible. No-op in
-  // effect at 1x where the window is the whole episode; matters when zoomed.
-  const scrollPinIntoView = (time: number) => {
-    setWindowCenter(time);
-  };
-
-  // Recenter the window on a just-committed pin so it's visible, even when the
-  // typed time lands far outside the current zoomed view.
-  const expandWindowToInclude = (time: number) => {
-    setWindowCenter(time);
-  };
-
   const commitStartInput = () => {
     const parsed = parseTimeInput(startInput);
     if (parsed === null) {
@@ -651,8 +639,8 @@ function AdReviewModal({
     const clamped = Math.max(0, Math.min(parsed, maxAllowed));
     setAdStart(clamped);
     setStartInput(formatTime(clamped));
-    expandWindowToInclude(clamped);
-    scrollPinIntoView(clamped);
+    // Recenter so the just-committed pin stays visible when zoomed.
+    setWindowCenter(clamped);
   };
   const commitEndInput = () => {
     const parsed = parseTimeInput(endInput);
@@ -664,8 +652,8 @@ function AdReviewModal({
     const clamped = Math.max(0, Math.min(parsed, maxAllowed));
     setAdEnd(clamped);
     setEndInput(formatTime(clamped));
-    expandWindowToInclude(clamped);
-    scrollPinIntoView(clamped);
+    // Recenter so the just-committed pin stays visible when zoomed.
+    setWindowCenter(clamped);
   };
 
   const boundariesMoved =

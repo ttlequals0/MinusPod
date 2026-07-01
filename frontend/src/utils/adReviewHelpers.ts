@@ -25,7 +25,7 @@ export function parseTimeInput(s: string): number | null {
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return '0:00';
   const sign = seconds < 0 ? '-' : '';
-  const total = Math.abs(seconds);
+  const total = Math.round(Math.abs(seconds) * 10) / 10;
   const m = Math.floor(total / 60);
   const s = total - m * 60;
   return `${sign}${m}:${s.toFixed(1).padStart(4, '0')}`;

@@ -16,7 +16,7 @@ from config import (
     TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
     FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
 )
-from community_export import count_brand_occurrences, brand_match_candidates
+from community_export import count_brand_occurrences, brand_match_candidates, get_sponsor_row_or_stub
 from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import INVALID_SPONSOR_VALUES
@@ -167,6 +167,9 @@ class TextPatternMatcher:
         self.sponsor_service = sponsor_service
         self._vectorizer = None
         self._pattern_vectors = None
+        # id -> row index in _pattern_vectors, so any pattern subset can reuse
+        # the load-time vectors without re-running the vectorizer.
+        self._pattern_row_index = {}
         self._patterns: List[AdPattern] = []
         self._pattern_buckets = {}
         self._initialized = False
@@ -259,6 +262,14 @@ class TextPatternMatcher:
                         self._vectorizer.fit(all_texts)
                         # Now transform only the patterns (not the base vocabulary)
                         self._pattern_vectors = self._vectorizer.transform(templates)
+                        # Row i corresponds to the i-th templated pattern; map
+                        # id -> row so subsets reuse these vectors (no per-call
+                        # re-transform).
+                        self._pattern_row_index = {
+                            p.id: i for i, p in enumerate(
+                                p for p in self._patterns if p.text_template
+                            )
+                        }
                         logger.info(f"Loaded {len(self._patterns)} text patterns")
 
                         # Build per-bucket TF-IDF vectors for proportional window matching
@@ -282,10 +293,6 @@ class TextPatternMatcher:
 
         except Exception as e:
             logger.error(f"Failed to load patterns: {e}")
-
-    def reload_patterns(self):
-        """Reload patterns from database."""
-        self._load_patterns()
 
     def find_matches(
         self,
@@ -451,6 +458,7 @@ class TextPatternMatcher:
 
         try:
             if self._pattern_buckets:
+                bucketed_ids = set()
                 for window_size, bucket in self._pattern_buckets.items():
                     idxs = [
                         i for i, p in enumerate(bucket['patterns'])
@@ -459,12 +467,30 @@ class TextPatternMatcher:
                     if not idxs:
                         continue
                     sub_patterns = [bucket['patterns'][i] for i in idxs]
+                    bucketed_ids.update(p.id for p in sub_patterns)
                     sub_vectors = bucket['vectors'][idxs]
                     step_size = window_size // 3
                     self._score_windows(
                         full_text, segment_map, segments, matches,
                         sub_patterns, sub_vectors,
                         window_size, step_size
+                    )
+                # Score applicable patterns that fell outside every window bucket
+                # (e.g. templates shorter than ~200 chars) so they still get
+                # TF-IDF content matching instead of phrase matching only.
+                leftover = [
+                    p for p in patterns
+                    if p.text_template and p.id not in bucketed_ids
+                    and p.id in self._pattern_row_index
+                ]
+                if leftover:
+                    # Reuse the vectors computed at load (row-indexed) instead of
+                    # re-running the vectorizer on these templates every call.
+                    rows = [self._pattern_row_index[p.id] for p in leftover]
+                    self._score_windows(
+                        full_text, segment_map, segments, matches,
+                        leftover, self._pattern_vectors[rows],
+                        1500, 500
                     )
             else:
                 # Fallback: rebuild aligned vectors for just the applicable
@@ -744,11 +770,7 @@ class TextPatternMatcher:
 
             # End time: find segment containing end_char
             # Use < for consistency with start_char boundary handling
-            if seg_start <= end_char < seg_end:
-                end_time = segments[seg_idx]['end']
-                break
-            # Handle case where end_char is exactly at the end of the last segment
-            elif end_char == seg_end and seg_idx == len(segments) - 1:
+            if seg_start <= end_char < seg_end or end_char == seg_end and seg_idx == len(segments) - 1:
                 end_time = segments[seg_idx]['end']
                 break
 
@@ -802,11 +824,7 @@ class TextPatternMatcher:
         Falls back to a name-only row when there is no DB or no stored sponsor
         so brand matching still works against the bare sponsor string.
         """
-        if self.db:
-            row = self.db.get_known_sponsor_by_name(sponsor)
-            if row:
-                return row
-        return {'name': sponsor, 'aliases': '[]'}
+        return get_sponsor_row_or_stub(self.db, sponsor)
 
     def _brand_bearing_bounds(self, segments, start, end, sponsor_row):
         """Return (first_start, last_end) of the segments overlapping
@@ -1142,46 +1160,6 @@ class TextPatternMatcher:
         except Exception as e:
             logger.error(f"Failed to create pattern: {e}")
             return None
-
-    def detect_multi_sponsor_pattern(self, pattern: Dict) -> List[str]:
-        """Detect if pattern text contains multiple sponsors.
-
-        Scans the text_template for common ad transition phrases that indicate
-        sponsor reads. If more than one is found, the pattern is contaminated
-        with multiple ads that were incorrectly merged.
-
-        Args:
-            pattern: Pattern dict with 'text_template' field
-
-        Returns:
-            List of sponsor names found if multiple detected, empty list if single/none
-        """
-        text = pattern.get('text_template', '').lower()
-        if not text:
-            return []
-
-        # Find all sponsor transition phrases
-        sponsors = []
-        for phrase in AD_TRANSITION_PHRASES:
-            start = 0
-            while True:
-                idx = text.find(phrase, start)
-                if idx == -1:
-                    break
-                # Extract ~50 chars after phrase for sponsor name
-                after = text[idx + len(phrase):idx + len(phrase) + 50]
-                # First word(s) after phrase is likely sponsor
-                words = after.strip().split()
-                if words:
-                    sponsor_candidate = words[0].strip('.,!?:')
-                    # Skip common words that aren't sponsors
-                    skip_words = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
-                    if sponsor_candidate and sponsor_candidate not in skip_words:
-                        if sponsor_candidate not in sponsors:
-                            sponsors.append(sponsor_candidate)
-                start = idx + 1
-
-        return sponsors if len(sponsors) > 1 else []
 
     def split_pattern(self, pattern_id: int) -> List[int]:
         """Split a multi-sponsor pattern into separate patterns.

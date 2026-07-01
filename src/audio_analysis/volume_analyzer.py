@@ -241,31 +241,74 @@ class VolumeAnalyzer:
 
         frames = []
         frame_start = 0.0
+        i = 0
+        n = len(measurements)
 
         while frame_start < total_duration:
             frame_end = min(frame_start + self.frame_duration, total_duration)
 
-            # Get measurements within this frame
-            frame_measurements = [
-                (m[1], m[2]) for m in measurements
-                if frame_start <= m[0] < frame_end
-            ]
+            # measurements is sorted ascending by timestamp; skip any that
+            # precede this window (defensive, normally a no-op)
+            while i < n and measurements[i][0] < frame_start:
+                i += 1
 
-            if frame_measurements:
-                # Average loudness for the frame
-                avg_loudness = sum(m[0] for m in frame_measurements) / len(frame_measurements)
-                max_peak = max(m[1] for m in frame_measurements)
+            loudness_sum = 0.0
+            max_peak = None
+            count = 0
+            while i < n and measurements[i][0] < frame_end:
+                loudness_sum += measurements[i][1]
+                peak = measurements[i][2]
+                if max_peak is None or peak > max_peak:
+                    max_peak = peak
+                count += 1
+                i += 1
 
+            if count:
                 frames.append(LoudnessFrame(
                     start=frame_start,
                     end=frame_end,
-                    loudness_lufs=avg_loudness,
+                    loudness_lufs=loudness_sum / count,
                     peak_dbfs=max_peak
                 ))
 
             frame_start = frame_end
 
         return frames
+
+    def _make_anomaly_signal(
+        self,
+        anomaly_start: float,
+        anomaly_end: float,
+        anomaly_type: str,
+        deviations: List[float],
+        baseline: float
+    ) -> Optional[AudioSegmentSignal]:
+        """Build a volume anomaly signal, or None if under min duration."""
+        duration = anomaly_end - anomaly_start
+        if duration < self.min_anomaly_duration:
+            return None
+
+        avg_deviation = sum(deviations) / len(deviations)
+        # Confidence based on deviation magnitude
+        confidence = min(0.5 + (avg_deviation / 10), 0.95)
+
+        signal_type = (
+            SignalType.VOLUME_INCREASE.value
+            if anomaly_type == "increase"
+            else SignalType.VOLUME_DECREASE.value
+        )
+
+        return AudioSegmentSignal(
+            start=anomaly_start,
+            end=anomaly_end,
+            signal_type=signal_type,
+            confidence=confidence,
+            details={
+                'deviation_db': round(avg_deviation, 1),
+                'baseline_lufs': round(baseline, 1),
+                'direction': anomaly_type
+            }
+        )
 
     def _find_anomalies(
         self,
@@ -293,59 +336,19 @@ class VolumeAnalyzer:
             else:
                 if in_anomaly:
                     # End current anomaly
-                    anomaly_end = frame.start
-                    duration = anomaly_end - anomaly_start
-
-                    if duration >= self.min_anomaly_duration:
-                        avg_deviation = sum(deviations) / len(deviations)
-                        # Confidence based on deviation magnitude
-                        confidence = min(0.5 + (avg_deviation / 10), 0.95)
-
-                        signal_type = (
-                            SignalType.VOLUME_INCREASE.value
-                            if anomaly_type == "increase"
-                            else SignalType.VOLUME_DECREASE.value
-                        )
-
-                        anomalies.append(AudioSegmentSignal(
-                            start=anomaly_start,
-                            end=anomaly_end,
-                            signal_type=signal_type,
-                            confidence=confidence,
-                            details={
-                                'deviation_db': round(avg_deviation, 1),
-                                'baseline_lufs': round(baseline, 1),
-                                'direction': anomaly_type
-                            }
-                        ))
-
+                    signal = self._make_anomaly_signal(
+                        anomaly_start, frame.start, anomaly_type, deviations, baseline
+                    )
+                    if signal is not None:
+                        anomalies.append(signal)
                     in_anomaly = False
 
         # Handle anomaly at end of audio
         if in_anomaly and frames:
-            anomaly_end = frames[-1].end
-            duration = anomaly_end - anomaly_start
-
-            if duration >= self.min_anomaly_duration:
-                avg_deviation = sum(deviations) / len(deviations)
-                confidence = min(0.5 + (avg_deviation / 10), 0.95)
-
-                signal_type = (
-                    SignalType.VOLUME_INCREASE.value
-                    if anomaly_type == "increase"
-                    else SignalType.VOLUME_DECREASE.value
-                )
-
-                anomalies.append(AudioSegmentSignal(
-                    start=anomaly_start,
-                    end=anomaly_end,
-                    signal_type=signal_type,
-                    confidence=confidence,
-                    details={
-                        'deviation_db': round(avg_deviation, 1),
-                        'baseline_lufs': round(baseline, 1),
-                        'direction': anomaly_type
-                    }
-                ))
+            signal = self._make_anomaly_signal(
+                anomaly_start, frames[-1].end, anomaly_type, deviations, baseline
+            )
+            if signal is not None:
+                anomalies.append(signal)
 
         return anomalies
