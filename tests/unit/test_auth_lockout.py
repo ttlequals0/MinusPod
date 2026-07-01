@@ -2,7 +2,6 @@
 import datetime
 from unittest.mock import patch
 
-import pytest
 
 from database.auth_lockout import (
     LOCKOUT_DURATION_MINUTES,

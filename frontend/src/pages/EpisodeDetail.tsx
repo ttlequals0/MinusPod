@@ -16,7 +16,8 @@ import CollapsibleSection from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
-import { formatStorage } from './settings/settingsUtils';
+import { formatStorage, formatDuration } from './settings/settingsUtils';
+import { formatTimestamp } from '../utils/format';
 
 function TranscriptBlock({ text }: { text: string }) {
   return (
@@ -167,28 +168,6 @@ function EpisodeDetail() {
       detection_stage: marker.detection_stage || 'first_pass',
     }));
   }, [adMarkers]);
-
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return '';
-    const totalSecs = Math.floor(seconds);
-    const hours = Math.floor(totalSecs / 3600);
-    const minutes = Math.floor((totalSecs % 3600) / 60);
-    const secs = totalSecs % 60;
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatTimestamp = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
@@ -414,7 +393,6 @@ function EpisodeDetail() {
                 setShowEditor(false);
                 setCreateModeRequested(false);
               }}
-              saveStatus={saveStatus}
               createMode={true}
             />
           ) : (
@@ -531,7 +509,6 @@ function EpisodeDetail() {
                   }
                 }}
                 initialSeekTime={jumpToTime ?? undefined}
-                saveStatus={saveStatus}
                 selectedAdIndex={editorSelectedAdIndex}
                 onSelectedAdIndexChange={setEditorSelectedAdIndex}
                 createMode={createModeRequested}

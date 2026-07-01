@@ -1,6 +1,5 @@
 """Tests for src/secrets_crypto.py."""
 import base64
-import os
 
 import pytest
 

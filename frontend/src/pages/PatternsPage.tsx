@@ -14,6 +14,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
+import { formatDate } from '../utils/format';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -172,11 +173,6 @@ function PatternsPage() {
   // Pagination
   const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
   const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString();
-  };
 
   const getScopeBadge = (pattern: AdPattern) => {
     if (pattern.scope === 'global') {

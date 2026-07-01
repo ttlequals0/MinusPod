@@ -6,7 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.29.2] - 2026-07-01
+
+### Fixed
+
+- The "Save" button in the ad editor now closes the editor on the last detected ad (#449). Saving the last ad previously looked like it did nothing: the correction was recorded, but the editor did not advance or close and showed no confirmation, so the change was easy to miss. It now closes the way "Skip" does at the end of the list, and the saved edit shows up in the marker list.
+
+### Changed
+
+- Added a `ruff` lint job to CI, the repo's first automated Python lint gate, and cleaned up everything it flagged: unused imports, dead local variables, and empty f-strings across the backend and tests. No behavior change.
+- The TF-IDF, fuzzy, and audio-fingerprint match thresholds now come from a single definition in `config.py`. The per-module copies that duplicated those values were removed so the two cannot drift apart.
+- Consolidated the duplicated frontend clock and date formatters into `frontend/src/utils/format.ts`; formatters whose output genuinely differs were kept separate.
+- A broad exception handler in the status broadcaster now logs at debug instead of silently swallowing subscriber-callback errors.
 
 ### Documentation
 
@@ -15,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented the cover-art badge and its `POST /api/v1/feeds/refresh-artwork` endpoint, chapter generation, and the Recut Audio reprocess mode.
 - Corrected the reprocess-mode list (four modes from the episode menu, three in bulk), noted that the detection window size and overlap are configurable, and replaced the stale `2.8.13` version examples.
 - Fixed API reference inaccuracies: the mode-aware reprocess endpoint is `/api/v1/episodes/{slug}/{id}/reprocess` (the `/feeds/...` path ignores `mode` and always runs a full reprocess), the cue-template create body takes `cueType` (not `label`), and the cue capture range is 0.2 to 10 seconds (up to 60 for a show intro or outro).
-- Added the `GET /api/v1/tags/vocabulary` path to `openapi.yaml`; the spec version stays `2.29.1` (docs-only change).
+- Added the `GET /api/v1/tags/vocabulary` path to `openapi.yaml`.
 - Refreshed every UI screenshot (desktop and mobile, dark theme) and added audio-cue and badged-cover-art images.
 
 ## [2.29.1] - 2026-06-29

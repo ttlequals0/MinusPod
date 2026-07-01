@@ -11,12 +11,11 @@ import NormalizationEditModal from '../components/NormalizationEditModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { TagChips } from '../components/TagChips';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatDate } from '../utils/format';
 
 type Tab = 'sponsors' | 'normalizations';
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
 type SortDirection = 'asc' | 'desc';
-
-const formatDate = (s: string | null) => (s ? new Date(s).toLocaleDateString() : '-');
 
 function StatusBadge({ active }: { active: boolean }) {
   return (

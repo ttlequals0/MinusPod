@@ -111,7 +111,6 @@ def get_settings():
         DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
         DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
     )
-    from ad_detector import AdDetector
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from config import (
         AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,

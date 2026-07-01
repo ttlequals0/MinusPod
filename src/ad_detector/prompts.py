@@ -11,11 +11,7 @@ from typing import List, Dict
 from sponsor_service import SponsorService
 from utils.prompt import format_sponsor_block, render_prompt
 from utils.time import parse_timestamp
-from utils.llm_response import (
-    extract_json_ads_array,
-    extract_json_object,
-    find_json_array_candidates as _find_json_array_candidates,
-)
+from utils.llm_response import extract_json_ads_array
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,

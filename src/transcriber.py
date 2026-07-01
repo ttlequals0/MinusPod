@@ -8,7 +8,6 @@ import hashlib
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
-from pathlib import Path
 
 from utils.audio import get_audio_duration
 from utils.time import format_vtt_timestamp
@@ -296,7 +295,6 @@ def merge_overlapping_segments(
         return existing_segments
 
     # The overlap zone is at the beginning of the new chunk
-    overlap_start = chunk_start
     overlap_end = chunk_start + overlap_duration
 
     result = existing_segments.copy()

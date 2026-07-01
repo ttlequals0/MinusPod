@@ -375,7 +375,7 @@ class AudioProcessor:
                 output_path
             ]
 
-            logger.info(f"Running FFMPEG to remove ads")
+            logger.info("Running FFMPEG to remove ads")
             # Scale timeout: 5 min base + 5 sec per minute of audio
             # e.g. 30-min episode = 450s, 107-min = 835s, 180-min = 1200s
             ffmpeg_timeout = FFMPEG_LONG_TIMEOUT + int(total_duration / 12)

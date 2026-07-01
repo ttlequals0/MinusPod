@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
 
 from flask import request, send_file, abort
 
@@ -18,7 +17,7 @@ from processing_queue import ProcessingQueue
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
-from utils.time import parse_timestamp, utc_now_iso
+from utils.time import utc_now_iso
 from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
@@ -515,7 +514,7 @@ def reprocess_episode(slug, episode_id):
                 'reason': reason
             }, 202)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to reprocess episode {slug}:{episode_id}")
         return error_response('Failed to reprocess', 500)
 
@@ -588,7 +587,7 @@ def regenerate_chapters(slug, episode_id):
         else:
             return error_response('Failed to generate chapters', 500)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
         return error_response('Failed to regenerate chapters', 500)
 
@@ -929,7 +928,7 @@ def retry_ad_detection(slug, episode_id):
                 'status': 'failed'
             }, 500)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to retry ad detection for {slug}:{episode_id}")
         return error_response('Failed to retry ad detection', 500)
 
@@ -1179,6 +1178,6 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'reason': reason
             }, 202)
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"[{slug}:{episode_id}] {mode} reprocess failed")
         return error_response('Reprocess failed', 500)

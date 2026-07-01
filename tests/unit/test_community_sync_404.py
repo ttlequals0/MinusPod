@@ -5,7 +5,6 @@ We avoid spinning up the full main_app (which probes /app/data, queues,
 sentry, etc.) by invoking the route handler directly inside a Flask
 test_request_context.
 """
-import json
 import os
 import sys
 from unittest.mock import patch

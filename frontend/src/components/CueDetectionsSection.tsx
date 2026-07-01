@@ -5,19 +5,12 @@ import CollapsibleSection from './CollapsibleSection';
 import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
 import type { CueDetection } from '../api/types';
+import { formatTimestamp } from '../utils/format';
 
 interface CueDetectionsSectionProps {
   slug: string;
   episodeId: string;
   detections: CueDetection[];
-}
-
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 const OUTCOME_META: Record<CueDetection['outcome'], { label: string; className: string; title: string }> = {
@@ -157,7 +150,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     {playingId === d.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
                   <span className="font-mono text-sm text-foreground">
-                    {formatTime(d.start_s)} - {formatTime(d.end_s)}
+                    {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
                   </span>
                   {d.cue_type && (
                     <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">

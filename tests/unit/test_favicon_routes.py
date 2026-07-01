@@ -25,7 +25,6 @@ database.Database.__new__.__defaults__ = (_test_data_dir,)
 storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 from main_app import app
-from main_app.routes import STATIC_DIR
 
 
 @pytest.fixture

@@ -1,6 +1,4 @@
 """Tests for versioned reprocess mp3 filenames."""
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -49,9 +47,9 @@ class TestIterEpisodeAudioPaths:
         assert storage.iter_episode_audio_paths("pod", "abcdef123456") == []
 
     def test_returns_unversioned_and_versioned(self, storage):
-        p0 = _make_episode_file(storage, "pod", "abc123def456")
-        p1 = _make_episode_file(storage, "pod", "abc123def456", version=1)
-        p2 = _make_episode_file(storage, "pod", "abc123def456", version=2)
+        _make_episode_file(storage, "pod", "abc123def456")
+        _make_episode_file(storage, "pod", "abc123def456", version=1)
+        _make_episode_file(storage, "pod", "abc123def456", version=2)
         paths = storage.iter_episode_audio_paths("pod", "abc123def456")
         names = [p.name for p in paths]
         assert set(names) == {"abc123def456.mp3",

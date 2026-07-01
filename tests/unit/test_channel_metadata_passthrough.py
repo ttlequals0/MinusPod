@@ -135,7 +135,7 @@ class TestAlwaysEmitted:
         parsed = parsedate_to_datetime(m.group(1))
         # Should be a recent datetime, not from upstream (which set
         # 2026-05-15 in the upstream feed).
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         assert abs((now - parsed).total_seconds()) < 60
 

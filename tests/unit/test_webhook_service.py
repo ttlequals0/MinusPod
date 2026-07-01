@@ -23,7 +23,6 @@ from webhook_service import (
     _fire_event_sync,
     WebhookPayload,
     EVENT_EPISODE_PROCESSED,
-    VALID_EVENTS,
 )
 
 

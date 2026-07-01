@@ -3,7 +3,6 @@ the structured xml_forbidden_construct event on XXE rejection."""
 
 import logging
 
-import pytest
 
 import defusedxml
 defusedxml.defuse_stdlib()

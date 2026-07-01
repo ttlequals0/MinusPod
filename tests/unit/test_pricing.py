@@ -1,6 +1,5 @@
 """Tests for multi-provider LLM pricing system."""
 import json
-import pytest
 from unittest.mock import patch, MagicMock
 
 from config import normalize_model_key, get_pricing_source
@@ -510,7 +509,7 @@ class TestCallLlmForWindowRetry:
 
     def test_retryable_error_triggers_per_window_retry(self):
         """Retryable errors should trigger per-window retry with backoff."""
-        from unittest.mock import MagicMock, patch, call
+        from unittest.mock import MagicMock, patch
         from ad_detector import AdDetector
 
         detector = AdDetector.__new__(AdDetector)

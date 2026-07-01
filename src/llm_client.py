@@ -27,7 +27,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
 
-from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from utils.circuit_breaker import CircuitBreaker
 from utils.rate_limit import (
     parse_retry_after, parse_groq_rate_limit_body,
     parse_google_retry_delay, parse_google_daily_quota,
@@ -48,7 +48,6 @@ from config import (
     OPENROUTER_APP_TITLE,
     PROVIDER_ANTHROPIC,
     PROVIDER_OPENROUTER,
-    PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
     PROVIDERS_NON_ANTHROPIC,
 )

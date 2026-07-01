@@ -230,7 +230,7 @@ def add_feed():
 
     # Create podcast
     try:
-        podcast_id = db.create_podcast(slug, source_url)
+        db.create_podcast(slug, source_url)
         logger.info(f"Created new feed: {slug} -> {source_url}")
 
         # Apply auto-process override if provided (before initial refresh)
@@ -280,7 +280,7 @@ def add_feed():
             'message': 'Feed added successfully'
         }, 201)
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to add feed")
         return error_response('Failed to add feed', 500)
 
@@ -618,7 +618,7 @@ def update_feed(slug):
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"
         })
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to update feed {slug}")
         return error_response('Failed to update feed', 500)
 
@@ -648,7 +648,7 @@ def delete_feed(slug):
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to delete feed {slug}")
         return error_response('Failed to delete feed', 500)
 
@@ -698,7 +698,7 @@ def refresh_feed(slug):
             'lastRefreshed': podcast.get('last_checked_at')
         })
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Failed to refresh feed {slug}")
         return error_response('Failed to refresh feed', 500)
 
@@ -731,7 +731,7 @@ def refresh_all_feeds():
             'feedCount': len(podcasts)
         })
 
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to refresh all feeds")
         return error_response('Failed to refresh feeds', 500)
 

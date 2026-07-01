@@ -233,7 +233,7 @@ def test_promote_to_network(app_client, seeded):
 
 def test_export_without_pcm_is_422(app_client, seeded):
     from audio_analysis.cue_features import N_COEFFS, serialize_mfcc
-    hdr = _csrf(app_client)
+    _csrf(app_client)
     db = seeded['db']
     pid = db.get_podcast_by_slug(seeded['slug'])['id']
     mfcc = np.zeros((5, N_COEFFS), dtype=np.float32)

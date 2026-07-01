@@ -125,7 +125,7 @@ def mock_podcast(temp_db):
     source_url = 'https://example.com/feed.xml'
     title = 'Test Podcast'
 
-    podcast_id = temp_db.create_podcast(slug, source_url, title)
+    temp_db.create_podcast(slug, source_url, title)
     podcast = temp_db.get_podcast_by_slug(slug)
 
     return podcast

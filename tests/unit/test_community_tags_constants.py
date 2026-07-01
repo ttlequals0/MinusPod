@@ -1,7 +1,6 @@
 """Tests for utils.community_tags loaders and PII helpers."""
 import os
 import sys
-import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 

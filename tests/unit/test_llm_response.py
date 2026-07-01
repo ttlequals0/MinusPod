@@ -1,5 +1,4 @@
 """Tests for utils.llm_response (extracted from ad_detector for reuse)."""
-import pytest
 
 from utils.llm_response import (
     extract_json_ads_array,

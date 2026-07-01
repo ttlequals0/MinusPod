@@ -324,7 +324,7 @@ def backup_database():
             as_attachment=True,
             download_name=filename,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Database backup failed")
         return error_response('Backup failed', 500)
     finally:

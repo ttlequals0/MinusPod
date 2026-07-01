@@ -10,7 +10,6 @@ import os
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from ad_reviewer import AdReviewer, ReviewVerdict, _resolve_reviewer_parallel_ads
 

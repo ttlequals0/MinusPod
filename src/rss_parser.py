@@ -703,11 +703,11 @@ class RSSParser:
         if artwork_url:
             channel_title = effective_title or ''
             channel_link = channel.get('link', '') or ''
-            lines.append(f'<image>')
+            lines.append('<image>')
             lines.append(f'  <url>{self._escape_xml(artwork_url)}</url>')
             lines.append(f'  <title>{self._escape_xml(channel_title)}</title>')
             lines.append(f'  <link>{self._escape_xml(channel_link)}</link>')
-            lines.append(f'</image>')
+            lines.append('</image>')
             lines.append(f'<itunes:image href="{self._escape_xml(artwork_url)}" />')
 
         # Channel-level Podcasting 2.0 tags: minted guid, passthrough of safe

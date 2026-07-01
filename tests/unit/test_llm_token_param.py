@@ -1,6 +1,6 @@
 """Tests for OpenAI-compatible client max_completion_tokens / max_tokens fallback."""
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 class TestOpenAITokenParam(unittest.TestCase):

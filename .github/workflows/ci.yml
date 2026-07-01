@@ -135,3 +135,22 @@ jobs:
 
       - name: Audit
         run: npm audit --audit-level=high
+
+  ruff:
+    name: ruff (lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        run: pip install ruff==0.15.20
+
+      - name: Lint (ruff)
+        run: ruff check src tests

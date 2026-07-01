@@ -1,8 +1,6 @@
 """Tests for PatternService.rewrite_pattern_from_bounds + import_community_pattern."""
-import json
 import os
 import sys
-import tempfile
 
 import pytest
 

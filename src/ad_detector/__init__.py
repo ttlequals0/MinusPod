@@ -83,9 +83,11 @@ from .prompts import (
     get_static_system_prompt,
     parse_ads_from_response,
     extract_json_ads_array,
-    extract_json_object,
-    _find_json_array_candidates,
 )
+# Source the JSON-array scanner directly from utils.llm_response instead of
+# laundering it through prompts.py; re-exported below for backward-compat
+# (tests import it as ad_detector._find_json_array_candidates).
+from utils.llm_response import find_json_array_candidates as _find_json_array_candidates
 
 # Public surface re-exported from the pre-split module. External callers
 # (production and tests) import these names directly from ``ad_detector``;
@@ -120,7 +122,6 @@ __all__ = [
     "get_static_system_prompt",
     "parse_ads_from_response",
     "extract_json_ads_array",
-    "extract_json_object",
     "_find_json_array_candidates",
 ]
 

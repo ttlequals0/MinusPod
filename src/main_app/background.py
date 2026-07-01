@@ -9,9 +9,7 @@ from utils.constants import EpisodeStatus
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
 # the bottom of that file, so the apparent circular import is safe.
-# Replaces a positional 5-tuple from _get_components() that the audit
-# flagged as silently break-on-reorder.
-from main_app import db, storage, shutdown_event, processing_queue, status_service
+from main_app import db, storage, shutdown_event
 
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')

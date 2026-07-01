@@ -1,5 +1,4 @@
 """Tests for per-stage tunable config: env > DB > default + range validation."""
-import os
 from unittest.mock import patch
 
 import pytest

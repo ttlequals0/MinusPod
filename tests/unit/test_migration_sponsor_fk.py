@@ -1,5 +1,4 @@
 """Tests for the v2.2.0 sponsor FK migration in SchemaMixin._migrate_sponsor_fk."""
-import pytest
 
 
 # --- Helpers -------------------------------------------------------------

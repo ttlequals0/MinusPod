@@ -19,7 +19,7 @@ intentionally NOT supported to keep parsing simple.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Iterable, Set, Tuple
+from typing import Set, Tuple
 
 _FIELD_RANGES = (
     (0, 59),   # minute

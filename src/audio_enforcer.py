@@ -7,7 +7,6 @@ evidence alongside the transcript and makes all ad/not-ad decisions itself.
 """
 
 import logging
-from typing import Optional
 
 from config import (
     AUDIO_CUE_ROLE_DEFAULT,

@@ -39,13 +39,10 @@ from config import (
     AUDIO_CUE_FP_MAX_LEN_SECONDS,
     AUDIO_CUE_FP_MAX_ANCHORS,
     AUDIO_CUE_FP_MAX_CANDIDATES,
+    FINGERPRINT_MATCH_THRESHOLD as MATCH_THRESHOLD,
 )
 
 logger = logging.getLogger('podcast.fingerprint')
-
-# Fingerprint matching threshold (0-1, lower = more strict)
-# 0.65 allows for minor encoding differences while avoiding false positives
-MATCH_THRESHOLD = 0.65
 
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0

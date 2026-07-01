@@ -24,7 +24,7 @@ class TestAdDetectionMaxTokensMigration:
         # Seed pre-existing settings row with the old key
         db_path = os.path.join(fresh_db_dir, "podcast.db")
         # Trigger first-time init so the schema exists
-        db1 = Database(data_dir=fresh_db_dir)
+        Database(data_dir=fresh_db_dir)
         with sqlite3.connect(db_path) as conn:
             conn.execute(
                 "INSERT INTO settings (key, value, is_default) VALUES (?, ?, ?)",
@@ -71,7 +71,7 @@ class TestAdDetectionMaxTokensMigration:
 
     def test_idempotent_on_second_init(self, fresh_db_dir):
         db_path = os.path.join(fresh_db_dir, "podcast.db")
-        db1 = Database(data_dir=fresh_db_dir)
+        Database(data_dir=fresh_db_dir)
         with sqlite3.connect(db_path) as conn:
             conn.execute(
                 "INSERT INTO settings (key, value, is_default) VALUES (?, ?, ?)",

@@ -3,7 +3,6 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
-from typing import Optional
 
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -15,8 +14,7 @@ from flask import Response, request
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage,
-    extract_transcript_segment, extract_sponsor_from_text,
+    get_database, extract_transcript_segment, extract_sponsor_from_text,
     _find_similar_pattern,
 )
 
@@ -338,7 +336,7 @@ def deduplicate_patterns():
             'message': f'Removed {removed} duplicate patterns',
             'removed_count': removed
         })
-    except Exception as e:
+    except Exception:
         logger.exception("Deduplication failed")
         return error_response('Deduplication failed', 500)
 

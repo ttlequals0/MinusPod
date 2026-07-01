@@ -4,7 +4,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from text_pattern_matcher import (
     _split_sentences, _extract_intro_phrase, _extract_outro_phrase,

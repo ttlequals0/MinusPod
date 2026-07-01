@@ -6,7 +6,6 @@ more compression than host content, causing noticeable volume changes.
 """
 
 import subprocess
-import json
 import logging
 import re
 from typing import List, Tuple, Optional

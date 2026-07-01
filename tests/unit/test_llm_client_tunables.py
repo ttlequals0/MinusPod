@@ -7,7 +7,6 @@ import llm_capabilities
 from llm_capabilities import (
     PASS_AD_DETECTION_1,
     PASS_REVIEWER_1,
-    clear_fallback,
     is_fallback_set,
 )
 

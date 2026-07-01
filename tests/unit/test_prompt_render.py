@@ -1,9 +1,6 @@
 """Tests for the prompt placeholder substitution refactor."""
 import sqlite3
-from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 
 from ad_detector import get_static_system_prompt
 from utils.prompt import (

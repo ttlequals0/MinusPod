@@ -11,7 +11,6 @@ import logging
 import json
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
-from datetime import datetime, timezone
 
 from config import (
     PODCAST_TO_NETWORK_THRESHOLD,
@@ -28,7 +27,6 @@ from utils.constants import (
     LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
 )
-from utils.language import get_pattern_language
 from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from community_export import (

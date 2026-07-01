@@ -411,8 +411,11 @@ class StatusService:
         for callback in subscribers:
             try:
                 callback(status)
-            except Exception:
-                pass  # Don't let subscriber errors break updates
+            except Exception as e:
+                # A subscriber error must not break the broadcast loop, but a
+                # persistently failing listener should surface at the default
+                # log level rather than being silently dropped.
+                logger.warning(f"Status subscriber callback failed: {e}")
 
     def to_dict(self) -> dict:
         """Convert current status to JSON-serializable dict."""

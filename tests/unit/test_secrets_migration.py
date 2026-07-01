@@ -1,5 +1,4 @@
 """Tests for plaintext -> encrypted secret migration."""
-import tempfile
 from pathlib import Path
 
 import pytest

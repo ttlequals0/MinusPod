@@ -6,7 +6,6 @@ import json
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from database import DEFAULT_MODEL_PRICING
 
 
 class TestPodcastOperations:
@@ -235,7 +234,7 @@ class TestAdPatternOperations:
     def test_create_podcast_scoped_pattern(self, temp_db):
         """Create pattern scoped to a podcast."""
         slug = 'pattern-podcast'
-        podcast_id = temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Pattern Test')
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Pattern Test')
 
         sponsor_id = temp_db.create_known_sponsor(name='CustomSponsor')
         pattern_id = temp_db.create_ad_pattern(

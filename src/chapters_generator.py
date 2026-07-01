@@ -350,17 +350,17 @@ Transcript:
     ) -> List[str]:
         """Call the LLM to generate chapter titles in one batched request."""
         prompt_parts = [
-            f"Generate short, descriptive chapter titles (3-8 words each) for a podcast episode.",
-            f"",
+            "Generate short, descriptive chapter titles (3-8 words each) for a podcast episode.",
+            "",
             f"Podcast: {podcast_name}",
             f"Episode: {episode_title}",
-            f"",
-            f"For each chapter below, provide ONLY the title on a single line.",
-            f"Use active voice when possible.",
-            f"No punctuation at end of titles.",
-            f"If it's clearly an introduction, 'Introduction' is fine.",
-            f"If it's clearly a conclusion, 'Closing Thoughts' or similar is fine.",
-            f"",
+            "",
+            "For each chapter below, provide ONLY the title on a single line.",
+            "Use active voice when possible.",
+            "No punctuation at end of titles.",
+            "If it's clearly an introduction, 'Introduction' is fine.",
+            "If it's clearly a conclusion, 'Closing Thoughts' or similar is fine.",
+            "",
         ]
 
         for i, req in enumerate(chapter_requests):

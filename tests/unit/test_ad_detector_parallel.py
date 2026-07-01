@@ -14,18 +14,16 @@ import json
 import os
 import threading
 import time
-from typing import List, Dict
+from typing import Dict
 from unittest.mock import patch
 
 import pytest
 
-import config
 from ad_detector import AdDetector, _resolve_parallel_windows, WindowResult
 from llm_client import (
     start_episode_token_tracking,
     get_episode_token_totals,
     _episode_accumulator,
-    _record_token_usage,
 )
 
 

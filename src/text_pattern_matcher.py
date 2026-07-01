@@ -11,7 +11,11 @@ from dataclasses import dataclass, replace
 from typing import List, Optional, Dict, Tuple
 import json
 
-from config import DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN
+from config import (
+    DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN,
+    TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
+    FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
+)
 from community_export import count_brand_occurrences, brand_match_candidates
 from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
@@ -20,12 +24,6 @@ from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
 
 logger = logging.getLogger('podcast.textmatch')
-
-# TF-IDF similarity threshold for content matching
-TFIDF_THRESHOLD = 0.70
-
-# Fuzzy matching threshold for intro/outro phrases
-FUZZY_THRESHOLD = 0.75
 
 # Minimum text length for pattern matching (characters)
 MIN_TEXT_LENGTH = 50
@@ -555,7 +553,10 @@ class TextPatternMatcher:
         matches = []
 
         try:
-            from rapidfuzz import fuzz
+            # Optional dependency: importing here lets the except ImportError
+            # below degrade gracefully when rapidfuzz is not installed. The
+            # actual fuzzy scoring runs inside self._fuzzy_find.
+            from rapidfuzz import fuzz  # noqa: F401
 
             full_text_lower = full_text.lower()
 

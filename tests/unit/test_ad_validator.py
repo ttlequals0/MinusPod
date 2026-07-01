@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_validator import AdValidator, ValidationResult, Decision
+from ad_validator import AdValidator, Decision
 
 
 class TestAdValidatorDuration:

@@ -9,8 +9,7 @@ import json
 
 from utils.rate_limit import parse_google_retry_delay, parse_google_daily_quota
 from llm_client import (
-    classify_daily_quota_exhaustion, extract_retry_after, is_rate_limit_error,
-    StructuralRateLimitError,
+    classify_daily_quota_exhaustion, extract_retry_after, StructuralRateLimitError,
 )
 from ad_reviewer import _review_failure_reason
 

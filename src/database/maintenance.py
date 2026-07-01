@@ -4,7 +4,7 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Tuple
+from typing import Tuple
 
 from utils.text import extract_text_in_range
 

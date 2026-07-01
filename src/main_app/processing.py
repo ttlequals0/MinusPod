@@ -40,13 +40,10 @@ from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
-from utils.time import parse_timestamp
 from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
 
 audio_logger = logging.getLogger('podcast.audio')
 
-# Import shared warn-dedup set so routes and processing share one instance
-from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
 from main_app.episode_context import EpisodeContext
 # Singletons created in main_app/__init__.py before this submodule is
 # loaded by the explicit `from main_app.processing import ...` near the
@@ -54,8 +51,7 @@ from main_app.episode_context import EpisodeContext
 # Replaces a positional 10-tuple from _get_components() that the audit
 # flagged as silently break-on-reorder.
 from main_app import (db, storage, transcriber, ad_detector, audio_processor,
-                      audio_analyzer, sponsor_service, status_service, pattern_service,
-                      processing_queue)
+                      audio_analyzer, sponsor_service, status_service, pattern_service)
 
 
 def get_min_cut_confidence() -> float:

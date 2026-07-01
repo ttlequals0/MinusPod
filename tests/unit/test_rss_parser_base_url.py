@@ -8,7 +8,6 @@ modify_feed re-reads the env. An explicit base_url= injected by a caller
 
 import re
 
-import pytest
 
 import defusedxml
 defusedxml.defuse_stdlib()

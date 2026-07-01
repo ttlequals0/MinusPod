@@ -3,7 +3,6 @@ import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 # Create temp data dir and set env before any imports that touch /app/data
@@ -100,7 +99,7 @@ class TestFeed304Refresh(unittest.TestCase):
         rss_parser.modify_feed.return_value = '<rss>modified</rss>'
         db.get_processed_episodes_for_feed.return_value = []
 
-        result = refresh_rss_feed('test-podcast', 'https://example.com/rss')
+        refresh_rss_feed('test-podcast', 'https://example.com/rss')
 
         # Should have done a full fetch (second call to fetch_feed_conditional with no etag)
         self.assertEqual(rss_parser.fetch_feed_conditional.call_count, 2)

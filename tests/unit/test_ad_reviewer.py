@@ -2,13 +2,10 @@
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from ad_reviewer import (
     AdReviewer,
     RESURRECT_BAND_WIDTH,
-    ReviewResult,
-    ReviewVerdict,
     _first_num,
     split_resurrection_pool,
 )

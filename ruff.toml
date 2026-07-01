@@ -1,0 +1,15 @@
+# Ruff configuration for the MinusPod backend (src/ + tests/).
+# Scoped to pyflakes (F) for now: unused imports/variables, redefinitions,
+# and empty f-strings. This is the first automated Python lint gate in the
+# repo; the ruleset can be widened later.
+target-version = "py311"
+line-length = 120
+extend-exclude = ["benchmarks", "frontend", ".venv", "smoke", "tmp"]
+
+[lint]
+select = ["F"]
+
+[lint.per-file-ignores]
+# __init__.py files re-export package symbols; unused-import there is the
+# intended public API, not dead code.
+"**/__init__.py" = ["F401"]

@@ -6,7 +6,6 @@ the window or change provider/tier. These tests verify the classifier
 identifies the structural case only, and that ambiguous inputs fall back
 to the existing transient retry path.
 """
-import pytest
 
 from llm_client import is_structural_rate_limit_error
 

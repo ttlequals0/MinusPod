@@ -3,9 +3,6 @@ import { useParams } from 'react-router-dom';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 import type { PatternScope } from '../api/patterns';
 
-// Save status for visual feedback
-export type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
-
 export interface DetectedAd {
   start: number;
   end: number;
@@ -39,7 +36,6 @@ interface AdEditorProps {
   onCorrection: (correction: AdCorrection) => void;
   onClose?: () => void;
   initialSeekTime?: number;
-  saveStatus?: SaveStatus;
   selectedAdIndex?: number;
   onSelectedAdIndexChange?: (index: number) => void;
   // When true, the editor opens directly in 'create' mode for marking a
@@ -161,6 +157,17 @@ export function AdEditor({
     );
   }
 
+  // Advance to the next detected ad, or close the editor when this is the last
+  // one. Shared by the save/submit and skip paths so their navigation stays in
+  // sync.
+  const advanceOrClose = () => {
+    if (safeIndex < detectedAds.length - 1) {
+      setSelectedAdIndex(safeIndex + 1);
+    } else {
+      onClose?.();
+    }
+  };
+
   const handleReviewSubmit = (s: AdReviewSubmit) => {
     if (s.kind === 'confirm') {
       onCorrection({ type: 'confirm', originalAd: ad, sponsor: s.sponsor });
@@ -175,9 +182,7 @@ export function AdEditor({
         sponsor: s.sponsor,
       });
     }
-    if (safeIndex < detectedAds.length - 1) {
-      setSelectedAdIndex(safeIndex + 1);
-    }
+    advanceOrClose();
   };
 
   const handleCreateSubmit = (s: AdCreateSubmit) => {
@@ -194,13 +199,7 @@ export function AdEditor({
     if (detectedAds.length === 0) onClose?.();
   };
 
-  const handleSkip = () => {
-    if (safeIndex < detectedAds.length - 1) {
-      setSelectedAdIndex(safeIndex + 1);
-    } else {
-      onClose?.();
-    }
-  };
+  const handleSkip = advanceOrClose;
 
   const handleAddNew = () => {
     setInternalCreateMode(true);

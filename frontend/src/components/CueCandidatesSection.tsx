@@ -8,6 +8,7 @@ import {
   type CueCandidate, type CueTemplateType,
 } from '../api/cueTemplates';
 import { getSettings } from '../api/settings';
+import { formatTimestamp } from '../utils/format';
 
 interface CueCandidatesSectionProps {
   slug: string;
@@ -15,14 +16,6 @@ interface CueCandidatesSectionProps {
   episodeTitle: string;
   episodeDuration: number;
   hasOriginalAudio: boolean;
-}
-
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 const makeBtn =
@@ -220,7 +213,7 @@ function CueCandidatesSection({
                   </button>
                   <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
                     <span className="font-mono text-sm text-foreground">
-                      {formatTime(c.start)} - {formatTime(c.end)}
+                      {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                     </span>
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                       c.kind === 'intro' || c.kind === 'outro'

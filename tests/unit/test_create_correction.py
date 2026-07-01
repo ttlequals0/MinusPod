@@ -1,6 +1,5 @@
 """Unit tests for the `create` correction type in submit_correction."""
 import json
-import pytest
 
 # Importable handler so we can call it directly without spinning up Flask.
 from api.patterns import _submit_correction_create

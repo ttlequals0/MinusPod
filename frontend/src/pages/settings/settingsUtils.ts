@@ -1,4 +1,5 @@
 import type { ClaudeModel } from '../../api/types';
+import { formatTimestamp } from '../../utils/format';
 
 export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -11,14 +12,7 @@ export function formatUptime(seconds: number): string {
 
 export function formatDuration(seconds?: number): string {
   if (!seconds) return '0:00';
-  const totalSecs = Math.floor(seconds);
-  const hours = Math.floor(totalSecs / 3600);
-  const minutes = Math.floor((totalSecs % 3600) / 60);
-  const secs = totalSecs % 60;
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  return formatTimestamp(seconds);
 }
 
 export function formatTokenCount(tokens: number): string {

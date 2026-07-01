@@ -4,7 +4,6 @@ The endpoint surfaces a feed's historical ad-cut position distribution for the
 detail-page panel. It is setting-independent: it returns data with the
 positional-prior experiment toggle off.
 """
-import json
 import os
 import sys
 

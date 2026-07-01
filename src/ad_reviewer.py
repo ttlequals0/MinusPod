@@ -1,7 +1,6 @@
 """Opt-in LLM ad reviewer."""
 import logging
 import math
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
