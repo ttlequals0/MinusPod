@@ -222,6 +222,11 @@ function CueCandidatesSection({
                     }`}>
                       {cueCandidateLabel(c)}
                     </span>
+                    {c.kind === 'recurring' && c.suggestedType && (
+                      <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">
+                        {c.suggestedType.replace(/_/g, ' ')}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => makeTemplate(c)}

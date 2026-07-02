@@ -36,11 +36,12 @@ def test_content_transition_prompt_wording():
     out = enforcer.format_for_window(_result_with(_content_transition_cue()), 0.0, 60.0)
     # Its own descriptor + guidance, not the intro/outro "show open/close" wording.
     assert 'CONTENT TRANSITION MARKERS' in out
-    assert 'not necessarily an ad boundary' in out.lower()
+    assert 'may or may not sit at an ad boundary' in out
     assert "show's open/close" not in out
     assert 'SHOW INTRO/OUTRO MARKERS' not in out
     # Not framed as an ad-break cue either.
     assert 'LABELLED AUDIO CUES' not in out
+    assert 'GENERIC AUDIO CUES' not in out
 
 
 def test_content_transition_distinct_from_intro_outro():

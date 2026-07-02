@@ -1,10 +1,16 @@
 """Cue detection telemetry mixin (#350 follow-up).
 
 One row per template cue the matcher surfaced for an episode, recording the
-match score and how detection used the cue (snap / pair / none) plus the user's
-review verdict. Advisory only -- nothing here changes the cut list. Two views
-read the same table: a per-feed advisory (judge a feed's cues before enabling
-cue-pair) and a global aggregate (tune thresholds).
+match score and how detection used the cue (snap / pair / none / below_threshold)
+plus the user's review verdict. Advisory only -- nothing here changes the cut
+list. Two views read the same table: a per-feed advisory (judge a feed's cues
+before enabling cue-pair) and a global aggregate (tune thresholds).
+
+Phase 6 adds sub-threshold ``below_threshold`` rows plus per-cue
+``edge_distance_s`` and ``unused_reason`` diagnostics. The advisory / aggregate
+totals and confirm rate count only above-threshold rows (below_threshold is
+survivorship-free telemetry, not a detection the user reviews); a separate
+near-miss histogram and unused-reason breakdown surface the new rows.
 """
 import logging
 from typing import Dict, List
@@ -12,9 +18,13 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 _VALID_VERDICTS = ('pending', 'confirmed', 'rejected')
+# App-layer guard; the DB CHECK was dropped for 'below_threshold'.
+_VALID_OUTCOMES = ('snap', 'pair', 'none', 'below_threshold')
 
 # Shared aggregate projection for the per-feed and global telemetry views.
-# Static SQL (no user input) -- safe to interpolate into both queries.
+# Static SQL (no user input) -- safe to interpolate into both queries. Totals,
+# score stats, and confirm-rate inputs count only above-threshold rows via the
+# WHERE clause the callers apply; below_threshold rows are reported separately.
 _ADVISORY_AGGREGATE_SQL = """
     COUNT(*) AS total,
     SUM(outcome = 'snap') AS snapped,
@@ -27,6 +37,9 @@ _ADVISORY_AGGREGATE_SQL = """
     MIN(match_score) AS min_score,
     MAX(match_score) AS max_score
 """
+# Above-threshold rows only: below_threshold near-misses are advisory telemetry,
+# never a detection the totals/confirm-rate should count.
+_ABOVE_THRESHOLD = "outcome != 'below_threshold'"
 
 
 class CueDetectionMixin:
@@ -47,18 +60,21 @@ class CueDetectionMixin:
                 "DELETE FROM cue_detections WHERE podcast_id = ? AND episode_id = ?",
                 (podcast_id, episode_id))
             for r in records:
+                outcome = r.get('outcome', 'none')
+                if outcome not in _VALID_OUTCOMES:
+                    raise ValueError(f"invalid outcome: {outcome}")
                 conn.execute(
                     """INSERT INTO cue_detections (
                            podcast_id, episode_id, template_id, label, cue_type,
                            role, source, start_s, end_s, match_score, confidence,
-                           outcome
-                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           outcome, edge_distance_s, unused_reason
+                       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         podcast_id, episode_id, r.get('template_id'), r.get('label'),
                         r.get('cue_type'), r.get('role'),
                         r.get('source', 'template'), r['start_s'], r['end_s'],
                         r.get('match_score'), r.get('confidence'),
-                        r.get('outcome', 'none'),
+                        outcome, r.get('edge_distance_s'), r.get('unused_reason'),
                     ),
                 )
         return len(records)
@@ -69,7 +85,8 @@ class CueDetectionMixin:
         conn = self.get_connection()
         rows = conn.execute(
             """SELECT id, template_id, label, cue_type, role, source,
-                      start_s, end_s, match_score, confidence, outcome, verdict
+                      start_s, end_s, match_score, confidence, outcome, verdict,
+                      edge_distance_s, unused_reason
                FROM cue_detections WHERE podcast_id = ? AND episode_id = ?
                ORDER BY start_s ASC""",
             (podcast_id, episode_id),
@@ -89,31 +106,64 @@ class CueDetectionMixin:
         return cursor.rowcount > 0
 
     def cue_feed_advisory(self, podcast_id: int) -> Dict:
-        """Per-feed cue health: outcome/verdict counts, score range, confirm rate."""
+        """Per-feed cue health: outcome/verdict counts, score range, confirm rate.
+
+        Counts above-threshold rows only; below_threshold near-misses are
+        advisory and excluded from the totals.
+        """
         conn = self.get_connection()
         row = conn.execute(
-            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections WHERE podcast_id = ?",
+            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "
+            f"WHERE podcast_id = ? AND {_ABOVE_THRESHOLD}",
             (podcast_id,),
         ).fetchone()
         return _advisory_dict(row)
 
     def cue_aggregate_stats(self) -> Dict:
-        """Global cue telemetry: the feed-advisory shape plus a score histogram."""
+        """Global cue telemetry: the feed-advisory shape plus histograms.
+
+        Adds a match-score histogram (above-threshold rows), a near-miss
+        histogram + total (below_threshold rows), and an unused-reason breakdown
+        (outcome='none' rows). Totals/confirm-rate exclude below_threshold.
+        """
         conn = self.get_connection()
         totals = conn.execute(
-            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections"
+            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "
+            f"WHERE {_ABOVE_THRESHOLD}"
         ).fetchone()
         buckets = conn.execute(
-            """SELECT CAST(match_score * 10 AS INT) AS bucket, COUNT(*) AS n
-               FROM cue_detections WHERE match_score IS NOT NULL
+            f"""SELECT CAST(match_score * 10 AS INT) AS bucket, COUNT(*) AS n
+               FROM cue_detections WHERE match_score IS NOT NULL AND {_ABOVE_THRESHOLD}
                GROUP BY bucket ORDER BY bucket"""
         ).fetchall()
+        near_miss_buckets = conn.execute(
+            """SELECT CAST(match_score * 10 AS INT) AS bucket, COUNT(*) AS n
+               FROM cue_detections
+               WHERE match_score IS NOT NULL AND outcome = 'below_threshold'
+               GROUP BY bucket ORDER BY bucket"""
+        ).fetchall()
+        near_miss_total = conn.execute(
+            "SELECT COUNT(*) FROM cue_detections WHERE outcome = 'below_threshold'"
+        ).fetchone()[0]
+        reason_rows = conn.execute(
+            """SELECT unused_reason, COUNT(*) AS n FROM cue_detections
+               WHERE outcome = 'none' AND unused_reason IS NOT NULL
+               GROUP BY unused_reason"""
+        ).fetchall()
         out = _advisory_dict(totals)
-        out['scoreHistogram'] = [
-            {'scoreFrom': round(b['bucket'] / 10, 1), 'count': b['n']}
-            for b in buckets
-        ]
+        out['scoreHistogram'] = _histogram(buckets)
+        out['nearMissHistogram'] = _histogram(near_miss_buckets)
+        out['nearMissTotal'] = near_miss_total
+        out['unusedReasons'] = {r['unused_reason']: r['n'] for r in reason_rows}
         return out
+
+
+def _histogram(buckets) -> List[Dict]:
+    """Shape CAST(score*10) buckets into [{scoreFrom, count}] rows."""
+    return [
+        {'scoreFrom': round(b['bucket'] / 10, 1), 'count': b['n']}
+        for b in buckets
+    ]
 
 
 def _advisory_dict(row) -> Dict:

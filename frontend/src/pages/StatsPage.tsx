@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, Cell,
 } from 'recharts';
 import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats } from '../api/stats';
+import { getCueAggregateStats } from '../api/cueDetections';
 import { getFeeds } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
@@ -115,6 +116,37 @@ export default function StatsPage() {
     queryKey: ['stats-by-podcast'],
     queryFn: getStatsByPodcast,
   });
+
+  // Global cue telemetry (thresholds tuning). Deferred behind the dashboard so
+  // the page does not fetch it before there is anything to show.
+  const { data: cueStats } = useQuery({
+    queryKey: ['stats', 'cue-aggregate'],
+    queryFn: getCueAggregateStats,
+    enabled: !!dashboard,
+  });
+
+  // Merge the match-score and near-miss histograms onto one score axis so both
+  // series render as grouped bars per bucket.
+  const cueHistogram = useMemo(() => {
+    if (!cueStats) return [];
+    const byScore = new Map<number, { scoreFrom: number; matches: number; nearMisses: number }>();
+    for (const b of cueStats.scoreHistogram) {
+      byScore.set(b.scoreFrom, { scoreFrom: b.scoreFrom, matches: b.count, nearMisses: 0 });
+    }
+    for (const b of cueStats.nearMissHistogram) {
+      const row = byScore.get(b.scoreFrom) ?? { scoreFrom: b.scoreFrom, matches: 0, nearMisses: 0 };
+      row.nearMisses = b.count;
+      byScore.set(b.scoreFrom, row);
+    }
+    return [...byScore.values()].sort((a, b) => a.scoreFrom - b.scoreFrom);
+  }, [cueStats]);
+
+  const cueUnusedReasons = useMemo(() => {
+    if (!cueStats) return [];
+    return Object.entries(cueStats.unusedReasons)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [cueStats]);
 
   const [sortField, setSortField] = useState<PodcastSortField>('totalAds');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -320,6 +352,50 @@ export default function StatsPage() {
             <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
             <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
           </div>
+        </div>
+      )}
+
+      {/* Audio Cue Telemetry. Renders once the aggregate query loads and there
+          is any recorded cue (matches or near-misses). Below-threshold
+          near-misses show as a distinct series -- they never affected cuts. */}
+      {cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) && (
+        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Audio Cue Telemetry</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <ReviewerStatCard label="Matches" value={cueStats.total} />
+            <ReviewerStatCard label="Snapped" value={cueStats.snapped} />
+            <ReviewerStatCard label="Paired" value={cueStats.paired} />
+            <ReviewerStatCard label="Near-misses" value={cueStats.nearMissTotal} />
+          </div>
+          {cueHistogram.length > 0 && (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
+                <XAxis
+                  dataKey="scoreFrom"
+                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
+                />
+                <YAxis tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
+                <Tooltip {...tooltipStyle} />
+                <Bar dataKey="matches" name="Matches (affected cuts)"
+                     fill={theme.primary || '#6366f1'} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
+                     fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          {cueUnusedReasons.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                Unused cue reasons
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {cueUnusedReasons.map(({ reason, count }) => (
+                  <ReviewerStatCard key={reason} label={reason.replace(/_/g, ' ')} value={count} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

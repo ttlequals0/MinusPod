@@ -20,12 +20,17 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from scipy.signal import fftconvolve
 
-from config import AUDIO_CUE_TEMPLATE_SCORE, AUDIO_CUE_TYPE_DEFAULT, audio_cue_type_role
+from config import (
+    AUDIO_CUE_TEMPLATE_SCORE,
+    AUDIO_CUE_TYPE_DEFAULT,
+    AUDIO_CUE_NEAR_MISS_MAX_PER_TEMPLATE,
+    audio_cue_type_role,
+)
 from .base import AudioSegmentSignal, SignalType
 from .cue_features import (
     FRAME_HOP_MS,
@@ -76,9 +81,12 @@ class AudioCueTemplateMatcher:
         formant_atten_db: float = 0.0,
         formant_lo_hz: float = FORMANT_LO_HZ,
         formant_hi_hz: float = FORMANT_HI_HZ,
+        near_miss_floor: Optional[float] = None,
     ):
         self.score_threshold = score_threshold
         self.max_matches_per_template = max_matches_per_template
+        # Peaks in [floor, threshold) become advisory near-misses when set.
+        self.near_miss_floor = near_miss_floor
         # Global voiceover-robust profile (#350); 0 dB = off = un-weighted MFCC.
         self._formant_atten_db = float(formant_atten_db)
         self._formant_lo_hz = float(formant_lo_hz)
@@ -157,13 +165,13 @@ class AudioCueTemplateMatcher:
         """
         if not self._templates:
             return [], {'templates': [], 'threshold': self.score_threshold,
-                        'elapsed_s': 0.0}
+                        'elapsed_s': 0.0, 'near_misses': []}
 
         duration = get_audio_duration(audio_path)
         if not duration:
             logger.warning("Could not determine audio duration for cue template detection")
             return [], {'templates': [], 'threshold': self.score_threshold,
-                        'elapsed_s': 0.0}
+                        'elapsed_s': 0.0, 'near_misses': []}
 
         signals: List[AudioSegmentSignal] = []
         per_template_matches: Dict[int, List[AudioSegmentSignal]] = {
@@ -174,6 +182,11 @@ class AudioCueTemplateMatcher:
         # is observable from the logs.
         per_template_peak_score: Dict[int, float] = {
             t.template_id: 0.0 for t in self._templates
+        }
+        # Sub-threshold peaks in [near_miss_floor, threshold) per template
+        # (#350 Phase 6). Stays empty when near_miss_floor is None.
+        per_template_near_misses: Dict[int, List[Dict]] = {
+            t.template_id: [] for t in self._templates
         }
 
         start_wall = time.time()
@@ -194,13 +207,15 @@ class AudioCueTemplateMatcher:
                 self._scan_chunk(
                     chunk_mfcc, chunk_start,
                     per_template_matches, per_template_peak_score,
+                    per_template_near_misses,
                 )
 
             if chunk_end >= duration:
                 break
             chunk_start = chunk_end - CHUNK_OVERLAP_SECONDS
 
-        for matches in per_template_matches.values():
+        kept_signals_by_template: Dict[int, List[AudioSegmentSignal]] = {}
+        for tid, matches in per_template_matches.items():
             if not matches:
                 continue
             matches.sort(key=lambda s: s.confidence, reverse=True)
@@ -208,7 +223,17 @@ class AudioCueTemplateMatcher:
             # Drop duplicates from chunk overlap: peaks within one template
             # duration of each other are the same event.
             kept = self._dedupe(kept)
+            kept_signals_by_template[tid] = kept
             signals.extend(kept)
+
+        # Dedupe and cap near-misses per template.
+        near_misses: List[Dict] = []
+        for tid, misses in per_template_near_misses.items():
+            if not misses:
+                continue
+            deduped = self._dedupe_near_misses(
+                misses, kept_signals_by_template.get(tid, []))
+            near_misses.extend(deduped[:AUDIO_CUE_NEAR_MISS_MAX_PER_TEMPLATE])
 
         elapsed = time.time() - start_wall
         # Count matches per template in one pass, reused for both the tuning
@@ -230,7 +255,7 @@ class AudioCueTemplateMatcher:
             )
         logger.info(
             f"Cue template match: {len(self._templates)} template(s), "
-            f"{len(signals)} signal(s) in {elapsed:.1f}s"
+            f"{len(signals)} signal(s), {len(near_misses)} near-miss(es) in {elapsed:.1f}s"
         )
         debug = {
             'threshold': self.score_threshold,
@@ -245,6 +270,7 @@ class AudioCueTemplateMatcher:
                 }
                 for tpl in self._templates
             ],
+            'near_misses': near_misses,
         }
         return signals, debug
 
@@ -254,8 +280,13 @@ class AudioCueTemplateMatcher:
         chunk_offset_s: float,
         per_template_matches: Dict[int, List[AudioSegmentSignal]],
         per_template_peak_score: Dict[int, float],
+        per_template_near_misses: Dict[int, List[Dict]],
     ) -> None:
         hop_s = FRAME_HOP_MS / 1000.0
+        # Peak-pick down to the near-miss floor when set, so sub-threshold peaks
+        # are visible; otherwise pick at the threshold exactly as before.
+        pick_floor = (min(self.score_threshold, self.near_miss_floor)
+                      if self.near_miss_floor is not None else self.score_threshold)
         for tpl in self._templates:
             if tpl.mfcc.shape[1] != chunk_mfcc.shape[1]:
                 logger.warning(
@@ -274,25 +305,39 @@ class AudioCueTemplateMatcher:
             # Local-maximum peak pick within a window of template duration.
             tpl_frames = tpl.mfcc.shape[0]
             suppress_frames = max(1, tpl_frames)
-            peaks = _peak_pick(scores, self.score_threshold, suppress_frames)
+            peaks = _peak_pick(scores, pick_floor, suppress_frames)
             for frame_idx, score in peaks:
                 start_s = chunk_offset_s + frame_idx * hop_s
                 end_s = start_s + tpl.duration_s
-                confidence = float(min(0.99, max(0.0, score)))
-                per_template_matches[tpl.template_id].append(AudioSegmentSignal(
-                    start=round(start_s, 3),
-                    end=round(end_s, 3),
-                    signal_type=SignalType.AUDIO_CUE.value,
-                    confidence=round(confidence, 3),
-                    details={
-                        'source': 'template',
+                if score >= self.score_threshold:
+                    confidence = float(min(0.99, max(0.0, score)))
+                    per_template_matches[tpl.template_id].append(AudioSegmentSignal(
+                        start=round(start_s, 3),
+                        end=round(end_s, 3),
+                        signal_type=SignalType.AUDIO_CUE.value,
+                        confidence=round(confidence, 3),
+                        details={
+                            'source': 'template',
+                            'template_id': tpl.template_id,
+                            'label': tpl.label,
+                            'cue_type': tpl.cue_type,
+                            'role': tpl.role,
+                            'score': round(score, 3),
+                        },
+                    ))
+                else:
+                    # In [near_miss_floor, threshold): advisory near-miss only.
+                    # Append unconditionally -- finalize() dedupes then caps by
+                    # score so the strongest survive; _peak_pick bounds memory.
+                    per_template_near_misses[tpl.template_id].append({
                         'template_id': tpl.template_id,
                         'label': tpl.label,
                         'cue_type': tpl.cue_type,
                         'role': tpl.role,
+                        'start_s': round(start_s, 3),
+                        'end_s': round(end_s, 3),
                         'score': round(score, 3),
-                    },
-                ))
+                    })
 
     @staticmethod
     def _dedupe(matches: List[AudioSegmentSignal]) -> List[AudioSegmentSignal]:
@@ -308,6 +353,28 @@ class AudioCueTemplateMatcher:
                 continue
             kept.append(m)
         kept.sort(key=lambda s: s.start)
+        return kept
+
+    @staticmethod
+    def _dedupe_near_misses(misses: List[Dict],
+                            kept_signals: List[AudioSegmentSignal]) -> List[Dict]:
+        """Drop near-misses within 0.25s of a kept signal or a stronger miss.
+
+        Highest-score first so the strongest miss in a cluster survives. A miss
+        that coincides with a kept above-threshold signal is the same event and
+        is dropped -- the signal already tells that story.
+        """
+        signal_starts = [s.start for s in kept_signals]
+        misses.sort(key=lambda m: m['score'], reverse=True)
+        kept: List[Dict] = []
+        for m in misses:
+            start = m['start_s']
+            if any(abs(start - s) < 0.25 for s in signal_starts):
+                continue
+            if any(abs(start - k['start_s']) < 0.25 for k in kept):
+                continue
+            kept.append(m)
+        kept.sort(key=lambda m: m['start_s'])
         return kept
 
 

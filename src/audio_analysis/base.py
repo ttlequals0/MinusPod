@@ -84,6 +84,8 @@ class AudioAnalysisResult:
     loudness_frames: List[LoudnessFrame] = field(default_factory=list)
     analysis_time_seconds: float = 0.0
     errors: List[str] = field(default_factory=list)
+    # Near-miss telemetry (#350). Advisory only -- never signals.
+    cue_near_misses: List[Dict[str, Any]] = field(default_factory=list)
 
     def get_signals_by_type(self, signal_type: str) -> List[AudioSegmentSignal]:
         """Get all signals of a specific type."""
@@ -91,9 +93,14 @@ class AudioAnalysisResult:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        out = {
             'signals': [s.to_dict() for s in self.signals],
             'loudness_baseline': self.loudness_baseline,
             'analysis_time_seconds': self.analysis_time_seconds,
             'errors': self.errors
         }
+        # Only emit near-misses when present so the common empty case does not
+        # bloat the stored analysis JSON. No from_dict exists to keep in sync.
+        if self.cue_near_misses:
+            out['cue_near_misses'] = self.cue_near_misses
+        return out

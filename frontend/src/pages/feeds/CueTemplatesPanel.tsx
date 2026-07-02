@@ -22,8 +22,8 @@ import {
   type ThresholdSuggestResponse,
 } from '../../api/cueTemplates';
 import { getCueFeedAdvisory } from '../../api/cueDetections';
-import { getEpisode, getEpisodes, getFeed, getFeeds } from '../../api/feeds';
-import { getSettings, updateSettings } from '../../api/settings';
+import { getEpisode, getEpisodes, getFeed, getFeeds, updateFeed, CUE_SCORE_MAX } from '../../api/feeds';
+import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
@@ -710,11 +710,13 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
   const applySuggested = async (value: number) => {
     setApplied(false);
     if (!window.confirm(
-      `Set the global cue match threshold to ${value.toFixed(2)}? This affects every feed with cue templates.`,
+      `Set the per-feed cue match threshold to ${value.toFixed(2)} for this feed? ` +
+      `The global setting will not change.`,
     )) return;
     try {
-      await updateSettings({ audioCueTemplateScore: value });
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      await updateFeed(slug, { cueTemplateScoreOverride: value });
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
       setApplied(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not apply');
@@ -768,7 +770,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               id="score-override"
               type="number"
               min={0}
-              max={0.99}
+              max={CUE_SCORE_MAX}
               step={0.05}
               placeholder="default"
               value={scoreOverride}
@@ -782,8 +784,8 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
             onClick={() => {
               if (!selectedEpisode) return;
               const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
-              if (n !== undefined && (Number.isNaN(n) || n < 0 || n > 0.99)) {
-                setError('threshold must be between 0 and 0.99');
+              if (n !== undefined && (Number.isNaN(n) || n < 0 || n > CUE_SCORE_MAX)) {
+                setError(`threshold must be between 0 and ${CUE_SCORE_MAX}`);
                 return;
               }
               runScan(selectedEpisode, n);

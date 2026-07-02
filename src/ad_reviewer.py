@@ -15,6 +15,7 @@ from config import (
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
+    is_template_cue,
 )
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
@@ -136,12 +137,14 @@ class ReviewResult:
 
 
 def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
-                        cue_pair=None, cue_snap=None) -> str:
+                        cue_pair=None, cue_snap=None,
+                        bucket_radius: float = 60.0) -> str:
     """Render audio cue context for the reviewer's per-ad user prompt (#350).
 
     Includes:
-    - Every ``audio_cue`` signal within 60 s of the candidate boundaries,
-      with its label, time, and confidence.
+    - Template cues within bucket_radius of the candidate boundaries,
+      rendered as ground-truth boundary markers.
+    - Spectral cues in the same radius, rendered as weak evidence only.
     - The ``cue_pair`` block when the ad was synthesised from a bracketing
       pair of cues; signals the reviewer to keep the ad even if the
       transcript inside looks light on promotional language.
@@ -156,8 +159,12 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
             cues = audio_analysis.get_signals_by_type('audio_cue')
         except AttributeError:
             cues = []
-        near_start = []
-        near_end = []
+        # Template cues: precise matches, treated as ground-truth markers.
+        near_start_tmpl = []
+        near_end_tmpl = []
+        # Spectral cues: loudness bursts, weak evidence only.
+        near_start_spec = []
+        near_end_spec = []
         near_non_ad = []
         near_content_transition = []
         for cue in cues:
@@ -166,34 +173,45 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
             details = cue.details or {}
             label = details.get('label') or 'audio cue'
             role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
-            near_start_edge = abs(cue.start - ad_start) <= 60.0 or abs(cue.end - ad_start) <= 60.0
-            near_end_edge = abs(cue.start - ad_end) <= 60.0 or abs(cue.end - ad_end) <= 60.0
+            near_start_edge = (
+                abs(cue.start - ad_start) <= bucket_radius
+                or abs(cue.end - ad_start) <= bucket_radius
+            )
+            near_end_edge = (
+                abs(cue.start - ad_end) <= bucket_radius
+                or abs(cue.end - ad_end) <= bucket_radius
+            )
             if role == AUDIO_CUE_ROLE_NON_AD:
                 if not (near_start_edge or near_end_edge):
                     continue
-                # content_transition is a recurring segment/ad transition that
-                # MAY be an ad boundary; intro/outro are the show's own
-                # open/close and are never a boundary. Keep them distinct so the
-                # reviewer is not told to ignore a real ad-break transition.
+                # content_transition may be an ad boundary; intro/outro never are.
                 cue_type = (cue.details or {}).get('cue_type')
                 if cue_type == AUDIO_CUE_TYPE_CONTENT_TRANSITION:
                     near_content_transition.append((cue, label))
                 else:
                     near_non_ad.append((cue, label))
                 continue
+            template = is_template_cue(details)
             if near_start_edge:
-                near_start.append((cue, label))
+                if template:
+                    near_start_tmpl.append((cue, label))
+                else:
+                    near_start_spec.append(cue)
             if near_end_edge:
-                near_end.append((cue, label))
-        if near_start or near_end:
+                if template:
+                    near_end_tmpl.append((cue, label))
+                else:
+                    near_end_spec.append(cue)
+
+        if near_start_tmpl or near_end_tmpl:
             lines.append("AUDIO CUE EVIDENCE:")
-            for cue, label in near_start:
+            for cue, label in near_start_tmpl:
                 lines.append(
                     f"  - near AD START: \"{label}\" cue at "
                     f"{cue.start:.1f}s-{cue.end:.1f}s "
                     f"(confidence {cue.confidence:.0%})"
                 )
-            for cue, label in near_end:
+            for cue, label in near_end_tmpl:
                 lines.append(
                     f"  - near AD END: \"{label}\" cue at "
                     f"{cue.start:.1f}s-{cue.end:.1f}s "
@@ -204,6 +222,25 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                 "ground-truth boundary marker for its side of the break -- do not "
                 "pull a boundary across a cue without strong transcript evidence."
             )
+
+        if near_start_spec or near_end_spec:
+            lines.append("GENERIC AUDIO CUES NEARBY (weak evidence):")
+            for cue in near_start_spec:
+                lines.append(
+                    f"  - near AD START: loudness burst at "
+                    f"{cue.start:.1f}s-{cue.end:.1f}s "
+                    f"(confidence {cue.confidence:.0%})"
+                )
+            for cue in near_end_spec:
+                lines.append(
+                    f"  - near AD END: loudness burst at "
+                    f"{cue.start:.1f}s-{cue.end:.1f}s "
+                    f"(confidence {cue.confidence:.0%})"
+                )
+            lines.append(
+                "Do not move a boundary to one of these without transcript support."
+            )
+
         if near_non_ad:
             lines.append("SHOW INTRO/OUTRO MARKERS NEARBY:")
             for cue, label in near_non_ad:
@@ -213,8 +250,11 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                 )
             lines.append(
                 "Do not anchor this ad's boundary to these markers; they are the "
-                "show's own intro/outro, not break stingers."
+                "show's own intro/outro, not break stingers. "
+                "A pre-roll ad may end exactly where the intro starts; "
+                "a post-roll ad may begin where the outro ends."
             )
+
         if near_content_transition:
             lines.append("CONTENT TRANSITION MARKERS NEARBY:")
             for cue, label in near_content_transition:
@@ -223,9 +263,10 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                     f"(a recurring content/segment transition, may or may not be an ad boundary)"
                 )
             lines.append(
-                "Use these as supporting evidence for where a break may start or "
-                "end; they do not force a cut."
+                "Prefer aligning a boundary to a marker when the transcript "
+                "supports it, but a marker never forces a cut."
             )
+
         # Pre/post-roll position bias: an ad wholly outside the content span
         # (before the first intro or after the last outro) is expected to be
         # promotional, so lean toward keeping it.
@@ -257,16 +298,25 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
         )
     if cue_snap:
         moved = []
-        if 'start' in cue_snap:
-            moved.append(
-                f"start snapped to \"{cue_snap['start'].get('label') or 'cue'}\" "
-                f"end (was {cue_snap['start'].get('original')}s)"
-            )
-        if 'end' in cue_snap:
-            moved.append(
-                f"end snapped to \"{cue_snap['end'].get('label') or 'cue'}\" "
-                f"start (was {cue_snap['end'].get('original')}s)"
-            )
+        for edge in ('start', 'end'):
+            rec = cue_snap.get(edge)
+            if not rec:
+                continue
+            # candidates counts the chosen cue too
+            ambig = ""
+            if rec.get('ambiguous') and rec.get('candidates'):
+                _n = rec['candidates'] - 1
+                ambig = f" ({_n} other {'cue' if _n == 1 else 'cues'} nearby)"
+            if edge == 'start':
+                moved.append(
+                    f"start snapped to \"{rec.get('label') or 'cue'}\" "
+                    f"end (was {rec.get('original')}s){ambig}"
+                )
+            else:
+                moved.append(
+                    f"end snapped to \"{rec.get('label') or 'cue'}\" "
+                    f"start (was {rec.get('original')}s){ambig}"
+                )
         if moved:
             lines.append(
                 "CUE SNAP APPLIED: " + "; ".join(moved) +
@@ -479,6 +529,7 @@ class AdReviewer:
             segments=segments,
             episode_meta=episode_meta,
             pool=pool,
+            max_shift=max_shift,
         )
         slug = episode_meta.get("slug")
         episode_id = episode_meta.get("episode_id")
@@ -700,6 +751,7 @@ class AdReviewer:
         segments: List[Dict],
         episode_meta: Dict,
         pool: str,
+        max_shift: int = 60,
     ) -> str:
         """Build the per-ad user prompt.
 
@@ -761,6 +813,7 @@ class AdReviewer:
             ad_end=end,
             cue_pair=ad.get('cue_pair'),
             cue_snap=ad.get('cue_snap'),
+            bucket_radius=float(max_shift),
         )
 
         return (

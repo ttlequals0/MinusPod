@@ -191,6 +191,19 @@ AUDIO_CUE_ONSET_LAG_SECONDS = 0.2    # ebur128 momentary loudness integrates ove
 # dip below 0.85 with background beds) against false positives (non-cue audio
 # sits near 0.0). Tuneable via the audio_cue_template_score DB setting.
 AUDIO_CUE_TEMPLATE_SCORE = 0.75
+# Near-miss band: [max(MIN_FLOOR, threshold - DELTA), threshold). Advisory only (#350).
+AUDIO_CUE_NEAR_MISS_DELTA = 0.2
+AUDIO_CUE_NEAR_MISS_MIN_FLOOR = 0.5
+AUDIO_CUE_NEAR_MISS_MAX_PER_TEMPLATE = 10
+
+
+def resolve_near_miss_floor(threshold):
+    """Near-miss floor = max(MIN_FLOOR, threshold - DELTA)."""
+    return max(AUDIO_CUE_NEAR_MISS_MIN_FLOOR, threshold - AUDIO_CUE_NEAR_MISS_DELTA)
+# Ad-affinity: hit = occurrence within TOLERANCE of a stored ad edge; PHASE_FRACTION splits start/end (#350).
+AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS = 5.0
+AUDIO_CUE_AD_AFFINITY_MIN_FRACTION = 0.6
+AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION = 0.8
 # Voiceover-robust matching (#350): global formant-band (800-3400 Hz) attenuation
 # in dB applied to saved-template matching so a cue keys on its constant music bed
 # despite a varying voiceover. 0.0 = off (default; existing/ding/full-spectrum cues
@@ -206,6 +219,10 @@ AUDIO_CUE_CAPTURE_MIN_SECONDS = 0.20    # Shortest cue a user may bracket (match
 AUDIO_CUE_CAPTURE_MAX_SECONDS = 10.0    # Longest cue a user may bracket
 AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS = 60.0  # Longest show-intro stinger a user may bracket
 AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS = 60.0  # Longest show-outro stinger a user may bracket
+# Issue #350 field data: a 9.8s ad-break capture matched far worse than
+# 1.5-2.5s clips of the same cue. Beyond this threshold, long-template
+# match quality degrades significantly; warn the user at save time.
+AUDIO_CUE_CAPTURE_WARN_AD_SECONDS = 5.0
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
@@ -245,7 +262,6 @@ AUDIO_CUE_XEP_MAX_SIBLINGS = 5         # most recent completed siblings to compa
 AUDIO_CUE_XEP_SIBLING_LOOKBACK = 30    # completed episodes to scan for ones with retained audio
 AUDIO_CUE_XEP_MIN_MATCHES = 2          # a segment must recur in >= this many siblings
 AUDIO_CUE_XEP_MIN_DURATION = 3.0       # ignore matches shorter than a real intro/outro
-AUDIO_CUE_XEP_MAX_DURATION = 30.0      # cap a suggested intro/outro span
 AUDIO_CUE_XEP_MAX_PER_ZONE = 3         # most intro (and outro) candidates to surface per episode
 AUDIO_CUE_XEP_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY  # bit-similarity threshold for a cross-episode match
 # Fingerprint self-repeat discovery internals (candidate scan). The probe window
@@ -339,6 +355,30 @@ def resolve_detection_mode(db, slug):
     except Exception:
         return DETECTION_MODE_BLACKLIST
     return mode if mode in DETECTION_MODES else DETECTION_MODE_BLACKLIST
+
+
+def resolve_cue_template_score_with_source(db, podcast_id):
+    """Per-feed cue match threshold with source tag ('override' or 'global')."""
+    try:
+        if db and podcast_id is not None:
+            override = db.get_podcast_cue_score_override(podcast_id)
+            if override is not None:
+                return override, 'override'
+    except Exception:
+        pass
+    try:
+        if db:
+            return db.get_setting_float('audio_cue_template_score', AUDIO_CUE_TEMPLATE_SCORE), 'global'
+    except Exception:
+        pass
+    return AUDIO_CUE_TEMPLATE_SCORE, 'global'
+
+
+def resolve_cue_template_score(db, podcast_id):
+    """Per-feed cue match threshold, falling back to the global setting."""
+    score, _ = resolve_cue_template_score_with_source(db, podcast_id)
+    return score
+
 
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a
 # dropdown, never freeform text, so the phrase fed to the LLM prompt is always

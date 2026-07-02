@@ -90,6 +90,32 @@ def _normalize_detection_mode(value):
     return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
 
 
+_CUE_SCORE_MIN = 0.30
+_CUE_SCORE_MAX = 0.99
+
+
+def _normalize_cue_score_override(value):
+    """Validate the per-feed cue template score override (#350 Phase 5).
+
+    Returns (db_value, error). None / empty string clears the override (stored
+    NULL, falls back to global setting). A float in [0.30, 0.99] is stored.
+    Values below 0.30 are rejected: the floor sits above measured noise ceilings
+    (0.33-0.50), so anything below it would never be a useful production value.
+    """
+    if value is None or value == '':
+        return None, None
+    try:
+        fval = float(value)
+    except (TypeError, ValueError):
+        return None, "cueTemplateScoreOverride must be a number or null"
+    if fval < _CUE_SCORE_MIN or fval > _CUE_SCORE_MAX:
+        return None, (
+            f"cueTemplateScoreOverride must be between {_CUE_SCORE_MIN} "
+            f"and {_CUE_SCORE_MAX}"
+        )
+    return fval, None
+
+
 def _slug_from_url_path(source_url: str) -> Optional[str]:
     # Final-resort slug derivation when neither an upstream OPML title nor
     # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
@@ -130,6 +156,7 @@ def list_feeds():
             'title': podcast['title'] or podcast['slug'],
             'titleOverride': podcast.get('title_override'),
             'detectionMode': podcast.get('detection_mode'),
+            'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
             'sourceUrl': podcast['source_url'],
             'feedUrl': feed_url,
             'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
@@ -513,6 +540,7 @@ def get_feed(slug):
         'languageOverride': podcast.get('language_override'),
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
+        'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
@@ -571,6 +599,12 @@ def update_feed(slug):
             return error_response(mode_err, 400)
         updates['detection_mode'] = mode_val
 
+    if 'cueTemplateScoreOverride' in data:
+        score_val, score_err = _normalize_cue_score_override(data['cueTemplateScoreOverride'])
+        if score_err:
+            return error_response(score_err, 400)
+        updates['cue_template_score_override'] = score_val
+
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
         max_ep = data['maxEpisodes']
@@ -623,6 +657,7 @@ def update_feed(slug):
             'languageOverride': podcast.get('language_override'),
             'titleOverride': podcast.get('title_override'),
             'detectionMode': podcast.get('detection_mode'),
+            'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"

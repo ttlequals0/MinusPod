@@ -203,10 +203,46 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
             if len(cand) < min_matches:
                 break
             alive, hi = cand, hi + step
+        # Whether the coarse run hit the max_len cap BEFORE refinement; the
+        # skip-past gate below must use this (refinement can pull hi back).
+        coarse_capped = hi + step - lo > max_len
+        # Fine refinement: retract coarse overshoot, then extend 1 subfp at a time using 4-subfp windows
+        # (a 1-subfp slice is 32 bits -- too noisy at 0.73). Never drops a survivor; count stays coarse.
+        R = min(4, win)
+        fine_limit = max(1, step - 1)
+        # Retraction floor: never shrink a coarse-valid run below min_len, else a
+        # previously-emittable candidate vanishes (min_len can exceed win).
+        retract_floor = max(win, min_len)
+        # hi edge: retract overshoot, then extend.
+        for _ in range(fine_limit):
+            if (hi - lo) <= retract_floor or hi - R < lo:
+                break
+            if len(_slice_ok(alive, hi - R, R)) == len(alive):
+                break
+            hi -= 1
+        for _ in range(fine_limit):
+            if (hi + 1 - lo) > max_len or hi + 1 > len(target):
+                break
+            if len(_slice_ok(alive, hi + 1 - R, R)) < len(alive):
+                break
+            hi += 1
+        # lo edge: retract overshoot, then extend.
+        for _ in range(fine_limit):
+            if (hi - lo) <= retract_floor:
+                break
+            if len(_slice_ok(alive, lo, R)) == len(alive):
+                break
+            lo += 1
+        for _ in range(fine_limit):
+            if (hi - (lo - 1)) > max_len or lo - 1 < claimed_until:
+                break
+            if len(_slice_ok(alive, lo - 1, R)) < len(alive):
+                break
+            lo -= 1
         if len(alive) >= min_matches and (hi - lo) >= min_len:
             found.append((lo, hi, len(alive)))
             seg_end = hi
-            if hi + step - lo > max_len:
+            if coarse_capped:
                 # The run was capped at max_len while the shared sound continues;
                 # skip past its true end so one long segment yields one candidate,
                 # not overlapping max_len fragments. (When the run instead ended at
@@ -314,6 +350,7 @@ def _discover_repeats(raw_ints, fp_duration, similarity, min_count):
             'start': round(start_s, 2),
             'end': round(start_s + length / fps, 2),
             'count': len(hits),
+            'occurrences': [round(sh / fps, 2) for sh in seg_hits],
         })
     candidates.sort(key=lambda c: -c['count'])
     return candidates[:AUDIO_CUE_FP_MAX_CANDIDATES]
@@ -641,7 +678,8 @@ class AudioFingerprinter:
     def discover_cross_episode_cues(self, target_path, sibling_paths, *,
                                     head_seconds, tail_seconds, window_seconds,
                                     similarity, min_matches, min_duration,
-                                    max_duration, max_per_zone, target_fingerprint=None):
+                                    intro_max_duration, outro_max_duration,
+                                    max_per_zone, target_fingerprint=None):
         """Find intro/outro cues by comparing this episode's head and tail
         fingerprint against recent completed sibling episodes.
 
@@ -670,7 +708,8 @@ class AudioFingerprinter:
         fps = len(t_ints) / t_dur
         win = max(4, int(round(window_seconds * fps)))
         min_len = max(win, int(round(min_duration * fps)))
-        max_len = max(min_len, int(round(max_duration * fps)))
+        intro_max_len = max(min_len, int(round(intro_max_duration * fps)))
+        outro_max_len = max(min_len, int(round(outro_max_duration * fps)))
 
         # Head and tail zones are split at the episode midpoint so they never
         # overlap, even on short episodes -- otherwise one shared segment would be
@@ -688,7 +727,7 @@ class AudioFingerprinter:
         out = []
         intros = _find_shared_segments(
             _head(t_ints, t_dur), [_head(s, d) for s, d in sib_fps],
-            win, similarity, min_matches, min_len, max_len)
+            win, similarity, min_matches, min_len, intro_max_len)
         for a, b, count in intros[:max_per_zone]:
             out.append({'start': round(a / fps, 2), 'end': round(b / fps, 2),
                         'kind': 'intro', 'episodeMatches': count})
@@ -697,7 +736,7 @@ class AudioFingerprinter:
         tail_offset = (len(t_ints) - len(t_tail)) / fps
         outros = _find_shared_segments(
             t_tail, [_tail(s, d) for s, d in sib_fps],
-            win, similarity, min_matches, min_len, max_len)
+            win, similarity, min_matches, min_len, outro_max_len)
         # Keep the runs nearest the episode end -- the true sign-off outro is the
         # last tail run, not the earliest. (Guard the -0 slice: outros[-0:] is the
         # whole list, which would ignore a max_per_zone of 0.)

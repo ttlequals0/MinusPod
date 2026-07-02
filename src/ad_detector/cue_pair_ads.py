@@ -33,6 +33,15 @@ from config import (
     AUDIO_CUE_END_EDGE_ROLES,
     is_template_cue,
 )
+from ad_detector.cue_telemetry import cue_key as _diag_key
+
+# Skip-diagnostics reasons (#350 Phase 6). Keyed by (template_id, round(start,3))
+# so an eligible-but-unpaired cue's telemetry can explain why no ad formed.
+SKIP_BELOW_CONFIDENCE = 'below_pair_confidence'
+SKIP_COVERED = 'covered_by_existing_ad'
+SKIP_NO_PARTNER = 'no_partner_in_band'
+SKIP_PHASE_MISMATCH = 'phase_mismatch'
+
 
 logger = logging.getLogger('podcast.claude.cue_pair')
 
@@ -171,12 +180,17 @@ def synthesize_ads_from_cue_pairs(
     total_duration: float = 0.0,
     max_break_fraction: float = DEFAULT_MAX_BREAK_FRACTION,
     orient_window_s: float = DEFAULT_ORIENT_WINDOW_S,
-) -> List[Dict]:
-    """Return ``ads`` with cue-pair-derived synthetic entries appended.
+):
+    """Return ``(ads, skip_diagnostics)``.
+
+    ``ads`` is the input list plus any synthesised cue-pair ads in chronological
+    order (input not mutated). ``skip_diagnostics`` maps
+    ``(template_id, round(start, 3))`` -> reason for every eligible template cue
+    that did NOT become part of a synthesised pair, so per-cue telemetry can
+    explain why (#350 Phase 6).
 
     Args:
-        ads: First-pass ad list (may be empty). Not mutated; the returned
-            list is the input + any synthesised ads in chronological order.
+        ads: First-pass ad list (may be empty).
         audio_analysis_result: ``AudioAnalysisResult`` from the analyzer,
             or ``None``.
         min_confidence: Drop any cue weaker than this before pairing.
@@ -188,14 +202,21 @@ def synthesize_ads_from_cue_pairs(
         max_break_fraction: Reject a pair spanning more than this fraction of
             ``total_duration`` -- a short-episode phantom-ad backstop.
     """
+    skip_diagnostics: Dict = {}
     if not audio_analysis_result:
-        return list(ads)
+        return list(ads), skip_diagnostics
     # On a short episode the absolute max_break_s cap can pass a pair that
     # brackets most of the show. Tighten the cap to a fraction of the episode.
     effective_max_break = max_break_s
     if total_duration > 0 and max_break_fraction > 0:
         effective_max_break = min(max_break_s, max_break_fraction * total_duration)
     raw_cues = audio_analysis_result.get_signals_by_type('audio_cue')
+    # Template cues below the pair-confidence floor are excluded from pairing but
+    # still recorded so telemetry can attribute an unused cue to a low score.
+    for c in raw_cues:
+        if is_template_cue(c.details) and c.confidence < min_confidence:
+            skip_diagnostics[_diag_key((c.details or {}).get('template_id'), c.start)] = \
+                SKIP_BELOW_CONFIDENCE
     # Only precise template cues may *create* ads. Spectral-fallback cues (no
     # 'source' key) are too coarse to synthesize from: on a no-template feed a
     # dense burst section pairs them into dozens of overlapping false ads. They
@@ -215,21 +236,29 @@ def synthesize_ads_from_cue_pairs(
         key=lambda x: x.start,
     )
     if len(cues) < 2:
-        return list(ads)
+        # A lone eligible cue can never pair: no partner exists at all.
+        for c in cues:
+            skip_diagnostics[_diag_key(c.template_id, c.start)] = SKIP_NO_PARTNER
+        return list(ads), skip_diagnostics
 
     _orient_cues(cues, ads, orient_window_s)
 
     # Greedy left-to-right pairing: each cue starts a candidate break with
     # the next cue inside the duration band. Once a pair is formed, both
     # cues are consumed so we do not chain a third cue onto the same break.
+    # Per-cue reasons accumulate for every cue that does not end up in a pair.
     new_ads = list(ads)
     consumed = [False] * len(cues)
+    reasons: List = [None] * len(cues)
     for i in range(len(cues) - 1):
         if consumed[i]:
             continue
         cue_a = cues[i]
         if cue_a.effective_role not in AUDIO_CUE_START_EDGE_ROLES:
+            # Cannot open a pair (non_ad, or demoted closer-only): phase issue.
+            reasons[i] = SKIP_PHASE_MISMATCH
             continue
+        found_partner_in_band = False
         for j in range(i + 1, len(cues)):
             if consumed[j]:
                 continue
@@ -245,9 +274,12 @@ def synthesize_ads_from_cue_pairs(
                 # No further cue within range (or the span would cover too much
                 # of a short episode); stop pairing for cue_a.
                 break
+            found_partner_in_band = True
             synth_start = round(cue_a.end + 0.05, 3)
             synth_end = round(cue_b.start - 0.05, 3)
             if _covered_by_existing_ad(new_ads, synth_start, synth_end):
+                reasons[i] = SKIP_COVERED
+                reasons[j] = SKIP_COVERED
                 consumed[i] = True
                 consumed[j] = True
                 break
@@ -255,6 +287,8 @@ def synthesize_ads_from_cue_pairs(
             if duration < min_break_s - 1.0:
                 # Defensive: belt-and-suspenders against round-off after
                 # the lead/lag gaps trim the span below the floor.
+                reasons[i] = SKIP_NO_PARTNER
+                reasons[j] = SKIP_NO_PARTNER
                 consumed[i] = True
                 consumed[j] = True
                 break
@@ -288,12 +322,39 @@ def synthesize_ads_from_cue_pairs(
                 f"({duration:.1f}s) from cues {cue_a.label!r}@{cue_a.start:.1f} "
                 f"+ {cue_b.label!r}@{cue_b.start:.1f} (conf={confidence:.2f})"
             )
+            # Paired cleanly: no skip reason for either cue.
+            reasons[i] = None
+            reasons[j] = None
             consumed[i] = True
             consumed[j] = True
             break
+        # cue_a opened but no in-band partner paired with it (every closer was
+        # too near, too far, or already consumed). A covered / undersized pair
+        # took the break path above and set its own reason, so this only fires
+        # on a true band miss.
+        if not consumed[i] and not found_partner_in_band and reasons[i] is None:
+            reasons[i] = SKIP_NO_PARTNER
+
+    # A trailing eligible cue (index len-1) is never an opener in the loop above,
+    # and any opener that fell through without a partner is already handled. Mark
+    # the remaining unconsumed, unclassified cues by role: any cue that is start-
+    # or end-capable in context simply found no partner (no_partner); only a cue
+    # that can play neither part is a phase mismatch.
+    for idx, c in enumerate(cues):
+        if consumed[idx] or reasons[idx] is not None:
+            continue
+        if (c.effective_role in AUDIO_CUE_START_EDGE_ROLES
+                or c.effective_role in AUDIO_CUE_END_EDGE_ROLES):
+            reasons[idx] = SKIP_NO_PARTNER
+        else:
+            reasons[idx] = SKIP_PHASE_MISMATCH
+
+    for idx, c in enumerate(cues):
+        if reasons[idx] is not None:
+            skip_diagnostics[_diag_key(c.template_id, c.start)] = reasons[idx]
 
     new_ads.sort(key=lambda a: a.get('start', 0.0))
-    return new_ads
+    return new_ads, skip_diagnostics
 
 
 def _covered_by_existing_ad(ads: List[Dict], start: float, end: float) -> bool:

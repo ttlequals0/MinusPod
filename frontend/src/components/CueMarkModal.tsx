@@ -37,6 +37,8 @@ const DEFAULT_MIN_REGION_SECONDS = 0.2;
 const DEFAULT_MAX_REGION_SECONDS = 10.0;
 const DEFAULT_MAX_INTRO_SECONDS = 60.0;
 const DEFAULT_MAX_OUTRO_SECONDS = 60.0;
+// Issue #350: ad-break captures longer than this threshold degrade match quality.
+const DEFAULT_CAPTURE_WARN_AD_SECONDS = 5.0;
 const SCAN_FAILED_MESSAGE = 'Audio-cue scan failed.';
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
@@ -131,16 +133,17 @@ function CueMarkModal({
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Weak-cue warning: shown once per bracket when a saved ad-break cue does not
-  // recur in its source episode. Keyed to the bracket so re-bracketing re-warns,
-  // and a second Save of the same bracket goes through.
-  const [weakWarning, setWeakWarning] = useState<string | null>(null);
+  // Save-time warning (weak cue and/or long capture): shown once per bracket.
+  // Keyed to the bracket so re-bracketing re-warns, and a second Save of the
+  // same bracket goes through.
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
   // Non-ad types (show intro/outro/transition) are never cut. A segment at an
   // episode's start/end is often a recurring ad, so saving one requires an
   // explicit acknowledgement -- keyed to the bracket+type it was given for, so it
   // auto-invalidates on any re-bracket or type change (no setState-in-effect).
   const [nonAdAckKey, setNonAdAckKey] = useState<string | null>(null);
   const weakWarnedForRef = useRef<string | null>(null);
+  const longWarnedForRef = useRef<string | null>(null);
   const [previewMatches, setPreviewMatches] = useState<CueTemplateMatch[] | null>(null);
   // Audio-cue candidates (on-demand scan: fingerprint recurrence + loud spots).
   // The scan is slow, so it runs only when the user asks for it.
@@ -525,18 +528,33 @@ function CueMarkModal({
     if (!canSave) return;
     setSaving(true);
     setError(null);
-    setWeakWarning(null);
+    setSaveWarning(null);
     try {
       const template = await ensureTemplate();
-      if (template.weakCue && weakWarnedForRef.current !== cueKey) {
-        // First save of this weak bracket: flag it and stay open so the user
-        // can pick a recurring sound, or click Save again to keep it anyway.
-        weakWarnedForRef.current = cueKey;
-        setWeakWarning(
-          'This sound appears only once in this episode, so it cannot bracket '
-          + 'an ad break. Pick a sound that repeats, or click Save cue again to '
-          + 'keep it anyway.',
-        );
+      const warnWeak = template.weakCue && weakWarnedForRef.current !== cueKey;
+      const warnLong = template.longCapture && longWarnedForRef.current !== cueKey;
+      if (warnWeak || warnLong) {
+        // First save of this bracket that triggers a warning: stay open so the
+        // user can adjust, or click Save again to keep it anyway. Both warnings
+        // are shown together so only one extra click is needed (not two).
+        if (warnWeak) weakWarnedForRef.current = cueKey;
+        if (warnLong) longWarnedForRef.current = cueKey;
+        const parts: string[] = [];
+        if (warnWeak) {
+          parts.push(
+            'This sound appears only once in this episode, so it cannot bracket an ad break.'
+            + ' Pick a sound that repeats.',
+          );
+        }
+        if (warnLong) {
+          const limit = template.captureWarnSeconds ?? DEFAULT_CAPTURE_WARN_AD_SECONDS;
+          parts.push(
+            `This capture is longer than ${limit}s. Long captures degrade match quality`
+            + ' (best results are 1.5-2.5s). Try a shorter, distinctive segment.',
+          );
+        }
+        parts.push('Click Save cue again to keep it anyway.');
+        setSaveWarning(parts.join(' '));
         setSaving(false);
         return;
       }
@@ -810,6 +828,11 @@ function CueMarkModal({
                       : `max ${MAX_REGION_SECONDS}s`}
                 </span>
               )}
+              {regionDurationValid && !isNonAd && regionDuration > DEFAULT_CAPTURE_WARN_AD_SECONDS && (
+                <span className="ml-1.5 text-[10px] text-amber-500">
+                  long -- aim for 1.5-2.5s
+                </span>
+              )}
             </span>
           }
         />
@@ -914,9 +937,9 @@ function CueMarkModal({
         )}
 
         {error && <p className="text-sm text-destructive mt-3">{error}</p>}
-        {weakWarning && (
+        {saveWarning && (
           <p className="text-sm text-amber-600 dark:text-amber-400 mt-3" role="alert">
-            {weakWarning}
+            {saveWarning}
           </p>
         )}
 

@@ -94,6 +94,8 @@ function Settings() {
     formantAttenDb: 0,
     createFromPairs: false,
     snapConfidence: 0.8,
+    snapLeadSeconds: 10,
+    snapLagSeconds: 4,
     captureMinSeconds: 0.2,
     captureMaxSeconds: 10,
     captureMaxIntroSeconds: 60,
@@ -405,6 +407,8 @@ function Settings() {
         formantAttenDb: settings.audioCueFormantAttenDb?.value ?? d.audioCueFormantAttenDb ?? 0,
         createFromPairs: settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false,
         snapConfidence: settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8,
+        snapLeadSeconds: settings.audioCueSnapLeadSeconds?.value ?? d.audioCueSnapLeadSeconds ?? 10,
+        snapLagSeconds: settings.audioCueSnapLagSeconds?.value ?? d.audioCueSnapLagSeconds ?? 4,
         captureMinSeconds: settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2,
         captureMaxSeconds: settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10,
         captureMaxIntroSeconds: settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60,
@@ -474,6 +478,8 @@ function Settings() {
     if (audioCue.formantAttenDb !== (settings.audioCueFormantAttenDb?.value ?? d.audioCueFormantAttenDb ?? 0)) payload.audioCueFormantAttenDb = audioCue.formantAttenDb;
     if (audioCue.createFromPairs !== (settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false)) payload.audioCueCreateFromPairs = audioCue.createFromPairs;
     if (audioCue.snapConfidence !== (settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8)) payload.audioCueSnapConfidence = audioCue.snapConfidence;
+    if (audioCue.snapLeadSeconds !== (settings.audioCueSnapLeadSeconds?.value ?? d.audioCueSnapLeadSeconds ?? 10)) payload.audioCueSnapLeadSeconds = audioCue.snapLeadSeconds;
+    if (audioCue.snapLagSeconds !== (settings.audioCueSnapLagSeconds?.value ?? d.audioCueSnapLagSeconds ?? 4)) payload.audioCueSnapLagSeconds = audioCue.snapLagSeconds;
     if (audioCue.captureMinSeconds !== (settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2)) payload.audioCueCaptureMinSeconds = audioCue.captureMinSeconds;
     if (audioCue.captureMaxSeconds !== (settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10)) payload.audioCueCaptureMaxSeconds = audioCue.captureMaxSeconds;
     if (audioCue.captureMaxIntroSeconds !== (settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60)) payload.audioCueCaptureMaxIntroSeconds = audioCue.captureMaxIntroSeconds;

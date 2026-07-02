@@ -3,13 +3,101 @@
 Pure -- no Flask/DB imports -- so the candidate-scan worker and unit tests use it
 directly.
 """
-from config import AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO
+from config import (
+    AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO,
+    AUDIO_CUE_TYPE_CONTENT_TRANSITION,
+)
 from utils.time import ranges_overlap
 
 _SUGGESTED_TYPE = {
     'intro': AUDIO_CUE_TYPE_SHOW_INTRO,
     'outro': AUDIO_CUE_TYPE_SHOW_OUTRO,
 }
+
+
+def count_ad_boundary_hits(occurrences, ad_spans, tolerance_s):
+    """Count occurrence positions within ``tolerance_s`` of any ad start/end.
+
+    Returns ``(hits, start_hits, end_hits)``. An occurrence near both a start
+    and an end boundary counts as one hit but as neither start- nor end-only,
+    so the phase fractions stay honest. Shared by the within-episode annotator
+    and the sibling-fallback path so "hit" means the same thing in both.
+    """
+    hits = start_hits = end_hits = 0
+    for occ in occurrences:
+        near_start = any(abs(occ - span['start']) <= tolerance_s for span in ad_spans)
+        near_end = any(abs(occ - span['end']) <= tolerance_s for span in ad_spans)
+        if near_start or near_end:
+            hits += 1
+            if near_start and not near_end:
+                start_hits += 1
+            elif near_end and not near_start:
+                end_hits += 1
+    return hits, start_hits, end_hits
+
+
+def annotate_recurring_with_ad_affinity(
+    recurring,
+    ad_spans,
+    *,
+    tolerance_s,
+    min_fraction,
+    phase_fraction,
+):
+    """Type and re-rank recurring candidates using ad-boundary history.
+
+    For each candidate, count how many of its occurrences land within
+    tolerance_s of any ad start or end boundary (one hit per occurrence even
+    if near both). affinity = hits / count. Typing requires ad_spans non-empty,
+    affinity >= min_fraction, and hits >= 2. Phase classification (start vs end
+    vs boundary) uses the fraction of start-only hits among all hits.
+
+    Annotates adBoundaryHits and boundaryAffinity on each candidate, strips
+    occurrences (internal field), and re-sorts by (-affinity, -count).
+
+    No ad history (empty ad_spans) -> suggestedType=None unchanged.
+
+    Note: past cuts may have been snapped to these same cue sounds, so this
+    annotator has a mild self-confirmation bias -- acceptable given the
+    alternative is no typing at all.
+    """
+    if not ad_spans:
+        for c in recurring:
+            c.pop('occurrences', None)
+            c['adBoundaryHits'] = None
+            c['boundaryAffinity'] = None
+            c['affinitySource'] = None
+            c['suggestedType'] = None
+        return recurring
+
+    for c in recurring:
+        occurrences = c.pop('occurrences', None) or []
+        count = c.get('count') or len(occurrences)
+        if not occurrences or count == 0:
+            c['adBoundaryHits'] = None
+            c['boundaryAffinity'] = None
+            c['affinitySource'] = None
+            continue
+        hits, start_hits, end_hits = count_ad_boundary_hits(
+            occurrences, ad_spans, tolerance_s)
+        affinity = hits / count
+        c['adBoundaryHits'] = hits
+        c['boundaryAffinity'] = round(affinity, 3)
+        c['affinitySource'] = None  # caller sets 'episode' or 'siblings'
+        if hits >= 2 and affinity >= min_fraction:
+            start_fraction = start_hits / hits if hits > 0 else 0
+            end_fraction = end_hits / hits if hits > 0 else 0
+            if start_fraction >= phase_fraction:
+                c['suggestedType'] = 'ad_break_start'
+            elif end_fraction >= phase_fraction:
+                c['suggestedType'] = 'ad_break_end'
+            else:
+                c['suggestedType'] = 'ad_break_boundary'
+        else:
+            c['suggestedType'] = AUDIO_CUE_TYPE_CONTENT_TRANSITION
+
+    recurring.sort(key=lambda c: (-(c.get('boundaryAffinity') or 0), -(c.get('count') or 0)))
+    return recurring
 
 
 def merge_cue_candidates(recurring, cross_episode, templated_spans=()):
@@ -48,6 +136,10 @@ def merge_cue_candidates(recurring, cross_episode, templated_spans=()):
     for c in recurring:
         _keep(c['start'], c['end'], {
             'start': c['start'], 'end': c['end'], 'kind': 'recurring',
-            'count': c.get('count'), 'suggestedType': None,
+            'count': c.get('count'),
+            'suggestedType': c.get('suggestedType'),
+            'adBoundaryHits': c.get('adBoundaryHits'),
+            'boundaryAffinity': c.get('boundaryAffinity'),
+            'affinitySource': c.get('affinitySource'),
         })
     return merged

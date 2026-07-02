@@ -65,6 +65,17 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['detection_mode'] if row else None
 
+    def get_podcast_cue_score_override(self, podcast_id: int) -> Optional[float]:
+        """Per-feed cue_template_score_override column only -- cheap id-based lookup."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT cue_template_score_override FROM podcasts WHERE id = ?", (podcast_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        val = row['cue_template_score_override']
+        return float(val) if val is not None else None
+
     def create_podcast(self, slug: str, source_url: str, title: str = None) -> int:
         """Create a new podcast. Returns podcast ID."""
         conn = self.get_connection()
@@ -90,6 +101,7 @@ class PodcastMixin:
                        'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                        'network_id_override', 'audio_analysis_override', 'auto_process_override',
                        'language_override', 'title_override', 'detection_mode',
+                       'cue_template_score_override',
                        'max_episodes', 'etag',
                        'last_modified_header', 'only_expose_processed_episodes'):
                 fields.append(f"{key} = ?")

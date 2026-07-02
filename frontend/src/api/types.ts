@@ -19,6 +19,7 @@ export interface Feed {
   languageOverride?: string | null;
   titleOverride?: string | null;
   detectionMode?: string | null;
+  cueTemplateScoreOverride?: number | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }
@@ -106,8 +107,13 @@ export interface CueDetection {
   end_s: number;
   match_score?: number | null;
   confidence?: number | null;
-  outcome: 'snap' | 'pair' | 'none';
+  outcome: 'snap' | 'pair' | 'none' | 'below_threshold';
   verdict: 'pending' | 'confirmed' | 'rejected';
+  // Signed distance to the nearest pre-snap LLM ad edge on the cue's eligible
+  // side; null for advisory (non_ad) and below_threshold rows (#350 Phase 6).
+  edge_distance_s?: number | null;
+  // Why an outcome='none' cue did nothing; null otherwise.
+  unused_reason?: string | null;
 }
 
 export interface AdValidation {
@@ -218,6 +224,8 @@ export interface Settings {
   audioCueTemplateScore: SettingValueNumber;
   audioCueFormantAttenDb: SettingValueNumber;
   audioCueSnapConfidence: SettingValueNumber;
+  audioCueSnapLeadSeconds: SettingValueNumber;
+  audioCueSnapLagSeconds: SettingValueNumber;
   audioCueCaptureMinSeconds: SettingValueNumber;
   audioCueCaptureMaxSeconds: SettingValueNumber;
   audioCueCaptureMaxIntroSeconds: SettingValueNumber;
@@ -289,6 +297,8 @@ export interface Settings {
     audioCueTemplateScore: number;
     audioCueFormantAttenDb: number;
     audioCueSnapConfidence: number;
+    audioCueSnapLeadSeconds: number;
+    audioCueSnapLagSeconds: number;
     audioCueCaptureMinSeconds: number;
     audioCueCaptureMaxSeconds: number;
     audioCueCaptureMaxIntroSeconds: number;
@@ -338,6 +348,8 @@ export interface UpdateSettingsPayload {
   audioCueTemplateScore?: number;
   audioCueFormantAttenDb?: number;
   audioCueSnapConfidence?: number;
+  audioCueSnapLeadSeconds?: number;
+  audioCueSnapLagSeconds?: number;
   audioCueCaptureMinSeconds?: number;
   audioCueCaptureMaxSeconds?: number;
   audioCueCaptureMaxIntroSeconds?: number;

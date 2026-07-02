@@ -14,7 +14,12 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from .base import AudioAnalysisResult
 from .volume_analyzer import VolumeAnalyzer
 from .transition_detector import TransitionDetector
-from .cue_template_matcher import AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE
+from .cue_template_matcher import AudioCueTemplateMatcher
+from config import (
+    AUDIO_CUE_FORMANT_ATTEN_DB,
+    resolve_cue_template_score,
+    resolve_near_miss_floor,
+)
 
 # Import from utils for consistent audio duration implementation
 from utils.audio import get_audio_duration
@@ -136,14 +141,13 @@ class AudioAnalyzer:
                 if feed_id is not None else []
             )
             if templates:
-                score = self.db.get_setting_float(
-                    'audio_cue_template_score', DEFAULT_MATCH_SCORE,
-                )
-                from config import AUDIO_CUE_FORMANT_ATTEN_DB
+                score = resolve_cue_template_score(self.db, feed_id)
+                near_miss_floor = resolve_near_miss_floor(score)
                 matcher = AudioCueTemplateMatcher(
                     templates=templates, score_threshold=score,
                     formant_atten_db=self.db.get_setting_float(
                         'audio_cue_formant_atten_db', AUDIO_CUE_FORMANT_ATTEN_DB),
+                    near_miss_floor=near_miss_floor,
                 )
                 if matcher.is_usable:
                     logger.info(
@@ -293,16 +297,24 @@ class AudioAnalyzer:
         # so the toggle takes effect without a restart. Runs its own band-passed
         # ffmpeg pass, so only when the experiment is enabled.
         cue_enabled, cue_detector = self._load_cue_config(feed_id=feed_id)
+        cue_near_misses: List[Dict[str, Any]] = []
         if cue_enabled and cue_detector:
             if status_callback:
                 status_callback("analyzing: audio cues", 40)
+            # Matcher path surfaces near-misses via detect_with_debug; spectral uses detect().
+            is_matcher = isinstance(cue_detector, AudioCueTemplateMatcher)
             cue_result, cue_error = self._run_component_with_timeout(
                 'audio_cue',
-                lambda: cue_detector.detect(audio_path),
+                (lambda: cue_detector.detect_with_debug(audio_path)) if is_matcher
+                else (lambda: cue_detector.detect(audio_path)),
                 timeouts.get('cue', timeouts['volume']),
             )
             if cue_error:
                 errors.append(cue_error)
+            elif is_matcher:
+                cue_signals, cue_debug = cue_result
+                signals.extend(cue_signals)
+                cue_near_misses = cue_debug.get('near_misses', [])
             else:
                 # The detector logs its own summary line (frames, baseline,
                 # peak vs threshold, cue count) including the zero-cue case,
@@ -310,6 +322,7 @@ class AudioAnalyzer:
                 signals.extend(cue_result)
 
         result.signals = signals
+        result.cue_near_misses = cue_near_misses
         result.errors = errors
         result.loudness_baseline = baseline
         result.loudness_frames = frames

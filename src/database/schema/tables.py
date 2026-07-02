@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     language_override TEXT,
     title_override TEXT,
     detection_mode TEXT,
+    cue_template_score_override REAL,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
@@ -353,8 +354,15 @@ CREATE TABLE IF NOT EXISTS cue_detections (
     end_s REAL NOT NULL,
     match_score REAL,
     confidence REAL,
-    outcome TEXT NOT NULL DEFAULT 'none' CHECK(outcome IN ('snap', 'pair', 'none')),
+    -- no CHECK: outcomes validated in app code (_VALID_OUTCOMES).
+    outcome TEXT NOT NULL DEFAULT 'none',
     verdict TEXT NOT NULL DEFAULT 'pending' CHECK(verdict IN ('pending', 'confirmed', 'rejected')),
+    -- Signed distance from an above-threshold cue to the nearest pre-snap LLM
+    -- ad edge on its eligible side; NULL for advisory (non_ad) cues (#350 Ph6).
+    edge_distance_s REAL,
+    -- Taxonomy explaining an outcome='none' (covered / out_of_reach /
+    -- below_snap_confidence / advisory_role / unpaired / pair-skip reason).
+    unused_reason TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );

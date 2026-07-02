@@ -123,6 +123,7 @@ def get_settings():
         AUDIO_CUE_PAIR_MAX_BREAK_SECONDS, AUDIO_CUE_PAIR_MAX_BREAK_FRACTION,
         AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     )
+    from ad_detector.cue_boundary_snap import DEFAULT_SNAP_LEAD_SECONDS, DEFAULT_SNAP_LAG_SECONDS
     from chapters_generator import CHAPTERS_MODEL
     settings = _settings_view(db.get_all_settings())
 
@@ -338,6 +339,8 @@ def get_settings():
     audio_cue_template_score = _cue_num('audio_cue_template_score', AUDIO_CUE_TEMPLATE_SCORE)
     audio_cue_formant_atten = _cue_num('audio_cue_formant_atten_db', AUDIO_CUE_FORMANT_ATTEN_DB)
     audio_cue_snap_conf = _cue_num('audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE)
+    audio_cue_snap_lead = _cue_num('audio_cue_snap_lead_seconds', DEFAULT_SNAP_LEAD_SECONDS)
+    audio_cue_snap_lag = _cue_num('audio_cue_snap_lag_seconds', DEFAULT_SNAP_LAG_SECONDS)
     audio_cue_capture_min = _cue_num('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
     audio_cue_capture_max = _cue_num('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
     audio_cue_capture_max_intro = _cue_num('audio_cue_capture_max_intro_seconds', AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS)
@@ -397,6 +400,8 @@ def get_settings():
         'audioCueTemplateScore': _sv('audio_cue_template_score', audio_cue_template_score),
         'audioCueFormantAttenDb': _sv('audio_cue_formant_atten_db', audio_cue_formant_atten),
         'audioCueSnapConfidence': _sv('audio_cue_snap_confidence', audio_cue_snap_conf),
+        'audioCueSnapLeadSeconds': _sv('audio_cue_snap_lead_seconds', audio_cue_snap_lead),
+        'audioCueSnapLagSeconds': _sv('audio_cue_snap_lag_seconds', audio_cue_snap_lag),
         'audioCueCaptureMinSeconds': _sv('audio_cue_capture_min_seconds', audio_cue_capture_min),
         'audioCueCaptureMaxSeconds': _sv('audio_cue_capture_max_seconds', audio_cue_capture_max),
         'audioCueCaptureMaxIntroSeconds': _sv('audio_cue_capture_max_intro_seconds', audio_cue_capture_max_intro),
@@ -464,6 +469,8 @@ def get_settings():
             'audioCueTemplateScore': AUDIO_CUE_TEMPLATE_SCORE,
             'audioCueFormantAttenDb': AUDIO_CUE_FORMANT_ATTEN_DB,
             'audioCueSnapConfidence': AUDIO_CUE_SNAP_CONFIDENCE,
+            'audioCueSnapLeadSeconds': DEFAULT_SNAP_LEAD_SECONDS,
+            'audioCueSnapLagSeconds': DEFAULT_SNAP_LAG_SECONDS,
             'audioCueCaptureMinSeconds': AUDIO_CUE_CAPTURE_MIN_SECONDS,
             'audioCueCaptureMaxSeconds': AUDIO_CUE_CAPTURE_MAX_SECONDS,
             'audioCueCaptureMaxIntroSeconds': AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS,
@@ -984,6 +991,8 @@ def _apply_audio_cue_fields(db, data):
         ('audioCueTemplateScore', 'audio_cue_template_score', 0.0, 0.99),
         ('audioCueFormantAttenDb', 'audio_cue_formant_atten_db', 0.0, 24.0),
         ('audioCueSnapConfidence', 'audio_cue_snap_confidence', 0.0, 1.0),
+        ('audioCueSnapLeadSeconds', 'audio_cue_snap_lead_seconds', 0.5, 30.0),
+        ('audioCueSnapLagSeconds', 'audio_cue_snap_lag_seconds', 0.5, 30.0),
         ('audioCueCaptureMinSeconds', 'audio_cue_capture_min_seconds', 0.05, 10.0),
         ('audioCueCaptureMaxSeconds', 'audio_cue_capture_max_seconds', 0.05, 30.0),
         ('audioCueCaptureMaxIntroSeconds', 'audio_cue_capture_max_intro_seconds', 0.05, 120.0),
@@ -1225,6 +1234,8 @@ def reset_ad_detection_settings():
     db.reset_setting('audio_cue_formant_atten_db')
     db.reset_setting('audio_cue_create_from_pairs')
     db.reset_setting('audio_cue_snap_confidence')
+    db.reset_setting('audio_cue_snap_lead_seconds')
+    db.reset_setting('audio_cue_snap_lag_seconds')
     db.reset_setting('audio_cue_capture_min_seconds')
     db.reset_setting('audio_cue_capture_max_seconds')
     db.reset_setting('audio_cue_capture_max_intro_seconds')

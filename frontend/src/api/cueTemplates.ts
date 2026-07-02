@@ -63,9 +63,12 @@ export interface CueTemplate {
   hasAudio?: boolean;
   // Create-response only: how many times the captured cue recurs in its source
   // episode, and whether that makes it a weak (non-recurring) ad-break cue.
-  // Absent on list rows.
+  // longCapture is true when an ad-break cue exceeds captureWarnSeconds (issue
+  // #350: long captures degrade match quality). Absent on list rows.
   selfMatchCount?: number;
   weakCue?: boolean;
+  longCapture?: boolean;
+  captureWarnSeconds?: number;
 }
 
 export interface CueTemplateListResponse {
@@ -180,6 +183,7 @@ export interface CueScanTemplateResult {
 export interface CueScanResponse {
   episodeId: string;
   thresholdUsed: number;
+  thresholdSource?: 'override' | 'global' | 'request';
   elapsedSeconds: number;
   templates: CueScanTemplateResult[];
 }
@@ -216,6 +220,8 @@ export interface ThresholdSuggestResponse {
   suggestion?: ThresholdSuggestion;
   sampleEpisodes?: number;
   floorUsed?: number;
+  currentThreshold?: number;
+  scope?: 'feed' | 'global';
 }
 
 export async function suggestCueThreshold(
@@ -241,12 +247,21 @@ export interface CueCandidate {
   count?: number;          // recurring: times the sound recurs within the episode
   episodeMatches?: number; // intro/outro: how many sibling episodes share it
   suggestedType?: CueTemplateType | null;  // capture-type hint
+  adBoundaryHits?: number | null;    // recurring: occurrences near a known ad boundary
+  boundaryAffinity?: number | null;  // adBoundaryHits / count; null = no ad history
+  affinitySource?: 'episode' | 'siblings' | null;  // where affinity data came from
 }
 
 // Short badge label for a candidate.
 export function cueCandidateLabel(c: CueCandidate): string {
   if (c.kind === 'intro') return `Intro (in ${c.episodeMatches ?? '?'} eps)`;
   if (c.kind === 'outro') return `Outro (in ${c.episodeMatches ?? '?'} eps)`;
+  if (c.kind === 'recurring' && c.boundaryAffinity != null && c.adBoundaryHits != null) {
+    if (c.affinitySource === 'siblings') {
+      return `Repeats ${c.count ?? '?'}x -- ${Math.round(c.boundaryAffinity * 100)}% at known ad breaks (recent episodes)`;
+    }
+    return `Repeats ${c.count ?? '?'}x -- ${c.adBoundaryHits} of ${c.count ?? '?'} at known ad breaks`;
+  }
   return `Repeats ${c.count ?? '?'}x`;
 }
 

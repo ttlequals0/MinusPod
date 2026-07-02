@@ -29,13 +29,10 @@ from config import (
 logger = logging.getLogger('podcast.claude.cue_snap')
 
 
-# How far back from the ad start the cue is allowed to sit. Stingers usually
-# land 0-3s before the spoken copy.
-DEFAULT_SNAP_LEAD_SECONDS = 4.0
-# How far past the ad start the cue is allowed to sit. Detection latency
-# (whisper segment alignment + first-pass window edge) puts the LLM's start
-# slightly after the cue some of the time, so we allow a small overshoot.
-DEFAULT_SNAP_LAG_SECONDS = 2.0
+# Fallback; live value from audio_cue_snap_lead_seconds.
+DEFAULT_SNAP_LEAD_SECONDS = 10.0
+# Fallback; live value from audio_cue_snap_lag_seconds.
+DEFAULT_SNAP_LAG_SECONDS = 4.0
 # Gap between the cue's end and the snapped ad start. Tiny lead so the cut
 # does not slice into the trailing decay of the ding.
 SNAP_GAP_SECONDS = 0.05
@@ -54,10 +51,10 @@ def _cue_role(cue) -> str:
     return (cue.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT)
 
 
-def _snap_record(original: float, proposed: float, cue) -> Dict:
-    """Build the per-edge snap audit record shared by the start and end edges."""
+def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> Dict:
+    """Build snap audit; sets ambiguous/candidates when 2+ eligible cues."""
     details = cue.details or {}
-    return {
+    rec = {
         'original': round(original, 3),
         'cue_start': round(cue.start, 3),
         'cue_end': round(cue.end, 3),
@@ -67,6 +64,10 @@ def _snap_record(original: float, proposed: float, cue) -> Dict:
         'label': details.get('label'),
         'source': details.get('source', AUDIO_CUE_SOURCE_SPECTRAL),
     }
+    if n_candidates >= 2:
+        rec['ambiguous'] = True
+        rec['candidates'] = n_candidates
+    return rec
 
 
 def snap_ad_boundaries_to_cues(
@@ -117,7 +118,7 @@ def snap_ad_boundaries_to_cues(
         snap_record: Dict = {}
 
         # --- Start edge -------------------------------------------------
-        start_cue = _pick_cue_for_start(
+        start_cue, start_n = _pick_cue_for_start(
             cues, original_start, original_end, snap_lead_s, snap_lag_s,
         )
         new_start = original_start
@@ -130,7 +131,8 @@ def snap_ad_boundaries_to_cues(
                 and shift >= 0.01
             ):
                 new_start = round(proposed_start, 3)
-                snap_record['start'] = _snap_record(original_start, proposed_start, start_cue)
+                snap_record['start'] = _snap_record(
+                    original_start, proposed_start, start_cue, n_candidates=start_n)
                 used_cue_ids.add(id(start_cue))
                 logger.info(
                     f"Cue snap (start): {original_start:.3f}s -> {new_start:.3f}s "
@@ -140,7 +142,7 @@ def snap_ad_boundaries_to_cues(
                 )
 
         # --- End edge ---------------------------------------------------
-        end_cue = _pick_cue_for_end(
+        end_cue, end_n = _pick_cue_for_end(
             cues, original_end, new_start, snap_lead_s, snap_lag_s,
             exclude_ids=used_cue_ids,
         )
@@ -157,7 +159,8 @@ def snap_ad_boundaries_to_cues(
                 and shift >= 0.01
             ):
                 new_end = round(proposed_end, 3)
-                snap_record['end'] = _snap_record(original_end, proposed_end, end_cue)
+                snap_record['end'] = _snap_record(
+                    original_end, proposed_end, end_cue, n_candidates=end_n)
                 logger.info(
                     f"Cue snap (end): {original_end:.3f}s -> {new_end:.3f}s "
                     f"(delta={new_end - original_end:+.3f}s, "
@@ -179,13 +182,18 @@ def _pick_cue_for_start(
 ):
     """Find the best cue to snap ``ad_start`` to.
 
-    Best = highest confidence within the search window whose end is not past
-    the ad's end. Ties broken by proximity to ``ad_start``.
+    Returns (best_cue, n_eligible) where n_eligible is the count of cues that
+    passed the window filter. When n_eligible >= 2 the caller records an
+    ambiguity flag.
+
+    Selection key: (-round(abs(distance), 1), confidence) -- nearest-first,
+    ties (within 0.1s) broken by confidence. Within the old +/-4s window
+    confidence-first was fine; at 10s a farther higher-confidence cue must not
+    beat a nearer one (all candidates cleared the 0.80 floor).
     """
     low = ad_start - snap_lead_s
     high = ad_start + snap_lag_s
-    best = None
-    best_key = None
+    eligible = []
     for cue in cues:
         if _cue_role(cue) not in AUDIO_CUE_START_EDGE_ROLES:
             continue
@@ -194,11 +202,11 @@ def _pick_cue_for_start(
             continue
         if ad_end is not None and cue_end >= float(ad_end):
             continue
-        key = (cue.confidence, -abs(cue_end - ad_start))
-        if best_key is None or key > best_key:
-            best = cue
-            best_key = key
-    return best
+        eligible.append(cue)
+    if not eligible:
+        return None, 0
+    best = max(eligible, key=lambda c: (-round(abs(c.end - ad_start), 1), c.confidence))
+    return best, len(eligible)
 
 
 def _pick_cue_for_end(
@@ -208,12 +216,21 @@ def _pick_cue_for_end(
 ):
     """Find the best cue to snap ``ad_end`` to.
 
+    Returns (best_cue, n_eligible) where n_eligible is the count of cues that
+    passed the window filter. When n_eligible >= 2 the caller records an
+    ambiguity flag.
+
     A cue whose START sits within ``[ad_end - lag, ad_end + lead]`` is a
     candidate -- the resume-content stinger plays at break boundary so its
     start marks where content returns. Cues already used for the start
     snap of this ad are excluded so the same cue cannot collapse the ad
     to a single instant. Cues whose start is before ``ad_start`` cannot
     bound the end edge.
+
+    Selection key: (-round(abs(distance), 1), confidence) -- nearest-first,
+    ties (within 0.1s) broken by confidence. Within the old +/-4s window
+    confidence-first was fine; at 10s a farther higher-confidence cue must not
+    beat a nearer one (all candidates cleared the 0.80 floor).
     """
     # The end-side stinger can sit a beat before the LLM's end (snap_lag)
     # because the LLM tends to overshoot into post-break silence, or a beat
@@ -221,8 +238,7 @@ def _pick_cue_for_end(
     # of the ad copy and the stinger plays a moment later.
     low = ad_end - snap_lag_s
     high = ad_end + snap_lead_s
-    best = None
-    best_key = None
+    eligible = []
     for cue in cues:
         if id(cue) in exclude_ids:
             continue
@@ -233,8 +249,8 @@ def _pick_cue_for_end(
             continue
         if cue_start <= ad_start:
             continue
-        key = (cue.confidence, -abs(cue_start - ad_end))
-        if best_key is None or key > best_key:
-            best = cue
-            best_key = key
-    return best
+        eligible.append(cue)
+    if not eligible:
+        return None, 0
+    best = max(eligible, key=lambda c: (-round(abs(c.start - ad_end), 1), c.confidence))
+    return best, len(eligible)

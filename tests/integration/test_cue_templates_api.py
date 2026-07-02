@@ -13,6 +13,7 @@ import tempfile
 import time
 import wave
 import zipfile
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -363,3 +364,33 @@ def test_settings_validation_for_new_keys(app_client):
     db = get_database()
     db.reset_setting('audio_cue_pair_max_break_seconds')
     db.reset_setting('audio_cue_template_score')
+
+
+def test_xep_intro_max_duration_from_db(app_client, seeded):
+    """DB setting audio_cue_capture_max_intro_seconds flows into discover_cross_episode_cues as intro_max_duration."""
+    import audio_fingerprinter as afp_module
+
+    hdr = _csrf(app_client)
+    seeded['db'].set_setting('audio_cue_capture_max_intro_seconds', '45')
+
+    captured = {}
+
+    def _spy_discover(self, *args, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    with patch.object(afp_module.AudioFingerprinter, 'discover_cross_episode_cues', _spy_discover):
+        with patch.object(afp_module.AudioFingerprinter, '_generate_full_fingerprint',
+                          return_value=([0] * 800, 100.0)):
+            with patch.object(afp_module.AudioFingerprinter, 'is_available', return_value=True):
+                slug, ep = seeded['slug'], seeded['episode_id']
+                r = app_client.get(
+                    f'/api/v1/feeds/{slug}/episodes/{ep}/cue-candidates?rescan=1',
+                    headers=hdr,
+                )
+                assert r.status_code == 200
+                time.sleep(0.5)  # background thread
+
+    assert captured.get('intro_max_duration') == 45.0, (
+        f"Expected intro_max_duration=45.0 from DB setting, got {captured}"
+    )

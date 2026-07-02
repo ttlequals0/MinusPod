@@ -12,6 +12,8 @@ export interface AudioCueState {
   formantAttenDb: number;
   createFromPairs: boolean;
   snapConfidence: number;
+  snapLeadSeconds: number;
+  snapLagSeconds: number;
   captureMinSeconds: number;
   captureMaxSeconds: number;
   captureMaxIntroSeconds: number;
@@ -30,7 +32,8 @@ interface AudioCueDetectionSectionProps {
 type NumericKey =
   | 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence' | 'templateScore'
   | 'formantAttenDb'
-  | 'snapConfidence' | 'captureMinSeconds' | 'captureMaxSeconds'
+  | 'snapConfidence' | 'snapLeadSeconds' | 'snapLagSeconds'
+  | 'captureMinSeconds' | 'captureMaxSeconds'
   | 'captureMaxIntroSeconds' | 'captureMaxOutroSeconds'
   | 'pairConfidence' | 'pairMinBreakSeconds' | 'pairMaxBreakSeconds'
   | 'pairMaxBreakFraction';
@@ -193,6 +196,10 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 'When a saved cue is music under a voiceover that varies per episode, attenuate the 800-3400 Hz speech band so matching keys on the constant bed. 0 = off. Only that band is touched, so bass beds and high chimes are unaffected.')}
               {numRow('snapConfidence', 'audioCueSnapConfidence', 'Snap confidence floor', 0, 1, 0.05, 0.8,
                 'Minimum cue confidence before a cue may move an ad edge. Higher is stricter.')}
+              {numRow('snapLeadSeconds', 'audioCueSnapLeadSeconds', 'Snap lead window (s)', 0.5, 30, 0.5, 10,
+                'How far before an ad edge a cue may sit and still snap the boundary. Wider catches cues that land earlier than the LLM mark.')}
+              {numRow('snapLagSeconds', 'audioCueSnapLagSeconds', 'Snap lag window (s)', 0.5, 30, 0.5, 4,
+                'How far after an ad edge a cue may sit and still snap the boundary. Covers cases where the LLM mark precedes the cue.')}
               {numRow('captureMinSeconds', 'audioCueCaptureMinSeconds', 'Capture minimum length (s)', 0.05, 10, 0.05, 0.2,
                 'Shortest cue you may bracket; a floor that keeps very short sounds from matching everything.')}
               {numRow('captureMaxSeconds', 'audioCueCaptureMaxSeconds', 'Capture maximum length (s)', 0.05, 30, 0.5, 10,

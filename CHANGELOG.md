@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.0] - 2026-07-02
+
+### Added
+
+- Per-feed cue match threshold: feeds accept a cueTemplateScoreOverride (0.30-0.99) that beats the global audio_cue_template_score, and the threshold-suggest Apply button now writes this override instead of the global setting.
+- Recurring cue suggestions are typed and ranked by how often their occurrences land on known ad boundaries (boundaryAffinity, adBoundaryHits, affinitySource); when the scanned episode has no ad history, up to two recent episodes are checked instead.
+- Near-miss cue telemetry: template matches just under the threshold are recorded as below_threshold rows that never affect cuts, and unused detections carry a reason (covered, out of reach, below snap confidence, or a cue-pair skip reason) plus the distance to the nearest ad edge. The aggregate endpoint gains a near-miss histogram and reason counts.
+- Saving an ad-break cue longer than 5s warns once that tight clips match better; a second Save keeps it.
+- The detection prompt caps unlabelled (spectral) cues at 5 per window and frames them as weak hints; learned template cues are never capped.
+- Offline cue eval harness (benchmarks/cues): sweep templates against real episodes, suggest thresholds, A/B formant attenuation, and score the discovery scan. First real-audio cue fixtures and matcher tests (tests/fixtures/cues).
+
+### Changed
+
+- Intro/outro cue suggestions can span up to the capture ceiling (previously hard-capped at 30s) and their edges are refined to roughly 0.1s.
+- Boundary snap reaches farther (10s lead / 4s lag, both settings, range 0.5-30) and picks the nearest eligible cue instead of the highest-confidence one; when several cues are in reach, the reviewer is told.
+- Cue lines in prompts show span and duration, not just a start time.
+- Content-transition cues get the same framing in the detection and review passes: they may or may not sit at an ad boundary, and never force a cut on their own.
+- The reviewer's cue-evidence radius follows review_max_boundary_shift instead of a hard 60s.
+
+### Fixed
+
+- The reviewer no longer describes spectral loudness bursts as ground-truth boundary markers.
+
 ## [2.31.7] - 2026-07-02
 
 ### Changed

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getNetworks, updateFeed, UpdateFeedPayload } from '../../api/feeds';
+import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX } from '../../api/feeds';
+import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import TriStateSelect from '../../components/TriStateSelect';
@@ -24,6 +25,19 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     queryKey: ['networks'],
     queryFn: getNetworks,
   });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+
+  const [cueScoreInput, setCueScoreInput] = useState<string>(
+    feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : '',
+  );
+
+  useEffect(() => {
+    setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : '');
+  }, [feed.cueTemplateScoreOverride]);
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
@@ -240,6 +254,50 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   labeling looks off, but they can miss a single mislabeled stretch and cut real
                   audio. Check each episode.
                 </p>
+              )}
+            </div>
+          </div>
+
+          {/* Per-feed cue match threshold override */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Cue threshold:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="number"
+                min={CUE_SCORE_MIN}
+                max={CUE_SCORE_MAX}
+                step={0.01}
+                value={cueScoreInput}
+                placeholder={
+                  settings?.audioCueTemplateScore?.value != null
+                    ? String(settings.audioCueTemplateScore.value)
+                    : '0.75'
+                }
+                onChange={(e) => setCueScoreInput(e.target.value)}
+                onBlur={() => {
+                  const raw = cueScoreInput.trim();
+                  if (raw === '') {
+                    updateMutation.mutate({ cueTemplateScoreOverride: null });
+                  } else {
+                    const v = parseFloat(raw);
+                    if (!Number.isNaN(v) && v >= CUE_SCORE_MIN && v <= CUE_SCORE_MAX) {
+                      updateMutation.mutate({ cueTemplateScoreOverride: v });
+                    } else {
+                      // Invalid input: revert to the persisted value so the
+                      // field doesn't keep showing unsaved text.
+                      setCueScoreInput(feed.cueTemplateScoreOverride != null
+                        ? String(feed.cueTemplateScoreOverride) : '');
+                    }
+                  }
+                }}
+                disabled={updateMutation.isPending}
+                className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+              />
+              <span className="text-xs text-muted-foreground">Empty = use global</span>
+              {feed.cueTemplateScoreOverride != null && (
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                  Override: {feed.cueTemplateScoreOverride.toFixed(2)}
+                </span>
               )}
             </div>
           </div>

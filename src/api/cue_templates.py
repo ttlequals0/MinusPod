@@ -14,6 +14,7 @@ Routes mounted under the ``/api/v1`` blueprint:
 import io
 import json
 import logging
+import os
 import threading
 import wave
 import zipfile
@@ -29,10 +30,11 @@ from audio_analysis.cue_features import (
     serialize_mfcc, pcm_to_int16_bytes, int16_bytes_to_pcm,
     pcm_to_flac, flac_to_wav,
 )
-from audio_analysis.cue_template_matcher import (
-    AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
+from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
+from audio_analysis.cue_candidates import (
+    merge_cue_candidates, annotate_recurring_with_ad_affinity,
+    count_ad_boundary_hits,
 )
-from audio_analysis.cue_candidates import merge_cue_candidates
 from audio_analysis.cue_speech_filter import is_likely_speech
 from audio_analysis.cue_detector import AudioCueDetector
 from audio_analysis.detected_cues import build_detected_cues
@@ -40,7 +42,7 @@ from audio_analysis.cue_threshold_suggest import suggest_cue_threshold
 from audio_fingerprinter import AudioFingerprinter
 from config import (
     AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
-    AUDIO_CUE_CAPTURE_MAX_BY_TYPE,
+    AUDIO_CUE_CAPTURE_MAX_BY_TYPE, AUDIO_CUE_CAPTURE_WARN_AD_SECONDS,
     AUDIO_CUE_FREQ_MAX_HZ,
     AUDIO_CUE_SCAN_FREQ_MIN_HZ, AUDIO_CUE_SCAN_PROMINENCE_DB,
     AUDIO_CUE_SCAN_RELEASE_DB, AUDIO_CUE_SCAN_MAX_DURATION_SECONDS,
@@ -51,16 +53,23 @@ from config import (
     AUDIO_CUE_XEP_HEAD_SECONDS, AUDIO_CUE_XEP_TAIL_SECONDS,
     AUDIO_CUE_XEP_MAX_SIBLINGS, AUDIO_CUE_XEP_SIBLING_LOOKBACK,
     AUDIO_CUE_XEP_MIN_MATCHES,
-    AUDIO_CUE_XEP_MIN_DURATION, AUDIO_CUE_XEP_MAX_DURATION,
+    AUDIO_CUE_XEP_MIN_DURATION,
     AUDIO_CUE_XEP_MAX_PER_ZONE, AUDIO_CUE_XEP_SIMILARITY,
     AUDIO_CUE_RECURRENCE_SIMILARITY, AUDIO_CUE_RECURRENCE_MIN_COUNT,
     AUDIO_CUE_FORMANT_ATTEN_DB,
     AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS,
     AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, AUDIO_CUE_TYPE_SHOW_INTRO,
+    AUDIO_CUE_TYPE_SHOW_OUTRO,
     AUDIO_CUE_ROLE_NON_AD, audio_cue_type_role,
     is_template_cue,
     AUDIO_CUE_SUGGEST_FLOOR, AUDIO_CUE_SUGGEST_MAX_EPISODES,
     AUDIO_CUE_EFFECT_FLOOR, AUDIO_CUE_SNAP_CONFIDENCE, AUDIO_CUE_PAIR_CONFIDENCE,
+    AUDIO_CUE_TYPE_CONTENT_TRANSITION,
+    AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS,
+    AUDIO_CUE_AD_AFFINITY_MIN_FRACTION,
+    AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION,
+    resolve_cue_template_score,
+    resolve_cue_template_score_with_source,
 )
 from utils.constants import EpisodeStatus
 from utils.validation import is_valid_episode_id
@@ -175,15 +184,7 @@ def create_cue_template(slug):
         return error_response(
             'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
     cap_min = db.get_setting_float('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
-    cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
-    # Intro/outro stingers may run longer than the ad-break ceiling and are
-    # DB-settable per type; never drop below the user's global ad-break setting.
-    if cue_type in AUDIO_CUE_CAPTURE_MAX_BY_TYPE:
-        type_db_key = ('audio_cue_capture_max_intro_seconds'
-                       if cue_type == AUDIO_CUE_TYPE_SHOW_INTRO
-                       else 'audio_cue_capture_max_outro_seconds')
-        cap_max = max(cap_max, db.get_setting_float(
-            type_db_key, AUDIO_CUE_CAPTURE_MAX_BY_TYPE[cue_type]))
+    cap_max = _capture_ceiling(db, cue_type)
     if end_s - start_s < cap_min:
         return error_response(f'selection must be at least {cap_min:g} seconds', 400)
     if end_s - start_s > cap_max:
@@ -245,8 +246,9 @@ def create_cue_template(slug):
     # source episode will never bracket a break, so warn the user at save time.
     # Skip intro/outro (non_ad) cues -- they are meant to play once. Best-effort:
     # an fpcalc failure leaves selfMatchCount at 0 (treated as unknown, no warn).
+    is_ad_role = audio_cue_type_role(cue_type) != AUDIO_CUE_ROLE_NON_AD
     self_match_count = 0
-    if audio_cue_type_role(cue_type) != AUDIO_CUE_ROLE_NON_AD:
+    if is_ad_role:
         try:
             similarity = db.get_setting_float(
                 'audio_cue_recurrence_similarity', AUDIO_CUE_RECURRENCE_SIMILARITY)
@@ -256,6 +258,14 @@ def create_cue_template(slug):
             logger.exception('cue self-match failed for template %s', template_id)
     meta['selfMatchCount'] = self_match_count
     meta['weakCue'] = self_match_count == 1
+
+    # Long-capture nudge: ad-break captures longer than the warn threshold
+    # degrade match quality (issue #350: 9.8s capture matched far worse than
+    # 1.5-2.5s clips of the same cue). Non-ad roles are exempt -- long intro/
+    # outro captures are expected and intentional.
+    meta['longCapture'] = (
+        is_ad_role and (end_s - start_s) > AUDIO_CUE_CAPTURE_WARN_AD_SECONDS)
+    meta['captureWarnSeconds'] = AUDIO_CUE_CAPTURE_WARN_AD_SECONDS
     return json_response({'template': meta}, status=201)
 
 
@@ -355,8 +365,9 @@ def cue_scan_episode(slug, episode_id):
             score = max(0.0, min(0.99, float(override)))
         except (TypeError, ValueError):
             return error_response('scoreThreshold must be a number', 400)
+        threshold_source = 'request'
     else:
-        score = db.get_setting_float('audio_cue_template_score', DEFAULT_MATCH_SCORE)
+        score, threshold_source = resolve_cue_template_score_with_source(db, podcast['id'])
     matcher = AudioCueTemplateMatcher(
         templates=templates, score_threshold=score,
         formant_atten_db=db.get_setting_float(
@@ -379,6 +390,7 @@ def cue_scan_episode(slug, episode_id):
     return json_response({
         'episodeId': episode_id,
         'thresholdUsed': debug['threshold'],
+        'thresholdSource': threshold_source,
         'elapsedSeconds': debug['elapsed_s'],
         'templates': [
             {
@@ -431,7 +443,7 @@ def preview_cue_template(slug, episode_id):
     if err:
         return err
 
-    score = db.get_setting_float('audio_cue_template_score', DEFAULT_MATCH_SCORE)
+    score, _ = resolve_cue_template_score_with_source(db, podcast['id'])
     matcher = AudioCueTemplateMatcher(
         templates=[template], score_threshold=score,
         formant_atten_db=db.get_setting_float(
@@ -796,6 +808,144 @@ def _completed_sibling_audio_paths(db, storage, slug, episode_id):
     return paths
 
 
+def _parse_ad_markers(raw):
+    """Parse ad_markers_json into only the markers that were actually cut.
+
+    Mirrors positional_prior's was_cut defense so affinity typing never treats a
+    reviewer-rejected marker as a boundary: a raw pass-1 set (no marker carries
+    was_cut) is untrusted and yields nothing; otherwise only was_cut markers
+    count. Tolerates None/bad JSON (returns []).
+    """
+    try:
+        parsed = json.loads(raw) if raw else []
+    except (json.JSONDecodeError, TypeError, ValueError):
+        logger.warning('cue_templates: unparseable ad_markers_json')
+        return []
+    if not isinstance(parsed, list):
+        return []
+    if parsed and not any(isinstance(m, dict) and 'was_cut' in m for m in parsed):
+        return []  # raw pass-1 output, never confidence-gated -- untrusted
+    return [m for m in parsed if isinstance(m, dict) and m.get('was_cut')]
+
+
+# Number of top recurring candidates to run sibling matching against.
+_AFFINITY_SIBLING_TOP_N = 5
+# Max siblings to pull ad history from for sibling-fallback affinity.
+_AFFINITY_SIBLING_MAX = 2
+# Bounds per-row episode lookups; raise with sibling lookback if ever needed.
+_AFFINITY_HISTORY_SCAN_MAX = 8
+
+
+def _sibling_affinity_fallback(recurring, slug, episode_id, db, storage, audio_path, podcast_id=None):
+    """Affinity from up to 2 recent siblings with ad markers + retained audio, when the episode has no ad history."""
+    if not recurring:
+        return recurring
+    for c in recurring:
+        c.pop('occurrences', None)
+        c['adBoundaryHits'] = None
+        c['boundaryAffinity'] = None
+        c['affinitySource'] = None
+
+    # Recent siblings with BOTH stored ad markers and retained original audio.
+    sibling_rows = db.get_recent_episode_ad_history(
+        slug, exclude_episode_id=episode_id,
+        limit=AUDIO_CUE_XEP_SIBLING_LOOKBACK)
+    usable_siblings = []
+    for _i, row in enumerate(sibling_rows):
+        if _i >= _AFFINITY_HISTORY_SCAN_MAX:
+            break
+        sib_eid = row['episode_id']
+        sib_ep = db.get_episode(slug, sib_eid)
+        if not sib_ep or not sib_ep.get('original_file'):
+            continue
+        sib_path = str(storage.get_original_path(slug, sib_eid))
+        if not os.path.exists(sib_path):
+            continue
+        ad_spans = _parse_ad_markers(row.get('ad_markers_json'))
+        if not ad_spans:
+            continue
+        usable_siblings.append({'path': sib_path, 'ad_spans': ad_spans})
+        if len(usable_siblings) >= _AFFINITY_SIBLING_MAX:
+            break
+    if not usable_siblings:
+        return recurring
+
+    top = recurring[:_AFFINITY_SIBLING_TOP_N]
+    rest = recurring[_AFFINITY_SIBLING_TOP_N:]
+
+    # One ephemeral template row per top candidate; row id = index into `top`
+    # so matcher signals map back via details['template_id'].
+    rows = []
+    for idx, c in enumerate(top):
+        try:
+            pcm = decode_pcm_window(audio_path, c['start'], c['end'], SAMPLE_RATE_HZ)
+            mfcc = compute_mfcc(pcm)
+        except Exception:
+            logger.debug('sibling affinity: failed to decode candidate [%s-%s]',
+                         c.get('start'), c.get('end'))
+            continue
+        if mfcc.shape[0] < 3:
+            continue
+        rows.append({
+            'id': idx,
+            'label': f"candidate-{c['start']}-{c['end']}",
+            'cue_type': 'ad_break_boundary',
+            'duration_s': c['end'] - c['start'],
+            'sample_rate': SAMPLE_RATE_HZ,
+            'n_coeffs': N_COEFFS,
+            'mfcc_blob': serialize_mfcc(mfcc),
+            'pcm_blob': None,
+        })
+    if not rows:
+        return recurring
+
+    score_threshold = resolve_cue_template_score(db, podcast_id)
+    matcher = AudioCueTemplateMatcher(rows, score_threshold=score_threshold)
+    pooled_hits = {r['id']: 0 for r in rows}
+    pooled_count = {r['id']: 0 for r in rows}
+    if matcher.is_usable:
+        for sib in usable_siblings:
+            try:
+                signals = matcher.detect(sib['path'])
+            except Exception:
+                logger.debug('sibling affinity: matcher failed for sibling %s',
+                             sib['path'])
+                continue
+            positions = {r['id']: [] for r in rows}
+            for s in signals:
+                idx = (s.details or {}).get('template_id')
+                if idx in positions:
+                    positions[idx].append(s.start)
+            # Same hit definition as the within-episode annotator, applied to
+            # this sibling's match positions vs its own ad spans, then pooled.
+            for idx, pos in positions.items():
+                if not pos:
+                    continue
+                hits, _, _ = count_ad_boundary_hits(
+                    pos, sib['ad_spans'], AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS)
+                pooled_hits[idx] += hits
+                pooled_count[idx] += len(pos)
+
+    for idx, c in enumerate(top):
+        count = pooled_count.get(idx, 0)
+        if count <= 0:
+            continue  # no sibling evidence for this candidate; leave untyped
+        hits = pooled_hits[idx]
+        affinity = hits / count
+        c['adBoundaryHits'] = hits
+        c['boundaryAffinity'] = round(affinity, 3)
+        c['affinitySource'] = 'siblings'
+        if hits >= 2 and affinity >= AUDIO_CUE_AD_AFFINITY_MIN_FRACTION:
+            # No per-occurrence start/end phase data when pooling across
+            # siblings, so the typed result is always the two-sided boundary.
+            c['suggestedType'] = 'ad_break_boundary'
+        else:
+            c['suggestedType'] = AUDIO_CUE_TYPE_CONTENT_TRANSITION
+
+    top.sort(key=lambda c: (-(c.get('boundaryAffinity') or 0), -(c.get('count') or 0)))
+    return top + rest
+
+
 def _drop_speechlike_recurring(recurring, audio_path):
     """Drop recurring candidates that are plainly speech (common phrases), #350.
 
@@ -827,6 +977,24 @@ def _drop_speechlike_recurring(recurring, audio_path):
     return kept
 
 
+def _capture_ceiling(db, cue_type):
+    """Return the DB-configured max capture duration (s) for ``cue_type``.
+
+    For show_intro and show_outro the per-type DB key is checked first and
+    the result is never less than the global ad-break ceiling.
+    """
+    cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
+    if cue_type in AUDIO_CUE_CAPTURE_MAX_BY_TYPE:
+        type_db_key = (
+            'audio_cue_capture_max_intro_seconds'
+            if cue_type == AUDIO_CUE_TYPE_SHOW_INTRO
+            else 'audio_cue_capture_max_outro_seconds'
+        )
+        cap_max = max(cap_max, db.get_setting_float(
+            type_db_key, AUDIO_CUE_CAPTURE_MAX_BY_TYPE[cue_type]))
+    return cap_max
+
+
 def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
                             similarity, min_count):
     """Background worker: find cue-template candidates, then persist them.
@@ -856,6 +1024,27 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
         # Drop within-episode candidates that are just common spoken phrases (#350);
         # the cross-episode intro/outro pass below is exempt (intros can be spoken).
         recurring = _drop_speechlike_recurring(recurring, audio_path)
+        # Phase 4: ad-affinity typing -- annotate recurring candidates with
+        # suggestedType based on proximity to known ad boundaries.
+        episode_row = db.get_episode(slug, episode_id)
+        episode_ad_spans = _parse_ad_markers(
+            (episode_row or {}).get('ad_markers_json')
+        )
+        if episode_ad_spans:
+            recurring = annotate_recurring_with_ad_affinity(
+                recurring, episode_ad_spans,
+                tolerance_s=AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS,
+                min_fraction=AUDIO_CUE_AD_AFFINITY_MIN_FRACTION,
+                phase_fraction=AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION,
+            )
+            for c in recurring:
+                if c.get('affinitySource') is None and c.get('adBoundaryHits') is not None:
+                    c['affinitySource'] = 'episode'
+        else:
+            # Sibling fallback: only when scanned episode has no ad history.
+            recurring = _sibling_affinity_fallback(
+                recurring, slug, episode_id, db, storage, audio_path,
+                podcast_id=podcast_id)
         try:
             siblings = _completed_sibling_audio_paths(db, storage, slug, episode_id)
             cross_episode = fp.discover_cross_episode_cues(
@@ -866,7 +1055,8 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
                 similarity=AUDIO_CUE_XEP_SIMILARITY,
                 min_matches=AUDIO_CUE_XEP_MIN_MATCHES,
                 min_duration=AUDIO_CUE_XEP_MIN_DURATION,
-                max_duration=AUDIO_CUE_XEP_MAX_DURATION,
+                intro_max_duration=_capture_ceiling(db, AUDIO_CUE_TYPE_SHOW_INTRO),
+                outro_max_duration=_capture_ceiling(db, AUDIO_CUE_TYPE_SHOW_OUTRO),
                 max_per_zone=AUDIO_CUE_XEP_MAX_PER_ZONE,
                 target_fingerprint=target_fp)
         except Exception:
@@ -890,7 +1080,13 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
 # Bumped when the candidate set's meaning changes so old caches are rescanned.
 # 2: the within-episode speech filter (#350 4A) -- a 2.28.0 cache can still hold
 # speech-like recurring candidates the filter now drops, so force a rescan.
-CUE_CANDIDATE_SCHEMA_VERSION = 2
+# 3: per-zone intro/outro caps (#350 Phase 3) -- old caches used a shared
+#    AUDIO_CUE_XEP_MAX_DURATION=30s cap for both zones; the new per-DB-setting
+#    caps may produce longer suggestions, so old caches are stale.
+# 4: ad-affinity typing (#350 Phase 4) -- recurring candidates now carry
+#    suggestedType, adBoundaryHits, boundaryAffinity, affinitySource; old
+#    caches lack these fields, so force a rescan to populate them.
+CUE_CANDIDATE_SCHEMA_VERSION = 4
 
 
 def _candidates_are_current(candidates):
@@ -1025,11 +1221,15 @@ def _run_cue_threshold_scan(podcast_id, episode_id, slug, audio_paths,
             for t in debug.get('templates', []):
                 peaks[t['id']] = max(peaks.get(t['id'], 0.0), t.get('peak_score', 0.0))
         suggestion = suggest_cue_threshold(scores, effect_floor=effect_floor)
+        per_feed_val = db.get_podcast_cue_score_override(podcast_id)
+        current_threshold = resolve_cue_template_score(db, podcast_id)
         db.save_cue_threshold_scan_result(podcast_id, episode_id, {
             'suggestion': suggestion,
             'sampleEpisodes': len(audio_paths),
             'floorUsed': AUDIO_CUE_SUGGEST_FLOOR,
             'perTemplate': peaks,
+            'currentThreshold': current_threshold,
+            'scope': 'feed' if per_feed_val is not None else 'global',
         })
     except Exception as e:
         logger.warning(f"Cue threshold scan failed for {slug}:{episode_id}: {e}")

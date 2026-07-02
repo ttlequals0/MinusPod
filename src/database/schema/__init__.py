@@ -420,6 +420,7 @@ class SchemaMixin:
             ('language_override', 'TEXT'),
             ('title_override', 'TEXT'),
             ('detection_mode', 'TEXT'),
+            ('cue_template_score_override', 'REAL'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
@@ -1418,12 +1419,80 @@ class SchemaMixin:
                     end_s REAL NOT NULL,
                     match_score REAL,
                     confidence REAL,
-                    outcome TEXT NOT NULL DEFAULT 'none' CHECK(outcome IN ('snap', 'pair', 'none')),
+                    outcome TEXT NOT NULL DEFAULT 'none',
                     verdict TEXT NOT NULL DEFAULT 'pending' CHECK(verdict IN ('pending', 'confirmed', 'rejected')),
+                    edge_distance_s REAL,
+                    unused_reason TEXT,
                     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
                 )
             """)
+            # Rebuild cue_detections to drop the legacy outcome CHECK ('below_threshold' needs it gone).
+            # Row-count verified before drop; idempotent (gate: CHECK(outcome in sqlite_master SQL).
+            cd_sql_row = conn.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='table' AND name='cue_detections'"
+            ).fetchone()
+            if cd_sql_row and 'CHECK(outcome' in (cd_sql_row[0] or ''):
+                cd_cols = (
+                    "id, podcast_id, episode_id, template_id, label, cue_type, "
+                    "role, source, start_s, end_s, match_score, confidence, "
+                    "outcome, verdict, created_at"
+                )
+                before_cd = conn.execute(
+                    "SELECT COUNT(*) FROM cue_detections").fetchone()[0]
+                # One explicit transaction: create/insert/drop/rename roll back
+                # atomically on any mid-way crash, leaving no orphan. Self-heal
+                # first drops any orphan a prior crashed rebuild left behind.
+                conn.execute("DROP TABLE IF EXISTS cue_detections_rebuild")
+                conn.execute("BEGIN")
+                conn.execute("""
+                    CREATE TABLE cue_detections_rebuild (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        podcast_id INTEGER NOT NULL,
+                        episode_id TEXT NOT NULL,
+                        template_id INTEGER,
+                        label TEXT,
+                        cue_type TEXT,
+                        role TEXT,
+                        source TEXT NOT NULL DEFAULT 'template',
+                        start_s REAL NOT NULL,
+                        end_s REAL NOT NULL,
+                        match_score REAL,
+                        confidence REAL,
+                        outcome TEXT NOT NULL DEFAULT 'none',
+                        verdict TEXT NOT NULL DEFAULT 'pending' CHECK(verdict IN ('pending', 'confirmed', 'rejected')),
+                        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+                    )
+                """)
+                conn.execute(
+                    f"INSERT INTO cue_detections_rebuild ({cd_cols}) "
+                    f"SELECT {cd_cols} FROM cue_detections"
+                )
+                after_cd = conn.execute(
+                    "SELECT COUNT(*) FROM cue_detections_rebuild").fetchone()[0]
+                if after_cd != before_cd:
+                    raise RuntimeError(
+                        f"outcome CHECK rebuild row mismatch: {before_cd} != {after_cd}")
+                conn.execute("DROP TABLE cue_detections")
+                conn.execute(
+                    "ALTER TABLE cue_detections_rebuild "
+                    "RENAME TO cue_detections")
+                conn.execute("COMMIT")
+                logger.info(
+                    "Migration: dropped legacy outcome CHECK on "
+                    "cue_detections (%d rows preserved)", before_cd)
+            # Near-miss / diagnostics columns (#350 Phase 6). Additive nullable
+            # columns; no CHECK so the ALTER path is safe on both fresh and
+            # rebuilt tables. edge_distance_s: signed distance from an
+            # above-threshold cue to the nearest pre-snap LLM ad edge on its
+            # eligible side. unused_reason: taxonomy explaining an outcome='none'.
+            cd_cols_now = self._get_table_columns(conn, 'cue_detections')
+            self._add_column_if_missing(
+                conn, 'cue_detections', 'edge_distance_s', 'REAL', cd_cols_now)
+            self._add_column_if_missing(
+                conn, 'cue_detections', 'unused_reason', 'TEXT', cd_cols_now)
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_cue_detections_episode "
                 "ON cue_detections(episode_id)"

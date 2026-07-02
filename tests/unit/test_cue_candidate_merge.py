@@ -14,6 +14,7 @@ class TestMergeCueCandidates:
         assert out == [{
             'start': 400.0, 'end': 404.0, 'kind': 'recurring',
             'count': 4, 'suggestedType': None,
+            'adBoundaryHits': None, 'boundaryAffinity': None, 'affinitySource': None,
         }]
 
     def test_intro_tagged_with_suggested_type(self):
@@ -89,3 +90,32 @@ class TestMergeCueCandidates:
 
     def test_empty_inputs_give_empty_list(self):
         assert merge_cue_candidates([], []) == []
+
+    def test_merge_passthrough_affinity_fields(self):
+        """merge_cue_candidates must pass through suggestedType, adBoundaryHits,
+        boundaryAffinity, affinitySource from recurring candidates."""
+        recurring = [{
+            'start': 400.0, 'end': 404.0, 'count': 4,
+            'suggestedType': 'ad_break_boundary',
+            'adBoundaryHits': 3,
+            'boundaryAffinity': 0.75,
+            'affinitySource': 'episode',
+        }]
+        out = merge_cue_candidates(recurring, [])
+        assert out[0]['suggestedType'] == 'ad_break_boundary'
+        assert out[0]['adBoundaryHits'] == 3
+        assert out[0]['boundaryAffinity'] == 0.75
+        assert out[0]['affinitySource'] == 'episode'
+
+    def test_merge_passthrough_none_affinity_fields(self):
+        """Null affinity fields must also pass through (no ad history case)."""
+        recurring = [{
+            'start': 400.0, 'end': 404.0, 'count': 4,
+            'suggestedType': None,
+            'adBoundaryHits': None,
+            'boundaryAffinity': None,
+            'affinitySource': None,
+        }]
+        out = merge_cue_candidates(recurring, [])
+        assert out[0]['suggestedType'] is None
+        assert out[0]['adBoundaryHits'] is None

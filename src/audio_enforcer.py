@@ -23,6 +23,12 @@ logger = logging.getLogger('podcast.audio_enforcer')
 # Only include signals above this confidence in the prompt
 MIN_SIGNAL_CONFIDENCE = 0.80
 
+# Maximum spectral ad-role cues to include per window (keeps prompt size bounded
+# on music-heavy episodes). Template cues are never capped. When more spectral
+# cues exist the top N by (confidence, start ascending) are kept in chronological
+# order and a note is appended.
+SPECTRAL_CUE_MAX_PER_WINDOW = 5
+
 
 def content_anchors(audio_analysis):
     """Return ``(pre_roll_boundary, post_roll_boundary)`` in seconds (#350).
@@ -100,9 +106,43 @@ class AudioEnforcer:
             return ""
 
         lines = []
-        has_ad_cue = False
+        has_template_ad_cue = False
+        has_spectral_ad_cue = False
         has_non_ad_cue = False
         has_content_transition_cue = False
+
+        # Pre-pass: collect in-window spectral ad-role cues so we can cap them.
+        # Template cues are never capped and skip this path.
+        spectral_ad_cues_in_window = []
+        for signal in audio_analysis.signals:
+            if signal.confidence < MIN_SIGNAL_CONFIDENCE:
+                continue
+            if signal.end <= window_start or signal.start >= window_end:
+                continue
+            if signal.signal_type != 'audio_cue':
+                continue
+            details = signal.details or {}
+            source = details.get('source', AUDIO_CUE_SOURCE_SPECTRAL)
+            role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
+            cue_type = details.get('cue_type')
+            is_spectral_ad = (
+                source == AUDIO_CUE_SOURCE_SPECTRAL
+                and role != AUDIO_CUE_ROLE_NON_AD
+                and cue_type not in (AUDIO_CUE_TYPE_CONTENT_TRANSITION,
+                                     AUDIO_CUE_TYPE_SHOW_INTRO,
+                                     AUDIO_CUE_TYPE_SHOW_OUTRO)
+            )
+            if is_spectral_ad:
+                spectral_ad_cues_in_window.append(signal)
+
+        # Keep top SPECTRAL_CUE_MAX_PER_WINDOW by (confidence desc, start asc).
+        omitted_count = max(0, len(spectral_ad_cues_in_window) - SPECTRAL_CUE_MAX_PER_WINDOW)
+        kept_spectral = set()
+        if spectral_ad_cues_in_window:
+            ranked = sorted(spectral_ad_cues_in_window,
+                            key=lambda s: (-s.confidence, s.start))
+            for s in ranked[:SPECTRAL_CUE_MAX_PER_WINDOW]:
+                kept_spectral.add(id(s))
 
         for signal in audio_analysis.signals:
             # Skip low-confidence signals
@@ -126,31 +166,46 @@ class AudioEnforcer:
                     f"({signal.signal_type}, confidence {signal.confidence:.0%})"
                 )
             elif signal.signal_type == 'audio_cue':
-                # A short non-spoken ding/stinger that some shows play around an
-                # ad break. Ad-break-typed cues set an ad's edge when the nearby
-                # transcript is promotional; intro/outro cues (role 'non_ad')
-                # are the show's own open/close and must NOT move an ad boundary.
+                # Short non-spoken sound bracketing ad breaks (template) or a
+                # loudness burst that may hint at a break (spectral). Intro/outro
+                # cues (role 'non_ad') mark the show's own open/close and must
+                # NOT move an ad boundary.
                 details = signal.details or {}
                 label = details.get('label')
                 source = details.get('source', AUDIO_CUE_SOURCE_SPECTRAL)
                 role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
                 cue_type = details.get('cue_type')
+                duration = signal.duration
+
                 if cue_type == AUDIO_CUE_TYPE_CONTENT_TRANSITION:
                     descriptor = f'"{label}" transition' if label else 'Content transition marker'
-                    suffix = "a recurring content/segment transition, NOT necessarily an ad boundary"
+                    suffix = "a recurring transition sound; may or may not sit at an ad boundary"
                     has_content_transition_cue = True
                 elif role == AUDIO_CUE_ROLE_NON_AD:
                     descriptor = f'"{label}" marker' if label else 'Show intro/outro marker'
                     suffix = "marks the show's open/close, NOT an ad boundary"
                     has_non_ad_cue = True
+                elif source == AUDIO_CUE_SOURCE_TEMPLATE:
+                    descriptor = f'"{label}" cue' if label else 'Audio cue'
+                    suffix = "this show's learned ad-break sound"
+                    has_template_ad_cue = True
                 else:
-                    descriptor = f'"{label}" cue' if (source == AUDIO_CUE_SOURCE_TEMPLATE and label) else 'Audio cue (ding/stinger)'
-                    suffix = 'often just before an ad break'
-                    has_ad_cue = True
+                    # Any non-template source (spectral, loud_spot): cap applies
+                    if id(signal) not in kept_spectral:
+                        continue
+                    descriptor = 'Audio cue (generic loudness burst)'
+                    suffix = "a loud non-spoken sound; weak hint of a possible break"
+                    has_spectral_ad_cue = True
+
                 lines.append(
-                    f"- {descriptor} at {signal.start:.1f}s "
-                    f"({suffix}, confidence {signal.confidence:.0%})"
+                    f"- {descriptor} at {signal.start:.1f}s-{signal.end:.1f}s "
+                    f"({duration:.1f}s long; {suffix}, confidence {signal.confidence:.0%})"
                 )
+
+        if omitted_count > 0:
+            lines.append(
+                f"- +{omitted_count} more unlabelled audio cues omitted for brevity"
+            )
 
         pre_roll_boundary, post_roll_boundary = content_anchors(audio_analysis)
         positional_guidance = _positional_guidance(
@@ -170,38 +225,42 @@ class AudioEnforcer:
             "with no promotional transcript content are NOT ads.\n"
         )
 
-        # When a cue actually fired in this window, inject the detailed cue
-        # interpretation at runtime so it reaches every user -- including those
-        # who customized their system prompt (is_default=0) and therefore do not
-        # carry the static LABELLED AUDIO CUES guidance (#350).
+        # Runtime block so custom system prompts still get cue guidance (#350).
         cue_guidance = (
             "\nLABELLED AUDIO CUES: a cue above is a recurring non-spoken sound this show plays "
             "around an ad break. A cue immediately before promotional copy marks the ad's START "
-            "(begin the span at the cue, not the first spoken word); a cue immediately after the "
-            "last promotional phrase marks the ad's END. Multiple cues can fire inside one break "
-            "(intro stinger, mid-break bumper, outro stinger); two cues within ~30 seconds with no "
-            "show content between them sit inside the same break, so do not end the ad at an "
-            "intermediate cue while the transcript is still promotional -- extend to the last cue "
-            "before show content resumes. The cue is never an ad on its own; it sharpens the "
+            "(begin the span at the cue, not the first spoken word); the ad END is the cue's "
+            "START timestamp -- the resume sound stays with the show. When consecutive cues have "
+            "no show content between them they sit inside the same break, so do not end the ad at "
+            "an intermediate cue while the transcript is still promotional -- extend to the last "
+            "cue before show content resumes. The cue is never an ad on its own; it sharpens the "
             "boundary of an ad you find in the transcript.\n"
-        ) if has_ad_cue else ""
+        ) if has_template_ad_cue else ""
+
+        # Spectral cues are weak hints. Inject guidance only when present.
+        spectral_guidance = (
+            "\nGENERIC AUDIO CUES: a loudness burst above is a weak hint of a possible break. "
+            "Never flag, start, or extend an ad from a generic cue alone. At most use it to "
+            "fine-tune an edge already found in the transcript within a couple seconds.\n"
+        ) if has_spectral_ad_cue else ""
 
         # Intro/outro markers steer the model away from a false positive: the
         # show's own open/close sound is not a break boundary.
         non_ad_guidance = (
             "\nSHOW INTRO/OUTRO MARKERS: a marker above is the show's own opening or closing "
             "sound, not an ad cue. Do NOT treat it as an ad boundary or start or extend an ad "
-            "at it.\n"
+            "at it. A pre-roll ad may end exactly where the intro starts; a post-roll ad may "
+            "begin where the outro ends.\n"
         ) if has_non_ad_cue else ""
 
         # A content-transition cue marks a segment/topic change that may or may
         # not sit next to an ad; it is a hint, never an ad boundary on its own.
         content_transition_guidance = (
             "\nCONTENT TRANSITION MARKERS: a marker above is a recurring sound this show plays "
-            "at content/segment transitions, which may or may not be next to an ad. Use it only "
-            "as a hint that the topic changes there; do NOT treat it as an ad boundary on its own.\n"
+            "at content/segment transitions. It never proves an ad by itself. When promotional "
+            "copy sits right next to a marker, prefer the marker as the boundary.\n"
         ) if has_content_transition_cue else ""
 
         return (header + "\n".join(lines) + "\n"
-                + cue_guidance + non_ad_guidance + content_transition_guidance
-                + positional_guidance)
+                + cue_guidance + spectral_guidance + non_ad_guidance
+                + content_transition_guidance + positional_guidance)

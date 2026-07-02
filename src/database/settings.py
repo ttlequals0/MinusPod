@@ -104,6 +104,7 @@ class SettingsMixin:
             AUDIO_CUE_PAIR_MAX_BREAK_FRACTION, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
             AUDIO_CUE_FORMANT_ATTEN_DB,
         )
+        from ad_detector.cue_boundary_snap import DEFAULT_SNAP_LEAD_SECONDS, DEFAULT_SNAP_LAG_SECONDS
         from llm_client import get_effective_provider
         from secrets_crypto import SECRET_SETTING_KEYS
 
@@ -176,6 +177,8 @@ class SettingsMixin:
             'audio_cue_template_score': str(AUDIO_CUE_TEMPLATE_SCORE),
             'audio_cue_formant_atten_db': str(AUDIO_CUE_FORMANT_ATTEN_DB),
             'audio_cue_snap_confidence': str(AUDIO_CUE_SNAP_CONFIDENCE),
+            'audio_cue_snap_lead_seconds': str(DEFAULT_SNAP_LEAD_SECONDS),
+            'audio_cue_snap_lag_seconds': str(DEFAULT_SNAP_LAG_SECONDS),
             'audio_cue_capture_min_seconds': str(AUDIO_CUE_CAPTURE_MIN_SECONDS),
             'audio_cue_capture_max_seconds': str(AUDIO_CUE_CAPTURE_MAX_SECONDS),
             'audio_cue_capture_max_intro_seconds': str(AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS),

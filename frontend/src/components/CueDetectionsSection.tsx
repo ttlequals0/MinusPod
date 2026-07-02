@@ -13,7 +13,9 @@ interface CueDetectionsSectionProps {
   detections: CueDetection[];
 }
 
-const OUTCOME_META: Record<CueDetection['outcome'], { label: string; className: string; title: string }> = {
+type OutcomeMeta = { label: string; className: string; title: string };
+
+const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
   pair: {
     label: 'Paired',
     className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
@@ -29,6 +31,19 @@ const OUTCOME_META: Record<CueDetection['outcome'], { label: string; className: 
     className: 'bg-muted text-muted-foreground',
     title: 'Sent to the model as evidence; did not move an ad edge',
   },
+  below_threshold: {
+    label: 'missed - below threshold',
+    className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    title: 'Scored just under the feed threshold; never a signal, never affected a cut',
+  },
+};
+
+// Defensive fallback for an outcome the server adds before the frontend knows
+// it (forward-compat), so the row still renders instead of throwing.
+const UNKNOWN_OUTCOME: OutcomeMeta = {
+  label: 'unknown',
+  className: 'bg-muted text-muted-foreground',
+  title: 'Unrecognized outcome',
 };
 
 function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSectionProps) {
@@ -131,7 +146,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
       </p>
       <div className="space-y-2">
         {detections.map((d) => {
-          const outcome = OUTCOME_META[d.outcome];
+          const outcome = OUTCOME_META[d.outcome] ?? UNKNOWN_OUTCOME;
           const pending = mutation.isPending && mutation.variables?.id === d.id;
           return (
             <div
@@ -168,9 +183,21 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       Match {Math.round(d.match_score * 100)}%
                     </span>
                   )}
+                  {d.outcome === 'none' && d.unused_reason && (
+                    <span className="text-xs text-muted-foreground italic">
+                      {d.unused_reason.replace(/_/g, ' ')}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {d.verdict === 'pending' ? (
+                  {d.outcome === 'below_threshold' ? (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+                      title="Informational; not counted in stats"
+                    >
+                      informational
+                    </span>
+                  ) : d.verdict === 'pending' ? (
                     <>
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}

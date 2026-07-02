@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.31.7
+  version: 2.32.0
   contact:
     name: MinusPod
   license:
@@ -489,6 +489,13 @@ paths:
                     - keep_content
                     - null
                   description: Per-feed ad-detection mode. 'keep_content' (experimental) has the LLM label show content and removes everything else; null or 'blacklist' is the default, which labels and removes ads.
+                cueTemplateScoreOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.30
+                  maximum: 0.99
+                  description: Per-feed ZNCC match threshold for audio cue template matching. Overrides the global audioCueTemplateScore setting for this feed. null or omitted clears the override and falls back to the global setting.
                 maxEpisodes:
                   type:
                     - integer
@@ -3041,6 +3048,18 @@ paths:
                   description: Min cue confidence before a cue may move an ad edge (default 0.80).
                   minimum: 0
                   maximum: 1
+                audioCueSnapLeadSeconds:
+                  type: number
+                  description: How far back from the ad edge a cue may sit to be eligible for snapping (default 10.0s).
+                  example: 10.0
+                  minimum: 0.5
+                  maximum: 30
+                audioCueSnapLagSeconds:
+                  type: number
+                  description: How far past the ad edge a cue may sit to be eligible for snapping (default 4.0s).
+                  example: 4.0
+                  minimum: 0.5
+                  maximum: 30
                 audioCueCaptureMinSeconds:
                   type: number
                   description: Shortest cue a user may bracket (default 0.2s).
@@ -5001,6 +5020,13 @@ paths:
                     type: string
                   thresholdUsed:
                     type: number
+                  thresholdSource:
+                    type: string
+                    enum:
+                      - override
+                      - global
+                      - request
+                    description: Source of the threshold value. 'override' = per-feed column; 'global' = global setting; 'request' = scoreThreshold body field.
                   elapsedSeconds:
                     type: number
                   templates:
@@ -5263,8 +5289,24 @@ paths:
                         suggestedType:
                           type: string
                           nullable: true
-                          enum: [show_intro, show_outro]
-                          description: Capture-type hint (show_intro/show_outro for intro/outro; null for recurring)
+                          enum: [show_intro, show_outro, ad_break_boundary, ad_break_start, ad_break_end, content_transition]
+                          description: Capture-type hint; intro/outro get show_intro/show_outro; recurring gets ad-affinity type or null
+                        adBoundaryHits:
+                          type: integer
+                          nullable: true
+                          description: Recurring candidates only -- how many occurrences landed near a known ad boundary
+                        boundaryAffinity:
+                          type: number
+                          format: float
+                          minimum: 0
+                          maximum: 1
+                          nullable: true
+                          description: adBoundaryHits / count; null when no ad history was available
+                        affinitySource:
+                          type: string
+                          nullable: true
+                          enum: [episode, siblings]
+                          description: Whether affinity was computed from the scanned episode's own ad history or from sibling episodes
         '404':
           description: Feed or original audio not found
 
@@ -5423,6 +5465,15 @@ paths:
                   floorUsed:
                     type: number
                     description: Low-floor threshold the sweep used to gather scores.
+                  currentThreshold:
+                    type: number
+                    description: The threshold in effect for this feed at scan time (per-feed override if set, else global setting).
+                  scope:
+                    type: string
+                    enum:
+                      - feed
+                      - global
+                    description: Whether currentThreshold came from a per-feed override ('feed') or the global setting ('global').
                   perTemplate:
                     type: object
                     description: Map of templateId to peak score across the sampled episodes. Present when status is ready.
@@ -5454,6 +5505,7 @@ paths:
                     properties:
                       scoreHistogram:
                         type: array
+                        description: Match-score buckets for above-threshold cues.
                         items:
                           type: object
                           properties:
@@ -5461,6 +5513,28 @@ paths:
                               type: number
                             count:
                               type: integer
+                      nearMissHistogram:
+                        type: array
+                        description: >
+                          Score buckets for below_threshold near-misses (same
+                          bucketing as scoreHistogram). These never affected cuts.
+                        items:
+                          type: object
+                          properties:
+                            scoreFrom:
+                              type: number
+                            count:
+                              type: integer
+                      nearMissTotal:
+                        type: integer
+                        description: Count of below_threshold advisory rows.
+                      unusedReasons:
+                        type: object
+                        additionalProperties:
+                          type: integer
+                        description: >
+                          Count per unused_reason across outcome='none' cues
+                          (e.g. covered, out_of_reach, unpaired).
 
 security:
   - sessionCookie: []
@@ -5590,6 +5664,41 @@ components:
           description: >
             Listing only. False for a network template shared from another feed
             in this network (read-only here, managed on the feed that created it).
+        hasAudio:
+          type: boolean
+          description: >
+            True when the template has a stored PCM blob (play button is shown
+            only when true or absent for older server rows). Present on both
+            listing and create responses.
+        selfMatchCount:
+          type: integer
+          description: >
+            Create-response only. How many times the captured cue recurs in its
+            source episode (counted via audio fingerprint). 0 means the fingerprint
+            failed or returned no matches (treated as unknown, no warn). Absent on
+            list rows.
+        weakCue:
+          type: boolean
+          description: >
+            Create-response only. True when selfMatchCount is exactly 1 -- the
+            cue appears only once in its source episode and therefore cannot
+            bracket an ad break reliably. The UI warns the user and requires a
+            second Save to proceed. Absent on list rows.
+        longCapture:
+          type: boolean
+          description: >
+            Create-response only. True when the captured duration exceeds
+            captureWarnSeconds for ad-break-role cue types (ad_break_boundary,
+            ad_break_start, ad_break_end). Issue #350 field data showed a 9.8s
+            capture matched far worse than 1.5-2.5s clips of the same cue. Non-ad
+            types (show_intro, show_outro, content_transition) are always false.
+            Absent on list rows.
+        captureWarnSeconds:
+          type: number
+          description: >
+            Create-response only. The threshold used for longCapture. Present
+            whenever the create route returns so the UI can display a consistent
+            hint without a separate config fetch. Absent on list rows.
     BulkPatternOp:
       type: object
       required: [confirm, expected_count]
@@ -5737,6 +5846,13 @@ components:
             - keep_content
             - null
           description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior.
+        cueTemplateScoreOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.30
+          maximum: 0.99
+          description: Per-feed ZNCC match threshold override for audio cue template matching. null means the global audioCueTemplateScore setting applies.
         maxEpisodes:
           type:
             - integer
@@ -5887,15 +6003,38 @@ components:
           nullable: true
         outcome:
           type: string
-          enum: [snap, pair, none]
-          description: How detection used the cue
+          enum: [snap, pair, none, below_threshold]
+          description: >
+            How detection used the cue. 'below_threshold' is an advisory
+            near-miss the matcher scored just under the feed threshold; it was
+            never a signal and never affected a cut.
         verdict:
           type: string
           enum: [pending, confirmed, rejected]
+        edge_distance_s:
+          type: number
+          nullable: true
+          description: >
+            Signed distance (edge - cue) from an above-threshold cue to the
+            nearest pre-snap LLM ad edge on its eligible side. NULL for advisory
+            (non_ad) cues and for below_threshold rows.
+        unused_reason:
+          type: string
+          nullable: true
+          enum: [covered, out_of_reach, below_snap_confidence, advisory_role,
+                 unpaired, below_pair_confidence, covered_by_existing_ad,
+                 no_partner_in_band, phase_mismatch]
+          description: >
+            For an outcome='none' cue, why it did nothing. NULL for snap / pair /
+            below_threshold outcomes.
 
     CueAdvisory:
       type: object
-      description: Aggregate cue telemetry for a feed (or globally).
+      description: >
+        Aggregate cue telemetry for a feed (or globally). Totals, score range,
+        and confirmRate count above-threshold cues only; below_threshold
+        near-misses are reported separately (see the aggregate endpoint's
+        nearMissTotal / nearMissHistogram).
       properties:
         total:
           type: integer
@@ -6263,6 +6402,22 @@ components:
         audioCueSnapConfidence:
           type: object
           description: Min cue confidence before a cue may move an ad edge (default 0.80).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueSnapLeadSeconds:
+          type: object
+          description: How far back from the ad edge a cue may sit to be eligible for snapping, seconds (default 10.0).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueSnapLagSeconds:
+          type: object
+          description: How far past the ad edge a cue may sit to be eligible for snapping, seconds (default 4.0).
           properties:
             value:
               type: number

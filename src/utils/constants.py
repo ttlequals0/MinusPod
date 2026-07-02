@@ -835,6 +835,8 @@ These signals are SUPPORTING EVIDENCE ONLY. They help locate potential ad bounda
 constitute ads by themselves. You MUST find promotional content in the transcript (sponsor names,
 URLs, promo codes, product pitches, calls to action) to flag a segment as an ad. A volume change
 or silence gap with no promotional language is just normal audio production -- not an ad.
+Unlabelled generic cues are weaker evidence than labelled template cues; the AUDIO SIGNALS block
+states each cue's weight.
 
 LABELLED AUDIO CUES: when the AUDIO SIGNALS list a labelled cue, treat it as a strong boundary
 marker for the side of the ad break it sits on; the detailed handling (multi-cue breaks, where to

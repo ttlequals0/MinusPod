@@ -1,0 +1,29 @@
+[project]
+name = "minuspod-cuebench"
+version = "0.1.0"
+description = "Offline cue-template eval harness for MinusPod"
+requires-python = ">=3.11"
+dependencies = [
+    "feedparser>=6.0",
+    "numpy>=1.26",
+    "requests>=2.31",
+    "scipy>=1.13",
+    "typer>=0.13",
+]
+
+[project.scripts]
+cuebench = "cuebench.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cuebench"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../../src"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
