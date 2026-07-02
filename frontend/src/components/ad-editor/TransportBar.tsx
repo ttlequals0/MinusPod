@@ -64,79 +64,73 @@ function TransportBar({
   }, [speedOpen]);
 
   return (
-    <div className="mt-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border">
-      {/* Primary controls. Three columns: the two 1fr side columns are equal,
-          so the transport cluster in the center auto column stays truly
-          centered no matter how wide the modal gets; the speed selector lives
-          in the right column (its own space, so it can never overlap a
-          button). */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-        <div aria-hidden="true" />
-        <div className="flex items-center justify-center gap-1">
-          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to START pin">
-            <SkipBack className="w-4 h-4" />
+    <div className="mt-3 mx-auto w-fit max-w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+      {/* All controls on one centered row: the transport cluster and the speed
+          control (a compact custom button) stay grouped together, so the speed
+          sits right next to the transport at any width instead of drifting to a
+          far edge on a wide modal. */}
+      <div className="flex items-center justify-center gap-0.5">
+        <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to START pin">
+          <SkipBack className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
+          <Rewind className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded-full ${primaryBtn}`} title="Play / pause (Space)">
+          {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+        </button>
+        {onPlaySelection && (
+          <button
+            type="button"
+            onClick={onPlaySelection}
+            className={selectionBtn}
+            title="Play the selection only"
+            aria-label="Play selection"
+          >
+            <Play className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
-            <Rewind className="w-4 h-4" />
+        )}
+        <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">
+          <FastForward className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to END pin">
+          <SkipForward className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn}`} title="Stop (pause + return to START)">
+          <Square className="w-4 h-4" />
+        </button>
+        <div className="relative ml-1" ref={speedRef}>
+          <button
+            type="button"
+            onClick={() => setSpeedOpen((o) => !o)}
+            className={`h-8 px-2 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+            title="Playback speed"
+            aria-haspopup="listbox"
+            aria-expanded={speedOpen}
+            aria-label="Playback speed"
+          >
+            {playbackRate}&times;
+            <svg className="w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded-full ${primaryBtn}`} title="Play / pause (Space)">
-            {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-          </button>
-          {onPlaySelection && (
-            <button
-              type="button"
-              onClick={onPlaySelection}
-              className={selectionBtn}
-              title="Play the selection only"
-              aria-label="Play selection"
-            >
-              <Play className="w-4 h-4" />
-            </button>
+          {speedOpen && (
+            <ul role="listbox" className="absolute right-0 bottom-full mb-1 z-20 min-w-[3.25rem] rounded-md border border-border bg-card shadow-lg py-1">
+              {PLAYBACK_RATES.map((r) => (
+                <li key={r}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={r === playbackRate}
+                    onClick={() => { onPlaybackRateChange(r); setSpeedOpen(false); }}
+                    className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+                  >
+                    {r}&times;
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
-          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">
-            <FastForward className="w-4 h-4" />
-          </button>
-          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to END pin">
-            <SkipForward className="w-4 h-4" />
-          </button>
-          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn}`} title="Stop (pause + return to START)">
-            <Square className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="flex justify-end">
-          <div className="relative" ref={speedRef}>
-            <button
-              type="button"
-              onClick={() => setSpeedOpen((o) => !o)}
-              className={`h-8 px-2 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
-              title="Playback speed"
-              aria-haspopup="listbox"
-              aria-expanded={speedOpen}
-              aria-label="Playback speed"
-            >
-              {playbackRate}&times;
-              <svg className="w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            {speedOpen && (
-              <ul role="listbox" className="absolute right-0 bottom-full mb-1 z-20 min-w-[3.25rem] rounded-md border border-border bg-card shadow-lg py-1">
-                {PLAYBACK_RATES.map((r) => (
-                  <li key={r}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected={r === playbackRate}
-                      onClick={() => { onPlaybackRateChange(r); setSpeedOpen(false); }}
-                      className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
-                    >
-                      {r}&times;
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       </div>
       {/* Secondary row: selection readout, centered under the controls. */}

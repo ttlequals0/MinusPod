@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.5] - 2026-07-02
+
+### Changed
+
+- The transport bar is a compact pill centered in the editor instead of a full-width box, and the speed control is grouped next to the transport buttons instead of sitting at the far edge on a wide screen.
+
 ## [2.31.4] - 2026-07-02
 
 ### Changed
