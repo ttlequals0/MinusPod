@@ -75,7 +75,11 @@ RUN pip install --no-cache-dir \
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN rm -rf /root/.cache /tmp/* \
+# Build headers only needed for pip C-extension builds above; linux-libc-dev
+# carries a stream of unfixed kernel-header CVEs the runtime never touches.
+RUN apt-get purge -y linux-libc-dev python3.11-dev libpython3.11-dev libc6-dev libexpat1-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
