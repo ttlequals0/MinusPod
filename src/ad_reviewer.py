@@ -296,7 +296,8 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
             rec = cue_snap.get(edge)
             if not rec:
                 continue
-            ambig = f" ({rec['candidates']} other cues nearby)" if rec.get('ambiguous') else ""
+            # candidates counts the chosen cue too
+            ambig = f" ({rec['candidates'] - 1} other cues nearby)" if rec.get('ambiguous') else ""
             if edge == 'start':
                 moved.append(
                     f"start snapped to \"{rec.get('label') or 'cue'}\" "

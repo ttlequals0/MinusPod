@@ -144,7 +144,8 @@ def test_ambiguous_snap_note_rendered():
     out = _format_cue_section(audio_analysis=None, ad_start=100.0, ad_end=200.0,
                                cue_snap=snap)
     assert 'CUE SNAP APPLIED' in out
-    assert '3 other cues nearby' in out
+    # candidates=3 includes the chosen cue -> 2 others
+    assert '2 other cues nearby' in out
 
 
 def test_unambiguous_snap_has_no_candidates_note():
