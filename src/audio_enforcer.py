@@ -190,7 +190,7 @@ class AudioEnforcer:
                     suffix = "this show's learned ad-break sound"
                     has_template_ad_cue = True
                 else:
-                    # Spectral cue: cap applies
+                    # Any non-template source (spectral, loud_spot): cap applies
                     if id(signal) not in kept_spectral:
                         continue
                     descriptor = 'Audio cue (generic loudness burst)'
