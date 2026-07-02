@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square } from 'lucide-react';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { PLAYBACK_RATES, ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
@@ -44,6 +44,25 @@ function TransportBar({
   onPlaySelection,
   selectionInfo,
 }: TransportBarProps) {
+  // Custom speed control (not a native <select>): iOS Safari sizes native
+  // selects with its own width/height that Tailwind cannot fully override, so a
+  // button + popover renders identically everywhere and stays button-sized.
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const speedRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!speedOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (speedRef.current && !speedRef.current.contains(e.target as Node)) setSpeedOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSpeedOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [speedOpen]);
+
   return (
     <div className="mt-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border">
       {/* Primary controls. Three columns: the two 1fr side columns are equal,
@@ -85,27 +104,39 @@ function TransportBar({
           </button>
         </div>
         <div className="flex justify-end">
-          <label className="relative inline-flex items-center" title="Playback speed">
-            <span className="sr-only">Playback speed</span>
-            <select
-              value={playbackRate}
-              onChange={(e) => onPlaybackRateChange(Number(e.target.value))}
+          <div className="relative" ref={speedRef}>
+            <button
+              type="button"
+              onClick={() => setSpeedOpen((o) => !o)}
+              className={`h-8 px-2 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+              title="Playback speed"
+              aria-haspopup="listbox"
+              aria-expanded={speedOpen}
               aria-label="Playback speed"
-              className={`appearance-none box-border h-8 leading-none pl-2 pr-6 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
             >
-              {PLAYBACK_RATES.map((r) => (
-                <option key={r} value={r}>{r}&times;</option>
-              ))}
-            </select>
-            <svg
-              className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60"
-              viewBox="0 0 12 12"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </label>
+              {playbackRate}&times;
+              <svg className="w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {speedOpen && (
+              <ul role="listbox" className="absolute right-0 bottom-full mb-1 z-20 min-w-[3.25rem] rounded-md border border-border bg-card shadow-lg py-1">
+                {PLAYBACK_RATES.map((r) => (
+                  <li key={r}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={r === playbackRate}
+                      onClick={() => { onPlaybackRateChange(r); setSpeedOpen(false); }}
+                      className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+                    >
+                      {r}&times;
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
       {/* Secondary row: selection readout, centered under the controls. */}

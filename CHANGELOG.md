@@ -6,11 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.4] - 2026-07-02
+
+### Changed
+
+- The playback speed control is a custom button with a small popover instead of a native dropdown. Native dropdowns render at their own size on iOS, so the control was oversized on iPhone; the custom button matches the transport buttons on every platform.
+
 ## [2.31.3] - 2026-07-01
 
 ### Changed
 
-- The transport controls use a three-column layout: the transport cluster is centered and the playback speed selector sits in its own column on the right, so it is on the same line without overlapping the Stop button. The speed selector is sized to match the transport buttons.
+- The transport controls use a three-column layout: the transport cluster is centered and the playback speed control sits in its own column on the right, so it is on the same line without overlapping the Stop button.
 
 ## [2.31.2] - 2026-07-01
 
