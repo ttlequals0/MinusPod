@@ -246,6 +246,7 @@ export interface Settings {
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
+  pricingSourceMode: SettingValue;
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
   openrouterBaseUrl: string;
@@ -273,6 +274,7 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     openaiBaseUrl: string;
+    pricingSourceMode: string;
     openrouterBaseUrl: string;
     whisperBackend: WhisperBackend;
     whisperApiBaseUrl: string;
@@ -365,6 +367,7 @@ export interface UpdateSettingsPayload {
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;
+  pricingSourceMode?: string;
   whisperBackend?: WhisperBackend;
   whisperApiBaseUrl?: string;
   whisperApiKey?: string;

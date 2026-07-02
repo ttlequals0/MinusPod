@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.32.1
+  version: 2.32.3
   contact:
     name: MinusPod
   license:
@@ -3192,6 +3192,13 @@ paths:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
                   example: http://localhost:11434/v1
+                pricingSourceMode:
+                  type: string
+                  description: |
+                    Pricing source override. 'auto' picks by provider/domain; 'litellm' always uses the
+                    LiteLLM catalog; 'free' disables cost tracking (use only for local models with no cost).
+                  enum: [auto, litellm, free]
+                  example: auto
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
@@ -6611,6 +6618,15 @@ components:
               description: Base URL for OpenAI-compatible API endpoint
             isDefault:
               type: boolean
+        pricingSourceMode:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Pricing source mode (auto, litellm, free)
+              enum: [auto, litellm, free]
+            isDefault:
+              type: boolean
         apiKeyConfigured:
           type: boolean
           description: Whether an API key is configured for the current provider (read-only)
@@ -6725,6 +6741,9 @@ components:
               type: string
             openaiBaseUrl:
               type: string
+            pricingSourceMode:
+              type: string
+              enum: [auto, litellm, free]
             openrouterBaseUrl:
               type: string
 

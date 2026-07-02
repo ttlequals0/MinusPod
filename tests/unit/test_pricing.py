@@ -116,35 +116,170 @@ class TestGetPricingSource:
         assert result['type'] == 'pricepertoken'
         assert 'together' in result['url']
 
-    def test_localhost_is_free(self):
+    def test_localhost_is_litellm_not_free(self):
         result = get_pricing_source('openai-compatible', 'http://localhost:11434/v1')
-        assert result['type'] == 'free'
+        assert result['type'] == 'litellm'
 
-    def test_127_0_0_1_is_free(self):
+    def test_127_0_0_1_is_litellm(self):
         result = get_pricing_source('openai-compatible', 'http://127.0.0.1:8000/v1')
-        assert result['type'] == 'free'
+        assert result['type'] == 'litellm'
 
-    def test_local_domain_is_free(self):
+    def test_local_domain_is_litellm(self):
         result = get_pricing_source('openai-compatible', 'http://my-server.local:8000/v1')
-        assert result['type'] == 'free'
+        assert result['type'] == 'litellm'
 
-    def test_unknown_domain(self):
+    def test_unknown_public_domain_is_litellm_not_free(self):
+        """Unknown public openai-compatible domain falls to LiteLLM, never bare free."""
         result = get_pricing_source('openai-compatible', 'https://my-custom-llm.example.com/v1')
-        assert result['type'] == 'unknown'
-        assert result['domain'] == 'my-custom-llm.example.com'
+        assert result['type'] == 'litellm'
 
-    def test_no_base_url(self):
+    def test_no_base_url_is_litellm(self):
+        """Empty base_url has no domain -- treated as an unknown public endpoint."""
         result = get_pricing_source('openai-compatible', '')
-        assert result['type'] == 'unknown'
-        assert result['domain'] == ''
+        assert result['type'] == 'litellm'
 
-    def test_none_base_url(self):
+    def test_none_base_url_is_litellm(self):
         result = get_pricing_source('openai-compatible', None)
-        assert result['type'] == 'unknown'
+        assert result['type'] == 'litellm'
 
     def test_openrouter_domain_via_openai_compatible(self):
         result = get_pricing_source('openai-compatible', 'https://openrouter.ai/api/v1')
         assert result['type'] == 'openrouter_api'
+
+    def test_rfc1918_private_ip_is_litellm(self):
+        result = get_pricing_source('openai-compatible', 'http://192.168.1.10:8000/v1')
+        assert result['type'] == 'litellm'
+
+    def test_lan_domain_is_litellm(self):
+        result = get_pricing_source('openai-compatible', 'http://box.lan:8000/v1')
+        assert result['type'] == 'litellm'
+
+
+class TestGetPricingSources:
+    """Test the ordered pricing-source chain."""
+
+    def test_ollama_chain_is_free_only(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('ollama')
+        assert [s['type'] for s in chain] == ['free']
+
+    def test_anthropic_chain_pricepertoken_then_filtered_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('anthropic')
+        assert [s['type'] for s in chain] == ['pricepertoken', 'litellm']
+        assert chain[1]['provider_filter'] == 'anthropic'
+
+    def test_openrouter_chain_native_then_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openrouter')
+        assert [s['type'] for s in chain] == ['openrouter_api', 'litellm']
+        assert 'provider_filter' not in chain[1]
+
+    def test_known_openai_domain_chain_pricepertoken_then_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'https://api.openai.com/v1')
+        assert [s['type'] for s in chain] == ['pricepertoken', 'litellm']
+
+    def test_unknown_public_domain_chain_is_litellm_unfiltered(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'https://mystery.example.com/v1')
+        assert [s['type'] for s in chain] == ['litellm']
+        assert 'provider_filter' not in chain[0]
+
+    def test_localhost_chain_is_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'http://localhost:11434/v1')
+        assert [s['type'] for s in chain] == ['litellm']
+
+    def test_rfc1918_chain_is_litellm(self):
+        from config import get_pricing_sources
+        chain = get_pricing_sources('openai-compatible', 'http://192.168.1.10:8000/v1')
+        assert [s['type'] for s in chain] == ['litellm']
+
+
+class TestPricingSourceMode:
+    """Test pricing_source_mode override (auto/litellm/free)."""
+
+    def test_mode_free_returns_free_for_any_provider(self):
+        from config import get_pricing_sources
+        with patch('config._get_pricing_source_mode', return_value='free'):
+            assert [s['type'] for s in get_pricing_sources('openai-compatible', 'http://192.168.1.10/v1')] == ['free']
+            assert [s['type'] for s in get_pricing_sources('anthropic')] == ['free']
+            assert [s['type'] for s in get_pricing_sources('openrouter')] == ['free']
+
+    def test_mode_litellm_returns_litellm_for_any_provider(self):
+        from config import get_pricing_sources
+        with patch('config._get_pricing_source_mode', return_value='litellm'):
+            assert [s['type'] for s in get_pricing_sources('anthropic')] == ['litellm']
+            assert [s['type'] for s in get_pricing_sources('openai-compatible', 'https://api.openai.com/v1')] == ['litellm']
+
+    def test_mode_auto_ollama_still_free(self):
+        from config import get_pricing_sources
+        with patch('config._get_pricing_source_mode', return_value='auto'):
+            chain = get_pricing_sources('ollama')
+        assert [s['type'] for s in chain] == ['free']
+
+    def test_mode_auto_lan_is_litellm(self):
+        from config import get_pricing_sources
+        with patch('config._get_pricing_source_mode', return_value='auto'):
+            chain = get_pricing_sources('openai-compatible', 'http://192.168.1.10:8000/v1')
+        assert [s['type'] for s in chain] == ['litellm']
+
+    def test_db_error_falls_back_to_auto(self):
+        from config import _get_pricing_source_mode
+        # Verify _get_pricing_source_mode handles its own exception path
+        with patch('database.Database', side_effect=Exception('db gone')):
+            result = _get_pricing_source_mode()
+        assert result == 'auto'
+
+
+class TestFetchPricingChain:
+    """Test chain fetch: merge precedence, gap-fill, per-source failure."""
+
+    def _row(self, key, in_cost, out_cost):
+        return {
+            'match_key': key, 'raw_model_id': key, 'display_name': key,
+            'input_cost_per_mtok': in_cost, 'output_cost_per_mtok': out_cost,
+        }
+
+    def test_first_source_wins_on_key_collision(self):
+        from pricing_fetcher import fetch_pricing_chain
+        with patch('pricing_fetcher.fetch_openrouter_pricing',
+                   return_value=[self._row('claudesonnet5', 3.0, 15.0)]), \
+             patch('pricing_fetcher.fetch_litellm_pricing',
+                   return_value=[self._row('claudesonnet5', 99.0, 99.0)]):
+            merged = fetch_pricing_chain([
+                {'type': 'openrouter_api', 'url': 'x'},
+                {'type': 'litellm'},
+            ])
+        by_key = {m['match_key']: m for m in merged}
+        assert by_key['claudesonnet5']['input_cost_per_mtok'] == 3.0
+
+    def test_later_source_fills_gap(self):
+        from pricing_fetcher import fetch_pricing_chain
+        with patch('pricing_fetcher.fetch_openrouter_pricing',
+                   return_value=[self._row('a', 1.0, 1.0)]), \
+             patch('pricing_fetcher.fetch_litellm_pricing',
+                   return_value=[self._row('a', 9.0, 9.0), self._row('b', 2.0, 2.0)]):
+            merged = fetch_pricing_chain([
+                {'type': 'openrouter_api', 'url': 'x'},
+                {'type': 'litellm'},
+            ])
+        by_key = {m['match_key']: m for m in merged}
+        assert by_key['a']['input_cost_per_mtok'] == 1.0
+        assert by_key['b']['input_cost_per_mtok'] == 2.0
+
+    def test_per_source_failure_continues(self):
+        from pricing_fetcher import fetch_pricing_chain
+        with patch('pricing_fetcher.fetch_openrouter_pricing',
+                   side_effect=Exception('timeout')), \
+             patch('pricing_fetcher.fetch_litellm_pricing',
+                   return_value=[self._row('b', 2.0, 2.0)]):
+            merged = fetch_pricing_chain([
+                {'type': 'openrouter_api', 'url': 'x'},
+                {'type': 'litellm'},
+            ])
+        assert {m['match_key'] for m in merged} == {'b'}
 
 
 class TestPricePerTokenScraper:
@@ -377,6 +512,29 @@ class TestSeedDefaultPricing:
         assert row['input_cost_per_mtok'] == 99.0
         assert row['source'] == 'pricepertoken'
 
+    def test_upsert_updates_source_on_conflict(self):
+        """A second upsert for the same match_key updates source to reflect new provenance."""
+        from database.settings import SettingsMixin
+
+        conn = self._create_test_db()
+        mixin = SettingsMixin()
+        mixin.get_connection = lambda: conn
+
+        row = {
+            'match_key': 'testmodel',
+            'raw_model_id': 'test-model',
+            'display_name': 'Test Model',
+            'input_cost_per_mtok': 1.0,
+            'output_cost_per_mtok': 2.0,
+        }
+        mixin.upsert_fetched_pricing([row], source='openrouter_api')
+        assert conn.execute("SELECT source FROM model_pricing WHERE match_key='testmodel'").fetchone()['source'] == 'openrouter_api'
+
+        mixin.upsert_fetched_pricing([{**row, 'input_cost_per_mtok': 1.5}], source='litellm')
+        r = conn.execute("SELECT source, input_cost_per_mtok FROM model_pricing WHERE match_key='testmodel'").fetchone()
+        assert r['source'] == 'litellm'
+        assert r['input_cost_per_mtok'] == 1.5
+
     def test_backfill_fills_gap_left_by_live_fetch(self):
         """A live fetch missing claudeopus48 gets it backfilled at 5/25 (source=default)."""
         from database.settings import SettingsMixin
@@ -411,6 +569,90 @@ class TestSeedDefaultPricing:
         ).fetchone()
         assert opus4['input_cost_per_mtok'] == 15.0
         assert opus4['source'] == 'pricepertoken'
+
+
+class TestClaudeBackfillGate:
+    """Test the unconditional Claude-defaults backfill gate."""
+
+    def _db(self, settings):
+        db = MagicMock()
+        db.get_setting.side_effect = lambda k: settings.get(k)
+        return db
+
+    def test_anthropic_provider_always_backfills(self):
+        from pricing_fetcher import _should_backfill_claude_defaults
+        assert _should_backfill_claude_defaults(self._db({}), 'anthropic') is True
+
+    def test_openai_compatible_with_claude_model_backfills(self):
+        from pricing_fetcher import _should_backfill_claude_defaults
+        db = self._db({'claude_model': 'claude-sonnet-5'})
+        assert _should_backfill_claude_defaults(db, 'openai-compatible') is True
+
+    def test_openai_compatible_non_claude_model_does_not_backfill(self):
+        from pricing_fetcher import _should_backfill_claude_defaults
+        db = self._db({'claude_model': 'gpt-4o', 'chapters_model': 'gpt-4o-mini'})
+        assert _should_backfill_claude_defaults(db, 'openai-compatible') is False
+
+    def test_verification_model_claude_triggers_backfill(self):
+        from pricing_fetcher import _should_backfill_claude_defaults
+        db = self._db({'claude_model': 'gpt-4o', 'verification_model': 'claude-opus-4-8'})
+        assert _should_backfill_claude_defaults(db, 'openai-compatible') is True
+
+
+class TestRefreshFreeModeSkipsSeeding:
+    """mode=free suppresses both the live fetch and default seeding."""
+
+    def _make_db(self):
+        db = MagicMock()
+        db.get_pricing_last_updated.return_value = None
+        db.get_model_pricing.return_value = []
+        return db
+
+    def test_free_mode_with_claude_model_no_backfill(self):
+        import pricing_fetcher
+        db = self._make_db()
+        db.get_setting.side_effect = lambda k: 'claude-sonnet-5' if k == 'claude_model' else None
+        with patch('config._get_pricing_source_mode', return_value='free'), \
+             patch('pricing_fetcher.get_pricing_sources',
+                   return_value=[{'type': 'free'}]), \
+             patch('llm_client.get_effective_provider', return_value='anthropic'), \
+             patch('llm_client.get_effective_base_url', return_value=''), \
+             patch('database.Database', return_value=db):
+            pricing_fetcher.refresh_pricing_if_stale(force=True)
+        db.seed_default_pricing.assert_not_called()
+
+    def test_free_mode_empty_table_stays_empty(self):
+        import pricing_fetcher
+        db = self._make_db()
+        db.get_setting.return_value = None
+        with patch('config._get_pricing_source_mode', return_value='free'), \
+             patch('pricing_fetcher.get_pricing_sources',
+                   return_value=[{'type': 'free'}]), \
+             patch('llm_client.get_effective_provider', return_value='openai-compatible'), \
+             patch('llm_client.get_effective_base_url', return_value='http://localhost:11434/v1'), \
+             patch('database.Database', return_value=db):
+            pricing_fetcher.refresh_pricing_if_stale(force=True)
+        db.seed_default_pricing.assert_not_called()
+        db.upsert_fetched_pricing.assert_not_called()
+
+
+class TestRefreshBackfillOnFailure:
+    """Backfill runs even when the live fetch returns nothing (Claude configured)."""
+
+    def test_seed_called_when_fetch_empty_and_claude_configured(self):
+        import pricing_fetcher
+        db = MagicMock()
+        db.get_setting.side_effect = lambda k: 'claude-sonnet-5' if k == 'claude_model' else None
+        db.get_model_pricing.return_value = []
+        with patch('pricing_fetcher.fetch_pricing_chain', return_value=[]), \
+             patch('pricing_fetcher.get_pricing_sources',
+                   return_value=[{'type': 'litellm'}]), \
+             patch('llm_client.get_effective_provider', return_value='openai-compatible'), \
+             patch('llm_client.get_effective_base_url', return_value='https://x.example.com/v1'), \
+             patch('database.Database', return_value=db):
+            pricing_fetcher.refresh_pricing_if_stale(force=True)
+        # Empty table -> seed once for the empty-table branch, once for the Claude gate.
+        assert db.seed_default_pricing.call_count >= 1
 
 
 class TestPricingFetcher:

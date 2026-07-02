@@ -800,6 +800,51 @@ class TestTokenUsage:
         cost = temp_db._calculate_token_cost(conn, 'claude-opus-4-8', 1_000_000, 1_000_000)
         assert abs(cost - 30.0) < 0.001  # $5 input + $25 output, not $90 (15+75)
 
+    def test_prefix_match_refused_when_next_char_is_digit(self, temp_db):
+        """A version-crossing prefix (next char a digit) is refused -> $0 no-pricing path."""
+        conn = temp_db.get_connection()
+        # Row 'claudeopus4' (15/75) exists; remove the exact 'claudeopus48' row so
+        # only the prefix candidate remains. Lookup 'claudeopus48' must NOT match it.
+        conn.execute("DELETE FROM model_pricing WHERE match_key = 'claudeopus48'")
+        conn.execute(
+            """INSERT INTO model_pricing
+                   (model_id, match_key, raw_model_id, display_name,
+                    input_cost_per_mtok, output_cost_per_mtok, source)
+               VALUES ('claude-opus-4', 'claudeopus4', 'claude-opus-4', 'Opus 4',
+                       15.0, 75.0, 'default')
+               ON CONFLICT(match_key) DO NOTHING""",
+        )
+        conn.commit()
+        cost = temp_db._calculate_token_cost(conn, 'claude-opus-4-8', 1_000_000, 1_000_000,
+                                            match_key='claudeopus48')
+        assert cost == 0.0  # refused: no false 90.0 charge
+
+    def test_prefix_match_accepted_when_next_char_is_letter(self, temp_db):
+        """A same-generation prefix (next char a letter) is still accepted."""
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO model_pricing
+                   (model_id, match_key, raw_model_id, display_name,
+                    input_cost_per_mtok, output_cost_per_mtok, source)
+               VALUES ('claude-3-7-sonnet', 'claude37sonnet', 'claude-3-7-sonnet',
+                       'Claude 3.7 Sonnet', 3.0, 15.0, 'default')
+               ON CONFLICT(match_key) DO NOTHING""",
+        )
+        conn.commit()
+        # 'claude37sonnetx' (15) vs 'claude37sonnet' (14): 14 >= 15*0.8=12 -> passes length
+        # rule; next char 'x' is a letter -> digit guard allows the match.
+        cost = temp_db._calculate_token_cost(conn, 'claude-3-7-sonnet-x', 1_000_000, 0,
+                                            match_key='claude37sonnetx')
+        assert abs(cost - 3.0) < 0.001
+
+    def test_sonnet5_and_fable5_default_pricing_present(self, temp_db):
+        """New defaults resolve to verified LiteLLM 2026-07-02 rates via exact match."""
+        conn = temp_db.get_connection()
+        sonnet = temp_db._calculate_token_cost(conn, 'claude-sonnet-5', 1_000_000, 1_000_000)
+        assert abs(sonnet - 18.0) < 0.001  # 3 + 15
+        fable = temp_db._calculate_token_cost(conn, 'claude-fable-5', 1_000_000, 1_000_000)
+        assert abs(fable - 60.0) < 0.001  # 10 + 50
+
 
 class TestOpus48CostCorrectionMigration:
     """One-time retroactive correction of mis-booked Opus 4.8 token cost."""
@@ -904,6 +949,151 @@ class TestOpus48CostCorrectionMigration:
             "SELECT value FROM stats WHERE key = 'total_llm_cost'"
         ).fetchone()
         assert abs(stat['value'] - 39.0) < 0.001  # 35.0 + 1.0 + 3.0
+
+
+class TestSonnet5Fable5CostRecomputeMigration:
+    """One-time recompute of Sonnet 5 / Fable 5 token cost recorded as $0."""
+
+    def _seed_zero_cost(self, temp_db, match_key, model_id, in_tokens, out_tokens):
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO token_usage
+                   (model_id, match_key, total_input_tokens, total_output_tokens,
+                    total_cost, call_count, updated_at)
+               VALUES (?, ?, ?, ?, 0, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))""",
+            (model_id, match_key, in_tokens, out_tokens),
+        )
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at)
+               VALUES ('total_llm_cost', 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET value = 0""",
+        )
+        conn.execute(
+            "DELETE FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
+        )
+        conn.commit()
+
+    def test_recomputes_sonnet5_and_fable5_zero_costs(self, temp_db):
+        # Sonnet 5 (3/15) 2M/1M -> 6 + 15 = 21.0; Fable 5 (10/50) 1M/1M -> 10 + 50 = 60.0
+        self._seed_zero_cost(temp_db, 'claudesonnet5', 'claude-sonnet-5', 2_000_000, 1_000_000)
+        self._seed_zero_cost(temp_db, 'claudefable5', 'claude-fable-5', 1_000_000, 1_000_000)
+        conn = temp_db.get_connection()
+
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+
+        sonnet = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudesonnet5'"
+        ).fetchone()
+        fable = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudefable5'"
+        ).fetchone()
+        assert abs(sonnet['total_cost'] - 21.0) < 0.001
+        assert abs(fable['total_cost'] - 60.0) < 0.001
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+        assert abs(stat['value'] - 81.0) < 0.001  # 21.0 + 60.0
+
+    def test_leaves_nonzero_costs_untouched(self, temp_db):
+        """A row already costed (nonzero) is not touched by the recompute."""
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO token_usage
+                   (model_id, match_key, total_input_tokens, total_output_tokens,
+                    total_cost, call_count, updated_at)
+               VALUES ('claude-sonnet-5', 'claudesonnet5', 1000000, 0, 5.0, 1,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))""",
+        )
+        conn.execute(
+            "DELETE FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
+        )
+        conn.commit()
+
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+        row = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudesonnet5'"
+        ).fetchone()
+        assert abs(row['total_cost'] - 5.0) < 0.001  # untouched: was already nonzero
+
+    def test_gate_blocks_second_run(self, temp_db):
+        self._seed_zero_cost(temp_db, 'claudesonnet5', 'claude-sonnet-5', 1_000_000, 0)
+        conn = temp_db.get_connection()
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+        # Corrupt the row; gate is set, so a re-run must leave it.
+        conn.execute(
+            "UPDATE token_usage SET total_cost = 999.0 WHERE match_key = 'claudesonnet5'"
+        )
+        conn.commit()
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+        row = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudesonnet5'"
+        ).fetchone()
+        assert row['total_cost'] == 999.0  # untouched: gate short-circuited
+
+    def test_no_usage_leaves_global_untouched(self, temp_db):
+        """With no Sonnet 5 / Fable 5 usage, the migration is a no-op on the global."""
+        conn = temp_db.get_connection()
+        conn.execute(
+            "DELETE FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
+        )
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
+        conn.execute("UPDATE stats SET value = 2.5 WHERE key = 'total_llm_cost'")
+        conn.commit()
+
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+        assert abs(stat['value'] - 2.5) < 0.001  # untouched
+
+    def test_sibling_row_with_correct_cost_is_not_clobbered(self, temp_db):
+        """Two rows share claudesonnet5 match_key: one $0 (needs fix), one $42 (correct).
+        After migration the $0 row gets its own recomputed cost and the $42 row is untouched.
+        Sonnet 5 rates: in=3.0/Mtok out=15.0/Mtok.
+        $0 row: 1M in + 1M out -> 3 + 15 = $18.
+        $42 row: dated model_id, already correct, must stay at $42.
+        Global resets to sum of all token_usage rows = 18 + 42 = $60.
+        """
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO token_usage
+                   (model_id, match_key, total_input_tokens, total_output_tokens,
+                    total_cost, call_count, updated_at)
+               VALUES ('claude-sonnet-5', 'claudesonnet5', 1000000, 1000000, 0, 1,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"""
+        )
+        conn.execute(
+            """INSERT INTO token_usage
+                   (model_id, match_key, total_input_tokens, total_output_tokens,
+                    total_cost, call_count, updated_at)
+               VALUES ('claude-sonnet-5-20250620', 'claudesonnet5', 1000000, 1000000, 42.0, 1,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"""
+        )
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at)
+               VALUES ('total_llm_cost', 42.0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET value = 42.0"""
+        )
+        conn.execute(
+            "DELETE FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
+        )
+        conn.commit()
+
+        temp_db._run_recompute_sonnet5_fable5_token_cost(conn)
+
+        base = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE model_id = 'claude-sonnet-5'"
+        ).fetchone()
+        dated = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE model_id = 'claude-sonnet-5-20250620'"
+        ).fetchone()
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+
+        assert abs(base['total_cost'] - 18.0) < 0.001   # recomputed from its own tokens
+        assert abs(dated['total_cost'] - 42.0) < 0.001  # untouched: was already nonzero
+        assert abs(stat['value'] - 60.0) < 0.001        # 18 + 42
 
 
 class MockStorage:

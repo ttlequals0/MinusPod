@@ -181,6 +181,7 @@ function Settings() {
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  const [pricingSourceMode, setPricingSourceMode] = useState('auto');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('' as WhisperBackend);
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
     baseUrl: '', model: '',
@@ -426,6 +427,7 @@ function Settings() {
       setMinCutConfidence(settings.minCutConfidence?.value ?? d.minCutConfidence);
       setLlmProvider((settings.llmProvider?.value || d.llmProvider) as LlmProvider);
       setOpenaiBaseUrl(settings.openaiBaseUrl?.value || d.openaiBaseUrl);
+      setPricingSourceMode(settings.pricingSourceMode?.value || d.pricingSourceMode);
       setWhisperBackend((settings.whisperBackend?.value || d.whisperBackend) as WhisperBackend);
       setWhisperApiConfig({
         baseUrl: settings.whisperApiBaseUrl?.value || '',
@@ -495,6 +497,7 @@ function Settings() {
     if (chaptersModel !== (settings.chaptersModel?.value || '')) payload.chaptersModel = chaptersModel;
     if (llmProvider !== (settings.llmProvider?.value || d.llmProvider)) payload.llmProvider = llmProvider;
     if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || d.openaiBaseUrl)) payload.openaiBaseUrl = openaiBaseUrl;
+    if (pricingSourceMode !== (settings.pricingSourceMode?.value || d.pricingSourceMode)) payload.pricingSourceMode = pricingSourceMode;
     if (whisperBackend !== (settings.whisperBackend?.value || d.whisperBackend)) payload.whisperBackend = whisperBackend;
     if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '')) payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
     if (whisperApiConfig.model !== (settings.whisperApiModel?.value || d.whisperApiModel)) payload.whisperApiModel = whisperApiConfig.model;
@@ -533,7 +536,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -743,6 +746,7 @@ function Settings() {
       <LLMProviderSection
         llmProvider={llmProvider}
         openaiBaseUrl={openaiBaseUrl}
+        pricingSourceMode={pricingSourceMode}
         onProviderChange={(p) => {
           setLlmProvider(p);
           setSelectedModel('');
@@ -750,6 +754,7 @@ function Settings() {
           setChaptersModel('');
         }}
         onBaseUrlChange={setOpenaiBaseUrl}
+        onPricingSourceModeChange={setPricingSourceMode}
         providersState={providersState}
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}

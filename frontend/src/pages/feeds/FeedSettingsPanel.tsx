@@ -94,7 +94,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Feed settings"
-        subtitle="Network, DAI platform, auto-processing, language, and feed-cap overrides"
+        subtitle="Network, DAI platform, auto-processing, language, feed cap, and cue match threshold"
         defaultOpen={false}
         storageKey={`feed-settings-${slug}`}
       >

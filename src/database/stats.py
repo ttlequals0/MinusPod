@@ -114,20 +114,37 @@ class StatsMixin:
         row = cursor.fetchone()
 
         # Prefix match fallback -- match_key must cover >= 80% of lookup key length
-        # to prevent short keys matching distinct longer models (e.g. 'gpt4o' must not match 'gpt4omini')
+        # to prevent short keys matching distinct longer models (e.g. 'gpt4o' must not match 'gpt4omini').
+        # Version-crossing guard: refuse a prefix match when the first unmatched
+        # character of the LOOKUP key after the matched prefix is a DIGIT
+        # (e.g. lookup 'claudeopus48' must not match row 'claudeopus4' -- Opus 4.8
+        # vs Opus 4.0, distinct pricing generations). 'claude37sonnetthinking'
+        # still matches row 'claude37sonnet' because the next char is a letter.
         if not row:
             cursor = conn.execute(
-                """SELECT input_cost_per_mtok, output_cost_per_mtok
+                """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok
                    FROM model_pricing
                    WHERE ? LIKE match_key || '%'
                      AND length(match_key) >= length(?) * 0.8
-                   ORDER BY length(match_key) DESC LIMIT 1""",
+                   ORDER BY length(match_key) DESC""",
                 (match_key, match_key)
             )
-            row = cursor.fetchone()
-            if row:
-                logger.warning(f"Cost lookup: prefix match for match_key='{match_key}' "
-                               f"-- verify pricing is correct")
+            for candidate in cursor:
+                matched_key = candidate['match_key']
+                remainder = match_key[len(matched_key):]
+                # Also blocks same-generation minor-version prefixes (e.g. claudesonnet45 -> claudesonnet4).
+                if remainder and remainder[0].isdigit():
+                    logger.warning(
+                        f"Cost lookup: refusing version-crossing prefix match "
+                        f"'{match_key}' -> '{matched_key}' (next char is a digit)"
+                    )
+                    continue
+                row = candidate
+                logger.info(
+                    f"Cost lookup: prefix match '{match_key}' -> '{matched_key}' "
+                    f"-- verify pricing is correct"
+                )
+                break
 
         if not row:
             logger.warning(

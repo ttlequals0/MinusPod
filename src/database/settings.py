@@ -9,7 +9,10 @@ from secrets_crypto import CryptoUnavailableError, decrypt, encrypt, is_cipherte
 logger = logging.getLogger(__name__)
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
+# claude-sonnet-5/fable-5/opus-4-8 values from LiteLLM 2026-07-02.
 DEFAULT_MODEL_PRICING = {
+    'claude-sonnet-5':            {'name': 'Claude Sonnet 5',   'input': 3.0,  'output': 15.0},
+    'claude-fable-5':             {'name': 'Claude Fable 5',    'input': 10.0, 'output': 50.0},
     'claude-opus-4-8':            {'name': 'Claude Opus 4.8',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-7':            {'name': 'Claude Opus 4.7',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-6':            {'name': 'Claude Opus 4.6',   'input': 5.0,  'output': 25.0},
@@ -144,6 +147,7 @@ class SettingsMixin:
             'chapters_model': chapters_default,
             'llm_provider': os.environ.get('LLM_PROVIDER', 'anthropic'),
             'openai_base_url': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
+            'pricing_source_mode': 'auto',
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'artwork_watermark_enabled': 'false',
@@ -337,7 +341,13 @@ class SettingsMixin:
             logger.info(f"Seeded {inserted} default model pricing entries")
 
     def upsert_fetched_pricing(self, models: List[Dict], source: str):
-        """Bulk upsert pricing fetched from an external source. Rejects negative rows (#237)."""
+        """Bulk upsert pricing fetched from an external source. Rejects negative rows (#237).
+
+        Each row may carry a '_source' key (set by fetch_pricing_chain to record
+        which source in the chain actually contributed it). When present it takes
+        precedence over the fallback 'source' parameter so the stored source
+        reflects true provenance rather than always naming the primary source.
+        """
         conn = self.get_connection()
         # Deduplicate by match_key (last entry wins) to avoid PK/UNIQUE conflict
         seen = {}
@@ -352,6 +362,7 @@ class SettingsMixin:
                     m['output_cost_per_mtok'], source,
                 )
                 continue
+            row_source = m.get('_source') or source
             conn.execute(
                 """INSERT INTO model_pricing
                        (model_id, match_key, raw_model_id, display_name,
@@ -365,6 +376,6 @@ class SettingsMixin:
                      source = excluded.source,
                      updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
                 (m['raw_model_id'], m['match_key'], m['raw_model_id'], m['display_name'],
-                 m['input_cost_per_mtok'], m['output_cost_per_mtok'], source)
+                 m['input_cost_per_mtok'], m['output_cost_per_mtok'], row_source)
             )
         conn.commit()

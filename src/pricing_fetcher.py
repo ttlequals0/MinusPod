@@ -18,7 +18,7 @@ import requests
 # (e.g. the offline benchmark in benchmarks/llm/).
 
 from config import (
-    get_pricing_source,
+    get_pricing_sources,
     HTTP_MAX_REDIRECTS_API,
     HTTP_TIMEOUT_EXTERNAL,
     normalize_model_key,
@@ -275,16 +275,20 @@ def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
 
 
 def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> List[Dict]:
-    """Fetch pricing based on resolved source config.
+    """Fetch pricing for a single resolved source config.
 
     Falls back to the LiteLLM community JSON when the primary source is
     unavailable or returns nothing, or when the provider domain is unknown.
+    Kept for single-source callers; the multi-source path is fetch_pricing_chain.
     """
     source_type = source.get('type')
 
     if source_type == 'free':
         logger.debug("Provider is local/free -- no pricing to fetch")
         return []
+
+    if source_type == 'litellm':
+        return _try_litellm_fallback(source.get('provider_filter'))
 
     if source_type == 'unknown':
         logger.info(
@@ -316,6 +320,56 @@ def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> 
     else:
         logger.info(f"{source_type} returned no rows, trying LiteLLM fallback")
     return _try_litellm_fallback(provider_for_fallback)
+
+
+def _fetch_single_source(source: dict) -> List[Dict]:
+    """Fetch one source with no cross-source fallback (chain handles that).
+
+    A per-source failure logs a WARNING and returns [] so the chain continues.
+    """
+    source_type = source.get('type')
+    if source_type == 'free':
+        return []
+    try:
+        if source_type == 'openrouter_api':
+            return fetch_openrouter_pricing()
+        if source_type == 'pricepertoken':
+            return fetch_pricepertoken_pricing(source.get('url', ''))
+        if source_type == 'litellm':
+            return fetch_litellm_pricing(provider_filter=source.get('provider_filter'))
+    except Exception as e:
+        logger.warning(f"Pricing source '{source_type}' failed: {e}")
+        return []
+    logger.warning(f"Unhandled pricing source type '{source_type}'")
+    return []
+
+
+def fetch_pricing_chain(sources: List[dict]) -> List[Dict]:
+    """Fetch an ordered source chain and merge by match_key (first source wins).
+
+    Each source is fetched in order; a per-source failure logs WARNING and the
+    chain continues. Later sources only fill keys the earlier ones did not
+    provide. Each merged row carries a '_source' key with the type of the
+    source that actually contributed it. Logs one INFO summarizing per-source
+    contribution counts.
+    """
+    merged: Dict[str, Dict] = {}
+    summary: List[str] = []
+    for source in sources:
+        source_type = source.get('type', 'unknown')
+        rows = _fetch_single_source(source)
+        added = 0
+        for row in rows:
+            key = row['match_key']
+            if key and key not in merged:
+                merged[key] = {**row, '_source': source_type}
+                added += 1
+        summary.append(f"{source_type}={len(rows)}rows/{added}new")
+    logger.info(
+        f"Pricing chain merged {len(merged)} models "
+        f"({', '.join(summary) or 'no sources'})"
+    )
+    return list(merged.values())
 
 
 def _try_litellm_fallback(provider_filter: Optional[str]) -> List[Dict]:
@@ -379,26 +433,32 @@ def refresh_pricing_if_stale(force: bool = False):
 
     provider = get_effective_provider()
     base_url = get_effective_base_url()
-    source = get_pricing_source(provider, base_url)
+    sources = get_pricing_sources(provider, base_url)
 
-    logger.debug(f"Pricing refresh: provider={provider} source_type={source.get('type')}")
+    # Read mode once; free suppresses all seeding (switching modes never destroys existing rows).
+    from config import _get_pricing_source_mode
+    pricing_mode = _get_pricing_source_mode()
+    if pricing_mode == 'free':
+        logger.info("pricing mode 'free': skipping fetch and default seeding")
+        with _fetch_lock:
+            _last_fetch = time.monotonic()
+        return
 
-    models = fetch_pricing(source, provider_for_fallback=provider)
+    logger.debug(
+        f"Pricing refresh: provider={provider} "
+        f"chain={[s.get('type') for s in sources]}"
+    )
+
+    models = fetch_pricing_chain(sources)
+    primary_source = sources[0]['type'] if sources else 'unknown'
 
     try:
         from database import Database
         db = Database()
 
         if models:
-            db.upsert_fetched_pricing(models, source=source['type'])
-            logger.info(f"Stored pricing for {len(models)} models (source={source['type']})")
-            # Backfill known Anthropic models the live source has not published yet
-            # (e.g. a just-released Claude model). DO NOTHING leaves live rows intact;
-            # a later fetch overwrites the default once the source catches up. Gated to
-            # Anthropic so other providers' tables don't gain stray Anthropic rows.
-            if provider == PROVIDER_ANTHROPIC:
-                db.seed_default_pricing()
-            # Success -- set full TTL
+            db.upsert_fetched_pricing(models, source=primary_source)
+            logger.info(f"Stored pricing for {len(models)} models (source={primary_source})")
             with _fetch_lock:
                 _last_fetch = time.monotonic()
         else:
@@ -407,8 +467,40 @@ def refresh_pricing_if_stale(force: bool = False):
             if not existing:
                 db.seed_default_pricing()
                 logger.info("Live pricing unavailable, seeded from DEFAULT_MODEL_PRICING")
+
+        # Backfill known Claude defaults UNCONDITIONALLY after the fetch/upsert
+        # attempt (success or failure). seed_default_pricing() is DO NOTHING, so
+        # live rows always win; this only fills gaps for just-released Claude
+        # models the live source has not published yet. Gated so non-Claude
+        # provider tables don't gain stray Anthropic rows. This is the fix for
+        # the third incident of this class: the old code only backfilled after a
+        # SUCCESSFUL fetch AND only for provider==anthropic, so an unknown
+        # openai-compatible domain running Claude never got seeded.
+        if _should_backfill_claude_defaults(db, provider):
+            db.seed_default_pricing()
     except Exception as e:
         logger.warning(f"Failed to persist pricing: {e}")
+
+
+def _should_backfill_claude_defaults(db, provider: str) -> bool:
+    """True when Claude default pricing should be seeded.
+
+    Fires for provider == anthropic, or when any configured stage model
+    (claude_model/verification_model/review_model/chapters_model) normalizes to
+    a key starting with 'claude' -- covers an openai-compatible proxy fronting
+    Claude on an unknown domain.
+    """
+    if provider == PROVIDER_ANTHROPIC:
+        return True
+    for setting_key in ('claude_model', 'verification_model',
+                        'review_model', 'chapters_model'):
+        try:
+            value = db.get_setting(setting_key)
+        except Exception:
+            continue
+        if value and normalize_model_key(value).startswith('claude'):
+            return True
+    return False
 
 
 def force_refresh_pricing():

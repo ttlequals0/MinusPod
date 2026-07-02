@@ -174,6 +174,7 @@ def get_settings():
     # LLM provider settings
     llm_provider = get_effective_provider()
     openai_base_url = get_effective_base_url()
+    pricing_source_mode = _setting_value(settings, 'pricing_source_mode', 'auto')
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
@@ -378,6 +379,7 @@ def get_settings():
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
+        'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
@@ -449,6 +451,7 @@ def get_settings():
             'minCutConfidence': 0.80,
             'llmProvider': resolve_env_backed_default('llm_provider'),
             'openaiBaseUrl': os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL),
+            'pricingSourceMode': 'auto',
             'openrouterBaseUrl': OPENROUTER_BASE_URL,
             'whisperBackend': default_whisper_backend,
             'whisperApiBaseUrl': default_whisper_api_base_url,
@@ -812,6 +815,16 @@ def _apply_provider_fields(db, data):
             return json_response({'error': f'Invalid base URL: {e}'}, 400)
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
+        provider_changed = True
+
+    if 'pricingSourceMode' in data:
+        valid_modes = ('auto', 'litellm', 'free')
+        if data['pricingSourceMode'] not in valid_modes:
+            return json_response(
+                {'error': f'pricingSourceMode must be one of: {", ".join(valid_modes)}'}, 400
+            )
+        db.set_setting('pricing_source_mode', data['pricingSourceMode'], is_default=False)
+        logger.info(f"Updated pricing source mode to: {data['pricingSourceMode']}")
         provider_changed = True
 
     if 'openrouterApiKey' in data:
@@ -1208,6 +1221,7 @@ def reset_ad_detection_settings():
     # Reset LLM provider settings back to env var defaults
     db.reset_setting('llm_provider')
     db.reset_setting('openai_base_url')
+    db.reset_setting('pricing_source_mode')
     db.reset_setting('openrouter_api_key')
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
 

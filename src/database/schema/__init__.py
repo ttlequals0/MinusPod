@@ -1251,6 +1251,16 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"opus 4.8 token cost correction failed: {e}")
 
+        # One-shot recompute of Sonnet 5 / Fable 5 token cost (2.32.2). These
+        # models had no default pricing and (on unknown openai-compatible
+        # domains) no live fetch, so calls booked at $0. Recompute from
+        # DEFAULT_MODEL_PRICING where the recorded cost is 0 but tokens exist.
+        try:
+            self._run_recompute_sonnet5_fable5_token_cost(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"sonnet5/fable5 token cost recompute failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1635,6 +1645,94 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info("opus48-cost-fix: complete")
+
+    def _run_recompute_sonnet5_fable5_token_cost(self, conn):
+        """One-time recompute of Sonnet 5 / Fable 5 token cost recorded as $0.
+
+        Before the pricing-source fallback fix, these models had no default
+        pricing row and, on unknown openai-compatible domains, no live fetch, so
+        `_calculate_token_cost` fell through to the no-pricing $0 path. This is
+        the third incident of the pricing-frozen class (see opus48-cost-fix and
+        1.0.79). Recompute `token_usage.total_cost` from DEFAULT_MODEL_PRICING
+        for `claudesonnet5`/`claudefable5` rows where the recorded cost is 0 and
+        token counts are positive, then reset the global counter to the sum of
+        per-model rows.
+
+        Gated by `schema_migrations` so it runs once per database. Writes are
+        absolute (not deltas) and re-run identical. No rows are deleted.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'recompute_sonnet5_fable5_token_cost'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        from database.settings import DEFAULT_MODEL_PRICING
+
+        targets = {
+            'claudesonnet5': DEFAULT_MODEL_PRICING['claude-sonnet-5'],
+            'claudefable5': DEFAULT_MODEL_PRICING['claude-fable-5'],
+        }
+
+        corrected_any = False
+        for match_key, info in targets.items():
+            in_per_mtok = info['input']
+            out_per_mtok = info['output']
+
+            # Ensure the pricing row exists regardless of live fetch state.
+            model_id = 'claude-sonnet-5' if match_key == 'claudesonnet5' else 'claude-fable-5'
+            conn.execute(
+                """INSERT INTO model_pricing
+                       (model_id, match_key, raw_model_id, display_name,
+                        input_cost_per_mtok, output_cost_per_mtok, source)
+                   VALUES (?, ?, ?, ?, ?, ?, 'default')
+                   ON CONFLICT(match_key) DO NOTHING""",
+                (model_id, match_key, model_id, info['name'], in_per_mtok, out_per_mtok),
+            )
+
+            # Recompute per model_id (PK) so sibling rows sharing this match_key
+            # but with nonzero cost are never clobbered. opus48-cost-fix had the
+            # same latent flaw; corrected pattern starts here.
+            rows = conn.execute(
+                """SELECT model_id, total_input_tokens, total_output_tokens, total_cost
+                   FROM token_usage
+                   WHERE match_key = ? AND total_cost = 0
+                     AND (total_input_tokens > 0 OR total_output_tokens > 0)""",
+                (match_key,),
+            ).fetchall()
+
+            for row in rows:
+                new_cost = (
+                    (row['total_input_tokens'] / 1_000_000) * in_per_mtok
+                    + (row['total_output_tokens'] / 1_000_000) * out_per_mtok
+                )
+                conn.execute(
+                    "UPDATE token_usage SET total_cost = ? WHERE model_id = ?",
+                    (new_cost, row['model_id']),
+                )
+                corrected_any = True
+                logger.info(
+                    "sonnet5/fable5-cost-fix: %s total_cost %.6f -> %.6f "
+                    "(in=%s out=%s @ %s/%s per Mtok)",
+                    row['model_id'], row['total_cost'], new_cost,
+                    row['total_input_tokens'], row['total_output_tokens'],
+                    in_per_mtok, out_per_mtok,
+                )
+
+        if corrected_any:
+            # Reset the global counter to the sum of per-model rows (absolute).
+            conn.execute(
+                """UPDATE stats
+                   SET value = (SELECT COALESCE(SUM(total_cost), 0) FROM token_usage)
+                   WHERE key = 'total_llm_cost'"""
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('recompute_sonnet5_fable5_token_cost')"
+        )
+        conn.commit()
+        logger.info("sonnet5/fable5-cost-fix: complete")
 
     def _run_backfill_history_ads_detected(self, conn):
         """One-shot correction of ``processing_history.ads_detected``

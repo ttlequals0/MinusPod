@@ -825,6 +825,11 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                   noise {s.noiseCeiling?.toFixed(3)} / signal {s.signalFloor?.toFixed(3)}
                   {' '}(gap {s.gapWidth?.toFixed(3)}) across {suggestion.sampleEpisodes ?? '--'} episode(s)
                   {' -> suggested '}<span className="font-semibold">{s.suggested.toFixed(2)}</span>
+                  {suggestion.currentThreshold != null && (
+                    <span className="text-muted-foreground">
+                      {' '}(current {suggestion.currentThreshold.toFixed(2)})
+                    </span>
+                  )}
                 </p>
               ) : (
                 <p className="text-muted-foreground">{s.reason}</p>
@@ -843,11 +848,11 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                   onClick={() => applySuggested(s.suggested as number)}
                   disabled={!canApply}
                 >
-                  Apply as global default
+                  Apply to this feed
                 </button>
               )}
               {applied && (
-                <span className="ml-2 text-xs text-green-600 dark:text-green-400">Saved as global default</span>
+                <span className="ml-2 text-xs text-green-600 dark:text-green-400">Saved as feed override</span>
               )}
             </div>
           );
@@ -856,7 +861,11 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
         {result && (
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Threshold {result.thresholdUsed.toFixed(2)} - scan {result.elapsedSeconds.toFixed(1)}s
+              Threshold {result.thresholdUsed.toFixed(2)}
+              {result.thresholdSource === 'override' && ' (feed override)'}
+              {result.thresholdSource === 'global' && ' (global default)'}
+              {result.thresholdSource === 'request' && ' (this scan only)'}
+              {' '}- scan {result.elapsedSeconds.toFixed(1)}s
             </p>
             <ul className="divide-y divide-border border border-border rounded">
               {result.templates.map((t) => {

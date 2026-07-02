@@ -8,8 +8,10 @@ import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersRespons
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
   openaiBaseUrl: string;
+  pricingSourceMode: string;
   onProviderChange: (provider: LlmProvider) => void;
   onBaseUrlChange: (url: string) => void;
+  onPricingSourceModeChange: (mode: string) => void;
   providersState: ProvidersResponse | null;
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
@@ -39,8 +41,10 @@ const KEY_META: Record<ProviderName, { placeholder: string; label: string; helpe
 function LLMProviderSection({
   llmProvider,
   openaiBaseUrl,
+  pricingSourceMode,
   onProviderChange,
   onBaseUrlChange,
+  onPricingSourceModeChange,
   providersState,
   onProviderKeySave,
   onProviderKeyClear,
@@ -113,6 +117,25 @@ function LLMProviderSection({
             onUpdate={onOllamaNumCtxUpdate}
           />
         )}
+
+        <div>
+          <label htmlFor="pricingSourceMode" className="block text-sm font-medium text-foreground mb-2">
+            Pricing source
+          </label>
+          <select
+            id="pricingSourceMode"
+            value={pricingSourceMode}
+            onChange={(e) => onPricingSourceModeChange(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          >
+            <option value="auto">Auto (recommended)</option>
+            <option value="litellm">LiteLLM catalog</option>
+            <option value="free">None (free local models)</option>
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Auto picks by provider. Choose None only if your endpoint serves free local models.
+          </p>
+        </div>
       </div>
     </CollapsibleSection>
   );
