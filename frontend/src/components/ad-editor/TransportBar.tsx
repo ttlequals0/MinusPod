@@ -87,7 +87,9 @@ function TransportBar({
             title="Play the selection only"
             aria-label="Play selection"
           >
-            <Play className="w-4 h-4" />
+            <span aria-hidden="true" className="text-xs font-bold leading-none">[</span>
+            <Play className="w-3.5 h-3.5" />
+            <span aria-hidden="true" className="text-xs font-bold leading-none">]</span>
           </button>
         )}
         <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">

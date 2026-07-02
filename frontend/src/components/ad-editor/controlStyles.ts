@@ -22,7 +22,7 @@ export const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
 // transport controls. Same p-1.5 footprint as the ghost icon buttons so it
 // does not crowd the row. Amber shifts a stop darker in light mode for contrast.
 export const selectionBtn =
-  'inline-flex items-center justify-center p-1.5 rounded transition-colors ' +
+  'inline-flex items-center gap-0.5 px-2 py-1.5 rounded transition-colors ' +
   'border border-amber-600/50 text-amber-600 bg-amber-500/10 ' +
   'hover:bg-amber-500/20 hover:border-amber-600 ' +
   'dark:border-amber-500/60 dark:text-amber-500 dark:hover:border-amber-500 ' +
