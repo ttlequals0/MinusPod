@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.32.5
+  version: 2.33.0
   contact:
     name: MinusPod
   license:
@@ -627,6 +627,32 @@ paths:
       responses:
         '200':
           description: Artwork refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  feedCount:
+                    type: integer
+
+  /feeds/regenerate:
+    post:
+      tags:
+        - Feeds
+      summary: Rebuild every served RSS with current URL settings (feed auth key, cover badge, base URL)
+      description: |
+        Re-fetch each feed's upstream source and re-render its served RSS so
+        URL-affecting settings (feed auth key, cover-art badge, base URL)
+        take effect. Unlike a feed refresh, this never re-discovers or
+        queues episodes, so it cannot trigger processing. Podcast apps
+        still re-fetch the feed on their own schedule before the change
+        is visible.
+      operationId: regenerateAllFeeds
+      responses:
+        '200':
+          description: Feeds regenerated
           content:
             application/json:
               schema:
@@ -2921,6 +2947,26 @@ paths:
                 properties:
                   ok:    { type: boolean }
                   error: { type: string }
+  /settings/feed-auth/regenerate-key:
+    post:
+      tags:
+        - Settings
+      summary: Rotate the global feed auth key
+      description: |
+        Generates a new global feed auth key, replacing the current one. The
+        old key is rejected immediately, so podcast apps subscribed with the
+        previous key must be re-subscribed using the new URLs.
+      operationId: regenerateFeedAuthKey
+      responses:
+        '200':
+          description: Key rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feedAuthKey: { type: string, description: 'New global feed auth key (64 hex chars)' }
+        '409': { description: 'feed_auth_disabled (enable feed auth before rotating the key)' }
   /settings:
     get:
       tags:
@@ -3150,6 +3196,9 @@ paths:
                 artworkWatermarkEnabled:
                   type: boolean
                   description: When true, the served feed's channel cover art gets a MinusPod badge overlaid so the filtered feed is distinct in a podcast app (issue #420). Off by default.
+                feedAuthEnabled:
+                  type: boolean
+                  description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
                 minCutConfidence:
                   type: number
                   format: float
@@ -6593,6 +6642,18 @@ components:
               description: When true, overlays a MinusPod badge on the served feed's channel cover art (issue #420). Off by default.
             isDefault:
               type: boolean
+        feedAuthEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether the global feed auth key is required on all public feed and episode URLs. Off by default.
+            isDefault:
+              type: boolean
+        feedAuthKey:
+          type: string
+          nullable: true
+          description: Global feed auth key (64 hex chars) carried as ?key= on feed/episode URLs and embedded in the badged cover path token; null until first enable.
         minCutConfidence:
           type: object
           properties:
@@ -6733,6 +6794,8 @@ components:
             onlyExposeProcessedDefault:
               type: boolean
             artworkWatermarkEnabled:
+              type: boolean
+            feedAuthEnabled:
               type: boolean
             minCutConfidence:
               type: number

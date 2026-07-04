@@ -69,6 +69,20 @@ Rate limits are tracked per worker (memory-backed), so with the default two work
 
 Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response makes log lookup one `grep` instead of a guessing game. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
 
+### Authenticated feeds (optional)
+
+By default the feed URLs are open: anyone who learns them can read your RSS and download episodes, and a request for an unprocessed episode kicks off transcription. If your server is reachable from the internet, that can get expensive.
+
+Settings > Data & Security > Authenticated Feeds locks this down with a single private key. When enabled:
+
+- Every feed and episode URL carries `?key=<64-hex-key>` (RSS, mp3, transcript vtt, chapters.json). Cover art carries the key inside the filename instead (`cover-minuspod-<version>-<key>.jpg`) because some podcast apps refuse image URLs with query strings.
+- Requests without the key get a 401. The admin UI/API and `/health` are unaffected.
+- The key is shown in the settings UI and the API on purpose - you need it to subscribe.
+
+Enabling or rotating the key changes every URL, so podcast apps must re-add your feeds. The OPML export (`mode=modified`) includes the key, which makes re-subscribing a two-step job: export, re-import in the app. Served feeds also rebuild themselves with the current key on their next authenticated fetch, and the "Regenerate feeds" button forces that for everything at once. Regenerating re-fetches each source feed and re-renders the RSS - it never re-processes episodes or touches stats.
+
+If you also run the Cloudflare WAF rule described above, nothing changes: the cover URL still ends in `.jpg` and query strings are not part of the matched path. The two layers stack - Cloudflare filters by client, the key gates by possession.
+
 ## Data storage
 
 All data is stored in the `./data` directory:

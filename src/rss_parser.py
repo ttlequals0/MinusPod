@@ -184,6 +184,12 @@ def _podcast_localname(elem) -> str:
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
+_ENCLOSURE_KEY_RE = re.compile(
+    r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')
+# Cover fallback so episode-less feeds (no enclosures) still self-heal: the
+# badged cover embeds the key in its path token.
+_COVER_KEY_RE = re.compile(
+    r'/cover-minuspod-(?:[0-9a-f]{8}-)?([0-9a-f]{64})\.jpg')
 
 
 def extract_cached_base_url(cached_rss: str) -> Optional[str]:
@@ -194,6 +200,19 @@ def extract_cached_base_url(cached_rss: str) -> Optional[str]:
     enclosure shape stay co-located with the rendering code.
     """
     m = _ENCLOSURE_PREFIX_RE.search(cached_rss)
+    return m.group(1) if m else None
+
+
+def extract_cached_feed_auth_key(cached_rss: str) -> Optional[str]:
+    """Return the feed auth key embedded in a cached RSS, or None.
+
+    Sibling of extract_cached_base_url: serve_rss compares this against the
+    active key so an enable, disable, or rotation self-heals the cached feed
+    on the next authenticated fetch instead of serving stale keyed URLs.
+    Checks enclosures first, then the badged cover token, so feeds with no
+    episodes yet still report their key state.
+    """
+    m = _ENCLOSURE_KEY_RE.search(cached_rss) or _COVER_KEY_RE.search(cached_rss)
     return m.group(1) if m else None
 
 
@@ -626,7 +645,8 @@ class RSSParser:
                     processed_episode_ids: Optional[set] = None,
                     parsed_feed=None,
                     title_override: Optional[str] = None,
-                    watermark_artwork: bool = False) -> str:
+                    watermark_artwork: bool = False,
+                    feed_auth_key: Optional[str] = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -650,6 +670,12 @@ class RSSParser:
                 skips the internal parse_feed call - the caller will have
                 already paid that cost. Passing a None here re-parses
                 feed_content for backwards compatibility.
+            feed_auth_key: Global feed auth key (authenticated feeds). When
+                set, enclosure/vtt/chapters URLs carry ``?key=`` and the
+                badged cover embeds it in the path token (image URLs must
+                keep ending in .jpg; podcast apps reject query strings there).
+                Passed explicitly, never stored on self - the module-level
+                singleton is shared across refresh worker threads.
         """
         feed = parsed_feed if parsed_feed is not None else self.parse_feed(feed_content)
         if not feed:
@@ -718,7 +744,11 @@ class RSSParser:
             # only when the cover or badge actually changes. Still ends in .jpg,
             # so the Cloudflare .jpg allow rule keeps matching.
             version = storage.artwork_version(slug)
-            artwork_url = f"{base}-{version}.jpg" if version else f"{base}.jpg"
+            # The feed auth key rides the path token too (never a query
+            # string on an image URL); both parts are hex so the serving
+            # side splits the token unambiguously on the last hyphen.
+            token = '-'.join(p for p in (version, feed_auth_key) if p)
+            artwork_url = f"{base}-{token}.jpg" if token else f"{base}.jpg"
         if artwork_url:
             channel_title = effective_title or ''
             channel_link = channel.get('link', '') or ''
@@ -760,7 +790,8 @@ class RSSParser:
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
             included_episode_ids.add(episode_id)
-            modified_url = f"{self._resolved_base_url()}/episodes/{slug}/{episode_id}.mp3"
+            modified_url = episode_public_url(self._resolved_base_url(), slug,
+                                              episode_id, key=feed_auth_key)
 
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
@@ -801,7 +832,8 @@ class RSSParser:
             # Podcasting 2.0 tags (transcript and chapters). Emits a
             # MinusPod-served URL only when our regenerated file is
             # cached; never falls back to upstream.
-            self._append_podcasting2_tags(lines, slug, episode_id, storage)
+            self._append_podcasting2_tags(lines, slug, episode_id, storage,
+                                          feed_auth_key)
 
             lines.append('</item>')
 
@@ -812,7 +844,8 @@ class RSSParser:
                 ep_id = ep['episode_id']
                 if ep_id in included_episode_ids:
                     continue
-                self._append_db_episode_item(lines, slug, ep, storage)
+                self._append_db_episode_item(lines, slug, ep, storage,
+                                             feed_auth_key)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -823,24 +856,28 @@ class RSSParser:
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
         return modified_rss
 
-    def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str, storage) -> None:
+    def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
+                                 storage, feed_auth_key=None) -> None:
         # Emit only when MinusPod has the cached file. Upstream URLs must
         # never appear in the served feed; see docs/podcasting-2.0.md.
         if not storage:
             return
         base_url = self._resolved_base_url()
+        key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
         if storage.has_transcript_vtt(slug, episode_id):
-            transcript_url = f"{base_url}/episodes/{slug}/{episode_id}.vtt"
+            transcript_url = f"{base_url}/episodes/{slug}/{episode_id}.vtt{key_suffix}"
             lines.append(f'  <podcast:transcript url="{transcript_url}" type="text/vtt" language="en" rel="captions" />')
         if storage.has_chapters_json(slug, episode_id):
-            chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json"
+            chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
-    def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage) -> None:
+    def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage,
+                                feed_auth_key=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
-                                           ep.get('processed_version'))
+                                           ep.get('processed_version'),
+                                           key=feed_auth_key)
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if ep.get('description'):
@@ -1146,6 +1183,9 @@ class RSSParser:
         # ``rstrip('/')`` keeps the GUID stable across base-URL configurations
         # that may or may not include a trailing slash; without it, toggling
         # the slash would silently change every feed's identity.
+        # Deliberately keyless: the guid seed is the feed's stable identity.
+        # Folding the feed auth key in would change every feed's guid on
+        # enable/rotate and make apps treat them as brand-new podcasts.
         served_feed_url = f"{self._resolved_base_url().rstrip('/')}/{slug}"
         guid = compute_feed_guid(served_feed_url)
         if guid:

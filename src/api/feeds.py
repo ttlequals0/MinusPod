@@ -13,7 +13,7 @@ from flask import request, Response
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage,
+    get_database, get_storage, get_feed_auth_key,
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
 )
@@ -137,6 +137,13 @@ logger = logging.getLogger('podcast.api')
 
 # ========== Feed Endpoints ==========
 
+def _public_feed_url(slug, key):
+    """Subscribable feed URL, carrying ?key= while feed auth is enabled."""
+    base_url = os.environ.get('BASE_URL', 'http://localhost:8000').rstrip('/')
+    url = f"{base_url}/{slug}"
+    return f"{url}?key={key}" if key else url
+
+
 @api.route('/feeds', methods=['GET'])
 @log_request
 def list_feeds():
@@ -144,12 +151,11 @@ def list_feeds():
     db = get_database()
 
     podcasts = db.get_all_podcasts()
+    feed_auth_key = get_feed_auth_key(db)
 
     feeds = []
     for podcast in podcasts:
-        # Build feed URL
-        base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
-        feed_url = f"{base_url}/{podcast['slug']}"
+        feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feeds.append({
             'slug': podcast['slug'],
@@ -307,12 +313,10 @@ def add_feed():
         except Exception as e:
             logger.warning(f"Initial refresh failed for {slug}: {e}")
 
-        base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
-
         return json_response({
             'slug': slug,
             'sourceUrl': source_url,
-            'feedUrl': f"{base_url}/{slug}",
+            'feedUrl': _public_feed_url(slug, get_feed_auth_key(db)),
             'message': 'Feed added successfully'
         }, 201)
 
@@ -472,7 +476,9 @@ def export_opml():
     podcasts = db.get_all_podcasts()
 
     if mode == 'modified':
-        base_url = os.environ.get('BASE_URL', 'http://localhost:8000').rstrip('/')
+        # Keyed while feed auth is enabled, so a re-import after enable or
+        # rotation subscribes apps with working URLs.
+        feed_auth_key = get_feed_auth_key(db)
 
     opml = ET.Element('opml', version='2.0')
     head = ET.SubElement(opml, 'head')
@@ -482,7 +488,7 @@ def export_opml():
     for podcast in podcasts:
         title = podcast.get('title') or podcast.get('slug', '')
         if mode == 'modified':
-            feed_url = f"{base_url}/{podcast['slug']}"
+            feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
         else:
             feed_url = podcast.get('source_url', '')
         ET.SubElement(body, 'outline',
@@ -516,8 +522,7 @@ def get_feed(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
-    feed_url = f"{base_url}/{slug}"
+    feed_url = _public_feed_url(slug, get_feed_auth_key(db))
 
     # Convert auto_process_override from string to boolean/null
     auto_process_override_result = _deserialize_auto_process(podcast.get('auto_process_override'))
@@ -632,7 +637,6 @@ def update_feed(slug):
 
         # Return updated feed data
         podcast = db.get_podcast_by_slug(slug)
-        base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
         # Settings changes that alter the served RSS body must regenerate it.
         # Clearing etag/last_modified first ensures that if the force-refresh
@@ -660,7 +664,7 @@ def update_feed(slug):
             'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
-            'feedUrl': f"{base_url}/{slug}"
+            'feedUrl': _public_feed_url(slug, get_feed_auth_key(db))
         })
     except Exception:
         logger.exception(f"Failed to update feed {slug}")
@@ -796,6 +800,26 @@ def refresh_artwork():
     except Exception:
         logger.exception("Failed to refresh artwork")
         return error_response('Failed to refresh artwork', 500)
+
+
+@api.route('/feeds/regenerate', methods=['POST'])
+@limiter.limit("2 per minute")
+@log_request
+def regenerate_feeds():
+    """Rebuild every served RSS with the current URL settings (feed auth key,
+    cover badge, BASE_URL). Re-fetches each upstream source feed but does not
+    re-discover or queue episodes, so it never triggers processing and never
+    touches episode rows or stats. Used after enabling feed auth or rotating
+    the key so existing feeds embed it.
+    """
+    try:
+        from main_app.feeds import rebuild_all_served_feeds
+        count = rebuild_all_served_feeds()
+        logger.info(f"Regenerated served RSS for {count} feed(s)")
+        return json_response({'message': 'Feeds regenerated', 'feedCount': count})
+    except Exception:
+        logger.exception("Failed to regenerate feeds")
+        return error_response('Failed to regenerate feeds', 500)
 
 
 def _extract_artwork_url_from_feed(source_url: str) -> Optional[str]:

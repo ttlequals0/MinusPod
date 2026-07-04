@@ -128,6 +128,12 @@ export async function refreshAllArtwork(): Promise<{ message: string; feedCount:
   });
 }
 
+export async function regenerateAllFeeds(): Promise<{ message: string; feedCount: number }> {
+  return apiRequest<{ message: string; feedCount: number }>('/feeds/regenerate', {
+    method: 'POST',
+  });
+}
+
 export interface EpisodesResponse {
   episodes: Episode[];
   total: number;

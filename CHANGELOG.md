@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.0] - 2026-07-03
+
+### Added
+
+- Authenticated feeds: an optional global feed key (disabled by default, Settings > Data & Security) that locks the public feed surface. When enabled, the served RSS, episode mp3 (both URL shapes), transcript vtt, and chapters.json require a `?key=` query param, and the badged cover art embeds the key in its path token (`cover-minuspod-<version>-<key>.jpg`) since podcast apps reject image URLs that do not end in an image extension (proven with Pocket Casts in 2.32.5). Requests without a valid key get 401 and log "no auth key provided or is invalid"; validation is a constant-time compare against a per-request DB read, so rotation applies instantly. The key is a 64-hex `secrets.token_hex(32)` value, deliberately visible in the UI and API (private-feed bearer model), and stored plaintext because it must be read back and provider-key encryption may be locked. Enabling generates the key lazily and clears feed ETags so scheduled refreshes converge; feedUrl in the feeds API, the modified-mode OPML export, and episode processedUrl/vtt/chapters URLs all carry the key; the `podcast:guid` seed stays keyless so feed identity never changes. New endpoints: `POST /settings/feed-auth/regenerate-key` (rotate, 409 while disabled) and `POST /feeds/regenerate` (re-render every served RSS without re-discovering or queuing episodes, so it cannot trigger processing or touch stats). serve_rss also self-heals: a cached feed whose embedded key state mismatches the active key is force-rebuilt on its next authenticated fetch. Enabling or rotating requires re-adding feeds in podcast apps; the OPML export includes the key to ease that. The admin UI/API (`/api`, `/ui`) and `/health` are not gated. No Cloudflare rule changes needed: the cover URL still ends in `.jpg` and query strings are not part of the matched path.
+
 ## [2.32.5] - 2026-07-03
 
 ### Fixed

@@ -159,6 +159,11 @@ def get_settings():
         settings, 'artwork_watermark_enabled', 'false')
     artwork_watermark_enabled = (
         artwork_watermark_value.lower() in ('true', '1', 'yes'))
+    feed_auth_enabled = coerce_bool_setting(
+        _setting_value(settings, 'feed_auth_enabled', 'false'))
+    # Bearer key for authenticated feeds; intentionally readable (the UI/API
+    # must display it so the operator can subscribe apps with it).
+    feed_auth_key = _setting_value(settings, 'feed_auth_key', '') or None
 
     try:
         max_feed_episodes = int(_setting_value(settings, 'max_feed_episodes', '300'))
@@ -373,6 +378,8 @@ def get_settings():
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(
             'artwork_watermark_enabled', artwork_watermark_enabled),
+        'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
+        'feedAuthKey': feed_auth_key,
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersModel': _sv('chapters_model', chapters_model),
@@ -445,6 +452,7 @@ def get_settings():
             'maxFeedEpisodes': 300,
             'onlyExposeProcessedDefault': False,
             'artworkWatermarkEnabled': False,
+            'feedAuthEnabled': False,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
             'chaptersModel': CHAPTERS_MODEL,
@@ -643,6 +651,29 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['artworkWatermarkEnabled'] else 'false'
         db.set_setting('artwork_watermark_enabled', value, is_default=False)
         logger.info(f"Updated artwork watermark to: {value}")
+
+    if 'feedAuthEnabled' in data:
+        enabled = data['feedAuthEnabled']
+        # Strict type check: bool("false") is True, so a stringly-typed
+        # disable request would ENABLE enforcement and lock out every
+        # subscribed app. Too much blast radius for lenient coercion.
+        if not isinstance(enabled, bool):
+            return error_response('feedAuthEnabled must be a boolean', 400)
+        # No-op guard: clearing every feed's etag is expensive enough that a
+        # repeated PUT with the current value must not trigger it.
+        if db.get_setting_bool('feed_auth_enabled', False) != enabled:
+            if enabled and not db.get_setting('feed_auth_key'):
+                # Lazy generation: first enable mints the key. Never logged.
+                from main_app.feed_auth import generate_feed_key
+                db.set_setting('feed_auth_key', generate_feed_key(),
+                               is_default=False)
+                logger.info("Generated feed auth key")
+            value = 'true' if enabled else 'false'
+            db.set_setting('feed_auth_enabled', value, is_default=False)
+            # Clear conditional-GET validators so the scheduled refresher
+            # cannot 304-skip re-rendering served feeds with the new state.
+            db.clear_all_podcast_etags()
+            logger.info(f"Updated feed auth to: {value}")
 
     if 'vttTranscriptsEnabled' in data:
         value = 'true' if data['vttTranscriptsEnabled'] else 'false'
@@ -1190,6 +1221,30 @@ def _apply_stage_tunables(db, data):
         db.set_setting(db_key, str(v), is_default=False)
         logger.info(f"Updated {db_key} to: {v!r}")
     return None
+
+
+@api.route('/settings/feed-auth/regenerate-key', methods=['POST'])
+@limiter.limit("3 per hour")
+@log_request
+def regenerate_feed_auth_key():
+    """Rotate the global feed auth key (authenticated feeds).
+
+    409 while the feature is disabled - rotation of a dormant key would be
+    invisible and surprising on re-enable. The old key is rejected on the
+    very next request (enforcement reads the DB per request; no caching).
+    Subscribed apps must be re-added with the new key (OPML export carries
+    it). Returns the new key - it is a bearer credential the operator needs.
+    """
+    from main_app.feed_auth import generate_feed_key
+
+    db = get_database()
+    if not db.get_setting_bool('feed_auth_enabled', False):
+        return error_response('feed auth is not enabled', 409)
+    new_key = generate_feed_key()
+    db.set_setting('feed_auth_key', new_key, is_default=False)
+    db.clear_all_podcast_etags()
+    logger.info("Feed auth key regenerated")
+    return json_response({'feedAuthKey': new_key})
 
 
 @api.route('/settings/ad-detection/reset', methods=['POST'])

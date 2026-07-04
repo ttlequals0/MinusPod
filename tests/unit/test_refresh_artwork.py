@@ -196,3 +196,63 @@ def test_refresh_all_artwork_counts_feeds():
          patch.object(mf.storage, 'download_artwork', return_value=True):
         count = mf.refresh_all_artwork()
     assert count >= 2
+
+
+# --- rebuild_served_rss / rebuild_all_served_feeds (2.33.0) -----------------
+# The feed-auth "Regenerate feeds" action must be a pure re-render: no
+# processing triggers, no artwork side effects, no episode-row writes.
+
+def test_rebuild_served_rss_does_not_queue_or_discover():
+    slug = 'rebuild-noqueue'
+    _seed(slug)
+    with patch.object(mf.rss_parser, 'fetch_feed', return_value=_feed_xml()), \
+         patch.object(mf.db, 'queue_episode_for_processing') as queue, \
+         patch.object(mf.db, 'bulk_upsert_discovered_episodes') as discover:
+        assert mf.rebuild_served_rss(slug) is True
+    queue.assert_not_called()
+    discover.assert_not_called()
+
+
+def test_rebuild_served_rss_skips_artwork_side_effects():
+    slug = 'rebuild-noart'
+    _seed(slug)
+    with patch.object(mf.rss_parser, 'fetch_feed', return_value=_feed_xml()), \
+         patch.object(mf.storage, 'download_artwork') as dl, \
+         patch.object(mf.storage, 'clear_watermark_cache') as clear:
+        assert mf.rebuild_served_rss(slug) is True
+    dl.assert_not_called()
+    clear.assert_not_called()
+
+
+def test_rebuild_served_rss_no_source_url_returns_false():
+    assert mf.rebuild_served_rss('does-not-exist') is False
+
+
+def test_rebuild_all_served_feeds_counts():
+    for slug in ('rebuild-all-1', 'rebuild-all-2'):
+        _seed(slug)
+    with patch.object(mf.rss_parser, 'fetch_feed', return_value=_feed_xml()):
+        count = mf.rebuild_all_served_feeds()
+    assert count >= 2
+
+
+def test_rebuild_embeds_feed_auth_key_and_preserves_episode_ids():
+    # Stats/history are keyed by (slug, episode_id); the keyed rebuild must
+    # emit identical episode ids, only the URLs change.
+    import re as _re
+    slug = 'rebuild-keyed'
+    _seed(slug)
+    key = 'd' * 64
+    with patch.object(mf.rss_parser, 'fetch_feed', return_value=_feed_xml()):
+        assert mf.rebuild_served_rss(slug) is True
+        keyless = mf.storage.get_rss(slug)
+        mf.db.set_setting('feed_auth_enabled', 'true', is_default=False)
+        mf.db.set_setting('feed_auth_key', key, is_default=False)
+        try:
+            assert mf.rebuild_served_rss(slug) is True
+            keyed = mf.storage.get_rss(slug)
+        finally:
+            mf.db.set_setting('feed_auth_enabled', 'false', is_default=False)
+    id_re = _re.compile(r'/episodes/%s/([0-9a-f]{12})' % slug)
+    assert f'?key={key}' in keyed and '?key=' not in keyless
+    assert sorted(set(id_re.findall(keyless))) == sorted(set(id_re.findall(keyed)))

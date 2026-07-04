@@ -20,7 +20,7 @@ from config import (
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
 )
-from rss_parser import extract_cached_base_url
+from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
 from utils.constants import EpisodeStatus
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
@@ -41,6 +41,7 @@ from main_app.shared_state import permanently_failed_warned as _permanently_fail
 # the positional 4-tuple from _get_components() that the audit flagged
 # as silently break-on-reorder.
 from main_app import db, storage, rss_parser, status_service
+from main_app.feed_auth import active_feed_key, require_feed_key
 
 # Resolved once at registration time
 STATIC_DIR = None
@@ -208,6 +209,7 @@ def register_routes(app):
 
     @app.route('/<slug>')
     @validate_slug_param
+    @require_feed_key
     @log_request_detailed
     def serve_rss(slug):
         """Serve modified RSS feed."""
@@ -241,14 +243,32 @@ def register_routes(app):
             # Issue #193: cached RSS keeps stale enclosure URLs when BASE_URL
             # changes between renders. Force a refresh on prefix mismatch.
             cached_base = extract_cached_base_url(cached_rss)
-            if cached_base is not None:
-                current_base = os.getenv('BASE_URL', 'http://localhost:8000')
-                if cached_base != current_base:
+            current_base = os.getenv('BASE_URL', 'http://localhost:8000')
+            if cached_base is not None and cached_base != current_base:
+                should_refresh = True
+                force_refresh = True
+                feed_logger.info(
+                    f"[{slug}] cached RSS BASE_URL mismatch "
+                    f"({cached_base} != {current_base}), forcing refresh"
+                )
+            else:
+                # Same self-heal for the feed auth key: an enable, disable,
+                # or rotation re-renders on the first fetch that passes the
+                # key gate. The extractor also reads the badged cover token,
+                # so episode-less feeds heal too; the keyable-URL guard
+                # (enclosures or cover present) keeps a feed with nothing to
+                # re-key from force-refreshing forever, and the cheap
+                # substring checks keep the regex off the common path.
+                active_key = active_feed_key(db)
+                if ((active_key or '?key=' in cached_rss)
+                        and (cached_base is not None
+                             or 'cover-minuspod-' in cached_rss)
+                        and extract_cached_feed_auth_key(cached_rss) != active_key):
                     should_refresh = True
                     force_refresh = True
                     feed_logger.info(
-                        f"[{slug}] cached RSS BASE_URL mismatch "
-                        f"({cached_base} != {current_base}), forcing refresh"
+                        f"[{slug}] cached RSS feed-auth key state mismatch, "
+                        f"forcing refresh"
                     )
         if not should_refresh and last_checked:
             try:
@@ -274,6 +294,7 @@ def register_routes(app):
     @app.route('/episodes/<slug>/<episode_id>.mp3')
     @app.route('/episodes/<slug>/<episode_id>-v<int:requested_version>.mp3')
     @validate_slug_and_episode_params
+    @require_feed_key
     @log_request_detailed
     def serve_episode(slug, episode_id, requested_version=None):
         """Serve processed episode audio (JIT processing).
@@ -428,6 +449,7 @@ def register_routes(app):
 
     @app.route('/episodes/<slug>/<episode_id>.vtt')
     @validate_slug_and_episode_params
+    @require_feed_key
     @log_request_detailed
     def serve_transcript_vtt(slug, episode_id):
         """Serve VTT transcript for episode (Podcasting 2.0)."""
@@ -447,6 +469,7 @@ def register_routes(app):
 
     @app.route('/episodes/<slug>/<episode_id>/chapters.json')
     @validate_slug_and_episode_params
+    @require_feed_key
     @log_request_detailed
     def serve_chapters_json(slug, episode_id):
         """Serve chapters JSON for episode (Podcasting 2.0)."""
@@ -468,6 +491,7 @@ def register_routes(app):
     @app.route('/episodes/<slug>/cover-minuspod.jpg')
     @app.route('/episodes/<slug>/cover-minuspod-<token>.jpg')
     @validate_slug_param
+    @require_feed_key
     @log_request_detailed
     def serve_minuspod_cover(slug, token=None):
         """Serve the MinusPod-badged cover art (issue #420). This is podcast-level

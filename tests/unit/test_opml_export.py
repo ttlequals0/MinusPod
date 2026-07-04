@@ -102,6 +102,8 @@ class TestOpmlExportModifiedMode:
     @patch('api.feeds.get_database')
     def test_modified_mode_uses_base_url_and_slug(self, mock_db, client):
         mock_db.return_value.get_all_podcasts.return_value = _mock_podcasts()
+        # feed auth off: a bare MagicMock is truthy and would append ?key=
+        mock_db.return_value.get_setting_bool.return_value = False
         with patch.dict(os.environ, {'BASE_URL': 'https://pod.example.com'}):
             response = client.get('/api/v1/feeds/export-opml?mode=modified')
         assert response.status_code == 200
@@ -122,6 +124,7 @@ class TestOpmlExportModifiedMode:
         mock_db.return_value.get_all_podcasts.return_value = [
             {'slug': 'test-pod', 'title': 'Test', 'source_url': 'https://example.com/feed'},
         ]
+        mock_db.return_value.get_setting_bool.return_value = False
         with patch.dict(os.environ, {'BASE_URL': 'https://pod.example.com/'}):
             response = client.get('/api/v1/feeds/export-opml?mode=modified')
         root = _parse_opml(response.data)
@@ -134,6 +137,7 @@ class TestOpmlExportModifiedMode:
         mock_db.return_value.get_all_podcasts.return_value = [
             {'slug': 'pod', 'title': 'Pod', 'source_url': ''},
         ]
+        mock_db.return_value.get_setting_bool.return_value = False
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop('BASE_URL', None)
             response = client.get('/api/v1/feeds/export-opml?mode=modified')

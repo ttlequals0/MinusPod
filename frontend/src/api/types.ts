@@ -206,6 +206,8 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   onlyExposeProcessedDefault: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
+  feedAuthEnabled: SettingValueBoolean;
+  feedAuthKey: string | null;
   audioBitrate: SettingValue;
   audioNormalizeEnabled: SettingValueBoolean;
   audioNormalizeIntensity: SettingValue;
@@ -268,6 +270,7 @@ export interface Settings {
     maxFeedEpisodes: number;
     onlyExposeProcessedDefault: boolean;
     artworkWatermarkEnabled: boolean;
+    feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
     chaptersModel: string;
@@ -332,6 +335,7 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   onlyExposeProcessedDefault?: boolean;
   artworkWatermarkEnabled?: boolean;
+  feedAuthEnabled?: boolean;
   audioBitrate?: string;
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;

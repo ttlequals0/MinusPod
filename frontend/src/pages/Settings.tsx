@@ -12,6 +12,7 @@ import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
 import DataManagementSection from './settings/DataManagementSection';
 import WebhooksSection from './settings/WebhooksSection';
+import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
 import AppearanceSection from './settings/AppearanceSection';
@@ -923,6 +924,8 @@ function Settings() {
       />
 
       <WebhooksSection />
+
+      <AuthenticatedFeedsSection />
 
       <SecuritySection
         isPasswordSet={isPasswordSet}

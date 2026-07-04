@@ -335,7 +335,9 @@ function EpisodeDetail() {
 
         {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">
-            <audio controls className="w-full" src={`/episodes/${slug}/${episode.id}.mp3`}>
+            {/* processedUrl is server-built and carries the feed auth key when
+                enabled; a hardcoded path would 401 under authenticated feeds. */}
+            <audio controls className="w-full" src={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}>
               Your browser does not support the audio element.
             </audio>
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
@@ -493,7 +495,7 @@ function EpisodeDetail() {
               <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
-                audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
+                audioUrl={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
                 audioMode={reviewMode}
                 hasOriginal={!!episode.hasOriginalAudio}
                 onAudioModeChange={setReviewMode}

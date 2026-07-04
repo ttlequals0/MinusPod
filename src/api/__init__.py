@@ -157,6 +157,13 @@ def get_database():
     return Database()
 
 
+def get_feed_auth_key(db):
+    """Active feed auth key or None. Lazy import: the api package loads
+    before main_app finishes creating its singletons."""
+    from main_app.feed_auth import active_feed_key
+    return active_feed_key(db)
+
+
 @api.url_value_preprocessor
 def _guard_slug_param(_endpoint, values):
     """Reject dangerous slugs on every /api/v1/* route that takes one.

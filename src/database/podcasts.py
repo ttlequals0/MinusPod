@@ -264,6 +264,19 @@ class PodcastMixin:
         """
         return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
 
+    def clear_all_podcast_etags(self) -> int:
+        """Null every podcast's conditional-GET validators in one statement.
+
+        Used when a global setting changes the served RSS body (feed auth key
+        state) so the next scheduled refresh fully re-renders every feed
+        instead of 304-skipping. Returns the number of rows touched.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE podcasts SET etag = NULL, last_modified_header = NULL")
+        conn.commit()
+        return cursor.rowcount
+
     # ---- Per-feed -> global default resolvers ----
 
     DEFAULT_MAX_FEED_EPISODES = 300

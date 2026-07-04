@@ -151,6 +151,9 @@ class SettingsMixin:
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'artwork_watermark_enabled': 'false',
+            # feed_auth_key is deliberately absent: reset must never wipe a
+            # live key (rotation is an explicit action).
+            'feed_auth_enabled': 'false',
             'audio_bitrate': '128k',
             'audio_normalize_enabled': 'false',
             'audio_normalize_intensity': 'normal',

@@ -26,6 +26,12 @@ def episode_relative_path(episode_id: str, version: Optional[int] = None,
 
 def episode_public_url(base_url: str, slug: str, episode_id: str,
                         version: Optional[int] = None,
-                        extension: str = ".mp3") -> str:
-    """Return the public-facing enclosure URL."""
-    return f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
+                        extension: str = ".mp3",
+                        key: Optional[str] = None) -> str:
+    """Return the public-facing enclosure URL.
+
+    ``key`` is the global feed auth key (authenticated feeds); when set it is
+    appended as the ``?key=`` query param the public routes enforce.
+    """
+    url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
+    return f"{url}?key={key}" if key else url

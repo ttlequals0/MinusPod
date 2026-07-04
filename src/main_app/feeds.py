@@ -17,6 +17,7 @@ from main_app.cache import TTLCache
 # positional 5-tuple; replacing it with direct imports removes the
 # tuple-reorder footgun the audit flagged.
 from main_app import db, rss_parser, storage, status_service, pattern_service
+from main_app.feed_auth import active_feed_key
 
 refresh_logger = logging.getLogger('podcast.refresh')
 feed_logger = logging.getLogger('podcast.feed')
@@ -319,6 +320,9 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                          if status == 'processed'}
 
     watermark_artwork = db.get_setting_bool('artwork_watermark_enabled', False)
+    # None while feed auth is disabled, so serving reverts to keyless URLs
+    # even though the stored key is retained for re-enable.
+    feed_auth_key = active_feed_key(db)
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
                                           max_episodes=feed_cap,
                                           extra_episodes=extra_episodes,
@@ -326,9 +330,31 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           processed_episode_ids=processed_ids,
                                           parsed_feed=parsed_feed,
                                           title_override=(podcast or {}).get('title_override'),
-                                          watermark_artwork=watermark_artwork)
+                                          watermark_artwork=watermark_artwork,
+                                          feed_auth_key=feed_auth_key)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
+
+
+def rebuild_served_rss(slug, podcast=None):
+    """Re-render one feed's served RSS with the current URL settings (feed
+    auth key, cover badge, BASE_URL). Fetches the upstream source feed for
+    fresh content but never re-discovers or queues episodes, so it cannot
+    trigger processing or touch episode rows/stats. Returns True on success.
+    """
+    podcast = podcast or db.get_podcast_by_slug(slug)
+    if not podcast or not podcast.get('source_url'):
+        return False
+    try:
+        feed_content = rss_parser.fetch_feed(podcast['source_url'])
+        if not feed_content:
+            return False
+        parsed_feed = rss_parser.parse_feed(feed_content)
+        _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
+        return True
+    except Exception as e:
+        refresh_logger.warning(f"[{slug}] served RSS rebuild failed: {e}")
+        return False
 
 
 def refresh_feed_artwork(slug, podcast=None):
@@ -347,15 +373,10 @@ def refresh_feed_artwork(slug, podcast=None):
         if podcast.get('artwork_url'):
             storage.download_artwork(slug, podcast['artwork_url'])
         storage.clear_watermark_cache(slug)
-        feed_content = rss_parser.fetch_feed(podcast['source_url'])
-        if not feed_content:
-            return False
-        parsed_feed = rss_parser.parse_feed(feed_content)
-        _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
-        return True
     except Exception as e:
         refresh_logger.warning(f"[{slug}] artwork refresh failed: {e}")
         return False
+    return rebuild_served_rss(slug, podcast)
 
 
 def refresh_all_artwork():
@@ -373,4 +394,23 @@ def refresh_all_artwork():
                     count += 1
             except Exception as e:
                 refresh_logger.error(f"[{futures[future]}] artwork refresh failed: {e}")
+    return count
+
+
+def rebuild_all_served_feeds():
+    """Re-render every feed's served RSS with the current URL settings (feed
+    auth key, cover badge, BASE_URL). Same no-processing guarantee as
+    rebuild_served_rss. Returns the number of feeds rebuilt.
+    """
+    feed_map = get_feed_map()
+    count = 0
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(rebuild_served_rss, slug): slug
+                   for slug in feed_map}
+        for future in as_completed(futures):
+            try:
+                if future.result():
+                    count += 1
+            except Exception as e:
+                refresh_logger.error(f"[{futures[future]}] served RSS rebuild failed: {e}")
     return count

@@ -25,6 +25,12 @@ export async function resetPrompts(): Promise<{ message: string }> {
   });
 }
 
+export async function regenerateFeedKey(): Promise<{ feedAuthKey: string }> {
+  return apiRequest<{ feedAuthKey: string }>('/settings/feed-auth/regenerate-key', {
+    method: 'POST',
+  });
+}
+
 export async function getModels(provider?: string): Promise<ClaudeModel[]> {
   const params = provider ? `?provider=${encodeURIComponent(provider)}` : '';
   const response = await apiRequest<{ models: ClaudeModel[] }>(`/settings/models${params}`);

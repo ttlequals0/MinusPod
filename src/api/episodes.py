@@ -8,7 +8,8 @@ from flask import request, send_file, abort
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, extract_transcript_segment, get_status_service,
+    get_database, get_storage, get_feed_auth_key,
+    extract_transcript_segment, get_status_service,
 )
 from audio_peaks import compute_peaks, PeaksError
 from chapters_generator import ChaptersGenerator
@@ -38,9 +39,14 @@ def _clear_episode_for_mode(db, slug, episode_id, mode):
         db.clear_episode_details(slug, episode_id)
 
 
-def _processed_url(base_url: str, slug: str, episode_id: str, version: int) -> str:
-    """Build the public processed-audio URL including a version suffix when set."""
-    return episode_public_url(base_url, slug, episode_id, version)
+def _processed_url(base_url: str, slug: str, episode_id: str, version: int,
+                   key: str = None) -> str:
+    """Build the public processed-audio URL including a version suffix when set.
+
+    ``key`` is the feed auth key; without it the public route 401s while
+    authenticated feeds are enabled, so UI playback links must carry it.
+    """
+    return episode_public_url(base_url, slug, episode_id, version, key=key)
 
 
 def _get_episode_token_fields(db, episode_id: str) -> dict:
@@ -138,6 +144,8 @@ def get_episode(slug, episode_id):
         return error_response('Episode not found', 404)
 
     base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
+    feed_auth_key = get_feed_auth_key(db)
+    key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
 
     # Parse ad markers if present, separating by validation decision
     ad_markers = []
@@ -202,7 +210,8 @@ def get_episode(slug, episode_id):
         'newDuration': episode['new_duration'],
         'originalUrl': episode['original_url'],
         'processedUrl': _processed_url(base_url, slug, episode_id,
-                                        episode.get('processed_version') or 0),
+                                        episode.get('processed_version') or 0,
+                                        key=feed_auth_key),
         'hasOriginalAudio': bool(episode.get('original_file')),
         'originalAudioUrl': f"/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3",
         'adsRemoved': episode['ads_removed'],
@@ -219,9 +228,11 @@ def get_episode(slug, episode_id):
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'originalTranscriptAvailable': bool(episode.get('has_original_transcript')),
         'transcriptVttAvailable': transcript_vtt_available,
-        'transcriptVttUrl': f"/episodes/{slug}/{episode_id}.vtt" if transcript_vtt_available else None,
+        'transcriptVttUrl': (f"/episodes/{slug}/{episode_id}.vtt{key_suffix}"
+                             if transcript_vtt_available else None),
         'chaptersAvailable': chapters_available,
-        'chaptersUrl': f"/episodes/{slug}/{episode_id}/chapters.json" if chapters_available else None,
+        'chaptersUrl': (f"/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
+                        if chapters_available else None),
         'error': episode.get('error_message'),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),
