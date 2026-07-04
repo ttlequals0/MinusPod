@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import MagicMock, patch
 import main_app.processing as processing
-from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
+from audio_analysis.base import AudioAnalysisResult
 
 
 def _result_with_spans(spans):
