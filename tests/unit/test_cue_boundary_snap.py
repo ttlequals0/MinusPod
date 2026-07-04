@@ -540,18 +540,17 @@ def _base_cue_settings_with_transition(**overrides):
         'snap_confidence': 0.80,
         'snap_lead': 10.0,
         'snap_lag': 4.0,
-        'silence_snap_max_distance': 2.0,
-        'silence_snap_min_duration': 0.3,
+        'silence_snap_enabled': False,
+        'transition_snap_enabled': True,
     }
     base.update(overrides)
     return base
 
 
 def test_allow_transition_plumbing_reaches_snap():
-    """allow_transition=True from resolve_transition_snap_enabled reaches snap_ad_boundaries_to_cues."""
+    """allow_transition=True from cue_settings['transition_snap_enabled'] reaches snap_ad_boundaries_to_cues."""
     mock_snap = MagicMock(return_value=None)
     mock_resolve_cue = MagicMock(return_value=_base_cue_settings_with_transition())
-    mock_resolve_transition = MagicMock(return_value=True)
 
     ctx = MagicMock()
     ctx.slug = 'test-feed'
@@ -567,8 +566,6 @@ def test_allow_transition_plumbing_reaches_snap():
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
          patch('main_app.processing.resolve_feed_cue_settings', mock_resolve_cue), \
-         patch('main_app.processing.resolve_transition_snap_enabled',
-               mock_resolve_transition), \
          patch('main_app.processing.snap_ad_boundaries_to_cues', mock_snap), \
          patch('main_app.processing.snap_ad_boundaries_to_silence', MagicMock()):
         processing._detect_ads_first_pass(

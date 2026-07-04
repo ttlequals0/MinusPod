@@ -401,24 +401,25 @@ _CUE_FLOAT_KNOBS = [
     ('cue_snap_confidence_override',      'audio_cue_snap_confidence',         AUDIO_CUE_SNAP_CONFIDENCE,           'snap_confidence'),
     ('cue_snap_lead_override',            'audio_cue_snap_lead_seconds',       AUDIO_CUE_SNAP_LEAD_SECONDS,         'snap_lead'),
     ('cue_snap_lag_override',             'audio_cue_snap_lag_seconds',        AUDIO_CUE_SNAP_LAG_SECONDS,          'snap_lag'),
-    # Silence-snap tunables (Phase B, task B3). No per-feed override column;
-    # these read from global settings only, falling back to code defaults.
-    (None, 'silence_snap_max_distance_seconds', SILENCE_SNAP_MAX_DISTANCE_SECONDS, 'silence_snap_max_distance'),
-    (None, 'silence_snap_min_duration_seconds',  SILENCE_SNAP_MIN_DURATION_SECONDS, 'silence_snap_min_duration'),
 ]
 
 
 def resolve_feed_cue_settings(db, podcast_id):
-    """Resolve all 7 per-feed cue knobs in one DB read.
+    """Resolve per-feed cue knobs in one DB read.
 
     Returns a dict with effective values for the processing hot path.
     Priority: per-feed override > global DB setting > code default.
     With all overrides NULL the result is byte-identical to the previous
     direct db.get_setting_* calls.
+
+    Also includes silence_snap_enabled and transition_snap_enabled as plain
+    bool values. These are opt-in per-feed flags with no global tier.
     """
     if not db:
         result = {out_key: default for _, _, default, out_key in _CUE_FLOAT_KNOBS}
         result['create_from_pairs'] = False
+        result['silence_snap_enabled'] = False
+        result['transition_snap_enabled'] = False
         return result
 
     # Fetch per-feed overrides; failure here still allows global reads below.
@@ -437,11 +438,14 @@ def resolve_feed_cue_settings(db, podcast_id):
 
     result = {'create_from_pairs': create_from_pairs}
     for override_col, setting_key, code_default, out_key in _CUE_FLOAT_KNOBS:
-        raw = overrides.get(override_col) if override_col is not None else None
+        raw = overrides.get(override_col)
         if raw is not None:
             result[out_key] = float(raw)
         else:
             result[out_key] = db.get_setting_float(setting_key, code_default)
+
+    result['silence_snap_enabled'] = bool(overrides.get('silence_snap_enabled'))
+    result['transition_snap_enabled'] = bool(overrides.get('transition_snap_enabled'))
     return result
 
 
@@ -467,6 +471,38 @@ def resolve_silence_snap_enabled(db, podcast_id):
 def resolve_transition_snap_enabled(db, podcast_id):
     """Per-feed content-transition-snap opt-in (Phase B). Default False."""
     return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
+
+
+def resolve_silence_snap_tunables(db):
+    """Global silence-snap tunables: noise floor, min duration, max snap distance.
+
+    Returns a dict with keys: noise_db, min_duration_seconds, max_distance_seconds.
+    Reads from global settings only (no per-feed override). Falls back to code
+    defaults when db is None or a read fails.
+    """
+    if not db:
+        return {
+            'noise_db': SILENCE_SNAP_NOISE_DB,
+            'min_duration_seconds': SILENCE_SNAP_MIN_DURATION_SECONDS,
+            'max_distance_seconds': SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+        }
+    try:
+        return {
+            'noise_db': db.get_setting_float('silence_snap_noise_db', SILENCE_SNAP_NOISE_DB),
+            'min_duration_seconds': db.get_setting_float(
+                'silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS
+            ),
+            'max_distance_seconds': db.get_setting_float(
+                'silence_snap_max_distance_seconds', SILENCE_SNAP_MAX_DISTANCE_SECONDS
+            ),
+        }
+    except Exception:
+        _tunable_logger.warning('resolve_silence_snap_tunables: read failed; using defaults')
+        return {
+            'noise_db': SILENCE_SNAP_NOISE_DB,
+            'min_duration_seconds': SILENCE_SNAP_MIN_DURATION_SECONDS,
+            'max_distance_seconds': SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+        }
 
 
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a

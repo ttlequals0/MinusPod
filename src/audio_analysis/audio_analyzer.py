@@ -18,11 +18,10 @@ from .cue_template_matcher import AudioCueTemplateMatcher
 from .silence_detector import SilenceDetector
 from config import (
     AUDIO_CUE_FORMANT_ATTEN_DB,
-    SILENCE_SNAP_NOISE_DB,
-    SILENCE_SNAP_MIN_DURATION_SECONDS,
     resolve_cue_template_score,
     resolve_near_miss_floor,
     resolve_silence_snap_enabled,
+    resolve_silence_snap_tunables,
 )
 
 # Import from utils for consistent audio duration implementation
@@ -191,11 +190,11 @@ class AudioAnalyzer:
         try:
             if not resolve_silence_snap_enabled(self.db, feed_id):
                 return None
-            noise_db = self.db.get_setting_float('silence_snap_noise_db', SILENCE_SNAP_NOISE_DB)
-            min_dur = self.db.get_setting_float(
-                'silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS
+            tunables = resolve_silence_snap_tunables(self.db)
+            return SilenceDetector(
+                noise_db=tunables['noise_db'],
+                min_silence_s=tunables['min_duration_seconds'],
             )
-            return SilenceDetector(noise_db=noise_db, min_silence_s=min_dur)
         except Exception as exc:
             logger.warning('Failed to load silence config: %s', exc)
             return None

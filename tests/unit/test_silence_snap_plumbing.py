@@ -31,22 +31,24 @@ def _base_cue_settings(**overrides):
         'snap_confidence': 0.80,
         'snap_lead': 10.0,
         'snap_lag': 4.0,
-        'silence_snap_max_distance': 2.0,
-        'silence_snap_min_duration': 0.3,
+        'silence_snap_enabled': False,
+        'transition_snap_enabled': False,
     }
     base.update(overrides)
     return base
 
 
 def test_silence_snap_max_distance_and_min_duration_reach_function():
-    """silence_snap_max_distance and silence_snap_min_duration from resolver reach snap_ad_boundaries_to_silence."""
+    """max_distance_seconds and min_duration_seconds from resolve_silence_snap_tunables reach snap_ad_boundaries_to_silence."""
     db_max_distance = 3.5
     db_min_duration = 0.5
     mock_silence_snap = MagicMock()
-    mock_resolve = MagicMock(return_value=_base_cue_settings(
-        silence_snap_max_distance=db_max_distance,
-        silence_snap_min_duration=db_min_duration,
-    ))
+    mock_resolve = MagicMock(return_value=_base_cue_settings())
+    mock_tunables = MagicMock(return_value={
+        'noise_db': -50.0,
+        'min_duration_seconds': db_min_duration,
+        'max_distance_seconds': db_max_distance,
+    })
 
     ctx = MagicMock()
     ctx.slug = 'test-feed'
@@ -63,6 +65,7 @@ def test_silence_snap_max_distance_and_min_duration_reach_function():
          patch.object(processing.ad_detector, 'process_transcript',
                       return_value=ad_result_stub), \
          patch('main_app.processing.resolve_feed_cue_settings', mock_resolve), \
+         patch('main_app.processing.resolve_silence_snap_tunables', mock_tunables), \
          patch('main_app.processing.snap_ad_boundaries_to_cues', MagicMock()), \
          patch('main_app.processing.snap_ad_boundaries_to_silence', mock_silence_snap):
         processing._detect_ads_first_pass(
