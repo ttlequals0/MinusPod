@@ -90,30 +90,21 @@ def _normalize_detection_mode(value):
     return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
 
 
+from config import AUDIO_CUE_SCORE_MAX
+
 _CUE_SCORE_MIN = 0.30
-_CUE_SCORE_MAX = 0.99
+_CUE_SCORE_MAX = AUDIO_CUE_SCORE_MAX
 
-
-def _normalize_cue_score_override(value):
-    """Validate the per-feed cue template score override (#350 Phase 5).
-
-    Returns (db_value, error). None / empty string clears the override (stored
-    NULL, falls back to global setting). A float in [0.30, 0.99] is stored.
-    Values below 0.30 are rejected: the floor sits above measured noise ceilings
-    (0.33-0.50), so anything below it would never be a useful production value.
-    """
-    if value is None or value == '':
-        return None, None
-    try:
-        fval = float(value)
-    except (TypeError, ValueError):
-        return None, "cueTemplateScoreOverride must be a number or null"
-    if fval < _CUE_SCORE_MIN or fval > _CUE_SCORE_MAX:
-        return None, (
-            f"cueTemplateScoreOverride must be between {_CUE_SCORE_MIN} "
-            f"and {_CUE_SCORE_MAX}"
-        )
-    return fval, None
+# (json_key, db_col, lo, hi) for the seven float cue override fields.
+_CUE_FLOAT_OVERRIDE_FIELDS = [
+    ('cueTemplateScoreOverride',       'cue_template_score_override',          _CUE_SCORE_MIN, _CUE_SCORE_MAX),
+    ('cuePairMinBreakOverride',        'cue_pair_min_break_override',          1.0, 600.0),
+    ('cuePairMaxBreakOverride',        'cue_pair_max_break_override',          1.0, 3600.0),
+    ('cuePairMaxBreakFractionOverride','cue_pair_max_break_fraction_override', 0.0, 1.0),
+    ('cueSnapConfidenceOverride',      'cue_snap_confidence_override',         0.0, 1.0),
+    ('cueSnapLeadOverride',            'cue_snap_lead_override',               0.5, 30.0),
+    ('cueSnapLagOverride',             'cue_snap_lag_override',                0.5, 30.0),
+]
 
 
 def _normalize_cue_bool_override(value, field_name):
@@ -122,11 +113,9 @@ def _normalize_cue_bool_override(value, field_name):
     Returns (db_value, error). None clears the override. True/False are stored
     as INTEGER 1/0. Non-boolean non-null values are rejected.
     """
-    if value is None:
-        return None, None
-    if isinstance(value, bool):
-        return (1 if value else 0), None
-    return None, f"{field_name} must be true, false, or null"
+    if not isinstance(value, bool) and value is not None:
+        return None, f"{field_name} must be true, false, or null"
+    return _serialize_nullable_bool(value), None
 
 
 def _normalize_cue_float_override(value, field_name, lo, hi):
@@ -143,6 +132,19 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
     if fval < lo or fval > hi:
         return None, f"{field_name} must be between {lo} and {hi}"
     return fval, None
+
+
+def _cue_override_fields(podcast) -> dict:
+    """Build the cue override slice of a feed response from a podcast row."""
+    return {
+        json_key: podcast.get(db_col)
+        for json_key, db_col, _, _ in _CUE_FLOAT_OVERRIDE_FIELDS
+        if json_key != 'cueTemplateScoreOverride'
+    } | {
+        'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
+        'cueCreateFromPairsOverride': _deserialize_nullable_bool(
+            podcast.get('cue_create_from_pairs_override')),
+    }
 
 
 def _slug_from_url_path(source_url: str) -> Optional[str]:
@@ -190,14 +192,7 @@ def list_feeds():
             'title': podcast['title'] or podcast['slug'],
             'titleOverride': podcast.get('title_override'),
             'detectionMode': podcast.get('detection_mode'),
-            'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
-            'cueCreateFromPairsOverride': _deserialize_nullable_bool(podcast.get('cue_create_from_pairs_override')),
-            'cuePairMinBreakOverride': podcast.get('cue_pair_min_break_override'),
-            'cuePairMaxBreakOverride': podcast.get('cue_pair_max_break_override'),
-            'cuePairMaxBreakFractionOverride': podcast.get('cue_pair_max_break_fraction_override'),
-            'cueSnapConfidenceOverride': podcast.get('cue_snap_confidence_override'),
-            'cueSnapLeadOverride': podcast.get('cue_snap_lead_override'),
-            'cueSnapLagOverride': podcast.get('cue_snap_lag_override'),
+            **_cue_override_fields(podcast),
             'sourceUrl': podcast['source_url'],
             'feedUrl': feed_url,
             'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
@@ -563,14 +558,7 @@ def get_feed(slug):
         'languageOverride': podcast.get('language_override'),
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
-        'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
-        'cueCreateFromPairsOverride': _deserialize_nullable_bool(podcast.get('cue_create_from_pairs_override')),
-        'cuePairMinBreakOverride': podcast.get('cue_pair_min_break_override'),
-        'cuePairMaxBreakOverride': podcast.get('cue_pair_max_break_override'),
-        'cuePairMaxBreakFractionOverride': podcast.get('cue_pair_max_break_fraction_override'),
-        'cueSnapConfidenceOverride': podcast.get('cue_snap_confidence_override'),
-        'cueSnapLeadOverride': podcast.get('cue_snap_lead_override'),
-        'cueSnapLagOverride': podcast.get('cue_snap_lag_override'),
+        **_cue_override_fields(podcast),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
@@ -629,11 +617,12 @@ def update_feed(slug):
             return error_response(mode_err, 400)
         updates['detection_mode'] = mode_val
 
-    if 'cueTemplateScoreOverride' in data:
-        score_val, score_err = _normalize_cue_score_override(data['cueTemplateScoreOverride'])
-        if score_err:
-            return error_response(score_err, 400)
-        updates['cue_template_score_override'] = score_val
+    for json_key, db_col, lo, hi in _CUE_FLOAT_OVERRIDE_FIELDS:
+        if json_key in data:
+            v, err = _normalize_cue_float_override(data[json_key], json_key, lo, hi)
+            if err:
+                return error_response(err, 400)
+            updates[db_col] = v
 
     if 'cueCreateFromPairsOverride' in data:
         v, err = _normalize_cue_bool_override(data['cueCreateFromPairsOverride'],
@@ -641,48 +630,6 @@ def update_feed(slug):
         if err:
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
-
-    if 'cuePairMinBreakOverride' in data:
-        v, err = _normalize_cue_float_override(data['cuePairMinBreakOverride'],
-                                                'cuePairMinBreakOverride', 1.0, 600.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_pair_min_break_override'] = v
-
-    if 'cuePairMaxBreakOverride' in data:
-        v, err = _normalize_cue_float_override(data['cuePairMaxBreakOverride'],
-                                                'cuePairMaxBreakOverride', 1.0, 3600.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_pair_max_break_override'] = v
-
-    if 'cuePairMaxBreakFractionOverride' in data:
-        v, err = _normalize_cue_float_override(data['cuePairMaxBreakFractionOverride'],
-                                                'cuePairMaxBreakFractionOverride', 0.0, 1.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_pair_max_break_fraction_override'] = v
-
-    if 'cueSnapConfidenceOverride' in data:
-        v, err = _normalize_cue_float_override(data['cueSnapConfidenceOverride'],
-                                                'cueSnapConfidenceOverride', 0.0, 1.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_snap_confidence_override'] = v
-
-    if 'cueSnapLeadOverride' in data:
-        v, err = _normalize_cue_float_override(data['cueSnapLeadOverride'],
-                                                'cueSnapLeadOverride', 0.5, 30.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_snap_lead_override'] = v
-
-    if 'cueSnapLagOverride' in data:
-        v, err = _normalize_cue_float_override(data['cueSnapLagOverride'],
-                                                'cueSnapLagOverride', 0.5, 30.0)
-        if err:
-            return error_response(err, 400)
-        updates['cue_snap_lag_override'] = v
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
@@ -735,14 +682,7 @@ def update_feed(slug):
             'languageOverride': podcast.get('language_override'),
             'titleOverride': podcast.get('title_override'),
             'detectionMode': podcast.get('detection_mode'),
-            'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
-            'cueCreateFromPairsOverride': _deserialize_nullable_bool(podcast.get('cue_create_from_pairs_override')),
-            'cuePairMinBreakOverride': podcast.get('cue_pair_min_break_override'),
-            'cuePairMaxBreakOverride': podcast.get('cue_pair_max_break_override'),
-            'cuePairMaxBreakFractionOverride': podcast.get('cue_pair_max_break_fraction_override'),
-            'cueSnapConfidenceOverride': podcast.get('cue_snap_confidence_override'),
-            'cueSnapLeadOverride': podcast.get('cue_snap_lead_override'),
-            'cueSnapLagOverride': podcast.get('cue_snap_lag_override'),
+            **_cue_override_fields(podcast),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': _public_feed_url(slug, get_feed_auth_key(db))

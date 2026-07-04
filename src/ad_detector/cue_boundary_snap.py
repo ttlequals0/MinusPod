@@ -19,6 +19,8 @@ from typing import Dict, List, Optional
 
 from config import (
     AUDIO_CUE_SNAP_CONFIDENCE,
+    AUDIO_CUE_SNAP_LEAD_SECONDS,
+    AUDIO_CUE_SNAP_LAG_SECONDS,
     AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_SOURCE_SPECTRAL,
     AUDIO_CUE_START_EDGE_ROLES,
@@ -28,11 +30,9 @@ from config import (
 
 logger = logging.getLogger('podcast.claude.cue_snap')
 
-
-# Fallback; live value from audio_cue_snap_lead_seconds.
-DEFAULT_SNAP_LEAD_SECONDS = 10.0
-# Fallback; live value from audio_cue_snap_lag_seconds.
-DEFAULT_SNAP_LAG_SECONDS = 4.0
+# Aliases kept for callers that import these names directly.
+DEFAULT_SNAP_LEAD_SECONDS = AUDIO_CUE_SNAP_LEAD_SECONDS
+DEFAULT_SNAP_LAG_SECONDS = AUDIO_CUE_SNAP_LAG_SECONDS
 # Gap between the cue's end and the snapped ad start. Tiny lead so the cut
 # does not slice into the trailing decay of the ding.
 SNAP_GAP_SECONDS = 0.05

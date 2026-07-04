@@ -70,6 +70,7 @@ from config import (
     AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION,
     resolve_cue_template_score,
     resolve_cue_template_score_with_source,
+    AUDIO_CUE_SCORE_MAX,
 )
 from database.cue_templates import _UNSET as _CUE_THRESHOLD_UNSET
 from utils.constants import EpisodeStatus
@@ -308,8 +309,8 @@ def update_cue_template_route(template_id):
                 score_threshold = float(raw)
             except (TypeError, ValueError):
                 return error_response('scoreThreshold must be a number or null', 400)
-            if score_threshold < 0 or score_threshold > 0.99:
-                return error_response('scoreThreshold must be between 0 and 0.99', 400)
+            if score_threshold < 0 or score_threshold > AUDIO_CUE_SCORE_MAX:
+                return error_response(f'scoreThreshold must be between 0 and {AUDIO_CUE_SCORE_MAX}', 400)
 
     # Validate the optional scope change BEFORE any write so an invalid scope
     # cannot leave a half-applied label/enabled change behind.
@@ -384,15 +385,15 @@ def cue_scan_episode(slug, episode_id):
         except (TypeError, ValueError):
             return error_response('scoreThreshold must be a number', 400)
         threshold_source = 'request'
-        # Run-level override supersedes per-template thresholds: strip them so
-        # the explicit experiment value governs every template uniformly.
-        templates = [{**t, 'score_threshold': None} for t in templates]
     else:
         score, threshold_source = resolve_cue_template_score_with_source(db, podcast['id'])
+    # When a run-level override is given, ignore per-template thresholds so the
+    # explicit experiment value governs every template uniformly.
     matcher = AudioCueTemplateMatcher(
         templates=templates, score_threshold=score,
         formant_atten_db=db.get_setting_float(
             'audio_cue_formant_atten_db', AUDIO_CUE_FORMANT_ATTEN_DB),
+        ignore_per_template_thresholds=(override is not None),
     )
     if not matcher.is_usable:
         return error_response('templates could not be loaded', 500)
@@ -1225,15 +1226,15 @@ def _run_cue_threshold_scan(podcast_id, episode_id, slug, audio_paths,
         peaks = {}
         # The matcher is stateless across episodes (audio is decoded inside
         # detect_with_debug), so build it once instead of per episode.
-        # Strip per-template score_threshold so the sweep sees the full score
+        # Ignore per-template thresholds so the sweep sees the full score
         # distribution at AUDIO_CUE_SUGGEST_FLOOR; per-template gates would
         # hide sub-threshold occurrences and bias the gap-finder.
-        sweep_templates = [{**t, 'score_threshold': None} for t in templates]
         matcher = AudioCueTemplateMatcher(
-            sweep_templates,
+            templates,
             score_threshold=AUDIO_CUE_SUGGEST_FLOOR,
             max_matches_per_template=200,
             formant_atten_db=formant_atten,
+            ignore_per_template_thresholds=True,
         )
         if not matcher.is_usable:
             db.save_cue_threshold_scan_error(

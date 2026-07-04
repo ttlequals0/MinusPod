@@ -65,35 +65,31 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['detection_mode'] if row else None
 
+    _CUE_OVERRIDE_COLS = (
+        'cue_create_from_pairs_override',
+        'cue_pair_min_break_override',
+        'cue_pair_max_break_override',
+        'cue_pair_max_break_fraction_override',
+        'cue_snap_confidence_override',
+        'cue_snap_lead_override',
+        'cue_snap_lag_override',
+    )
+
     def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
         """Per-feed cue knob overrides -- all 7 columns in one query.
 
         Returns a dict with keys matching the DB column names. Each value is
         the raw DB value (None means NULL / no override set).
         """
+        cols_sql = ', '.join(self._CUE_OVERRIDE_COLS)
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT cue_create_from_pairs_override,
-                      cue_pair_min_break_override,
-                      cue_pair_max_break_override,
-                      cue_pair_max_break_fraction_override,
-                      cue_snap_confidence_override,
-                      cue_snap_lead_override,
-                      cue_snap_lag_override
-               FROM podcasts WHERE id = ?""",
+            f"SELECT {cols_sql} FROM podcasts WHERE id = ?",
             (podcast_id,),
         )
         row = cursor.fetchone()
         if not row:
-            return {
-                'cue_create_from_pairs_override': None,
-                'cue_pair_min_break_override': None,
-                'cue_pair_max_break_override': None,
-                'cue_pair_max_break_fraction_override': None,
-                'cue_snap_confidence_override': None,
-                'cue_snap_lead_override': None,
-                'cue_snap_lag_override': None,
-            }
+            return dict.fromkeys(self._CUE_OVERRIDE_COLS)
         return dict(row)
 
     def get_podcast_cue_score_override(self, podcast_id: int) -> Optional[float]:
