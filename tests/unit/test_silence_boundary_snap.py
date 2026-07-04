@@ -249,9 +249,6 @@ def test_guard_revert_when_snapped_ad_too_short():
 def test_guard_no_revert_when_pre_snap_ad_was_short():
     # Pre-snap duration is 9s (< 10s). Guard only fires when pre-snap >= 10s.
     # So no revert check applies; snap proceeds.
-    ads = [_ad(100.0, 109.0)]  # 9s, < MIN_AD_DURATION_FOR_REMOVAL=10
-    spans = [_span(99.5, 100.5)]  # mid=100.0, dist=0 -> shift=0 < 0.01 -> no snap anyway
-    # Use a span that actually moves the edge meaningfully
     ads = [_ad(100.0, 109.0)]
     spans = [_span(98.5, 99.5)]   # mid=99.0, dist=1.0; shift=1.0 >= 0.01
     snap_ad_boundaries_to_silence(ads, spans, max_distance_s=2.0, min_silence_s=0.3)

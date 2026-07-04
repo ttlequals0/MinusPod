@@ -533,19 +533,19 @@ function EpisodeDetail() {
                       {DETECTION_STAGE_META[segment.detection_stage].label}
                     </span>
                   )}
-                  {segment.cue_snap && (() => {
-                    const startType = (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type;
-                    const endType = (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type;
-                    const hasTransition = startType === 'content_transition' || endType === 'content_transition';
-                    return (
-                      <span
-                        className="px-1.5 py-0.5 text-xs rounded font-medium bg-violet-500/20 text-violet-600 dark:text-violet-400"
-                        title={hasTransition ? "An audio cue snapped this ad's edge to the chime via content transition" : "An audio cue snapped this ad's edge to the chime"}
-                      >
-                        Cue snapped
-                      </span>
-                    );
-                  })()}
+                  {segment.cue_snap && (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                      title={
+                        (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type === 'content_transition' ||
+                        (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type === 'content_transition'
+                          ? "An audio cue snapped this ad's edge to the chime via content transition"
+                          : "An audio cue snapped this ad's edge to the chime"
+                      }
+                    >
+                      Cue snapped
+                    </span>
+                  )}
                   {segment.silence_snap && (
                     <span
                       className="px-1.5 py-0.5 text-xs rounded font-medium bg-teal-500/20 text-teal-600 dark:text-teal-400"

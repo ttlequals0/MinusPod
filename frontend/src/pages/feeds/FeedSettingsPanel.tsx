@@ -461,41 +461,48 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Silence snap:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <ToggleSwitch
-                  checked={feed.silenceSnapEnabled === true}
-                  onChange={(v) => updateMutation.mutate({ silenceSnapEnabled: v })}
-                  disabled={updateMutation.isPending}
-                  ariaLabel="Snap cuts to silence"
-                />
-                <span>Snap cuts to silence</span>
-              </label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Moves cut edges to nearby silence; a bad match can clip speech.
-              </p>
+          {(
+            [
+              {
+                label: 'Silence snap:',
+                field: 'silenceSnapEnabled' as const,
+                ariaLabel: 'Snap cuts to silence',
+                toggleLabel: 'Snap cuts to silence',
+                warning: 'Moves cut edges to nearby silence; a bad match can clip speech.',
+              },
+              {
+                label: 'Transition snap:',
+                field: 'transitionSnapEnabled' as const,
+                ariaLabel: 'Snap to content transitions',
+                toggleLabel: 'Snap to content transitions',
+                warning: 'Snaps cut edges to transition cues; verify results on this feed first.',
+              },
+            ] satisfies Array<{
+              label: string;
+              field: keyof Pick<UpdateFeedPayload, 'silenceSnapEnabled' | 'transitionSnapEnabled'>;
+              ariaLabel: string;
+              toggleLabel: string;
+              warning: string;
+            }>
+          ).map(({ label, field, ariaLabel, toggleLabel, warning }) => (
+            <div key={field} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+              <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">{label}</span>
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <ToggleSwitch
+                    checked={feed[field] === true}
+                    onChange={(v) => updateMutation.mutate({ [field]: v })}
+                    disabled={updateMutation.isPending}
+                    ariaLabel={ariaLabel}
+                  />
+                  <span>{toggleLabel}</span>
+                </label>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {warning}
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Transition snap:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <ToggleSwitch
-                  checked={feed.transitionSnapEnabled === true}
-                  onChange={(v) => updateMutation.mutate({ transitionSnapEnabled: v })}
-                  disabled={updateMutation.isPending}
-                  ariaLabel="Snap to content transitions"
-                />
-                <span>Snap to content transitions</span>
-              </label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Snaps cut edges to transition cues; verify results on this feed first.
-              </p>
-            </div>
-          </div>
+          ))}
 
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
