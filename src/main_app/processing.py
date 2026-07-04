@@ -31,6 +31,7 @@ from config import (
     AUDIO_CUE_SNAP_CONFIDENCE, AUDIO_CUE_PAIR_CONFIDENCE,
     AUDIO_CUE_PAIR_MIN_BREAK_SECONDS, AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
     AUDIO_CUE_PAIR_MAX_BREAK_FRACTION, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
+    resolve_feed_cue_settings,
 )
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
@@ -388,6 +389,13 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     else:
         audio_logger.info(f"[{slug}:{episode_id}] First pass: No ads detected")
 
+    # Resolve per-feed cue knobs (one DB read; falls back to global then default).
+    podcast_id = getattr(ctx, 'podcast_id', None)
+    cue_settings = resolve_feed_cue_settings(db, podcast_id)
+    snap_confidence = cue_settings['snap_confidence']
+    snap_lead = cue_settings['snap_lead']
+    snap_lag = cue_settings['snap_lag']
+
     # Cue-pair ad synthesis (opt-in): when the LLM missed a break that the cue
     # matcher bracketed with two high-confidence cues, materialize a synthetic
     # ad spanning the pair so downstream cuts include the missed break. Off by
@@ -395,15 +403,15 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     # enable per the audio_cue_create_from_pairs setting once the matcher is
     # trusted. The reviewer still evaluates every synthesized ad (issue #350).
     cue_pair_skip_diagnostics = {}
-    if audio_analysis_result and db.get_setting_bool('audio_cue_create_from_pairs', default=False):
+    if audio_analysis_result and cue_settings['create_from_pairs']:
         try:
             updated, cue_pair_skip_diagnostics = synthesize_ads_from_cue_pairs(
                 first_pass_ads, audio_analysis_result,
                 min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
-                min_break_s=db.get_setting_float('audio_cue_pair_min_break_seconds', AUDIO_CUE_PAIR_MIN_BREAK_SECONDS),
-                max_break_s=db.get_setting_float('audio_cue_pair_max_break_seconds', AUDIO_CUE_PAIR_MAX_BREAK_SECONDS),
+                min_break_s=cue_settings['pair_min_break'],
+                max_break_s=cue_settings['pair_max_break'],
                 total_duration=(segments[-1]['end'] if segments else 0.0),
-                max_break_fraction=db.get_setting_float('audio_cue_pair_max_break_fraction', AUDIO_CUE_PAIR_MAX_BREAK_FRACTION),
+                max_break_fraction=cue_settings['pair_max_break_fraction'],
                 orient_window_s=db.get_setting_float('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS),
             )
             added = len(updated) - len(first_pass_ads)
@@ -424,9 +432,6 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     # gated: there are no audio_cue signals unless cue detection ran, so this
     # is a no-op when the master toggle is off (issue #350).
     # Edge snapshot before snap, for telemetry edge distances.
-    snap_confidence = db.get_setting_float('audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE)
-    snap_lead = db.get_setting_float('audio_cue_snap_lead_seconds', DEFAULT_SNAP_LEAD_SECONDS)
-    snap_lag = db.get_setting_float('audio_cue_snap_lag_seconds', DEFAULT_SNAP_LAG_SECONDS)
     pre_snap_ads = ([{'start': a.get('start'), 'end': a.get('end')} for a in first_pass_ads]
                     if audio_analysis_result else [])
     if first_pass_ads and audio_analysis_result:
@@ -452,7 +457,6 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     # Captures every template cue with its match score and how detection used it
     # (snap / pair / none / below_threshold), plus edge distance and unused
     # reason, so the user can judge a feed's cues and tune thresholds (#350).
-    podcast_id = getattr(ctx, 'podcast_id', None)
     if audio_analysis_result and podcast_id:
         try:
             records = build_cue_detection_records(

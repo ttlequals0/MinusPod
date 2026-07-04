@@ -65,6 +65,37 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['detection_mode'] if row else None
 
+    def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
+        """Per-feed cue knob overrides -- all 7 columns in one query.
+
+        Returns a dict with keys matching the DB column names. Each value is
+        the raw DB value (None means NULL / no override set).
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT cue_create_from_pairs_override,
+                      cue_pair_min_break_override,
+                      cue_pair_max_break_override,
+                      cue_pair_max_break_fraction_override,
+                      cue_snap_confidence_override,
+                      cue_snap_lead_override,
+                      cue_snap_lag_override
+               FROM podcasts WHERE id = ?""",
+            (podcast_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {
+                'cue_create_from_pairs_override': None,
+                'cue_pair_min_break_override': None,
+                'cue_pair_max_break_override': None,
+                'cue_pair_max_break_fraction_override': None,
+                'cue_snap_confidence_override': None,
+                'cue_snap_lead_override': None,
+                'cue_snap_lag_override': None,
+            }
+        return dict(row)
+
     def get_podcast_cue_score_override(self, podcast_id: int) -> Optional[float]:
         """Per-feed cue_template_score_override column only -- cheap id-based lookup."""
         conn = self.get_connection()
@@ -102,6 +133,13 @@ class PodcastMixin:
                        'network_id_override', 'audio_analysis_override', 'auto_process_override',
                        'language_override', 'title_override', 'detection_mode',
                        'cue_template_score_override',
+                       'cue_create_from_pairs_override',
+                       'cue_pair_min_break_override',
+                       'cue_pair_max_break_override',
+                       'cue_pair_max_break_fraction_override',
+                       'cue_snap_confidence_override',
+                       'cue_snap_lead_override',
+                       'cue_snap_lag_override',
                        'max_episodes', 'etag',
                        'last_modified_header', 'only_expose_processed_episodes'):
                 fields.append(f"{key} = ?")

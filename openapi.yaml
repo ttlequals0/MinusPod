@@ -540,6 +540,53 @@ paths:
                   minimum: 0.30
                   maximum: 0.99
                   description: Per-feed ZNCC match threshold for audio cue template matching. Overrides the global audioCueTemplateScore setting for this feed. null or omitted clears the override and falls back to the global setting.
+                cueCreateFromPairsOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override for cue-pair ad synthesis. true forces on, false forces off, null inherits the global audio_cue_create_from_pairs setting.
+                cuePairMinBreakOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 1.0
+                  maximum: 600.0
+                  description: Per-feed minimum break duration (seconds) for cue-pair synthesis. null inherits the global setting.
+                cuePairMaxBreakOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 1.0
+                  maximum: 3600.0
+                  description: Per-feed maximum break duration (seconds) for cue-pair synthesis. null inherits the global setting.
+                cuePairMaxBreakFractionOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.0
+                  maximum: 1.0
+                  description: Per-feed maximum break fraction of episode duration for cue-pair synthesis. null inherits the global setting.
+                cueSnapConfidenceOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.0
+                  maximum: 1.0
+                  description: Per-feed minimum cue confidence to snap an ad edge. null inherits the global audio_cue_snap_confidence setting.
+                cueSnapLeadOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.5
+                  maximum: 30.0
+                  description: Per-feed snap lead window (seconds) before an ad edge. null inherits the global audio_cue_snap_lead_seconds setting.
+                cueSnapLagOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 0.5
+                  maximum: 30.0
+                  description: Per-feed snap lag window (seconds) after an ad edge. null inherits the global audio_cue_snap_lag_seconds setting.
                 maxEpisodes:
                   type:
                     - integer
@@ -5972,6 +6019,53 @@ components:
           minimum: 0.30
           maximum: 0.99
           description: Per-feed ZNCC match threshold override for audio cue template matching. null means the global audioCueTemplateScore setting applies.
+        cueCreateFromPairsOverride:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed override for cue-pair ad synthesis. true/false override the global setting; null inherits.
+        cuePairMinBreakOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 1.0
+          maximum: 600.0
+          description: Per-feed minimum break duration (seconds) for cue-pair synthesis. null inherits the global setting.
+        cuePairMaxBreakOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 1.0
+          maximum: 3600.0
+          description: Per-feed maximum break duration (seconds) for cue-pair synthesis. null inherits the global setting.
+        cuePairMaxBreakFractionOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.0
+          maximum: 1.0
+          description: Per-feed maximum break fraction of episode duration for cue-pair synthesis. null inherits the global setting.
+        cueSnapConfidenceOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.0
+          maximum: 1.0
+          description: Per-feed minimum cue confidence to snap an ad edge. null inherits the global audio_cue_snap_confidence setting.
+        cueSnapLeadOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.5
+          maximum: 30.0
+          description: Per-feed snap lead window (seconds) before an ad edge. null inherits the global audio_cue_snap_lead_seconds setting.
+        cueSnapLagOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 0.5
+          maximum: 30.0
+          description: Per-feed snap lag window (seconds) after an ad edge. null inherits the global audio_cue_snap_lag_seconds setting.
         maxEpisodes:
           type:
             - integer

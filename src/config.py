@@ -379,6 +379,93 @@ def resolve_cue_template_score(db, podcast_id):
     return score
 
 
+def resolve_feed_cue_settings(db, podcast_id):
+    """Resolve all 7 per-feed cue knobs in one DB read.
+
+    Returns a dict with effective values for the processing hot path.
+    Priority: per-feed override > global DB setting > code default.
+    With all overrides NULL the result is byte-identical to the previous
+    direct db.get_setting_* calls.
+    """
+    from ad_detector.cue_boundary_snap import DEFAULT_SNAP_LEAD_SECONDS, DEFAULT_SNAP_LAG_SECONDS
+
+    defaults = {
+        'create_from_pairs': False,
+        'pair_min_break': AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
+        'pair_max_break': AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
+        'pair_max_break_fraction': AUDIO_CUE_PAIR_MAX_BREAK_FRACTION,
+        'snap_confidence': AUDIO_CUE_SNAP_CONFIDENCE,
+        'snap_lead': DEFAULT_SNAP_LEAD_SECONDS,
+        'snap_lag': DEFAULT_SNAP_LAG_SECONDS,
+    }
+
+    try:
+        overrides = {}
+        if db and podcast_id is not None:
+            overrides = db.get_podcast_cue_settings_overrides(podcast_id)
+
+        def _bool_override(col):
+            val = overrides.get(col)
+            if val is not None:
+                return bool(val)
+            return None
+
+        def _float_override(col):
+            val = overrides.get(col)
+            if val is not None:
+                return float(val)
+            return None
+
+        if not db:
+            return defaults.copy()
+
+        create_from_pairs = _bool_override('cue_create_from_pairs_override')
+        if create_from_pairs is None:
+            create_from_pairs = db.get_setting_bool('audio_cue_create_from_pairs', default=False)
+
+        pair_min_break = _float_override('cue_pair_min_break_override')
+        if pair_min_break is None:
+            pair_min_break = db.get_setting_float(
+                'audio_cue_pair_min_break_seconds', AUDIO_CUE_PAIR_MIN_BREAK_SECONDS)
+
+        pair_max_break = _float_override('cue_pair_max_break_override')
+        if pair_max_break is None:
+            pair_max_break = db.get_setting_float(
+                'audio_cue_pair_max_break_seconds', AUDIO_CUE_PAIR_MAX_BREAK_SECONDS)
+
+        pair_max_break_fraction = _float_override('cue_pair_max_break_fraction_override')
+        if pair_max_break_fraction is None:
+            pair_max_break_fraction = db.get_setting_float(
+                'audio_cue_pair_max_break_fraction', AUDIO_CUE_PAIR_MAX_BREAK_FRACTION)
+
+        snap_confidence = _float_override('cue_snap_confidence_override')
+        if snap_confidence is None:
+            snap_confidence = db.get_setting_float(
+                'audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE)
+
+        snap_lead = _float_override('cue_snap_lead_override')
+        if snap_lead is None:
+            snap_lead = db.get_setting_float(
+                'audio_cue_snap_lead_seconds', DEFAULT_SNAP_LEAD_SECONDS)
+
+        snap_lag = _float_override('cue_snap_lag_override')
+        if snap_lag is None:
+            snap_lag = db.get_setting_float(
+                'audio_cue_snap_lag_seconds', DEFAULT_SNAP_LAG_SECONDS)
+
+        return {
+            'create_from_pairs': create_from_pairs,
+            'pair_min_break': pair_min_break,
+            'pair_max_break': pair_max_break,
+            'pair_max_break_fraction': pair_max_break_fraction,
+            'snap_confidence': snap_confidence,
+            'snap_lead': snap_lead,
+            'snap_lag': snap_lag,
+        }
+    except Exception:
+        return defaults.copy()
+
+
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a
 # dropdown, never freeform text, so the phrase fed to the LLM prompt is always
 # consistent and the matching role is explicit. Maps type key -> (canonical

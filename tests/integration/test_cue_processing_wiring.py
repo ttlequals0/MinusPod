@@ -28,6 +28,18 @@ class _StubDB:
         self._bools = {'audio_cue_create_from_pairs': create_from_pairs}
         self.recorded = []
 
+    def get_podcast_cue_settings_overrides(self, podcast_id):
+        # No per-feed overrides in this stub -- resolver falls back to globals.
+        return {
+            'cue_create_from_pairs_override': None,
+            'cue_pair_min_break_override': None,
+            'cue_pair_max_break_override': None,
+            'cue_pair_max_break_fraction_override': None,
+            'cue_snap_confidence_override': None,
+            'cue_snap_lead_override': None,
+            'cue_snap_lag_override': None,
+        }
+
     def get_setting_bool(self, key, default=False):
         return self._bools.get(key, default)
 

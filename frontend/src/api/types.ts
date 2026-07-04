@@ -20,6 +20,13 @@ export interface Feed {
   titleOverride?: string | null;
   detectionMode?: string | null;
   cueTemplateScoreOverride?: number | null;
+  cueCreateFromPairsOverride?: boolean | null;
+  cuePairMinBreakOverride?: number | null;
+  cuePairMaxBreakOverride?: number | null;
+  cuePairMaxBreakFractionOverride?: number | null;
+  cueSnapConfidenceOverride?: number | null;
+  cueSnapLeadOverride?: number | null;
+  cueSnapLagOverride?: number | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

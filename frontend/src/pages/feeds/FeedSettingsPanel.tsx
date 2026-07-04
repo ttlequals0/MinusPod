@@ -41,6 +41,45 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setCueScoreInput(savedCueScore);
   }
 
+  // Per-feed cue tuning override inputs (string state, blur-commit pattern).
+  const s = (v: number | null | undefined) => (v != null ? String(v) : '');
+  const [pairMinInput, setPairMinInput] = useState(s(feed.cuePairMinBreakOverride));
+  const [pairMaxInput, setPairMaxInput] = useState(s(feed.cuePairMaxBreakOverride));
+  const [pairFracInput, setPairFracInput] = useState(s(feed.cuePairMaxBreakFractionOverride));
+  const [snapConfInput, setSnapConfInput] = useState(s(feed.cueSnapConfidenceOverride));
+  const [snapLeadInput, setSnapLeadInput] = useState(s(feed.cueSnapLeadOverride));
+  const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
+  // Render-time resets when server values change.
+  const [prevPairMin, setPrevPairMin] = useState(s(feed.cuePairMinBreakOverride));
+  const [prevPairMax, setPrevPairMax] = useState(s(feed.cuePairMaxBreakOverride));
+  const [prevPairFrac, setPrevPairFrac] = useState(s(feed.cuePairMaxBreakFractionOverride));
+  const [prevSnapConf, setPrevSnapConf] = useState(s(feed.cueSnapConfidenceOverride));
+  const [prevSnapLead, setPrevSnapLead] = useState(s(feed.cueSnapLeadOverride));
+  const [prevSnapLag, setPrevSnapLag] = useState(s(feed.cueSnapLagOverride));
+  if (s(feed.cuePairMinBreakOverride) !== prevPairMin) { setPrevPairMin(s(feed.cuePairMinBreakOverride)); setPairMinInput(s(feed.cuePairMinBreakOverride)); }
+  if (s(feed.cuePairMaxBreakOverride) !== prevPairMax) { setPrevPairMax(s(feed.cuePairMaxBreakOverride)); setPairMaxInput(s(feed.cuePairMaxBreakOverride)); }
+  if (s(feed.cuePairMaxBreakFractionOverride) !== prevPairFrac) { setPrevPairFrac(s(feed.cuePairMaxBreakFractionOverride)); setPairFracInput(s(feed.cuePairMaxBreakFractionOverride)); }
+  if (s(feed.cueSnapConfidenceOverride) !== prevSnapConf) { setPrevSnapConf(s(feed.cueSnapConfidenceOverride)); setSnapConfInput(s(feed.cueSnapConfidenceOverride)); }
+  if (s(feed.cueSnapLeadOverride) !== prevSnapLead) { setPrevSnapLead(s(feed.cueSnapLeadOverride)); setSnapLeadInput(s(feed.cueSnapLeadOverride)); }
+  if (s(feed.cueSnapLagOverride) !== prevSnapLag) { setPrevSnapLag(s(feed.cueSnapLagOverride)); setSnapLagInput(s(feed.cueSnapLagOverride)); }
+
+  function commitFloat(
+    raw: string,
+    field: keyof UpdateFeedPayload,
+    lo: number,
+    hi: number,
+    reset: () => void,
+  ) {
+    const trimmed = raw.trim();
+    if (trimmed === '') { updateMutation.mutate({ [field]: null }); return; }
+    const v = parseFloat(trimmed);
+    if (!Number.isNaN(v) && v >= lo && v <= hi) {
+      updateMutation.mutate({ [field]: v });
+    } else {
+      reset();
+    }
+  }
+
   const updateMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
     onSuccess: () => {
@@ -303,6 +342,165 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               )}
             </div>
           </div>
+
+          {/* Cue tuning overrides (collapsible, advanced knobs) */}
+          <CollapsibleSection
+            title="Cue tuning overrides"
+            defaultOpen={false}
+          >
+            <div className="flex flex-col gap-3 pt-1">
+              {/* create-from-pairs tri-state */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.cueCreateFromPairsOverride}
+                    onChange={(next) => updateMutation.mutate({ cueCreateFromPairsOverride: next })}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                  />
+                  <span className="text-xs text-muted-foreground">Empty = use global</span>
+                  {feed.cueCreateFromPairsOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cueCreateFromPairsOverride ? 'on' : 'off'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* pair min break */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair min break:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={1} max={600} step={1}
+                    value={pairMinInput} placeholder="global (s)"
+                    onChange={(e) => setPairMinInput(e.target.value)}
+                    onBlur={() => commitFloat(pairMinInput, 'cuePairMinBreakOverride', 1, 600,
+                      () => setPairMinInput(s(feed.cuePairMinBreakOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">s, empty = global</span>
+                  {feed.cuePairMinBreakOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cuePairMinBreakOverride}s
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* pair max break */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair max break:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={1} max={3600} step={1}
+                    value={pairMaxInput} placeholder="global (s)"
+                    onChange={(e) => setPairMaxInput(e.target.value)}
+                    onBlur={() => commitFloat(pairMaxInput, 'cuePairMaxBreakOverride', 1, 3600,
+                      () => setPairMaxInput(s(feed.cuePairMaxBreakOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">s, empty = global</span>
+                  {feed.cuePairMaxBreakOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cuePairMaxBreakOverride}s
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* pair max break fraction */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair max fraction:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={0} max={1} step={0.05}
+                    value={pairFracInput} placeholder="global (0-1)"
+                    onChange={(e) => setPairFracInput(e.target.value)}
+                    onBlur={() => commitFloat(pairFracInput, 'cuePairMaxBreakFractionOverride', 0, 1,
+                      () => setPairFracInput(s(feed.cuePairMaxBreakFractionOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">0-1, empty = global</span>
+                  {feed.cuePairMaxBreakFractionOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cuePairMaxBreakFractionOverride}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* snap confidence */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Snap confidence:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={0} max={1} step={0.01}
+                    value={snapConfInput} placeholder="global (0-1)"
+                    onChange={(e) => setSnapConfInput(e.target.value)}
+                    onBlur={() => commitFloat(snapConfInput, 'cueSnapConfidenceOverride', 0, 1,
+                      () => setSnapConfInput(s(feed.cueSnapConfidenceOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">0-1, empty = global</span>
+                  {feed.cueSnapConfidenceOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cueSnapConfidenceOverride}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* snap lead */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Snap lead:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={0.5} max={30} step={0.5}
+                    value={snapLeadInput} placeholder="global (s)"
+                    onChange={(e) => setSnapLeadInput(e.target.value)}
+                    onBlur={() => commitFloat(snapLeadInput, 'cueSnapLeadOverride', 0.5, 30,
+                      () => setSnapLeadInput(s(feed.cueSnapLeadOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">s, empty = global</span>
+                  {feed.cueSnapLeadOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cueSnapLeadOverride}s
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* snap lag */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Snap lag:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="number" min={0.5} max={30} step={0.5}
+                    value={snapLagInput} placeholder="global (s)"
+                    onChange={(e) => setSnapLagInput(e.target.value)}
+                    onBlur={() => commitFloat(snapLagInput, 'cueSnapLagOverride', 0.5, 30,
+                      () => setSnapLagInput(s(feed.cueSnapLagOverride)))}
+                    disabled={updateMutation.isPending}
+                    className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+                  />
+                  <span className="text-xs text-muted-foreground">s, empty = global</span>
+                  {feed.cueSnapLagOverride != null && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {feed.cueSnapLagOverride}s
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CollapsibleSection>
 
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
