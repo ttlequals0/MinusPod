@@ -107,6 +107,8 @@ class SettingsMixin:
             AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
             AUDIO_CUE_PAIR_MAX_BREAK_FRACTION, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
             AUDIO_CUE_FORMANT_ATTEN_DB,
+            SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
+            SILENCE_SNAP_MAX_DISTANCE_SECONDS,
         )
         from llm_client import get_effective_provider
         from secrets_crypto import SECRET_SETTING_KEYS
@@ -195,6 +197,10 @@ class SettingsMixin:
             'audio_cue_pair_max_break_seconds': str(AUDIO_CUE_PAIR_MAX_BREAK_SECONDS),
             'audio_cue_pair_max_break_fraction': str(AUDIO_CUE_PAIR_MAX_BREAK_FRACTION),
             'audio_cue_pair_orient_window_seconds': str(AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS),
+            # Silence snap (Phase B boundary snap)
+            'silence_snap_noise_db': str(SILENCE_SNAP_NOISE_DB),
+            'silence_snap_min_duration_seconds': str(SILENCE_SNAP_MIN_DURATION_SECONDS),
+            'silence_snap_max_distance_seconds': str(SILENCE_SNAP_MAX_DISTANCE_SECONDS),
         }
 
         if key in defaults:

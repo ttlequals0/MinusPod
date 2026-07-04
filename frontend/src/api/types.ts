@@ -27,6 +27,8 @@ export interface Feed {
   cueSnapConfidenceOverride?: number | null;
   cueSnapLeadOverride?: number | null;
   cueSnapLagOverride?: number | null;
+  silenceSnapEnabled?: boolean | null;
+  transitionSnapEnabled?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }
@@ -245,6 +247,9 @@ export interface Settings {
   audioCuePairMinBreakSeconds: SettingValueNumber;
   audioCuePairMaxBreakSeconds: SettingValueNumber;
   audioCuePairMaxBreakFraction: SettingValueNumber;
+  silenceSnapNoiseDb: SettingValueNumber;
+  silenceSnapMinDurationSeconds: SettingValueNumber;
+  silenceSnapMaxDistanceSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
@@ -321,6 +326,9 @@ export interface Settings {
     audioCuePairMinBreakSeconds: number;
     audioCuePairMaxBreakSeconds: number;
     audioCuePairMaxBreakFraction: number;
+    silenceSnapNoiseDb: number;
+    silenceSnapMinDurationSeconds: number;
+    silenceSnapMaxDistanceSeconds: number;
     positionalPriorEnabled: boolean;
   };
 }
@@ -373,6 +381,9 @@ export interface UpdateSettingsPayload {
   audioCuePairMinBreakSeconds?: number;
   audioCuePairMaxBreakSeconds?: number;
   audioCuePairMaxBreakFraction?: number;
+  silenceSnapNoiseDb?: number;
+  silenceSnapMinDurationSeconds?: number;
+  silenceSnapMaxDistanceSeconds?: number;
   positionalPriorEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;

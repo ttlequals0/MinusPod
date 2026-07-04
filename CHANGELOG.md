@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-07-04
+
+### Added
+
+- Boundary-snap settings plumbing: two per-feed opt-in toggles, "Snap cuts to silence" and "Snap to content transitions" (Feed settings), and three global silence-snap tunables, silence threshold (dBFS), minimum silence duration, and maximum snap distance (Settings > Audio Cue Detection > Ad cutting). The flags and tunables are stored and served end-to-end; the detection and snap behavior that consumes them lands in a follow-up.
+
 ## [2.35.0] - 2026-07-04
 
 ### Added

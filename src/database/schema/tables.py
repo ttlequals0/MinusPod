@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS podcasts (
     cue_snap_confidence_override REAL,
     cue_snap_lead_override REAL,
     cue_snap_lag_override REAL,
+    -- Boundary-snap opt-in flags (NULL/0 = off, 1 = on; no global to inherit)
+    silence_snap_enabled INTEGER,
+    transition_snap_enabled INTEGER,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,

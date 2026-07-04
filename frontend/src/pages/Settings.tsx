@@ -105,6 +105,9 @@ function Settings() {
     pairMinBreakSeconds: 30,
     pairMaxBreakSeconds: 480,
     pairMaxBreakFraction: 0.5,
+    silenceSnapNoiseDb: -50,
+    silenceSnapMinDurationSeconds: 0.3,
+    silenceSnapMaxDistanceSeconds: 2,
   });
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
   const [settingsQuery, setSettingsQuery] = useState('');
@@ -419,6 +422,9 @@ function Settings() {
         pairMinBreakSeconds: settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30,
         pairMaxBreakSeconds: settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480,
         pairMaxBreakFraction: settings.audioCuePairMaxBreakFraction?.value ?? d.audioCuePairMaxBreakFraction ?? 0.5,
+        silenceSnapNoiseDb: settings.silenceSnapNoiseDb?.value ?? d.silenceSnapNoiseDb ?? -50,
+        silenceSnapMinDurationSeconds: settings.silenceSnapMinDurationSeconds?.value ?? d.silenceSnapMinDurationSeconds ?? 0.3,
+        silenceSnapMaxDistanceSeconds: settings.silenceSnapMaxDistanceSeconds?.value ?? d.silenceSnapMaxDistanceSeconds ?? 2,
       });
       setPositionalPriorEnabled(
         settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled);
@@ -491,6 +497,9 @@ function Settings() {
     if (audioCue.pairMinBreakSeconds !== (settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30)) payload.audioCuePairMinBreakSeconds = audioCue.pairMinBreakSeconds;
     if (audioCue.pairMaxBreakSeconds !== (settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480)) payload.audioCuePairMaxBreakSeconds = audioCue.pairMaxBreakSeconds;
     if (audioCue.pairMaxBreakFraction !== (settings.audioCuePairMaxBreakFraction?.value ?? d.audioCuePairMaxBreakFraction ?? 0.5)) payload.audioCuePairMaxBreakFraction = audioCue.pairMaxBreakFraction;
+    if (audioCue.silenceSnapNoiseDb !== (settings.silenceSnapNoiseDb?.value ?? d.silenceSnapNoiseDb ?? -50)) payload.silenceSnapNoiseDb = audioCue.silenceSnapNoiseDb;
+    if (audioCue.silenceSnapMinDurationSeconds !== (settings.silenceSnapMinDurationSeconds?.value ?? d.silenceSnapMinDurationSeconds ?? 0.3)) payload.silenceSnapMinDurationSeconds = audioCue.silenceSnapMinDurationSeconds;
+    if (audioCue.silenceSnapMaxDistanceSeconds !== (settings.silenceSnapMaxDistanceSeconds?.value ?? d.silenceSnapMaxDistanceSeconds ?? 2)) payload.silenceSnapMaxDistanceSeconds = audioCue.silenceSnapMaxDistanceSeconds;
     if (positionalPriorEnabled !== (settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled)) payload.positionalPriorEnabled = positionalPriorEnabled;
     if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
     if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;

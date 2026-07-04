@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.35.0
+  version: 2.36.0
   contact:
     name: MinusPod
   license:
@@ -587,6 +587,16 @@ paths:
                   minimum: 0.5
                   maximum: 30.0
                   description: Per-feed snap lag window (seconds) after an ad edge. null inherits the global audio_cue_snap_lag_seconds setting.
+                silenceSnapEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-in for snapping cut boundaries to nearby silence. Simple flag, not tri-state; null and false both read as off.
+                transitionSnapEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-in for snapping cut boundaries to content-transition cues. Simple flag, not tri-state; null and false both read as off.
                 maxEpisodes:
                   type:
                     - integer
@@ -3230,6 +3240,21 @@ paths:
                 audioCueCreateFromPairs:
                   type: boolean
                   description: Opt-in cue-pair ad synthesis. Off by default.
+                silenceSnapNoiseDb:
+                  type: number
+                  description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
+                  minimum: -90
+                  maximum: -20
+                silenceSnapMinDurationSeconds:
+                  type: number
+                  description: Shortest sub-threshold span that counts as a silence for silence snap (default 0.3s).
+                  minimum: 0.1
+                  maximum: 5
+                silenceSnapMaxDistanceSeconds:
+                  type: number
+                  description: Farthest an ad edge may move to reach a detected silence (default 2.0s).
+                  minimum: 0.25
+                  maximum: 10
                 positionalPriorEnabled:
                   type: boolean
                   description: |
@@ -6068,6 +6093,16 @@ components:
           minimum: 0.5
           maximum: 30.0
           description: Per-feed snap lag window (seconds) after an ad edge. null inherits the global audio_cue_snap_lag_seconds setting.
+        silenceSnapEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed opt-in for snapping cut boundaries to nearby silence. null and false both read as off.
+        transitionSnapEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed opt-in for snapping cut boundaries to content-transition cues. null and false both read as off.
         maxEpisodes:
           type:
             - integer
@@ -6692,6 +6727,30 @@ components:
           properties:
             value:
               type: boolean
+            isDefault:
+              type: boolean
+        silenceSnapNoiseDb:
+          type: object
+          description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        silenceSnapMinDurationSeconds:
+          type: object
+          description: Shortest sub-threshold span that counts as a silence for silence snap, seconds (default 0.3).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        silenceSnapMaxDistanceSeconds:
+          type: object
+          description: Farthest an ad edge may move to reach a detected silence, seconds (default 2.0).
+          properties:
+            value:
+              type: number
             isDefault:
               type: boolean
         positionalPriorEnabled:

@@ -229,6 +229,12 @@ AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS = 60.0  # Longest show-outro stinger a user 
 # 1.5-2.5s clips of the same cue. Beyond this threshold, long-template
 # match quality degrades significantly; warn the user at save time.
 AUDIO_CUE_CAPTURE_WARN_AD_SECONDS = 5.0
+# Silence-snap tunables (Phase B). Per-feed opt-in via podcasts.silence_snap_enabled;
+# these globals shape the detector. DB-settable (silence_snap_* setting keys);
+# detection/snap logic consumes them in a later task.
+SILENCE_SNAP_NOISE_DB = -50.0               # Amplitude (dBFS) below which audio counts as silence
+SILENCE_SNAP_MIN_DURATION_SECONDS = 0.3     # Shortest sub-threshold span that counts as a silence
+SILENCE_SNAP_MAX_DISTANCE_SECONDS = 2.0     # Farthest an ad edge may move to reach a silence
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
@@ -433,6 +439,30 @@ def resolve_feed_cue_settings(db, podcast_id):
         else:
             result[out_key] = db.get_setting_float(setting_key, code_default)
     return result
+
+
+def _resolve_snap_flag(db, podcast_id, col):
+    """Per-feed boundary-snap opt-in: NULL/0 = off, 1 = on.
+
+    Simple opt-in (no global to inherit). Fails open to False on any DB
+    error so a broken read can never enable edge-moving behavior.
+    """
+    try:
+        if db and podcast_id is not None:
+            return bool(db.get_podcast_cue_settings_overrides(podcast_id).get(col))
+    except Exception:
+        _tunable_logger.warning('%s: flag read failed; defaulting to False', col)
+    return False
+
+
+def resolve_silence_snap_enabled(db, podcast_id):
+    """Per-feed silence-snap opt-in (Phase B). Default False."""
+    return _resolve_snap_flag(db, podcast_id, 'silence_snap_enabled')
+
+
+def resolve_transition_snap_enabled(db, podcast_id):
+    """Per-feed content-transition-snap opt-in (Phase B). Default False."""
+    return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
 
 
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a

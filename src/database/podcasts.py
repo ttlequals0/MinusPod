@@ -75,13 +75,20 @@ class PodcastMixin:
         'cue_snap_lag_override',
     )
 
+    # Boundary-snap opt-in flags (NULL/0 = off, 1 = on; no global to inherit).
+    _SNAP_FLAG_COLS = (
+        'silence_snap_enabled',
+        'transition_snap_enabled',
+    )
+
     def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
-        """Per-feed cue knob overrides -- all 7 columns in one query.
+        """Per-feed cue knob overrides plus boundary-snap flags in one query.
 
         Returns a dict with keys matching the DB column names. Each value is
         the raw DB value (None means NULL / no override set).
         """
-        cols_sql = ', '.join(self._CUE_OVERRIDE_COLS)
+        cols = self._CUE_OVERRIDE_COLS + self._SNAP_FLAG_COLS
+        cols_sql = ', '.join(cols)
         conn = self.get_connection()
         cursor = conn.execute(
             f"SELECT {cols_sql} FROM podcasts WHERE id = ?",
@@ -89,7 +96,7 @@ class PodcastMixin:
         )
         row = cursor.fetchone()
         if not row:
-            return dict.fromkeys(self._CUE_OVERRIDE_COLS)
+            return dict.fromkeys(cols)
         return dict(row)
 
     def get_podcast_cue_score_override(self, podcast_id: int) -> Optional[float]:
@@ -131,6 +138,7 @@ class PodcastMixin:
                 'language_override', 'title_override', 'detection_mode',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
+                *self._SNAP_FLAG_COLS,
                 'max_episodes', 'etag',
                 'last_modified_header', 'only_expose_processed_episodes',
             ):

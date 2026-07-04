@@ -127,8 +127,16 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
     return _normalize_nullable_finite_float(value, field_name, lo, hi)
 
 
+# (json_key, db_col) for the boundary-snap opt-in flags (Phase B).
+# Nullable-bool columns; NULL/0 read as off everywhere downstream.
+_SNAP_FLAG_FIELDS = [
+    ('silenceSnapEnabled',    'silence_snap_enabled'),
+    ('transitionSnapEnabled', 'transition_snap_enabled'),
+]
+
+
 def _cue_override_fields(podcast) -> dict:
-    """Build the cue override slice of a feed response from a podcast row."""
+    """Cue override + boundary-snap flag slice of a feed response."""
     return {
         json_key: podcast.get(db_col)
         for json_key, db_col, _, _ in _CUE_FLOAT_OVERRIDE_FIELDS
@@ -137,6 +145,9 @@ def _cue_override_fields(podcast) -> dict:
         'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
         'cueCreateFromPairsOverride': _deserialize_nullable_bool(
             podcast.get('cue_create_from_pairs_override')),
+    } | {
+        json_key: _deserialize_nullable_bool(podcast.get(db_col))
+        for json_key, db_col in _SNAP_FLAG_FIELDS
     }
 
 
@@ -623,6 +634,13 @@ def update_feed(slug):
         if err:
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
+
+    for json_key, db_col in _SNAP_FLAG_FIELDS:
+        if json_key in data:
+            v, err = _normalize_cue_bool_override(data[json_key], json_key)
+            if err:
+                return error_response(err, 400)
+            updates[db_col] = v
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:

@@ -193,6 +193,8 @@ export interface UpdateFeedPayload {
   cueSnapConfidenceOverride?: number | null;
   cueSnapLeadOverride?: number | null;
   cueSnapLagOverride?: number | null;
+  silenceSnapEnabled?: boolean | null;
+  transitionSnapEnabled?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

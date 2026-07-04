@@ -22,6 +22,9 @@ export interface AudioCueState {
   pairMinBreakSeconds: number;
   pairMaxBreakSeconds: number;
   pairMaxBreakFraction: number;
+  silenceSnapNoiseDb: number;
+  silenceSnapMinDurationSeconds: number;
+  silenceSnapMaxDistanceSeconds: number;
 }
 
 interface AudioCueDetectionSectionProps {
@@ -36,7 +39,9 @@ type NumericKey =
   | 'captureMinSeconds' | 'captureMaxSeconds'
   | 'captureMaxIntroSeconds' | 'captureMaxOutroSeconds'
   | 'pairConfidence' | 'pairMinBreakSeconds' | 'pairMaxBreakSeconds'
-  | 'pairMaxBreakFraction';
+  | 'pairMaxBreakFraction'
+  | 'silenceSnapNoiseDb' | 'silenceSnapMinDurationSeconds'
+  | 'silenceSnapMaxDistanceSeconds';
 
 const inputClass =
   'w-28 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground ' +
@@ -236,6 +241,12 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                   'How far before an ad edge a cue may sit and still snap the boundary. Wider catches cues that land earlier than the LLM mark.')}
                 {numRow('snapLagSeconds', 'audioCueSnapLagSeconds', 'Snap lag window (s)', 0.5, 30, 0.5, 4,
                   'How far after an ad edge a cue may sit and still snap the boundary. Covers cases where the LLM mark precedes the cue.')}
+                {numRow('silenceSnapNoiseDb', 'silenceSnapNoiseDb', 'Silence threshold (dBFS)', -90, -20, 1, -50,
+                  'Audio quieter than this counts as silence for silence snap. Applies only on feeds with the per-feed opt-in enabled.')}
+                {numRow('silenceSnapMinDurationSeconds', 'silenceSnapMinDurationSeconds', 'Silence minimum duration (s)', 0.1, 5, 0.1, 0.3,
+                  'Shortest quiet span that counts as a silence.')}
+                {numRow('silenceSnapMaxDistanceSeconds', 'silenceSnapMaxDistanceSeconds', 'Silence snap max distance (s)', 0.25, 10, 0.25, 2,
+                  'Farthest an ad edge may move to reach a detected silence.')}
                 {numRow('pairConfidence', 'audioCuePairConfidence', 'Cue-pair confidence floor', 0, 1, 0.05, 0.85,
                   'Minimum cue confidence to synthesize an ad from a cue pair. Higher than the snap floor because this creates an ad rather than refining one.')}
                 {numRow('pairMinBreakSeconds', 'audioCuePairMinBreakSeconds', 'Cue-pair minimum break (s)', 1, 600, 5, 30,

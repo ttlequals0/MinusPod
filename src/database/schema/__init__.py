@@ -428,6 +428,8 @@ class SchemaMixin:
             ('cue_snap_confidence_override', 'REAL'),
             ('cue_snap_lead_override', 'REAL'),
             ('cue_snap_lag_override', 'REAL'),
+            ('silence_snap_enabled', 'INTEGER'),
+            ('transition_snap_enabled', 'INTEGER'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
