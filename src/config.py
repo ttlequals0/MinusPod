@@ -38,6 +38,10 @@ MAX_AD_DURATION = 300.0         # Reject if longer (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved
 
+# Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
+HOLD_REASON_MAX_DURATION = 'max_duration'
+HOLD_REASON_NO_CUE = 'no_cue_evidence'
+
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
 LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
@@ -451,10 +455,10 @@ def resolve_feed_cue_settings(db, podcast_id):
 
 
 def _resolve_snap_flag(db, podcast_id, col):
-    """Per-feed boundary-snap opt-in: NULL/0 = off, 1 = on.
+    """Per-feed opt-in flag: NULL/0 = off, 1 = on.
 
     Simple opt-in (no global to inherit). Fails open to False on any DB
-    error so a broken read can never enable edge-moving behavior.
+    error so a broken read can never enable behavior-changing flags.
     """
     try:
         if db and podcast_id is not None:
@@ -472,6 +476,27 @@ def resolve_silence_snap_enabled(db, podcast_id):
 def resolve_transition_snap_enabled(db, podcast_id):
     """Per-feed content-transition-snap opt-in (Phase B). Default False."""
     return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
+
+
+def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:
+    """Per-feed max ad duration cap in seconds (Phase C held-for-review).
+
+    Returns None when unset or on any error -- None means no cap (the
+    global MAX_AD_DURATION / MAX_AD_DURATION_CONFIRMED constants apply).
+    """
+    try:
+        if db and podcast_id is not None:
+            raw = db.get_podcast_cue_settings_overrides(podcast_id).get('max_ad_duration_override')
+            if raw is not None:
+                return float(raw)
+    except Exception:
+        _tunable_logger.warning('max_ad_duration_override: read failed; defaulting to no cap')
+    return None
+
+
+def resolve_cue_gated_approval(db, podcast_id) -> bool:
+    """Per-feed cue-gated approval opt-in (Phase C held-for-review). Default False."""
+    return _resolve_snap_flag(db, podcast_id, 'cue_gated_approval')
 
 
 _SILENCE_SNAP_DEFAULTS = {

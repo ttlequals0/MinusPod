@@ -96,7 +96,8 @@ from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
 _CUE_SCORE_MIN = AUDIO_CUE_SCORE_MIN
 _CUE_SCORE_MAX = AUDIO_CUE_SCORE_MAX
 
-# (json_key, db_col, lo, hi) for the seven float cue override fields.
+# (json_key, db_col, lo, hi) for the nullable-float per-feed override fields
+# (cue knobs plus the Phase C held-for-review max-ad-duration cap; None = no cap).
 _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueTemplateScoreOverride',       'cue_template_score_override',          _CUE_SCORE_MIN, _CUE_SCORE_MAX),
     ('cuePairMinBreakOverride',        'cue_pair_min_break_override',          1.0, 600.0),
@@ -105,6 +106,7 @@ _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueSnapConfidenceOverride',      'cue_snap_confidence_override',         0.0, 1.0),
     ('cueSnapLeadOverride',            'cue_snap_lead_override',               0.5, 30.0),
     ('cueSnapLagOverride',             'cue_snap_lag_override',                0.5, 30.0),
+    ('maxAdDurationOverride',          'max_ad_duration_override',             1.0, 3600.0),
 ]
 
 
@@ -134,9 +136,8 @@ _SNAP_FLAG_FIELDS = [
     ('transitionSnapEnabled', 'transition_snap_enabled'),
 ]
 
-
 def _cue_override_fields(podcast) -> dict:
-    """Cue override + boundary-snap flag slice of a feed response."""
+    """Cue override + boundary-snap flag + held-review slice of a feed response."""
     return {
         json_key: podcast.get(db_col)
         for json_key, db_col, _, _ in _CUE_FLOAT_OVERRIDE_FIELDS
@@ -148,6 +149,9 @@ def _cue_override_fields(podcast) -> dict:
     } | {
         json_key: _deserialize_nullable_bool(podcast.get(db_col))
         for json_key, db_col in _SNAP_FLAG_FIELDS
+    } | {
+        # Phase C held-for-review: nullable-bool gate; NULL/0 read as off.
+        'cueGatedApproval': _deserialize_nullable_bool(podcast.get('cue_gated_approval')),
     }
 
 
@@ -641,6 +645,12 @@ def update_feed(slug):
             if err:
                 return error_response(err, 400)
             updates[db_col] = v
+
+    if 'cueGatedApproval' in data:
+        v, err = _normalize_cue_bool_override(data['cueGatedApproval'], 'cueGatedApproval')
+        if err:
+            return error_response(err, 400)
+        updates['cue_gated_approval'] = v
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:

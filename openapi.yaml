@@ -597,6 +597,18 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in for snapping cut boundaries to content-transition cues. Simple flag, not tri-state; null and false both read as off.
+                maxAdDurationOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 1.0
+                  maximum: 3600.0
+                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply).
+                cueGatedApproval:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
                 maxEpisodes:
                   type:
                     - integer
@@ -6114,6 +6126,18 @@ components:
             - boolean
             - 'null'
           description: Per-feed opt-in for snapping cut boundaries to content-transition cues. null and false both read as off.
+        maxAdDurationOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 1.0
+          maximum: 3600.0
+          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap.
+        cueGatedApproval:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
         maxEpisodes:
           type:
             - integer

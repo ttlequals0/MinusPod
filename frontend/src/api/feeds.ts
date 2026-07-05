@@ -195,6 +195,8 @@ export interface UpdateFeedPayload {
   cueSnapLagOverride?: number | null;
   silenceSnapEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
+  maxAdDurationOverride?: number | null;
+  cueGatedApproval?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

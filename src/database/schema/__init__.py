@@ -430,6 +430,9 @@ class SchemaMixin:
             ('cue_snap_lag_override', 'REAL'),
             ('silence_snap_enabled', 'INTEGER'),
             ('transition_snap_enabled', 'INTEGER'),
+            # Phase C held-for-review per-feed settings
+            ('max_ad_duration_override', 'REAL'),
+            ('cue_gated_approval', 'INTEGER DEFAULT 0'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
