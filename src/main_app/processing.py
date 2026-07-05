@@ -12,6 +12,7 @@ import requests.exceptions
 
 from ad_detector import (
     refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads,
+    merge_ads_across_short_content_gaps,
     extend_ad_boundaries_by_content,
 )
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
@@ -25,6 +26,7 @@ from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_e
 from utils.time import utc_now_iso
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
+    MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
@@ -511,8 +513,8 @@ def _setting_float(db, key: str, default: float) -> float:
     return parsed if parsed > 0 else default
 
 
-def _refine_boundaries(all_ads, segments):
-    """Apply the four-step ad-boundary refinement pipeline. Returns updated list."""
+def _refine_boundaries(all_ads, segments, db=None):
+    """Apply the boundary refinement pipeline. Returns updated list."""
     if all_ads and segments:
         all_ads = refine_ad_boundaries(all_ads, segments)
     if all_ads and segments:
@@ -521,6 +523,11 @@ def _refine_boundaries(all_ads, segments):
         all_ads = snap_early_ads_to_zero(all_ads)
     if all_ads and segments:
         all_ads = merge_same_sponsor_ads(all_ads, segments)
+    if all_ads:
+        min_content = _setting_float(db, 'min_content_between_ads_seconds',
+                                     MIN_CONTENT_BETWEEN_ADS_SECONDS) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
+        all_ads = merge_ads_across_short_content_gaps(all_ads, segments or [],
+                                                      min_content_seconds=min_content)
     return all_ads
 
 
@@ -608,7 +615,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     from ad_validator import AdValidator
 
     # Boundary refinement
-    all_ads = _refine_boundaries(all_ads, segments)
+    all_ads = _refine_boundaries(all_ads, segments, db=db)
 
     # Heuristic pre/post-roll detection
     _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,

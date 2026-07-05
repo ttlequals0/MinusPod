@@ -15,6 +15,7 @@ from utils.constants import NON_BRAND_WORDS
 from config import (
     SHORT_GAP_THRESHOLD,
     MAX_MERGED_DURATION,
+    MIN_CONTENT_BETWEEN_ADS_SECONDS,
     BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
     BOUNDARY_EXTENSION_CONNECTOR_SKIP, BOUNDARY_EXTENSION_SKIP_MAX,
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
@@ -832,6 +833,136 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
         logger.info(f"Sponsor-based merge: {len(ads)} ads -> {len(merged)} ads")
 
     return merged
+
+
+def merge_ads_across_short_content_gaps(
+    ads: List[Dict],
+    segments: List[Dict],
+    min_content_seconds: float = MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    max_merged_seconds: float = MAX_MERGED_DURATION,
+) -> List[Dict]:
+    """Merge consecutive ads whose gap contains less than min_content_seconds of speech.
+
+    Within a single ad-break, individual ads are sometimes separated by
+    ad-transition music or silence (~10s filler). This pass collapses those
+    filler gaps so the whole break is cut as one contiguous span.
+
+    Discriminator: actual show content (speech segments) in the gap, NOT
+    wall-clock duration. Music and silence are untranscribed and contribute ~0.
+    Two ads separated by >= min_content_seconds of speech are left separate.
+
+    Args:
+        ads: Detected ad segments (any order; sorted internally).
+        segments: Transcript segments for the episode.
+        min_content_seconds: Gap with less than this much speech -> merge.
+            0 disables the content check (always merge).
+        max_merged_seconds: Safety cap; skip merge if result would exceed this.
+
+    Returns:
+        Sorted list of ads with filler-gap pairs collapsed.
+    """
+    if not ads or len(ads) < 2:
+        return sorted(ads, key=lambda x: x['start']) if ads else ads
+
+    ads = sorted(ads, key=lambda x: x['start'])
+
+    merged = []
+    i = 0
+    while i < len(ads):
+        current_ad = ads[i].copy()
+
+        j = i + 1
+        while j < len(ads):
+            next_ad = ads[j]
+
+            gap_start = current_ad['end']
+            gap_end = next_ad['start']
+
+            if gap_end <= gap_start:
+                # Overlapping or touching; let deduplicate_window_ads handle these.
+                break
+
+            # Measure actual show-content duration in the gap.
+            # min_content_seconds == 0 disables the content guard (always merge).
+            if min_content_seconds > 0:
+                content_seconds = _content_duration_in_range(segments, gap_start, gap_end)
+                if content_seconds >= min_content_seconds:
+                    # Real show content between ads -- do not merge.
+                    break
+            else:
+                content_seconds = 0.0
+
+            # Safety: skip if result would be too long.
+            merged_duration = next_ad['end'] - current_ad['start']
+            if merged_duration > max_merged_seconds:
+                logger.info(
+                    f"Skipping filler-gap merge: {current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
+                    f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s would be {merged_duration:.0f}s "
+                    f"(>{max_merged_seconds:.0f}s max)"
+                )
+                break
+
+            logger.info(
+                f"Merging across filler gap ({content_seconds:.1f}s content): "
+                f"{current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
+                f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s"
+            )
+
+            current_ad['end'] = next_ad['end']
+            current_ad['merged_distinct_ads'] = True
+            current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
+                                           next_ad.get('confidence', 0.0))
+
+            # Append reason from next ad.
+            gap_desc = f"merged across {content_seconds:.0f}s filler gap"
+            if current_ad.get('reason') and next_ad.get('reason'):
+                current_ad['reason'] = (
+                    f"{current_ad['reason']} (merged with: {next_ad['reason']}; {gap_desc})"
+                )
+            elif next_ad.get('reason'):
+                current_ad['reason'] = f"{next_ad['reason']} ({gap_desc})"
+
+            # Sponsor field: do not let None overwrite a real value.
+            current_sponsor = current_ad.get('sponsor')
+            next_sponsor = next_ad.get('sponsor')
+            if current_sponsor is None and next_sponsor is not None:
+                current_ad['sponsor'] = next_sponsor
+            # If current_sponsor is set, keep it (None from next never overwrites).
+
+            # end_text from the later ad.
+            if next_ad.get('end_text'):
+                current_ad['end_text'] = next_ad['end_text']
+
+            j += 1
+
+        merged.append(current_ad)
+        i = j if j > i + 1 else i + 1
+
+    if len(merged) < len(ads):
+        logger.info(f"Filler-gap merge: {len(ads)} ads -> {len(merged)} ads")
+
+    return merged
+
+
+def _content_duration_in_range(segments: List[Dict], range_start: float, range_end: float) -> float:
+    """Return total speech duration (seconds) for segments overlapping [range_start, range_end).
+
+    Segments that fall entirely outside the range contribute 0. Partial overlaps
+    are clipped to the range boundary.
+    """
+    total = 0.0
+    for seg in segments:
+        seg_start = seg.get('start', 0.0)
+        seg_end = seg.get('end', 0.0)
+        text = seg.get('text', '').strip()
+        if not text:
+            # Untranscribed gap (music/silence) -- contributes 0.
+            continue
+        overlap_start = max(seg_start, range_start)
+        overlap_end = min(seg_end, range_end)
+        if overlap_end > overlap_start:
+            total += overlap_end - overlap_start
+    return total
 
 
 def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) -> List[Dict]:

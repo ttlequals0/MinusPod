@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.36.2
+  version: 2.37.0
   contact:
     name: MinusPod
   license:
@@ -3297,6 +3297,17 @@ paths:
                     Minimum post-transcript tail gap that the VAD detector
                     will cut when no postroll marker already covers it.
                   example: 3.0
+                minContentBetweenAdsSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 60
+                  description: |
+                    Minimum seconds of actual speech content that must appear
+                    in the gap between two ads to keep them separate. Gaps with
+                    less content (ad-transition music/silence) are collapsed into
+                    one contiguous cut. Set to 0 to disable. Default 12.0.
+                  example: 12.0
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -7027,6 +7038,11 @@ components:
             minCutConfidence:
               type: number
               format: float
+            minContentBetweenAdsSeconds:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 60
             llmProvider:
               type: string
             openaiBaseUrl:

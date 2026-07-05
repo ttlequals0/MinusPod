@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.0] - 2026-07-05
+
+### Added
+
+- Ad break filler-gap merge (#458): when one ad-break contains multiple detected ads separated only by ad-transition music or silence, the short gaps are now merged into a single contiguous cut. The discriminator is actual speech content in the gap (not wall-clock time), so ads separated by real show content are never merged. New setting `minContentBetweenAdsSeconds` (default 12.0s, 0 disables) controls the threshold; exposed in the Ad Detection settings panel. Thanks @apparle for the report and fixture.
+
 ## [2.36.2] - 2026-07-05
 
 ### Changed

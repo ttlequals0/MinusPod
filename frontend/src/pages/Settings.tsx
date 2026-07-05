@@ -182,6 +182,7 @@ function Settings() {
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
+  const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
@@ -432,6 +433,7 @@ function Settings() {
       setChaptersEnabled(settings.chaptersEnabled?.value ?? d.chaptersEnabled);
       setChaptersModel(settings.chaptersModel?.value || '');
       setMinCutConfidence(settings.minCutConfidence?.value ?? d.minCutConfidence);
+      setMinContentBetweenAdsSeconds(settings.minContentBetweenAdsSeconds?.value ?? d.minContentBetweenAdsSeconds ?? 12);
       setLlmProvider((settings.llmProvider?.value || d.llmProvider) as LlmProvider);
       setOpenaiBaseUrl(settings.openaiBaseUrl?.value || d.openaiBaseUrl);
       setPricingSourceMode(settings.pricingSourceMode?.value || d.pricingSourceMode);
@@ -528,6 +530,7 @@ function Settings() {
     if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? d.chaptersEnabled)) payload.chaptersEnabled = chaptersEnabled;
     if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes)) payload.maxFeedEpisodes = maxFeedEpisodes;
     if (minCutConfidence !== (settings.minCutConfidence?.value ?? d.minCutConfidence)) payload.minCutConfidence = minCutConfidence;
+    if (minContentBetweenAdsSeconds !== (settings.minContentBetweenAdsSeconds?.value ?? d.minContentBetweenAdsSeconds ?? 12)) payload.minContentBetweenAdsSeconds = minContentBetweenAdsSeconds;
 
     return payload;
   };
@@ -546,7 +549,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, minContentBetweenAdsSeconds, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -844,6 +847,8 @@ function Settings() {
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
         onMinCutConfidenceChange={setMinCutConfidence}
+        minContentBetweenAdsSeconds={minContentBetweenAdsSeconds}
+        onMinContentBetweenAdsSecondsChange={setMinContentBetweenAdsSeconds}
       />
 
       <PromptsSection

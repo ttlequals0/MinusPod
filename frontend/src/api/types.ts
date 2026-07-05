@@ -252,6 +252,7 @@ export interface Settings {
   silenceSnapNoiseDb: SettingValueNumber;
   silenceSnapMinDurationSeconds: SettingValueNumber;
   silenceSnapMaxDistanceSeconds: SettingValueNumber;
+  minContentBetweenAdsSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
@@ -331,6 +332,7 @@ export interface Settings {
     silenceSnapNoiseDb: number;
     silenceSnapMinDurationSeconds: number;
     silenceSnapMaxDistanceSeconds: number;
+    minContentBetweenAdsSeconds: number;
     positionalPriorEnabled: boolean;
   };
 }
@@ -386,6 +388,7 @@ export interface UpdateSettingsPayload {
   silenceSnapNoiseDb?: number;
   silenceSnapMinDurationSeconds?: number;
   silenceSnapMaxDistanceSeconds?: number;
+  minContentBetweenAdsSeconds?: number;
   positionalPriorEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;

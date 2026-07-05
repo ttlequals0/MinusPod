@@ -45,8 +45,9 @@ LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
 # Ad detector specific durations
 MIN_TYPICAL_AD_DURATION = 30.0  # Most sponsor reads are 60-120 seconds
 MIN_SPONSOR_READ_DURATION = 90.0  # Threshold for extension consideration
-SHORT_GAP_THRESHOLD = 120.0     # 2 minutes - gap between ads to merge
-MAX_MERGED_DURATION = 300.0     # 5 minutes max for merged ads
+SHORT_GAP_THRESHOLD = 120.0          # 2 minutes - gap between ads to merge
+MAX_MERGED_DURATION = 300.0          # 5 minutes max for merged ads
+MIN_CONTENT_BETWEEN_ADS_SECONDS = 12.0  # default threshold for cross-ad-break filler merge
 MAX_REALISTIC_SIGNAL = 180.0    # 3 minutes - anything longer is suspect
 MIN_OVERLAP_TOLERANCE = 120.0   # 2 min tolerance for boundary ads
 MAX_AD_DURATION_WINDOW = 420.0  # 7 min max (longest reasonable sponsor read)
