@@ -57,16 +57,17 @@ beforeEach(() => {
 });
 
 describe('Login guard: isLoading', () => {
-  it('renders the password form and does not redirect while auth status is loading', () => {
+  it('renders a spinner (not the form) and does not redirect while auth status is loading', () => {
     // Simulate the moment before /auth/status has resolved: isLoading=true,
     // isAuthenticated=true (as if a stale truthy value slipped through).
     // Without the !isLoading guard this would immediately redirect.
     authState = { ...authState, isLoading: true, isAuthenticated: true };
 
-    render(<Login />);
+    const { container } = render(<Login />);
 
-    // Form must be present.
-    expect(screen.getByRole('button', { name: /sign in/i })).not.toBeNull();
+    // Spinner shown, login form withheld until status resolves (#464).
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /sign in/i })).toBeNull();
     // No Navigate sentinel -- guard suppressed by isLoading.
     expect(screen.queryByTestId('navigate-sentinel')).toBeNull();
     expect(mockNavigate).not.toHaveBeenCalled();
