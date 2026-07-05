@@ -500,8 +500,11 @@ def _vad_gap_enabled(db) -> bool:
     return str(value).strip().lower() != 'false'
 
 
-def _setting_float(db, key: str, default: float) -> float:
-    """Read a float setting with graceful fallback on missing/invalid values."""
+def _setting_float(db, key: str, default: float, allow_zero: bool = False) -> float:
+    """Read a float setting with graceful fallback on missing/invalid values.
+
+    allow_zero: accept 0 as a valid value (for settings where 0 = disabled).
+    """
     value = db.get_setting(key)
     if value is None or value == '':
         return default
@@ -510,7 +513,9 @@ def _setting_float(db, key: str, default: float) -> float:
     except (TypeError, ValueError):
         audio_logger.warning(f"Invalid float for setting {key!r}: {value!r}; using default {default}")
         return default
-    return parsed if parsed > 0 else default
+    if parsed > 0 or (allow_zero and parsed == 0):
+        return parsed
+    return default
 
 
 def _refine_boundaries(all_ads, segments, db=None):
@@ -525,7 +530,8 @@ def _refine_boundaries(all_ads, segments, db=None):
         all_ads = merge_same_sponsor_ads(all_ads, segments)
     if all_ads:
         min_content = _setting_float(db, 'min_content_between_ads_seconds',
-                                     MIN_CONTENT_BETWEEN_ADS_SECONDS) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
+                                     MIN_CONTENT_BETWEEN_ADS_SECONDS,
+                                     allow_zero=True) if db else MIN_CONTENT_BETWEEN_ADS_SECONDS
         all_ads = merge_ads_across_short_content_gaps(all_ads, segments or [],
                                                       min_content_seconds=min_content)
     return all_ads

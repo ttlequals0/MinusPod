@@ -196,3 +196,25 @@ class TestMergeGapSettingPlumbing:
 
         assert 'min_content_seconds' in captured, "_refine_boundaries did not call merge_ads_across_short_content_gaps"
         assert captured['min_content_seconds'] == 15.0
+
+    def test_zero_setting_disables_end_to_end(self):
+        """Stored '0.0' must reach the pass as 0.0 (not the 12.0 default) and
+        disable merging. Guards the _setting_float parsed>0 fallback trap."""
+        ads_in = [_ad(10, 40), _ad(50, 80)]
+        segments = [_seg(0, 5, 'Intro.')]  # filler gap that WOULD merge if enabled
+
+        mock_db = MagicMock()
+        mock_db.get_setting = MagicMock(return_value='0.0')
+
+        captured = {}
+        original = _proc.merge_ads_across_short_content_gaps
+
+        def spy(ads, segs, min_content_seconds, max_merged_seconds=300.0):
+            captured['min_content_seconds'] = min_content_seconds
+            return original(ads, segs, min_content_seconds, max_merged_seconds)
+
+        with patch.object(_proc, 'merge_ads_across_short_content_gaps', spy):
+            result = _proc._refine_boundaries(ads_in, segments, db=mock_db)
+
+        assert captured['min_content_seconds'] == 0.0
+        assert len(result) == 2, "Setting 0 must disable merging end-to-end"
