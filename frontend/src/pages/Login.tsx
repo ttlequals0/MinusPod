@@ -12,9 +12,11 @@ function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Guard: do NOT redirect until auth status has loaded. Redirecting on the
-  // optimistic default (issue #460 root cause 2) causes the /ui/ui/ui loop.
-  if (!isLoading && (isAuthenticated || !isPasswordSet)) {
+  // Guard: wait for auth status (!isLoading) and suppress during submit
+  // (!isSubmitting -- handleSubmit owns navigation once it starts, and
+  // refreshStatus() inside it will have set isAuthenticated by the time
+  // navigate() is called; firing the guard first double-consumes takeLoginRedirect).
+  if (!isLoading && !isSubmitting && (isAuthenticated || !isPasswordSet)) {
     return <Navigate to={takeLoginRedirect()} replace />;
   }
 

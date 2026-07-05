@@ -47,11 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (password: string): Promise<boolean> => {
     try {
       const response = await apiLogin(password);
-      if (response.authenticated) {
-        setAuthStatus(prev => ({ ...prev, authenticated: true }));
-        return true;
-      }
-      return false;
+      // Return the server's verdict without mutating auth state.
+      // refreshStatus() (called by Login after this) is the sole source of
+      // truth for isAuthenticated, so we don't optimistically set it here.
+      return response.authenticated;
     } catch {
       return false;
     }
