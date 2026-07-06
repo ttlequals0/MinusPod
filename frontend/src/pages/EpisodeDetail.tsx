@@ -19,6 +19,19 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage, formatDuration } from './settings/settingsUtils';
 import { formatTimestamp } from '../utils/format';
 
+function btnLabel(status: string, idle: string): string {
+  if (status === 'saving') return 'Saving...';
+  if (status === 'success') return 'Saved!';
+  if (status === 'error') return 'Error!';
+  return idle;
+}
+
+function btnClass(status: string, idleClass: string): string {
+  if (status === 'success') return 'bg-green-700 text-white';
+  if (status === 'error') return 'bg-red-600 text-white';
+  return idleClass;
+}
+
 function TranscriptBlock({ text }: { text: string }) {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -736,16 +749,9 @@ function EpisodeDetail() {
                         }}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
-                          rowStatus === 'success' ? 'bg-green-700 text-white' :
-                          rowStatus === 'error' ? 'bg-red-600 text-white' :
-                          'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white'
-                        }`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                       >
-                        {rowStatus === 'saving' ? 'Saving...' :
-                         rowStatus === 'success' ? 'Saved!' :
-                         rowStatus === 'error' ? 'Error!' :
-                         episode.hasOriginalAudio ? 'Approve & Recut' : 'Approve'}
+                        {btnLabel(rowStatus, episode.hasOriginalAudio ? 'Approve & Recut' : 'Approve')}
                       </button>
                       {!episode.hasOriginalAudio && rowStatus === 'success' && (
                         <span className="text-xs text-muted-foreground italic self-center">
@@ -764,16 +770,9 @@ function EpisodeDetail() {
                         })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
-                          rowStatus === 'success' ? 'bg-green-700 text-white' :
-                          rowStatus === 'error' ? 'bg-red-600 text-white' :
-                          'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground'
-                        }`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
                       >
-                        {rowStatus === 'saving' ? 'Saving...' :
-                         rowStatus === 'success' ? 'Saved!' :
-                         rowStatus === 'error' ? 'Error!' :
-                         'Dismiss'}
+                        {btnLabel(rowStatus, 'Dismiss')}
                       </button>
                     </div>
                   )}

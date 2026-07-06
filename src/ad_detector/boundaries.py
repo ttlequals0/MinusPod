@@ -929,7 +929,6 @@ def merge_ads_across_short_content_gaps(
             next_sponsor = next_ad.get('sponsor')
             if current_sponsor is None and next_sponsor is not None:
                 current_ad['sponsor'] = next_sponsor
-            # If current_sponsor is set, keep it (None from next never overwrites).
 
             # end_text from the later ad.
             if next_ad.get('end_text'):
