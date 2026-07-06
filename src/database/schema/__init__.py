@@ -1556,6 +1556,7 @@ class SchemaMixin:
                     candidates_json TEXT,
                     error TEXT,
                     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    claim_epoch INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (podcast_id, episode_id),
                     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
                 )
@@ -1579,6 +1580,7 @@ class SchemaMixin:
                     result_json TEXT,
                     error TEXT,
                     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    claim_epoch INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (podcast_id, episode_id),
                     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
                 )
@@ -1604,6 +1606,7 @@ class SchemaMixin:
                     error TEXT,
                     updated_at TEXT NOT NULL
                         DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    claim_epoch INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY (podcast_id, episode_set_hash),
                     FOREIGN KEY (podcast_id) REFERENCES podcasts(id)
                         ON DELETE CASCADE
@@ -1629,6 +1632,7 @@ class SchemaMixin:
                     error TEXT,
                     updated_at TEXT NOT NULL
                         DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    claim_epoch INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id)
                         ON DELETE CASCADE
                 )
@@ -1639,6 +1643,21 @@ class SchemaMixin:
         except Exception as e:
             conn.rollback()
             logger.warning(f"cue_window_optimize_scans table creation: {e}")
+
+        # claim_epoch (finding 4): a monotone token bumped on each claim so a
+        # stale worker's save cannot overwrite a newer claim. Additive column on
+        # the four cached-scan tables; existing rows default to 0. Idempotent.
+        for _scan_table in ('cue_candidate_scans', 'cue_threshold_scans',
+                            'cue_cross_episode_scans', 'cue_window_optimize_scans'):
+            try:
+                cols = {r[1] for r in conn.execute(
+                    f"PRAGMA table_info({_scan_table})").fetchall()}
+                self._add_column_if_missing(
+                    conn, _scan_table, 'claim_epoch',
+                    'INTEGER NOT NULL DEFAULT 0', cols)
+            except Exception as e:
+                conn.rollback()
+                logger.warning(f"{_scan_table}.claim_epoch migration: {e}")
 
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.

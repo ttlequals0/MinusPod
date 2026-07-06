@@ -1410,6 +1410,7 @@ def _run_cue_cross_episode_scan(
     podcast_id, episode_set_hash,
     target_episode_id, episode_ids,
     target_path, sibling_paths,
+    claim_epoch=None,
 ):
     """Background worker: find recurring body segments across the requested episodes.
 
@@ -1443,13 +1444,14 @@ def _run_cue_cross_episode_scan(
             'candidates': candidates,
             'targetEpisodeId': target_episode_id,
             'episodeIds': episode_ids,
-        })
+        }, claim_epoch=claim_epoch)
     except Exception as e:
         logger.exception(
             'cross-episode body scan failed for podcast %s hash %s',
             podcast_id, episode_set_hash,
         )
-        db.save_cue_cross_episode_scan_error(podcast_id, episode_set_hash, str(e))
+        db.save_cue_cross_episode_scan_error(
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
 
 
 @api.route('/feeds/<slug>/cue-cross-episode-scan', methods=['POST'])
@@ -1513,37 +1515,51 @@ def cue_cross_episode_scan(slug):
     # state == 'started': validate that all IDs belong to this feed and have
     # retained original audio. On failure, release the just-claimed slot as an
     # error row (so no orphaned 'scanning' row survives to block or mislead a
-    # later poll) before returning the 4xx.
-    ineligible = []
-    episode_rows = {}
-    for eid in episode_ids:
-        row = db.get_episode(slug, eid)
-        if not row:
-            ineligible.append(eid)
-            continue
-        audio_path = storage.get_original_path(slug, eid)
-        if not row.get('original_file') or not audio_path.exists():
-            ineligible.append(eid)
-        else:
-            episode_rows[eid] = str(audio_path)
-    if ineligible:
-        msg = 'original audio not retained for episode(s): ' + ', '.join(ineligible)
-        db.save_cue_cross_episode_scan_error(podcast_id, episode_set_hash, msg)
-        return error_response(msg, 400)
+    # later poll) before returning the 4xx. Capture the claim token so the
+    # worker's save cannot clobber a newer claim (finding 4). Anything between
+    # here and Thread.start() runs under try/except so an unexpected error
+    # releases the slot instead of orphaning a 'scanning' row (finding 5).
+    claim_epoch = db.get_cue_cross_episode_scan_claim_epoch(
+        podcast_id, episode_set_hash)
+    try:
+        ineligible = []
+        episode_rows = {}
+        for eid in episode_ids:
+            row = db.get_episode(slug, eid)
+            if not row:
+                ineligible.append(eid)
+                continue
+            audio_path = storage.get_original_path(slug, eid)
+            if not row.get('original_file') or not audio_path.exists():
+                ineligible.append(eid)
+            else:
+                episode_rows[eid] = str(audio_path)
+        if ineligible:
+            msg = 'original audio not retained for episode(s): ' + ', '.join(ineligible)
+            db.save_cue_cross_episode_scan_error(
+                podcast_id, episode_set_hash, msg, claim_epoch=claim_epoch)
+            return error_response(msg, 400)
 
-    # Resolve audio paths and launch the background worker.
-    target_episode_id = episode_ids[0]
-    target_path = episode_rows[target_episode_id]
-    sibling_paths = [episode_rows[eid] for eid in episode_ids[1:]]
+        # Resolve audio paths and launch the background worker.
+        target_episode_id = episode_ids[0]
+        target_path = episode_rows[target_episode_id]
+        sibling_paths = [episode_rows[eid] for eid in episode_ids[1:]]
 
-    threading.Thread(
-        target=_run_cue_cross_episode_scan,
-        args=(podcast_id, episode_set_hash,
-              target_episode_id, episode_ids,
-              target_path, sibling_paths),
-        daemon=True,
-        name=f'cue-xep-scan-{episode_set_hash[:12]}',
-    ).start()
+        threading.Thread(
+            target=_run_cue_cross_episode_scan,
+            args=(podcast_id, episode_set_hash,
+                  target_episode_id, episode_ids,
+                  target_path, sibling_paths, claim_epoch),
+            daemon=True,
+            name=f'cue-xep-scan-{episode_set_hash[:12]}',
+        ).start()
+    except Exception as e:
+        logger.exception(
+            'cross-episode scan launch failed for podcast %s hash %s',
+            podcast_id, episode_set_hash)
+        db.save_cue_cross_episode_scan_error(
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
+        raise
     return json_response({'status': 'scanning', 'episodeIds': episode_ids})
 
 
@@ -1673,7 +1689,8 @@ def _episode_match_neighborhood(path, base_mfcc, n_coeffs, formant_atten_db):
     return best_slice
 
 
-def _run_cue_window_optimize_scan(template_id, source_path, siblings):
+def _run_cue_window_optimize_scan(template_id, source_path, siblings,
+                                  claim_epoch=None):
     """Background worker: sweep the template window and find the best fit.
 
     ``source_path`` is the source episode's original audio (resolved by the
@@ -1806,11 +1823,13 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings):
                 'endS': round(base_end, 4),
             },
         }
-        db.save_cue_window_optimize_scan_result(template_id, payload)
+        db.save_cue_window_optimize_scan_result(
+            template_id, payload, claim_epoch=claim_epoch)
     except Exception as e:
         logger.exception(
             'window optimize scan failed for template %s', template_id)
-        db.save_cue_window_optimize_scan_error(template_id, str(e))
+        db.save_cue_window_optimize_scan_error(
+            template_id, str(e), claim_epoch=claim_epoch)
 
 
 @api.route(
@@ -1836,7 +1855,10 @@ def cue_window_optimize(slug, template_id):
     if not podcast:
         return error_response('feed not found', 404)
 
-    template = db.get_cue_template(template_id)
+    # Pre-claim checks are blob-free: a 3s poll must not drag the template's
+    # multi-MB mfcc/pcm blobs (finding 9). Ownership and source-episode presence
+    # are the only checks that must run before claiming.
+    template = db.get_cue_template_meta(template_id)
     if not template or template['podcast_id'] != podcast['id']:
         return error_response('template not found', 404)
 
@@ -1845,14 +1867,12 @@ def cue_window_optimize(slug, template_id):
         return error_response(
             'template has no source episode; cannot optimize window', 409)
 
-    audio_path, audio_err = _resolve_original_audio(
-        db, storage, slug, source_episode_id)
-    if audio_err:
-        return error_response(_WIN_SOURCE_AUDIO_GONE_MSG, 409)
-
     data = request.get_json(silent=True) or {}
     force = bool(data.get('rescan'))
 
+    # Claim first, matching the cross-episode route: a poll for an already
+    # running or cached scan must not pay for the source-audio stat or sibling
+    # resolution below.
     state = db.claim_cue_window_optimize_scan(
         template_id, AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS, force=force)
 
@@ -1870,13 +1890,31 @@ def cue_window_optimize(slug, template_id):
             'error': (row or {}).get('error') or 'window optimize scan failed',
         })
 
-    # state == 'started': resolve siblings and launch the background worker.
-    siblings = _completed_sibling_episodes(
-        db, storage, slug, source_episode_id)[:_WIN_OPTIMIZE_MAX_EPISODES - 1]
-    threading.Thread(
-        target=_run_cue_window_optimize_scan,
-        args=(template_id, str(audio_path), siblings),
-        daemon=True,
-        name=f'cue-wopt-{template_id}',
-    ).start()
+    # state == 'started': confirm source audio, resolve siblings, and launch the
+    # worker. Capture the claim token (finding 4) and run everything under
+    # try/except so a validation failure or unexpected error releases the slot
+    # as an error row instead of orphaning a 'scanning' one (finding 5).
+    claim_epoch = db.get_cue_window_optimize_scan_claim_epoch(template_id)
+    try:
+        audio_path, audio_err = _resolve_original_audio(
+            db, storage, slug, source_episode_id)
+        if audio_err:
+            db.save_cue_window_optimize_scan_error(
+                template_id, _WIN_SOURCE_AUDIO_GONE_MSG, claim_epoch=claim_epoch)
+            return error_response(_WIN_SOURCE_AUDIO_GONE_MSG, 409)
+
+        siblings = _completed_sibling_episodes(
+            db, storage, slug, source_episode_id)[:_WIN_OPTIMIZE_MAX_EPISODES - 1]
+        threading.Thread(
+            target=_run_cue_window_optimize_scan,
+            args=(template_id, str(audio_path), siblings, claim_epoch),
+            daemon=True,
+            name=f'cue-wopt-{template_id}',
+        ).start()
+    except Exception as e:
+        logger.exception(
+            'window optimize scan launch failed for template %s', template_id)
+        db.save_cue_window_optimize_scan_error(
+            template_id, str(e), claim_epoch=claim_epoch)
+        raise
     return json_response({'status': 'scanning', 'templateId': template_id})

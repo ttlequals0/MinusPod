@@ -78,6 +78,22 @@ class CueTemplateMixin:
         ).fetchone()
         return dict(row) if row else None
 
+    def get_cue_template_meta(self, template_id: int) -> Optional[Dict]:
+        """Return one template's metadata WITHOUT its mfcc/pcm blobs.
+
+        The optimize-window route polls every 3s; its pre-claim ownership and
+        source-episode checks need only scalar columns, so this avoids dragging
+        the multi-MB blobs on every poll.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT id, podcast_id, label, cue_type, source_episode_id, "
+            "source_offset_s, duration_s, sample_rate, n_coeffs, scope, "
+            "network_id, enabled, score_threshold, created_at, created_by "
+            "FROM audio_cue_templates WHERE id = ?", (template_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
     def list_active_cue_templates_for_feed(self, podcast_id: int) -> List[Dict]:
         """Enabled templates that apply to a feed, most-specific-first.
 
@@ -283,13 +299,18 @@ class CueTemplateMixin:
         vals = (':pid, ' if has_podcast else '') + ':eid'
         conflict = ('podcast_id, ' if has_podcast else '') + key_col
         before = conn.total_changes
+        # claim_epoch is bumped on every successful claim (insert starts at 1,
+        # a reclaim increments the prior value). The worker captures this token
+        # and the save guards on it, so a stale worker cannot clobber a newer
+        # claim.
         conn.execute(
             f"""INSERT INTO {table}
-                   ({cols}, status, {payload_col}, error, updated_at)
-               VALUES ({vals}, 'scanning', NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   ({cols}, status, {payload_col}, error, updated_at, claim_epoch)
+               VALUES ({vals}, 'scanning', NULL, NULL, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), 1)
                ON CONFLICT({conflict}) DO UPDATE SET
                    status='scanning', {payload_col}=NULL, error=NULL,
-                   updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   claim_epoch={table}.claim_epoch + 1
                WHERE ({table}.status = 'scanning' AND {table}.updated_at <= :cutoff)
                   OR ({table}.status = 'error' AND (:force OR {table}.updated_at <= :cutoff))
                   OR ({table}.status = 'ready' AND :force)""",
@@ -306,18 +327,44 @@ class CueTemplateMixin:
         ).fetchone()
         return row['status'] if row else 'scanning'
 
+    def _get_scan_claim_epoch(
+        self, table: str, podcast_id: int, episode_id: str,
+        key_col: str = 'episode_id', has_podcast: bool = True,
+    ) -> Optional[int]:
+        """Current claim_epoch for a family's key, or None when no row exists.
+
+        The route reads this right after a 'started' claim to capture the token
+        it hands the worker; the worker's save then guards on the same value.
+        """
+        conn = self.get_connection()
+        args = (podcast_id, episode_id) if has_podcast else (episode_id,)
+        row = conn.execute(
+            f"SELECT claim_epoch FROM {table} "
+            f"WHERE {self._scan_where(key_col, has_podcast)}",
+            args,
+        ).fetchone()
+        return row['claim_epoch'] if row else None
+
     def _save_scan_result(
         self, table: str, payload_col: str, podcast_id: int, episode_id: str,
         payload, key_col: str = 'episode_id', has_podcast: bool = True,
+        claim_epoch: Optional[int] = None,
     ) -> None:
-        """Persist a completed scan's payload and mark it ready."""
+        """Persist a completed scan's payload and mark it ready.
+
+        When ``claim_epoch`` is given the write is guarded on it, so a stale
+        worker whose claim was superseded by a fresh one no-ops instead of
+        overwriting the newer result.
+        """
         conn = self.get_connection()
-        args = (json.dumps(payload),) + (
-            (podcast_id, episode_id) if has_podcast else (episode_id,))
+        guard = '' if claim_epoch is None else ' AND claim_epoch = ?'
+        key_args = (podcast_id, episode_id) if has_podcast else (episode_id,)
+        args = (json.dumps(payload),) + key_args + (
+            () if claim_epoch is None else (claim_epoch,))
         conn.execute(
             f"""UPDATE {table} SET status='ready', {payload_col}=?, error=NULL,
                    updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE {self._scan_where(key_col, has_podcast)}""",
+               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",
             args,
         )
         conn.commit()
@@ -325,15 +372,21 @@ class CueTemplateMixin:
     def _save_scan_error(
         self, table: str, podcast_id: int, episode_id: str, error: str,
         key_col: str = 'episode_id', has_podcast: bool = True,
+        claim_epoch: Optional[int] = None,
     ) -> None:
-        """Mark a scan as failed with a short error message."""
+        """Mark a scan as failed with a short error message.
+
+        Guarded on ``claim_epoch`` when supplied (see _save_scan_result).
+        """
         conn = self.get_connection()
-        args = (str(error)[:500],) + (
-            (podcast_id, episode_id) if has_podcast else (episode_id,))
+        guard = '' if claim_epoch is None else ' AND claim_epoch = ?'
+        key_args = (podcast_id, episode_id) if has_podcast else (episode_id,)
+        args = (str(error)[:500],) + key_args + (
+            () if claim_epoch is None else (claim_epoch,))
         conn.execute(
             f"""UPDATE {table} SET status='error', error=?,
                    updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE {self._scan_where(key_col, has_podcast)}""",
+               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",
             args,
         )
         conn.commit()
@@ -351,16 +404,27 @@ class CueTemplateMixin:
             'cue_candidate_scans', 'candidates_json', podcast_id, episode_id,
             stale_seconds, force)
 
+    def get_cue_candidate_scan_claim_epoch(
+        self, podcast_id: int, episode_id: str,
+    ) -> Optional[int]:
+        return self._get_scan_claim_epoch(
+            'cue_candidate_scans', podcast_id, episode_id)
+
     def save_cue_candidate_scan_result(
         self, podcast_id: int, episode_id: str, candidates: List[Dict],
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_result(
-            'cue_candidate_scans', 'candidates_json', podcast_id, episode_id, candidates)
+            'cue_candidate_scans', 'candidates_json', podcast_id, episode_id,
+            candidates, claim_epoch=claim_epoch)
 
     def save_cue_candidate_scan_error(
         self, podcast_id: int, episode_id: str, error: str,
+        claim_epoch: Optional[int] = None,
     ) -> None:
-        self._save_scan_error('cue_candidate_scans', podcast_id, episode_id, error)
+        self._save_scan_error(
+            'cue_candidate_scans', podcast_id, episode_id, error,
+            claim_epoch=claim_epoch)
 
     # Cached threshold-suggest scan (#350 follow-up); stores a suggestion dict.
 
@@ -375,16 +439,27 @@ class CueTemplateMixin:
             'cue_threshold_scans', 'result_json', podcast_id, episode_id,
             stale_seconds, force)
 
+    def get_cue_threshold_scan_claim_epoch(
+        self, podcast_id: int, episode_id: str,
+    ) -> Optional[int]:
+        return self._get_scan_claim_epoch(
+            'cue_threshold_scans', podcast_id, episode_id)
+
     def save_cue_threshold_scan_result(
         self, podcast_id: int, episode_id: str, result: Dict,
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_result(
-            'cue_threshold_scans', 'result_json', podcast_id, episode_id, result)
+            'cue_threshold_scans', 'result_json', podcast_id, episode_id,
+            result, claim_epoch=claim_epoch)
 
     def save_cue_threshold_scan_error(
         self, podcast_id: int, episode_id: str, error: str,
+        claim_epoch: Optional[int] = None,
     ) -> None:
-        self._save_scan_error('cue_threshold_scans', podcast_id, episode_id, error)
+        self._save_scan_error(
+            'cue_threshold_scans', podcast_id, episode_id, error,
+            claim_epoch=claim_epoch)
 
     # Cross-episode body scan family (D1b, #350).  Keyed by
     # (podcast_id, episode_set_hash) -- a sha256 hex of the sorted episode-id
@@ -408,19 +483,29 @@ class CueTemplateMixin:
             'cue_cross_episode_scans', 'result_json', podcast_id,
             episode_set_hash, stale_seconds, force, key_col='episode_set_hash')
 
+    def get_cue_cross_episode_scan_claim_epoch(
+        self, podcast_id: int, episode_set_hash: str,
+    ) -> Optional[int]:
+        return self._get_scan_claim_epoch(
+            'cue_cross_episode_scans', podcast_id, episode_set_hash,
+            key_col='episode_set_hash')
+
     def save_cue_cross_episode_scan_result(
         self, podcast_id: int, episode_set_hash: str, payload: Dict,
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_result(
             'cue_cross_episode_scans', 'result_json', podcast_id,
-            episode_set_hash, payload, key_col='episode_set_hash')
+            episode_set_hash, payload, key_col='episode_set_hash',
+            claim_epoch=claim_epoch)
 
     def save_cue_cross_episode_scan_error(
         self, podcast_id: int, episode_set_hash: str, error: str,
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_error(
             'cue_cross_episode_scans', podcast_id, episode_set_hash, error,
-            key_col='episode_set_hash')
+            key_col='episode_set_hash', claim_epoch=claim_epoch)
 
     # Window optimizer scan family (D2a, #350).  Keyed by template_id alone
     # (the optimizer is per-template, not per-episode-set), so it routes through
@@ -438,19 +523,29 @@ class CueTemplateMixin:
             'cue_window_optimize_scans', 'result_json', None, template_id,
             stale_seconds, force, key_col='template_id', has_podcast=False)
 
+    def get_cue_window_optimize_scan_claim_epoch(
+        self, template_id: int,
+    ) -> Optional[int]:
+        return self._get_scan_claim_epoch(
+            'cue_window_optimize_scans', None, template_id,
+            key_col='template_id', has_podcast=False)
+
     def save_cue_window_optimize_scan_result(
         self, template_id: int, payload: Dict,
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_result(
             'cue_window_optimize_scans', 'result_json', None, template_id,
-            payload, key_col='template_id', has_podcast=False)
+            payload, key_col='template_id', has_podcast=False,
+            claim_epoch=claim_epoch)
 
     def save_cue_window_optimize_scan_error(
         self, template_id: int, error: str,
+        claim_epoch: Optional[int] = None,
     ) -> None:
         self._save_scan_error(
             'cue_window_optimize_scans', None, template_id, error,
-            key_col='template_id', has_podcast=False)
+            key_col='template_id', has_podcast=False, claim_epoch=claim_epoch)
 
     def update_cue_template_window(
         self,

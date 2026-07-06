@@ -245,6 +245,53 @@ def test_scanning_in_progress_returns_scanning(app_client, wopt_seeded):
     assert body['templateId'] == tid
 
 
+def test_poll_of_ready_scan_reads_no_template_blobs(app_client, wopt_seeded):
+    """Finding 9: a poll of an existing (ready) scan must not drag the template
+    blobs via get_cue_template; the blob-free get_cue_template_meta covers the
+    pre-claim ownership/source checks."""
+    hdr = _csrf(app_client)
+    slug = wopt_seeded['slug']
+    tid = wopt_seeded['tid']
+
+    db = get_database()
+    db.claim_cue_window_optimize_scan(tid, 900)
+    db.save_cue_window_optimize_scan_result(tid, {
+        'proposedStartS': 3.1, 'proposedEndS': 3.6,
+        'meanPeakScore': 0.95, 'baselineMeanPeakScore': 0.80,
+        'perEpisode': [], 'baselineWindow': {'startS': 3.0, 'endS': 3.5},
+        'templateId': tid,
+    })
+
+    with patch.object(type(db), 'get_cue_template',
+                      side_effect=AssertionError('blob read on poll')) as _blob:
+        r = _post(app_client, slug, tid, {}, hdr)
+    assert r.status_code == 200
+    assert r.get_json()['status'] == 'ready'
+    _blob.assert_not_called()
+
+
+def test_aged_out_audio_post_claim_releases_error_row(app_client, wopt_seeded):
+    """Finding 5/9: source audio aged out is discovered AFTER the claim now
+    (claim-first order), so the slot is released as an 'error' row and the 409
+    is still returned."""
+    hdr = _csrf(app_client)
+    slug = wopt_seeded['slug']
+    tid = wopt_seeded['tid']
+    path = wopt_seeded['path']
+
+    if path.exists():
+        path.unlink()
+    r = _post(app_client, slug, tid, {}, hdr)
+    assert r.status_code == 409
+
+    db = get_database()
+    row = db.get_cue_window_optimize_scan(tid)
+    assert row is not None
+    assert row['status'] == 'error'  # not orphaned 'scanning'
+
+    _write_wav(path)  # restore for teardown
+
+
 def test_error_state_is_surfaced(app_client, wopt_seeded):
     hdr = _csrf(app_client)
     slug = wopt_seeded['slug']

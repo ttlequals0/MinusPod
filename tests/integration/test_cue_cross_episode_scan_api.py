@@ -229,6 +229,36 @@ def test_second_call_without_rescan_returns_existing(app_client, xep_seeded):
     assert body['candidates'][0]['start'] == 1.0
 
 
+def test_unexpected_exception_post_claim_releases_slot(app_client, xep_seeded):
+    """An error between a successful claim and Thread.start() must release the
+    slot as an 'error' row (finding 5), not orphan a 'scanning' one; a later
+    rescan must then be able to claim."""
+    from api import get_database
+    hdr = _csrf(app_client)
+    slug = xep_seeded['slug']
+    ep1, ep2 = xep_seeded['ep1'], xep_seeded['ep2']
+
+    # Blow up inside the post-claim validation loop.
+    with patch('api.cue_templates.get_storage') as mock_storage:
+        mock_storage.return_value.get_original_path.side_effect = RuntimeError('boom')
+        try:
+            _post(app_client, slug, {'episodeIds': [ep1, ep2]}, hdr)
+        except RuntimeError:
+            pass  # the route re-raises after releasing the slot
+
+    db = get_database()
+    pod = db.get_podcast_by_slug(slug)
+    import hashlib
+    h = hashlib.sha256(','.join(sorted([ep1, ep2])).encode()).hexdigest()
+    row = db.get_cue_cross_episode_scan(pod['id'], h)
+    assert row is not None
+    assert row['status'] == 'error'  # not left 'scanning'
+
+    # A subsequent poll surfaces the error and a rescan can re-claim.
+    r2 = _post(app_client, slug, {'episodeIds': [ep1, ep2]}, hdr)
+    assert r2.get_json()['status'] == 'error'
+
+
 def test_error_state_is_surfaced(app_client, xep_seeded):
     hdr = _csrf(app_client)
     slug = xep_seeded['slug']

@@ -396,6 +396,7 @@ CREATE TABLE IF NOT EXISTS cue_candidate_scans (
     candidates_json TEXT,
     error TEXT,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    claim_epoch INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (podcast_id, episode_id),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );
@@ -410,6 +411,7 @@ CREATE TABLE IF NOT EXISTS cue_threshold_scans (
     result_json TEXT,
     error TEXT,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    claim_epoch INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (podcast_id, episode_id),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );
@@ -425,6 +427,7 @@ CREATE TABLE IF NOT EXISTS cue_cross_episode_scans (
     result_json TEXT,
     error TEXT,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    claim_epoch INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (podcast_id, episode_set_hash),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );
@@ -438,6 +441,7 @@ CREATE TABLE IF NOT EXISTS cue_window_optimize_scans (
     result_json TEXT,
     error TEXT,
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    claim_epoch INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id) ON DELETE CASCADE
 );
 """
