@@ -625,7 +625,8 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
-                          podcast_id=None):
+                          podcast_id=None,
+                          max_ad_duration_override=None, cue_gate_enabled=False):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     Returns (ads_to_remove, all_ads_with_validation).
@@ -646,10 +647,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     false_positive_corrections, confirmed_corrections = _load_user_corrections(
         slug, episode_id, db
     )
-
-    # Resolve per-feed hold settings once (one DB read via get_podcast_cue_settings_overrides).
-    max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
-    cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
 
     validator = AdValidator(
         episode_duration, segments, episode_description,
@@ -1305,7 +1302,8 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
 def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_patterns, min_cut_confidence,
                             local_audio_processor, progress_callback,
-                            original_segments=None, reuse_transcript=False):
+                            original_segments=None, reuse_transcript=False,
+                            max_ad_duration_override=None, cue_gate_enabled=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -1371,13 +1369,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             # segment end can over- or under-run the file), and the recut
             # coverage check below needs the same pre-recut bounds.
             processed_duration = local_audio_processor.get_audio_duration(processed_path)
-
-            # Resolve per-feed hold settings once (one DB read) for the
-            # pass-2 validator. Pass the already-resolved values down rather
-            # than re-reading the DB in _validate_verification_ads.
-            podcast_id = ctx.podcast_id
-            max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
-            cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
 
             # Validate verification ads
             if verification_segments:
@@ -2085,18 +2076,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             all_ads = first_pass_ads.copy()
 
+            # Resolve per-feed hold settings once for the full pipeline.
+            podcast_id = ctx.podcast_id
+            max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
+            cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
+
             # Stage 4: Refine and validate
             ads_to_remove, all_ads_with_validation = _refine_and_validate(
                 slug, episode_id, all_ads, segments, audio_path,
                 episode_description, episode_duration, min_cut_confidence, podcast_name,
                 skip_patterns=skip_patterns, positional_prior=positional_prior,
-                podcast_id=ctx.podcast_id,
+                podcast_id=podcast_id,
+                max_ad_duration_override=max_ad_duration_override,
+                cue_gate_enabled=cue_gate_enabled,
             )
             _check_cancel(cancel_event, slug, episode_id)
 
             # No-op when enable_ad_review is off (the default).
-            podcast_id = ctx.podcast_id
-            reviewer_cue_gate = resolve_cue_gated_approval(db, podcast_id)
             ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
                 slug, episode_id, podcast_id, ads_to_remove,
                 all_ads_with_validation, segments, podcast_name,
@@ -2104,7 +2100,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 min_cut_confidence, pass_num=1,
                 pass_model=ad_detector.get_model(),
                 audio_analysis=audio_analysis_result,
-                cue_gate_enabled=reviewer_cue_gate,
+                cue_gate_enabled=cue_gate_enabled,
             )
             _check_cancel(cancel_event, slug, episode_id)
 
@@ -2169,6 +2165,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # LLM-only reprocess maps the saved transcript through the cuts
                 # for pass 2 instead of re-transcribing (issue #349).
                 reuse_transcript=(reprocess_mode == 'llm'),
+                max_ad_duration_override=max_ad_duration_override,
+                cue_gate_enabled=cue_gate_enabled,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
