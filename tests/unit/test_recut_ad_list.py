@@ -4,23 +4,30 @@ import os
 import sys
 import tempfile
 
-# Boot pattern (see test_history_ad_count.py): bind a temp DATA_DIR before
-# importing main_app, which otherwise tries to mkdir /app/data at module-load.
+import pytest
+
+# Bind a temp data dir via env (Storage reads MINUSPOD_DATA_DIR natively) so
+# importing main_app does not mkdir /app/data. Using the env var instead of
+# rebinding Database.__init__.__defaults__ at import time keeps this module from
+# poisoning sibling test modules' singleton state (finding: import poisoning).
 _test_data_dir = tempfile.mkdtemp(prefix='recut_test_')
 os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import processing
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db():
+    """Pin the Database singleton to this module's dir per test so collection
+    order cannot leave it bound to a sibling module's dir."""
+    import database
+    database.Database._instance = None
+    database.Database.__init__.__defaults__ = (_test_data_dir,)
+    database.Database.__new__.__defaults__ = (_test_data_dir,)
+    yield
 
 
 def test_best_overlap_ad_picks_max_overlap():

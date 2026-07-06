@@ -1046,7 +1046,8 @@ def _apply_ad_merge_fields(db, data):
         value = float(data['minContentBetweenAdsSeconds'])
     except (TypeError, ValueError):
         return json_response({'error': 'minContentBetweenAdsSeconds must be a number'}, 400)
-    if value < 0 or value > 60:
+    # NaN/inf pass both range checks; require a finite value (2.36.x semantics).
+    if not math.isfinite(value) or value < 0 or value > 60:
         return json_response({'error': 'minContentBetweenAdsSeconds must be between 0 and 60'}, 400)
     db.set_setting('min_content_between_ads_seconds', str(value), is_default=False)
     logger.info(f"Updated min_content_between_ads_seconds to: {value}")

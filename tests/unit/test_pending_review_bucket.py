@@ -16,20 +16,38 @@ import shutil
 import sys
 import tempfile
 
+import pytest
+
 _test_data_dir = tempfile.mkdtemp(prefix='pending_review_test_')
 os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import database
 
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
 atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
-db = database.Database()
+# Module-scoped DB pinned to this test's dir. Rebound per-test by the autouse
+# fixture below so a sibling module's import-time singleton rebinding (any
+# collection order) cannot hijack Database._instance out from under us.
+db = None
+
+
+def _pin_db():
+    """Force the Database/Storage singletons back to this module's dir."""
+    database.Database._instance = None
+    database.Database.__init__.__defaults__ = (_test_data_dir,)
+    database.Database.__new__.__defaults__ = (_test_data_dir,)
+    return database.Database()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db():
+    global db
+    db = _pin_db()
+    yield
+
 
 _counter = [0]
 
