@@ -382,6 +382,8 @@ class SchemaMixin:
             ('published_at', 'TEXT'),
             ('retry_count', 'INTEGER DEFAULT 0'),
             ('episode_number', 'INTEGER'),
+            # Phase C: held-for-review denormalized count (no JSON parse in list views)
+            ('pending_review_count', 'INTEGER NOT NULL DEFAULT 0'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

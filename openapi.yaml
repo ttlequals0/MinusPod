@@ -6183,6 +6183,9 @@ components:
         timeSaved:
           type: number
           description: Seconds saved by removing ads
+        pendingReviewCount:
+          type: integer
+          description: Number of ads held for human review (not yet approved or dismissed)
         error:
           type: string
           nullable: true
@@ -6221,12 +6224,17 @@ components:
                       type: string
             adMarkers:
               type: array
-              description: Ads that were removed from audio (ACCEPT or REVIEW decision)
+              description: Ads that were removed from audio (ACCEPT decision, was_cut=true)
               items:
                 $ref: '#/components/schemas/AdMarker'
             rejectedAdMarkers:
               type: array
-              description: Ads flagged but kept in audio (REJECT decision due to low confidence, invalid duration, etc.)
+              description: Ads flagged but kept in audio (REJECT decision or not was_cut, not held)
+              items:
+                $ref: '#/components/schemas/AdMarker'
+            pendingReviewMarkers:
+              type: array
+              description: Ads held for human review (held_for_review=true, not yet cut or dismissed)
               items:
                 $ref: '#/components/schemas/AdMarker'
             cueDetections:

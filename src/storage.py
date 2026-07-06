@@ -411,8 +411,13 @@ class Storage:
 
     def save_combined_ads(self, slug: str, episode_id: str, all_ads: List[Dict]) -> None:
         """Save combined ad markers from both passes to database."""
+        pending_count = sum(
+            1 for a in all_ads
+            if a.get('held_for_review') and not a.get('was_cut')
+        )
         try:
-            self.db.save_episode_details(slug, episode_id, ad_markers=all_ads)
+            self.db.save_episode_details(slug, episode_id, ad_markers=all_ads,
+                                         pending_review_count=pending_count)
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
 

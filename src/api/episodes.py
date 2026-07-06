@@ -124,7 +124,8 @@ def list_episodes(slug):
             'timeSaved': time_saved,
             'error': ep.get('error_message'),
             'artworkUrl': ep.get('artwork_url'),
-            'episodeNumber': ep.get('episode_number')
+            'episodeNumber': ep.get('episode_number'),
+            'pendingReviewCount': ep.get('pending_review_count', 0),
         })
 
     return json_response({
@@ -148,18 +149,23 @@ def get_episode(slug, episode_id):
     feed_auth_key = get_feed_auth_key(db)
     key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
 
-    # Parse ad markers if present, separating by validation decision
+    # Parse ad markers if present, separating into three buckets:
+    #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
+    #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held)
+    #   adMarkers:            everything else (accepted cuts)
     ad_markers = []
     rejected_ad_markers = []
+    pending_review_markers = []
     if episode.get('ad_markers_json'):
         try:
             all_markers = json.loads(episode['ad_markers_json'])
-            # Separate by validation decision and cut status
-            # Only actually-removed ads go in adMarkers; everything else is rejected
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 was_cut = marker.get('was_cut', True)
-                if decision == 'REJECT' or not was_cut:
+                held = marker.get('held_for_review', False)
+                if held and not was_cut:
+                    pending_review_markers.append(marker)
+                elif decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)
                 else:
                     ad_markers.append(marker)
@@ -222,6 +228,8 @@ def get_episode(slug, episode_id):
         'fileSize': file_size,
         'adMarkers': ad_markers,
         'rejectedAdMarkers': rejected_ad_markers,
+        'pendingReviewMarkers': pending_review_markers,
+        'pendingReviewCount': episode.get('pending_review_count', 0),
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
