@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - When `MINUSPOD_MASTER_PASSPHRASE` is set but no login password is configured, the Security section's no-password warning now distinguishes the two credentials: the passphrase encrypts stored API keys but does not restrict access, so the instance is still unprotected until a password is set (#461). Warning severity is unchanged.
+- Docs (#350): the audio-cue reference now covers the cross-episode scan and window optimizer, and drops a scan-time estimate that was never measured plus a rename action that does not exist.
+- The cached-scan state machine is parameterized over its primary key, so the candidate, threshold, cross-episode, and window-optimizer families share one claim/poll/save implementation instead of four near-copies.
+- The cross-episode scan modal and the window-optimizer panel are split out of `CueTemplatesPanel` into their own components with a shared scan-query hook and style module.
 - Dependency updates: pillow 12.3.0, huggingface-hub 1.22.0, anthropic 0.116.0, ctranslate2 4.8.1; frontend vite 8.1.3, @tanstack/react-query 5.101.2, recharts 3.9.2, eslint 10.6.0, @tailwindcss/vite 4.3.2; CI docker actions setup-buildx 4.2.0, build-push 7.3.0, login 4.4.0.
 
 ## [2.37.0] - 2026-07-06
