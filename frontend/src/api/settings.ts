@@ -163,6 +163,50 @@ export async function downloadBackup(): Promise<void> {
   downloadBlob(blob, filename);
 }
 
+// Scheduled DB backups
+
+export interface DatabaseBackupSettings {
+  enabled: boolean;
+  cron: string;
+  dest: string;
+  effectiveDest: string;
+  destWritable: boolean;
+  keepCount: number;
+  lastRun: string | null;
+  lastError: string | null;
+  lastSummary: string | null;
+}
+
+export interface DatabaseBackupRunSummary {
+  path: string;
+  sizeBytes: number;
+  durationMs: number;
+  mode: string;
+  keepCount: number;
+  prunedCount: number;
+  finishedAt: string;
+}
+
+export async function getDatabaseBackupSettings(): Promise<DatabaseBackupSettings> {
+  return apiRequest<DatabaseBackupSettings>('/settings/db-backup');
+}
+
+export async function updateDatabaseBackupSettings(
+  args: Partial<Pick<DatabaseBackupSettings, 'enabled' | 'cron' | 'dest' | 'keepCount'>>,
+): Promise<DatabaseBackupSettings> {
+  return apiRequest<DatabaseBackupSettings>('/settings/db-backup', {
+    method: 'PUT',
+    body: args,
+  });
+}
+
+export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
+  return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
+    method: 'POST',
+    skipRetry: true,
+  });
+}
+
 // Webhooks
 
 export async function getWebhooks(): Promise<Webhook[]> {
