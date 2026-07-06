@@ -115,6 +115,11 @@ function EpisodeRow({
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
+            {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
+              <span className="px-2 py-0.5 text-xs rounded-full whitespace-nowrap bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                {episode.pendingReviewCount} held
+              </span>
+            )}
             <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
               {EPISODE_STATUS_LABELS[episode.status] || episode.status}
             </span>

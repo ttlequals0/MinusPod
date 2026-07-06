@@ -81,13 +81,19 @@ class PodcastMixin:
         'transition_snap_enabled',
     )
 
+    # Phase C held-for-review per-feed columns.
+    _HELD_REVIEW_COLS = (
+        'max_ad_duration_override',
+        'cue_gated_approval',
+    )
+
     def get_podcast_cue_settings_overrides(self, podcast_id: int) -> dict:
         """Per-feed cue knob overrides plus boundary-snap flags in one query.
 
         Returns a dict with keys matching the DB column names. Each value is
         the raw DB value (None means NULL / no override set).
         """
-        cols = self._CUE_OVERRIDE_COLS + self._SNAP_FLAG_COLS
+        cols = self._CUE_OVERRIDE_COLS + self._SNAP_FLAG_COLS + self._HELD_REVIEW_COLS
         cols_sql = ', '.join(cols)
         conn = self.get_connection()
         cursor = conn.execute(
@@ -139,6 +145,7 @@ class PodcastMixin:
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
                 *self._SNAP_FLAG_COLS,
+                *self._HELD_REVIEW_COLS,
                 'max_episodes', 'etag',
                 'last_modified_header', 'only_expose_processed_episodes',
             ):

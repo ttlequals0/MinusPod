@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
+from config import count_pending_review, is_pending_review
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_variants import derive_intro_outro, merge_variants
@@ -634,6 +635,7 @@ def _submit_correction_create(db, slug, episode_id, data):
                 and m.get('pattern_id') is None):
             m['pattern_id'] = new_pattern_id
             break
+    # pending_review_count omitted: manual markers are never held (held state is set only by the validator)
     db.save_episode_details(slug, episode_id, ad_markers=markers)
 
     db.create_pattern_correction(
@@ -781,7 +783,42 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         text_snippet=rejected_text
     )
 
+    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end)
+
     return json_response({'message': 'False positive recorded'})
+
+
+def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
+    """When the rejected range matches a held marker, demote it to a plain
+    rejected marker and recompute pending_review_count. Without this the amber
+    review chip never clears by reviewing (the held state persists)."""
+    episode = db.get_episode(slug, episode_id) or {}
+    raw = episode.get('ad_markers_json')
+    if not raw:
+        return
+    try:
+        markers = json.loads(raw)
+    except (TypeError, ValueError):
+        return
+
+    changed = False
+    for m in markers:
+        m_start, m_end = m.get('start'), m.get('end')
+        if (is_pending_review(m)
+                and m_start is not None and m_end is not None
+                and abs(m_start - start) <= tol
+                and abs(m_end - end) <= tol):
+            m['held_for_review'] = False
+            m.pop('hold_reason', None)
+            m['was_cut'] = False
+            m.setdefault('validation', {})['decision'] = 'REJECT'
+            changed = True
+
+    if not changed:
+        return
+
+    db.save_episode_details(slug, episode_id, ad_markers=markers,
+                            pending_review_count=count_pending_review(markers))
 
 
 def _maybe_rewrite_pattern_from_adjustment(

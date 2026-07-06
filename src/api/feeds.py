@@ -96,7 +96,8 @@ from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
 _CUE_SCORE_MIN = AUDIO_CUE_SCORE_MIN
 _CUE_SCORE_MAX = AUDIO_CUE_SCORE_MAX
 
-# (json_key, db_col, lo, hi) for the seven float cue override fields.
+# (json_key, db_col, lo, hi) for the nullable-float per-feed override fields
+# (cue knobs plus the Phase C held-for-review max-ad-duration cap; None = no cap).
 _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueTemplateScoreOverride',       'cue_template_score_override',          _CUE_SCORE_MIN, _CUE_SCORE_MAX),
     ('cuePairMinBreakOverride',        'cue_pair_min_break_override',          1.0, 600.0),
@@ -105,6 +106,7 @@ _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueSnapConfidenceOverride',      'cue_snap_confidence_override',         0.0, 1.0),
     ('cueSnapLeadOverride',            'cue_snap_lead_override',               0.5, 30.0),
     ('cueSnapLagOverride',             'cue_snap_lag_override',                0.5, 30.0),
+    ('maxAdDurationOverride',          'max_ad_duration_override',             1.0, 3600.0),
 ]
 
 
@@ -127,16 +129,16 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
     return _normalize_nullable_finite_float(value, field_name, lo, hi)
 
 
-# (json_key, db_col) for the boundary-snap opt-in flags (Phase B).
+# (json_key, db_col) for the boundary-snap and held-review opt-in flags.
 # Nullable-bool columns; NULL/0 read as off everywhere downstream.
 _SNAP_FLAG_FIELDS = [
     ('silenceSnapEnabled',    'silence_snap_enabled'),
     ('transitionSnapEnabled', 'transition_snap_enabled'),
+    ('cueGatedApproval',      'cue_gated_approval'),
 ]
 
-
 def _cue_override_fields(podcast) -> dict:
-    """Cue override + boundary-snap flag slice of a feed response."""
+    """Cue override + boundary-snap flag + held-review slice of a feed response."""
     return {
         json_key: podcast.get(db_col)
         for json_key, db_col, _, _ in _CUE_FLOAT_OVERRIDE_FIELDS

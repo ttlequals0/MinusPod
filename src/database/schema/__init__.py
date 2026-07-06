@@ -382,6 +382,8 @@ class SchemaMixin:
             ('published_at', 'TEXT'),
             ('retry_count', 'INTEGER DEFAULT 0'),
             ('episode_number', 'INTEGER'),
+            # Phase C: held-for-review denormalized count (no JSON parse in list views)
+            ('pending_review_count', 'INTEGER NOT NULL DEFAULT 0'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -430,6 +432,9 @@ class SchemaMixin:
             ('cue_snap_lag_override', 'REAL'),
             ('silence_snap_enabled', 'INTEGER'),
             ('transition_snap_enabled', 'INTEGER'),
+            # Phase C held-for-review per-feed settings
+            ('max_ad_duration_override', 'REAL'),
+            ('cue_gated_approval', 'INTEGER DEFAULT 0'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),

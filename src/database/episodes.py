@@ -291,8 +291,13 @@ class EpisodeMixin:
                             first_pass_response: str = None,
                             first_pass_prompt: str = None,
                             second_pass_prompt: str = None,
-                            second_pass_response: str = None):
-        """Save or update episode details (transcript, VTT, chapters, ad markers, pass data)."""
+                            second_pass_response: str = None,
+                            pending_review_count: Optional[int] = None):
+        """Save or update episode details (transcript, VTT, chapters, ad markers, pass data).
+
+        pending_review_count, when provided, is written to episodes.pending_review_count
+        (denormalized for cheap list views; avoids per-row JSON parsing).
+        """
         conn = self.get_connection()
 
         db_episode_id = self._get_episode_db_id(slug, episode_id)
@@ -354,6 +359,13 @@ class EpisodeMixin:
                 (db_episode_id, transcript_text, transcript_vtt, chapters_json,
                  ad_markers_json_str, first_pass_response, first_pass_prompt,
                  second_pass_prompt, second_pass_response)
+            )
+
+        # pending_review_count lives in episodes (denormalized; avoids JSON parse in list)
+        if pending_review_count is not None:
+            conn.execute(
+                "UPDATE episodes SET pending_review_count = ? WHERE id = ?",
+                (pending_review_count, db_episode_id)
             )
 
         conn.commit()
@@ -546,6 +558,10 @@ class EpisodeMixin:
             "DELETE FROM episode_details WHERE episode_id = ?",
             (db_episode_id,)
         )
+        conn.execute(
+            "UPDATE episodes SET pending_review_count = 0 WHERE id = ?",
+            (db_episode_id,)
+        )
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
 
@@ -578,6 +594,10 @@ class EpisodeMixin:
                    transcript_vtt = NULL,
                    final_segments_json = NULL
                WHERE episode_id = ?""",
+            (db_episode_id,)
+        )
+        conn.execute(
+            "UPDATE episodes SET pending_review_count = 0 WHERE id = ?",
             (db_episode_id,)
         )
         conn.commit()
@@ -673,6 +693,10 @@ class EpisodeMixin:
             f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",
             db_ids
         )
+        conn.execute(
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
+            db_ids
+        )
         conn.commit()
 
     def batch_clear_episode_ad_data(self, slug: str, episode_ids: List[str]) -> None:
@@ -699,6 +723,10 @@ class EpisodeMixin:
                     transcript_vtt = NULL,
                     final_segments_json = NULL
                 WHERE episode_id IN ({placeholders})""",
+            db_ids
+        )
+        conn.execute(
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
             db_ids
         )
         conn.commit()

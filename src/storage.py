@@ -9,7 +9,10 @@ from typing import Dict, Any, Optional, List, Tuple
 import tempfile
 import shutil
 
-from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH
+from config import (
+    BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH,
+    count_pending_review,
+)
 from artwork_watermark import composite_watermark, cover_badge_salt, badge_path
 from utils.episode_paths import episode_filename
 from utils.http import safe_url_for_log
@@ -411,8 +414,10 @@ class Storage:
 
     def save_combined_ads(self, slug: str, episode_id: str, all_ads: List[Dict]) -> None:
         """Save combined ad markers from both passes to database."""
+        pending_count = count_pending_review(all_ads)
         try:
-            self.db.save_episode_details(slug, episode_id, ad_markers=all_ads)
+            self.db.save_episode_details(slug, episode_id, ad_markers=all_ads,
+                                         pending_review_count=pending_count)
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
 

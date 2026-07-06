@@ -29,6 +29,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
     STAGE_TUNABLE_PAYLOAD_KEYS,
+    MIN_CONTENT_BETWEEN_ADS_SECONDS,
 )
 from audio_processor import NORMALIZE_PRESETS
 from pricing_fetcher import force_refresh_pricing
@@ -234,6 +235,7 @@ def get_settings():
     vad_gap_start = _db_float('vad_gap_start_min_seconds', default_vad_gap_start)
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
+    min_content_between_ads = _db_float('min_content_between_ads_seconds', MIN_CONTENT_BETWEEN_ADS_SECONDS)
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
     audio_normalize_enabled_raw = _setting_value(settings, 'audio_normalize_enabled', 'false')
@@ -419,6 +421,7 @@ def get_settings():
         'vadGapStartMinSeconds': _sv('vad_gap_start_min_seconds', vad_gap_start),
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
+        'minContentBetweenAdsSeconds': _sv('min_content_between_ads_seconds', min_content_between_ads),
         'audioCueDetectionEnabled': _sv('audio_cue_detection_enabled', audio_cue_enabled),
         'audioCueFreqMinHz': _sv('audio_cue_freq_min_hz', audio_cue_freq_min),
         'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),
@@ -492,6 +495,7 @@ def get_settings():
             'vadGapStartMinSeconds': default_vad_gap_start,
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
+            'minContentBetweenAdsSeconds': MIN_CONTENT_BETWEEN_ADS_SECONDS,
             'audioCueDetectionEnabled': False,
             'positionalPriorEnabled': False,
             'audioCueFreqMinHz': int(AUDIO_CUE_FREQ_MIN_HZ),
@@ -560,6 +564,7 @@ def update_ad_detection_settings():
         _apply_podcast_index_fields,
         _apply_transcribe_chunk_fields,
         _apply_stage_tunables,
+        _apply_ad_merge_fields,
     )
     for phase in phases:
         err = phase(db, data)
@@ -1030,6 +1035,22 @@ def _apply_vad_gap_fields(db, data):
             return json_response({'error': f'{field_name} must be a positive number'}, 400)
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
+def _apply_ad_merge_fields(db, data):
+    """Persist the ad filler-gap merge threshold (#458)."""
+    if 'minContentBetweenAdsSeconds' not in data:
+        return None
+    try:
+        value = float(data['minContentBetweenAdsSeconds'])
+    except (TypeError, ValueError):
+        return json_response({'error': 'minContentBetweenAdsSeconds must be a number'}, 400)
+    # NaN/inf pass both range checks; require a finite value (2.36.x semantics).
+    if not math.isfinite(value) or value < 0 or value > 60:
+        return json_response({'error': 'minContentBetweenAdsSeconds must be between 0 and 60'}, 400)
+    db.set_setting('min_content_between_ads_seconds', str(value), is_default=False)
+    logger.info(f"Updated min_content_between_ads_seconds to: {value}")
     return None
 
 

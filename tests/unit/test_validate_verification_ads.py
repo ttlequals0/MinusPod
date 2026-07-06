@@ -31,7 +31,7 @@ storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
-from main_app.processing import _validate_verification_ads
+from main_app.processing import _validate_verification_ads, _gate_verification_ads_by_confidence
 
 
 def _seg(start, end, text='spoken content here'):
@@ -158,3 +158,160 @@ def test_missing_duration_falls_back_to_last_segment_end():
     )
     assert len(kept_proc) == 1
     assert kept_proc[0]['end'] <= 600.0
+
+
+# ---------- Pass-2 gate held-for-review diversion ----------
+
+
+def _held_proc(start, end, confidence=0.92, hold_reason='max_duration'):
+    """Processed-coord ad with held_for_review set (as the validator would emit)."""
+    return {
+        'start': start, 'end': end,
+        'confidence': confidence,
+        'held_for_review': True,
+        'hold_reason': hold_reason,
+        'validation': {
+            'decision': 'REVIEW',
+            'adjusted_confidence': confidence,
+        },
+    }
+
+
+def _plain_proc(start, end, confidence=0.92):
+    """Processed-coord ad, not held."""
+    return {
+        'start': start, 'end': end,
+        'confidence': confidence,
+        'validation': {
+            'decision': 'ACCEPT',
+            'adjusted_confidence': confidence,
+        },
+    }
+
+
+def _orig(start, end, marker='x'):
+    return {'start': start, 'end': end, 'marker': marker}
+
+
+def test_held_pass2_ad_diverts_to_v_ads_held():
+    """A held pass-2 ad must land in v_ads_held, NOT in v_ads_for_ui or v_ads_to_cut."""
+    proc = [_held_proc(100.0, 160.0)]
+    orig = [_orig(1100.0, 1160.0, 'held')]
+
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8,
+    )
+
+    assert v_ads_to_cut == []
+    assert v_ads_for_ui == []
+    assert len(v_ads_held) == 1
+    held = v_ads_held[0]
+    # Must be the original-coord twin
+    assert held['marker'] == 'held'
+    # was_cut must be False
+    assert held.get('was_cut') is False
+    # held fields must be propagated from the processed ad
+    assert held.get('held_for_review') is True
+    assert held.get('hold_reason') == 'max_duration'
+
+
+def test_non_held_pass2_ad_behavior_unchanged():
+    """A plain above-threshold pass-2 ad still goes to v_ads_to_cut and v_ads_for_ui;
+    v_ads_held is empty. Byte-identical behavior when no held ads present."""
+    proc = [_plain_proc(100.0, 160.0)]
+    orig = [_orig(1100.0, 1160.0, 'plain')]
+
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8,
+    )
+
+    assert v_ads_held == []
+    assert len(v_ads_to_cut) == 1
+    assert len(v_ads_for_ui) == 1
+    assert v_ads_for_ui[0]['marker'] == 'plain'
+    assert v_ads_for_ui[0].get('was_cut') is True
+
+
+def test_held_not_in_v_ads_for_ui():
+    """v_ads_for_ui feeds the reviewer accepted pool and asset mapping;
+    held ads must never appear there."""
+    proc = [_held_proc(100.0, 160.0), _plain_proc(300.0, 360.0)]
+    orig = [_orig(1100.0, 1160.0, 'held'), _orig(1300.0, 1360.0, 'plain')]
+
+    _v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8,
+    )
+
+    ui_markers = [a['marker'] for a in v_ads_for_ui]
+    assert 'held' not in ui_markers
+    assert 'plain' in ui_markers
+    held_markers = [a['marker'] for a in v_ads_held]
+    assert 'held' in held_markers
+
+
+def test_held_was_cut_is_false():
+    """The original-coord twin in v_ads_held must have was_cut=False."""
+    proc = [_held_proc(200.0, 280.0, confidence=0.95, hold_reason='no_cue_evidence')]
+    orig = [_orig(1200.0, 1280.0, 'nocue')]
+
+    _, _, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8,
+    )
+
+    assert len(v_ads_held) == 1
+    assert v_ads_held[0].get('was_cut') is False
+    assert v_ads_held[0].get('hold_reason') == 'no_cue_evidence'
+
+
+def test_below_threshold_non_held_not_in_v_ads_held():
+    """A below-threshold REVIEW that is NOT held should not go to v_ads_held;
+    it stays in neither cut list (was_cut=False), and v_ads_held is empty."""
+    proc = [{
+        'start': 100.0, 'end': 160.0,
+        'confidence': 0.5,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.5},
+    }]
+    orig = [_orig(1100.0, 1160.0, 'lowconf')]
+
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8,
+    )
+
+    assert v_ads_to_cut == []
+    assert v_ads_for_ui == []
+    assert v_ads_held == []
+
+
+# ---------- Pass-2 cut inside a pass-1 held span ----------
+
+
+def test_pass2_cut_inside_pass1_held_span_is_dropped():
+    """A pass-2 ad whose original span overlaps a pass-1 held span must be dropped
+    (never cut, never re-held) -- the pass-1 held marker already protects the
+    region, so adding a second held marker would double-count the review."""
+    proc = [_plain_proc(100.0, 160.0)]  # would-be cut
+    orig = [_orig(120.0, 250.0, 'inside')]  # original coords overlap held 100-500
+    pass1_held = [(100.0, 500.0)]
+
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_spans=pass1_held,
+    )
+
+    assert v_ads_to_cut == [], "Ad inside a held span must not be cut"
+    assert v_ads_for_ui == [], "Diverted ad must not enter the UI/reviewer pool"
+    assert v_ads_held == [], "Overlapping ad is dropped, not re-held (no double-count)"
+    assert orig[0].get('was_cut') is False
+
+
+def test_pass2_cut_outside_pass1_held_span_still_cut():
+    """A pass-2 ad not overlapping any held span cuts normally."""
+    proc = [_plain_proc(100.0, 160.0)]
+    orig = [_orig(600.0, 660.0, 'outside')]
+    pass1_held = [(100.0, 500.0)]
+
+    v_ads_to_cut, v_ads_for_ui, _v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_spans=pass1_held,
+    )
+
+    assert len(v_ads_to_cut) == 1
+    assert v_ads_for_ui[0]['marker'] == 'outside'

@@ -4,23 +4,30 @@ import os
 import sys
 import tempfile
 
-# Boot pattern (see test_history_ad_count.py): bind a temp DATA_DIR before
-# importing main_app, which otherwise tries to mkdir /app/data at module-load.
+import pytest
+
+# Bind a temp data dir via env (Storage reads MINUSPOD_DATA_DIR natively) so
+# importing main_app does not mkdir /app/data. Using the env var instead of
+# rebinding Database.__init__.__defaults__ at import time keeps this module from
+# poisoning sibling test modules' singleton state (finding: import poisoning).
 _test_data_dir = tempfile.mkdtemp(prefix='recut_test_')
 os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import processing
+
+
+@pytest.fixture(autouse=True)
+def _isolate_db():
+    """Pin the Database singleton to this module's dir per test so collection
+    order cannot leave it bound to a sibling module's dir."""
+    import database
+    database.Database._instance = None
+    database.Database.__init__.__defaults__ = (_test_data_dir,)
+    database.Database.__new__.__defaults__ = (_test_data_dir,)
+    yield
 
 
 def test_best_overlap_ad_picks_max_overlap():
@@ -146,6 +153,232 @@ def _stub_assets_io(monkeypatch, counters):
     monkeypatch.setattr(processing.storage, 'save_chapters_json',
                         lambda *a, **k: counters.__setitem__('save_chapters', counters.get('save_chapters', 0) + 1))
     monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
+
+
+def _stub_recut_db(monkeypatch, ads, fp=None, confirmed=None, overrides=None):
+    """Shared monkeypatch helper for _build_recut_ad_list hold tests."""
+    import json as _json
+    monkeypatch.setattr(processing.db, 'get_episode',
+                        lambda s, e: {'ad_markers_json': _json.dumps(ads)})
+    monkeypatch.setattr(processing.db, 'get_episode_corrections', lambda eid: [])
+    monkeypatch.setattr(processing.db, 'get_false_positive_corrections',
+                        lambda eid: fp or [])
+    monkeypatch.setattr(processing.db, 'get_confirmed_corrections',
+                        lambda eid: confirmed or [])
+    # Simulate per-feed settings overrides (or empty = both unset)
+    monkeypatch.setattr(processing.db, 'get_podcast_by_slug',
+                        lambda s: {'id': 42})
+    monkeypatch.setattr(processing.db, 'get_podcast_cue_settings_overrides',
+                        lambda pid: overrides or {})
+
+
+def test_build_recut_held_confirm_is_cut(monkeypatch):
+    # held ad + confirm correction -> FP/confirm early-return wins -> ACCEPT -> cut
+    ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
+            'reason': 'BetterHelp sponsor', 'held_for_review': True,
+            'hold_reason': 'max_duration'}]
+    _stub_recut_db(monkeypatch, ads,
+                   confirmed=[{'start': 100.0, 'end': 400.0}],
+                   overrides={'max_ad_duration_override': 240.0})
+    ads_to_remove, _ = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert {a['start'] for a in ads_to_remove} == {100.0}, (
+        "Confirmed held ad must be cut on recut"
+    )
+
+
+def test_build_recut_held_fp_is_uncut_reject(monkeypatch):
+    # held ad + FP correction -> FP early-return wins -> REJECT -> not cut
+    ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
+            'reason': 'BetterHelp sponsor', 'held_for_review': True,
+            'hold_reason': 'max_duration'}]
+    _stub_recut_db(monkeypatch, ads,
+                   fp=[{'start': 100.0, 'end': 400.0}],
+                   overrides={'max_ad_duration_override': 240.0})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove == [], "FP-corrected held ad must not be cut"
+    assert not all_ads[0].get('held_for_review'), "FP path must clear stale held flag"
+
+
+def test_build_recut_held_nothing_stays_held_uncut(monkeypatch):
+    # held ad + no correction -> re-held by validator -> gate keeps it
+    ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
+            'reason': 'BetterHelp sponsor'}]
+    _stub_recut_db(monkeypatch, ads,
+                   overrides={'max_ad_duration_override': 240.0})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove == [], "Held ad with no correction must not be cut"
+    assert all_ads[0].get('held_for_review') is True
+    assert all_ads[0].get('was_cut') is False
+
+
+def test_build_recut_manual_on_cue_gated_feed_is_cut(monkeypatch):
+    # detection_stage='manual' is exempt from cue gating -> still cut
+    ads = [{'start': 120.0, 'end': 180.0, 'confidence': 1.0,
+            'detection_stage': 'manual',
+            'reason': 'Manual Co: manually added ad'}]
+    _stub_recut_db(monkeypatch, ads,
+                   overrides={'cue_gated_approval': 1})
+    ads_to_remove, _ = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert {a['start'] for a in ads_to_remove} == {120.0}, (
+        "Manual ad must be cut even on a cue-gated feed"
+    )
+
+
+def test_gate_held_ad_not_cut_despite_high_confidence():
+    # Regression: a held ad with adjusted_confidence >= min_cut_confidence must
+    # NOT be cut. Before the gate patch, the REVIEW branch fell through to CUT
+    # when confidence was above the threshold.
+    ad = {
+        'start': 100.0,
+        'end': 200.0,
+        'confidence': 0.95,
+        'held_for_review': True,
+        'hold_reason': 'max_duration',
+        'validation': {
+            'decision': 'REVIEW',
+            'adjusted_confidence': 0.95,
+        },
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80
+    )
+    assert ads_to_remove == [], (
+        "Held ad must not appear in ads_to_remove regardless of confidence"
+    )
+    assert ad['was_cut'] is False
+
+
+def test_build_recut_previously_cut_stays_cut_when_cue_gate_enabled(monkeypatch):
+    # A marker cut in the saved state must NOT flip to held when cue gating is
+    # newly enabled: the ad is already gone from the published audio.
+    ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert {a['start'] for a in ads_to_remove} == {100.0}, (
+        "Previously-cut ad must still be cut on recut with cue gate on"
+    )
+    assert not all_ads[0].get('held_for_review'), (
+        "Previously-cut ad must not be resurrected as held"
+    )
+
+
+def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
+    # A previously-cut ad whose end overruns the episode gets clamped by the
+    # validator. Keying the resurrection guard by raw span would miss the
+    # clamped ad and it would flip to held; it must still be cut.
+    ads = [{'start': 3540.0, 'end': 3603.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove, "Previously-cut ad must still be cut after clamp"
+    assert not all_ads[0].get('held_for_review'), (
+        "Clamped previously-cut ad must not resurrect as held"
+    )
+
+
+def test_build_recut_merge_survivor_inherits_saved_cut_stamp(monkeypatch):
+    # The merge survivor is the FIRST ad. When the first was NOT previously cut
+    # but the absorbed second WAS, the saved-cut stamp must propagate to the
+    # survivor so the merged span (containing previously-cut audio) stays cut.
+    ads = [
+        {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+         'reason': 'promo one'},  # not previously cut
+        {'start': 162.0, 'end': 200.0, 'confidence': 0.95,
+         'reason': 'promo two', 'was_cut': True},  # previously cut
+    ]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove, "Merged span containing previously-cut audio must be cut"
+    assert not any(a.get('held_for_review') for a in all_ads), (
+        "Merged span with previously-cut audio must not resurrect as held"
+    )
+
+
+def test_build_recut_previously_cut_review_not_held_by_cue_gate(monkeypatch):
+    # A previously-cut ad that re-validates to REVIEW (below threshold) must not
+    # be newly held by the cue-gate fall-through -- it was already published.
+    ads = [{'start': 500.0, 'end': 560.0, 'confidence': 0.60,
+            'reason': 'possible sponsor mention', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert not all_ads[0].get('held_for_review'), (
+        "Previously-cut REVIEW ad must not be newly held by the cue gate"
+    )
+
+
+def test_build_recut_previously_held_still_re_held(monkeypatch):
+    # A previously-held marker keeps full hold-rule re-derivation.
+    ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': False,
+            'held_for_review': True, 'hold_reason': 'max_duration'}]
+    _stub_recut_db(monkeypatch, ads,
+                   overrides={'max_ad_duration_override': 240.0})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove == []
+    assert all_ads[0].get('held_for_review') is True
+    assert all_ads[0].get('was_cut') is False
+
+
+def test_gate_review_fallthrough_no_cue_is_held_on_cue_gated_feed():
+    # A REVIEW ad whose rounded adjusted_confidence >= slider must NOT be cut by
+    # the fall-through on a cue-gated feed when it has no cue evidence: hold it.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
+    )
+    assert ads_to_remove == [], "No-cue REVIEW ad must not be cut on a cue-gated feed"
+    assert ad['was_cut'] is False
+    assert ad['held_for_review'] is True
+    assert ad['hold_reason'] == 'no_cue_evidence'
+
+
+def test_gate_review_fallthrough_cue_backed_is_cut_on_cue_gated_feed():
+    # Cue-backed REVIEW ad at/over threshold is still cut via the fall-through.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'cue_snap': {'start': 498.0, 'end': 562.0},
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
+    )
+    assert {a['start'] for a in ads_to_remove} == {500.0}
+    assert ad['was_cut'] is True
+
+
+def test_gate_review_fallthrough_no_cue_cut_when_gate_off():
+    # Gate disabled -> fall-through cuts as before, no hold.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=False
+    )
+    assert {a['start'] for a in ads_to_remove} == {500.0}
+    assert not ad.get('held_for_review')
 
 
 def test_generate_assets_skips_chapters_when_disabled(monkeypatch):

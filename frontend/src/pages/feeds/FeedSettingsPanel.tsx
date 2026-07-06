@@ -28,30 +28,41 @@ interface CueOverrideRowProps {
   hint: string;
   onBlur: () => void;
   disabled: boolean;
+  placeholder?: string;
+  description?: string;
 }
 
 function CueOverrideRow({
   label, min, max, step, value, setValue, feedValue, hint, onBlur, disabled,
+  placeholder = 'global', description,
 }: CueOverrideRowProps) {
+  const inputRow = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <input
+        type="number" min={min} max={max} step={step}
+        value={value} placeholder={placeholder}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={onBlur}
+        disabled={disabled}
+        className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+      />
+      <span className="text-xs text-muted-foreground">{hint}</span>
+      {feedValue != null && (
+        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+          Override: {feedValue}
+        </span>
+      )}
+    </div>
+  );
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">{label}:</span>
-      <div className="flex items-center gap-2 flex-wrap">
-        <input
-          type="number" min={min} max={max} step={step}
-          value={value} placeholder="global"
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={onBlur}
-          disabled={disabled}
-          className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
-        />
-        <span className="text-xs text-muted-foreground">{hint}</span>
-        {feedValue != null && (
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-            Override: {feedValue}
-          </span>
-        )}
-      </div>
+    <div className={`flex flex-col sm:flex-row ${description ? 'sm:items-start' : 'sm:items-center'} gap-2 sm:gap-3 text-sm`}>
+      <span className={`text-muted-foreground whitespace-nowrap sm:w-32 shrink-0${description ? ' sm:pt-1.5' : ''}`}>{label}:</span>
+      {description ? (
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          {inputRow}
+          <p className="text-xs text-amber-600 dark:text-amber-400">{description}</p>
+        </div>
+      ) : inputRow}
     </div>
   );
 }
@@ -88,6 +99,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [snapConfInput, setSnapConfInput] = useState(s(feed.cueSnapConfidenceOverride));
   const [snapLeadInput, setSnapLeadInput] = useState(s(feed.cueSnapLeadOverride));
   const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
+  const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
 
   // Reseed inputs from the server feed object when it changes (e.g. after a
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
@@ -101,6 +113,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setSnapConfInput(s(f.cueSnapConfidenceOverride));
     setSnapLeadInput(s(f.cueSnapLeadOverride));
     setSnapLagInput(s(f.cueSnapLagOverride));
+    setMaxAdDurInput(s(f.maxAdDurationOverride));
   });
 
   const updateMutation = useMutation({
@@ -503,6 +516,36 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
             </div>
           ))}
+
+          {/* Max ad duration override (Phase C held-for-review) */}
+          <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
+            value={maxAdDurInput} setValue={setMaxAdDurInput}
+            field="maxAdDurationOverride" feedValue={feed.maxAdDurationOverride}
+            hint="s, empty = no cap" placeholder="no cap"
+            disabled={updateMutation.isPending}
+            onBlur={() => commitFloat(maxAdDurInput, feed.maxAdDurationOverride,
+              'maxAdDurationOverride', 1, 3600,
+              () => setMaxAdDurInput(s(feed.maxAdDurationOverride)))}
+            description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
+
+          {/* Cue-gated approval (Phase C held-for-review) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <ToggleSwitch
+                  checked={feed.cueGatedApproval === true}
+                  onChange={(v) => updateMutation.mutate({ cueGatedApproval: v })}
+                  disabled={updateMutation.isPending}
+                  ariaLabel="Only cue-backed ads auto-cut"
+                />
+                <span>Only cue-backed ads auto-cut</span>
+              </label>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Only ads with audio cue evidence auto-cut; others are held for review. Enable cue templates first.
+              </p>
+            </div>
+          </div>
 
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">

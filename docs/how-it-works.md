@@ -85,6 +85,17 @@ Ads are classified as:
 
 Rejected ads appear in a separate "Rejected Detections" section in the UI so you can verify the validator's decisions.
 
+#### Held for Review
+
+A fourth outcome is **held for review**. An ad is held when a per-feed rule blocks the automatic cut (both rules are off by default, set on the feed settings page):
+
+- **Max ad duration** - the detection exceeds the feed's cap, even if the model was highly confident.
+- **Cue gating** - the feed has cue-gated approval on and the detection has no audio-cue evidence. Manual markers are exempt from cue gating (the duration cap still applies to them). On cue-gated feeds, verification-pass (pass 2) proposals are always held because they cannot carry cue evidence.
+
+Held ads stay in the audio. The episode publishes with them intact. The episode page shows held ads in an amber "Held for Review (N)" section with Approve & Recut and Dismiss buttons. Approve & Recut stores a confirm correction and immediately re-cuts via the Recut Audio mode (no LLM re-run) if the original audio is still retained; without it, the button reads Approve and the cut applies on the next reprocess. Dismiss records a rejection and leaves the audio unchanged. The episode list shows an "N held" chip on any episode with held ads.
+
+The API returns held ads as `pendingReviewMarkers` on the episode detail response; episode entries carry a `pendingReviewCount` (see `openapi.yaml`).
+
 ### Pattern Learning
 
 When an ad is detected and validated, text patterns are extracted and stored for future matching.
@@ -134,6 +145,14 @@ Audio analysis runs automatically on every episode (lightweight, uses only ffmpe
 - **Transition Detection** - Finds abrupt frame-to-frame loudness jumps that indicate dynamically inserted ad (DAI) boundaries. Pairs up/down transitions into candidate ad regions.
 - **Audio Enforcement** - After LLM detection, uncovered audio signals with ad language in the transcript are promoted to ads. DAI transitions with high confidence (>=0.8) or sponsor matches are also promoted. Existing ad boundaries are extended when signals partially overlap.
 - **Audio Cue Templates** - When a feed has a learned cue template (a marked ding or stinger), an MFCC matcher finds that exact sound across the episode and snaps a detected ad's edges to the nearest high-confidence cue, capped by the reviewer's max boundary shift. The cue never cuts on its own. See [Audio Cue Detection](audio-cues.md) for setup, cue types, and the opt-in cue-pair option.
+
+### Nearby-Ad Merge
+
+Within a single ad break, individual spots are sometimes separated by brief transition music or silence rather than actual show content. The nearby-ad merge pass collapses those filler gaps so the whole break is cut as one span.
+
+The gap is measured in speech content from the transcript, not wall-clock time. Two ads merge when the speech between them falls below the **Ad break filler gap threshold** (Settings > Ad Detection; default 12 seconds). Music, silence, and untranscribed regions count for nothing. Set the threshold to 0 to disable.
+
+A 5-minute safety cap prevents merging when the resulting span would exceed it, regardless of how little speech is in the gap.
 
 ---
 

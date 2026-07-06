@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.0] - 2026-07-06
+
+### Added
+
+- Ad break filler-gap merge (#458): when one ad-break contains multiple detected ads separated only by ad-transition music or silence, the short gaps are now merged into a single contiguous cut. The discriminator is actual speech content in the gap (not wall-clock time), so ads separated by real show content are never merged. New setting `minContentBetweenAdsSeconds` (default 12.0s, 0 disables) controls the threshold; exposed in the Ad Detection settings panel. Thanks @apparle for the report and fixture.
+- Held for review (#350): two per-feed opt-ins hold an ad for a human decision instead of cutting or discarding it. Max ad duration holds any detection longer than the feed's cap, including high-confidence ones that previously bypassed the length check. Cue-gated approval only auto-cuts ads backed by audio-cue evidence and holds the rest (manual markers are exempt from the gate; verification-pass proposals are always held on gated feeds). Held ads stay in the published audio and appear in a Held for Review section on the episode page with Approve & Recut (cuts via the existing recut, no LLM re-run) and Dismiss actions; episode lists show a held count. New API fields: `pendingReviewMarkers`, `pendingReviewCount`, and feed settings `maxAdDurationOverride` / `cueGatedApproval`.
+
+### Fixed (pre-release hardening)
+
+- Held-for-review cut safety across passes: the verification pass never cuts inside a first-pass held region; a recut never resurrects a previously-cut ad after a feed later enables cue gating or a duration cap; dismissing a held marker clears its held state and the pending-review count; a review ad on a cue-gated feed without cue evidence is held, not cut, regardless of confidence rounding.
+- Ad-break merge correctness: the filler-gap merge preserves audio-cue evidence across the merged span, skips any merge overlapping a user false-positive correction, and shares one bookkeeping path with the same-sponsor merge (both keep the higher fragment confidence). The `minContentBetweenAdsSeconds` setting rejects non-finite values.
+
 ## [2.36.2] - 2026-07-05
 
 ### Changed

@@ -38,6 +38,32 @@ MAX_AD_DURATION = 300.0         # Reject if longer (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved
 
+# Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
+HOLD_REASON_MAX_DURATION = 'max_duration'
+HOLD_REASON_NO_CUE = 'no_cue_evidence'
+
+
+def is_cue_backed(ad) -> bool:
+    """Single source of truth for the cue gate: an ad is exempt from cue-gated
+    holding when it has an audio-cue snap, came from a cue pair, or is a manual
+    (human) marker. Used by the validator hold rules and the pass-1 gate.
+    """
+    return (bool(ad.get('cue_snap'))
+            or ad.get('detection_stage') in ('cue_pair', 'manual'))
+
+
+def is_pending_review(marker) -> bool:
+    """A marker awaiting a human decision: held for review and not cut. Single
+    source of truth for the pending-review bucket and count. Missing was_cut
+    defaults to True (cut) to match the API's marker bucketing, so a legacy
+    marker without the field is never counted as a phantom pending review."""
+    return bool(marker.get('held_for_review')) and not marker.get('was_cut', True)
+
+
+def count_pending_review(markers) -> int:
+    """Number of markers awaiting review; persisted as pending_review_count."""
+    return sum(1 for m in markers if is_pending_review(m))
+
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
 LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
@@ -45,8 +71,9 @@ LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
 # Ad detector specific durations
 MIN_TYPICAL_AD_DURATION = 30.0  # Most sponsor reads are 60-120 seconds
 MIN_SPONSOR_READ_DURATION = 90.0  # Threshold for extension consideration
-SHORT_GAP_THRESHOLD = 120.0     # 2 minutes - gap between ads to merge
-MAX_MERGED_DURATION = 300.0     # 5 minutes max for merged ads
+SHORT_GAP_THRESHOLD = 120.0          # 2 minutes - gap between ads to merge
+MAX_MERGED_DURATION = 300.0          # 5 minutes max for merged ads
+MIN_CONTENT_BETWEEN_ADS_SECONDS = 12.0  # default threshold for cross-ad-break filler merge
 MAX_REALISTIC_SIGNAL = 180.0    # 3 minutes - anything longer is suspect
 MIN_OVERLAP_TOLERANCE = 120.0   # 2 min tolerance for boundary ads
 MAX_AD_DURATION_WINDOW = 420.0  # 7 min max (longest reasonable sponsor read)
@@ -449,18 +476,27 @@ def resolve_feed_cue_settings(db, podcast_id):
     return result
 
 
-def _resolve_snap_flag(db, podcast_id, col):
-    """Per-feed boundary-snap opt-in: NULL/0 = off, 1 = on.
+def _resolve_override(db, podcast_id, col, coerce, default):
+    """Read one per-feed override column and coerce it.
 
-    Simple opt-in (no global to inherit). Fails open to False on any DB
-    error so a broken read can never enable edge-moving behavior.
+    ``coerce`` is called on the raw value when it is not None; ``default``
+    is returned when the column is absent, the podcast has no override row,
+    or any DB error occurs. Fails open to ``default`` so a broken read can
+    never enable behavior-changing flags.
     """
     try:
         if db and podcast_id is not None:
-            return bool(db.get_podcast_cue_settings_overrides(podcast_id).get(col))
+            raw = db.get_podcast_cue_settings_overrides(podcast_id).get(col)
+            if raw is not None:
+                return coerce(raw)
     except Exception:
-        _tunable_logger.warning('%s: flag read failed; defaulting to False', col)
-    return False
+        _tunable_logger.warning('%s: read failed; defaulting to %r', col, default)
+    return default
+
+
+def _resolve_snap_flag(db, podcast_id, col):
+    """Per-feed opt-in flag: NULL/0 = off, 1 = on. Default False."""
+    return _resolve_override(db, podcast_id, col, bool, False)
 
 
 def resolve_silence_snap_enabled(db, podcast_id):
@@ -471,6 +507,20 @@ def resolve_silence_snap_enabled(db, podcast_id):
 def resolve_transition_snap_enabled(db, podcast_id):
     """Per-feed content-transition-snap opt-in (Phase B). Default False."""
     return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
+
+
+def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:
+    """Per-feed max ad duration cap in seconds (Phase C held-for-review).
+
+    Returns None when unset or on any error -- None means no cap (the
+    global MAX_AD_DURATION / MAX_AD_DURATION_CONFIRMED constants apply).
+    """
+    return _resolve_override(db, podcast_id, 'max_ad_duration_override', float, None)
+
+
+def resolve_cue_gated_approval(db, podcast_id) -> bool:
+    """Per-feed cue-gated approval opt-in (Phase C held-for-review). Default False."""
+    return _resolve_snap_flag(db, podcast_id, 'cue_gated_approval')
 
 
 _SILENCE_SNAP_DEFAULTS = {

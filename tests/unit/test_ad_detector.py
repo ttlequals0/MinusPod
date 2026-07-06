@@ -216,8 +216,23 @@ class TestMergeSameSponsorAds:
         merged = merge_same_sponsor_ads(ads, segments, max_gap=120.0)
 
         if len(merged) == 1:
-            # If merged, should have higher confidence
-            assert merged[0]['confidence'] >= 0.75
+            # Same-sponsor merge now uses max confidence (unified with filler-gap
+            # merge via the shared _merge_ad_pair helper).
+            assert merged[0]['confidence'] == 0.95
+
+    def test_merge_same_sponsor_uses_max_confidence(self):
+        """Merged same-sponsor ad takes the max of the two confidences, not the
+        first fragment's."""
+        segments = [{'start': 0.0, 'end': 200.0, 'text': 'content'}]
+        ads = [
+            {'start': 30.0, 'end': 60.0, 'confidence': 0.70,
+             'reason': 'BetterHelp ad part 1'},
+            {'start': 62.0, 'end': 90.0, 'confidence': 0.92,
+             'reason': 'BetterHelp ad part 2'},
+        ]
+        merged = merge_same_sponsor_ads(ads, segments, max_gap=120.0)
+        assert len(merged) == 1
+        assert merged[0]['confidence'] == 0.92
 
 
 class TestExtractAdKeywords:

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.36.2
+  version: 2.37.0
   contact:
     name: MinusPod
   license:
@@ -597,6 +597,18 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in for snapping cut boundaries to content-transition cues. Simple flag, not tri-state; null and false both read as off.
+                maxAdDurationOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 1.0
+                  maximum: 3600.0
+                  description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply).
+                cueGatedApproval:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
                 maxEpisodes:
                   type:
                     - integer
@@ -3297,6 +3309,17 @@ paths:
                     Minimum post-transcript tail gap that the VAD detector
                     will cut when no postroll marker already covers it.
                   example: 3.0
+                minContentBetweenAdsSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 60
+                  description: |
+                    Minimum seconds of actual speech content that must appear
+                    in the gap between two ads to keep them separate. Gaps with
+                    less content (ad-transition music/silence) are collapsed into
+                    one contiguous cut. Set to 0 to disable. Default 12.0.
+                  example: 12.0
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -6103,6 +6126,18 @@ components:
             - boolean
             - 'null'
           description: Per-feed opt-in for snapping cut boundaries to content-transition cues. null and false both read as off.
+        maxAdDurationOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 1.0
+          maximum: 3600.0
+          description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap.
+        cueGatedApproval:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
         maxEpisodes:
           type:
             - integer
@@ -6148,6 +6183,9 @@ components:
         timeSaved:
           type: number
           description: Seconds saved by removing ads
+        pendingReviewCount:
+          type: integer
+          description: Number of ads held for human review (not yet approved or dismissed)
         error:
           type: string
           nullable: true
@@ -6186,12 +6224,17 @@ components:
                       type: string
             adMarkers:
               type: array
-              description: Ads that were removed from audio (ACCEPT or REVIEW decision)
+              description: Ads that were cut and not held for review (was_cut=true, held_for_review not set)
               items:
                 $ref: '#/components/schemas/AdMarker'
             rejectedAdMarkers:
               type: array
-              description: Ads flagged but kept in audio (REJECT decision due to low confidence, invalid duration, etc.)
+              description: Ads flagged but kept in audio (REJECT decision or not was_cut, not held)
+              items:
+                $ref: '#/components/schemas/AdMarker'
+            pendingReviewMarkers:
+              type: array
+              description: Ads held for human review (held_for_review=true, not yet cut or dismissed)
               items:
                 $ref: '#/components/schemas/AdMarker'
             cueDetections:
@@ -7027,6 +7070,11 @@ components:
             minCutConfidence:
               type: number
               format: float
+            minContentBetweenAdsSeconds:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 60
             llmProvider:
               type: string
             openaiBaseUrl:

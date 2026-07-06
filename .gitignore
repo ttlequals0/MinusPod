@@ -190,3 +190,5 @@ ad_detection_baseline.md.playwright-mcp/
 # Smoke test per-run artifacts (scripts and .gitkeep are tracked)
 smoke/results/*
 !smoke/results/.gitkeep
+.superpowers/
+superpowers/

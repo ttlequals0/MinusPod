@@ -19,6 +19,19 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage, formatDuration } from './settings/settingsUtils';
 import { formatTimestamp } from '../utils/format';
 
+function btnLabel(status: string, idle: string): string {
+  if (status === 'saving') return 'Saving...';
+  if (status === 'success') return 'Saved!';
+  if (status === 'error') return 'Error!';
+  return idle;
+}
+
+function btnClass(status: string, idleClass: string): string {
+  if (status === 'success') return 'bg-green-700 text-white';
+  if (status === 'error') return 'bg-red-600 text-white';
+  return idleClass;
+}
+
 function TranscriptBlock({ text }: { text: string }) {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -48,6 +61,9 @@ function EpisodeDetail() {
     'episode-original-transcript-requested',
     false,
   );
+  // When an "Approve & Recut" action fires, this flag signals the correctionMutation
+  // onSuccess to chain a recut immediately after the correction is stored.
+  const pendingRecutRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -125,10 +141,15 @@ function EpisodeDetail() {
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      if (pendingRecutRef.current) {
+        pendingRecutRef.current = false;
+        reprocessMutation.mutate('recut');
+      }
     },
     onError: (error) => {
       console.error('Failed to save correction:', error);
       setSaveStatus('error');
+      pendingRecutRef.current = false;
       setTimeout(() => setSaveStatus('idle'), 3000);
     },
   });
@@ -637,6 +658,127 @@ function EpisodeDetail() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {episode.pendingReviewMarkers && episode.pendingReviewMarkers.length > 0 && (
+        <div className="bg-card rounded-lg border border-amber-500/30 p-6 mb-6" data-testid="held-for-review-section">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
+            Held for Review ({episode.pendingReviewMarkers.length})
+          </h2>
+          <div className="space-y-3">
+            {episode.pendingReviewMarkers.map((segment, index) => {
+              const correction = getAdCorrection(segment.start, segment.end);
+              const holdTitle = segment.hold_reason === 'max_duration'
+                ? "Exceeds the feed's max ad duration"
+                : segment.hold_reason === 'no_cue_evidence'
+                ? 'No audio-cue evidence'
+                : 'Held for manual review';
+              // Track which row's mutation is in flight to show per-row status.
+              const mutAd = correctionMutation.variables?.originalAd;
+              const rowStatus: SaveStatus =
+                mutAd?.start === segment.start &&
+                mutAd?.end === segment.end &&
+                mutAd?.confidence === segment.confidence &&
+                mutAd?.reason === (segment.reason || '')
+                  ? saveStatus
+                  : 'idle';
+              return (
+                <div
+                  key={index}
+                  className="p-3 bg-amber-500/10 rounded-lg border border-amber-500/20"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm">
+                        {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                      </span>
+                      {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
+                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
+                          {DETECTION_STAGE_META[segment.detection_stage].label}
+                        </span>
+                      )}
+                      <span
+                        className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                        title={holdTitle}
+                      >
+                        Held
+                      </span>
+                      {correction && (
+                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                          correction.correction_type === 'confirm'
+                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                        }`}>
+                          {correction.correction_type === 'confirm' ? 'Confirmed' : 'Dismissed'}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {formatConfidence(segment)}
+                    </span>
+                  </div>
+                  {segment.validation?.flags && segment.validation.flags.length > 0 && (
+                    <p className="text-sm text-amber-500 dark:text-amber-400 mt-2">
+                      {segment.validation.flags.join(', ')}
+                    </p>
+                  )}
+                  {segment.reason && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium">Match:</span>{' '}
+                      {segment.reason}
+                    </p>
+                  )}
+                  {!correction && (
+                    <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                      <button
+                        onClick={() => {
+                          if (episode.hasOriginalAudio) {
+                            pendingRecutRef.current = true;
+                          }
+                          handleCorrection({
+                            type: 'confirm',
+                            originalAd: {
+                              start: segment.start,
+                              end: segment.end,
+                              confidence: segment.confidence,
+                              reason: segment.reason || '',
+                            },
+                          });
+                        }}
+                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        data-testid={`approve-recut-${index}`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
+                      >
+                        {btnLabel(rowStatus, episode.hasOriginalAudio ? 'Approve & Recut' : 'Approve')}
+                      </button>
+                      {!episode.hasOriginalAudio && rowStatus === 'success' && (
+                        <span className="text-xs text-muted-foreground italic self-center">
+                          Saved - applies on next reprocess
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleCorrection({
+                          type: 'reject',
+                          originalAd: {
+                            start: segment.start,
+                            end: segment.end,
+                            confidence: segment.confidence,
+                            reason: segment.reason || '',
+                          },
+                        })}
+                        disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                        data-testid={`dismiss-${index}`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
+                      >
+                        {btnLabel(rowStatus, 'Dismiss')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

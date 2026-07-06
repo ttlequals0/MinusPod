@@ -74,6 +74,7 @@ from .boundaries import (
     _unpack_region,
     get_uncovered_portions,
     merge_same_sponsor_ads,
+    merge_ads_across_short_content_gaps,
     deduplicate_window_ads,
 )
 from .prompts import (
@@ -114,6 +115,7 @@ __all__ = [
     "_unpack_region",
     "get_uncovered_portions",
     "merge_same_sponsor_ads",
+    "merge_ads_across_short_content_gaps",
     "deduplicate_window_ads",
     # re-exported from .prompts
     "USER_PROMPT_TEMPLATE",

@@ -109,6 +109,7 @@ class SettingsMixin:
             AUDIO_CUE_FORMANT_ATTEN_DB,
             SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
             SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+            MIN_CONTENT_BETWEEN_ADS_SECONDS,
         )
         from llm_client import get_effective_provider
         from secrets_crypto import SECRET_SETTING_KEYS
@@ -174,6 +175,7 @@ class SettingsMixin:
             'vad_gap_start_min_seconds': os.environ.get('VAD_GAP_START_MIN_SECONDS', '3.0'),
             'vad_gap_mid_min_seconds': os.environ.get('VAD_GAP_MID_MIN_SECONDS', '8.0'),
             'vad_gap_tail_min_seconds': os.environ.get('VAD_GAP_TAIL_MIN_SECONDS', '3.0'),
+            'min_content_between_ads_seconds': str(MIN_CONTENT_BETWEEN_ADS_SECONDS),
             # Audio cue detection (#350). These have no env overrides; the reset
             # endpoint lists them but they were absent here, making the reset a
             # silent no-op (same gap as Issue #301's reviewer prompts).

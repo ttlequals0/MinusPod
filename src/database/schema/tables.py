@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS podcasts (
     -- Boundary-snap opt-in flags (NULL/0 = off, 1 = on; no global to inherit)
     silence_snap_enabled INTEGER,
     transition_snap_enabled INTEGER,
+    -- Phase C held-for-review per-feed settings
+    max_ad_duration_override REAL,
+    cue_gated_approval INTEGER DEFAULT 0,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
@@ -71,6 +74,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     ads_removed INTEGER DEFAULT 0,
     ads_removed_firstpass INTEGER DEFAULT 0,
     ads_removed_secondpass INTEGER DEFAULT 0,
+    pending_review_count INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     artwork_url TEXT,
