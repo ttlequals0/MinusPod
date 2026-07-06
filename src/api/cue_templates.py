@@ -1693,6 +1693,8 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings):
 
         # One bounded scan per sibling; the source's neighborhood is the grid
         # region itself (the capture location is by definition its best match).
+        # This makes the source component optimistic vs full-episode detection,
+        # but baseline and proposal share it, so the improvement delta is honest.
         region_mfcc = compute_mfcc(region_pcm, n_coeffs=n_coeffs,
                                    formant_atten_db=formant_atten)
         episode_ids = [source_episode_id]
