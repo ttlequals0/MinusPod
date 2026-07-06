@@ -22,7 +22,7 @@ requests>=2.34.2
 beautifulsoup4>=4.15.0
 
 # Image processing (cover-art watermark overlay)
-pillow>=11.0.0
+pillow>=12.3.0
 
 # Utilities
 feedparser==6.0.12
