@@ -117,7 +117,17 @@ export async function createCueTemplate(
 
 export async function updateCueTemplate(
   templateId: number,
-  patch: { cueType?: CueTemplateType; enabled?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null },
+  patch: {
+    cueType?: CueTemplateType;
+    enabled?: boolean;
+    scope?: CueTemplateScope;
+    networkId?: string;
+    scoreThreshold?: number | null;
+    // Window move: the server re-extracts the MFCC/PCM blobs from the retained
+    // original and can 409 when that original has been aged out.
+    sourceOffsetS?: number;
+    durationS?: number;
+  },
 ): Promise<CueTemplate> {
   const res = await apiRequest<{ template: CueTemplate }>(
     `/cue-templates/${templateId}`,
@@ -283,6 +293,75 @@ export interface CueCandidatesResponse {
   status?: CueCandidateScanStatus;
   candidates: CueCandidate[];
   error?: string;
+}
+
+// Cross-episode scan types and client (D1b backend).
+
+export type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
+
+export interface CrossEpisodeCandidate {
+  start: number;
+  end: number;
+  kind?: 'recurring';
+  episodeMatches?: number;
+}
+
+export interface CrossEpisodeScanResponse {
+  status: CrossEpisodeScanStatus;
+  episodeIds?: string[];
+  targetEpisodeId?: string;
+  candidates?: CrossEpisodeCandidate[];
+  error?: string;
+}
+
+// Claim or poll a cross-episode scan. POST-only, same body for both.
+export async function crossEpisodeScan(
+  slug: string,
+  episodeIds: string[],
+  rescan = false,
+): Promise<CrossEpisodeScanResponse> {
+  return apiRequest<CrossEpisodeScanResponse>(
+    `/feeds/${slug}/cue-cross-episode-scan`,
+    { method: 'POST', body: { episodeIds, rescan } },
+  );
+}
+
+// Window-optimizer types and client (D2a backend).
+
+export type CueWindowOptimizeStatus = 'scanning' | 'ready' | 'error';
+
+export interface CueWindowOptimizeEpisodeScore {
+  episodeId: string;
+  peakScore: number;
+}
+
+export interface CueWindowOptimizeResponse {
+  status: CueWindowOptimizeStatus;
+  templateId: number;
+  // Present when status is 'ready'. proposed == baselineWindow means the
+  // current window already scores highest.
+  proposedStartS?: number;
+  proposedEndS?: number;
+  meanPeakScore?: number;
+  // null when the original window falls outside the live capture bounds and
+  // could not be scored.
+  baselineMeanPeakScore?: number | null;
+  perEpisode?: CueWindowOptimizeEpisodeScore[];
+  baselineWindow?: { startS: number; endS: number };
+  error?: string;
+}
+
+// Claim or poll the window-optimizer sweep. POST-only, same body for both;
+// rescan=true forces a fresh run. 409 when the source original is aged out.
+export async function optimizeCueWindow(
+  slug: string,
+  templateId: number,
+  rescan = false,
+): Promise<CueWindowOptimizeResponse> {
+  return apiRequest<CueWindowOptimizeResponse>(
+    `/feeds/${slug}/cue-templates/${templateId}/optimize-window`,
+    { method: 'POST', body: { rescan } },
+  );
 }
 
 // On-demand scan: fingerprint the whole episode and return the sounds that

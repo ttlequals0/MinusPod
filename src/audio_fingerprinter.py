@@ -39,6 +39,9 @@ from config import (
     AUDIO_CUE_FP_MAX_LEN_SECONDS,
     AUDIO_CUE_FP_MAX_ANCHORS,
     AUDIO_CUE_FP_MAX_CANDIDATES,
+    AUDIO_CUE_XEP_SIMILARITY,
+    AUDIO_CUE_XEP_MIN_MATCHES,
+    AUDIO_CUE_XEP_BODY_MIN_DURATION,
     FINGERPRINT_MATCH_THRESHOLD as MATCH_THRESHOLD,
 )
 
@@ -746,6 +749,71 @@ class AudioFingerprinter:
                         'kind': 'outro', 'episodeMatches': count})
 
         logger.info("Cross-episode cue discovery: %d intro/outro from %d siblings",
+                    len(out), len(sib_fps))
+        return out
+
+    def discover_cross_episode_body(self, target_path, sibling_paths, *,
+                                    window_seconds=AUDIO_CUE_FP_WINDOW_SECONDS,
+                                    similarity=AUDIO_CUE_XEP_SIMILARITY,
+                                    min_matches=AUDIO_CUE_XEP_MIN_MATCHES,
+                                    min_duration=AUDIO_CUE_XEP_BODY_MIN_DURATION,
+                                    max_len_s=AUDIO_CUE_FP_MAX_LEN_SECONDS,
+                                    target_fingerprint=None):
+        """Find recurring audio segments ANYWHERE in the episode body across siblings.
+
+        Sibling of discover_cross_episode_cues but with no head/tail window
+        restriction -- the full fingerprint arrays are compared so mid-episode
+        stings (e.g. ad-break tones) are found alongside intro/outro material.
+
+        Pass ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``)
+        to reuse a fingerprint the caller has; otherwise one fpcalc pass is made.
+
+        Returns ``[{start, end, kind: 'recurring', episodeMatches}]``, or [] when
+        fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
+        The result shape is field-for-field compatible with discover_cross_episode_cues
+        so downstream template-creation code can consume it unchanged.
+
+        Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode
+        stings are short; a 30s cap keeps false-positive body content from being
+        surfaced as candidates while still covering realistic sting lengths.
+        Default min_duration is AUDIO_CUE_XEP_BODY_MIN_DURATION (2s), not the 3s
+        intro/outro floor, so recurring 1.5-2.5s ad stings survive the length gate.
+        Duplicate candidates across sibling pairs are prevented natively: all
+        sibling arrays are passed in a single _find_shared_segments call, whose
+        claimed_until mechanism ensures non-overlapping, left-to-right results.
+        """
+        if not self.is_available():
+            return []
+        if not sibling_paths:
+            return []
+        target_fp = target_fingerprint or self._generate_full_fingerprint(target_path)
+        if target_fp is None or not target_fp[0] or target_fp[1] <= 0:
+            return []
+        t_ints, t_dur = target_fp
+
+        sib_fps = []
+        for path in sibling_paths:
+            fp = self._generate_full_fingerprint(path)
+            if fp and fp[0] and fp[1] > 0:
+                sib_fps.append(fp)
+        if len(sib_fps) < min_matches:
+            return []
+
+        fps = len(t_ints) / t_dur
+        win = max(4, int(round(window_seconds * fps)))
+        min_len = max(win, int(round(min_duration * fps)))
+        max_len = max(min_len, int(round(max_len_s * fps)))
+
+        segs = _find_shared_segments(
+            t_ints, [s for s, _ in sib_fps],
+            win, similarity, min_matches, min_len, max_len)
+
+        out = []
+        for a, b, count in segs:
+            out.append({'start': round(a / fps, 2), 'end': round(b / fps, 2),
+                        'kind': 'recurring', 'episodeMatches': count})
+
+        logger.info("Cross-episode body discovery: %d recurring from %d siblings",
                     len(out), len(sib_fps))
         return out
 

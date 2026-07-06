@@ -11,6 +11,7 @@ Routes mounted under the ``/api/v1`` blueprint:
 - ``POST   /feeds/<slug>/episodes/<episode_id>/cue-template-preview``
                                                    - run one template
 """
+import hashlib
 import io
 import json
 import logging
@@ -19,6 +20,7 @@ import threading
 import wave
 import zipfile
 
+import numpy as np
 from flask import abort, request, send_file
 
 from api import (
@@ -27,11 +29,12 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from audio_analysis.cue_features import (
-    SAMPLE_RATE_HZ, N_COEFFS, compute_mfcc, decode_pcm_window,
+    SAMPLE_RATE_HZ, N_COEFFS, FRAME_HOP_MS, FRAME_LENGTH_MS,
+    compute_mfcc, decode_pcm_window,
     serialize_mfcc, pcm_to_int16_bytes, int16_bytes_to_pcm,
     pcm_to_flac, flac_to_wav,
 )
-from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
+from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher, peak_zncc
 from audio_analysis.cue_candidates import (
     merge_cue_candidates, annotate_recurring_with_ad_affinity,
     count_ad_boundary_hits,
@@ -111,6 +114,26 @@ def _resolve_original_audio(db, storage, slug, episode_id):
     if not audio_path.exists():
         return None, error_response('original audio file missing', 404)
     return audio_path, None
+
+
+class _WindowTooShort(Exception):
+    """Raised by _extract_window_blobs when the window yields < 3 MFCC frames."""
+
+
+def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
+                          formant_atten_db=0.0):
+    """Decode a window and derive its (mfcc_blob, pcm_blob, sample_rate).
+
+    Shared by the PATCH window-move path. Raises RuntimeError on decode failure
+    and _WindowTooShort when the selection is too short to score; the caller
+    maps both to a 4xx.
+    """
+    pcm = decode_pcm_window(
+        audio_path, offset_s, offset_s + duration_s, SAMPLE_RATE_HZ)
+    mfcc = compute_mfcc(pcm, n_coeffs=n_coeffs, formant_atten_db=formant_atten_db)
+    if mfcc.shape[0] < 3:
+        raise _WindowTooShort()
+    return serialize_mfcc(mfcc), pcm_to_int16_bytes(pcm), SAMPLE_RATE_HZ
 
 
 def _template_to_meta_dict(row: dict) -> dict:
@@ -277,7 +300,7 @@ def create_cue_template(slug):
 @api.route('/cue-templates/<int:template_id>', methods=['PATCH'])
 @log_request
 def update_cue_template_route(template_id):
-    """Rename / enable / disable a template.
+    """Rename / enable / disable / move the window of a template.
 
     Addressed by global id with no feed scoping: a network template shared into
     a sibling feed renders read-only in that feed's panel (the UI `owned` flag),
@@ -285,8 +308,13 @@ def update_cue_template_route(template_id):
     behind one shared operator password, so this guards against an accidental
     edit, not an adversary. Add a server-side ownership check here if per-feed
     auth is ever introduced.
+
+    When sourceOffsetS or durationS are supplied the blobs are re-extracted from
+    the source episode's retained original audio. Returns 409 when the original
+    audio has been aged out.
     """
     db = get_database()
+    storage = get_storage()
     row = db.get_cue_template(template_id)
     if not row:
         return error_response('template not found', 404)
@@ -321,6 +349,51 @@ def update_cue_template_route(template_id):
             network_id = (payload.get('networkId') or '').strip()
             if not network_id:
                 return error_response('networkId is required to promote to network scope', 400)
+
+    # Window move: re-extract blobs from the source episode original audio.
+    # Both fields are optional; supplying either one triggers re-extraction so
+    # the stored blobs always reflect the current window geometry. Validation
+    # mirrors the create route (bounds, decode failure, too-short selection).
+    if 'sourceOffsetS' in payload or 'durationS' in payload:
+        try:
+            new_offset = float(payload.get('sourceOffsetS', row['source_offset_s']))
+            new_duration = float(payload.get('durationS', row['duration_s']))
+        except (TypeError, ValueError):
+            return error_response('sourceOffsetS and durationS must be numbers', 400)
+        if new_offset < 0:
+            return error_response('sourceOffsetS must not be negative', 400)
+        cap_min = db.get_setting_float(
+            'audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
+        cap_max = _capture_ceiling(db, new_cue_type or row['cue_type'])
+        if new_duration < cap_min:
+            return error_response(f'window must be at least {cap_min:g} seconds', 400)
+        if new_duration > cap_max:
+            return error_response(f'window must be at most {cap_max:g} seconds', 400)
+
+        source_episode_id = row.get('source_episode_id')
+        if not source_episode_id:
+            return error_response(
+                'template has no source episode; cannot re-extract window audio', 409)
+        # Resolve which feed owns this template so we can look up the episode.
+        slug = db.get_podcast_slug(row['podcast_id'])
+        if not slug:
+            return error_response('feed not found for this template', 404)
+        audio_path, audio_err = _resolve_original_audio(
+            db, storage, slug, source_episode_id)
+        if audio_err:
+            return error_response(_WIN_SOURCE_AUDIO_GONE_MSG, 409)
+        try:
+            mfcc_blob, pcm_blob, sr = _extract_window_blobs(
+                audio_path, new_offset, new_duration, row['n_coeffs'])
+        except RuntimeError as e:
+            return error_response(f'failed to decode window: {e}', 400)
+        except _WindowTooShort:
+            return error_response(
+                'selection too short; widen it or pick a louder cue', 400)
+        if not db.update_cue_template_window(
+                template_id, new_offset, round(new_duration, 3),
+                mfcc_blob, pcm_blob, sr):
+            return error_response('template not found', 404)
 
     db.update_cue_template(template_id, cue_type=new_cue_type, enabled=enabled,
                            score_threshold=score_threshold)  # _CUE_THRESHOLD_UNSET = no change
@@ -809,9 +882,9 @@ def _templated_cue_spans(db, podcast_id, slug, episode_id):
     return spans
 
 
-def _completed_sibling_audio_paths(db, storage, slug, episode_id):
+def _completed_sibling_episodes(db, storage, slug, episode_id):
     """Up to AUDIO_CUE_XEP_MAX_SIBLINGS recent COMPLETED episodes (other than this
-    one) that still have retained original audio, as resolvable file paths.
+    one) that still have retained original audio, as (episode_id, path) pairs.
 
     Completed-only matters: a finished episode's column value is
     EpisodeStatus.PROCESSED ('processed'), which the API displays as 'completed'.
@@ -821,17 +894,23 @@ def _completed_sibling_audio_paths(db, storage, slug, episode_id):
     episodes, _ = db.get_episodes(
         slug, status=EpisodeStatus.PROCESSED.value,
         limit=AUDIO_CUE_XEP_SIBLING_LOOKBACK)
-    paths = []
+    pairs = []
     for ep in episodes:
         eid = ep.get('episode_id')
         if eid == episode_id or not ep.get('original_file'):
             continue
         path = storage.get_original_path(slug, eid)
         if path.exists():
-            paths.append(str(path))
-        if len(paths) >= AUDIO_CUE_XEP_MAX_SIBLINGS:
+            pairs.append((eid, str(path)))
+        if len(pairs) >= AUDIO_CUE_XEP_MAX_SIBLINGS:
             break
-    return paths
+    return pairs
+
+
+def _completed_sibling_audio_paths(db, storage, slug, episode_id):
+    """Path-only projection of _completed_sibling_episodes for callers that
+    do not need the episode ids."""
+    return [p for _, p in _completed_sibling_episodes(db, storage, slug, episode_id)]
 
 
 def _parse_ad_markers(raw):
@@ -1317,3 +1396,532 @@ def cue_threshold_suggest(slug):
         name=f'cue-threshold-{episode_id}',
     ).start()
     return json_response({'episodeId': episode_id, 'status': 'scanning'})
+
+
+# Cross-episode body scan (D1b, #350).
+# Episode cap: 5, matching AUDIO_CUE_SUGGEST_MAX_EPISODES used by the threshold
+# suggest path. Body scanning (full-duration fingerprint per episode) is at least
+# as expensive as the threshold sweep. Keeping the same cap bounds wall time and
+# mirrors the user's mental model of a "sample set".
+_CROSS_EPISODE_SCAN_MAX_EPISODES = AUDIO_CUE_SUGGEST_MAX_EPISODES  # 5
+
+
+def _run_cue_cross_episode_scan(
+    podcast_id, episode_set_hash,
+    target_episode_id, episode_ids,
+    target_path, sibling_paths,
+    claim_epoch=None,
+):
+    """Background worker: find recurring body segments across the requested episodes.
+
+    target_episode_id is the first element of episode_ids (caller's order) and
+    defines the coordinate frame for all returned start/end times. sibling_paths
+    are the retained original audio files for the remaining episodes.
+
+    Payload saved on success:
+        {candidates, targetEpisodeId, episodeIds}
+    where candidates matches discover_cross_episode_body's result shape
+    ({start, end, kind, episodeMatches}) so D1c can feed them directly into
+    the existing Make-template flow (CueMarkModal expects bounds + episode).
+    """
+    db = get_database()
+    try:
+        fp = AudioFingerprinter()
+        target_fp = None
+        if fp.is_available():
+            target_fp = fp._generate_full_fingerprint(target_path)
+            if target_fp is None:
+                raise RuntimeError(f'fingerprint decode failed for {target_path}')
+        # A 2-episode set has a single sibling; the default min_matches=2 would
+        # short-circuit to []. Cap it at the sibling count so 2-episode scans work.
+        min_matches = min(AUDIO_CUE_XEP_MIN_MATCHES, len(sibling_paths))
+        candidates = fp.discover_cross_episode_body(
+            target_path, sibling_paths,
+            min_matches=min_matches,
+            target_fingerprint=target_fp,
+        )
+        db.save_cue_cross_episode_scan_result(podcast_id, episode_set_hash, {
+            'candidates': candidates,
+            'targetEpisodeId': target_episode_id,
+            'episodeIds': episode_ids,
+        }, claim_epoch=claim_epoch)
+    except Exception as e:
+        logger.exception(
+            'cross-episode body scan failed for podcast %s hash %s',
+            podcast_id, episode_set_hash,
+        )
+        db.save_cue_cross_episode_scan_error(
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
+
+
+@api.route('/feeds/<slug>/cue-cross-episode-scan', methods=['POST'])
+@log_request
+def cue_cross_episode_scan(slug):
+    """Find recurring audio segments anywhere in the body across a set of episodes.
+
+    Body: {episodeIds: [...], rescan?: bool}
+
+    Between 2 and 5 episode IDs must be supplied; all must belong to this feed
+    and have retained original audio. The scan runs in a background thread
+    (full-duration fingerprinting is slow); poll this endpoint with the same
+    body to check progress. rescan=true forces a fresh run even when a cached
+    result exists.
+
+    Poll response carries status 'scanning'|'ready'|'error'. When ready,
+    candidates are in the coordinate frame of the first supplied episode
+    (targetEpisodeId).
+    """
+
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+    podcast_id = podcast['id']
+
+    data = request.get_json(silent=True) or {}
+    episode_ids = data.get('episodeIds')
+    if not isinstance(episode_ids, list) or len(episode_ids) < 2:
+        return error_response('episodeIds must be a list of at least 2 episode ids', 400)
+    # Every entry must be a valid episode id before it reaches sorted()/join and
+    # the hash. A non-string entry would raise inside sorted() (500), and a
+    # duplicated id would self-match, so the 2-5 bound is enforced over UNIQUE ids.
+    if not all(isinstance(eid, str) and is_valid_episode_id(eid) for eid in episode_ids):
+        return error_response('episodeIds must all be valid episode ids', 400)
+    if len(set(episode_ids)) != len(episode_ids):
+        return error_response('episodeIds must not contain duplicates', 400)
+    if len(episode_ids) > _CROSS_EPISODE_SCAN_MAX_EPISODES:
+        return error_response(
+            f'episodeIds must contain at most {_CROSS_EPISODE_SCAN_MAX_EPISODES} ids', 400)
+    force = bool(data.get('rescan'))
+
+    episode_set_hash = hashlib.sha256(
+        ','.join(sorted(episode_ids)).encode()
+    ).hexdigest()
+
+    # Claim first: a 3s poll for an already-running or cached set must not re-run
+    # N get_episode + N filesystem exists() checks. Only a fresh claim ('started')
+    # pays for the per-episode validation below.
+    state = db.claim_cue_cross_episode_scan(
+        podcast_id, episode_set_hash, AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS, force=force)
+
+    if state == 'ready':
+        row = db.get_cue_cross_episode_scan(podcast_id, episode_set_hash)
+        result = json.loads((row or {}).get('result_json') or '{}')
+        return json_response({'status': 'ready', **result})
+    if state == 'scanning':
+        return json_response({'status': 'scanning', 'episodeIds': episode_ids})
+    if state == 'error':
+        row = db.get_cue_cross_episode_scan(podcast_id, episode_set_hash)
+        return json_response({
+            'status': 'error',
+            'episodeIds': episode_ids,
+            'error': (row or {}).get('error') or 'cross-episode scan failed',
+        })
+
+    # state == 'started': validate that all IDs belong to this feed and have
+    # retained original audio. On failure, release the just-claimed slot as an
+    # error row (so no orphaned 'scanning' row survives to block or mislead a
+    # later poll) before returning the 4xx. Capture the claim token so the
+    # worker's save cannot clobber a newer claim (finding 4). Anything between
+    # here and Thread.start() runs under try/except so an unexpected error
+    # releases the slot instead of orphaning a 'scanning' row (finding 5).
+    claim_epoch = db.get_cue_cross_episode_scan_claim_epoch(
+        podcast_id, episode_set_hash)
+    try:
+        ineligible = []
+        episode_rows = {}
+        for eid in episode_ids:
+            row = db.get_episode(slug, eid)
+            if not row:
+                ineligible.append(eid)
+                continue
+            audio_path = storage.get_original_path(slug, eid)
+            if not row.get('original_file') or not audio_path.exists():
+                ineligible.append(eid)
+            else:
+                episode_rows[eid] = str(audio_path)
+        if ineligible:
+            msg = 'original audio not retained for episode(s): ' + ', '.join(ineligible)
+            db.save_cue_cross_episode_scan_error(
+                podcast_id, episode_set_hash, msg, claim_epoch=claim_epoch)
+            return error_response(msg, 400)
+
+        # Resolve audio paths and launch the background worker.
+        target_episode_id = episode_ids[0]
+        target_path = episode_rows[target_episode_id]
+        sibling_paths = [episode_rows[eid] for eid in episode_ids[1:]]
+
+        threading.Thread(
+            target=_run_cue_cross_episode_scan,
+            args=(podcast_id, episode_set_hash,
+                  target_episode_id, episode_ids,
+                  target_path, sibling_paths, claim_epoch),
+            daemon=True,
+            name=f'cue-xep-scan-{episode_set_hash[:12]}',
+        ).start()
+    except Exception as e:
+        logger.exception(
+            'cross-episode scan launch failed for podcast %s hash %s',
+            podcast_id, episode_set_hash)
+        db.save_cue_cross_episode_scan_error(
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
+        raise
+    return json_response({'status': 'scanning', 'episodeIds': episode_ids})
+
+
+# ---------------------------------------------------------------------------
+# Window optimizer scan (D2a, #350).
+# Grid-sweeps start/end deltas to maximize mean match score across the source
+# episode and siblings. Cost controls: the source is decoded only around the
+# grid region, siblings are scanned once in bounded chunks, and candidates are
+# scored inside a small MFCC neighborhood of each episode's baseline match
+# peak instead of re-sliding full episodes once per candidate.
+# ---------------------------------------------------------------------------
+
+# Grid step and range (seconds). 11 steps in each axis = 11x11 = 121 candidates.
+_WIN_GRID_STEP = 0.1
+_WIN_GRID_RANGE = 0.5
+# Episode cap for the optimizer: source + up to 4 siblings = 5 total.
+_WIN_OPTIMIZE_MAX_EPISODES = AUDIO_CUE_SUGGEST_MAX_EPISODES
+# Seconds of episode MFCC kept on each side of the baseline match peak. Grid
+# candidates shift the window by at most _WIN_GRID_RANGE, so their own best
+# match lies well inside this margin.
+_WIN_PEAK_NEIGHBORHOOD_S = 3.0
+# Chunk size for the sibling scan; a full-episode decode plus MFCC framing of
+# a multi-hour file transiently costs GBs (the matcher chunks its decoding for
+# the same reason -- see cue_template_matcher.CHUNK_SECONDS).
+_WIN_MFCC_CHUNK_S = 600.0
+# One MFCC frame hop in seconds, and the frame length (ms) the slicer uses to
+# reproduce compute_mfcc's frame count over a window's sample span.
+_WIN_FRAME_HOP_S = FRAME_HOP_MS / 1000.0
+_WIN_FRAME_LENGTH_MS = FRAME_LENGTH_MS
+
+_WIN_SOURCE_AUDIO_GONE_MSG = (
+    'the source episode original audio is needed to re-decode the window; '
+    'it has been aged out'
+)
+
+
+def _build_optimize_grid(template, min_duration_s=AUDIO_CUE_CAPTURE_MIN_SECONDS,
+                         max_duration_s=None):
+    """Return list of candidate dicts {start_delta, end_delta, start_s, end_s}.
+
+    Candidates with start_s < 0 or a duration outside
+    [min_duration_s, max_duration_s] are excluded; callers pass the live
+    capture bounds so the optimizer never proposes a window the PATCH
+    apply would then reject.
+    """
+    base_start = float(template['source_offset_s'])
+    base_duration = float(template['duration_s'])
+    base_end = base_start + base_duration
+
+    step = _WIN_GRID_STEP
+    half = _WIN_GRID_RANGE
+    n = round(half / step)
+    deltas = [i * step for i in range(-n, n + 1)]
+
+    candidates = []
+    for sd in deltas:
+        for ed in deltas:
+            new_start = base_start + sd
+            new_end = base_end + ed
+            duration = new_end - new_start
+            if new_start < 0.0:
+                continue
+            if duration < min_duration_s - 1e-9:
+                continue
+            if max_duration_s is not None and duration > max_duration_s + 1e-9:
+                continue
+            candidates.append({
+                'start_delta': sd,
+                'end_delta': ed,
+                'start_s': new_start,
+                'end_s': new_end,
+            })
+    return candidates
+
+
+def _pick_best_candidate(scored_candidates):
+    """Return the candidate with highest mean_peak_score.
+
+    Tie-break: smallest total |delta| (least change from the original window).
+    """
+    if not scored_candidates:
+        return None
+    best = max(
+        scored_candidates,
+        key=lambda c: (
+            round(c['mean_peak_score'], 8),
+            -round(abs(c['start_delta']) + abs(c['end_delta']), 8),
+        ),
+    )
+    return best
+
+
+def _episode_match_neighborhood(path, base_mfcc, n_coeffs, formant_atten_db):
+    """MFCC slice around an episode's best match of the baseline window.
+
+    Scans the episode in bounded chunks and keeps only a few seconds of MFCC
+    around the best-scoring match of the baseline template. Every grid
+    candidate is a sub-second shift of that window, so its own best match lies
+    inside the kept neighborhood; scoring candidates against the slice is
+    equivalent to a full-episode slide at a fraction of the memory and CPU.
+    Returns None when no chunk was long enough to score.
+    """
+    margin_frames = int(round(_WIN_PEAK_NEIGHBORHOOD_S / _WIN_FRAME_HOP_S))
+    n_base = base_mfcc.shape[0]
+    # Overlap re-scans matches that straddle a chunk boundary.
+    overlap_s = n_base * _WIN_FRAME_HOP_S + 2 * _WIN_PEAK_NEIGHBORHOOD_S
+    best_score = None
+    best_slice = None
+    chunk_start = 0.0
+    while True:
+        pcm = decode_pcm_window(
+            path, chunk_start, chunk_start + _WIN_MFCC_CHUNK_S, SAMPLE_RATE_HZ)
+        mfcc = compute_mfcc(pcm, n_coeffs=n_coeffs,
+                            formant_atten_db=formant_atten_db)
+        if mfcc.shape[0] >= n_base:
+            score, frame = peak_zncc(mfcc, base_mfcc)
+            if best_score is None or score > best_score:
+                best_score = score
+                lo = max(0, frame - margin_frames)
+                best_slice = mfcc[lo:frame + n_base + margin_frames].copy()
+        # A short decode means we passed EOF (1s tolerance for codec padding).
+        if len(pcm) < int((_WIN_MFCC_CHUNK_S - 1.0) * SAMPLE_RATE_HZ):
+            break
+        # The overlap scales with the template length; clamp the advance so a
+        # pathologically long capture ceiling can never stall the loop.
+        chunk_start += max(_WIN_MFCC_CHUNK_S - overlap_s, 1.0)
+    return best_slice
+
+
+def _run_cue_window_optimize_scan(template_id, source_path, siblings,
+                                  claim_epoch=None):
+    """Background worker: sweep the template window and find the best fit.
+
+    ``source_path`` is the source episode's original audio (resolved by the
+    route, matching the threshold/candidate scan pattern); ``siblings`` is a
+    list of (episode_id, path) pairs. Only the grid region of the source is
+    decoded; siblings are scanned once each in bounded chunks.
+    """
+    db = get_database()
+    try:
+        template = db.get_cue_template(template_id)
+        if not template:
+            raise RuntimeError(f'template {template_id} not found')
+        source_episode_id = template.get('source_episode_id')
+        n_coeffs = template['n_coeffs']
+        formant_atten = db.get_setting_float(
+            'audio_cue_formant_atten_db', AUDIO_CUE_FORMANT_ATTEN_DB)
+
+        cap_min = db.get_setting_float(
+            'audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
+        cap_max = _capture_ceiling(db, template['cue_type'])
+        candidates = _build_optimize_grid(
+            template, min_duration_s=cap_min, max_duration_s=cap_max)
+        if not candidates:
+            raise RuntimeError('no valid window candidates generated')
+
+        base_start = float(template['source_offset_s'])
+        base_end = base_start + float(template['duration_s'])
+
+        # Decode the source once, only around the grid region.
+        region_start = max(0.0, base_start - _WIN_GRID_RANGE)
+        try:
+            region_pcm = decode_pcm_window(
+                str(source_path), region_start,
+                base_end + _WIN_GRID_RANGE, SAMPLE_RATE_HZ)
+        except Exception as e:
+            raise RuntimeError(f'failed to decode source episode: {e}') from e
+
+        # Frame the region once and slice candidates in frame space. Every grid
+        # offset is an exact multiple of the frame hop (0.1s vs 10ms), so a
+        # candidate's frames align exactly with the region's; the only delta is
+        # the frame-0 pre-emphasis boundary (one sample), which is negligible.
+        # This replaces the per-candidate compute_mfcc over a PCM slice: the
+        # frame at row f covers samples [f*hop, f*hop+frame_len), so a slice
+        # reproduces the same frames the old PCM-window MFCC produced. `length`
+        # matches compute_mfcc's frame count for the window's sample span so a
+        # slice keeps the same number of rows, not one hop's worth more.
+        region_mfcc = compute_mfcc(region_pcm, n_coeffs=n_coeffs,
+                                   formant_atten_db=formant_atten)
+        _hop = int(round(SAMPLE_RATE_HZ * FRAME_HOP_MS / 1000))
+        _frame_len = int(round(SAMPLE_RATE_HZ * _WIN_FRAME_LENGTH_MS / 1000))
+
+        def region_slice_mfcc(start_s, end_s):
+            lo_sample = int((start_s - region_start) * SAMPLE_RATE_HZ)
+            hi_sample = min(int((end_s - region_start) * SAMPLE_RATE_HZ),
+                            len(region_pcm))
+            span = hi_sample - lo_sample
+            if span < _frame_len:
+                return None
+            lo = max(0, round((start_s - region_start) / _WIN_FRAME_HOP_S))
+            length = 1 + (span - _frame_len) // _hop
+            hi = min(lo + length, region_mfcc.shape[0])
+            if hi <= lo:
+                return None
+            return region_mfcc[lo:hi]
+
+        base_mfcc = region_slice_mfcc(base_start, base_end)
+        if base_mfcc is None or base_mfcc.shape[0] < 3:
+            raise RuntimeError('template window too short to score')
+
+        # One bounded scan per sibling; the source's neighborhood is the grid
+        # region itself (the capture location is by definition its best match).
+        # This makes the source component optimistic vs full-episode detection,
+        # but baseline and proposal share it, so the improvement delta is honest.
+        episode_ids = [source_episode_id]
+        neighborhoods = [region_mfcc]
+        for sibling_id, sibling_path in siblings:
+            try:
+                nb = _episode_match_neighborhood(
+                    sibling_path, base_mfcc, n_coeffs, formant_atten)
+            except Exception as e:
+                logger.warning(
+                    'window optimize: scan failed for %s: %s', sibling_path, e)
+                nb = None
+            if nb is not None:
+                episode_ids.append(sibling_id)
+                neighborhoods.append(nb)
+
+        # Score every candidate against every episode neighborhood.
+        scored = []
+        for cand in candidates:
+            cand_mfcc = region_slice_mfcc(cand['start_s'], cand['end_s'])
+            if cand_mfcc is None or cand_mfcc.shape[0] < 3:
+                continue
+            peak_scores = [
+                round(peak_zncc(nb, cand_mfcc)[0], 4) for nb in neighborhoods
+            ]
+            scored.append({
+                **cand,
+                'mean_peak_score': float(np.mean(peak_scores)),
+                'peak_scores': peak_scores,
+            })
+
+        if not scored:
+            raise RuntimeError('all candidates failed scoring')
+
+        best = _pick_best_candidate(scored)
+
+        # Baseline is the delta=(0,0) candidate; it can be missing when the
+        # base window falls outside the live capture bounds.
+        baseline_cand = next(
+            (c for c in scored
+             if abs(c['start_delta']) < 1e-9 and abs(c['end_delta']) < 1e-9),
+            None,
+        )
+
+        payload = {
+            'templateId': template_id,
+            'proposedStartS': round(best['start_s'], 4),
+            'proposedEndS': round(best['end_s'], 4),
+            'meanPeakScore': round(best['mean_peak_score'], 4),
+            'baselineMeanPeakScore': (
+                round(baseline_cand['mean_peak_score'], 4)
+                if baseline_cand else None),
+            'perEpisode': [
+                {'episodeId': ep_id, 'peakScore': score}
+                for ep_id, score in zip(episode_ids, best['peak_scores'])
+            ],
+            'baselineWindow': {
+                'startS': round(base_start, 4),
+                'endS': round(base_end, 4),
+            },
+        }
+        db.save_cue_window_optimize_scan_result(
+            template_id, payload, claim_epoch=claim_epoch)
+    except Exception as e:
+        logger.exception(
+            'window optimize scan failed for template %s', template_id)
+        db.save_cue_window_optimize_scan_error(
+            template_id, str(e), claim_epoch=claim_epoch)
+
+
+@api.route(
+    '/feeds/<slug>/cue-templates/<int:template_id>/optimize-window',
+    methods=['POST'],
+)
+@log_request
+def cue_window_optimize(slug, template_id):
+    """Find the window trim that maximises mean match score across sibling episodes.
+
+    Body: {rescan?: bool}
+
+    Validates that the feed exists, the template belongs to the feed, and the
+    source episode's original audio is still retained (needed to re-decode the
+    window). Returns 409 when the original audio has been aged out.
+
+    The scan runs in a background thread; poll this endpoint with the same body
+    to check progress.
+    """
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+
+    # Pre-claim checks are blob-free: a 3s poll must not drag the template's
+    # multi-MB mfcc/pcm blobs (finding 9). Ownership and source-episode presence
+    # are the only checks that must run before claiming.
+    template = db.get_cue_template_meta(template_id)
+    if not template or template['podcast_id'] != podcast['id']:
+        return error_response('template not found', 404)
+
+    source_episode_id = template.get('source_episode_id')
+    if not source_episode_id:
+        return error_response(
+            'template has no source episode; cannot optimize window', 409)
+
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get('rescan'))
+
+    # Claim first, matching the cross-episode route: a poll for an already
+    # running or cached scan must not pay for the source-audio stat or sibling
+    # resolution below.
+    state = db.claim_cue_window_optimize_scan(
+        template_id, AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS, force=force)
+
+    if state == 'ready':
+        row = db.get_cue_window_optimize_scan(template_id)
+        result = json.loads((row or {}).get('result_json') or '{}')
+        return json_response({'status': 'ready', **result})
+    if state == 'scanning':
+        return json_response({'status': 'scanning', 'templateId': template_id})
+    if state == 'error':
+        row = db.get_cue_window_optimize_scan(template_id)
+        return json_response({
+            'status': 'error',
+            'templateId': template_id,
+            'error': (row or {}).get('error') or 'window optimize scan failed',
+        })
+
+    # state == 'started': confirm source audio, resolve siblings, and launch the
+    # worker. Capture the claim token (finding 4) and run everything under
+    # try/except so a validation failure or unexpected error releases the slot
+    # as an error row instead of orphaning a 'scanning' one (finding 5).
+    claim_epoch = db.get_cue_window_optimize_scan_claim_epoch(template_id)
+    try:
+        audio_path, audio_err = _resolve_original_audio(
+            db, storage, slug, source_episode_id)
+        if audio_err:
+            db.save_cue_window_optimize_scan_error(
+                template_id, _WIN_SOURCE_AUDIO_GONE_MSG, claim_epoch=claim_epoch)
+            return error_response(_WIN_SOURCE_AUDIO_GONE_MSG, 409)
+
+        siblings = _completed_sibling_episodes(
+            db, storage, slug, source_episode_id)[:_WIN_OPTIMIZE_MAX_EPISODES - 1]
+        threading.Thread(
+            target=_run_cue_window_optimize_scan,
+            args=(template_id, str(audio_path), siblings, claim_epoch),
+            daemon=True,
+            name=f'cue-wopt-{template_id}',
+        ).start()
+    except Exception as e:
+        logger.exception(
+            'window optimize scan launch failed for template %s', template_id)
+        db.save_cue_window_optimize_scan_error(
+            template_id, str(e), claim_epoch=claim_epoch)
+        raise
+    return json_response({'status': 'scanning', 'templateId': template_id})

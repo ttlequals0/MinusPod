@@ -4,6 +4,11 @@ import { X, Play, Square } from 'lucide-react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
+import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
+import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
+import {
+  ghostBtn, primaryBtn, fieldCls, modalBackdrop, modalPanel, useEscape,
+} from '../../components/cueScanStyles';
 import {
   CUE_TYPE_OPTIONS,
   cueTemplateAudioUrl,
@@ -30,25 +35,8 @@ import { formatTime } from '../../utils/adReviewHelpers';
 
 const PICKER_PAGE_SIZE = 50;
 
-// Design-system recipes shared by the panel and its modals (match the app's
-// confirm/edit modals and form controls; theme-aware in dark mode).
-const ghostBtn = 'border border-border hover:bg-accent transition-colors';
-const primaryBtn = 'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors';
-const fieldCls = 'rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
-const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4';
-const modalPanel = 'bg-card text-foreground rounded-lg border border-border shadow-xl';
-
 interface Props {
   slug: string;
-}
-
-// Close-on-Escape for the lightweight modals below.
-function useEscape(onClose: () => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
 }
 
 // Per-feed cue template management. Templates take precedence over the global
@@ -58,6 +46,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openModal, setOpenModal] = useState<{ episodeId: string; episodeTitle: string; duration: number } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  const [crossEpisodeScanOpen, setCrossEpisodeScanOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState<CueTemplateType>('ad_break_boundary');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -73,6 +62,8 @@ function CueTemplatesPanel({ slug }: Props) {
   const [editingThresholdId, setEditingThresholdId] = useState<number | null>(null);
   const [editThresholdValue, setEditThresholdValue] = useState<string>('');
   const thresholdCancelledRef = useRef(false);
+  // Template whose optimize-window panel is expanded (one at a time).
+  const [optimizeId, setOptimizeId] = useState<number | null>(null);
 
   const togglePlay = (t: CueTemplate) => {
     const audio = audioRef.current;
@@ -115,6 +106,28 @@ function CueTemplatesPanel({ slug }: Props) {
     queryFn: () => getCueFeedAdvisory(slug),
     enabled: !!slug,
   });
+
+  // Gate for the "Find across episodes" button: needs >= 2 episodes with
+  // retained originals. Shares the picker's page-0 query (cached), and only
+  // disables once loaded data confirms the shortfall, so the button doesn't
+  // flash disabled while the query is in flight.
+  const eligibleQuery = useQuery({
+    queryKey: ['cue-template-picker', slug, 0],
+    queryFn: () =>
+      getEpisodes(slug, {
+        limit: PICKER_PAGE_SIZE,
+        offset: 0,
+        status: 'completed',
+        sortBy: 'published',
+        sortDir: 'desc',
+      }),
+    enabled: !!slug,
+    staleTime: 60_000,
+  });
+  const eligibleCount = (eligibleQuery.data?.episodes ?? []).filter(
+    (ep) => ep.hasOriginalAudio !== false,
+  ).length;
+  const crossEpisodeEligible = !eligibleQuery.data || eligibleCount >= 2;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
@@ -315,6 +328,15 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
+            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm disabled:opacity-50`}
+            onClick={() => { setActionError(null); setCrossEpisodeScanOpen(true); }}
+            disabled={!crossEpisodeEligible}
+            title={!crossEpisodeEligible ? 'Need at least 2 episodes with original audio' : 'Find recurring cue sounds across multiple episodes'}
+          >
+            Find across episodes
+          </button>
+          <button
+            type="button"
             className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${primaryBtn} text-sm`}
             onClick={() => { setActionError(null); setPickerOpen(true); }}
           >
@@ -349,7 +371,8 @@ function CueTemplatesPanel({ slug }: Props) {
         {templates.length > 0 && (
           <ul className="divide-y divide-border border border-border rounded">
             {templates.map((t) => (
-              <li key={t.id} className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3">
+              <li key={t.id} className="px-3 py-2 text-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <input
                     type="checkbox"
@@ -477,6 +500,20 @@ function CueTemplatesPanel({ slug }: Props) {
                             Threshold{t.scoreThreshold != null ? `: ${t.scoreThreshold}` : ''}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => {
+                            setActionError(null);
+                            setOptimizeId(optimizeId === t.id ? null : t.id);
+                          }}
+                          disabled={!t.sourceEpisodeId}
+                          title={!t.sourceEpisodeId
+                            ? 'This cue has no source episode to rescan'
+                            : 'Try small trims of this window and keep the one that matches best'}
+                        >
+                          Optimize window
+                        </button>
                         {confirmDeleteId === t.id ? (
                           <>
                             <button
@@ -506,6 +543,14 @@ function CueTemplatesPanel({ slug }: Props) {
                       </>
                     )}
                   </div>
+                )}
+                </div>
+                {optimizeId === t.id && (
+                  <CueWindowOptimizePanel
+                    slug={slug}
+                    template={t}
+                    onClose={() => setOptimizeId(null)}
+                  />
                 )}
               </li>
             ))}
@@ -560,6 +605,18 @@ function CueTemplatesPanel({ slug }: Props) {
       )}
 
       {scanOpen && <CueScanModal slug={slug} onClose={() => setScanOpen(false)} />}
+
+      {crossEpisodeScanOpen && (
+        <CueCrossEpisodeScanModal
+          slug={slug}
+          captureMinSeconds={captureMinSeconds}
+          captureMaxSeconds={captureMaxSeconds}
+          captureMaxIntroSeconds={captureMaxIntroSeconds}
+          captureMaxOutroSeconds={captureMaxOutroSeconds}
+          onClose={() => setCrossEpisodeScanOpen(false)}
+          onSaved={invalidate}
+        />
+      )}
 
       {promoteState && (
         <div className={modalBackdrop} onClick={() => setPromoteState(null)}>

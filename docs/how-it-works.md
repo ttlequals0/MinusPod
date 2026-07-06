@@ -152,7 +152,7 @@ Within a single ad break, individual spots are sometimes separated by brief tran
 
 The gap is measured in speech content from the transcript, not wall-clock time. Two ads merge when the speech between them falls below the **Ad break filler gap threshold** (Settings > Ad Detection; default 12 seconds). Music, silence, and untranscribed regions count for nothing. Set the threshold to 0 to disable.
 
-A 5-minute safety cap prevents merging when the resulting span would exceed it, regardless of how little speech is in the gap.
+A 5-minute safety cap prevents merging when the resulting span would exceed it, regardless of how little speech is in the gap. A merge is also skipped when either ad or the merged span overlaps a user false-positive correction, so a marked "not an ad" range keeps its say in the validator. Audio-cue evidence on the merged ads is carried onto the combined span.
 
 ---
 

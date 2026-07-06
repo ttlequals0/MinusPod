@@ -56,6 +56,13 @@ class PodcastMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_podcast_slug(self, podcast_id: int) -> Optional[str]:
+        """Slug for a podcast id -- cheap single-column lookup."""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT slug FROM podcasts WHERE id = ?", (podcast_id,)).fetchone()
+        return row['slug'] if row else None
+
     def get_podcast_detection_mode(self, slug: str) -> Optional[str]:
         """Per-feed detection_mode column only -- a cheap single-row lookup that
         skips the episode aggregation get_podcast_by_slug runs."""

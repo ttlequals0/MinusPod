@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.37.0
+  version: 2.38.0
   contact:
     name: MinusPod
   license:
@@ -5021,7 +5021,7 @@ paths:
   /cue-templates/{templateId}:
     patch:
       tags: [AudioCueTemplates]
-      summary: Rename, enable/disable, or change the scope of a template
+      summary: Rename, enable/disable, move the window, or change the scope of a template
       operationId: updateCueTemplate
       parameters:
         - name: templateId
@@ -5057,6 +5057,22 @@ paths:
                     Per-template match-score threshold. Null clears the override
                     (falls back to per-feed or global). Omit to leave unchanged.
                     Minimum 0.30 (noise floor; sub-floor values pass noise as matches).
+                sourceOffsetS:
+                  type: number
+                  minimum: 0
+                  description: >
+                    New window start (seconds into source episode). Supplying either
+                    sourceOffsetS or durationS triggers blob re-extraction from the
+                    retained original audio. Returns 409 when the original has been
+                    aged out.
+                durationS:
+                  type: number
+                  description: >
+                    New window duration (seconds). Must respect the feed's capture
+                    bounds (min capture seconds up to the cue type's ceiling).
+                    Supplying either sourceOffsetS or durationS triggers blob
+                    re-extraction. Returns 409 when the original audio has been
+                    aged out.
       responses:
         '200':
           description: Updated template
@@ -5068,9 +5084,17 @@ paths:
                   template:
                     $ref: '#/components/schemas/CueTemplate'
         '400':
-          description: Invalid scoreThreshold value
+          description: >
+            Invalid scoreThreshold value, non-numeric or negative window field,
+            window duration outside the capture bounds, or a window whose
+            decoded selection is too short to match.
         '404':
           description: Template not found
+        '409':
+          description: >
+            sourceOffsetS or durationS supplied but the template has no source
+            episode, or the source episode original audio has been aged out;
+            re-extraction is not possible.
     delete:
       tags: [AudioCueTemplates]
       summary: Delete a cue template
@@ -5692,6 +5716,201 @@ paths:
           description: No cue templates on feed, or invalid request
         '404':
           description: Feed or episode not found
+
+  /feeds/{slug}/cue-cross-episode-scan:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Find recurring audio segments across a set of episodes
+      description: >
+        Full-body cross-episode fingerprint scan. Finds audio segments that
+        recur anywhere (not just intro/outro) across the supplied episode set.
+        Between 2 and 5 episode IDs must be supplied; all must belong to this
+        feed and have retained original audio. The scan runs in a background
+        thread (full-duration fingerprinting is slow); poll this endpoint with
+        the same body to check progress. rescan=true forces a fresh run even
+        when a cached result exists.
+
+        The result coordinate frame is the first supplied episode
+        (targetEpisodeId). Candidates can be fed directly into the
+        Make-template flow (CueMarkModal expects bounds + episode).
+      operationId: cueCrossEpisodeScan
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episodeIds]
+              properties:
+                episodeIds:
+                  type: array
+                  minItems: 2
+                  maxItems: 5
+                  items:
+                    type: string
+                  description: >
+                    2 to 5 episode IDs. All must belong to this feed and have
+                    retained original audio. The first entry defines the
+                    coordinate frame for returned candidate times.
+                rescan:
+                  type: boolean
+                  description: Force a fresh scan even if a cached result exists.
+      responses:
+        '200':
+          description: Scan status, with candidates once ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [scanning, ready, error]
+                    description: >
+                      scanning (poll again shortly), ready (candidates
+                      attached), error (scan failed; see error field).
+                  episodeIds:
+                    type: array
+                    items:
+                      type: string
+                    description: Echo of the requested episode IDs.
+                  targetEpisodeId:
+                    type: string
+                    description: >
+                      First episode ID; all candidate times are in this
+                      episode's coordinate frame. Present when status is ready.
+                  candidates:
+                    type: array
+                    description: Present when status is ready.
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        kind:
+                          type: string
+                          enum: [recurring]
+                        episodeMatches:
+                          type: integer
+                          description: >
+                            How many SIBLING episodes share this segment (the
+                            target episode always matches, so the total number of
+                            episodes containing it is episodeMatches + 1).
+                  error:
+                    type: string
+                    description: Present when status is error.
+        '400':
+          description: >
+            Fewer than 2 or more than 5 episode IDs; an ID not in this feed;
+            or an episode without retained original audio.
+        '404':
+          description: Feed not found
+
+  /feeds/{slug}/cue-templates/{templateId}/optimize-window:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Find the window trim that maximises match score across sibling episodes
+      description: >
+        Grid-sweeps start/end deltas in -0.5..+0.5s (0.1s steps) to find the
+        window geometry that yields the highest mean peak-correlation score across
+        the source episode and up to 4 sibling episodes. Only the grid region of
+        the source is decoded; each sibling is scanned once and all candidates
+        are scored against a small neighborhood of its best baseline match.
+
+        The scan runs in a background thread; poll this endpoint with the same
+        body to check progress. rescan=true forces a fresh run.
+
+        Returns 409 when the template has no source episode or the source
+        episode original audio has been aged out (re-decoding the source
+        window is required to score candidates).
+      operationId: cueWindowOptimize
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rescan:
+                  type: boolean
+                  description: Force a fresh scan even if a cached result exists.
+      responses:
+        '200':
+          description: Scan status, with proposal once ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, templateId]
+                properties:
+                  status:
+                    type: string
+                    enum: [scanning, ready, error]
+                  templateId:
+                    type: integer
+                  proposedStartS:
+                    type: number
+                    description: Proposed window start (seconds). Present when ready.
+                  proposedEndS:
+                    type: number
+                    description: Proposed window end (seconds). Present when ready.
+                  meanPeakScore:
+                    type: number
+                    description: Mean peak ZNCC score of the proposed window. Present when ready.
+                  baselineMeanPeakScore:
+                    type: number
+                    nullable: true
+                    description: >
+                      Mean peak score of the original window. Present when ready;
+                      null when the original window falls outside the live
+                      capture bounds and could not be scored.
+                  perEpisode:
+                    type: array
+                    description: Per-episode peak scores for the proposed window. Present when ready.
+                    items:
+                      type: object
+                      properties:
+                        episodeId:
+                          type: string
+                        peakScore:
+                          type: number
+                  baselineWindow:
+                    type: object
+                    description: Original window bounds. Present when ready.
+                    properties:
+                      startS:
+                        type: number
+                      endS:
+                        type: number
+                  error:
+                    type: string
+                    description: Present when status is error.
+        '404':
+          description: Feed not found or template does not belong to this feed.
+        '409':
+          description: >
+            Template has no source episode, or the source episode original
+            audio has been aged out; optimizer cannot re-decode the source
+            window.
 
   /cue-detections/aggregate:
     get:

@@ -301,6 +301,7 @@ AUDIO_CUE_XEP_MAX_SIBLINGS = 5         # most recent completed siblings to compa
 AUDIO_CUE_XEP_SIBLING_LOOKBACK = 30    # completed episodes to scan for ones with retained audio
 AUDIO_CUE_XEP_MIN_MATCHES = 2          # a segment must recur in >= this many siblings
 AUDIO_CUE_XEP_MIN_DURATION = 3.0       # ignore matches shorter than a real intro/outro
+AUDIO_CUE_XEP_BODY_MIN_DURATION = 2.0  # body scan floor: bounded by the 2s probe window so 1.5-2.5s ad stings survive
 AUDIO_CUE_XEP_MAX_PER_ZONE = 3         # most intro (and outro) candidates to surface per episode
 AUDIO_CUE_XEP_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY  # bit-similarity threshold for a cross-episode match
 # Fingerprint self-repeat discovery internals (candidate scan). The probe window

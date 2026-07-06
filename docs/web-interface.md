@@ -100,7 +100,7 @@ Submitting creates a new pattern with `created_by='user'` and writes a `'create'
 
 ### Audio Cue Templates
 
-If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md).
+If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, the cross-episode scan, the window optimizer, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md).
 
 ### Held for Review
 

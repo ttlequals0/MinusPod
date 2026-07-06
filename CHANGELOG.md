@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.38.0] - 2026-07-06
+
+### Added
+
+- Cross-episode cue finding (#350): `POST /feeds/{slug}/cue-cross-episode-scan` fingerprints 2-5 selected episodes (all with retained originals) and reports audio segments that recur anywhere in their bodies, not just the head/tail windows the per-episode scan covers. Results are in the first selected episode's timeline and feed the existing Make-template flow. A "Find cues across episodes" action in the Audio Cue Templates panel drives it: episode picker, background scan with polling, candidate list with per-episode match counts.
+- Cue window auto-optimizer (#350): `POST /feeds/{slug}/cue-templates/{templateId}/optimize-window` sweeps an 11x11 grid of start/end trims (0.1s steps, up to 0.5s each way) and proposes the window with the highest mean match score across the source episode and up to 4 sibling episodes. Results are cached per template with the same claim/poll semantics as the other cue scans and invalidated whenever the window changes; returns 409 when the source original audio has been aged out. `PATCH /cue-templates/{id}` now accepts `sourceOffsetS`/`durationS` and re-extracts the stored audio blobs from the retained original, enforcing the feed's capture bounds (409 when the original is gone).
+- Optimize window row action in the Audio Cue Templates panel (#350): runs the window optimizer for a template and expands an inline before/after panel with window bounds, mean scores, and per-episode peaks, plus Apply, Discard, and Rescan. Apply moves the window through the template PATCH; when the source original aged out between scan and apply, the 409 shows inline. A window that already scores highest is labeled as such instead of offering an apply.
+
+### Changed
+
+- When `MINUSPOD_MASTER_PASSPHRASE` is set but no login password is configured, the Security section's no-password warning now distinguishes the two credentials: the passphrase encrypts stored API keys but does not restrict access, so the instance is still unprotected until a password is set (#461). Warning severity is unchanged.
+- Docs (#350): the audio-cue reference now covers the cross-episode scan and window optimizer, and drops a scan-time estimate that was never measured plus a rename action that does not exist.
+- The cached-scan state machine is parameterized over its primary key, so the candidate, threshold, cross-episode, and window-optimizer families share one claim/poll/save implementation instead of four near-copies.
+- The cross-episode scan modal and the window-optimizer panel are split out of `CueTemplatesPanel` into their own components with a shared scan-query hook and style module.
+- Dependency updates: pillow 12.3.0, huggingface-hub 1.22.0, anthropic 0.116.0, ctranslate2 4.8.1; frontend vite 8.1.3, @tanstack/react-query 5.101.2, recharts 3.9.2, eslint 10.6.0, @tailwindcss/vite 4.3.2; CI docker actions setup-buildx 4.2.0, build-push 7.3.0, login 4.4.0.
+
 ## [2.37.0] - 2026-07-06
 
 ### Added
