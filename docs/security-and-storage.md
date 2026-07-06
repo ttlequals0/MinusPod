@@ -46,7 +46,10 @@ Operator checklist:
 
 - Serve over HTTPS (`SESSION_COOKIE_SECURE=true` is the default).
 - `MINUSPOD_TRUSTED_PROXY_COUNT=1` if behind a reverse proxy.
-- `MINUSPOD_MASTER_PASSPHRASE` set so provider keys encrypt at rest.
+- `MINUSPOD_MASTER_PASSPHRASE` set so provider keys encrypt at rest. The
+  passphrase encrypts stored API keys; it is not a login credential and does not
+  restrict access on its own. The instance stays open until a login password is
+  also set.
 - Set a password in Settings > Security. **Without one the instance is fully open**: anyone with network access can read everything, change settings, delete feeds, and download a full database backup over the API. The password is the only gate on the API. With `MINUSPOD_MASTER_PASSPHRASE` unset, that backup also carries the session-signing key and provider keys in plaintext.
 - `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
 - WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`.

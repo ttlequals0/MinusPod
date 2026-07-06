@@ -32,7 +32,9 @@ There are two ways to find a cue, both gated by the master toggle.
 
 After detection, a boundary-snap pass moves the start and end of a detected ad to
 the nearest high-confidence cue, capped by the reviewer's Max boundary shift, so
-the cut lands on the chime rather than a beat into or out of the spoken read.
+the cut lands on the chime rather than a beat into or out of the spoken read. An
+ad whose edge was moved this way shows a "Cue snapped" badge in the detected-ads
+list on the episode page.
 
 ### Silence snap
 
@@ -125,6 +127,24 @@ the mark dialog seeded with the candidate's bounds and a suggested type. You
 review and save it like any hand-marked cue. The scan suggests; it never creates
 a template on its own.
 
+## Finding cues across episodes
+
+The **Find across episodes** button in the Audio Cue Templates panel runs a
+full-body cross-episode scan. Pick two to five episodes from the feed; all must
+have retained original audio. The first episode in the list sets the coordinate
+frame: returned candidate timestamps are in that episode's timeline.
+
+The scan fingerprints every episode in the background. Full-duration decoding is
+slow; a long episode takes about a minute. Once done, it reports segments that
+recur across the supplied episodes. Each candidate shows its start/end in the
+target episode and how many supplied episodes share it. A **Make template**
+button opens the mark dialog seeded with those bounds, the same as the
+per-episode find-audio-cues flow.
+
+API: `POST /api/v1/feeds/{slug}/cue-cross-episode-scan`. Supply `episodeIds`
+(2-5) and poll with the same body. Returns `status` (scanning / ready / error)
+and, when ready, a `candidates` array. Pass `rescan: true` to force a fresh run.
+
 ## Managing cues
 
 Saved cues are listed with enable checkboxes. Change type swaps a cue's type in
@@ -139,6 +159,33 @@ clip plus a manifest) to share with another install; Import loads one back. On a
 feed that belongs to a network, Promote to network applies a cue to every show on
 that network. Saving a non-ad cue type (intro, outro, or content transition)
 asks for confirmation, since those types never cut.
+
+### Optimizing the cue window
+
+If a saved template matches inconsistently, the **Optimize window** row action
+can help. It sweeps an 11x11 grid of start/end trims (0.1 s steps, up to 0.5 s
+each way) and finds the window with the best mean peak-correlation score across
+the source episode and up to four siblings. Results are cached per template and
+invalidated whenever the window changes.
+
+When the scan finishes, the row shows an inline before/after panel with the
+current and proposed bounds, mean scores, and per-episode peaks. **Apply** moves
+the window: the server re-extracts the stored audio blobs from the retained
+source original. If the current window already scores highest, the panel says so
+and skips the Apply button.
+
+If the source episode's original audio has aged out, the optimizer returns a
+409. The Apply step also returns 409 if the original disappeared between scan
+and apply; the inline panel shows the error.
+
+API: `POST /api/v1/feeds/{slug}/cue-templates/{templateId}/optimize-window`.
+Returns `status` (scanning / ready / error) and, when ready, `proposedStartS`,
+`proposedEndS`, `meanPeakScore`, `baselineMeanPeakScore`, `baselineWindow`, and
+`perEpisode` peak scores. Returns 409 when the source original has aged out.
+
+To apply, send `PATCH /api/v1/cue-templates/{id}` with `sourceOffsetS` and/or
+`durationS`. Either field triggers blob re-extraction from the retained
+original; returns 409 when the original is gone.
 
 ## Cue matches on an episode
 
