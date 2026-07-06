@@ -1,6 +1,5 @@
 """Tests for db_backup_service: backup_now, db_backup_tick, validate_backup_dest."""
 import fcntl
-import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -12,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from database import Database  # noqa: E402
 import db_backup_service  # noqa: E402
 from db_backup_service import (  # noqa: E402
-    DEFAULT_CRON,
     FIXED_BACKUP_NAME,
     LOCK_FILENAME,
     ROTATED_NAME_RE,
