@@ -10,6 +10,7 @@ from api import (
     get_database, get_storage, get_feed_auth_key,
     extract_transcript_segment, get_status_service,
 )
+from config import is_pending_review
 from audio_peaks import compute_peaks, PeaksError
 from chapters_generator import ChaptersGenerator
 from llm_client import start_episode_token_tracking, get_episode_token_totals
@@ -162,8 +163,7 @@ def get_episode(slug, episode_id):
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 was_cut = marker.get('was_cut', True)
-                held = marker.get('held_for_review', False)
-                if held and not was_cut:
+                if is_pending_review(marker):
                     pending_review_markers.append(marker)
                 elif decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)

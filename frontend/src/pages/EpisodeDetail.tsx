@@ -674,8 +674,6 @@ function EpisodeDetail() {
                 ? "Exceeds the feed's max ad duration"
                 : segment.hold_reason === 'no_cue_evidence'
                 ? 'No audio-cue evidence'
-                : segment.hold_reason === 'pass1_held_overlap'
-                ? 'Overlaps a first-pass held region'
                 : 'Held for manual review';
               // Track which row's mutation is in flight to show per-row status.
               const mutAd = correctionMutation.variables?.originalAd;

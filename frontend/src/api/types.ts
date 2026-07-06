@@ -167,7 +167,7 @@ export interface AdSegment {
   source?: 'reviewer' | 'validator';
   // Phase C held-for-review fields.
   held_for_review?: boolean;
-  hold_reason?: 'max_duration' | 'no_cue_evidence' | 'pass1_held_overlap';
+  hold_reason?: 'max_duration' | 'no_cue_evidence';
 }
 
 export interface SettingValue {

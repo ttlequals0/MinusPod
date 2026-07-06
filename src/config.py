@@ -41,9 +41,6 @@ MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be pr
 # Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
 HOLD_REASON_MAX_DURATION = 'max_duration'
 HOLD_REASON_NO_CUE = 'no_cue_evidence'
-# Pass-2 cut whose original span overlapped a pass-1 held marker; diverted to
-# held instead of cutting so the protected region survives.
-HOLD_REASON_PASS1_HELD_OVERLAP = 'pass1_held_overlap'
 
 
 def is_cue_backed(ad) -> bool:
@@ -57,8 +54,10 @@ def is_cue_backed(ad) -> bool:
 
 def is_pending_review(marker) -> bool:
     """A marker awaiting a human decision: held for review and not cut. Single
-    source of truth for the pending-review bucket and count."""
-    return bool(marker.get('held_for_review')) and not marker.get('was_cut')
+    source of truth for the pending-review bucket and count. Missing was_cut
+    defaults to True (cut) to match the API's marker bucketing, so a legacy
+    marker without the field is never counted as a phantom pending review."""
+    return bool(marker.get('held_for_review')) and not marker.get('was_cut', True)
 
 
 def count_pending_review(markers) -> int:

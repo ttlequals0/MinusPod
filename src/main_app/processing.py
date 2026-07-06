@@ -28,7 +28,7 @@ from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
-    HOLD_REASON_NO_CUE, HOLD_REASON_PASS1_HELD_OVERLAP,
+    HOLD_REASON_NO_CUE,
     is_cue_backed, is_pending_review,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
@@ -1257,13 +1257,13 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             v_ads_held.append(orig_ad)
             continue
         # A pass-2 cut overlapping a pass-1 held span would destroy the audio
-        # the hold protects; divert it to held instead of cutting.
+        # the hold protects; drop it (never cut). The pass-1 held marker already
+        # represents the region, so we do NOT add a second held marker -- that
+        # would double-count pending_review_count and show a duplicate chip.
         if any(ranges_overlap(orig_ad['start'], orig_ad['end'], hs, he)
                for hs, he in pass1_held_spans):
+            ad['was_cut'] = False
             orig_ad['was_cut'] = False
-            orig_ad['held_for_review'] = True
-            orig_ad['hold_reason'] = HOLD_REASON_PASS1_HELD_OVERLAP
-            v_ads_held.append(orig_ad)
             continue
         confidence = ad.get('validation', {}).get('adjusted_confidence', ad.get('confidence', 1.0))
         if confidence >= min_cut_confidence:
@@ -1778,7 +1778,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     boundary adjustments are applied here; rejects/confirms and confidence
     gating run through the same AdValidator path a full reprocess uses. Returns
     (ads_to_remove, all_ads_with_validation)."""
-    from ad_validator import AdValidator
+    from ad_validator import AdValidator, Decision
 
     episode = db.get_episode(slug, episode_id) or {}
     raw = episode.get('ad_markers_json')
@@ -1802,12 +1802,15 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
     cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
 
-    # Capture saved cut state before validation re-derives it. A marker already
-    # cut in the published audio must not flip to held when settings tighten
-    # (e.g. cue gating newly enabled) -- it would resurrect the ad. Keyed by
-    # span because validate() works on copies.
-    previously_cut = {(a.get('start'), a.get('end')) for a in all_ads
-                      if a.get('was_cut')}
+    # Stamp saved cut state before validation re-derives it. A marker already
+    # cut in the published audio must not flip to held/review when settings
+    # tighten (e.g. cue gating newly enabled) -- it would resurrect the ad.
+    # The stamp survives validate()'s shallow copy, so it stays attached even
+    # when validation clamps/merges/extends the ad's boundaries (a span key
+    # would not).
+    for a in all_ads:
+        if a.get('was_cut'):
+            a['_saved_was_cut'] = True
 
     validator = AdValidator(
         episode_duration, segments, episode_description,
@@ -1819,15 +1822,20 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     )
     validation_result = validator.validate(all_ads)
 
-    # Suppress hold-rule outcomes for previously-cut markers: restore ACCEPT so
-    # the gate cuts them again. FP/confirm rejects (early-returns before hold
-    # rules) are not held, so this leaves user rejections intact.
+    # Force previously-cut markers back to ACCEPT so the gate cuts them again,
+    # overriding any hold/review outcome from re-validation. FP/confirm rejects
+    # (early-returns in the validator) clear the stamp is not involved -- a
+    # user's later FP rejection is a REJECT, not a resurrection, and the stamp
+    # only fires for ads the validator did not early-reject. Guard: never
+    # override a fresh REJECT so a new FP correction still wins.
     for ad in validation_result.ads:
-        if (ad.get('held_for_review')
-                and (ad.get('start'), ad.get('end')) in previously_cut):
+        if ad.pop('_saved_was_cut', False):
+            decision = ad.get('validation', {}).get('decision')
+            if decision == Decision.REJECT.value:
+                continue
             ad.pop('held_for_review', None)
             ad.pop('hold_reason', None)
-            ad.setdefault('validation', {})['decision'] = 'ACCEPT'
+            ad.setdefault('validation', {})['decision'] = Decision.ACCEPT.value
 
     ads_to_remove, _low = _gate_validation_by_confidence(
         slug, episode_id, validation_result.ads, min_cut_confidence,

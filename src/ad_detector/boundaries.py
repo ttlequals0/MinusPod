@@ -746,6 +746,9 @@ def _merge_ad_pair(current_ad: Dict, next_ad: Dict, gap_desc: str = "") -> None:
 
     # Preserve cue-backedness so cue-gated feeds still recognize the merged span.
     # current.end == next.end, so next's cue_snap end-edge record stays meaningful.
+    # Applies to both merge passes: a break where either fragment is cue-backed
+    # is treated as cue-backed (folding adjacent ads into one break), so the
+    # merged span is auto-cut rather than held on a cue-gated feed.
     if next_ad.get('cue_snap') and not current_ad.get('cue_snap'):
         current_ad['cue_snap'] = next_ad['cue_snap']
     if next_ad.get('detection_stage') == 'cue_pair' or current_ad.get('detection_stage') == 'cue_pair':

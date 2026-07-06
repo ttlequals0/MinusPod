@@ -803,9 +803,11 @@ def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
 
     changed = False
     for m in markers:
+        m_start, m_end = m.get('start'), m.get('end')
         if (is_pending_review(m)
-                and abs(m.get('start', 0) - start) <= tol
-                and abs(m.get('end', 0) - end) <= tol):
+                and m_start is not None and m_end is not None
+                and abs(m_start - start) <= tol
+                and abs(m_end - end) <= tol):
             m['held_for_review'] = False
             m.pop('hold_reason', None)
             m['was_cut'] = False

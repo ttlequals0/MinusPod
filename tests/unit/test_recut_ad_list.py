@@ -273,6 +273,36 @@ def test_build_recut_previously_cut_stays_cut_when_cue_gate_enabled(monkeypatch)
     )
 
 
+def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
+    # A previously-cut ad whose end overruns the episode gets clamped by the
+    # validator. Keying the resurrection guard by raw span would miss the
+    # clamped ad and it would flip to held; it must still be cut.
+    ads = [{'start': 3540.0, 'end': 3603.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove, "Previously-cut ad must still be cut after clamp"
+    assert not all_ads[0].get('held_for_review'), (
+        "Clamped previously-cut ad must not resurrect as held"
+    )
+
+
+def test_build_recut_previously_cut_review_not_held_by_cue_gate(monkeypatch):
+    # A previously-cut ad that re-validates to REVIEW (below threshold) must not
+    # be newly held by the cue-gate fall-through -- it was already published.
+    ads = [{'start': 500.0, 'end': 560.0, 'confidence': 0.60,
+            'reason': 'possible sponsor mention', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert not all_ads[0].get('held_for_review'), (
+        "Previously-cut REVIEW ad must not be newly held by the cue gate"
+    )
+
+
 def test_build_recut_previously_held_still_re_held(monkeypatch):
     # A previously-held marker keeps full hold-rule re-derivation.
     ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
