@@ -1616,6 +1616,30 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"cue_cross_episode_scans table creation: {e}")
 
+        # cue_window_optimize_scans: per-template window optimizer cache (D2a, #350).
+        # Keyed by template_id alone. Additive, no data-loss risk.
+        try:
+            fresh_wos = not self._table_exists(conn, 'cue_window_optimize_scans')
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cue_window_optimize_scans (
+                    template_id INTEGER NOT NULL PRIMARY KEY,
+                    status TEXT NOT NULL DEFAULT 'scanning'
+                        CHECK(status IN ('scanning', 'ready', 'error')),
+                    result_json TEXT,
+                    error TEXT,
+                    updated_at TEXT NOT NULL
+                        DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id)
+                        ON DELETE CASCADE
+                )
+            """)
+            conn.commit()
+            if fresh_wos:
+                logger.info("Migration: Created cue_window_optimize_scans table")
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"cue_window_optimize_scans table creation: {e}")
+
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 

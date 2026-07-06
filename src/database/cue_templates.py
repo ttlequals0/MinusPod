@@ -453,3 +453,124 @@ class CueTemplateMixin:
             (str(error)[:500], podcast_id, episode_set_hash),
         )
         conn.commit()
+
+    # Window optimizer scan family (D2a, #350).  Keyed by template_id alone
+    # (the optimizer is per-template, not per-episode-set).  The second key
+    # column differs from all prior families (integer PK vs TEXT pair), so
+    # these methods inline their SQL rather than routing through the generic
+    # helpers.
+
+    def get_cue_window_optimize_scan(self, template_id: int) -> Optional[Dict]:
+        """Return the cached optimizer row for a template, or None."""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT status, result_json, error, updated_at "
+            "FROM cue_window_optimize_scans WHERE template_id = ?",
+            (template_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def claim_cue_window_optimize_scan(
+        self,
+        template_id: int,
+        stale_seconds: float,
+        force: bool = False,
+    ) -> str:
+        """Claim a window-optimizer scan slot.
+
+        Returns one of 'started', 'scanning', 'ready', or 'error'.
+        Semantics identical to _claim_scan but keyed by template_id.
+        """
+        conn = self.get_connection()
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=stale_seconds)
+        ).strftime('%Y-%m-%dT%H:%M:%SZ')
+        before = conn.total_changes
+        conn.execute(
+            """INSERT INTO cue_window_optimize_scans
+                   (template_id, status, result_json, error, updated_at)
+               VALUES (:tid, 'scanning', NULL, NULL,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(template_id) DO UPDATE SET
+                   status='scanning', result_json=NULL, error=NULL,
+                   updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE (cue_window_optimize_scans.status = 'scanning'
+                      AND cue_window_optimize_scans.updated_at <= :cutoff)
+                  OR (cue_window_optimize_scans.status = 'error'
+                      AND (:force OR cue_window_optimize_scans.updated_at <= :cutoff))
+                  OR (cue_window_optimize_scans.status = 'ready' AND :force)""",
+            {'tid': template_id, 'cutoff': cutoff, 'force': 1 if force else 0},
+        )
+        conn.commit()
+        if conn.total_changes > before:
+            return 'started'
+        row = conn.execute(
+            "SELECT status FROM cue_window_optimize_scans WHERE template_id = ?",
+            (template_id,),
+        ).fetchone()
+        return row['status'] if row else 'scanning'
+
+    def save_cue_window_optimize_scan_result(
+        self,
+        template_id: int,
+        payload: Dict,
+    ) -> None:
+        """Persist a completed window-optimizer payload and mark it ready."""
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE cue_window_optimize_scans
+               SET status='ready', result_json=?, error=NULL,
+                   updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE template_id=?""",
+            (json.dumps(payload), template_id),
+        )
+        conn.commit()
+
+    def save_cue_window_optimize_scan_error(
+        self,
+        template_id: int,
+        error: str,
+    ) -> None:
+        """Mark a window-optimizer scan as failed."""
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE cue_window_optimize_scans
+               SET status='error', error=?,
+                   updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE template_id=?""",
+            (str(error)[:500], template_id),
+        )
+        conn.commit()
+
+    def update_cue_template_window(
+        self,
+        template_id: int,
+        source_offset_s: float,
+        duration_s: float,
+        mfcc_blob: bytes,
+        pcm_blob: bytes,
+        sample_rate: int,
+    ) -> bool:
+        """Update the window geometry and re-derived blobs together.
+
+        Called by the PATCH route when sourceOffsetS or durationS changes so
+        the stored blobs always reflect the current window. Any cached
+        window-optimizer result is invalidated in the same transaction: its
+        proposal and baseline describe the pre-move geometry.
+        Returns True if a row was updated.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE audio_cue_templates
+               SET source_offset_s=?, duration_s=?, mfcc_blob=?, pcm_blob=?,
+                   sample_rate=?, pcm_sample_rate=?
+               WHERE id=?""",
+            (source_offset_s, duration_s, mfcc_blob, pcm_blob,
+             sample_rate, sample_rate, template_id),
+        )
+        conn.execute(
+            "DELETE FROM cue_window_optimize_scans WHERE template_id=?",
+            (template_id,),
+        )
+        conn.commit()
+        return cursor.rowcount > 0

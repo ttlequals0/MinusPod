@@ -6,7 +6,6 @@ test_cue_candidate_scan_error_and_staleness but for the new family keyed by
 """
 import json
 
-import pytest
 
 
 def test_claim_starts_scan(temp_db):

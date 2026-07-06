@@ -5021,7 +5021,7 @@ paths:
   /cue-templates/{templateId}:
     patch:
       tags: [AudioCueTemplates]
-      summary: Rename, enable/disable, or change the scope of a template
+      summary: Rename, enable/disable, move the window, or change the scope of a template
       operationId: updateCueTemplate
       parameters:
         - name: templateId
@@ -5057,6 +5057,22 @@ paths:
                     Per-template match-score threshold. Null clears the override
                     (falls back to per-feed or global). Omit to leave unchanged.
                     Minimum 0.30 (noise floor; sub-floor values pass noise as matches).
+                sourceOffsetS:
+                  type: number
+                  minimum: 0
+                  description: >
+                    New window start (seconds into source episode). Supplying either
+                    sourceOffsetS or durationS triggers blob re-extraction from the
+                    retained original audio. Returns 409 when the original has been
+                    aged out.
+                durationS:
+                  type: number
+                  description: >
+                    New window duration (seconds). Must respect the feed's capture
+                    bounds (min capture seconds up to the cue type's ceiling).
+                    Supplying either sourceOffsetS or durationS triggers blob
+                    re-extraction. Returns 409 when the original audio has been
+                    aged out.
       responses:
         '200':
           description: Updated template
@@ -5068,9 +5084,17 @@ paths:
                   template:
                     $ref: '#/components/schemas/CueTemplate'
         '400':
-          description: Invalid scoreThreshold value
+          description: >
+            Invalid scoreThreshold value, non-numeric or negative window field,
+            window duration outside the capture bounds, or a window whose
+            decoded selection is too short to match.
         '404':
           description: Template not found
+        '409':
+          description: >
+            sourceOffsetS or durationS supplied but the template has no source
+            episode, or the source episode original audio has been aged out;
+            re-extraction is not possible.
     delete:
       tags: [AudioCueTemplates]
       summary: Delete a cue template
@@ -5787,6 +5811,103 @@ paths:
             or an episode without retained original audio.
         '404':
           description: Feed not found
+
+  /feeds/{slug}/cue-templates/{templateId}/optimize-window:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Find the window trim that maximises match score across sibling episodes
+      description: >
+        Grid-sweeps start/end deltas in -0.5..+0.5s (0.1s steps) to find the
+        window geometry that yields the highest mean peak-correlation score across
+        the source episode and up to 4 sibling episodes. Only the grid region of
+        the source is decoded; each sibling is scanned once and all candidates
+        are scored against a small neighborhood of its best baseline match.
+
+        The scan runs in a background thread; poll this endpoint with the same
+        body to check progress. rescan=true forces a fresh run.
+
+        Returns 409 when the template has no source episode or the source
+        episode original audio has been aged out (re-decoding the source
+        window is required to score candidates).
+      operationId: cueWindowOptimize
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rescan:
+                  type: boolean
+                  description: Force a fresh scan even if a cached result exists.
+      responses:
+        '200':
+          description: Scan status, with proposal once ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, templateId]
+                properties:
+                  status:
+                    type: string
+                    enum: [scanning, ready, error]
+                  templateId:
+                    type: integer
+                  proposedStartS:
+                    type: number
+                    description: Proposed window start (seconds). Present when ready.
+                  proposedEndS:
+                    type: number
+                    description: Proposed window end (seconds). Present when ready.
+                  meanPeakScore:
+                    type: number
+                    description: Mean peak ZNCC score of the proposed window. Present when ready.
+                  baselineMeanPeakScore:
+                    type: number
+                    nullable: true
+                    description: >
+                      Mean peak score of the original window. Present when ready;
+                      null when the original window falls outside the live
+                      capture bounds and could not be scored.
+                  perEpisode:
+                    type: array
+                    description: Per-episode peak scores for the proposed window. Present when ready.
+                    items:
+                      type: object
+                      properties:
+                        episodeId:
+                          type: string
+                        peakScore:
+                          type: number
+                  baselineWindow:
+                    type: object
+                    description: Original window bounds. Present when ready.
+                    properties:
+                      startS:
+                        type: number
+                      endS:
+                        type: number
+                  error:
+                    type: string
+                    description: Present when status is error.
+        '404':
+          description: Feed not found or template does not belong to this feed.
+        '409':
+          description: >
+            Template has no source episode, or the source episode original
+            audio has been aged out; optimizer cannot re-decode the source
+            window.
 
   /cue-detections/aggregate:
     get:

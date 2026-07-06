@@ -3,7 +3,6 @@
 Uses a mock DB and mocked AudioFingerprinter to validate payload shape and
 error path without real audio.
 """
-import json
 from unittest.mock import MagicMock, patch
 
 

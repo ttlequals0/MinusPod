@@ -3,13 +3,9 @@
 Covers: claim/poll semantics, rescan, validation failures, worker payload shape,
 and error path.
 """
-import io
-import json
 import os
-import shutil
 import sys
 import tempfile
-import time
 import wave
 from unittest.mock import patch
 
@@ -148,7 +144,6 @@ def test_poll_returns_cached_result(app_client, xep_seeded):
     hdr = _csrf(app_client)
     slug = xep_seeded['slug']
     ep1, ep2 = xep_seeded['ep1'], xep_seeded['ep2']
-    db = xep_seeded['db']
 
     # Seed a ready result directly so the test does not depend on fpcalc.
     from api import get_database
@@ -199,7 +194,6 @@ def test_rescan_forces_fresh_run(app_client, xep_seeded):
 
 
 def test_second_call_without_rescan_returns_existing(app_client, xep_seeded):
-    import audio_fingerprinter as afp_module
     hdr = _csrf(app_client)
     slug = xep_seeded['slug']
     ep1, ep2 = xep_seeded['ep1'], xep_seeded['ep2']

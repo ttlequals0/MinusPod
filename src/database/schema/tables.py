@@ -428,6 +428,18 @@ CREATE TABLE IF NOT EXISTS cue_cross_episode_scans (
     PRIMARY KEY (podcast_id, episode_set_hash),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );
+
+-- cue_window_optimize_scans: cached result of the per-template window optimizer (D2a, #350).
+-- Keyed by template_id alone (the optimizer is per-template, not per-episode). Stores the
+-- proposed window and per-episode peak scores so the UI can offer a one-click apply.
+CREATE TABLE IF NOT EXISTS cue_window_optimize_scans (
+    template_id INTEGER NOT NULL PRIMARY KEY,
+    status TEXT NOT NULL DEFAULT 'scanning' CHECK(status IN ('scanning', 'ready', 'error')),
+    result_json TEXT,
+    error TEXT,
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id) ON DELETE CASCADE
+);
 """
 
 # Indexes that depend on columns added by migrations - created separately

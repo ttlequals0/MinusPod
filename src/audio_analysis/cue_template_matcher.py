@@ -394,6 +394,22 @@ class AudioCueTemplateMatcher:
         return kept
 
 
+def peak_zncc(haystack: np.ndarray, needle: np.ndarray) -> tuple:
+    """Best sliding-ZNCC score of ``needle`` across ``haystack`` and its frame.
+
+    Returns ``(score, frame_index)``; ``(0.0, 0)`` when the haystack is shorter
+    than the needle. Public entry point for cross-module template scoring
+    (the #350 window optimizer) so callers do not bind to ``_sliding_zncc``.
+    """
+    if haystack.shape[0] < needle.shape[0]:
+        return 0.0, 0
+    scores = _sliding_zncc(haystack, needle)
+    if not scores.size:
+        return 0.0, 0
+    idx = int(np.argmax(scores))
+    return float(scores[idx]), idx
+
+
 def _sliding_zncc(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
     """Sliding zero-mean normalized cross-correlation (ZNCC).
 

@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Cue window auto-optimizer (#350): `POST /feeds/{slug}/cue-templates/{templateId}/optimize-window` sweeps an 11x11 grid of start/end trims (0.1s steps, up to 0.5s each way) and proposes the window with the highest mean match score across the source episode and up to 4 sibling episodes. Results are cached per template with the same claim/poll semantics as the other cue scans and invalidated whenever the window changes; returns 409 when the source original audio has been aged out. `PATCH /cue-templates/{id}` now accepts `sourceOffsetS`/`durationS` and re-extracts the stored audio blobs from the retained original, enforcing the feed's capture bounds (409 when the original is gone).
+
 ## [2.37.0] - 2026-07-06
 
 ### Added
