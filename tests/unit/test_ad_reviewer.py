@@ -578,3 +578,46 @@ def test_resurrection_band_dynamic_with_min_cut_confidence():
     assert len(split_resurrection_pool(all_ads, [], 0.50)) == 1
     # With min_cut=0.80, band is [0.60, 0.80): 0.45 is NOT eligible
     assert len(split_resurrection_pool(all_ads, [], 0.80)) == 0
+
+
+# ---------- Held-for-review guard ----------
+
+def test_resurrection_pool_skips_held_ads():
+    """Ads with held_for_review=True must never enter the resurrection pool.
+
+    A duration-hold converts a REJECT at confidence 0.70 into a held REVIEW.
+    That confidence sits inside the [0.60, 0.80) band, so without the guard
+    a resurrect verdict would un-hold it.
+    """
+    min_cut = 0.80
+    # This ad has in-band confidence but is held; it must be excluded.
+    held_ad = {
+        'start': 10.0, 'end': 20.0,
+        'confidence': 0.70,
+        'held_for_review': True,
+        'hold_reason': 'max_duration',
+        'validation': {'adjusted_confidence': 0.70},
+    }
+    # A plain low-confidence ad at the same confidence is still eligible.
+    plain_ad = {
+        'start': 30.0, 'end': 40.0,
+        'confidence': 0.70,
+        'validation': {'adjusted_confidence': 0.70},
+    }
+    eligible = split_resurrection_pool([held_ad, plain_ad], [], min_cut)
+    assert len(eligible) == 1
+    assert eligible[0]['start'] == 30.0
+
+
+def test_resurrection_pool_skips_held_no_cue_ads():
+    """Cue-hold (no_cue_evidence) at high confidence must also be excluded."""
+    min_cut = 0.80
+    held_ad = {
+        'start': 10.0, 'end': 20.0,
+        'confidence': 0.75,
+        'held_for_review': True,
+        'hold_reason': 'no_cue_evidence',
+        'validation': {'adjusted_confidence': 0.75},
+    }
+    eligible = split_resurrection_pool([held_ad], [], min_cut)
+    assert eligible == []

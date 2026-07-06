@@ -979,6 +979,10 @@ def split_resurrection_pool(
         key = (ad.get("start"), ad.get("end"))
         if key in cut_keys:
             continue
+        # Never resurrect a held ad: a duration-hold sits in the resurrection
+        # band and a resurrect verdict would silently un-hold it.
+        if ad.get("held_for_review"):
+            continue
         validation = ad.get("validation") or {}
         confidence = validation.get("adjusted_confidence", ad.get("confidence"))
         try:

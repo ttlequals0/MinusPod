@@ -726,13 +726,18 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
 
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
                            verification_ads_processed, verification_ads_original,
-                           original_segments, min_cut_confidence):
+                           original_segments, min_cut_confidence,
+                           cue_gate_enabled=False):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
     Mutates ``v_ads_to_cut`` and ``v_ads_for_ui`` in place. Adjust verdicts
     are coerced to confirmed in pass 2 because applying a boundary shift in
     original coords cannot safely round-trip through pass 1 cuts to processed
     coords; supporting it would require a per-pass-1-cut timestamp map.
+
+    ``cue_gate_enabled``: when True, resurrection is suppressed entirely. A
+    resurrected non-held reject would become a cue-less auto-cut, violating the
+    gate's guarantee.
     """
     slug = ctx.slug
     episode_id = ctx.episode_id
@@ -749,9 +754,12 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
     if not accepted_originals and not verification_ads_original:
         return
 
-    eligible_originals = split_resurrection_pool(
-        verification_ads_original, accepted_originals, min_cut_confidence
-    )
+    if cue_gate_enabled:
+        eligible_originals = []
+    else:
+        eligible_originals = split_resurrection_pool(
+            verification_ads_original, accepted_originals, min_cut_confidence
+        )
     if not accepted_originals and not eligible_originals:
         return
 
@@ -928,21 +936,28 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      all_ads_with_validation, segments, podcast_name,
                      episode_title, episode_description, podcast_description,
                      min_cut_confidence, pass_num, pass_model,
-                     audio_analysis=None):
+                     audio_analysis=None, cue_gate_enabled=False):
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
 
     Non-blocking: any failure inside the reviewer falls through with the
     original lists. Skips entirely when ``enable_ad_review`` is false.
+
+    ``cue_gate_enabled``: when True, resurrection is suppressed. A resurrected
+    non-held reject would become a cue-less auto-cut, violating the gate's
+    guarantee.
     """
     clear_fallback(episode_id, PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2)
 
     if not _ad_review_enabled(db):
         return ads_to_remove, all_ads_with_validation
 
-    eligible = split_resurrection_pool(
-        all_ads_with_validation, ads_to_remove, min_cut_confidence
-    )
+    if cue_gate_enabled:
+        eligible = []
+    else:
+        eligible = split_resurrection_pool(
+            all_ads_with_validation, ads_to_remove, min_cut_confidence
+        )
     if not ads_to_remove and not eligible:
         return ads_to_remove, all_ads_with_validation
 
@@ -1094,7 +1109,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
                                 min_cut_confidence, db,
-                                processed_duration=None):
+                                processed_duration=None,
+                                max_ad_duration_override=None,
+                                cue_gate_enabled=False):
     """Validate pass-2 ad candidates against processed-coordinate validator.
 
     Maps pass-1 user FP corrections from original to processed coordinates,
@@ -1102,6 +1119,13 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     ``processed_duration`` is the real (ffprobe) duration of the pass-1
     output; the validator clamps and extends trailing ads against it. Falls
     back to the last transcript segment's end when not provided.
+
+    ``max_ad_duration_override`` and ``cue_gate_enabled`` are passed through
+    from the per-feed resolvers (one read, done by the caller). Note:
+    verification ads can never carry cue evidence (snap is pass-1 only), so on
+    a cue-gated feed every pass-2 proposal will be held -- intended conservative
+    behavior.
+
     Returns (verification_ads_processed, verification_ads_original).
     """
     from ad_validator import AdValidator
@@ -1134,6 +1158,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         episode_description,
         false_positive_corrections=fp_corrections_processed,
         min_cut_confidence=min_cut_confidence,
+        max_ad_duration_override=max_ad_duration_override,
+        cue_gate_enabled=cue_gate_enabled,
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -1174,22 +1200,42 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence):
-    """Confidence gate pass-2 ads. Returns (v_ads_to_cut, v_ads_for_ui)."""
+    """Confidence gate pass-2 ads.
+
+    Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held).
+
+    Held ads (held_for_review=True) divert to v_ads_held as original-coord
+    twins with was_cut=False. They must NOT enter v_ads_for_ui: that list
+    feeds all_cuts_for_assets (transcript/chapter mapping) and the pass-2
+    reviewer's accepted pool. Contamination would corrupt both.
+
+    Note: verification ads can never carry cue evidence (snap is pass-1 only),
+    so on a cue-gated feed every pass-2 proposal is held -- intended
+    conservative behavior, documented here.
+    """
     v_ads_to_cut = []
     v_ads_for_ui = []
+    v_ads_held = []
     for i, ad in enumerate(verification_ads_processed):
+        orig_ad = verification_ads_original[i]
+        # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
+        if ad.get('held_for_review'):
+            orig_ad['was_cut'] = False
+            orig_ad['held_for_review'] = True
+            orig_ad['hold_reason'] = ad.get('hold_reason')
+            v_ads_held.append(orig_ad)
+            continue
         confidence = ad.get('validation', {}).get('adjusted_confidence', ad.get('confidence', 1.0))
         if confidence >= min_cut_confidence:
             ad['was_cut'] = True
             ad['detection_stage'] = 'verification'
             v_ads_to_cut.append(ad)
-            orig_ad = verification_ads_original[i]
             orig_ad['was_cut'] = True
             orig_ad['detection_stage'] = 'verification'
             v_ads_for_ui.append(orig_ad)
         else:
             ad['was_cut'] = False
-    return v_ads_to_cut, v_ads_for_ui
+    return v_ads_to_cut, v_ads_for_ui, v_ads_held
 
 
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
@@ -1266,7 +1312,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     compute_applied_cuts), not the requested list -- every use here is
     processed-to-original timestamp mapping.
 
-    Returns (verification_count, v_ads_for_ui, processed_path,
+    Returns (verification_count, v_ads_for_ui, v_ads_held, processed_path,
     verification_cue_count).
     """
     slug = ctx.slug
@@ -1277,6 +1323,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     podcast_description = ctx.podcast_description
     verification_count = 0
     v_ads_for_ui = []
+    v_ads_held = []
     verification_cue_count = 0
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
@@ -1325,6 +1372,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             # coverage check below needs the same pre-recut bounds.
             processed_duration = local_audio_processor.get_audio_duration(processed_path)
 
+            # Resolve per-feed hold settings once (one DB read) for the
+            # pass-2 validator. Pass the already-resolved values down rather
+            # than re-reading the DB in _validate_verification_ads.
+            podcast_id = ctx.podcast_id
+            max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
+            cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
+
             # Validate verification ads
             if verification_segments:
                 verification_ads_processed, verification_ads_original = _validate_verification_ads(
@@ -1333,11 +1387,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     pass1_cuts, episode_description,
                     min_cut_confidence, db,
                     processed_duration=processed_duration,
+                    max_ad_duration_override=max_ad_duration_override,
+                    cue_gate_enabled=cue_gate_enabled,
                 )
 
             if verification_ads_processed:
                 # Confidence gate and re-cut
-                v_ads_to_cut, v_ads_for_ui = _gate_verification_ads_by_confidence(
+                v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
                 )
@@ -1352,6 +1408,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     v_ads_to_cut, v_ads_for_ui,
                     verification_ads_processed, verification_ads_original,
                     original_segments, min_cut_confidence,
+                    cue_gate_enabled=cue_gate_enabled,
                 )
 
                 if v_ads_to_cut:
@@ -1378,7 +1435,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
 
-    return verification_count, v_ads_for_ui, processed_path, verification_cue_count
+    return verification_count, v_ads_for_ui, v_ads_held, processed_path, verification_cue_count
 
 
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
@@ -2038,8 +2095,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _check_cancel(cancel_event, slug, episode_id)
 
             # No-op when enable_ad_review is off (the default).
-            podcast_row = db.get_podcast_by_slug(slug)
-            podcast_id = podcast_row.get('id') if podcast_row else None
+            podcast_id = ctx.podcast_id
+            reviewer_cue_gate = resolve_cue_gated_approval(db, podcast_id)
             ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
                 slug, episode_id, podcast_id, ads_to_remove,
                 all_ads_with_validation, segments, podcast_name,
@@ -2047,6 +2104,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 min_cut_confidence, pass_num=1,
                 pass_model=ad_detector.get_model(),
                 audio_analysis=audio_analysis_result,
+                cue_gate_enabled=reviewer_cue_gate,
             )
             _check_cancel(cancel_event, slug, episode_id)
 
@@ -2103,7 +2161,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Stage 6: Verification pass
             current_pass = "pass2"
-            verification_count, v_ads_for_ui, processed_path, verification_cue_count = _run_verification_pass(
+            verification_count, v_ads_for_ui, v_ads_held, processed_path, verification_cue_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
@@ -2146,9 +2204,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     )
             _check_cancel(cancel_event, slug, episode_id)
 
-            # Merge pass 2 ads into combined list for UI
-            if v_ads_for_ui:
-                all_ads_with_validation = list(all_ads_with_validation) + v_ads_for_ui
+            # Merge pass 2 ads into combined list for UI.
+            # v_ads_held (held-for-review originals) merge here too so they
+            # survive into persisted markers with was_cut=False; they are kept
+            # separate from v_ads_for_ui so the reviewer pool and asset mapping
+            # are never contaminated with held ads.
+            merge_v = v_ads_for_ui + v_ads_held
+            if merge_v:
+                all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
