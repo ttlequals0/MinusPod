@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.38.0
+  version: 2.39.0
   contact:
     name: MinusPod
   license:
@@ -3981,6 +3981,37 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /system/db-backup/run:
+    post:
+      summary: Run a scheduled-style DB backup now
+      description: |
+        Forces a backup to the configured destination with rotation, ignoring
+        the enabled flag. Distinct from GET /system/backup (which streams a
+        one-off download). Rate limited to 6/hour.
+      tags: [System]
+      operationId: runDbBackup
+      responses:
+        '200':
+          description: Backup completed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DatabaseBackupRunSummary' }
+        '409':
+          description: A backup is already in progress
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: Backup failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /settings/retention:
     get:
       tags:
@@ -4860,6 +4891,57 @@ paths:
       responses:
         '200':
           description: Updated settings
+
+  /settings/db-backup:
+    get:
+      summary: Read scheduled DB backup settings
+      tags: [Settings]
+      operationId: getDbBackupSettings
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DatabaseBackupSettings' }
+    put:
+      summary: Update scheduled DB backup settings
+      tags: [Settings]
+      operationId: updateDbBackupSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                cron:
+                  type: string
+                  description: Standard 5-field cron expression. Must be a valid cron string.
+                dest:
+                  type: string
+                  description: |
+                    Absolute path to the backup directory. Empty string resets to the
+                    default location (<data_dir>/backups).
+                keepCount:
+                  type: integer
+                  minimum: 1
+                  maximum: 365
+                  description: |
+                    Number of backup files to retain. 1 uses overwrite mode (fixed filename);
+                    2 or more uses rotate mode (timestamped filenames, oldest pruned).
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DatabaseBackupSettings' }
+        '400':
+          description: Invalid cron expression, keepCount out of range, or invalid dest path
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /community-patterns/sync:
     post:
@@ -6176,6 +6258,62 @@ components:
         errors:   { type: integer }
         manifest_version: { type: string }
         fetched_at: { type: string }
+
+    DatabaseBackupSettings:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        cron:    { type: string }
+        dest:
+          type: string
+          description: Configured backup directory path. Empty string means default is used.
+        effectiveDest:
+          type: string
+          description: Resolved absolute path that will be written to (empty on validation error).
+        destWritable:
+          type: boolean
+          description: Whether the effective destination directory is currently writable.
+        keepCount:
+          type: integer
+          description: Number of backup files to keep (1 = overwrite mode, >1 = rotate mode).
+        lastRun:
+          type: string
+          nullable: true
+          description: ISO 8601 timestamp of the last completed backup run, or null.
+        lastError:
+          type: string
+          nullable: true
+          description: Error message from the most recent failed backup run, or null.
+        lastSummary:
+          type: string
+          nullable: true
+          description: JSON-encoded DatabaseBackupRunSummary from the last successful run, or null.
+
+    DatabaseBackupRunSummary:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Absolute path of the backup file written.
+        sizeBytes:
+          type: integer
+          description: Size of the written backup file in bytes.
+        durationMs:
+          type: integer
+          description: Wall-clock duration of the backup operation in milliseconds.
+        mode:
+          type: string
+          enum: [overwrite, rotate]
+          description: Backup mode used (overwrite when keepCount is 1, rotate otherwise).
+        keepCount:
+          type: integer
+          description: Retention limit in effect at the time of the run.
+        prunedCount:
+          type: integer
+          description: Number of old backup files removed during this run.
+        finishedAt:
+          type: string
+          description: ISO 8601 UTC timestamp when the backup completed.
 
     AdDistribution:
       type: object
