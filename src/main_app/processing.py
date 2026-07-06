@@ -1262,6 +1262,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
         # would double-count pending_review_count and show a duplicate chip.
         if any(ranges_overlap(orig_ad['start'], orig_ad['end'], hs, he)
                for hs, he in pass1_held_spans):
+            audio_logger.info(
+                f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
+                f"overlaps a pass-1 held span")
             ad['was_cut'] = False
             orig_ad['was_cut'] = False
             continue
