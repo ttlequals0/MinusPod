@@ -280,3 +280,38 @@ def test_below_threshold_non_held_not_in_v_ads_held():
     assert v_ads_to_cut == []
     assert v_ads_for_ui == []
     assert v_ads_held == []
+
+
+# ---------- Pass-2 cut inside a pass-1 held span ----------
+
+
+def test_pass2_cut_inside_pass1_held_span_is_diverted():
+    """A pass-2 ad whose original span overlaps a pass-1 held span must divert to
+    v_ads_held, never cut -- cutting would destroy the audio the hold protects."""
+    proc = [_plain_proc(100.0, 160.0)]  # would-be cut
+    orig = [_orig(120.0, 250.0, 'inside')]  # original coords overlap held 100-500
+    pass1_held = [(100.0, 500.0)]
+
+    v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_spans=pass1_held,
+    )
+
+    assert v_ads_to_cut == [], "Ad inside a held span must not be cut"
+    assert v_ads_for_ui == [], "Diverted ad must not enter the UI/reviewer pool"
+    assert len(v_ads_held) == 1
+    assert v_ads_held[0]['marker'] == 'inside'
+    assert v_ads_held[0].get('was_cut') is False
+
+
+def test_pass2_cut_outside_pass1_held_span_still_cut():
+    """A pass-2 ad not overlapping any held span cuts normally."""
+    proc = [_plain_proc(100.0, 160.0)]
+    orig = [_orig(600.0, 660.0, 'outside')]
+    pass1_held = [(100.0, 500.0)]
+
+    v_ads_to_cut, v_ads_for_ui, _v_ads_held = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_spans=pass1_held,
+    )
+
+    assert len(v_ads_to_cut) == 1
+    assert v_ads_for_ui[0]['marker'] == 'outside'

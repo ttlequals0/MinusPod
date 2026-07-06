@@ -23,11 +23,12 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, split_resurrection_pool,
 )
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
-from utils.time import utc_now_iso
+from utils.time import ranges_overlap, utc_now_iso
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
+    HOLD_REASON_NO_CUE, HOLD_REASON_PASS1_HELD_OVERLAP,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_max_ad_duration_override,
@@ -585,7 +586,14 @@ def _load_user_corrections(slug, episode_id, db):
     return false_positive_corrections, confirmed_corrections
 
 
-def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_confidence):
+def _is_cue_backed(ad):
+    """True when the ad carries cue evidence exempting it from cue gating."""
+    return (bool(ad.get('cue_snap'))
+            or ad.get('detection_stage') in ('cue_pair', 'manual'))
+
+
+def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_confidence,
+                                    cue_gate_enabled=False):
     """Apply ACCEPT/REJECT/REVIEW confidence gating. Returns (ads_to_remove, low_confidence_count)."""
     ads_to_remove = []
     low_confidence_count = 0
@@ -615,6 +623,17 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
             audio_logger.info(
                 f"[{slug}:{episode_id}] Keeping REVIEW ad in audio: "
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s ({confidence:.0%} < {min_cut_confidence:.0%})"
+            )
+            continue
+        # REVIEW fall-through: a rounded-up REVIEW ad on a cue-gated feed with no
+        # cue evidence must be held, not cut (mirrors the validator's cue gate).
+        if cue_gate_enabled and not _is_cue_backed(ad):
+            ad['was_cut'] = False
+            ad['held_for_review'] = True
+            ad['hold_reason'] = HOLD_REASON_NO_CUE
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Holding REVIEW ad (no cue evidence): "
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s"
             )
             continue
         ad['was_cut'] = True
@@ -668,7 +687,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     # Confidence gating: ACCEPT = cut, REJECT = keep, REVIEW = threshold check
     ads_to_remove, low_confidence_count = _gate_validation_by_confidence(
-        slug, episode_id, validation_result.ads, min_cut_confidence
+        slug, episode_id, validation_result.ads, min_cut_confidence,
+        cue_gate_enabled=cue_gate_enabled,
     )
 
     all_ads_with_validation = validation_result.ads
@@ -1196,7 +1216,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
-                                          min_cut_confidence):
+                                          min_cut_confidence,
+                                          pass1_held_spans=None):
     """Confidence gate pass-2 ads.
 
     Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held).
@@ -1206,10 +1227,16 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     feeds all_cuts_for_assets (transcript/chapter mapping) and the pass-2
     reviewer's accepted pool. Contamination would corrupt both.
 
+    ``pass1_held_spans`` are (start, end) tuples for pass-1 markers held for
+    review (in original coordinates). A pass-2 cut whose original span overlaps
+    any of them re-detects audio the hold protects; it diverts to v_ads_held
+    instead of cutting, never destroying the held region.
+
     Note: verification ads can never carry cue evidence (snap is pass-1 only),
     so on a cue-gated feed every pass-2 proposal is held -- intended
     conservative behavior, documented here.
     """
+    pass1_held_spans = pass1_held_spans or []
     v_ads_to_cut = []
     v_ads_for_ui = []
     v_ads_held = []
@@ -1221,6 +1248,16 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             orig_ad['held_for_review'] = True
             orig_ad['hold_reason'] = ad.get('hold_reason')
             v_ads_held.append(orig_ad)
+            continue
+        # A pass-2 cut overlapping a pass-1 held span would destroy the audio
+        # the hold protects; divert it to held instead of cutting.
+        if any(ranges_overlap(orig_ad['start'], orig_ad['end'], hs, he)
+               for hs, he in pass1_held_spans):
+            orig_ad['was_cut'] = False
+            orig_ad['held_for_review'] = True
+            orig_ad['hold_reason'] = HOLD_REASON_PASS1_HELD_OVERLAP
+            v_ads_held.append(orig_ad)
+            ad['was_cut'] = False
             continue
         confidence = ad.get('validation', {}).get('adjusted_confidence', ad.get('confidence', 1.0))
         if confidence >= min_cut_confidence:
@@ -1303,12 +1340,17 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_patterns, min_cut_confidence,
                             local_audio_processor, progress_callback,
                             original_segments=None, reuse_transcript=False,
-                            max_ad_duration_override=None, cue_gate_enabled=False):
+                            max_ad_duration_override=None, cue_gate_enabled=False,
+                            pass1_held_spans=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
     compute_applied_cuts), not the requested list -- every use here is
     processed-to-original timestamp mapping.
+
+    ``pass1_held_spans`` are (start, end) original-coordinate spans of pass-1
+    held markers; a pass-2 cut overlapping one is diverted to held instead of
+    cutting so the protected region survives.
 
     Returns (verification_count, v_ads_for_ui, v_ads_held, processed_path,
     verification_cue_count).
@@ -1387,6 +1429,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
+                    pass1_held_spans=pass1_held_spans,
                 )
 
                 # Pass 2 reviewer operates on original-coord ads (the prompt
@@ -1753,6 +1796,13 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
     cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
 
+    # Capture saved cut state before validation re-derives it. A marker already
+    # cut in the published audio must not flip to held when settings tighten
+    # (e.g. cue gating newly enabled) -- it would resurrect the ad. Keyed by
+    # span because validate() works on copies.
+    previously_cut = {(a.get('start'), a.get('end')) for a in all_ads
+                      if a.get('was_cut')}
+
     validator = AdValidator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
@@ -1762,8 +1812,20 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         cue_gate_enabled=cue_gate_enabled,
     )
     validation_result = validator.validate(all_ads)
+
+    # Suppress hold-rule outcomes for previously-cut markers: restore ACCEPT so
+    # the gate cuts them again. FP/confirm rejects (early-returns before hold
+    # rules) are not held, so this leaves user rejections intact.
+    for ad in validation_result.ads:
+        if (ad.get('held_for_review')
+                and (ad.get('start'), ad.get('end')) in previously_cut):
+            ad.pop('held_for_review', None)
+            ad.pop('hold_reason', None)
+            ad.setdefault('validation', {})['decision'] = 'ACCEPT'
+
     ads_to_remove, _low = _gate_validation_by_confidence(
-        slug, episode_id, validation_result.ads, min_cut_confidence
+        slug, episode_id, validation_result.ads, min_cut_confidence,
+        cue_gate_enabled=cue_gate_enabled,
     )
     return ads_to_remove, validation_result.ads
 
@@ -2157,6 +2219,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Stage 6: Verification pass
             current_pass = "pass2"
+            # Pass-1 held spans (original coords): pass 2 must not cut inside
+            # them or it destroys the audio the hold protects.
+            pass1_held_spans = [
+                (m['start'], m['end']) for m in all_ads_with_validation
+                if m.get('held_for_review') and not m.get('was_cut')
+            ]
             verification_count, v_ads_for_ui, v_ads_held, processed_path, verification_cue_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
@@ -2167,6 +2235,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 reuse_transcript=(reprocess_mode == 'llm'),
                 max_ad_duration_override=max_ad_duration_override,
                 cue_gate_enabled=cue_gate_enabled,
+                pass1_held_spans=pass1_held_spans,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and

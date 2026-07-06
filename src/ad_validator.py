@@ -556,8 +556,10 @@ class AdValidator:
         if has_errors or confidence < REJECT_CONFIDENCE:
             return Decision.REJECT
 
-        # Use user's slider threshold instead of hardcoded 0.85/0.60
-        if confidence >= self.min_cut_confidence:
+        # Use user's slider threshold instead of hardcoded 0.85/0.60. Compare at
+        # the same precision stored in adjusted_confidence so the downstream gate
+        # (which reads the rounded value) can never re-cut a REVIEW ad.
+        if round(confidence, 3) >= self.min_cut_confidence:
             return Decision.ACCEPT
         else:
             return Decision.REVIEW

@@ -249,6 +249,81 @@ def test_gate_held_ad_not_cut_despite_high_confidence():
     assert ad['was_cut'] is False
 
 
+def test_build_recut_previously_cut_stays_cut_when_cue_gate_enabled(monkeypatch):
+    # A marker cut in the saved state must NOT flip to held when cue gating is
+    # newly enabled: the ad is already gone from the published audio.
+    ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': True}]
+    _stub_recut_db(monkeypatch, ads, overrides={'cue_gated_approval': 1})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert {a['start'] for a in ads_to_remove} == {100.0}, (
+        "Previously-cut ad must still be cut on recut with cue gate on"
+    )
+    assert not all_ads[0].get('held_for_review'), (
+        "Previously-cut ad must not be resurrected as held"
+    )
+
+
+def test_build_recut_previously_held_still_re_held(monkeypatch):
+    # A previously-held marker keeps full hold-rule re-derivation.
+    ads = [{'start': 100.0, 'end': 400.0, 'confidence': 0.95,
+            'reason': 'promotional read', 'was_cut': False,
+            'held_for_review': True, 'hold_reason': 'max_duration'}]
+    _stub_recut_db(monkeypatch, ads,
+                   overrides={'max_ad_duration_override': 240.0})
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+    assert ads_to_remove == []
+    assert all_ads[0].get('held_for_review') is True
+    assert all_ads[0].get('was_cut') is False
+
+
+def test_gate_review_fallthrough_no_cue_is_held_on_cue_gated_feed():
+    # A REVIEW ad whose rounded adjusted_confidence >= slider must NOT be cut by
+    # the fall-through on a cue-gated feed when it has no cue evidence: hold it.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
+    )
+    assert ads_to_remove == [], "No-cue REVIEW ad must not be cut on a cue-gated feed"
+    assert ad['was_cut'] is False
+    assert ad['held_for_review'] is True
+    assert ad['hold_reason'] == 'no_cue_evidence'
+
+
+def test_gate_review_fallthrough_cue_backed_is_cut_on_cue_gated_feed():
+    # Cue-backed REVIEW ad at/over threshold is still cut via the fall-through.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'cue_snap': {'start': 498.0, 'end': 562.0},
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=True
+    )
+    assert {a['start'] for a in ads_to_remove} == {500.0}
+    assert ad['was_cut'] is True
+
+
+def test_gate_review_fallthrough_no_cue_cut_when_gate_off():
+    # Gate disabled -> fall-through cuts as before, no hold.
+    ad = {
+        'start': 500.0, 'end': 560.0, 'confidence': 0.80,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.80},
+    }
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', [ad], 0.80, cue_gate_enabled=False
+    )
+    assert {a['start'] for a in ads_to_remove} == {500.0}
+    assert not ad.get('held_for_review')
+
+
 def test_generate_assets_skips_chapters_when_disabled(monkeypatch):
     # Recut path: no AI chapter call, no chapter write.
     counters = {}

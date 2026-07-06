@@ -41,6 +41,9 @@ MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be pr
 # Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
 HOLD_REASON_MAX_DURATION = 'max_duration'
 HOLD_REASON_NO_CUE = 'no_cue_evidence'
+# Pass-2 cut whose original span overlapped a pass-1 held marker; diverted to
+# held instead of cutting so the protected region survives.
+HOLD_REASON_PASS1_HELD_OVERLAP = 'pass1_held_overlap'
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content

@@ -780,3 +780,30 @@ class TestCueGatedApproval:
             "Below-threshold REVIEW should not be marked held"
         )
         assert ad['validation']['decision'] == Decision.REVIEW.value
+
+    def test_rounding_boundary_no_cue_is_held_not_accepted(self):
+        # Unrounded 0.7996 rounds to 0.800 == slider 0.80. The rounded value must
+        # not slip past the cue gate as a plain ACCEPT: decision rounds too, so
+        # the cue-gate hold rule sees ACCEPT and holds the no-cue ad. Position
+        # 0.10 and a neutral reason avoid position/reason boosts.
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_gate_enabled=True, min_cut_confidence=0.80)
+        result = validator.validate([self._ad(start=360.0, end=420.0,
+                                              confidence=0.7996, reason='promotional read')])
+        ad = result.ads[0]
+        assert ad.get('held_for_review') is True, (
+            "Rounded-up no-cue ad must be held, not silently accepted"
+        )
+        assert ad.get('hold_reason') == HOLD_REASON_NO_CUE
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+
+    def test_rounding_boundary_cue_backed_is_accepted(self):
+        # Same boundary but cue-backed -> allowed to ACCEPT via the fall-through.
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_gate_enabled=True, min_cut_confidence=0.80)
+        result = validator.validate([self._ad(start=360.0, end=420.0,
+                                              confidence=0.7996, reason='promotional read',
+                                              cue_snap={'start': 358.0, 'end': 422.0})])
+        ad = result.ads[0]
+        assert not ad.get('held_for_review')
+        assert ad['validation']['decision'] == Decision.ACCEPT.value

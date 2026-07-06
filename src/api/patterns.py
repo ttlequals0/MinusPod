@@ -782,7 +782,42 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         text_snippet=rejected_text
     )
 
+    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end)
+
     return json_response({'message': 'False positive recorded'})
+
+
+def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
+    """When the rejected range matches a held marker, demote it to a plain
+    rejected marker and recompute pending_review_count. Without this the amber
+    review chip never clears by reviewing (the held state persists)."""
+    episode = db.get_episode(slug, episode_id) or {}
+    raw = episode.get('ad_markers_json')
+    if not raw:
+        return
+    try:
+        markers = json.loads(raw)
+    except (TypeError, ValueError):
+        return
+
+    changed = False
+    for m in markers:
+        if (m.get('held_for_review') and not m.get('was_cut')
+                and abs(m.get('start', 0) - start) <= tol
+                and abs(m.get('end', 0) - end) <= tol):
+            m['held_for_review'] = False
+            m.pop('hold_reason', None)
+            m['was_cut'] = False
+            m.setdefault('validation', {})['decision'] = 'REJECT'
+            changed = True
+
+    if not changed:
+        return
+
+    pending_count = sum(1 for m in markers
+                        if m.get('held_for_review') and not m.get('was_cut'))
+    db.save_episode_details(slug, episode_id, ad_markers=markers,
+                            pending_review_count=pending_count)
 
 
 def _maybe_rewrite_pattern_from_adjustment(
