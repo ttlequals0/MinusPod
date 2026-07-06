@@ -454,18 +454,27 @@ def resolve_feed_cue_settings(db, podcast_id):
     return result
 
 
-def _resolve_snap_flag(db, podcast_id, col):
-    """Per-feed opt-in flag: NULL/0 = off, 1 = on.
+def _resolve_override(db, podcast_id, col, coerce, default):
+    """Read one per-feed override column and coerce it.
 
-    Simple opt-in (no global to inherit). Fails open to False on any DB
-    error so a broken read can never enable behavior-changing flags.
+    ``coerce`` is called on the raw value when it is not None; ``default``
+    is returned when the column is absent, the podcast has no override row,
+    or any DB error occurs. Fails open to ``default`` so a broken read can
+    never enable behavior-changing flags.
     """
     try:
         if db and podcast_id is not None:
-            return bool(db.get_podcast_cue_settings_overrides(podcast_id).get(col))
+            raw = db.get_podcast_cue_settings_overrides(podcast_id).get(col)
+            if raw is not None:
+                return coerce(raw)
     except Exception:
-        _tunable_logger.warning('%s: flag read failed; defaulting to False', col)
-    return False
+        _tunable_logger.warning('%s: read failed; defaulting to %r', col, default)
+    return default
+
+
+def _resolve_snap_flag(db, podcast_id, col):
+    """Per-feed opt-in flag: NULL/0 = off, 1 = on. Default False."""
+    return _resolve_override(db, podcast_id, col, bool, False)
 
 
 def resolve_silence_snap_enabled(db, podcast_id):
@@ -484,14 +493,7 @@ def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:
     Returns None when unset or on any error -- None means no cap (the
     global MAX_AD_DURATION / MAX_AD_DURATION_CONFIRMED constants apply).
     """
-    try:
-        if db and podcast_id is not None:
-            raw = db.get_podcast_cue_settings_overrides(podcast_id).get('max_ad_duration_override')
-            if raw is not None:
-                return float(raw)
-    except Exception:
-        _tunable_logger.warning('max_ad_duration_override: read failed; defaulting to no cap')
-    return None
+    return _resolve_override(db, podcast_id, 'max_ad_duration_override', float, None)
 
 
 def resolve_cue_gated_approval(db, podcast_id) -> bool:

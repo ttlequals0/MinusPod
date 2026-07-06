@@ -129,11 +129,12 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
     return _normalize_nullable_finite_float(value, field_name, lo, hi)
 
 
-# (json_key, db_col) for the boundary-snap opt-in flags (Phase B).
+# (json_key, db_col) for the boundary-snap and held-review opt-in flags.
 # Nullable-bool columns; NULL/0 read as off everywhere downstream.
 _SNAP_FLAG_FIELDS = [
     ('silenceSnapEnabled',    'silence_snap_enabled'),
     ('transitionSnapEnabled', 'transition_snap_enabled'),
+    ('cueGatedApproval',      'cue_gated_approval'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -149,9 +150,6 @@ def _cue_override_fields(podcast) -> dict:
     } | {
         json_key: _deserialize_nullable_bool(podcast.get(db_col))
         for json_key, db_col in _SNAP_FLAG_FIELDS
-    } | {
-        # Phase C held-for-review: nullable-bool gate; NULL/0 read as off.
-        'cueGatedApproval': _deserialize_nullable_bool(podcast.get('cue_gated_approval')),
     }
 
 
@@ -645,12 +643,6 @@ def update_feed(slug):
             if err:
                 return error_response(err, 400)
             updates[db_col] = v
-
-    if 'cueGatedApproval' in data:
-        v, err = _normalize_cue_bool_override(data['cueGatedApproval'], 'cueGatedApproval')
-        if err:
-            return error_response(err, 400)
-        updates['cue_gated_approval'] = v
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
