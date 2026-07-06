@@ -23,6 +23,7 @@ The server includes a web-based management UI at `/ui/`:
 - Processing history with stats, filtering by podcast, and CSV/JSON export
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
+- Scheduled database backups (Settings > Data & Security): cron schedule, destination, keep count, and a Back up now button that works even with the schedule off
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button

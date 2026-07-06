@@ -197,6 +197,25 @@ You retain everything locally. Submission is a copy, not a move.
 
 See [`patterns/README.md`](../patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](../patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
+## Scheduled Database Backups
+
+MinusPod can snapshot its SQLite database to a directory on a cron schedule. The feature is off by default. The "Back up now" button runs a snapshot immediately whether or not the schedule is enabled, and is rate-limited to 6 runs per hour. Configure it in **Settings > Data & Security > Scheduled Backups**.
+
+| Setting | Default | Notes |
+|---|---|---|
+| Enabled | off | Turn on the cron schedule. Back up now works regardless. |
+| Schedule | `30 3 * * *` | Cron expression, interpreted as UTC. |
+| Destination | `/app/data/backups` | Directory path inside the container. Empty uses the default. |
+| Keep last | 1 | 1 overwrites a single file; higher keeps timestamped copies and prunes the oldest. |
+
+Cron examples (all UTC):
+
+- `30 3 * * *` - daily at 03:30
+- `0 */6 * * *` - every 6 hours, on the hour
+- `0 4 * * 0` - weekly, Sunday at 04:00
+
+The snapshots are plain SQLite files and are never encrypted, even with `MINUSPOD_MASTER_PASSPHRASE` set. For filenames, restore steps, and why the destination directory is locked to `0700`, see [Scheduled database backups](security-and-storage.md#scheduled-database-backups) in the security guide.
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)

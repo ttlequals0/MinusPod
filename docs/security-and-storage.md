@@ -108,14 +108,32 @@ Runs as UID 1000 (`minuspod`). First boot chowns the data volume, then drops pri
 
 ### Database backup sensitivity
 
-The SQLite backup files produced by `GET /api/v1/system/backup` and by the periodic cleanup task contain:
+The SQLite backup files produced by `GET /api/v1/system/backup`, by the periodic cleanup task, and by scheduled backups (see below) all contain:
 
 - Provider API keys (encrypted with `MINUSPOD_MASTER_PASSPHRASE` when set; plaintext legacy rows otherwise)
 - Flask session signing key
 - Webhook HMAC secrets
 - Password hash (scrypt)
 
-Treat the file like a credential. When `MINUSPOD_MASTER_PASSPHRASE` is set, both backup paths produce AES-GCM encrypted `.db.enc` files, and restoring requires the same passphrase the source used. Without a passphrase, unencrypted `.db` files are written and a WARN is logged at creation time.
+Treat the file like a credential. The `MINUSPOD_MASTER_PASSPHRASE` encryption applies to the download and cleanup paths only. When it is set, those two paths produce AES-GCM encrypted `.db.enc` files, and restoring requires the same passphrase the source used. Without a passphrase, they write unencrypted `.db` files and log a WARN at creation time. Scheduled backups are a separate path: their snapshots are always plain SQLite files, whether or not a passphrase is set.
+
+### Scheduled database backups
+
+Scheduled backups copy the SQLite database to a directory you choose, on a cron schedule you control, so you can recover after a bad upgrade or a lost volume. The feature is off by default. Configure it in **Settings > Data & Security > Scheduled Backups**, or via `GET/PUT /api/v1/settings/db-backup`. There is also a "Back up now" button (`POST /api/v1/system/db-backup/run`) that runs one immediately whether or not scheduling is on.
+
+The copies are written with SQLite's online backup API, so they stay consistent even while the app is running, and the snapshot is a single file with no `-wal` or `-shm` sidecars. Keep count controls the filenames:
+
+- Keep 1 (overwrite): one fixed file, `minuspod-backup.db`, replaced on each run.
+- Keep 2 or more (rotate): timestamped files named `minuspod-backup-YYYYMMDD-HHMMSS.db`, with the oldest pruned once the count is exceeded.
+
+The default destination is `/app/data/backups/` inside the container. The destination directory is created with mode `0700` and each backup file with mode `0600`, so other UIDs on the host cannot read a dump that holds provider secrets. These files carry the same sensitive contents listed under [Database backup sensitivity](#database-backup-sensitivity) above, and unlike the download path they are never encrypted. Point the destination at a directory you trust, and treat it like a credential store.
+
+To restore from a scheduled snapshot:
+
+1. Stop the container.
+2. Copy the snapshot over `data/podcast.db`.
+3. Delete any stale `data/podcast.db-wal` and `data/podcast.db-shm` files. The snapshot has no sidecars of its own; leftover ones from the old database can corrupt the restore.
+4. Start the container.
 
 ### Decrypting a backup
 

@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-07-06
+
+### Added
+
+- Scheduled database backups (#465): a cron-driven snapshot of the SQLite
+  database, written with the online backup API to a configurable directory
+  (default `/app/data/backups/` in the container), off by default. Keep count 1
+  overwrites a single fixed file; higher counts write timestamped files and
+  prune the oldest. New "Scheduled Backups" section under Settings > Data &
+  Security with an enable toggle, cron schedule, destination path, keep count,
+  last-run status, and a "Back up now" button that works even with scheduling
+  off (rate-limited to 6 per hour). New endpoints: `GET/PUT
+  /api/v1/settings/db-backup`, `POST /api/v1/system/db-backup/run`. Scheduled
+  snapshots are plain SQLite files and are never encrypted, even when
+  `MINUSPOD_MASTER_PASSPHRASE` is set; treat the destination directory like a
+  credential store.
+
 ## [2.38.0] - 2026-07-06
 
 ### Added

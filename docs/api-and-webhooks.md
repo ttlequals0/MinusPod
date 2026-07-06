@@ -56,6 +56,8 @@ Key endpoints:
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
 - `GET /api/v1/system/backup` - Download SQLite database backup
+- `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
+- `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` (added in 2.5.14) controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
