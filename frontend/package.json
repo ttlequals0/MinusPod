@@ -11,7 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query": "^5.101.2",
     "@types/pulltorefreshjs": "^0.1.7",
     "clsx": "^2.1.0",
     "lucide-react": "^1.22.0",
