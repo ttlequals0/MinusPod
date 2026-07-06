@@ -246,3 +246,69 @@ def test_list_episodes_pending_review_count_zero_when_no_held():
     episodes, _ = db.get_episodes(slug)
     ep = next(e for e in episodes if e['episode_id'] == eid)
     assert ep.get('pending_review_count', 0) == 0
+
+
+# ---------------------------------------------------------------------------
+# save_combined_ads choke-point arithmetic (M1)
+# ---------------------------------------------------------------------------
+
+def test_save_combined_ads_choke_point_arithmetic():
+    """save_combined_ads counts only held-and-not-cut markers.
+
+    2 held(not cut) + 1 cut + 1 rejected -> persisted count == 2.
+    """
+    import storage as storage_mod
+    slug = 'choke-arith'
+    eid = _seed(slug)
+    # Reset singleton so it picks up the test DATA_DIR env var
+    storage_mod.Storage._instance = None
+    storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
+    st = storage_mod.Storage()
+
+    markers = [
+        _marker('REVIEW', was_cut=False, held=True),   # held, not cut -> counted
+        _marker('REVIEW', was_cut=False, held=True),   # held, not cut -> counted
+        _marker('ACCEPT', was_cut=True),               # cut, not held -> not counted
+        _marker('REJECT', was_cut=False),              # rejected, not held -> not counted
+    ]
+    st.save_combined_ads(slug, eid, markers)
+    assert _get_pending_count(slug, eid) == 2
+
+
+# ---------------------------------------------------------------------------
+# Batch clear zeroes pending_review_count (I1)
+# ---------------------------------------------------------------------------
+
+def _seed_episode(slug, eid):
+    """Add a single episode to an already-created podcast."""
+    db.upsert_episode(slug=slug, episode_id=eid, title='ep',
+                      original_url=f'https://example.com/{eid}.mp3',
+                      status='processed')
+
+
+def test_batch_clear_episode_details_zeros_pending_review_count():
+    slug = 'batch-clear-details'
+    db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    eid1 = _eid()
+    eid2 = _eid()
+    _seed_episode(slug, eid1)
+    _seed_episode(slug, eid2)
+    db.save_episode_details(slug, eid1, ad_markers=[], pending_review_count=3)
+    db.save_episode_details(slug, eid2, ad_markers=[], pending_review_count=5)
+    db.batch_clear_episode_details(slug, [eid1, eid2])
+    assert _get_pending_count(slug, eid1) == 0
+    assert _get_pending_count(slug, eid2) == 0
+
+
+def test_batch_clear_episode_ad_data_zeros_pending_review_count():
+    slug = 'batch-clear-ad-data'
+    db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    eid1 = _eid()
+    eid2 = _eid()
+    _seed_episode(slug, eid1)
+    _seed_episode(slug, eid2)
+    db.save_episode_details(slug, eid1, ad_markers=[], pending_review_count=2)
+    db.save_episode_details(slug, eid2, ad_markers=[], pending_review_count=4)
+    db.batch_clear_episode_ad_data(slug, [eid1, eid2])
+    assert _get_pending_count(slug, eid1) == 0
+    assert _get_pending_count(slug, eid2) == 0

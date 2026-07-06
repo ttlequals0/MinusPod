@@ -634,6 +634,7 @@ def _submit_correction_create(db, slug, episode_id, data):
                 and m.get('pattern_id') is None):
             m['pattern_id'] = new_pattern_id
             break
+    # pending_review_count omitted: manual markers are never held (held state is set only by the validator)
     db.save_episode_details(slug, episode_id, ad_markers=markers)
 
     db.create_pattern_correction(

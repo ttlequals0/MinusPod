@@ -693,6 +693,10 @@ class EpisodeMixin:
             f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",
             db_ids
         )
+        conn.execute(
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
+            db_ids
+        )
         conn.commit()
 
     def batch_clear_episode_ad_data(self, slug: str, episode_ids: List[str]) -> None:
@@ -719,6 +723,10 @@ class EpisodeMixin:
                     transcript_vtt = NULL,
                     final_segments_json = NULL
                 WHERE episode_id IN ({placeholders})""",
+            db_ids
+        )
+        conn.execute(
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
             db_ids
         )
         conn.commit()

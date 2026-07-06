@@ -6224,7 +6224,7 @@ components:
                       type: string
             adMarkers:
               type: array
-              description: Ads that were removed from audio (ACCEPT decision, was_cut=true)
+              description: Ads that were cut and not held for review (was_cut=true, held_for_review not set)
               items:
                 $ref: '#/components/schemas/AdMarker'
             rejectedAdMarkers:
