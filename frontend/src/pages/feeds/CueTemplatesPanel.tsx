@@ -12,6 +12,7 @@ import {
   deleteCueTemplate,
   importCueTemplate,
   listCueTemplates,
+  optimizeCueWindow,
   previewCueTemplate,
   scanEpisodeCues,
   suggestCueThreshold,
@@ -22,6 +23,7 @@ import {
   type CueTemplate,
   type CueTemplateScope,
   type CueTemplateType,
+  type CueWindowOptimizeResponse,
   type ThresholdSuggestResponse,
 } from '../../api/cueTemplates';
 import { getCueFeedAdvisory } from '../../api/cueDetections';
@@ -78,6 +80,8 @@ function CueTemplatesPanel({ slug }: Props) {
   const [editingThresholdId, setEditingThresholdId] = useState<number | null>(null);
   const [editThresholdValue, setEditThresholdValue] = useState<string>('');
   const thresholdCancelledRef = useRef(false);
+  // Template whose optimize-window panel is expanded (one at a time).
+  const [optimizeId, setOptimizeId] = useState<number | null>(null);
 
   const togglePlay = (t: CueTemplate) => {
     const audio = audioRef.current;
@@ -385,7 +389,8 @@ function CueTemplatesPanel({ slug }: Props) {
         {templates.length > 0 && (
           <ul className="divide-y divide-border border border-border rounded">
             {templates.map((t) => (
-              <li key={t.id} className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3">
+              <li key={t.id} className="px-3 py-2 text-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <input
                     type="checkbox"
@@ -513,6 +518,20 @@ function CueTemplatesPanel({ slug }: Props) {
                             Threshold{t.scoreThreshold != null ? `: ${t.scoreThreshold}` : ''}
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={() => {
+                            setActionError(null);
+                            setOptimizeId(optimizeId === t.id ? null : t.id);
+                          }}
+                          disabled={!t.sourceEpisodeId}
+                          title={!t.sourceEpisodeId
+                            ? 'This cue has no source episode to rescan'
+                            : 'Try small trims of this window and keep the one that matches best'}
+                        >
+                          Optimize window
+                        </button>
                         {confirmDeleteId === t.id ? (
                           <>
                             <button
@@ -542,6 +561,14 @@ function CueTemplatesPanel({ slug }: Props) {
                       </>
                     )}
                   </div>
+                )}
+                </div>
+                {optimizeId === t.id && (
+                  <CueWindowOptimizePanel
+                    slug={slug}
+                    template={t}
+                    onClose={() => setOptimizeId(null)}
+                  />
                 )}
               </li>
             ))}
@@ -1020,6 +1047,179 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+interface CueWindowOptimizePanelProps {
+  slug: string;
+  template: CueTemplate;
+  onClose: () => void;
+}
+
+// Inline before/after panel for the window optimizer (D2b). Mounting claims or
+// polls the background sweep (D1b claim/poll convention); Apply moves the
+// window via the template PATCH, which re-extracts blobs server-side.
+function CueWindowOptimizePanel({ slug, template, onClose }: CueWindowOptimizePanelProps) {
+  const queryClient = useQueryClient();
+  const [applyError, setApplyError] = useState<string | null>(null);
+
+  const queryKey = ['cue-window-optimize', slug, template.id];
+  const query = useQuery<CueWindowOptimizeResponse>({
+    queryKey,
+    queryFn: () => optimizeCueWindow(slug, template.id),
+    staleTime: Infinity,
+    refetchInterval: (q) =>
+      q.state.data?.status === 'scanning' ? 3000 : false,
+  });
+
+  // Collapse keeps nothing: drop the cached proposal once the panel unmounts
+  // (Discard, Apply, or toggling the row action). Removing after unmount also
+  // avoids an observer refetch re-claiming a scan server-side.
+  useEffect(() => {
+    return () => {
+      queryClient.removeQueries({ queryKey: ['cue-window-optimize', slug, template.id] });
+    };
+  }, [queryClient, slug, template.id]);
+
+  const data = query.data;
+  const { proposedStartS, proposedEndS, meanPeakScore, baselineMeanPeakScore, perEpisode, baselineWindow } = data ?? {};
+  const scanning = query.isLoading || data?.status === 'scanning';
+  // A thrown trigger error (e.g. 409 source original aged out) carries the
+  // server message; a saved worker error comes back in the payload.
+  const scanError = data?.status === 'error'
+    ? (data.error || 'Optimize failed.')
+    : query.error
+      ? (query.error instanceof Error ? query.error.message : 'Optimize failed.')
+      : null;
+  const ready = data?.status === 'ready'
+    && proposedStartS != null && proposedEndS != null && meanPeakScore != null;
+  const alreadyOptimal = ready
+    && proposedStartS === baselineWindow?.startS
+    && proposedEndS === baselineWindow?.endS;
+  const scoreDelta = ready && baselineMeanPeakScore != null
+    ? meanPeakScore - baselineMeanPeakScore
+    : null;
+
+  const applyMutation = useMutation({
+    mutationFn: (vars: { startS: number; endS: number }) =>
+      updateCueTemplate(template.id, {
+        sourceOffsetS: vars.startS,
+        // Round away float dust from end - start; the sweep works in 0.1s steps.
+        durationS: Math.round((vars.endS - vars.startS) * 1000) / 1000,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
+      onClose();
+    },
+    onError: (e) => setApplyError(e instanceof Error ? e.message : 'Apply failed'),
+  });
+
+  // Force a fresh server-side run; same fetchQuery idiom as the cross-episode
+  // modal's rescan.
+  const rescan = () => {
+    setApplyError(null);
+    queryClient.fetchQuery({
+      queryKey,
+      queryFn: () => optimizeCueWindow(slug, template.id, true),
+      staleTime: 0,
+    });
+  };
+
+  return (
+    <div className="mt-2 rounded border border-border bg-secondary/30 px-3 py-2 text-xs">
+      {scanning && (
+        <p className="text-muted-foreground flex items-center gap-2">
+          <LoadingSpinner size="sm" inline /> Testing window trims across episodes, this can take a minute...
+        </p>
+      )}
+      {!scanning && scanError && (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-destructive">{scanError}</p>
+          <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={rescan}>
+            Rescan
+          </button>
+          <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={onClose}>
+            Close
+          </button>
+        </div>
+      )}
+      {!scanning && !scanError && ready && (
+        <div className="space-y-2">
+          {alreadyOptimal ? (
+            <p>
+              <span className="px-2 py-0.5 rounded font-medium bg-green-500/20 text-green-600 dark:text-green-400">
+                Already optimal
+              </span>
+              <span className="ml-2 text-muted-foreground">
+                No trim scored higher than the current window.
+              </span>
+            </p>
+          ) : (
+            <div className="grid max-w-sm grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-0.5 font-mono">
+              <span />
+              <span className="font-sans text-muted-foreground">Current</span>
+              <span className="font-sans text-muted-foreground">Proposed</span>
+              <span className="font-sans text-muted-foreground">Start</span>
+              <span>{baselineWindow ? `${baselineWindow.startS.toFixed(2)}s` : '--'}</span>
+              <span>{proposedStartS.toFixed(2)}s</span>
+              <span className="font-sans text-muted-foreground">End</span>
+              <span>{baselineWindow ? `${baselineWindow.endS.toFixed(2)}s` : '--'}</span>
+              <span>{proposedEndS.toFixed(2)}s</span>
+              <span className="font-sans text-muted-foreground">Score</span>
+              <span title={baselineMeanPeakScore == null
+                ? 'The current window is outside the capture bounds, so it was not scored'
+                : undefined}
+              >
+                {baselineMeanPeakScore != null ? baselineMeanPeakScore.toFixed(3) : '--'}
+              </span>
+              <span>
+                {meanPeakScore.toFixed(3)}
+                {scoreDelta != null && (
+                  <span className={`ml-1 ${scoreDelta >= 0
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-amber-600 dark:text-amber-400'}`}
+                  >
+                    {scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(3)}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          {(perEpisode?.length ?? 0) > 0 && (
+            <p className="text-muted-foreground">
+              Per episode:{' '}
+              {perEpisode!.map((e) => (
+                <span key={e.episodeId} className="mr-2 font-mono">
+                  {e.episodeId.slice(0, 8)} {e.peakScore.toFixed(3)}
+                </span>
+              ))}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={rescan}>
+              Rescan
+            </button>
+            <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={onClose}>
+              Discard
+            </button>
+            {!alreadyOptimal && (
+              <button
+                type="button"
+                className={`px-2 py-1 rounded ${primaryBtn} disabled:opacity-50`}
+                onClick={() => {
+                  setApplyError(null);
+                  applyMutation.mutate({ startS: proposedStartS, endS: proposedEndS });
+                }}
+                disabled={applyMutation.isPending}
+              >
+                {applyMutation.isPending ? 'Applying...' : 'Apply'}
+              </button>
+            )}
+          </div>
+          {applyError && <p className="text-destructive">{applyError}</p>}
+        </div>
+      )}
     </div>
   );
 }

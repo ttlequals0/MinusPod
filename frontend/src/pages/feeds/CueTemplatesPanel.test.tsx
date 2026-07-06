@@ -14,12 +14,23 @@
  *   - Make-template action opens CueMarkModal with correct bounds and target episode.
  *   - Zero candidates -> "No recurring segments found." message.
  *   - Error status -> error message shown.
+ *
+ * Also covers the "Optimize window" row action + inline result panel (Task D2b):
+ *   - Trigger fires optimizeCueWindow; scanning spinner shows; poll stops on
+ *     ready/error; error shows the saved message.
+ *   - Result panel renders baseline/proposed times, scores, per-episode list.
+ *   - Already-optimal state hides Apply; nullable baseline renders a dash.
+ *   - Apply PATCHes sourceOffsetS/durationS and invalidates the templates query;
+ *     Apply failure (409) shows an inline error and keeps the panel open.
+ *   - Discard collapses without a PATCH; Rescan refires with rescan=true.
+ *   - Row action disabled when the template has no source episode.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CueTemplatesPanel from './CueTemplatesPanel';
+import type { CueTemplate } from '../../api/cueTemplates';
 import type { Episode } from '../../api/types';
 
 // ---- Router stub ----
@@ -65,16 +76,19 @@ const mockGetFeed = vi.fn();
 const mockGetSettings = vi.fn();
 const mockGetCueFeedAdvisory = vi.fn();
 const mockCrossEpisodeScan = vi.fn();
+const mockOptimizeCueWindow = vi.fn();
+const mockUpdateCueTemplate = vi.fn();
 
 vi.mock('../../api/cueTemplates', () => ({
   listCueTemplates: (...args: unknown[]) => mockListCueTemplates(...args),
   crossEpisodeScan: (...args: unknown[]) => mockCrossEpisodeScan(...args),
+  optimizeCueWindow: (...args: unknown[]) => mockOptimizeCueWindow(...args),
   deleteCueTemplate: vi.fn(),
   importCueTemplate: vi.fn(),
   previewCueTemplate: vi.fn(),
   scanEpisodeCues: vi.fn(),
   suggestCueThreshold: vi.fn(),
-  updateCueTemplate: vi.fn(),
+  updateCueTemplate: (...args: unknown[]) => mockUpdateCueTemplate(...args),
   cueTemplateAudioUrl: (id: number) => `/audio/${id}`,
   cueTemplateExportUrl: (id: number) => `/export/${id}`,
   CUE_TYPE_OPTIONS: [
@@ -448,5 +462,217 @@ describe('Candidate results', () => {
     expect(screen.getByTestId('modal-episode-id').textContent).toBe('ep-1');
     expect(screen.getByTestId('modal-start').textContent).toBe('45.5');
     expect(screen.getByTestId('modal-end').textContent).toBe('90.2');
+  });
+});
+
+// ---- Optimize window (Task D2b) ----
+
+function makeTemplate(overrides: Partial<CueTemplate> = {}): CueTemplate {
+  return {
+    id: 7,
+    podcastId: 1,
+    label: 'Ding',
+    cueType: 'ad_break_boundary',
+    sourceEpisodeId: 'ep-1',
+    sourceOffsetS: 12.3,
+    durationS: 2.5,
+    sampleRate: 22050,
+    nCoeffs: 13,
+    scope: 'podcast',
+    networkId: null,
+    enabled: true,
+    createdAt: '2026-01-01T00:00:00Z',
+    createdBy: null,
+    hasAudio: false,
+    ...overrides,
+  };
+}
+
+function readyPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'ready',
+    templateId: 7,
+    proposedStartS: 11.9,
+    proposedEndS: 15.1,
+    meanPeakScore: 0.943,
+    baselineMeanPeakScore: 0.871,
+    perEpisode: [
+      { episodeId: 'epaaaa1111', peakScore: 0.951 },
+      { episodeId: 'epbbbb2222', peakScore: 0.938 },
+    ],
+    baselineWindow: { startS: 12.3, endS: 14.8 },
+    ...overrides,
+  };
+}
+
+async function openOptimizePanel() {
+  await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+  await userEvent.click(screen.getByRole('button', { name: /Optimize window/i }));
+}
+
+describe('Optimize window row action', () => {
+  beforeEach(() => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+  });
+
+  it('fires optimizeCueWindow on click and shows the scanning state', async () => {
+    mockOptimizeCueWindow.mockResolvedValue({ status: 'scanning', templateId: 7 });
+    renderPanel();
+    await openOptimizePanel();
+    await waitFor(() => {
+      expect(mockOptimizeCueWindow).toHaveBeenCalledWith('test-feed', 7);
+      expect(screen.getByTestId('spinner-inline')).toBeDefined();
+    });
+  });
+
+  it('is disabled when the template has no source episode', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ sourceEpisodeId: null })]);
+    renderPanel();
+    await waitFor(() => expect(screen.getByText('Ding')).toBeDefined());
+    const btn = screen.getByRole('button', { name: /Optimize window/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(mockOptimizeCueWindow).not.toHaveBeenCalled();
+  });
+
+  it('stops polling once ready and renders the comparison', async () => {
+    mockOptimizeCueWindow
+      .mockResolvedValueOnce({ status: 'scanning', templateId: 7 })
+      .mockResolvedValue(readyPayload());
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => {
+      expect(screen.getByText('Proposed')).toBeDefined();
+    }, { timeout: 5000 });
+    expect(mockOptimizeCueWindow).toHaveBeenCalledTimes(2);
+
+    // A further poll interval elapses with no new fetch: polling stopped.
+    await new Promise((r) => setTimeout(r, 3300));
+    expect(mockOptimizeCueWindow).toHaveBeenCalledTimes(2);
+  }, 15000);
+
+  it('shows the saved error and stops polling on status=error', async () => {
+    mockOptimizeCueWindow.mockResolvedValue({
+      status: 'error',
+      templateId: 7,
+      error: 'decode failed on ep-2',
+    });
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('decode failed on ep-2')).toBeDefined());
+    const calls = mockOptimizeCueWindow.mock.calls.length;
+    await new Promise((r) => setTimeout(r, 3300));
+    expect(mockOptimizeCueWindow.mock.calls.length).toBe(calls);
+  }, 15000);
+});
+
+describe('Optimize window result panel', () => {
+  beforeEach(() => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate()]);
+  });
+
+  it('renders baseline vs proposed times, scores, and per-episode list', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload());
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    expect(screen.getByText('Current')).toBeDefined();
+    expect(screen.getByText('12.30s')).toBeDefined();
+    expect(screen.getByText('14.80s')).toBeDefined();
+    expect(screen.getByText('11.90s')).toBeDefined();
+    expect(screen.getByText('15.10s')).toBeDefined();
+    expect(screen.getByText('0.871')).toBeDefined();
+    expect(screen.getByText('0.943')).toBeDefined();
+    expect(screen.getByText(/epaaaa11 0\.951/)).toBeDefined();
+    expect(screen.getByText(/epbbbb22 0\.938/)).toBeDefined();
+  });
+
+  it('shows already-optimal and hides Apply when proposed equals baseline', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload({
+      proposedStartS: 12.3,
+      proposedEndS: 14.8,
+      meanPeakScore: 0.871,
+    }));
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText(/Already optimal/i)).toBeDefined());
+    expect(screen.queryByRole('button', { name: /^Apply$/ })).toBeNull();
+  });
+
+  it('renders a dash when the baseline score is null', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload({ baselineMeanPeakScore: null }));
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    expect(screen.getByText('--')).toBeDefined();
+  });
+
+  it('Apply PATCHes sourceOffsetS/durationS and invalidates the templates query', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload());
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate());
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    const listCallsBefore = mockListCueTemplates.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: /^Apply$/ }));
+
+    await waitFor(() => {
+      expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, {
+        sourceOffsetS: 11.9,
+        durationS: 3.2,
+      });
+    });
+    await waitFor(() => {
+      expect(mockListCueTemplates.mock.calls.length).toBeGreaterThan(listCallsBefore);
+    });
+    // Panel closes after a successful apply.
+    await waitFor(() => expect(screen.queryByText('Proposed')).toBeNull());
+  });
+
+  it('Apply failure shows an inline error and keeps the panel open', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload());
+    mockUpdateCueTemplate.mockRejectedValue(
+      new Error('Source episode original audio is no longer available'),
+    );
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    await userEvent.click(screen.getByRole('button', { name: /^Apply$/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Source episode original audio is no longer available')).toBeDefined();
+    });
+    expect(screen.getByText('Proposed')).toBeDefined();
+  });
+
+  it('Discard collapses the panel without a PATCH', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload());
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    await userEvent.click(screen.getByRole('button', { name: /^Discard$/ }));
+
+    await waitFor(() => expect(screen.queryByText('Proposed')).toBeNull());
+    expect(mockUpdateCueTemplate).not.toHaveBeenCalled();
+  });
+
+  it('Rescan refires with rescan=true', async () => {
+    mockOptimizeCueWindow.mockResolvedValue(readyPayload());
+    renderPanel();
+    await openOptimizePanel();
+
+    await waitFor(() => expect(screen.getByText('Proposed')).toBeDefined());
+    await userEvent.click(screen.getByRole('button', { name: /^Rescan$/ }));
+
+    await waitFor(() => {
+      expect(mockOptimizeCueWindow).toHaveBeenCalledWith('test-feed', 7, true);
+    });
   });
 });
