@@ -285,6 +285,37 @@ export interface CueCandidatesResponse {
   error?: string;
 }
 
+// Cross-episode scan types and client (D1b backend).
+
+export type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
+
+export interface CrossEpisodeCandidate {
+  start: number;
+  end: number;
+  kind?: 'recurring';
+  episodeMatches?: number;
+}
+
+export interface CrossEpisodeScanResponse {
+  status: CrossEpisodeScanStatus;
+  episodeIds?: string[];
+  targetEpisodeId?: string;
+  candidates?: CrossEpisodeCandidate[];
+  error?: string;
+}
+
+// Claim or poll a cross-episode scan. POST-only, same body for both.
+export async function crossEpisodeScan(
+  slug: string,
+  episodeIds: string[],
+  rescan = false,
+): Promise<CrossEpisodeScanResponse> {
+  return apiRequest<CrossEpisodeScanResponse>(
+    `/feeds/${slug}/cue-cross-episode-scan`,
+    { method: 'POST', body: { episodeIds, rescan } },
+  );
+}
+
 // On-demand scan: fingerprint the whole episode and return the sounds that
 // recur across it (the ones worth templating). Loudness-independent, so it
 // catches level-matched stings. The scan runs in the background and returns a
