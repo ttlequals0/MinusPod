@@ -11,6 +11,8 @@ The server includes a web-based management UI at `/ui/`:
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap
 - Feed management: refresh, delete, copy URLs, editable display title, set network override, per-feed episode cap, per-feed transcription language override, per-feed cue match threshold and cue tuning overrides, silence-snap and transition-snap toggles (see [Audio Cue Detection](audio-cues.md))
+- Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
+- Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
 - Feed detail page groups its controls into collapsible sections (feed settings, tags, ad distribution) so the page stays scannable
 - Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
@@ -99,6 +101,15 @@ Submitting creates a new pattern with `created_by='user'` and writes a `'create'
 ### Audio Cue Templates
 
 If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md).
+
+### Held for Review
+
+When a feed has a max ad duration cap or cue-gated approval on, ads that cannot auto-cut are held rather than cut. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
+
+- **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
+- **Dismiss** - records a rejection and leaves the audio unchanged.
+
+The episode list shows an amber "N held" chip for any episode with pending held ads. See [Held for Review](how-it-works.md#held-for-review) for what triggers a hold.
 
 ### Screenshots
 
