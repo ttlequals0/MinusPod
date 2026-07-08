@@ -6,6 +6,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.40.0] - 2026-07-08
+
+### Added
+
+- Splice-evidence audio analysis: a per-episode scan for encoded digital
+  silence, loudness steps, and spectral steps, stored under `splice_evidence`
+  in the audio analysis JSON with per-feed calibration. Used to corroborate
+  boundary markers (within 3s), snap terminal ad starts to the strongest deep
+  silence (never across content speech), hold long cuts with zero splice
+  evidence for review instead of cutting silently, and annotate detection and
+  reviewer prompts. New settings: `splice_evidence_enabled`,
+  `splice_veto_enabled`, `veto_min_cut_seconds`, `terminal_snap_window_seconds`.
+- Cross-fetch differential (per-feed opt-in `differentialFetchEnabled`, off by
+  default): after transcription, each new episode is re-fetched with a
+  different podcast-client User-Agent and the two files are aligned. Differing
+  regions are treated as dynamically inserted; they corroborate markers, feed
+  the LLM prompts, and become `dai_differential` detections (confidence 0.95,
+  still gated by the validator and reviewer). Results are stored per episode
+  and shown on the episode page. Feeds whose enclosure URLs route through known
+  DAI prefix domains get a "DAI likely" hint in feed settings.
+- Tail re-transcription: when the transcript ends 10-600 seconds before the
+  audio does (`tail_retranscribe_min_seconds` /
+  `tail_retranscribe_max_seconds`), the tail is re-transcribed without
+  voice-activity filtering so quiet DAI post-rolls reach the LLM windows
+  instead of being skipped.
+- Ad markers record what audio evidence backed them (`corroborated_by`:
+  transition pair, volume anomaly, splice evidence, or cross-fetch
+  differential); the episode page shows it as a badge.
+
+### Fixed
+
+- vad_gap markers on untranscribed tails are no longer confidence-clamped for
+  having "no ad signals in transcript" when audio evidence corroborates them
+  (for untranscribed audio, Whisper never produced transcript signals, so the
+  condition was always true); uncorroborated tail markers are held for review
+  instead of cut silently.
+- Reviewer verdicts that contradict their own reasoning (verdict confirmed or
+  adjust with reasoning like "no advertisement content") hold the marker for
+  review instead of auto-cutting. Reviewer LLM failures keep the documented
+  trust-pass-1 fallback, now covered by an explicit test.
+- The cut renderer kept several seconds more audio than the markers
+  specified; processed duration now matches original minus applied cuts
+  within 1 second.
+
 ## [2.39.0] - 2026-07-06
 
 ### Added
