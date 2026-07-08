@@ -12,6 +12,7 @@ from config import (
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
+    HOLD_REASON_UNCORROBORATED_TAIL,
     is_cue_backed,
 )
 from utils.text import extract_text_from_segments
@@ -98,6 +99,7 @@ class AdValidator:
     # signals within this window of a marker edge corroborate the marker.
     CORROBORATION_WINDOW_S = 5.0
     CORROBORATION_MIN_VOLUME_STEP_DB = 12.0
+    TAIL_EOF_WINDOW_S = 5.0  # marker end this close to EOF counts as tail
 
     def __init__(self, episode_duration: float, segments: List[Dict] = None,
                  episode_description: str = None,
@@ -641,6 +643,19 @@ class AdValidator:
             if not is_cue_backed(ad):
                 self._mark_held(ad, flags, HOLD_REASON_NO_CUE)
                 return Decision.REVIEW
+
+        # Rule 3: an uncorroborated vad_gap marker at the episode tail that
+        # stays REVIEW must surface in the pending-review queue instead of
+        # shipping silently (TWiT 1091: untranscribed DAI post-roll ended
+        # REVIEW with pendingReviewCount=0). Calls the corroboration helper
+        # directly so tails with no transcript text in range (where the
+        # clamp branch never runs) still count stored evidence.
+        if (decision == Decision.REVIEW
+                and ad.get('detection_stage') == 'vad_gap'
+                and self.episode_duration > 0
+                and self.episode_duration - ad['end'] <= self.TAIL_EOF_WINDOW_S
+                and self._audio_corroboration_source(ad) is None):
+            self._mark_held(ad, flags, HOLD_REASON_UNCORROBORATED_TAIL)
 
         return decision
 

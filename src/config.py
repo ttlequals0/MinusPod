@@ -41,6 +41,7 @@ MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be pr
 # Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
 HOLD_REASON_MAX_DURATION = 'max_duration'
 HOLD_REASON_NO_CUE = 'no_cue_evidence'
+HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 
 
 def is_cue_backed(ad) -> bool:

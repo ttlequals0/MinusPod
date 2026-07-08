@@ -6,7 +6,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator, Decision
-from config import HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE
+from config import (
+    HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
+    HOLD_REASON_UNCORROBORATED_TAIL,
+)
 
 
 class TestAdValidatorDuration:
@@ -980,3 +983,99 @@ class TestVadGapClampBypass:
         validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
         result = validator.validate([marker])
         assert 'corroborated_by' not in result.ads[0]
+
+
+class TestUncorroboratedTailHold:
+    """Spec 1.3: a vad_gap marker at the episode tail (end within 5s of EOF)
+    that stays REVIEW and uncorroborated is held for review, so it lands in
+    the pending-review UI instead of shipping silently (TWiT 1091 shipped
+    with pendingReviewCount=0).
+    """
+
+    SEGMENTS = [
+        {'start': 10520.0, 'end': 10545.0,
+         'text': 'So that is our show for this week everybody.'},
+        {'start': 10545.0, 'end': 10557.6,
+         'text': 'Thanks for being here and we will see you next time on the show.'},
+    ]
+
+    def _marker(self, confidence=0.75):
+        return {
+            'start': 10557.6,
+            'end': 10600.0,
+            'confidence': confidence,
+            'reason': 'VAD gap at episode tail (42.4s untranscribed)',
+            'detection_stage': 'vad_gap',
+            'sponsor': None,
+        }
+
+    def _tail_transition_analysis(self):
+        return {
+            'signals': [{
+                'start': 10557.4, 'end': 10599.6,
+                'signal_type': 'dai_transition_pair',
+                'confidence': 0.95, 'duration': 42.2,
+                'details': {'avg_delta_db': 15.0, 'start_direction': 'down',
+                            'start_delta_db': 15.2, 'end_delta_db': 14.8,
+                            'start_from_lufs': -16.0, 'start_to_lufs': -31.2,
+                            'end_from_lufs': -31.0, 'end_to_lufs': -16.2},
+            }],
+            'loudness_baseline': -16.0,
+            'analysis_time_seconds': 4.2,
+            'errors': [],
+        }
+
+    def test_uncorroborated_tail_review_is_held(self):
+        validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
+        result = validator.validate([self._marker()])
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad.get('held_for_review') is True
+        assert ad.get('hold_reason') == HOLD_REASON_UNCORROBORATED_TAIL
+
+    def test_corroborated_tail_marker_not_held(self):
+        validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
+        result = validator.validate([self._marker()],
+                                    audio_analysis=self._tail_transition_analysis())
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert not ad.get('held_for_review')
+
+    def test_corroborated_below_threshold_review_not_held(self):
+        # Corroboration bypasses the clamp but 0.60 + 0.05 = 0.65 < 0.80:
+        # stays REVIEW yet is corroborated, so per spec 1.3 it is NOT held.
+        validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
+        result = validator.validate([self._marker(confidence=0.60)],
+                                    audio_analysis=self._tail_transition_analysis())
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['corroborated_by'] == 'transition_pair'
+        assert not ad.get('held_for_review')
+
+    def test_mid_episode_vad_gap_review_not_held(self):
+        segments = [
+            {'start': 2080.0, 'end': 2098.0,
+             'text': 'And so Apple has been making moves recently.'},
+        ]
+        validator = AdValidator(episode_duration=8000.0, segments=segments)
+        marker = {
+            'start': 2081.8, 'end': 2097.6, 'confidence': 0.75,
+            'reason': 'VAD gap with signoff and resume context',
+            'detection_stage': 'vad_gap',
+        }
+        result = validator.validate([marker])
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert not ad.get('held_for_review')
+
+    def test_tail_review_non_vad_gap_not_held(self):
+        validator = AdValidator(episode_duration=10600.0, segments=self.SEGMENTS)
+        marker = {
+            'start': 10557.6, 'end': 10600.0, 'confidence': 0.70,
+            'reason': 'promotional read near the end',
+            'detection_stage': 'claude',
+        }
+        result = validator.validate([marker])
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert not ad.get('held_for_review')
