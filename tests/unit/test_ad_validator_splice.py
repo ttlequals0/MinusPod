@@ -6,6 +6,8 @@ validate(..., audio_analysis=) wiring; adds the splice_evidence source.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_validator import AdValidator, Decision
@@ -57,3 +59,36 @@ class TestSpliceCorroboration:
         result = bare.validate([dict(ad)], audio_analysis=_analysis([]))
         assert result.ads[0]['validation']['decision'] == Decision.REVIEW.value
         assert 'corroborated_by' not in result.ads[0]
+
+
+class TestNoSegmentsVadGapClamp:
+    """Pins the no-segments branch of _verify_in_transcript. A fully
+    untranscribed episode (segments=[]) with an uncorroborated vad_gap
+    marker clamps confidence to min_cut_confidence - 0.01 so it routes to
+    REVIEW; a splice event in range corroborates it and skips the clamp.
+    This is a deliberate behavior change from Task 14 (previously the empty
+    segments branch returned confidence unchanged), backstopped by Task 3's
+    tail hold rule.
+    """
+
+    def _marker(self):
+        return {'start': 100.0, 'end': 130.0, 'confidence': 0.90,
+                'reason': 'untranscribed gap', 'detection_stage': 'vad_gap'}
+
+    def test_no_segments_uncorroborated_vad_gap_is_clamped(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                min_cut_confidence=0.80)
+        validator._audio_analysis = None
+        ad = self._marker()
+        result = validator._verify_in_transcript(ad, 0.90, [])
+        assert result == pytest.approx(0.79)
+        assert 'corroborated_by' not in ad
+
+    def test_no_segments_splice_corroborated_vad_gap_not_clamped(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                min_cut_confidence=0.80)
+        validator._audio_analysis = _analysis([_event(97.5)])
+        ad = self._marker()
+        result = validator._verify_in_transcript(ad, 0.90, [])
+        assert result == pytest.approx(0.90)
+        assert ad['corroborated_by'] == 'splice_evidence'
