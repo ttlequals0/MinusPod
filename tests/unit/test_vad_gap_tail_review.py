@@ -16,7 +16,10 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import ad_validator
-from ad_validator import ValidationResult
+from ad_validator import AdValidator, ValidationResult
+from config import (
+    HOLD_REASON_UNCORROBORATED_TAIL, count_pending_review, is_pending_review,
+)
 from main_app import processing
 
 
@@ -85,3 +88,72 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     processing._build_recut_ad_list('slug', 'ep', [], 3600.0, '', 0.80,
                                     podcast_id=1)
     assert captured['audio_analysis'] == stored
+
+
+TAIL_SEGMENTS = [
+    {'start': 10520.0, 'end': 10545.0,
+     'text': 'So that is our show for this week everybody.'},
+    {'start': 10545.0, 'end': 10557.6,
+     'text': 'Thanks for being here and we will see you next time on the show.'},
+]
+
+
+def _tail_marker():
+    return {
+        'start': 10557.6,
+        'end': 10600.0,
+        'confidence': 0.75,
+        'reason': 'VAD gap at episode tail (42.4s untranscribed)',
+        'detection_stage': 'vad_gap',
+        'sponsor': None,
+    }
+
+
+def _tail_transition_analysis():
+    return {
+        'signals': [{
+            'start': 10557.4, 'end': 10599.6,
+            'signal_type': 'dai_transition_pair',
+            'confidence': 0.95, 'duration': 42.2,
+            'details': {'avg_delta_db': 15.0, 'start_direction': 'down',
+                        'start_delta_db': 15.2, 'end_delta_db': 14.8,
+                        'start_from_lufs': -16.0, 'start_to_lufs': -31.2,
+                        'end_from_lufs': -31.0, 'end_to_lufs': -16.2},
+        }],
+        'loudness_baseline': -16.0,
+        'analysis_time_seconds': 4.2,
+        'errors': [],
+    }
+
+
+def test_uncorroborated_tail_marker_lands_in_pending_review():
+    # TWiT 1091 shipped silently with pendingReviewCount=0. The full path
+    # (validator -> confidence gate -> pending-review bucket) must now keep
+    # the marker in audio AND surface it to the review queue.
+    validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
+    result = validator.validate([_tail_marker()])
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', result.ads, 0.80
+    )
+    ad = result.ads[0]
+    assert ads_to_remove == []
+    assert ad['was_cut'] is False
+    assert ad['held_for_review'] is True
+    assert ad['hold_reason'] == HOLD_REASON_UNCORROBORATED_TAIL
+    assert is_pending_review(ad) is True
+    assert count_pending_review(result.ads) == 1
+
+
+def test_corroborated_tail_marker_is_cut_not_pending():
+    validator = AdValidator(episode_duration=10600.0, segments=TAIL_SEGMENTS)
+    result = validator.validate([_tail_marker()],
+                                audio_analysis=_tail_transition_analysis())
+    ads_to_remove, _ = processing._gate_validation_by_confidence(
+        'slug', 'ep', result.ads, 0.80
+    )
+    ad = result.ads[0]
+    assert ads_to_remove == [ad]
+    assert ad['was_cut'] is True
+    assert ad['corroborated_by'] == 'transition_pair'
+    assert is_pending_review(ad) is False
+    assert count_pending_review(result.ads) == 0
