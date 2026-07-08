@@ -34,10 +34,7 @@ def cold_start_calibration() -> Dict:
         'status': 'cold_start',
         'episodes_considered': 0,
         'events_per_hour': {},
-        'thresholds': {
-            'digital_silence_min_s': SPLICE_DIGITAL_SILENCE_MIN_SECONDS,
-            'deep_silence_min_s': SPLICE_DEEP_SILENCE_MIN_SECONDS,
-        },
+        'thresholds': {f'{t}_min_s': v for t, v in _DEFAULT_MIN_S.items()},
     }
 
 
@@ -58,7 +55,9 @@ def build_calibration(rows) -> Dict:
             analysis = json.loads(row['audio_analysis_json'])
         except (json.JSONDecodeError, TypeError):
             continue
-        payload = analysis.get('splice_evidence') if isinstance(analysis, dict) else None
+        if not isinstance(analysis, dict):
+            continue
+        payload = analysis.get('splice_evidence')
         if not isinstance(payload, dict):
             continue
         considered += 1
