@@ -280,7 +280,7 @@ SPLICE_LOUDNESS_STEP_MIN_LU = 5.0         # Min |step| to emit a loudness_step e
 SPLICE_CENTROID_STEP_MIN_HZ = 300.0       # Min |centroid step| for a spectral_step event
 SPLICE_FLATNESS_STEP_MIN = 0.10           # Min |flatness step| for a spectral_step event
 SPLICE_STEP_SIDE_WINDOW_SECONDS = 5.0     # Side window for spectral aggregation
-SPLICE_CALIBRATION_RECENT_EPISODES = 5    # History window (same N as cross-episode cues)
+SPLICE_CALIBRATION_RECENT_EPISODES = 10   # Fetch window; 2x MIN to absorb pre-schema rows
 SPLICE_CALIBRATION_MIN_EPISODES = 5       # Below this: cold_start (corroborate only, never veto)
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
 # Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose

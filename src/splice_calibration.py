@@ -72,7 +72,9 @@ def build_calibration(rows) -> Dict:
 
     rates = {}
     thresholds = {}
-    allowed = int(total_hours * SPLICE_CALIBRATION_MAX_FP_PER_HOUR)
+    # Floor at 1 so feeds with < 1 hour of history still allow at least one
+    # event per type rather than blocking all detection while status=calibrated.
+    allowed = max(1, int(total_hours * SPLICE_CALIBRATION_MAX_FP_PER_HOUR))
     for etype in _SILENCE_TYPES:
         durations = sorted(durations_by_type[etype], reverse=True)
         rates[etype] = round(len(durations) / total_hours, 3)

@@ -638,11 +638,15 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json'})
+
     def _get_recent_episode_json_col(self, slug: str, col: str,
                                      exclude_episode_id: Optional[str] = None,
                                      limit: int = 30,
                                      min_duration: float = 60) -> List[Dict]:
         """Shared query for fetching a JSON detail column from recent processed episodes."""
+        if col not in self._EPISODE_JSON_COLS:
+            raise ValueError(f"Invalid column: {col!r}")
         conn = self.get_connection()
         cursor = conn.execute(
             f"""SELECT e.episode_id, e.original_duration, ed.{col}
