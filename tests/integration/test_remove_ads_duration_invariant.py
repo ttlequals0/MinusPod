@@ -146,6 +146,37 @@ def test_end_of_episode_cut_extends_and_holds_invariant(processor, tmp_path):
     assert _silence_starts(output_path) == []
 
 
+def test_time_saved_reflects_beep_replacement(processor, tmp_path):
+    """Production timeSaved == original_duration - new_duration (processing.py,
+    webhook_service.py, api/episodes.py). Because each cut is replaced by the
+    beep, that expression is already beep-aware: it reads n*beep LESS than the
+    raw marker-duration sum. Pins the metric against a regression to summing
+    marker/cut durations, which would overcount by one beep per cut."""
+    input_path = tmp_path / 'input.wav'
+    output_path = tmp_path / 'out.mp3'
+    _make_input(input_path, 60.0, [(10.0, 30.0)])
+
+    applied = processor.remove_ads(
+        str(input_path),
+        [{'start': 10.0, 'end': 30.0, 'confidence': 0.9}],
+        str(output_path),
+    )
+    assert len(applied) == 1
+
+    original_duration = processor.get_audio_duration(str(input_path))
+    new_duration = processor.get_audio_duration(str(output_path))
+    # The exact expression every production timeSaved site uses.
+    time_saved = original_duration - new_duration
+
+    marker_sum = sum(a['end'] - a['start'] for a in applied)
+    beep_total = len(applied) * processor.get_beep_duration()
+    # Beep-aware: timeSaved reflects the beep the cut was replaced with.
+    assert time_saved == pytest.approx(marker_sum - beep_total, abs=_DURATION_TOL_S)
+    # And is therefore strictly below the raw marker sum -- a regression to
+    # summing marker durations (Case B) would report ~one beep per cut too much.
+    assert time_saved < marker_sum - beep_total / 2
+
+
 def test_two_cuts_scale_beep_count(processor, tmp_path):
     input_path = tmp_path / 'input.wav'
     output_path = tmp_path / 'out.mp3'
