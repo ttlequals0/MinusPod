@@ -52,29 +52,56 @@ def _make_input(path, duration, silent_ranges):
 
 
 def _mean_volume_db(path, start, dur):
-    out = subprocess.run(
+    result = subprocess.run(
         ['ffmpeg', '-ss', str(start), '-t', str(dur), '-i', str(path),
          '-af', 'volumedetect', '-f', 'null', '-'],
         capture_output=True, text=True,
-    ).stderr
+    )
+    assert result.returncode == 0, (
+        f'volumedetect ffmpeg failed (rc={result.returncode}): '
+        f'{result.stderr[-500:]}')
+    out = result.stderr
     m = re.search(r'mean_volume: (-?[\d.]+) dB', out)
     assert m, f'volumedetect produced no mean_volume: {out[-500:]}'
     return float(m.group(1))
 
 
 def _silence_starts(path, noise_db=-45, min_dur=2.0):
-    out = subprocess.run(
+    result = subprocess.run(
         ['ffmpeg', '-i', str(path),
          '-af', f'silencedetect=noise={noise_db}dB:d={min_dur}',
          '-f', 'null', '-'],
         capture_output=True, text=True,
-    ).stderr
-    return re.findall(r'silence_start: ([\d.]+)', out)
+    )
+    assert result.returncode == 0, (
+        f'silencedetect ffmpeg failed (rc={result.returncode}): '
+        f'{result.stderr[-500:]}')
+    return re.findall(r'silence_start: ([\d.]+)', result.stderr)
+
+
+def _beep_output_start(applied, index, beep_duration):
+    """Output-timeline start of the beep that replaces applied[index].
+
+    Earlier cuts each collapse to a beep, so a later beep shifts left by the
+    earlier cut lengths and right by the earlier beep durations.
+    """
+    earlier_cuts = sum(
+        applied[j]['end'] - applied[j]['start'] for j in range(index))
+    return applied[index]['start'] - earlier_cuts + index * beep_duration
+
+
+def _assert_beep_loud(processor, output_path, applied, index):
+    """The beep replacing applied[index] must be loud, not leftover silence."""
+    beep_start = _beep_output_start(
+        applied, index, processor.get_beep_duration())
+    assert _mean_volume_db(output_path, beep_start + 0.1, 0.8) > -60.0
 
 
 def _assert_invariant(processor, input_path, output_path, applied):
     in_dur = processor.get_audio_duration(str(input_path))
     out_dur = processor.get_audio_duration(str(output_path))
+    assert in_dur is not None, f'ffprobe failed on input {input_path}'
+    assert out_dur is not None, f'ffprobe failed on output {output_path}'
     cut_total = sum(a['end'] - a['start'] for a in applied)
     expected = in_dur - cut_total + len(applied) * processor.get_beep_duration()
     assert abs(out_dur - expected) <= _DURATION_TOL_S, (
@@ -111,8 +138,11 @@ def test_end_of_episode_cut_extends_and_holds_invariant(processor, tmp_path):
         str(output_path),
     )
     # <30s would remain (POST_ROLL_TRIM_THRESHOLD), so the cut runs to EOF.
+    assert len(applied) == 1
     assert applied[-1]['end'] == pytest.approx(60.0, abs=0.1)
     _assert_invariant(processor, input_path, output_path, applied)
+    # The extended cut is replaced by the beep, not left as silence.
+    _assert_beep_loud(processor, output_path, applied, 0)
     assert _silence_starts(output_path) == []
 
 
@@ -129,4 +159,7 @@ def test_two_cuts_scale_beep_count(processor, tmp_path):
     )
     assert len(applied) == 2
     _assert_invariant(processor, input_path, output_path, applied)
+    # Both beeps sit at shifted output positions and must be loud.
+    _assert_beep_loud(processor, output_path, applied, 0)
+    _assert_beep_loud(processor, output_path, applied, 1)
     assert _silence_starts(output_path) == []
