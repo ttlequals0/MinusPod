@@ -288,6 +288,8 @@ SPLICE_CALIBRATION_RECENT_EPISODES = 10
 SPLICE_CALIBRATION_MIN_EPISODES = 5       # Min VALID payloads for calibrated; below this: cold_start
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
 SPLICE_CORROBORATION_WINDOW_SECONDS = 3.0  # Event-to-edge distance that corroborates a marker
+TERMINAL_SNAP_WINDOW_SECONDS = 30.0        # Max backward scan from a terminal marker's start
+TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF counts as terminal
 # Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose
 # length falls between min and max is re-run with vad_filter=False so quiet
 # DAI post-rolls reach the LLM windows. DB-tunable via the

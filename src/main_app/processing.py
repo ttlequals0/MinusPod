@@ -18,6 +18,7 @@ from ad_detector import (
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
+from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_reviewer import (
     AdReviewer, ReviewVerdict, reasoning_contradicts_cut,
@@ -37,6 +38,7 @@ from config import (
     resolve_tail_retranscribe_tunables,
     resolve_max_ad_duration_override,
     resolve_cue_gated_approval,
+    TERMINAL_SNAP_WINDOW_SECONDS,
 )
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
@@ -1136,6 +1138,47 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
     return new_ads_to_remove, all_ads_with_validation
+
+
+def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validation,
+                          segments, audio_analysis_result, episode_duration):
+    """Terminal boundary snap (spec 2.3b): pull a terminal cut's start back
+    to the strongest deep-silence splice event. Runs after the reviewer,
+    whose adjust verdicts are what move Dillon-style starts inside the ad
+    block. Mutates matching master entries in place; returns the cut list.
+    """
+    if not ads_to_remove or not episode_duration:
+        return ads_to_remove
+    splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
+    events = splice.get('events') or []
+    if not events:
+        return ads_to_remove
+    window_s = db.get_setting_float('terminal_snap_window_seconds',
+                                    TERMINAL_SNAP_WINDOW_SECONDS)
+    snapped = snap_terminal_ad_to_splice(
+        ads_to_remove, segments, events, episode_duration, window_s,
+        coverage_ads=all_ads_with_validation,
+    )
+    changed = False
+    for old, new in zip(ads_to_remove, snapped):
+        if new['start'] >= old['start']:
+            continue
+        changed = True
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Terminal snap: cut start "
+            f"{old['start']:.1f}s -> {new['start']:.1f}s "
+            f"(-{old['start'] - new['start']:.1f}s)"
+        )
+        for master in all_ads_with_validation:
+            if master is old or (master.get('start') == old['start']
+                                 and master.get('end') == old['end']):
+                master['start'] = new['start']
+                master['terminal_snap'] = new['terminal_snap']
+                break
+    if not changed:
+        return ads_to_remove
+    storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+    return snapped
 
 
 def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation,
@@ -2302,6 +2345,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 cue_gate_enabled=cue_gate_enabled,
             )
             _check_cancel(cancel_event, slug, episode_id)
+
+            # Terminal boundary snap (spec 2.3b): after the reviewer so a
+            # reviewer-adjusted start can be pulled back to the splice point.
+            ads_to_remove = _snap_terminal_starts(
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                segments, audio_analysis_result, episode_duration
+            )
 
             # Tail completion: final content-based end sweep after the reviewer,
             # which can pull cut ends back to the detector boundary and strand

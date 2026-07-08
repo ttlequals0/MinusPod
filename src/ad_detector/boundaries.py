@@ -22,6 +22,7 @@ from config import (
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
     AD_CONTENT_PHONE_PATTERNS,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
+    TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -1058,3 +1059,91 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
         logger.info(f"Window deduplication: {len(all_ads)} -> {len(merged)} ads")
 
     return merged
+
+
+# --- Terminal boundary snap to splice evidence (spec 2.3b) ---
+
+def snap_terminal_ad_to_splice(ads: List[Dict], segments: List[Dict],
+                               splice_events: List[Dict],
+                               episode_duration: float,
+                               window_s: float,
+                               coverage_ads: Optional[List[Dict]] = None,
+                               eof_tolerance_s: float = TERMINAL_SNAP_EOF_TOLERANCE_SECONDS
+                               ) -> List[Dict]:
+    """Snap a terminal ad's start back to the strongest deep-silence splice.
+
+    DAI post-roll blocks often begin at an encoded silence a few seconds
+    before where the LLM or reviewer placed the marker start. For a marker
+    whose end is within eof_tolerance_s of EOF, scan back from its start up
+    to window_s for digital_silence/deep_silence events and snap the start
+    to the deepest one whose extension span is safe to cut: every
+    transcribed segment in [event_time, old_start) must either overlap a
+    detected marker (ad-classified / pattern-matched) or read as ad content
+    (sponsor names, URLs, promo phrases). Untranscribed audio always passes;
+    a content-classified sentence blocks that candidate.
+
+    Returns a new list with snapped copies; other ads pass through.
+    """
+    if not ads or not splice_events or episode_duration <= 0:
+        return ads
+    coverage = coverage_ads if coverage_ads is not None else ads
+    out = []
+    for ad in ads:
+        ad_copy = ad.copy()
+        if episode_duration - ad_copy['end'] <= eof_tolerance_s:
+            candidates = [
+                e for e in splice_events
+                if e.get('type') in ('digital_silence', 'deep_silence')
+                and e.get('time') is not None
+                and ad_copy['start'] - window_s <= e['time'] < ad_copy['start']
+            ]
+            # Deepest first; the first candidate with a safe span wins.
+            candidates.sort(key=lambda e: e['depth_dbfs']
+                            if e.get('depth_dbfs') is not None else 0.0)
+            ad_text = get_transcript_text_for_range(
+                segments, ad_copy['start'], ad_copy['end']).lower()
+            ad_sponsors = extract_sponsor_names(ad_text, ad_copy.get('reason'))
+            for event in candidates:
+                if _span_blocked_by_content(segments, coverage, ad_sponsors,
+                                            event['time'], ad_copy['start']):
+                    continue
+                original_start = ad_copy['start']
+                ad_copy['start'] = event['time']
+                ad_copy['terminal_snap'] = {
+                    'original_start': original_start,
+                    'event_time': event['time'],
+                    'event_type': event['type'],
+                    'depth_dbfs': event.get('depth_dbfs'),
+                }
+                logger.info(
+                    f"Terminal splice snap: ad start {original_start:.1f}s -> "
+                    f"{event['time']:.1f}s ({event['type']}, "
+                    f"depth {event.get('depth_dbfs')} dBFS)"
+                )
+                break
+        out.append(ad_copy)
+    return out
+
+
+def _span_blocked_by_content(segments: List[Dict], ads: List[Dict],
+                             ad_sponsors: set,
+                             span_start: float, span_end: float) -> bool:
+    """True when the span holds transcribed speech that is neither covered
+    by a detected marker nor ad-like content."""
+    for seg in segments:
+        seg_start = seg.get('start', 0.0)
+        seg_end = seg.get('end', 0.0)
+        if seg_end <= span_start or seg_start >= span_end:
+            continue
+        text = (seg.get('text') or '').strip()
+        if not text:
+            continue
+        covered = any(
+            ranges_overlap(seg_start, seg_end, m['start'], m['end'])
+            for m in ads
+            if m.get('start') is not None and m.get('end') is not None
+        )
+        if covered or _text_has_ad_content(text.lower(), ad_sponsors):
+            continue
+        return True
+    return False
