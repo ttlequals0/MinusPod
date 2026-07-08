@@ -90,6 +90,10 @@ def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     assert captured['audio_analysis'] == stored
 
 
+# Load-bearing: the last segment ends exactly at the marker start (10557.6)
+# and is included by the boundary-inclusive overlap (seg_end >= start) in
+# src/utils/text.py:137. A strict comparison would empty ad_text and bypass
+# the vad_gap clamp branch, changing both tests' routing.
 TAIL_SEGMENTS = [
     {'start': 10520.0, 'end': 10545.0,
      'text': 'So that is our show for this week everybody.'},
@@ -154,6 +158,7 @@ def test_corroborated_tail_marker_is_cut_not_pending():
     ad = result.ads[0]
     assert ads_to_remove == [ad]
     assert ad['was_cut'] is True
+    assert ad.get('held_for_review') is not True
     assert ad['corroborated_by'] == 'transition_pair'
     assert is_pending_review(ad) is False
     assert count_pending_review(result.ads) == 0
