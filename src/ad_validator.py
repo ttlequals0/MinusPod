@@ -13,6 +13,7 @@ from config import (
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    SPLICE_CORROBORATION_WINDOW_SECONDS,
     is_cue_backed,
 )
 from utils.text import extract_text_from_segments
@@ -501,6 +502,16 @@ class AdValidator:
             Adjusted confidence
         """
         if not self.segments:
+            # No segments: check vad_gap corroboration early. Untranscribed
+            # audio can never show transcript signals (TWiT 1091 catch-22).
+            if ad.get('detection_stage') == 'vad_gap':
+                source = self._audio_corroboration_source(ad)
+                if source is not None:
+                    ad['corroborated_by'] = source
+                    flags.append(f"INFO: Audio corroboration ({source})")
+                else:
+                    # No corroboration found - clamp confidence to force REVIEW
+                    confidence = min(confidence, max(0.0, self.min_cut_confidence - 0.01))
             return confidence
 
         # Get transcript text for ad time range
@@ -508,6 +519,8 @@ class AdValidator:
 
         if not ad_text:
             flags.append("WARN: No transcript text in ad range")
+            # Tail markers with no transcript text defer corroboration check to
+            # _apply_hold_rules via direct _audio_corroboration_source call.
             return confidence
 
         # Check for sponsor names
@@ -522,18 +535,15 @@ class AdValidator:
         if confidence < 0.85:
             flags.append("WARN: No ad signals in transcript")
 
-        # vad_gap markers come from a heuristic detector with no transcript
-        # content signal. If neither sponsor nor ad-signal patterns matched in
-        # range, look for measured audio evidence at the boundaries; only when
-        # that is also absent force the marker below the cut threshold so it
-        # goes to REVIEW instead of being auto-cut. Untranscribed audio can
-        # never show transcript signals (TWiT 1091 catch-22).
+        # vad_gap markers: check audio corroboration when text exists but
+        # patterns don't match. Set corroborated_by if source found, else clamp.
         if ad.get('detection_stage') == 'vad_gap':
             source = self._audio_corroboration_source(ad)
             if source is not None:
                 ad['corroborated_by'] = source
                 flags.append(f"INFO: Audio corroboration ({source})")
             else:
+                # No corroboration found - clamp confidence to force REVIEW
                 confidence = min(confidence, max(0.0, self.min_cut_confidence - 0.01))
 
         # Verify end_text exists in transcript
@@ -544,6 +554,11 @@ class AdValidator:
                 return max(0.0, confidence - 0.05)
 
         return confidence
+
+    def _splice_events(self) -> List[Dict]:
+        """Events from the stored splice_evidence payload, [] when absent."""
+        payload = (self._audio_analysis or {}).get('splice_evidence') or {}
+        return payload.get('events') or []
 
     def _audio_corroboration_source(self, ad: Dict) -> Optional[str]:
         """Return the strongest stored-audio evidence source near the ad's
@@ -573,7 +588,26 @@ class AdValidator:
                 deviation = (sig.get('details') or {}).get('deviation_db') or 0.0
                 if abs(deviation) >= self.CORROBORATION_MIN_VOLUME_STEP_DB:
                     volume_hit = True
-        return 'volume_anomaly' if volume_hit else None
+        if volume_hit:
+            return 'volume_anomaly'
+
+        # Layer 2: a splice-evidence event within +-3.0s of either boundary
+        # (spec 2.3a). Tighter window than the transition/volume checks
+        # because splice events are sharply localized.
+        for event in self._splice_events():
+            time = event.get('time')
+            if time is None:
+                continue
+            end_time = event.get('end_time')
+            end_time = end_time if end_time is not None else time
+            for edge in (ad.get('start'), ad.get('end')):
+                if edge is None:
+                    continue
+                if (time - SPLICE_CORROBORATION_WINDOW_SECONDS <= edge
+                        <= end_time + SPLICE_CORROBORATION_WINDOW_SECONDS):
+                    return 'splice_evidence'
+
+        return None
 
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range.
