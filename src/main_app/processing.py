@@ -39,6 +39,7 @@ from config import (
     resolve_max_ad_duration_override,
     resolve_cue_gated_approval,
     TERMINAL_SNAP_WINDOW_SECONDS,
+    VETO_MIN_CUT_SECONDS,
 )
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
@@ -780,6 +781,9 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         positional_prior=positional_prior,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
+        splice_veto_enabled=db.get_setting_bool('splice_veto_enabled', default=True),
+        veto_min_cut_seconds=db.get_setting_float('veto_min_cut_seconds',
+                                                  VETO_MIN_CUT_SECONDS),
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 

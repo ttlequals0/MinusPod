@@ -12,6 +12,7 @@ from config import (
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP,
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
+    HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
     HOLD_REASON_UNCORROBORATED_TAIL,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     is_cue_backed,
@@ -109,7 +110,9 @@ class AdValidator:
                  min_cut_confidence: float = 0.80,
                  positional_prior=None,
                  max_ad_duration_override: float = None,
-                 cue_gate_enabled: bool = False):
+                 cue_gate_enabled: bool = False,
+                 splice_veto_enabled: bool = True,
+                 veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS):
         """Initialize validator.
 
         Args:
@@ -136,6 +139,8 @@ class AdValidator:
         self.positional_prior = positional_prior
         self.max_ad_duration_override = max_ad_duration_override
         self.cue_gate_enabled = cue_gate_enabled
+        self.splice_veto_enabled = splice_veto_enabled
+        self.veto_min_cut_seconds = veto_min_cut_seconds
         self._audio_analysis = None
 
         if self.false_positive_corrections:
@@ -560,6 +565,25 @@ class AdValidator:
         payload = (self._audio_analysis or {}).get('splice_evidence') or {}
         return payload.get('events') or []
 
+    def _splice_calibrated(self) -> bool:
+        payload = (self._audio_analysis or {}).get('splice_evidence') or {}
+        return payload.get('calibration', {}).get('status') == 'calibrated'
+
+    def _has_splice_evidence_near(self, ad: Dict) -> bool:
+        """Any splice event inside the span or within the corroboration
+        window of either edge (spec 2.3c)."""
+        lo = ad['start'] - SPLICE_CORROBORATION_WINDOW_SECONDS
+        hi = ad['end'] + SPLICE_CORROBORATION_WINDOW_SECONDS
+        for event in self._splice_events():
+            time = event.get('time')
+            if time is None:
+                continue
+            end_time = event.get('end_time')
+            end_time = end_time if end_time is not None else time
+            if time <= hi and end_time >= lo:
+                return True
+        return False
+
     def _audio_corroboration_source(self, ad: Dict) -> Optional[str]:
         """Return the strongest stored-audio evidence source near the ad's
         boundaries, or None.
@@ -678,7 +702,19 @@ class AdValidator:
                 self._mark_held(ad, flags, HOLD_REASON_NO_CUE)
                 return Decision.REVIEW
 
-        # Rule 3: an uncorroborated vad_gap marker at the episode tail that
+        # Rule 3: zero-splice-evidence veto (spec 2.3c). A long LLM/pattern
+        # cut with no splice event inside the span or near either edge goes
+        # to the review queue instead of shipping silently. Calibrated feeds
+        # only: cold-start evidence corroborates but never vetoes.
+        if (self.splice_veto_enabled and decision == Decision.ACCEPT
+                and duration >= self.veto_min_cut_seconds
+                and ad.get('detection_stage') in ('claude', 'text_pattern')
+                and self._splice_calibrated()
+                and not self._has_splice_evidence_near(ad)):
+            self._mark_held(ad, flags, HOLD_REASON_NO_SPLICE)
+            return Decision.REVIEW
+
+        # Rule 4: an uncorroborated vad_gap marker at the episode tail that
         # stays REVIEW must surface in the pending-review queue instead of
         # shipping silently (TWiT 1091: untranscribed DAI post-roll ended
         # REVIEW with pendingReviewCount=0). Calls the corroboration helper

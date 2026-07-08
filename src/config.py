@@ -41,6 +41,7 @@ MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be pr
 # Hold-reason constants (Phase C held-for-review). Stored in ad['hold_reason'].
 HOLD_REASON_MAX_DURATION = 'max_duration'
 HOLD_REASON_NO_CUE = 'no_cue_evidence'
+HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 
@@ -288,6 +289,7 @@ SPLICE_CALIBRATION_RECENT_EPISODES = 10
 SPLICE_CALIBRATION_MIN_EPISODES = 5       # Min VALID payloads for calibrated; below this: cold_start
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
 SPLICE_CORROBORATION_WINDOW_SECONDS = 3.0  # Event-to-edge distance that corroborates a marker
+VETO_MIN_CUT_SECONDS = 60.0  # Cuts at/over this from claude/text_pattern need splice evidence
 TERMINAL_SNAP_WINDOW_SECONDS = 30.0        # Max backward scan from a terminal marker's start
 TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF counts as terminal
 # Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose

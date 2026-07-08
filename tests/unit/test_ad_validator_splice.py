@@ -92,3 +92,58 @@ class TestNoSegmentsVadGapClamp:
         result = validator._verify_in_transcript(ad, 0.90, [])
         assert result == pytest.approx(0.90)
         assert ad['corroborated_by'] == 'splice_evidence'
+
+
+class TestSpliceVeto:
+    """Zero-evidence veto (spec 2.3c): Vrbo-shaped 90s cut with no splice
+    evidence anywhere near it is demoted to REVIEW + held_for_review."""
+
+    _AD = {'start': 1800.0, 'end': 1890.0, 'confidence': 0.92,
+           'reason': 'Vrbo vacation rental read with booking details',
+           'detection_stage': 'claude'}
+
+    def _validate(self, analysis, **kwargs):
+        validator = AdValidator(episode_duration=3600.0, **kwargs)
+        return validator.validate([dict(self._AD)], audio_analysis=analysis)
+
+    def test_evidence_less_long_cut_demoted_to_review(self):
+        result = self._validate(_analysis([]))
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['held_for_review'] is True
+        assert ad['hold_reason'] == 'no_splice_evidence'
+
+    def test_corroborated_cut_untouched(self):
+        result = self._validate(_analysis([_event(1801.0)]))
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert 'held_for_review' not in ad
+
+    def test_event_near_edge_counts(self):
+        result = self._validate(_analysis([_event(1892.0)]))  # 2s past end
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_cold_start_never_vetoes(self):
+        result = self._validate(_analysis([], status='cold_start'))
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_disabled_never_vetoes(self):
+        result = self._validate(_analysis([]), splice_veto_enabled=False)
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_short_cut_not_vetoed(self):
+        validator = AdValidator(episode_duration=3600.0)
+        short = dict(self._AD, end=1855.0)  # 55s < 60s floor
+        result = validator.validate([short], audio_analysis=_analysis([]))
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_other_stages_not_vetoed(self):
+        validator = AdValidator(episode_duration=3600.0)
+        manual = dict(self._AD, detection_stage='manual')
+        result = validator.validate([manual], audio_analysis=_analysis([]))
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_no_audio_analysis_never_vetoes(self):
+        validator = AdValidator(episode_duration=3600.0)
+        result = validator.validate([dict(self._AD)])
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
