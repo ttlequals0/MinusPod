@@ -68,6 +68,29 @@ def test_unexpected_error_recorded_not_raised():
     assert saved['status'] == 'error'
 
 
+def test_store_failure_is_nonfatal():
+    mock_fetch = MagicMock(return_value=_RESULT)
+    with patch('main_app.processing.resolve_differential_fetch_enabled',
+               return_value=True), \
+         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch.object(processing.status_service, 'update_job_stage'), \
+         patch.object(processing.db, 'save_episode_dai_differential',
+                      side_effect=RuntimeError('db gone')):
+        result = processing._run_differential_fetch(
+            'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
+    assert result == _RESULT
+
+
+def test_flag_read_failure_is_nonfatal():
+    with patch('main_app.processing.resolve_differential_fetch_enabled',
+               side_effect=RuntimeError('db gone')), \
+         patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
+        result = processing._run_differential_fetch(
+            'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
+    assert result is None
+    mock_save.assert_not_called()
+
+
 def test_result_rides_on_analysis_to_dict():
     r = AudioAnalysisResult()
     assert 'dai_differential' not in r.to_dict()

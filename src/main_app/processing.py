@@ -453,33 +453,45 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
     """Pipeline stage: cross-fetch differential (Layer 3, per-feed opt-in).
 
     Returns the fetch_and_diff result dict, or None when the feed is not
-    opted in. Never raises: failures are recorded in the stored status and
-    the pipeline continues.
+    opted in or an unexpected failure occurs. Never raises (except
+    ProcessingCancelled): the flag read, status update, fetch, and store are
+    all guarded so nothing here can fail the episode. The pipeline continues.
     """
-    if not resolve_differential_fetch_enabled(db, podcast_id):
+    try:
+        if not resolve_differential_fetch_enabled(db, podcast_id):
+            return None
+        status_service.update_job_stage("pass1:differential", 22)
+        audio_logger.info(f"[{slug}:{episode_id}] Differential fetch: starting")
+        work_dir = tempfile.mkdtemp(prefix='dai_diff_')
+        try:
+            result = fetch_and_diff(episode_url, audio_path, work_dir)
+        except ProcessingCancelled:
+            # Cooperative cancellation must propagate, never degrade to 'error'.
+            raise
+        except Exception as e:
+            # fetch_and_diff traps expected failures itself; this guards the rest.
+            audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
+            result = {'status': 'error', 'regions': [], 'refetch_meta': {},
+                      'error': str(e)}
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        try:
+            db.save_episode_dai_differential(slug, episode_id, json.dumps(result))
+        except Exception as e:
+            audio_logger.warning(f"[{slug}:{episode_id}] Differential store failed: {e}")
+        diff_count = len([r for r in result.get('regions', [])
+                          if r.get('kind') == 'differential'])
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Differential fetch: status={result.get('status')} "
+            f"differential_regions={diff_count}")
+        return result
+    except ProcessingCancelled:
+        raise
+    except Exception as e:
+        # Outer non-fatal boundary: the flag read, status update, or mkdtemp
+        # can raise outside the inner guards; the episode must not fail here.
+        audio_logger.warning(f"[{slug}:{episode_id}] Differential stage failed: {e}")
         return None
-    status_service.update_job_stage("pass1:differential", 22)
-    audio_logger.info(f"[{slug}:{episode_id}] Differential fetch: starting")
-    work_dir = tempfile.mkdtemp(prefix='dai_diff_')
-    try:
-        result = fetch_and_diff(episode_url, audio_path, work_dir)
-    except Exception as e:
-        # fetch_and_diff traps expected failures itself; this guards the rest.
-        audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
-        result = {'status': 'error', 'regions': [], 'refetch_meta': {},
-                  'error': str(e)}
-    finally:
-        shutil.rmtree(work_dir, ignore_errors=True)
-    try:
-        db.save_episode_dai_differential(slug, episode_id, json.dumps(result))
-    except Exception as e:
-        audio_logger.warning(f"[{slug}:{episode_id}] Differential store failed: {e}")
-    diff_count = len([r for r in result.get('regions', [])
-                      if r.get('kind') == 'differential'])
-    audio_logger.info(
-        f"[{slug}:{episode_id}] Differential fetch: status={result.get('status')} "
-        f"differential_regions={diff_count}")
-    return result
 
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
