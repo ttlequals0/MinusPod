@@ -90,5 +90,6 @@ describe('FeedSettingsPanel cross-fetch differential toggle', () => {
     unmount();
     renderPanel(makeFeed());
     expect(screen.queryByText('DAI likely')).toBeNull();
+    expect(screen.queryByText(/looks like this feed uses dynamic ad insertion/i)).toBeNull();
   });
 });
