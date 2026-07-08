@@ -17,16 +17,13 @@ import random
 import subprocess
 
 import numpy as np
-import requests
 
 from audio_analysis.silence_detector import SilenceDetector
+from cancel import ProcessingCancelled
 from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from utils.http import safe_url_for_log
-from utils.safe_http import (
-    ResponseTooLargeError, URLTrust, safe_get, stream_to_file_capped,
-)
-from utils.url import SSRFError
+from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 
 # Realistic podcast-client UA strings for the refetch pool.
 REFETCH_USER_AGENTS = (
@@ -318,8 +315,12 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
         aligned = align_and_diff(run_file_path, refetch_path, work_dir)
         return {'status': aligned['status'], 'regions': aligned['regions'],
                 'refetch_meta': meta, 'error': None}
-    except (SSRFError, ResponseTooLargeError, requests.RequestException,
-            subprocess.SubprocessError, OSError, ValueError) as e:
+    except ProcessingCancelled:
+        # Cooperative cancellation must propagate, never degrade to 'error'.
+        raise
+    except Exception as e:
+        # Never-raises boundary: any failure (network, decode, numpy internals)
+        # degrades to 'error' so the pipeline records it and continues.
         logger.warning(
             f"Differential refetch failed for "
             f"{safe_url_for_log(enclosure_url)}: {e}")

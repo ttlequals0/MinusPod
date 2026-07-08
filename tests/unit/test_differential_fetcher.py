@@ -116,6 +116,7 @@ def test_fetch_and_diff_enforces_1_5x_size_cap(tmp_path):
     assert result['status'] == 'error'
     assert result['regions'] == []
     assert result['error'] is not None
+    assert not os.path.exists(os.path.join(str(tmp_path), 'refetch_audio'))
 
 
 def test_fetch_and_diff_network_error_is_nonfatal(tmp_path):
@@ -137,4 +138,20 @@ def test_fetch_and_diff_cleans_up_refetch_file(tmp_path):
                return_value={'status': 'no_differential', 'regions': []}):
         fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
                        run_file, str(tmp_path))
+    assert not os.path.exists(os.path.join(str(tmp_path), 'refetch_audio'))
+
+
+def test_fetch_and_diff_runtime_error_is_nonfatal(tmp_path):
+    # numpy FFT/linalg internals raise RuntimeError; the never-raises boundary
+    # must degrade to 'error' and still clean up the temp refetch file.
+    run_file = _run_file(tmp_path)
+    with patch('differential_fetcher.safe_get',
+               return_value=_FakeResponse([b'x' * 100])), \
+         patch('differential_fetcher.get_audio_duration', return_value=1.0), \
+         patch('differential_fetcher.align_and_diff',
+               side_effect=RuntimeError('SVD did not converge')):
+        result = fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                                run_file, str(tmp_path))
+    assert result['status'] == 'error'
+    assert 'SVD did not converge' in result['error']
     assert not os.path.exists(os.path.join(str(tmp_path), 'refetch_audio'))
