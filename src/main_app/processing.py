@@ -25,6 +25,7 @@ from ad_reviewer import (
     split_resurrection_pool,
 )
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
+from differential_fetcher import fetch_and_diff
 from utils.time import ranges_overlap, utc_now_iso
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
@@ -38,6 +39,7 @@ from config import (
     resolve_tail_retranscribe_tunables,
     resolve_max_ad_duration_override,
     resolve_cue_gated_approval,
+    resolve_differential_fetch_enabled,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
@@ -445,6 +447,39 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments):
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Audio analysis failed: {e}")
         return None
+
+
+def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id):
+    """Pipeline stage: cross-fetch differential (Layer 3, per-feed opt-in).
+
+    Returns the fetch_and_diff result dict, or None when the feed is not
+    opted in. Never raises: failures are recorded in the stored status and
+    the pipeline continues.
+    """
+    if not resolve_differential_fetch_enabled(db, podcast_id):
+        return None
+    status_service.update_job_stage("pass1:differential", 22)
+    audio_logger.info(f"[{slug}:{episode_id}] Differential fetch: starting")
+    work_dir = tempfile.mkdtemp(prefix='dai_diff_')
+    try:
+        result = fetch_and_diff(episode_url, audio_path, work_dir)
+    except Exception as e:
+        # fetch_and_diff traps expected failures itself; this guards the rest.
+        audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
+        result = {'status': 'error', 'regions': [], 'refetch_meta': {},
+                  'error': str(e)}
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
+    try:
+        db.save_episode_dai_differential(slug, episode_id, json.dumps(result))
+    except Exception as e:
+        audio_logger.warning(f"[{slug}:{episode_id}] Differential store failed: {e}")
+    diff_count = len([r for r in result.get('regions', [])
+                      if r.get('kind') == 'differential'])
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Differential fetch: status={result.get('status')} "
+        f"differential_regions={diff_count}")
+    return result
 
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
@@ -2264,9 +2299,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         audio_path, segments = _download_and_transcribe(slug, episode_id, episode_url, podcast_name)
         _check_cancel(cancel_event, slug, episode_id)
 
+        # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
+        # Runs after transcription so the natural delay separates the two
+        # fetches; results are ready before first-pass detection. Non-fatal.
+        dai_differential = _run_differential_fetch(
+            slug, episode_id, episode_url, audio_path,
+            podcast_settings.get('id') if podcast_settings else None)
+        _check_cancel(cancel_event, slug, episode_id)
+
         try:
             # Stage 2: Audio analysis
             audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
+            if audio_analysis_result is not None and dai_differential is not None:
+                # Ride along on the analysis result so the detector prompt and
+                # the validator's audio_analysis dict see the differential.
+                audio_analysis_result.dai_differential = dai_differential
             # Count audio-cue signals (issue #350) for the stats dashboard.
             audio_cue_count = (len(audio_analysis_result.get_signals_by_type('audio_cue'))
                                if audio_analysis_result else 0)

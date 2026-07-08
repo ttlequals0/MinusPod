@@ -91,6 +91,9 @@ class AudioAnalysisResult:
     # Resolved silence-snap tunables from the analyzer pass; set when silence
     # detection ran so processing.py can reuse them without a second DB read.
     silence_tunables: Optional[Dict[str, Any]] = None
+    # Cross-fetch differential result (Layer 3). Set by processing after the
+    # analyzer pass, never by the analyzer itself.
+    dai_differential: Optional[Dict[str, Any]] = None
     # Splice-evidence payload (spec 2.1): {'version', 'events', 'calibration'}.
     # None when the detector did not run. Evidence only -- never cuts alone.
     splice_evidence: Optional[Dict[str, Any]] = None
@@ -114,6 +117,10 @@ class AudioAnalysisResult:
         # Only emit silence_spans when present (same rationale as cue_near_misses).
         if self.silence_spans:
             out['silence_spans'] = self.silence_spans
+        # Only emit dai_differential when set (Layer 3; stored separately at
+        # episode level, but validators consume it through this dict).
+        if self.dai_differential:
+            out['dai_differential'] = self.dai_differential
         if self.splice_evidence is not None:
             out['splice_evidence'] = self.splice_evidence
         return out

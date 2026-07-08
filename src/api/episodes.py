@@ -172,6 +172,15 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError, KeyError):
             pass
 
+    # Cross-fetch differential result (Layer 3); null until a differential
+    # run has stored one.
+    dai_differential = None
+    if episode.get('dai_differential_json'):
+        try:
+            dai_differential = json.loads(episode['dai_differential_json'])
+        except (json.JSONDecodeError, TypeError):
+            dai_differential = None
+
     time_saved = 0
     if episode.get('original_duration') and episode.get('new_duration'):
         time_saved = episode['original_duration'] - episode['new_duration']
@@ -233,6 +242,7 @@ def get_episode(slug, episode_id):
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
+        'daiDifferential': dai_differential,
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'originalTranscriptAvailable': bool(episode.get('has_original_transcript')),
