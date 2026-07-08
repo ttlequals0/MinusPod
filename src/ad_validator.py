@@ -633,6 +633,15 @@ class AdValidator:
                         <= end_time + SPLICE_CORROBORATION_WINDOW_SECONDS):
                     return 'splice_evidence'
 
+        # Layer 3: a cross-fetch differential region overlapping the marker is
+        # the strongest corroboration class (audio proven to differ).
+        diff = (self._audio_analysis or {}).get('dai_differential') or {}
+        for region in diff.get('regions', []):
+            if region.get('kind') != 'differential':
+                continue
+            if (float(region['start_s']) < float(ad.get('end', 0.0))
+                    and float(region['end_s']) > float(ad.get('start', 0.0))):
+                return 'dai_differential'
         return None
 
     def _get_text_in_range(self, start: float, end: float) -> str:

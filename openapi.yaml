@@ -609,6 +609,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
+                differentialFetchEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-in for the cross-fetch differential. When on, each episode is fetched a second time with a different podcast-client User-Agent and the two files are diffed to find dynamically inserted audio. null and false both read as off.
                 maxEpisodes:
                   type:
                     - integer
@@ -6495,6 +6500,14 @@ components:
             - boolean
             - 'null'
           description: Per-feed cue-gated approval. When true, only ads with audio cue evidence auto-cut; others are held for review. null and false both read as off.
+        differentialFetchEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed opt-in for the cross-fetch differential. null and false both read as off.
+        daiLikely:
+          type: boolean
+          description: Hint that this feed likely uses dynamic ad insertion, based on recent enclosure URLs matching known DAI or prefix domains. Returned on the feed detail response.
         maxEpisodes:
           type:
             - integer
@@ -6599,6 +6612,35 @@ components:
               description: Template cue detections for this episode (advisory telemetry; never changes the cut)
               items:
                 $ref: '#/components/schemas/CueDetection'
+            daiDifferential:
+              type:
+                - object
+                - 'null'
+              description: Cross-fetch differential result for this episode. null when the feed is not opted in or the episode predates the feature. status no_differential means no differential was found, not proof the feed has no DAI.
+              properties:
+                status:
+                  type: string
+                  enum: [ok, no_differential, error]
+                regions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      start_s:
+                        type: number
+                      end_s:
+                        type: number
+                      kind:
+                        type: string
+                        enum: [differential, identical]
+                      corr:
+                        type: number
+                refetch_meta:
+                  type: object
+                error:
+                  type:
+                    - string
+                    - 'null'
             transcriptAvailable:
               type: boolean
             originalTranscriptAvailable:
@@ -6737,7 +6779,7 @@ components:
           description: Sponsor or advertiser name extracted from the ad
         detection_stage:
           type: string
-          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification]
+          enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential]
           description: Which detection stage found this ad
           example: first_pass
         validation:

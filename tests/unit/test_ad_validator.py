@@ -1079,3 +1079,54 @@ class TestUncorroboratedTailHold:
         ad = result.ads[0]
         assert ad['validation']['decision'] == Decision.REVIEW.value
         assert not ad.get('held_for_review')
+
+
+class TestDaiDifferentialCorroboration:
+    """Layer 3: differential regions corroborate markers (vad_gap clamp bypass)."""
+
+    _REGIONS = {'dai_differential': {'status': 'ok', 'regions': [
+        {'start_s': 3500.0, 'end_s': 3552.0, 'kind': 'differential', 'corr': 0.0}]}}
+
+    _SEGMENTS = [
+        {'start': 3490.0, 'end': 3506.0,
+         'text': 'so anyway that was quite the discussion earlier today'},
+    ]
+
+    def _marker(self):
+        return {'start': 3505.0, 'end': 3548.0, 'confidence': 0.80,
+                'reason': 'Untranscribed audio gap at episode tail',
+                'detection_stage': 'vad_gap'}
+
+    def test_source_returned_for_overlap(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
+        validator._audio_analysis = self._REGIONS
+        assert validator._audio_corroboration_source(self._marker()) == 'dai_differential'
+
+    def test_no_source_without_overlap(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
+        validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [
+            {'start_s': 100.0, 'end_s': 160.0, 'kind': 'differential', 'corr': 0.0}]}}
+        assert validator._audio_corroboration_source(self._marker()) is None
+
+    def test_identical_regions_do_not_corroborate(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
+        validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [
+            {'start_s': 3500.0, 'end_s': 3552.0, 'kind': 'identical', 'corr': 0.98}]}}
+        assert validator._audio_corroboration_source(self._marker()) is None
+
+    def test_vad_gap_clamp_bypassed_with_differential(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS,
+                                min_cut_confidence=0.80)
+        result = validator.validate([self._marker()],
+                                    audio_analysis=self._REGIONS)
+        ad = result.ads[0]
+        assert ad['corroborated_by'] == 'dai_differential'
+        assert ad['validation']['adjusted_confidence'] >= 0.80
+
+    def test_vad_gap_clamped_without_audio_analysis(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS,
+                                min_cut_confidence=0.80)
+        result = validator.validate([self._marker()])
+        ad = result.ads[0]
+        assert 'corroborated_by' not in ad
+        assert ad['validation']['adjusted_confidence'] < 0.80

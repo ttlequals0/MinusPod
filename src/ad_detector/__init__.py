@@ -222,6 +222,34 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
     }
 
 
+def dai_differential_ads(dai_differential, fp_pairs):
+    """Detection candidates from cross-fetch differential regions (Layer 3).
+
+    Regions proven to differ across fetches become markers with
+    detection_stage 'dai_differential' at 0.95 -- the same precedent as the
+    fingerprint stage. They still pass validator + reviewer gates.
+    fp_pairs is a list of (start, end) false-positive spans to exclude.
+    """
+    ads = []
+    for region in (dai_differential or {}).get('regions', []):
+        if region.get('kind') != 'differential':
+            continue
+        start = float(region['start_s'])
+        end = float(region['end_s'])
+        if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
+               for fp_start, fp_end in fp_pairs):
+            continue
+        ads.append({
+            'start': start,
+            'end': end,
+            'confidence': 0.95,
+            'reason': 'Dynamically inserted: audio differs across fetches',
+            'sponsor': None,
+            'detection_stage': 'dai_differential',
+        })
+    return ads
+
+
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -946,6 +974,7 @@ class AdDetector:
                           podcast_tags: Optional[set] = None,
                           progress_callback=None,
                           audio_analysis=None,
+                          dai_differential=None,
                           cancel_event=None,
                           *,
                           ctx=None,
@@ -995,6 +1024,7 @@ class AdDetector:
             'fingerprint_matches': 0,
             'text_pattern_matches': 0,
             'claude_matches': 0,
+            'dai_differential_matches': 0,
             'skip_patterns': skip_patterns
         }
 
@@ -1124,6 +1154,18 @@ class AdDetector:
                     logger.info(f"[{slug}:{episode_id}] Text pattern stage found {len(text_matches)} ads")
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Text pattern matching failed: {e}")
+
+        # Stage 2.5: Cross-fetch differential candidates (Layer 3). Not added
+        # to pattern_matched_regions: overlapping Claude detections keep their
+        # sponsor/reason and _merge_detection_results folds the spans.
+        if dai_differential:
+            dd_ads = dai_differential_ads(
+                dai_differential,
+                [(fp['start'], fp['end']) for fp in false_positive_regions])
+            all_ads.extend(dd_ads)
+            detection_stats['dai_differential_matches'] = len(dd_ads)
+            if dd_ads:
+                logger.info(f"[{slug}:{episode_id}] Differential stage found {len(dd_ads)} ads")
 
         # Cancel check between stages
         _check_cancel(cancel_event, slug, episode_id)
@@ -1632,7 +1674,8 @@ class AdDetector:
                 # Prefer pattern detection stage over claude. This governs
                 # cutting trust (stage + pattern_id) only; the sponsor LABEL is
                 # decided below, tied to the reason, so the two never disagree.
-                stage_priority = {'fingerprint': 0, 'text_pattern': 1, 'claude': 2}
+                stage_priority = {'fingerprint': 0, 'dai_differential': 0,
+                                  'text_pattern': 1, 'claude': 2}
                 if stage_priority.get(current.get('detection_stage'), 2) < stage_priority.get(last.get('detection_stage'), 2):
                     last['detection_stage'] = current['detection_stage']
                     last['pattern_id'] = current.get('pattern_id')

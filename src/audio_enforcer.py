@@ -147,6 +147,25 @@ class AudioEnforcer:
         if not audio_analysis:
             return ""
 
+        # Cross-fetch differential regions (Layer 3): audio that differs
+        # across fetches is dynamically inserted by definition.
+        dai_regions = []
+        dai_differential = getattr(audio_analysis, 'dai_differential', None) or {}
+        for region in dai_differential.get('regions', []):
+            if region.get('kind') != 'differential':
+                continue
+            r_start = float(region['start_s'])
+            r_end = float(region['end_s'])
+            if r_end <= window_start or r_start >= window_end:
+                continue
+            dai_regions.append((r_start, r_end))
+
+        splice_evidence_raw = getattr(audio_analysis, 'splice_evidence', None) or {}
+        has_splice_events = bool(splice_evidence_raw.get('events'))
+
+        if not audio_analysis.signals and not dai_regions and not has_splice_events:
+            return ""
+
         lines = []
         has_template_ad_cue = False
         has_spectral_ad_cue = False
@@ -247,6 +266,14 @@ class AudioEnforcer:
         if omitted_count > 0:
             lines.append(
                 f"- +{omitted_count} more unlabelled audio cues omitted for brevity"
+            )
+
+        for r_start, r_end in dai_regions:
+            lines.append(
+                f"- CONFIRMED dynamically inserted ad at {r_start:.1f}s-{r_end:.1f}s: "
+                f"the audio in this range differs across independent fetches of "
+                f"this episode, so an ad server inserted it and it is not part "
+                f"of the show"
             )
 
         splice_lines = _splice_lines(audio_analysis, window_start, window_end)
