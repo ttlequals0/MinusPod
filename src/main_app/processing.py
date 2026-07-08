@@ -649,7 +649,8 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
-                          max_ad_duration_override=None, cue_gate_enabled=False):
+                          max_ad_duration_override=None, cue_gate_enabled=False,
+                          audio_analysis=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     Returns (ads_to_remove, all_ads_with_validation).
@@ -683,7 +684,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
     )
-    validation_result = validator.validate(all_ads)
+    validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Validation: "
@@ -1815,6 +1816,14 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         if a.get('was_cut'):
             a['_saved_was_cut'] = True
 
+    # Stored audio analysis re-corroborates vad_gap markers on recut; without
+    # it re-validation would strip corroborated_by and re-clamp.
+    raw_analysis = db.get_episode_audio_analysis(slug, episode_id)
+    try:
+        audio_analysis = json.loads(raw_analysis) if raw_analysis else None
+    except (TypeError, ValueError):
+        audio_analysis = None
+
     validator = AdValidator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
@@ -1823,7 +1832,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
     )
-    validation_result = validator.validate(all_ads)
+    validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
     # Force previously-cut markers back to ACCEPT so the gate cuts them again,
     # overriding any hold/review outcome from re-validation. FP/confirm rejects
@@ -2171,6 +2180,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 skip_patterns=skip_patterns, positional_prior=positional_prior,
                 max_ad_duration_override=max_ad_duration_override,
                 cue_gate_enabled=cue_gate_enabled,
+                audio_analysis=(audio_analysis_result.to_dict()
+                                if audio_analysis_result else None),
             )
             _check_cancel(cancel_event, slug, episode_id)
 
