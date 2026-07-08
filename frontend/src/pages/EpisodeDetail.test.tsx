@@ -396,3 +396,96 @@ describe('EpisodeList: pending chip', () => {
     expect(screen.queryByText(/held/)).toBeNull();
   });
 });
+
+describe('Differential status and corroboration badges', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the corroboration badge on a corroborated marker', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{
+        start: 4160.9,
+        end: 4477.0,
+        confidence: 0.8,
+        detection_stage: 'vad_gap',
+        corroborated_by: 'transition_pair',
+      }],
+    }));
+    await waitFor(() => expect(screen.getByText('Corroborated: transition')).toBeDefined());
+  });
+
+  it('omits the corroboration badge when corroborated_by is absent', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+    }));
+    await waitFor(() => expect(screen.getByText('Detected Ads (1)')).toBeDefined());
+    expect(screen.queryByText(/^Corroborated:/)).toBeNull();
+  });
+
+  it('labels dai_differential markers Cross-fetch', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 100, end: 160, confidence: 0.95, detection_stage: 'dai_differential' }],
+    }));
+    await waitFor(() => expect(screen.getByText('Cross-fetch')).toBeDefined());
+  });
+
+  it('shows the cross-fetch header badge with the inserted-region count', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      daiDifferential: {
+        status: 'ok',
+        regions: [
+          { start_s: 0, end_s: 30.5, kind: 'differential', corr: 0.2 },
+          { start_s: 30.5, end_s: 4100.0, kind: 'identical', corr: 0.99 },
+          { start_s: 4100.0, end_s: 4142.4, kind: 'differential', corr: 0.1 },
+        ],
+      },
+    }));
+    await waitFor(() => expect(screen.getByText('Cross-fetch: 2 inserted')).toBeDefined());
+  });
+
+  it('shows no-diff and failed states', async () => {
+    const { unmount } = renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      daiDifferential: { status: 'no_differential', regions: [] },
+    }));
+    await waitFor(() => expect(screen.getByText('Cross-fetch: no diff')).toBeDefined());
+    unmount();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      daiDifferential: { status: 'error', regions: [], error: 'refetch timed out' },
+    }));
+    await waitFor(() => expect(screen.getByText('Cross-fetch: failed')).toBeDefined());
+  });
+
+  it('omits the header badge when daiDifferential is absent', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
+    await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
+    expect(screen.queryByText(/^Cross-fetch:/)).toBeNull();
+  });
+});
+
+describe('New hold reasons: tooltip titles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the uncorroborated_tail title', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'uncorroborated_tail' }] }));
+    await waitFor(() => expect(screen.getByTitle('Trailing ad with no audio evidence to back it')).toBeDefined());
+  });
+
+  it('shows the reviewer_contradiction title', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'reviewer_contradiction' }] }));
+    await waitFor(() => expect(screen.getByTitle('The reviewer disagreed with the detected boundaries')).toBeDefined());
+  });
+
+  it('shows the no_splice_evidence title', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'no_splice_evidence' }] }));
+    await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());
+  });
+});

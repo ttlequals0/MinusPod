@@ -10,7 +10,8 @@ export type DetectionStage =
   | 'keep_content'
   | 'vad_gap'
   | 'heuristic_preroll'
-  | 'heuristic_postroll';
+  | 'heuristic_postroll'
+  | 'dai_differential';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -60,5 +61,9 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   heuristic_postroll: {
     label: 'Post-roll',
     className: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+  },
+  dai_differential: {
+    label: 'Cross-fetch',
+    className: 'bg-rose-500/20 text-rose-600 dark:text-rose-400',
   },
 };

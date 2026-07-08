@@ -1,4 +1,5 @@
 import type { DetectionStage } from '../utils/detectionStage';
+import type { CorroborationSource } from '../utils/corroboration';
 
 export interface Feed {
   slug: string;
@@ -74,6 +75,22 @@ export interface EpisodeNeighbor {
   title: string;
 }
 
+// Cross-fetch differential result (Layer 3), stored per episode as
+// dai_differential. Inner keys are snake_case as produced by fetch_and_diff.
+export interface DaiDifferentialRegion {
+  start_s: number;
+  end_s: number;
+  kind: 'differential' | 'identical';
+  corr: number;
+}
+
+export interface DaiDifferential {
+  status: 'ok' | 'no_differential' | 'error';
+  regions: DaiDifferentialRegion[];
+  refetch_meta?: Record<string, unknown>;
+  error?: string | null;
+}
+
 export interface EpisodeDetail extends Episode {
   description?: string;
   originalUrl?: string;
@@ -105,6 +122,7 @@ export interface EpisodeDetail extends Episode {
   inputTokens?: number;
   outputTokens?: number;
   llmCost?: number;
+  daiDifferential?: DaiDifferential;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
@@ -156,6 +174,8 @@ export interface AdSegment {
   reason?: string;
   sponsor?: string;
   detection_stage?: DetectionStage;
+  // Audio evidence that backed this marker (validator clamp bypass / veto exemption).
+  corroborated_by?: CorroborationSource;
   // Present when an audio cue snapped this ad's start/end edge (#350).
   cue_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   // Present when a silence span snapped this ad's start/end edge (Phase B).
@@ -171,7 +191,12 @@ export interface AdSegment {
   source?: 'reviewer' | 'validator';
   // Phase C held-for-review fields.
   held_for_review?: boolean;
-  hold_reason?: 'max_duration' | 'no_cue_evidence';
+  hold_reason?:
+    | 'max_duration'
+    | 'no_cue_evidence'
+    | 'uncorroborated_tail'
+    | 'reviewer_contradiction'
+    | 'no_splice_evidence';
 }
 
 export interface SettingValue {

@@ -8,6 +8,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Artwork from '../components/Artwork';
 import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
+import { CORROBORATION_META } from '../utils/corroboration';
 import { stripHtml } from '../utils/stripHtml';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
@@ -277,6 +278,28 @@ function EpisodeDetail() {
               {episode.chaptersAvailable && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400">
                   Chapters
+                </span>
+              )}
+              {episode.daiDifferential && (
+                <span
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    episode.daiDifferential.status === 'ok'
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                  title={
+                    episode.daiDifferential.status === 'ok'
+                      ? 'A second fetch of this episode differed from the first in the marked regions. The differing audio was dynamically inserted.'
+                      : episode.daiDifferential.status === 'no_differential'
+                      ? 'A second fetch matched the first everywhere it was compared. No differing ad fill was caught; the feed can still carry dynamic ads.'
+                      : episode.daiDifferential.error || 'The second fetch or the comparison failed.'
+                  }
+                >
+                  {episode.daiDifferential.status === 'ok'
+                    ? `Cross-fetch: ${episode.daiDifferential.regions.filter((r) => r.kind === 'differential').length} inserted`
+                    : episode.daiDifferential.status === 'no_differential'
+                    ? 'Cross-fetch: no diff'
+                    : 'Cross-fetch: failed'}
                 </span>
               )}
               {episode.llmCost != null && (
@@ -554,6 +577,14 @@ function EpisodeDetail() {
                       {DETECTION_STAGE_META[segment.detection_stage].label}
                     </span>
                   )}
+                  {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-lime-500/20 text-lime-600 dark:text-lime-400"
+                      title={CORROBORATION_META[segment.corroborated_by].title}
+                    >
+                      {CORROBORATION_META[segment.corroborated_by].label}
+                    </span>
+                  )}
                   {segment.cue_snap && (
                     <span
                       className="px-1.5 py-0.5 text-xs rounded font-medium bg-violet-500/20 text-violet-600 dark:text-violet-400"
@@ -674,6 +705,12 @@ function EpisodeDetail() {
                 ? "Exceeds the feed's max ad duration"
                 : segment.hold_reason === 'no_cue_evidence'
                 ? 'No audio-cue evidence'
+                : segment.hold_reason === 'uncorroborated_tail'
+                ? 'Trailing ad with no audio evidence to back it'
+                : segment.hold_reason === 'reviewer_contradiction'
+                ? 'The reviewer disagreed with the detected boundaries'
+                : segment.hold_reason === 'no_splice_evidence'
+                ? 'No splice artifact found at either edge'
                 : 'Held for manual review';
               // Track which row's mutation is in flight to show per-row status.
               const mutAd = correctionMutation.variables?.originalAd;
@@ -697,6 +734,14 @@ function EpisodeDetail() {
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                         <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
                           {DETECTION_STAGE_META[segment.detection_stage].label}
+                        </span>
+                      )}
+                      {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
+                        <span
+                          className="px-1.5 py-0.5 text-xs rounded font-medium bg-lime-500/20 text-lime-600 dark:text-lime-400"
+                          title={CORROBORATION_META[segment.corroborated_by].title}
+                        >
+                          {CORROBORATION_META[segment.corroborated_by].label}
                         </span>
                       )}
                       <span
