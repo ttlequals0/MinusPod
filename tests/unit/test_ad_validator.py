@@ -955,6 +955,23 @@ class TestVadGapClampBypass:
         result = validator.validate([self._marker()], audio_analysis=analysis)
         ad = result.ads[0]
         assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['validation']['adjusted_confidence'] == pytest.approx(0.79)
+        assert 'corroborated_by' not in ad
+
+    def test_empty_text_vad_gap_skips_clamp_and_corroboration(self):
+        # Pre-existing early return: empty-text vad_gap markers skip the
+        # clamp block entirely. Deliberate - Task 3 holds uncorroborated
+        # tail markers via a direct _audio_corroboration_source check, not
+        # via corroborated_by.
+        segments = [
+            {'start': 100.0, 'end': 130.0,
+             'text': 'Welcome to the show everybody.'},
+        ]
+        validator = AdValidator(episode_duration=10600.0, segments=segments)
+        result = validator.validate([self._marker()],
+                                    audio_analysis=self._tail_transition_analysis())
+        ad = result.ads[0]
+        assert ad['validation']['adjusted_confidence'] == pytest.approx(0.80)
         assert 'corroborated_by' not in ad
 
     def test_stale_corroborated_by_popped_when_evidence_absent(self):
