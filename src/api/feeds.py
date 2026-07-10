@@ -24,6 +24,7 @@ from positional_prior import compute_ad_distribution
 import rss_parser
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
+from database.podcasts import EPISODE_STATUSES
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
@@ -80,6 +81,23 @@ def _normalize_title_override(value):
     return val, None
 
 
+def _fetch_feed_content(url, timeout=30):
+    """Fetch a feed body with one retry, shared by add_feed and the sourceUrl
+    PATCH. Some hosts (e.g. Buzzsprout) 403 the first fetch from a new client
+    but serve the retry; the circuit breaker inside fetch_feed still gates
+    genuinely broken feeds. Returns (parser, content-or-None).
+    """
+    parser = rss_parser.RSSParser()
+    content = None
+    for attempt in (1, 2):
+        content = parser.fetch_feed(url, timeout=timeout)
+        if content:
+            break
+        if attempt == 1:
+            time.sleep(0.5)
+    return parser, content
+
+
 def _validate_source_url(value):
     """Validate a replacement source feed URL (#484).
 
@@ -87,7 +105,7 @@ def _validate_source_url(value):
     typo cannot silently break the feed. The column is NOT NULL, so there is
     no clear semantic: null/empty is rejected.
     """
-    if value is None or not isinstance(value, str):
+    if not isinstance(value, str):
         return None, 'sourceUrl must be a non-empty string'
     url = value.strip()
     if not url:
@@ -97,10 +115,10 @@ def _validate_source_url(value):
     except SSRFError as e:
         logger.warning(f"SSRF blocked in update_feed: {e} (url={url})")
         return None, f'Invalid feed URL: {e}'
-    # Explicit 15s bound so a slow host cannot hang the PATCH toward the
-    # worker timeout; add_feed's interactive retry loop is not needed here.
-    parser = rss_parser.RSSParser()
-    content = parser.fetch_feed(url, timeout=15)
+    # 15s per attempt so a slow host cannot hang the PATCH toward the worker
+    # timeout; the shared retry keeps 403-on-first-fetch hosts working here
+    # the same way they do in add_feed.
+    parser, content = _fetch_feed_content(url, timeout=15)
     if not content:
         return None, 'Could not fetch a valid RSS feed from this URL'
     parsed = parser.parse_feed(content)
@@ -191,24 +209,17 @@ def _cue_override_fields(podcast) -> dict:
 
 
 def _status_counts(podcast) -> dict:
-    """Per-status episode counts slice of a feed response (#466).
+    """Per-status episode counts of a feed response (#466).
 
     Keys deliberately match the frontend EPISODE_STATUS_COLORS keys: the DB
     status 'processed' is exposed under its API alias 'completed' (the same
-    mapping api/episodes.py applies to episode responses). LEFT JOIN SUMs are
-    NULL for a feed with no episodes, hence the `or 0`.
+    mapping api/episodes.py applies to episode responses) and comes from the
+    pre-existing processed_count aggregate. LEFT JOIN SUMs are NULL for a
+    feed with no episodes, hence the `or 0`.
     """
-    return {
-        'statusCounts': {
-            'discovered': podcast.get('status_discovered') or 0,
-            'pending': podcast.get('status_pending') or 0,
-            'processing': podcast.get('status_processing') or 0,
-            'completed': podcast.get('status_processed') or 0,
-            'failed': podcast.get('status_failed') or 0,
-            'permanently_failed': podcast.get('status_permanently_failed') or 0,
-            'deferred': podcast.get('status_deferred') or 0,
-        }
-    }
+    counts = {s: podcast.get(f'status_{s}') or 0 for s in EPISODE_STATUSES}
+    counts['completed'] = podcast.get('processed_count') or 0
+    return counts
 
 
 def _slug_from_url_path(source_url: str) -> Optional[str]:
@@ -262,7 +273,7 @@ def list_feeds():
             'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
             'episodeCount': podcast.get('episode_count', 0),
             'processedCount': podcast.get('processed_count', 0),
-            **_status_counts(podcast),
+            'statusCounts': _status_counts(podcast),
             'lastRefreshed': podcast.get('last_checked_at'),
             'createdAt': podcast.get('created_at'),
             'lastEpisodeDate': podcast.get('last_episode_date'),
@@ -304,17 +315,7 @@ def add_feed():
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
     if not slug:
-        # Two attempts with a short gap: some hosts (e.g. Buzzsprout) 403 the
-        # first fetch from a new client but serve the retry. Circuit breaker
-        # inside fetch_feed still gates genuinely broken feeds.
-        parser = rss_parser.RSSParser()
-        feed_content = None
-        for attempt in (1, 2):
-            feed_content = parser.fetch_feed(source_url)
-            if feed_content:
-                break
-            if attempt == 1:
-                time.sleep(0.5)
+        parser, feed_content = _fetch_feed_content(source_url)
 
         if feed_content:
             parsed_feed = parser.parse_feed(feed_content)
@@ -618,7 +619,7 @@ def get_feed(slug):
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
-        **_status_counts(podcast),
+        'statusCounts': _status_counts(podcast),
         'lastRefreshed': podcast.get('last_checked_at'),
         'createdAt': podcast.get('created_at'),
         'networkId': podcast.get('network_id'),
@@ -776,7 +777,7 @@ def update_feed(slug):
             **_cue_override_fields(podcast),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
-            **_status_counts(podcast),
+            'statusCounts': _status_counts(podcast),
             'feedUrl': _public_feed_url(slug, get_feed_auth_key(db))
         })
     except Exception:

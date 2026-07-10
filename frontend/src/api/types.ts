@@ -78,7 +78,7 @@ export interface Episode {
   description?: string;
   published: string;
   duration?: number;
-  status: 'discovered' | 'pending' | 'processing' | 'completed' | 'failed' | 'permanently_failed' | 'deferred';
+  status: EpisodeStatusKey;
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;

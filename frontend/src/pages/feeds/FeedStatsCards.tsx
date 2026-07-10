@@ -6,22 +6,11 @@ import {
   EPISODE_STATUS_ORDER,
   EPISODE_STATUS_TEXT_COLORS,
 } from '../../utils/episodeStatus';
+import { formatCost, formatStatsDuration } from '../../utils/format';
 
 interface Props {
   feed: Feed;
   slug: string;
-}
-
-// This page's ranges stay compact (episode-scale), matching StatsPage's totals
-// row. formatDuration copies across the repo are intentionally divergent.
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`;
-  return `${(seconds / 3600).toFixed(1)}h`;
-}
-
-function formatCost(cost: number): string {
-  return `$${cost.toFixed(4)}`;
 }
 
 function StatCard({ value, label, valueClass = 'text-foreground' }: {
@@ -73,7 +62,7 @@ function FeedStatsCards({ feed, slug }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <StatCard value={stats.totalEpisodesProcessed} label="episodes processed" />
           <StatCard value={stats.totalAdsRemoved} label="ads removed" />
-          <StatCard value={formatDuration(stats.totalTimeSavedSeconds)} label="time saved" />
+          <StatCard value={formatStatsDuration(stats.totalTimeSavedSeconds)} label="time saved" />
           <StatCard value={formatCost(stats.totalLlmCost)} label="LLM cost" />
         </div>
       )}

@@ -379,7 +379,6 @@ class QueueMixin:
         message; the matching auto_process_queue row is closed the same way.
         Returns the expired rows so the caller can fire failure webhooks.
         """
-        ttl_hours = int(ttl_hours)
         conn = self.get_connection()
         rows = conn.execute(
             """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getOfflineQueueSettings,
@@ -84,20 +85,15 @@ function OfflineQueueSection() {
               >
                 Give up after:
               </label>
-              <input
+              <NumberInput
                 id="offline-queue-ttl"
-                type="number"
+                value={ttlHours}
                 min={1}
                 max={720}
                 step={1}
-                value={ttlHours}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  setDraft((d) => ({
-                    ...d,
-                    ttlHours: Number.isNaN(n) ? 48 : Math.min(720, Math.max(1, n)),
-                  }));
-                }}
+                fallback={48}
+                parse={(s) => parseInt(s, 10)}
+                onCommit={(v) => setDraft((d) => ({ ...d, ttlHours: v }))}
                 className="w-20 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
               />
               <span className="text-xs text-muted-foreground">hours</span>

@@ -362,15 +362,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
             {isEditingSourceUrl ? (
               <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={editSourceUrl}
-                    onChange={(e) => setEditSourceUrl(e.target.value)}
-                    placeholder="https://example.com/feed.xml"
-                    className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
-                  />
-                </div>
+                <input
+                  type="url"
+                  value={editSourceUrl}
+                  onChange={(e) => setEditSourceUrl(e.target.value)}
+                  placeholder="https://example.com/feed.xml"
+                  className="w-full min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                />
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   Points this feed at a different source URL. Existing episodes are
                   kept and matched by GUID; the feed refreshes right after saving.

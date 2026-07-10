@@ -49,6 +49,7 @@ from llm_capabilities import (
     clear_fallback,
 )
 from llm_client import is_retryable_error, is_llm_api_error, is_rate_limit_error, start_episode_token_tracking, get_episode_token_totals
+from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from splice_calibration import compute_splice_calibration
@@ -91,14 +92,6 @@ def get_min_cut_confidence() -> float:
     except (ValueError, TypeError):
         pass
     return MIN_CUT_CONFIDENCE
-
-
-def _offline_queue_enabled() -> bool:
-    """Offline queue toggle (#482); off by default."""
-    try:
-        return db.get_setting('offline_queue_enabled') == 'true'
-    except Exception:
-        return False
 
 
 def is_transient_error(error: Exception) -> bool:
@@ -2240,7 +2233,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # deferred episode cannot drift toward permanently_failed while the
     # service is down. No history row or webhook: nothing "failed" yet.
     if (isinstance(error, (ServiceUnavailableError, CircuitBreakerOpen))
-            and _offline_queue_enabled()):
+            and is_offline_queue_enabled(db)):
         service = getattr(error, 'service', 'llm')
         db.upsert_episode(
             slug, episode_id,

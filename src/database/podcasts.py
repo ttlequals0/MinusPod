@@ -3,15 +3,19 @@ import json
 import logging
 from typing import Optional, Dict, List
 
+from utils.constants import EpisodeStatus
+
 logger = logging.getLogger(__name__)
 
 
 # Per-status episode counts folded into the existing LEFT JOIN aggregation so
-# feed listings surface them without extra queries (#466). Keys mirror the
-# episodes.status CHECK values; 'deferred' is the offline-queue status (#482).
-EPISODE_STATUSES = (
-    'discovered', 'pending', 'processing', 'processed',
-    'failed', 'permanently_failed', 'deferred',
+# feed listings surface them without extra queries (#466). Derived from the
+# enum so a new status cannot be silently dropped. COMPLETED is the API alias
+# (not a DB value) and PROCESSED already aggregates as processed_count, so
+# both are excluded from the extra SUMs.
+EPISODE_STATUSES = tuple(
+    s.value for s in EpisodeStatus
+    if s not in (EpisodeStatus.COMPLETED, EpisodeStatus.PROCESSED)
 )
 _STATUS_COUNT_SELECT = ',\n'.join(
     f"SUM(CASE WHEN e.status = '{s}' THEN 1 ELSE 0 END) as status_{s}"

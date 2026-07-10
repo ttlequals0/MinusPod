@@ -33,7 +33,8 @@ from config import (
 )
 from audio_processor import NORMALIZE_PRESETS
 from offline_queue import (
-    get_offline_queue_ttl_hours, TTL_HOURS_MIN, TTL_HOURS_MAX,
+    get_offline_queue_ttl_hours, is_offline_queue_enabled,
+    TTL_HOURS_MIN, TTL_HOURS_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -1652,7 +1653,7 @@ def update_retention_settings():
 def _offline_queue_view(db) -> dict:
     """Offline queue settings payload shared by GET and PUT (#482)."""
     return {
-        'enabled': db.get_setting('offline_queue_enabled') == 'true',
+        'enabled': is_offline_queue_enabled(db),
         'ttlHours': get_offline_queue_ttl_hours(db),
         'deferredCount': db.count_deferred_episodes(),
     }

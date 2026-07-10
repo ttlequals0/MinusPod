@@ -27,6 +27,14 @@ _SERVICE_PROBES = {
 }
 
 
+def is_offline_queue_enabled(db) -> bool:
+    """Offline queue toggle; off by default."""
+    try:
+        return db.get_setting('offline_queue_enabled') == 'true'
+    except Exception:
+        return False
+
+
 def get_offline_queue_ttl_hours(db) -> int:
     """Configured TTL in hours, clamped to [1, 720]; default 48."""
     try:
