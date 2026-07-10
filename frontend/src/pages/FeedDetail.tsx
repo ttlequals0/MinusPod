@@ -181,7 +181,7 @@ function FeedDetail() {
   const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
   const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered').length;
   const processedCount = selectedEpisodes.filter(ep =>
-    ['completed', 'failed', 'permanently_failed'].includes(ep.status)
+    ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = selectedIds.size > 0;
 
@@ -397,6 +397,7 @@ function FeedDetail() {
             <option value="processed">Completed</option>
             <option value="failed">Failed</option>
             <option value="permanently_failed">Permanently Failed</option>
+            <option value="deferred">Queued (offline)</option>
           </select>
           <select
             value={`${sortBy}:${sortDir}`}

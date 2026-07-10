@@ -41,6 +41,7 @@ import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import DatabaseBackupSection from './settings/DatabaseBackupSection';
+import OfflineQueueSection from './settings/OfflineQueueSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { formatModelLabel } from './settings/settingsUtils';
@@ -937,6 +938,8 @@ function Settings() {
         resetIsPending={cleanupMutation.isPending}
         resetData={cleanupMutation.data}
       />
+
+      <OfflineQueueSection />
 
       <DatabaseBackupSection />
 

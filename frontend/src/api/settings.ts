@@ -200,6 +200,25 @@ export async function updateDatabaseBackupSettings(
   });
 }
 
+export interface OfflineQueueSettings {
+  enabled: boolean;
+  ttlHours: number;
+  deferredCount: number;
+}
+
+export async function getOfflineQueueSettings(): Promise<OfflineQueueSettings> {
+  return apiRequest<OfflineQueueSettings>('/settings/offline-queue');
+}
+
+export async function updateOfflineQueueSettings(
+  args: Partial<Pick<OfflineQueueSettings, 'enabled' | 'ttlHours'>>,
+): Promise<OfflineQueueSettings> {
+  return apiRequest<OfflineQueueSettings>('/settings/offline-queue', {
+    method: 'PUT',
+    body: args,
+  });
+}
+
 export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
   return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
     method: 'POST',
