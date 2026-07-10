@@ -489,3 +489,24 @@ describe('New hold reasons: tooltip titles', () => {
     await waitFor(() => expect(screen.getByTitle('No splice artifact found at either edge')).toBeDefined());
   });
 });
+
+describe('Held for Review section: playback', () => {
+  it('renders a play button per held row when original audio is retained', async () => {
+    const ep = makeEpisode({
+      pendingReviewMarkers: [heldMarker, { ...heldMarker, start: 400, end: 500 }],
+    });
+    renderDetail(ep);
+    await waitFor(() => {
+      expect(screen.getByTestId('held-for-review-section')).toBeDefined();
+    });
+    expect(screen.getAllByLabelText('Play this ad')).toHaveLength(2);
+  });
+
+  it('hides the play button when the original audio is gone', async () => {
+    renderDetail(makeEpisode({ hasOriginalAudio: false }));
+    await waitFor(() => {
+      expect(screen.getByTestId('held-for-review-section')).toBeDefined();
+    });
+    expect(screen.queryByLabelText('Play this ad')).toBeNull();
+  });
+});
