@@ -955,6 +955,7 @@ class EpisodeMixin:
             f"""UPDATE episodes SET
                 status = 'pending', retry_count = 0, error_message = NULL,
                 reprocess_mode = ?, reprocess_requested_at = ?,
+                deferred_at = NULL, deferred_service = NULL,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
             params

@@ -115,6 +115,18 @@ class TestDeferral:
         assert episode['status'] == 'permanently_failed'
         assert not episode.get('deferred_at')
 
+    def test_re_deferral_keeps_first_deferred_at(self, seeded_episode):
+        """The TTL bounds total time in the deferred lifecycle: a flapping
+        endpoint (probe up, calls failing) must not reset the clock."""
+        db.set_setting('offline_queue_enabled', 'true')
+        first = '2026-01-01T00:00:00Z'
+        db.upsert_episode(SLUG, seeded_episode, deferred_at=first,
+                          deferred_service='llm')
+        _fail(seeded_episode, ServiceUnavailableError('llm', 'still down'))
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'deferred'
+        assert episode['deferred_at'] == first
+
 
 class TestTtlAndRequeue:
     def _defer(self, episode_id, deferred_at, service='llm'):
@@ -140,10 +152,38 @@ class TestTtlAndRequeue:
         self._defer('ep-whisper', '2999-01-01T00:00:00Z', service='whisper')
         requeued = db.requeue_deferred_episodes({'llm'})
         assert requeued == 1
-        assert db.get_episode(SLUG, 'ep-llm')['status'] == 'pending'
+        episode = db.get_episode(SLUG, 'ep-llm')
+        assert episode['status'] == 'pending'
+        # deferred_at survives the re-drive so the TTL keeps ticking.
+        assert episode['deferred_at'] == '2999-01-01T00:00:00Z'
         assert db.get_episode(SLUG, 'ep-whisper')['status'] == 'deferred'
         queued = db.get_next_queued_episode()
         assert queued and queued['episode_id'] == 'ep-llm'
+
+    def test_requeue_skips_auto_process_disabled_feed(self, seeded_episode):
+        """Without a user-initiated reprocess marker, a disabled feed's
+        episode stays deferred (TTL-bounded) instead of being flipped to a
+        pending state the claim-time gate would strand forever."""
+        self._defer('ep-gated', '2999-01-01T00:00:00Z', service='llm')
+        db.update_podcast(SLUG, auto_process_override='false')
+        try:
+            requeued = db.requeue_deferred_episodes({'llm'})
+            assert requeued == 0
+            assert db.get_episode(SLUG, 'ep-gated')['status'] == 'deferred'
+        finally:
+            db.update_podcast(SLUG, auto_process_override=None)
+
+    def test_expired_episode_fires_history_and_webhook(self, seeded_episode):
+        self._defer('ep-old', '2020-01-01T00:00:00Z')
+        with patch('offline_queue.fire_event') as webhook, \
+             patch.object(db, 'record_processing_history') as history, \
+             patch('llm_client.check_llm_connectivity', return_value=False):
+            offline_queue_tick(db)
+        assert history.call_count == 1
+        assert webhook.call_count == 1
+        kwargs = webhook.call_args.kwargs
+        assert kwargs['processing_time'] == 0.0
+        assert kwargs['llm_cost'] == 0.0
 
     def test_tick_no_deferred_makes_no_probe_calls(self, seeded_episode):
         with patch('llm_client.check_llm_connectivity') as llm_probe, \

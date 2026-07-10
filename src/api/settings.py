@@ -1677,7 +1677,7 @@ def update_offline_queue_settings():
     marked permanently failed.
     """
     data = request.get_json()
-    if not data:
+    if not isinstance(data, dict) or not data:
         return error_response('No data provided', 400)
 
     db = get_database()

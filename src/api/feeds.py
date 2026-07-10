@@ -725,8 +725,12 @@ def update_feed(slug):
             data['onlyExposeProcessedEpisodes'])
 
     # Validated last so every cheap field validation can 400 before the
-    # network fetch inside _validate_source_url runs.
-    if 'sourceUrl' in data:
+    # network fetch inside _validate_source_url runs. An unchanged URL is a
+    # no-op: skipping it avoids the validation fetch, the validator clear,
+    # and the forced refresh for retried or blind-PUT-style requests.
+    if 'sourceUrl' in data and not (
+            isinstance(data['sourceUrl'], str)
+            and data['sourceUrl'].strip() == podcast['source_url']):
         new_url, url_err = _validate_source_url(data['sourceUrl'])
         if url_err:
             return error_response(url_err, 400)

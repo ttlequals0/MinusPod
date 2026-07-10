@@ -3,14 +3,19 @@ import type { CorroborationSource } from '../utils/corroboration';
 
 // Per-feed episode status counts (#466). Keys use the API status aliases
 // (DB 'processed' arrives as 'completed'); 'deferred' is the offline queue.
-export type EpisodeStatusKey =
-  | 'discovered'
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'failed'
-  | 'permanently_failed'
-  | 'deferred';
+// Single frontend source of truth for the status set: the key type and the
+// display-order array both derive from it.
+export const EPISODE_STATUS_KEYS = [
+  'discovered',
+  'pending',
+  'processing',
+  'completed',
+  'failed',
+  'permanently_failed',
+  'deferred',
+] as const;
+
+export type EpisodeStatusKey = typeof EPISODE_STATUS_KEYS[number];
 
 export type EpisodeStatusCounts = Record<EpisodeStatusKey, number>;
 

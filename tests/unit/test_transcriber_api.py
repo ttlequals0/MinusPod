@@ -3,11 +3,15 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock
 
+import pytest
+import requests as requests_lib
+
 from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
-    calculate_optimal_chunk_duration,
+    calculate_optimal_chunk_duration, check_whisper_connectivity,
     _whisper_api_rejects_word_timestamps,
 )
+from utils.errors import ServiceUnavailableError
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -657,9 +661,6 @@ class TestWhisperServiceUnavailable:
         return f.name
 
     def test_all_attempts_connection_error_raises(self):
-        import requests as requests_lib
-        import pytest
-        from utils.errors import ServiceUnavailableError
         temp_path = self._make_audio_file()
         try:
             with patch('transcriber.safe_post',
@@ -674,8 +675,6 @@ class TestWhisperServiceUnavailable:
             os.unlink(temp_path)
 
     def test_persistent_503_raises(self):
-        import pytest
-        from utils.errors import ServiceUnavailableError
         temp_path = self._make_audio_file()
         try:
             mock_response = MagicMock()
@@ -719,14 +718,12 @@ class TestCheckWhisperConnectivity:
     """Availability probe used by the offline queue re-drive."""
 
     def test_local_backend_always_reachable(self):
-        from transcriber import check_whisper_connectivity
         with patch('transcriber._get_whisper_settings',
                    return_value={'backend': WHISPER_BACKEND_LOCAL,
                                  'api_base_url': '', 'api_key': ''}):
             assert check_whisper_connectivity() is True
 
     def test_api_backend_reachable_below_500(self):
-        from transcriber import check_whisper_connectivity
         mock_response = MagicMock()
         mock_response.status_code = 401
         with patch('transcriber._get_whisper_settings',
@@ -737,8 +734,6 @@ class TestCheckWhisperConnectivity:
             assert check_whisper_connectivity() is True
 
     def test_api_backend_unreachable_on_exception(self):
-        import requests as requests_lib
-        from transcriber import check_whisper_connectivity
         with patch('transcriber._get_whisper_settings',
                    return_value={'backend': WHISPER_BACKEND_API,
                                  'api_base_url': 'http://localhost:8765/v1',

@@ -78,8 +78,10 @@ CREATE TABLE IF NOT EXISTS episodes (
     ads_removed_secondpass INTEGER DEFAULT 0,
     pending_review_count INTEGER NOT NULL DEFAULT 0,
     error_message TEXT,
-    -- Offline queue (#482): when the episode deferred and which service
-    -- ('llm' or 'whisper') was unreachable. NULL unless status='deferred'.
+    -- Offline queue (#482): when the episode FIRST entered the offline queue
+    -- and which service ('llm' or 'whisper') was unreachable. deferred_at
+    -- survives re-drive cycles so the TTL bounds total time in the deferred
+    -- lifecycle; cleared on success, manual reprocess, and TTL expiry.
     deferred_at TEXT,
     deferred_service TEXT,
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),

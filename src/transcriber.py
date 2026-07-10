@@ -1564,7 +1564,12 @@ class Transcriber:
                         f"Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
-                    if connectivity_errors:
+                    # Classify the abort as an outage only when connectivity
+                    # failures are the majority cause; a single timeout among
+                    # mostly content/request failures must not defer the
+                    # episode (#482). The reverse mix falls back to the normal
+                    # transient-retry ladder, whose next attempt re-classifies.
+                    if len(connectivity_errors) * 2 > failed:
                         raise connectivity_errors[0]
                     return None
         finally:

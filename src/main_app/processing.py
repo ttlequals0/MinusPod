@@ -2235,11 +2235,16 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     if (isinstance(error, (ServiceUnavailableError, CircuitBreakerOpen))
             and is_offline_queue_enabled(db)):
         service = getattr(error, 'service', 'llm')
+        # deferred_at marks when the episode FIRST entered the offline queue
+        # and survives re-drive cycles, so the TTL bounds total time in the
+        # deferred lifecycle. Stamping fresh on every re-deferral would let a
+        # flapping endpoint (probe up, calls failing) reset the clock forever.
+        first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
         db.upsert_episode(
             slug, episode_id,
             status=EpisodeStatus.DEFERRED.value,
             error_message=f"Deferred ({service} endpoint unreachable): {error}",
-            deferred_at=utc_now_iso(),
+            deferred_at=first_deferred_at,
             deferred_service=service,
         )
         audio_logger.warning(

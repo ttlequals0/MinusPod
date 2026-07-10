@@ -23,6 +23,11 @@ from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
 
+# Terminal statuses a user can act on in bulk (reprocess/delete).
+# 'deferred' episodes (#482) are included so a stuck offline queue
+# can be force-retried or cleaned up by hand.
+REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
+
 
 def _clear_episode_for_mode(db, slug, episode_id, mode):
     """Clear cached detection data before a reprocess. LLM-only mode keeps the
@@ -807,7 +812,7 @@ def bulk_episode_action(slug):
         for episode_id in episode_ids:
             try:
                 episode = episodes_by_id.get(episode_id)
-                if not episode or episode.get('status') not in ('processed', 'failed', 'permanently_failed', 'deferred'):
+                if not episode or episode.get('status') not in REPROCESSABLE_STATUSES:
                     skipped += 1
                     continue
                 # LLM-only reprocess needs a saved transcript; skip episodes without one.
@@ -835,7 +840,7 @@ def bulk_episode_action(slug):
         eligible_ids = []
         for episode_id in episode_ids:
             episode = episodes_by_id.get(episode_id)
-            if not episode or episode.get('status') not in ('processed', 'failed', 'permanently_failed', 'deferred'):
+            if not episode or episode.get('status') not in REPROCESSABLE_STATUSES:
                 skipped += 1
                 continue
             eligible_ids.append(episode_id)
@@ -1166,7 +1171,9 @@ def reprocess_episode_with_mode(slug, episode_id):
             reprocess_mode=mode,
             reprocess_requested_at=utc_now_iso(),
             retry_count=0,
-            error_message=None
+            error_message=None,
+            deferred_at=None,
+            deferred_service=None,
         )
 
         # 2. Clear cached detection data; keep the processed audio until the new

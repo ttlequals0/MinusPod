@@ -30,7 +30,7 @@ _SERVICE_PROBES = {
 def is_offline_queue_enabled(db) -> bool:
     """Offline queue toggle; off by default."""
     try:
-        return db.get_setting('offline_queue_enabled') == 'true'
+        return db.get_setting_bool('offline_queue_enabled', default=False)
     except Exception:
         return False
 
@@ -55,11 +55,31 @@ def offline_queue_tick(db) -> None:
     expired = db.expire_deferred_episodes(get_offline_queue_ttl_hours(db))
     for episode in expired:
         try:
+            # Keep the audit trail consistent with every other permanent
+            # failure: the history views are built from processing_history.
+            db.record_processing_history(
+                podcast_id=episode['podcast_id'],
+                podcast_slug=episode['podcast_slug'],
+                podcast_title=episode.get('podcast_title'),
+                episode_id=episode['episode_id'],
+                episode_title=episode.get('title'),
+                status='failed',
+                error_message=episode.get('error_message'),
+            )
+        except Exception as hist_err:
+            logger.warning(
+                f"Offline queue: history record failed for "
+                f"{episode['podcast_slug']}:{episode['episode_id']}: {hist_err}")
+        try:
             fire_event(
                 event=EVENT_EPISODE_FAILED,
                 episode_id=episode['episode_id'],
                 slug=episode['podcast_slug'],
                 episode_title=episode.get('title'),
+                # No processing ran for a TTL expiry; the fields are required
+                # by the payload, not meaningful here.
+                processing_time=0.0,
+                llm_cost=0.0,
                 error_message=episode.get('error_message'),
                 podcast_name=episode.get('podcast_title'),
             )

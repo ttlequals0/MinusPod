@@ -53,6 +53,8 @@ def test_put_happy_path_and_persistence(app_client, _clean_settings):
     {'ttlHours': '12'},
     {'ttlHours': True},
     {'enabled': 'yes'},
+    'enabled',
+    ['enabled'],
 ])
 def test_put_validation_failures(app_client, _clean_settings, payload):
     hdr = _csrf(app_client)

@@ -389,12 +389,13 @@ class QueueMixin:
                  AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
             (ttl_hours,)
         ).fetchall()
-        expired = [dict(row) for row in rows]
-        for row in expired:
+        expired = []
+        for row in rows:
+            row = dict(row)
             message = (f"Offline queue TTL expired after {ttl_hours} hours: "
                        f"{row['error_message'] or 'service unreachable'}")
             row['error_message'] = message
-            conn.execute(
+            cursor = conn.execute(
                 """UPDATE episodes
                    SET status = 'permanently_failed',
                        error_message = ?,
@@ -404,6 +405,11 @@ class QueueMixin:
                    WHERE id = ? AND status = 'deferred'""",
                 (message, row['id'])
             )
+            if cursor.rowcount != 1:
+                # Lost a race with a concurrent user action (e.g. a manual
+                # reprocess flipped it to pending between the SELECT and this
+                # UPDATE); its fresh queue row must not be failed either.
+                continue
             conn.execute(
                 """UPDATE auto_process_queue
                    SET status = 'failed',
@@ -417,6 +423,7 @@ class QueueMixin:
                 "Offline queue TTL expired for %s:%s after %dh; marking permanently_failed",
                 row['podcast_slug'], row['episode_id'], ttl_hours,
             )
+            expired.append(row)
         conn.commit()
         return expired
 
@@ -424,8 +431,13 @@ class QueueMixin:
         """Flip deferred episodes back to pending for reachable services.
 
         Each episode gets its auto_process_queue row upserted to pending (the
-        background processor's atomic claim drives it from there) and its
-        deferral fields cleared. deferred_service NULL is treated as 'llm'.
+        background processor's atomic claim drives it from there).
+        deferred_service NULL is treated as 'llm'. deferred_at is deliberately
+        KEPT: it marks the first entry into the offline queue, so the TTL
+        keeps ticking across re-drive cycles (success and TTL expiry clear
+        it). Episodes on auto-process-disabled feeds without a user-initiated
+        reprocess stay deferred -- the claim-time gate would otherwise close
+        their queue row and strand them in 'pending' outside every ladder.
         """
         requeued = 0
         for episode in self.get_deferred_episodes():
@@ -433,6 +445,9 @@ class QueueMixin:
             if service not in services:
                 continue
             slug = episode['podcast_slug']
+            if not (episode.get('reprocess_requested_at')
+                    or self.is_auto_process_enabled_for_podcast(slug)):
+                continue
             self.upsert_episode_for_processing(
                 slug, episode['episode_id'], episode['original_url'],
                 title=episode.get('title'),
@@ -442,7 +457,6 @@ class QueueMixin:
             self.upsert_episode(
                 slug, episode['episode_id'],
                 status='pending', error_message=None,
-                deferred_at=None, deferred_service=None,
             )
             logger.info(
                 "Offline queue: %s reachable again, re-queued %s:%s",

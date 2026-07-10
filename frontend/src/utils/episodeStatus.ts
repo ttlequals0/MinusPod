@@ -1,4 +1,4 @@
-import type { EpisodeStatusKey } from '../api/types';
+import { EPISODE_STATUS_KEYS, type EpisodeStatusKey } from '../api/types';
 
 export const EPISODE_STATUS_COLORS: Record<string, string> = {
   discovered: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
@@ -21,10 +21,7 @@ export const EPISODE_STATUS_LABELS: Record<string, string> = {
 };
 
 // Single source of iteration order for status summaries and stat cards.
-export const EPISODE_STATUS_ORDER: EpisodeStatusKey[] = [
-  'discovered', 'pending', 'processing', 'completed',
-  'failed', 'permanently_failed', 'deferred',
-];
+export const EPISODE_STATUS_ORDER: readonly EpisodeStatusKey[] = EPISODE_STATUS_KEYS;
 
 // Text-only variants of the badge palette for big stat-card numbers.
 export const EPISODE_STATUS_TEXT_COLORS: Record<EpisodeStatusKey, string> = {
