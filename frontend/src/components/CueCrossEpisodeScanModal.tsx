@@ -116,19 +116,23 @@ export default function CueCrossEpisodeScanModal({
   const targetEp: Episode | undefined =
     knownTargetEp ?? fetchedTargetQuery.data ?? undefined;
 
+  // One key format for playWindow and the playingKey comparisons in the rows.
+  const playKey = (episodeId: string, start: number, end: number) =>
+    `${episodeId}:${start}:${end}`;
+
   // Play [start, end] of one episode's retained original; clicking the owning
-  // button again stops it. Keys are `episodeId:start:end`, matching the
-  // playingKey comparisons in the rows below.
+  // button again stops it.
   const playWindow = (episodeId: string, start: number, end: number) =>
     togglePlayback(
-      `${episodeId}:${start}:${end}`,
+      playKey(episodeId, start, end),
       episodeOriginalUrl(slug, episodeId),
       start,
       end,
     );
 
   // Titles for the per-episode breakdown. Known metadata first; ids the modal
-  // never held (cached scan from another selection/page) are fetched.
+  // never held (cached scan from another selection/page) are fetched. The
+  // target id is excluded -- fetchedTargetQuery above already fetches it.
   const breakdownIds = scanData?.episodeIds ?? [];
   const titleById = new Map<string, string>();
   for (const ep of [...selected, ...pickerEpisodes]) {
@@ -137,7 +141,7 @@ export default function CueCrossEpisodeScanModal({
   if (targetEp) titleById.set(targetEp.id, targetEp.title);
   const unknownTitleQueries = useQueries({
     queries: breakdownIds
-      .filter((id) => !titleById.has(id))
+      .filter((id) => id !== targetEpId && !titleById.has(id))
       .map((id) => ({
         queryKey: ['cue-xep-episode-title', slug, id],
         queryFn: () => getEpisode(slug, id),
@@ -318,7 +322,11 @@ export default function CueCrossEpisodeScanModal({
               <button
                 type="button"
                 className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
-                onClick={() => rescan()}
+                onClick={() => {
+                  stopPlayback();
+                  setExpandedKey(null);
+                  rescan();
+                }}
               >
                 Rescan
               </button>
@@ -337,9 +345,9 @@ export default function CueCrossEpisodeScanModal({
             <p className="text-sm text-muted-foreground">No recurring segments found.</p>
           )}
           {!scanning && !scanError && candidates.length > 0
-            && candidates.every((c) => !c.episodes) && (
+            && candidates.some((c) => !c.episodes) && (
             <p className="text-xs text-muted-foreground mb-2">
-              This result was cached by an older version. Rescan to see per-episode matches.
+              Some rows have no per-episode matches yet. Rescan to fill them in.
             </p>
           )}
 
@@ -347,7 +355,9 @@ export default function CueCrossEpisodeScanModal({
             <ul className="flex-1 overflow-y-auto divide-y divide-border border border-border rounded">
               {candidates.map((c) => {
                 const rowKey = `${c.start}-${c.end}`;
-                const rowPlayKey = `${targetEpId}:${c.start}:${c.end}`;
+                const rowPlayKey = targetEpId
+                  ? playKey(targetEpId, c.start, c.end)
+                  : undefined;
                 const expanded = expandedKey === rowKey;
                 return (
                   <li key={rowKey} className="px-3 py-2 text-sm">
@@ -410,7 +420,7 @@ export default function CueCrossEpisodeScanModal({
                             {epm.matches.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {epm.matches.map((m) => {
-                                  const mKey = `${epm.episodeId}:${m.start}:${m.end}`;
+                                  const mKey = playKey(epm.episodeId, m.start, m.end);
                                   return (
                                     <button
                                       key={mKey}

@@ -830,7 +830,11 @@ class AudioFingerprinter:
 
         t_arr = np.asarray(t_ints, dtype=np.uint32)
         # Target first, then siblings at their original input index + 1.
-        all_fps = [(0, (t_ints, t_dur))] + [(i + 1, f) for i, f in sib_fps]
+        # Arrays are converted once here; the per-candidate enumeration reuses
+        # them (np.asarray on a matching-dtype array is a no-op).
+        all_fps = [(0, (t_arr, t_dur))] + [
+            (i + 1, (np.asarray(s, dtype=np.uint32), d))
+            for i, (s, d) in sib_fps]
         out = []
         for a, b, count in segs:
             cand = {'start': round(a / fps, 2), 'end': round(b / fps, 2),

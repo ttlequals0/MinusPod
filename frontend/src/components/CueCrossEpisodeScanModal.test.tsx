@@ -117,7 +117,7 @@ describe('per-episode breakdown', () => {
     expect(screen.getByText('Episode 2')).toBeDefined();
     // Two match chips, each a play button labeled with its timestamp.
     expect(screen.getAllByLabelText(/^Play match at /)).toHaveLength(2);
-    expect(screen.queryByText(/Rescan to see per-episode matches/)).toBeNull();
+    expect(screen.queryByText(/Rescan to fill them in/)).toBeNull();
   });
 
   it('shows a rescan hint when candidates lack the breakdown', async () => {
@@ -125,7 +125,7 @@ describe('per-episode breakdown', () => {
     renderModal(() => {});
     await runScan();
 
-    expect(screen.getByText(/Rescan to see per-episode matches/)).toBeDefined();
+    expect(screen.getByText(/Rescan to fill them in/)).toBeDefined();
     expect(screen.queryByLabelText('Show per-episode matches')).toBeNull();
   });
 });

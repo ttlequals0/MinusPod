@@ -211,9 +211,11 @@ function EpisodeDetail() {
 
   // Windowed playback for Held for Review rows. Held ads are never cut, and
   // their marker times are in the original-audio timeline, so the retained
-  // original is the correct source.
+  // original is the correct source. No preload when the original is gone --
+  // the play buttons are hidden then and preload would fire a wasted request.
   const heldAudioUrl = episodeOriginalUrl(slug!, episodeId!);
-  const heldAudition = useAuditionPlayer(heldAudioUrl);
+  const heldAudition = useAuditionPlayer(
+    episode?.hasOriginalAudio ? heldAudioUrl : undefined);
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
