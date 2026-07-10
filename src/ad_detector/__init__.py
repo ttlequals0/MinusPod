@@ -14,7 +14,8 @@ from typing import List, Dict, Optional, NamedTuple
 from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    is_retryable_error, is_not_found_error, is_rate_limit_error,
+    is_connectivity_error, is_retryable_error, is_not_found_error,
+    is_rate_limit_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError,
@@ -217,6 +218,11 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
         "status": "failed",
         "error": "".join(parts),
         "retryable": not not_found_hint,
+        # Lets the pipeline tell "endpoint down" apart from a bad response so
+        # the offline queue (#482) defers only genuine outages. Includes
+        # CircuitBreakerOpen, which reaches here as last_error because
+        # call_llm_for_window treats it as non-retryable and breaks.
+        "connectivity": is_connectivity_error(last_error) if last_error else False,
         "last_error_type": last_err_type,
         "last_error_status": last_err_status,
     }

@@ -59,13 +59,12 @@ export function FeedTagsEditor({ slug }: Props) {
   }
 
   return (
-    <div className="mb-6">
-      <CollapsibleSection
-        title="Tags"
-        subtitle="Filter community ad patterns. RSS and episode tags are automatic; edit your own below."
-        defaultOpen={false}
-        storageKey={`feed-tags-${slug}`}
-      >
+    <CollapsibleSection
+      title="Tags"
+      subtitle="Filter community ad patterns. RSS and episode tags are automatic; edit your own below."
+      defaultOpen={false}
+      storageKey={`feed-tags-${slug}`}
+    >
         {isLoading || !tags ? (
           <LoadingSpinner className="py-4" />
         ) : (
@@ -172,7 +171,6 @@ export function FeedTagsEditor({ slug }: Props) {
             </div>
           </>
         )}
-      </CollapsibleSection>
-    </div>
+    </CollapsibleSection>
   );
 }

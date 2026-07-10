@@ -14,6 +14,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from transcript_generator import TranscriptGenerator
+from utils.errors import ServiceUnavailableError
 from utils.language import get_feed_language_override
 
 logger = logging.getLogger('podcast.verification')
@@ -93,7 +94,15 @@ class VerificationPass:
             if progress_callback:
                 progress_callback("transcribing", 85)
             logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
-            verification_segments = self._transcribe_verification(processed_audio_path, podcast_name, slug=slug)
+            try:
+                verification_segments = self._transcribe_verification(processed_audio_path, podcast_name, slug=slug)
+            except ServiceUnavailableError as e:
+                # Verification is best-effort: a Whisper outage here must not
+                # fail (or defer) an already-cut episode. Return the failed
+                # status so the pass-2 record is still persisted (#482).
+                logger.warning(f"[{slug}:{episode_id}] Verification: whisper endpoint unreachable, skipping pass 2: {e}")
+                return {'ads': [], 'ads_processed': [], 'segments': [],
+                        'status': 'transcription_failed'}
 
         if not verification_segments:
             logger.warning(f"[{slug}:{episode_id}] Verification: No segments")

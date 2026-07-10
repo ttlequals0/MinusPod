@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
 
 from utils.audio import get_audio_duration
+from utils.errors import ServiceUnavailableError
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
@@ -318,6 +319,33 @@ def _get_whisper_settings() -> Dict[str, str]:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
     return defaults
+
+
+def check_whisper_connectivity(timeout: float = 5.0) -> bool:
+    """Availability probe for the offline queue re-drive (#482).
+
+    Local backend (or an unconfigured API URL) never blocks a re-drive: those
+    failure modes are not connectivity. For the API backend, any HTTP response
+    with status below 500 proves the endpoint is up (401/404 included).
+    """
+    settings = _get_whisper_settings()
+    if settings['backend'] != WHISPER_BACKEND_API or not settings['api_base_url']:
+        return True
+    url = f"{settings['api_base_url'].rstrip('/')}/models"
+    headers = {}
+    if settings['api_key']:
+        headers['Authorization'] = f"Bearer {settings['api_key']}"
+    try:
+        response = safe_get(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=timeout,
+            headers=headers,
+        )
+        return response.status_code < 500
+    except Exception as e:
+        logger.debug(f"Whisper connectivity probe failed: {e}")
+        return False
 
 
 def _get_chunk_settings() -> Dict[str, int]:
@@ -798,6 +826,7 @@ class Transcriber:
             # outer loop retries once with segment-only granularity if the
             # response body signals that rejection.
             response = None
+            last_request_exc = None
             max_attempts = 2
             granularity_modes = (
                 ['segment', 'word'],
@@ -828,6 +857,7 @@ class Transcriber:
                             "Whisper API attempt %d/%d failed: %s",
                             attempt + 1, max_attempts, exc,
                         )
+                        last_request_exc = exc
                         response = None
                         continue
                     if response.status_code < 500:
@@ -838,7 +868,11 @@ class Transcriber:
                     )
 
                 if response is None:
-                    return None
+                    # Every attempt raised at the transport layer -- the
+                    # endpoint is unreachable, which the offline queue (#482)
+                    # must be able to tell apart from a bad response.
+                    raise ServiceUnavailableError(
+                        'whisper', f"Whisper API unreachable: {last_request_exc}")
                 if response.status_code == 200:
                     break
                 if gran_idx == 0 and _whisper_api_rejects_word_timestamps(response):
@@ -851,6 +885,10 @@ class Transcriber:
                 break
 
             if response is None or response.status_code != 200:
+                if response is not None and response.status_code >= 500:
+                    raise ServiceUnavailableError(
+                        'whisper',
+                        f"Whisper API returned {response.status_code} after retries")
                 return None
 
             # Parse verbose_json response
@@ -898,6 +936,8 @@ class Transcriber:
 
             return result
 
+        except ServiceUnavailableError:
+            raise
         except Exception as e:
             logger.error(f"API transcription failed: {e}")
             return None
@@ -1456,6 +1496,8 @@ class Transcriber:
             f"overlap={overlap}s, workers={max_workers})"
         )
 
+        connectivity_errors: List[ServiceUnavailableError] = []
+
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
             chunk_path = extract_audio_chunk(audio_path, c_start, c_end)
             if not chunk_path:
@@ -1477,6 +1519,12 @@ class Transcriber:
                             word['start'] += c_start
                             word['end'] += c_start
                 return chunk_idx, segs
+            except ServiceUnavailableError as e:
+                # list.append is thread-safe; recorded so an endpoint-down
+                # abort can defer the episode (#482) instead of failing it.
+                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                connectivity_errors.append(e)
+                return chunk_idx, None
             except Exception as e:
                 logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
                 return chunk_idx, None
@@ -1516,6 +1564,13 @@ class Transcriber:
                         f"Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
+                    # Classify the abort as an outage only when connectivity
+                    # failures are the majority cause; a single timeout among
+                    # mostly content/request failures must not defer the
+                    # episode (#482). The reverse mix falls back to the normal
+                    # transient-retry ladder, whose next attempt re-classifies.
+                    if len(connectivity_errors) * 2 > failed:
+                        raise connectivity_errors[0]
                     return None
         finally:
             # wait=False: return without blocking on in-flight workers (they

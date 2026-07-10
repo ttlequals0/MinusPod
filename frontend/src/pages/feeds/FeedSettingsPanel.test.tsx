@@ -33,6 +33,11 @@ vi.mock('../../api/settings', () => ({
   getSettings: vi.fn().mockResolvedValue({}),
 }));
 
+// FeedTagsEditor queries api/community internally; not under test here.
+vi.mock('../../components/FeedTagsEditor', () => ({
+  FeedTagsEditor: () => null,
+}));
+
 function makeFeed(overrides: Partial<Feed> = {}): Feed {
   return {
     slug: 'test-feed',
@@ -91,5 +96,59 @@ describe('FeedSettingsPanel cross-fetch differential toggle', () => {
     renderPanel(makeFeed());
     expect(screen.queryByText('DAI likely')).toBeNull();
     expect(screen.queryByText(/looks like this feed uses dynamic ad insertion/i)).toBeNull();
+  });
+});
+
+describe('FeedSettingsPanel source URL row (#484)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders the source URL with a copy button in read mode', () => {
+    renderPanel(makeFeed());
+    expect(screen.getByText('https://example.com/feed.xml')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Copy source URL' })).toBeDefined();
+  });
+
+  it('saving a changed URL calls updateFeed with sourceUrl', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const input = screen.getByPlaceholderText('https://example.com/feed.xml');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'https://example.com/new-feed.xml');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      sourceUrl: 'https://example.com/new-feed.xml',
+    });
+  });
+
+  it('saving an unchanged URL exits edit mode without calling updateFeed', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  });
+
+  it('saving an empty URL shows an inline error without calling updateFeed', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.clear(screen.getByPlaceholderText('https://example.com/feed.xml'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    expect(screen.getByText('Source URL cannot be empty')).toBeDefined();
+  });
+
+  it('a rejected save surfaces the backend message and stays in edit mode', async () => {
+    mockUpdateFeed.mockRejectedValue(new Error('Could not fetch a valid RSS feed from this URL'));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    const input = screen.getByPlaceholderText('https://example.com/feed.xml');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'https://example.com/broken.xml');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Could not fetch a valid RSS feed from this URL')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDefined();
   });
 });

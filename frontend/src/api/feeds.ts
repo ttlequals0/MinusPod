@@ -178,6 +178,7 @@ export async function reprocessEpisode(
 }
 
 export interface UpdateFeedPayload {
+  sourceUrl?: string;
   networkId?: string;
   daiPlatform?: string;
   networkIdOverride?: string | null;

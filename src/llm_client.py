@@ -22,13 +22,16 @@ Configuration via environment variables:
 
 import logging
 import os
+import socket
 import threading
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
 
-from utils.circuit_breaker import CircuitBreaker
+import requests
+
+from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import (
     parse_retry_after, parse_groq_rate_limit_body,
     parse_google_retry_delay, parse_google_daily_quota,
@@ -1390,6 +1393,74 @@ def is_retryable_error(error: Exception) -> bool:
     error_str = str(error).lower()
     retryable_patterns = ['timeout', 'connection', 'temporarily', '429', '500', '502', '503', '504', '529']
     return any(pattern in error_str for pattern in retryable_patterns)
+
+
+def is_connectivity_error(error: Exception) -> bool:
+    """True when the error means the LLM endpoint is unreachable (connection
+    refused, DNS failure, timeout, 5xx) rather than a real request failure.
+
+    Gates offline-queue deferral (#482), so the negative cases matter as much
+    as the positive ones: auth failures, rate limits, and not-found are
+    explicitly excluded -- deferring those would hide genuine problems.
+    """
+    if isinstance(error, StructuralRateLimitError):
+        return False
+    if is_rate_limit_error(error) or is_auth_error(error) or is_not_found_error(error):
+        return False
+    # The breaker only opens after repeated call failures, which is exactly
+    # the reporter's "circuit breaker trips and jobs error out" scenario.
+    if isinstance(error, CircuitBreakerOpen):
+        return True
+    if isinstance(error, (requests.exceptions.ConnectionError,
+                          requests.exceptions.Timeout,
+                          ConnectionError, TimeoutError, socket.gaierror)):
+        return True
+    a = _anthropic_exc()
+    if a is not None:
+        # APITimeoutError subclasses APIConnectionError in both SDKs.
+        if isinstance(error, (a.APIConnectionError, a.InternalServerError)):
+            return True
+        if isinstance(error, a.APIError) and _provider_status_code(error) in (500, 502, 503, 504, 529):
+            return True
+    o = _openai_exc()
+    if o is not None:
+        if isinstance(error, (o.APIConnectionError, o.InternalServerError)):
+            return True
+        if isinstance(error, o.APIError) and _provider_status_code(error) in (500, 502, 503, 504, 529):
+            return True
+    return False
+
+
+def check_llm_connectivity(timeout: float = 5.0) -> bool:
+    """Availability probe for the offline queue re-drive (#482).
+
+    OpenRouter and OpenAI-compatible providers reuse the startup verification
+    (an endpoint /models probe). Anthropic gets a real network probe here:
+    verify_llm_connection only checks key presence for it, which would report
+    "reachable" during a genuine outage and thrash the re-drive loop. Any HTTP
+    response below 500 proves the endpoint is up. On success the LLM circuit
+    breaker resets so re-queued episodes are not immediately rejected by a
+    breaker that opened while the service was down.
+    """
+    try:
+        if get_effective_provider() == PROVIDER_ANTHROPIC:
+            api_key = get_api_key()
+            if not api_key:
+                return False
+            response = requests.get(
+                'https://api.anthropic.com/v1/models',
+                headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01'},
+                timeout=timeout,
+            )
+            reachable = response.status_code < 500
+        else:
+            reachable = verify_llm_connection()
+    except Exception as e:
+        logger.debug(f"LLM connectivity probe failed: {e}")
+        return False
+    if reachable:
+        _llm_circuit_breaker.reset()
+    return reachable
 
 
 def is_llm_api_error(error: Exception) -> bool:

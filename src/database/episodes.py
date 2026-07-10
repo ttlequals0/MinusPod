@@ -214,7 +214,8 @@ class EpisodeMixin:
                                'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
                                'error_message', 'ad_detection_status', 'artwork_url',
                                'reprocess_mode', 'reprocess_requested_at', 'retry_count',
-                               'published_at', 'episode_number'):
+                               'published_at', 'episode_number',
+                               'deferred_at', 'deferred_service'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -239,8 +240,8 @@ class EpisodeMixin:
                     processed_file, processed_at, original_duration,
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
                     error_message, ad_detection_status, artwork_url, episode_number,
-                    retry_count, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    retry_count, published_at, deferred_at, deferred_service)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -260,7 +261,9 @@ class EpisodeMixin:
                     kwargs.get('artwork_url'),
                     kwargs.get('episode_number'),
                     kwargs.get('retry_count', 0),
-                    kwargs.get('published_at')
+                    kwargs.get('published_at'),
+                    kwargs.get('deferred_at'),
+                    kwargs.get('deferred_service')
                 )
             )
             db_id = cursor.lastrowid
@@ -952,6 +955,7 @@ class EpisodeMixin:
             f"""UPDATE episodes SET
                 status = 'pending', retry_count = 0, error_message = NULL,
                 reprocess_mode = ?, reprocess_requested_at = ?,
+                deferred_at = NULL, deferred_service = NULL,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
             params

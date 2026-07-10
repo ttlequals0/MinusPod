@@ -222,6 +222,7 @@ def get_queue_status():
         'processing': queue_stats.get('processing', 0),
         'completed': queue_stats.get('completed', 0),
         'failed': queue_stats.get('failed', 0),
+        'deferred': db.count_deferred_episodes(),
         'total': queue_stats.get('total', 0)
     })
 

@@ -5,6 +5,7 @@ import { feedDisplayTitle } from '../utils/feedTitle';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
+import FeedStatusSummary from './FeedStatusSummary';
 
 interface FeedCardProps {
   feed: Feed;
@@ -41,6 +42,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
               Updated {new Date(feed.lastRefreshed).toLocaleDateString()}
             </p>
           )}
+          <FeedStatusSummary counts={feed.statusCounts} className="mt-2" />
         </div>
       </div>
       <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">

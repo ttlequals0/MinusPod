@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
 from database.episodes import normalize_published_at
+from utils.http import safe_url_for_log
 from utils.time import utc_now_iso
 
 from slugify import slugify
@@ -75,7 +76,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # Track feed refresh in status service
         status_service.start_feed_refresh(slug, podcast_name)
 
-        refresh_logger.debug(f"[{slug}] Starting RSS refresh from: {feed_url}")
+        # INFO so the pulled URL is visible in default logs for troubleshooting
+        # upstream fetch failures (#484). Query string is deliberately dropped:
+        # private-feed tokens live there.
+        refresh_logger.info(
+            f"[{slug}] Starting RSS refresh from: {safe_url_for_log(feed_url, keep_path=True)}")
 
         # Fetch original RSS with conditional GET (ETag/Last-Modified)
         # Skip conditional GET if force=True (cache was deleted, need full content)

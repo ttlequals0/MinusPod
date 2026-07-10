@@ -22,6 +22,9 @@ class EpisodeStatus(str, Enum):
     PROCESSED = "processed"
     FAILED = "failed"
     PERMANENTLY_FAILED = "permanently_failed"
+    # Offline queue (#482): waiting for the LLM/Whisper endpoint to be
+    # reachable again. Re-driven or TTL-expired by offline_queue_tick.
+    DEFERRED = "deferred"
     COMPLETED = "completed"
 
 

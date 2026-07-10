@@ -19,8 +19,12 @@ from api import (
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
+# Module import (not `from rss_parser import RSSParser`) so tests patching
+# rss_parser.RSSParser take effect at call time.
+import rss_parser
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
+from database.podcasts import EPISODE_STATUSES
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
@@ -75,6 +79,55 @@ def _normalize_title_override(value):
     if len(val) > _TITLE_OVERRIDE_MAX:
         return None, f"titleOverride must be {_TITLE_OVERRIDE_MAX} characters or fewer"
     return val, None
+
+
+def _fetch_feed_content(url, timeout=30):
+    """Fetch a feed body with one retry, shared by add_feed and the sourceUrl
+    PATCH. Some hosts (e.g. Buzzsprout) 403 the first fetch from a new client
+    but serve the retry; the circuit breaker inside fetch_feed still gates
+    genuinely broken feeds. Returns (parser, content-or-None).
+    """
+    parser = rss_parser.RSSParser()
+    content = None
+    for attempt in (1, 2):
+        content = parser.fetch_feed(url, timeout=timeout)
+        if content:
+            break
+        if attempt == 1:
+            time.sleep(0.5)
+    return parser, content
+
+
+def _validate_source_url(value):
+    """Validate a replacement source feed URL (#484).
+
+    Returns (url, error). Fetches and parses the URL before accepting it so a
+    typo cannot silently break the feed. The column is NOT NULL, so there is
+    no clear semantic: null/empty is rejected.
+    """
+    if not isinstance(value, str):
+        return None, 'sourceUrl must be a non-empty string'
+    url = value.strip()
+    if not url:
+        return None, 'sourceUrl must be a non-empty string'
+    try:
+        validate_url(url)
+    except SSRFError as e:
+        logger.warning(f"SSRF blocked in update_feed: {e} (url={url})")
+        return None, f'Invalid feed URL: {e}'
+    # 15s per attempt so a slow host cannot hang the PATCH toward the worker
+    # timeout; the shared retry keeps 403-on-first-fetch hosts working here
+    # the same way they do in add_feed.
+    parser, content = _fetch_feed_content(url, timeout=15)
+    if not content:
+        return None, 'Could not fetch a valid RSS feed from this URL'
+    parsed = parser.parse_feed(content)
+    # parse_feed returns a feedparser object even for bozo input; requiring a
+    # channel title or entries is what rejects HTML pages while still
+    # accepting a legitimate zero-episode feed.
+    if not (parsed and parsed.feed and (parsed.feed.get('title') or parsed.entries)):
+        return None, 'URL did not return a parseable RSS feed'
+    return url, None
 
 
 def _normalize_detection_mode(value):
@@ -155,6 +208,20 @@ def _cue_override_fields(podcast) -> dict:
     }
 
 
+def _status_counts(podcast) -> dict:
+    """Per-status episode counts of a feed response (#466).
+
+    Keys deliberately match the frontend EPISODE_STATUS_COLORS keys: the DB
+    status 'processed' is exposed under its API alias 'completed' (the same
+    mapping api/episodes.py applies to episode responses) and comes from the
+    pre-existing processed_count aggregate. LEFT JOIN SUMs are NULL for a
+    feed with no episodes, hence the `or 0`.
+    """
+    counts = {s: podcast.get(f'status_{s}') or 0 for s in EPISODE_STATUSES}
+    counts['completed'] = podcast.get('processed_count') or 0
+    return counts
+
+
 def _slug_from_url_path(source_url: str) -> Optional[str]:
     # Final-resort slug derivation when neither an upstream OPML title nor
     # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
@@ -206,6 +273,7 @@ def list_feeds():
             'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
             'episodeCount': podcast.get('episode_count', 0),
             'processedCount': podcast.get('processed_count', 0),
+            'statusCounts': _status_counts(podcast),
             'lastRefreshed': podcast.get('last_checked_at'),
             'createdAt': podcast.get('created_at'),
             'lastEpisodeDate': podcast.get('last_episode_date'),
@@ -247,22 +315,10 @@ def add_feed():
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
     if not slug:
-        from rss_parser import RSSParser
-
-        # Two attempts with a short gap: some hosts (e.g. Buzzsprout) 403 the
-        # first fetch from a new client but serve the retry. Circuit breaker
-        # inside fetch_feed still gates genuinely broken feeds.
-        rss_parser = RSSParser()
-        feed_content = None
-        for attempt in (1, 2):
-            feed_content = rss_parser.fetch_feed(source_url)
-            if feed_content:
-                break
-            if attempt == 1:
-                time.sleep(0.5)
+        parser, feed_content = _fetch_feed_content(source_url)
 
         if feed_content:
-            parsed_feed = rss_parser.parse_feed(feed_content)
+            parsed_feed = parser.parse_feed(feed_content)
             if parsed_feed and parsed_feed.feed:
                 title = parsed_feed.feed.get('title', '')
                 if title:
@@ -563,6 +619,7 @@ def get_feed(slug):
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
+        'statusCounts': _status_counts(podcast),
         'lastRefreshed': podcast.get('last_checked_at'),
         'createdAt': podcast.get('created_at'),
         'networkId': podcast.get('network_id'),
@@ -667,6 +724,18 @@ def update_feed(slug):
         updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
             data['onlyExposeProcessedEpisodes'])
 
+    # Validated last so every cheap field validation can 400 before the
+    # network fetch inside _validate_source_url runs. An unchanged URL is a
+    # no-op: skipping it avoids the validation fetch, the validator clear,
+    # and the forced refresh for retried or blind-PUT-style requests.
+    if 'sourceUrl' in data and not (
+            isinstance(data['sourceUrl'], str)
+            and data['sourceUrl'].strip() == podcast['source_url']):
+        new_url, url_err = _validate_source_url(data['sourceUrl'])
+        if url_err:
+            return error_response(url_err, 400)
+        updates['source_url'] = new_url
+
     if not updates:
         return error_response('No valid fields to update', 400)
 
@@ -686,8 +755,12 @@ def update_feed(slug):
         # below throws, the next scheduled refresh cannot 304 and will fully
         # regenerate the feed with the new settings applied. title_override
         # rewrites the served channel <title> (#375), so it belongs here too.
+        # source_url repoints the feed entirely (#484): the stored validators
+        # belong to the old host and could false-304 against the new one, and
+        # the immediate refresh pulls from the new URL (podcast was re-read
+        # above, so it carries the new value).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
-                or 'title_override' in updates):
+                or 'title_override' in updates or 'source_url' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
@@ -698,6 +771,7 @@ def update_feed(slug):
         return json_response({
             'slug': podcast['slug'],
             'title': podcast['title'] or podcast['slug'],
+            'sourceUrl': podcast['source_url'],
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
@@ -707,6 +781,7 @@ def update_feed(slug):
             **_cue_override_fields(podcast),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
+            'statusCounts': _status_counts(podcast),
             'feedUrl': _public_feed_url(slug, get_feed_auth_key(db))
         })
     except Exception:

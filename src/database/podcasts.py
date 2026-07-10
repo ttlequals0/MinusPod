@@ -3,7 +3,24 @@ import json
 import logging
 from typing import Optional, Dict, List
 
+from utils.constants import EpisodeStatus
+
 logger = logging.getLogger(__name__)
+
+
+# Per-status episode counts folded into the existing LEFT JOIN aggregation so
+# feed listings surface them without extra queries (#466). Derived from the
+# enum so a new status cannot be silently dropped. COMPLETED is the API alias
+# (not a DB value) and PROCESSED already aggregates as processed_count, so
+# both are excluded from the extra SUMs.
+EPISODE_STATUSES = tuple(
+    s.value for s in EpisodeStatus
+    if s not in (EpisodeStatus.COMPLETED, EpisodeStatus.PROCESSED)
+)
+_STATUS_COUNT_SELECT = ',\n'.join(
+    f"SUM(CASE WHEN e.status = '{s}' THEN 1 ELSE 0 END) as status_{s}"
+    for s in EPISODE_STATUSES
+)
 
 
 class PodcastMixin:
@@ -12,11 +29,12 @@ class PodcastMixin:
     def get_all_podcasts(self) -> List[Dict]:
         """Get all podcasts with episode counts."""
         conn = self.get_connection()
-        cursor = conn.execute("""
+        cursor = conn.execute(f"""
             SELECT p.*,
                    COUNT(e.id) as episode_count,
                    SUM(CASE WHEN e.status = 'processed' THEN 1 ELSE 0 END) as processed_count,
-                   MAX(e.created_at) as last_episode_date
+                   MAX(e.created_at) as last_episode_date,
+                   {_STATUS_COUNT_SELECT}
             FROM podcasts p
             LEFT JOIN episodes e ON p.id = e.podcast_id
             GROUP BY p.id
@@ -43,11 +61,12 @@ class PodcastMixin:
     def get_podcast_by_slug(self, slug: str) -> Optional[Dict]:
         """Get podcast by slug with episode counts."""
         conn = self.get_connection()
-        cursor = conn.execute("""
+        cursor = conn.execute(f"""
             SELECT p.*,
                    COUNT(e.id) as episode_count,
                    SUM(CASE WHEN e.status = 'processed' THEN 1 ELSE 0 END) as processed_count,
-                   MAX(e.created_at) as last_episode_date
+                   MAX(e.created_at) as last_episode_date,
+                   {_STATUS_COUNT_SELECT}
             FROM podcasts p
             LEFT JOIN episodes e ON p.id = e.podcast_id
             WHERE p.slug = ?

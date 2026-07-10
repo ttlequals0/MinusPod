@@ -49,11 +49,14 @@ from llm_capabilities import (
     clear_fallback,
 )
 from llm_client import is_retryable_error, is_llm_api_error, is_rate_limit_error, start_episode_token_tracking, get_episode_token_totals
+from offline_queue import is_offline_queue_enabled
+from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_relative_path
+from utils.errors import ServiceUnavailableError
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
@@ -98,6 +101,11 @@ def is_transient_error(error: Exception) -> bool:
     then applies episode-processing-specific checks for network, OOM, CDN, and
     audio format errors.
     """
+    # Endpoint-unreachable errors are transient by definition; with the
+    # offline queue (#482) disabled this keeps today's retry behavior.
+    if isinstance(error, ServiceUnavailableError):
+        return True
+
     # Network/connection errors are transient
     if isinstance(error, (
         requests.exceptions.Timeout,
@@ -537,6 +545,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         error_msg = ad_result.get('error', 'Unknown error')
         audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
         db.upsert_episode(slug, episode_id, ad_detection_status='failed')
+        if ad_result.get('connectivity'):
+            # Endpoint unreachable rather than a bad response: typed so the
+            # offline queue (#482) can defer instead of failing the episode.
+            raise ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
         raise Exception(f"Ad detection failed: {error_msg}")
 
     db.upsert_episode(slug, episode_id, ad_detection_status='success')
@@ -1763,7 +1775,9 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         ads_removed_firstpass=first_pass_count,
         ads_removed_secondpass=verification_count,
         reprocess_mode=None,
-        reprocess_requested_at=None)
+        reprocess_requested_at=None,
+        deferred_at=None,
+        deferred_service=None)
 
     try:
         removed = storage.cleanup_stale_audio_versions(
@@ -2212,6 +2226,32 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up GPU memory: {cleanup_err}")
 
     status_service.fail_job()
+
+    # Offline queue (#482): endpoint-down failures defer instead of failing.
+    # Only typed exceptions qualify -- never string matching -- so genuine
+    # errors keep today's retry/permanent path. retry_count is untouched so a
+    # deferred episode cannot drift toward permanently_failed while the
+    # service is down. No history row or webhook: nothing "failed" yet.
+    if (isinstance(error, (ServiceUnavailableError, CircuitBreakerOpen))
+            and is_offline_queue_enabled(db)):
+        service = getattr(error, 'service', 'llm')
+        # deferred_at marks when the episode FIRST entered the offline queue
+        # and survives re-drive cycles, so the TTL bounds total time in the
+        # deferred lifecycle. Stamping fresh on every re-deferral would let a
+        # flapping endpoint (probe up, calls failing) reset the clock forever.
+        first_deferred_at = (episode_data or {}).get('deferred_at') or utc_now_iso()
+        db.upsert_episode(
+            slug, episode_id,
+            status=EpisodeStatus.DEFERRED.value,
+            error_message=f"Deferred ({service} endpoint unreachable): {error}",
+            deferred_at=first_deferred_at,
+            deferred_service=service,
+        )
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Offline queue: deferred until the "
+            f"{service} endpoint is reachable again"
+        )
+        return
 
     transient = is_transient_error(error)
     current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0

@@ -6,6 +6,7 @@ import { feedDisplayTitle } from '../utils/feedTitle';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
+import FeedStatusSummary from './FeedStatusSummary';
 
 interface FeedListItemProps {
   feed: Feed;
@@ -41,6 +42,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
             </span>
           )}
         </p>
+        <FeedStatusSummary counts={feed.statusCounts} className="mt-1" />
       </div>
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />

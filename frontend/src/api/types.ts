@@ -1,6 +1,24 @@
 import type { DetectionStage } from '../utils/detectionStage';
 import type { CorroborationSource } from '../utils/corroboration';
 
+// Per-feed episode status counts (#466). Keys use the API status aliases
+// (DB 'processed' arrives as 'completed'); 'deferred' is the offline queue.
+// Single frontend source of truth for the status set: the key type and the
+// display-order array both derive from it.
+export const EPISODE_STATUS_KEYS = [
+  'discovered',
+  'pending',
+  'processing',
+  'completed',
+  'failed',
+  'permanently_failed',
+  'deferred',
+] as const;
+
+export type EpisodeStatusKey = typeof EPISODE_STATUS_KEYS[number];
+
+export type EpisodeStatusCounts = Record<EpisodeStatusKey, number>;
+
 export interface Feed {
   slug: string;
   title: string;
@@ -10,6 +28,7 @@ export interface Feed {
   artworkUrl?: string;
   episodeCount: number;
   processedCount?: number;
+  statusCounts?: EpisodeStatusCounts;
   lastRefreshed?: string;
   createdAt?: string;
   lastEpisodeDate?: string;
@@ -64,7 +83,7 @@ export interface Episode {
   description?: string;
   published: string;
   duration?: number;
-  status: 'discovered' | 'pending' | 'processing' | 'completed' | 'failed' | 'permanently_failed';
+  status: EpisodeStatusKey;
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;

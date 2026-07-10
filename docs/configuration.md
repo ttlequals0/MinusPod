@@ -197,6 +197,19 @@ You retain everything locally. Submission is a copy, not a move.
 
 See [`patterns/README.md`](../patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](../patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
+## Offline Queue
+
+If your LLM or Whisper server only runs part of the day (a desktop PC that hosts Ollama, for example), episodes that arrive while it is off normally retry a few times, trip the circuit breaker, and end up permanently failed until you reprocess them by hand. The offline queue changes that: an episode that fails because the endpoint is unreachable is parked with a "queued (offline)" status instead. Every few minutes MinusPod probes the endpoint, and once it answers again the parked episodes go back into the processing queue on their own.
+
+The feature is off by default. Configure it in **Settings > Offline Queue**.
+
+| Setting | Default | Notes |
+|---|---|---|
+| Enabled | off | Park episodes when the LLM or Whisper endpoint is unreachable. |
+| Give up after | 48 hours | Episodes still waiting after this long are marked failed and logged. Range 1-720 hours. |
+
+Only connection-level failures qualify: connection refused, DNS errors, timeouts, and repeated 5xx responses. Auth errors, rate limits, and bad responses still fail normally, so a wrong API key does not sit in the queue looking healthy. Turning the toggle off stops new episodes from being parked, but anything already waiting keeps being probed and expired so nothing is stranded. You can also reprocess a parked episode by hand at any time.
+
 ## Scheduled Database Backups
 
 MinusPod can snapshot its SQLite database to a directory on a cron schedule. The feature is off by default. The "Back up now" button runs a snapshot immediately whether or not the schedule is enabled, and is rate-limited to 6 runs per hour. Configure it in **Settings > Data & Security > Scheduled Backups**.

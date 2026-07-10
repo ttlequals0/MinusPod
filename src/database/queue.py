@@ -1,7 +1,7 @@
 """Auto-process queue mixin for MinusPod database."""
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Tuple
+from typing import List, Optional, Dict, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -348,3 +348,119 @@ class QueueMixin:
         for row in reset_items:
             logger.info(f"Reset failed queue item for retry: id={row['id']}, episode_id={row['episode_id']}")
         return len(reset_items)
+
+    # -- Offline queue (#482): deferred-episode lifecycle --
+
+    def get_deferred_episodes(self) -> List[Dict]:
+        """All episodes waiting in the offline queue, oldest deferral first."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.*, p.slug AS podcast_slug, p.title AS podcast_title
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.status = 'deferred'
+               ORDER BY e.deferred_at ASC"""
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def count_deferred_episodes(self) -> int:
+        """Number of episodes waiting in the offline queue."""
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM episodes WHERE status = 'deferred'"
+        ).fetchone()
+        return row['n'] if row else 0
+
+    def expire_deferred_episodes(self, ttl_hours: int) -> List[Dict]:
+        """Fail offline-queue episodes whose TTL has run out.
+
+        Marked permanently_failed (a plain 'failed' would be resurrected by
+        the reset_failed_queue_items retry ladder) with an explicit TTL
+        message; the matching auto_process_queue row is closed the same way.
+        Returns the expired rows so the caller can fire failure webhooks.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT e.id, e.podcast_id, e.episode_id, e.title, e.error_message,
+                      p.slug AS podcast_slug, p.title AS podcast_title
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.status = 'deferred'
+                 AND datetime(e.deferred_at) < datetime('now', '-' || ? || ' hours')""",
+            (ttl_hours,)
+        ).fetchall()
+        expired = []
+        for row in rows:
+            row = dict(row)
+            message = (f"Offline queue TTL expired after {ttl_hours} hours: "
+                       f"{row['error_message'] or 'service unreachable'}")
+            row['error_message'] = message
+            cursor = conn.execute(
+                """UPDATE episodes
+                   SET status = 'permanently_failed',
+                       error_message = ?,
+                       deferred_at = NULL,
+                       deferred_service = NULL,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ? AND status = 'deferred'""",
+                (message, row['id'])
+            )
+            if cursor.rowcount != 1:
+                # Lost a race with a concurrent user action (e.g. a manual
+                # reprocess flipped it to pending between the SELECT and this
+                # UPDATE); its fresh queue row must not be failed either.
+                continue
+            conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'failed',
+                       error_message = ?,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE podcast_id = ? AND episode_id = ?
+                     AND status != 'completed'""",
+                (message, row['podcast_id'], row['episode_id'])
+            )
+            logger.warning(
+                "Offline queue TTL expired for %s:%s after %dh; marking permanently_failed",
+                row['podcast_slug'], row['episode_id'], ttl_hours,
+            )
+            expired.append(row)
+        conn.commit()
+        return expired
+
+    def requeue_deferred_episodes(self, services: Set[str]) -> int:
+        """Flip deferred episodes back to pending for reachable services.
+
+        Each episode gets its auto_process_queue row upserted to pending (the
+        background processor's atomic claim drives it from there).
+        deferred_service NULL is treated as 'llm'. deferred_at is deliberately
+        KEPT: it marks the first entry into the offline queue, so the TTL
+        keeps ticking across re-drive cycles (success and TTL expiry clear
+        it). Episodes on auto-process-disabled feeds without a user-initiated
+        reprocess stay deferred -- the claim-time gate would otherwise close
+        their queue row and strand them in 'pending' outside every ladder.
+        """
+        requeued = 0
+        for episode in self.get_deferred_episodes():
+            service = episode.get('deferred_service') or 'llm'
+            if service not in services:
+                continue
+            slug = episode['podcast_slug']
+            if not (episode.get('reprocess_requested_at')
+                    or self.is_auto_process_enabled_for_podcast(slug)):
+                continue
+            self.upsert_episode_for_processing(
+                slug, episode['episode_id'], episode['original_url'],
+                title=episode.get('title'),
+                published_at=episode.get('published_at'),
+                description=episode.get('description'),
+            )
+            self.upsert_episode(
+                slug, episode['episode_id'],
+                status='pending', error_message=None,
+            )
+            logger.info(
+                "Offline queue: %s reachable again, re-queued %s:%s",
+                service, slug, episode['episode_id'],
+            )
+            requeued += 1
+        return requeued

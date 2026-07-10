@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.40.0
+  version: 2.41.0
   contact:
     name: MinusPod
   license:
@@ -485,7 +485,7 @@ paths:
       tags:
         - Feeds
       summary: Update feed settings
-      description: Update podcast feed settings like network override, DAI platform, and processing overrides
+      description: Update podcast feed settings like network override, DAI platform, processing overrides, and the source RSS URL
       operationId: updateFeed
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -496,6 +496,17 @@ paths:
             schema:
               type: object
               properties:
+                sourceUrl:
+                  type: string
+                  format: uri
+                  description: >-
+                    Replacement source RSS URL for this feed. The server
+                    fetches and parses the URL before persisting; a URL that
+                    does not return a parseable RSS feed is rejected with 400
+                    and nothing is saved. On success the stored
+                    ETag/Last-Modified validators are cleared and an immediate
+                    forced refresh runs. Existing episodes are kept (matched
+                    by GUID). Cannot be null or empty.
                 networkIdOverride:
                   type:
                     - string
@@ -842,7 +853,7 @@ paths:
           description: Filter by episode status
           schema:
             type: string
-            enum: [all, discovered, pending, processing, processed, failed, permanently_failed]
+            enum: [all, discovered, pending, processing, processed, failed, permanently_failed, deferred]
             default: all
         - name: limit
           in: query
@@ -4080,6 +4091,70 @@ paths:
                   enabled:
                     type: boolean
 
+  /settings/offline-queue:
+    get:
+      tags:
+        - Settings
+      summary: Get offline queue configuration
+      description: >-
+        Offline queue for LLM/Whisper outages. When enabled, an episode that
+        fails because the LLM provider or Whisper API endpoint is unreachable
+        is deferred instead of failed, then processed automatically once the
+        service is reachable again.
+      operationId: getOfflineQueueSettings
+      responses:
+        '200':
+          description: Offline queue settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                    minimum: 1
+                    maximum: 720
+                    description: Hours a deferred episode waits before being marked permanently failed.
+                  deferredCount:
+                    type: integer
+                    description: Episodes currently waiting in the offline queue.
+    put:
+      tags:
+        - Settings
+      summary: Update offline queue configuration
+      operationId: updateOfflineQueueSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: Defer episodes when the LLM or Whisper endpoint is unreachable. Off by default.
+                ttlHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+                  description: Hours a deferred episode waits before being marked permanently failed. Expired episodes are logged and removed from the queue.
+      responses:
+        '200':
+          description: Offline queue settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  ttlHours:
+                    type: integer
+                  deferredCount:
+                    type: integer
+
   /settings/audio:
     get:
       tags:
@@ -4472,6 +4547,9 @@ paths:
                   failed:
                     type: integer
                     description: Episodes that failed processing
+                  deferred:
+                    type: integer
+                    description: Episodes waiting in the offline queue for the LLM or Whisper endpoint to come back
                   total:
                     type: integer
                     description: Total episodes in queue
@@ -6391,6 +6469,28 @@ components:
         processedCount:
           type: integer
           description: Number of processed episodes
+        statusCounts:
+          type: object
+          description: >-
+            Per-status episode counts for this feed. The database status
+            'processed' is exposed under its API alias 'completed', matching
+            episode responses. 'deferred' counts episodes waiting in the
+            offline queue for the LLM or Whisper endpoint to come back.
+          properties:
+            discovered:
+              type: integer
+            pending:
+              type: integer
+            processing:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+            permanently_failed:
+              type: integer
+            deferred:
+              type: integer
         lastRefreshed:
           type:
             - string
@@ -6530,7 +6630,7 @@ components:
           type: string
         status:
           type: string
-          enum: [discovered, pending, processing, completed, failed, permanently_failed]
+          enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
         createdAt:
           type: string
           format: date-time

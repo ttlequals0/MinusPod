@@ -32,6 +32,10 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
 )
 from audio_processor import NORMALIZE_PRESETS
+from offline_queue import (
+    get_offline_queue_ttl_hours, is_offline_queue_enabled,
+    TTL_HOURS_MIN, TTL_HOURS_MAX,
+)
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
@@ -1644,6 +1648,57 @@ def update_retention_settings():
         'originalRetentionDays': original_days,
         'enabled': days > 0,
     })
+
+
+def _offline_queue_view(db) -> dict:
+    """Offline queue settings payload shared by GET and PUT (#482)."""
+    return {
+        'enabled': is_offline_queue_enabled(db),
+        'ttlHours': get_offline_queue_ttl_hours(db),
+        'deferredCount': db.count_deferred_episodes(),
+    }
+
+
+@api.route('/settings/offline-queue', methods=['GET'])
+@log_request
+def get_offline_queue_settings():
+    """Get offline queue configuration (#482)."""
+    return json_response(_offline_queue_view(get_database()))
+
+
+@api.route('/settings/offline-queue', methods=['PUT'])
+@log_request
+def update_offline_queue_settings():
+    """Update offline queue configuration (#482).
+
+    When enabled, episodes that fail because the LLM provider or Whisper
+    endpoint is unreachable wait in a queue and process automatically once
+    the service is back. ttlHours bounds how long they wait before being
+    marked permanently failed.
+    """
+    data = request.get_json()
+    if not isinstance(data, dict) or not data:
+        return error_response('No data provided', 400)
+
+    db = get_database()
+
+    if 'enabled' in data:
+        if not isinstance(data['enabled'], bool):
+            return error_response('enabled must be a boolean', 400)
+        db.set_setting('offline_queue_enabled',
+                       'true' if data['enabled'] else 'false', is_default=False)
+        logger.info(f"Updated offline_queue_enabled to {data['enabled']}")
+
+    if 'ttlHours' in data:
+        ttl = data['ttlHours']
+        if not isinstance(ttl, int) or isinstance(ttl, bool) \
+                or ttl < TTL_HOURS_MIN or ttl > TTL_HOURS_MAX:
+            return error_response(
+                f'ttlHours must be an integer between {TTL_HOURS_MIN} and {TTL_HOURS_MAX}', 400)
+        db.set_setting('offline_queue_ttl_hours', str(ttl), is_default=False)
+        logger.info(f"Updated offline_queue_ttl_hours to {ttl}")
+
+    return json_response(_offline_queue_view(db))
 
 
 @api.route('/settings/audio', methods=['GET'])

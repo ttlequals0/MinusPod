@@ -17,3 +17,17 @@ export function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString();
 }
+
+// Compact stats duration: `Ns` under a minute, `N.Nm` under an hour, else
+// `N.Nh`. Distinct from formatTimestamp (clock-style) and
+// settingsUtils.formatDuration (episode lengths).
+export function formatStatsDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`;
+  return `${(seconds / 3600).toFixed(1)}h`;
+}
+
+// LLM cost with sub-cent precision.
+export function formatCost(cost: number): string {
+  return `$${cost.toFixed(4)}`;
+}

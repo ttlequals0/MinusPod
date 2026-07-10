@@ -384,6 +384,9 @@ class SchemaMixin:
             ('episode_number', 'INTEGER'),
             # Phase C: held-for-review denormalized count (no JSON parse in list views)
             ('pending_review_count', 'INTEGER NOT NULL DEFAULT 0'),
+            # Offline queue (#482)
+            ('deferred_at', 'TEXT'),
+            ('deferred_service', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -748,6 +751,95 @@ class SchemaMixin:
                 logger.info("Migration: Successfully updated episodes table CHECK constraint for discovered status")
         except Exception as e:
             logger.error(f"Migration failed for episodes discovered CHECK constraint: {e}")
+            raise
+
+        # Migration: Update episodes status CHECK constraint to include
+        # 'deferred' (offline queue, #482). Same table-rebuild pattern as the
+        # 'discovered' block above; the guard matches the quoted CHECK literal
+        # so the deferred_at/deferred_service COLUMNS (added by
+        # episodes_migrations earlier) don't satisfy it. episodes_new mirrors
+        # the live column set at this point: the 'discovered' rebuild set plus
+        # every later episodes_migrations addition, so the common-column copy
+        # drops nothing.
+        try:
+            cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
+            create_sql = cursor.fetchone()
+            if create_sql and "'deferred'" not in create_sql[0]:
+                logger.info("Migration: Updating episodes table CHECK constraint for deferred status...")
+
+                cursor = conn.execute("PRAGMA table_info(episodes)")
+                old_columns = [row['name'] for row in cursor.fetchall()]
+
+                # Idempotent re-entry: clear any orphan _new from an interrupted run.
+                conn.execute("DROP TABLE IF EXISTS episodes_new")
+                conn.execute("""
+                    CREATE TABLE episodes_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        podcast_id INTEGER NOT NULL,
+                        episode_id TEXT NOT NULL,
+                        original_url TEXT NOT NULL,
+                        title TEXT,
+                        description TEXT,
+                        status TEXT DEFAULT 'pending' CHECK(status IN ('discovered','pending','processing','processed','failed','permanently_failed','deferred')),
+                        retry_count INTEGER DEFAULT 0,
+                        processed_file TEXT,
+                        original_file TEXT,
+                        processed_at TEXT,
+                        processed_version INTEGER DEFAULT 0,
+                        original_duration REAL,
+                        new_duration REAL,
+                        ads_removed INTEGER DEFAULT 0,
+                        ads_removed_firstpass INTEGER DEFAULT 0,
+                        ads_removed_secondpass INTEGER DEFAULT 0,
+                        pending_review_count INTEGER NOT NULL DEFAULT 0,
+                        error_message TEXT,
+                        deferred_at TEXT,
+                        deferred_service TEXT,
+                        ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
+                        artwork_url TEXT,
+                        episode_number INTEGER,
+                        tags TEXT NOT NULL DEFAULT '[]',
+                        reprocess_mode TEXT,
+                        reprocess_requested_at TEXT,
+                        published_at TEXT,
+                        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
+                        UNIQUE(podcast_id, episode_id)
+                    )
+                """)
+
+                cursor = conn.execute("PRAGMA table_info(episodes_new)")
+                new_columns = [row['name'] for row in cursor.fetchall()]
+                common_columns = [c for c in old_columns if c in new_columns]
+                columns_str = ', '.join(common_columns)
+
+                # Disable FK to prevent CASCADE deleting episode_details during DROP
+                conn.execute("PRAGMA foreign_keys = OFF")
+
+                conn.execute(f"""
+                    INSERT INTO episodes_new ({columns_str})
+                    SELECT {columns_str} FROM episodes
+                """)
+
+                conn.execute("DROP TABLE episodes")
+                conn.execute("ALTER TABLE episodes_new RENAME TO episodes")
+
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at)")
+
+                conn.commit()
+
+                # Re-enable FK enforcement
+                conn.execute("PRAGMA foreign_keys = ON")
+                logger.info("Migration: Successfully updated episodes table CHECK constraint for deferred status")
+        except Exception as e:
+            logger.error(f"Migration failed for episodes deferred CHECK constraint: {e}")
             raise
 
         # Migration: Create auto_process_queue table if not exists
@@ -3109,6 +3201,20 @@ class SchemaMixin:
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
             ('keep_original_audio', 'true')
+        )
+
+        # Offline queue (#482): defer episodes when the LLM/Whisper endpoint is
+        # unreachable. Off by default; TTL is how long deferred episodes wait
+        # before being marked permanently failed.
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('offline_queue_enabled', 'false')
+        )
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('offline_queue_ttl_hours', '48')
         )
 
         # Processing timeouts (soft = auto-clear stuck jobs; hard = force-release).

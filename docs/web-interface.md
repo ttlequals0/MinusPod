@@ -11,9 +11,12 @@ The server includes a web-based management UI at `/ui/`:
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap
 - Feed management: refresh, delete, copy URLs, editable display title, set network override, per-feed episode cap, per-feed transcription language override, per-feed cue match threshold and cue tuning overrides, silence-snap and transition-snap toggles (see [Audio Cue Detection](audio-cues.md))
+- Source feed URL shown in Feed Settings with a copy button, and editable for when a publisher moves feeds or a CDN-wrapped URL keeps failing. The server fetches and parses the new URL before saving, so a typo cannot break the feed; existing episodes are kept (matched by GUID). The refresh log also prints which URL each feed pulls from
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
-- Feed detail page groups its controls into collapsible sections (feed settings, tags, ad distribution) so the page stays scannable
+- Feed detail page groups its controls into collapsible sections (feed settings with tags, ad distribution) so the page stays scannable
+- Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus totals for episodes processed, ads removed, time saved, and LLM cost
+- Dashboard feeds show compact per-status counts (for example "10 Disc / 2 Pend / 4 Comp") so feed health is visible without clicking in
 - Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, or delete (the per-episode Recut Audio mode is not a bulk action)
@@ -24,6 +27,7 @@ The server includes a web-based management UI at `/ui/`:
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
 - Scheduled database backups (Settings > Data & Security): cron schedule, destination, keep count, and a Back up now button that works even with the schedule off
+- Offline queue (Settings): optionally hold episodes while a self-hosted LLM or Whisper endpoint is down and process them automatically when it returns, with a configurable give-up window
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button

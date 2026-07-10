@@ -9,6 +9,7 @@ import { getCueAggregateStats } from '../api/cueDetections';
 import { getFeeds } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
+import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useThemeColors } from '../hooks/useThemeColors';
 
@@ -54,16 +55,6 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
       <p className="text-lg font-semibold text-foreground">{value}</p>
     </div>
   );
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`;
-  return `${(seconds / 3600).toFixed(1)}h`;
-}
-
-function formatCost(cost: number): string {
-  return `$${cost.toFixed(4)}`;
 }
 
 function generateChartColors(primary: string, count: number): string[] {

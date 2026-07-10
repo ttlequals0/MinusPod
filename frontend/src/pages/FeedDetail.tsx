@@ -12,9 +12,9 @@ import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
+import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
@@ -181,7 +181,7 @@ function FeedDetail() {
   const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
   const discoveredCount = selectedEpisodes.filter(ep => ep.status === 'discovered').length;
   const processedCount = selectedEpisodes.filter(ep =>
-    ['completed', 'failed', 'permanently_failed'].includes(ep.status)
+    ['completed', 'failed', 'permanently_failed', 'deferred'].includes(ep.status)
   ).length;
   const hasSelection = selectedIds.size > 0;
 
@@ -371,9 +371,9 @@ function FeedDetail() {
         </div>
       </div>
 
-      {slug && <FeedSettingsPanel feed={feed} slug={slug} />}
+      {slug && <FeedStatsCards feed={feed} slug={slug} />}
 
-      {slug && <FeedTagsEditor slug={slug} />}
+      {slug && <FeedSettingsPanel feed={feed} slug={slug} />}
 
       {slug && <PodcastAdDistributionPanel slug={slug} />}
 
@@ -397,6 +397,7 @@ function FeedDetail() {
             <option value="processed">Completed</option>
             <option value="failed">Failed</option>
             <option value="permanently_failed">Permanently Failed</option>
+            <option value="deferred">Queued (offline)</option>
           </select>
           <select
             value={`${sortBy}:${sortDir}`}

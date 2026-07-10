@@ -88,6 +88,7 @@ def background_queue_processor():
     Uses shutdown_event for graceful shutdown support.
     """
     from main_app.processing import start_background_processing
+    from offline_queue import offline_queue_tick
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
@@ -104,6 +105,10 @@ def background_queue_processor():
                 retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
                 if retry_count > 0:
                     refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
+
+                # Offline queue (#482): expire deferred episodes past their
+                # TTL and re-queue the rest once their service is reachable.
+                _run_tick(offline_queue_tick, 'offline_queue_tick')
 
             # Atomically claim the next queued episode (marks it 'processing').
             queued = db.claim_next_queued_episode()
@@ -153,7 +158,7 @@ def background_queue_processor():
                             shutdown_event.wait(timeout=10)
                             waited += 10
                             episode = db.get_episode(slug, episode_id)
-                            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed'):
+                            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
                                 break
 
                         # Check final status
@@ -166,6 +171,13 @@ def background_queue_processor():
                             # Put back in queue to check again later
                             db.update_queue_status(queue_id, 'pending')
                             refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {max_wait}s, will check again later")
+                        elif episode and episode['status'] == 'deferred':
+                            # Offline queue (#482) owns the episode now. Close
+                            # the row so it is not counted as a failure (the
+                            # retry ladder would skip it anyway); the re-drive
+                            # re-opens it as pending once the service is back.
+                            db.update_queue_status(queue_id, 'completed')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
                         else:
                             # Actually failed - get the real error message
                             error_msg = episode.get('error_message') if episode else None
