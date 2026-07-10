@@ -4,6 +4,7 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import CopyButton from '../../components/CopyButton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
@@ -75,6 +76,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
   const [editAutoProcessOverride, setEditAutoProcessOverride] = useState<string>('global');
   const [editMaxEpisodes, setEditMaxEpisodes] = useState<string>('');
+  const [isEditingSourceUrl, setIsEditingSourceUrl] = useState(false);
+  const [editSourceUrl, setEditSourceUrl] = useState('');
+  const [sourceUrlError, setSourceUrlError] = useState<string | null>(null);
 
   const { data: networks } = useQuery({
     queryKey: ['networks'],
@@ -125,6 +129,41 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       setIsEditingNetwork(false);
     },
   });
+
+  // Separate mutation from updateMutation: that one closes the network editor
+  // on success and surfaces no error message, while a rejected source URL
+  // (backend validates by fetching the feed) must stay in edit mode with the
+  // backend's reason shown inline.
+  const sourceUrlMutation = useMutation({
+    mutationFn: (url: string) => updateFeed(slug, { sourceUrl: url }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      setIsEditingSourceUrl(false);
+      setSourceUrlError(null);
+    },
+    onError: (e: Error) => setSourceUrlError(e.message),
+  });
+
+  const startEditingSourceUrl = () => {
+    setEditSourceUrl(feed.sourceUrl);
+    setSourceUrlError(null);
+    setIsEditingSourceUrl(true);
+  };
+
+  const saveSourceUrl = () => {
+    const url = editSourceUrl.trim();
+    if (!url) {
+      setSourceUrlError('Source URL cannot be empty');
+      return;
+    }
+    if (url === feed.sourceUrl) {
+      setIsEditingSourceUrl(false);
+      setSourceUrlError(null);
+      return;
+    }
+    sourceUrlMutation.mutate(url);
+  };
 
   function commitFloat(
     raw: string,
@@ -315,6 +354,69 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </button>
             </div>
           )}
+
+          {/* Source RSS URL (#484): the feed MinusPod pulls from, not the
+              URL subscribers use. Editable with validate-then-refresh. */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
+            {isEditingSourceUrl ? (
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="url"
+                    value={editSourceUrl}
+                    onChange={(e) => setEditSourceUrl(e.target.value)}
+                    placeholder="https://example.com/feed.xml"
+                    className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                  />
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Points this feed at a different source URL. Existing episodes are
+                  kept and matched by GUID; the feed refreshes right after saving.
+                </p>
+                {sourceUrlError && (
+                  <p className="text-xs text-destructive">{sourceUrlError}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveSourceUrl}
+                    disabled={sourceUrlMutation.isPending}
+                    className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setIsEditingSourceUrl(false)}
+                    disabled={sourceUrlMutation.isPending}
+                    className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <code
+                    className="text-xs bg-secondary px-2 py-1 rounded truncate min-w-0"
+                    title={feed.sourceUrl}
+                  >
+                    {feed.sourceUrl}
+                  </code>
+                  <CopyButton text={feed.sourceUrl} label="Copy source URL" labelClassName="sr-only" />
+                  <button
+                    onClick={startEditingSourceUrl}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The original feed MinusPod pulls episodes from -- not the URL you subscribe to.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Auto-Process Control */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
