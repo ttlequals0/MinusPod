@@ -6,6 +6,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.41.0] - 2026-07-10
+
+### Added
+
+- Source RSS URL in Feed Settings (#484): each feed's original source URL is
+  shown with a copy button and can be edited. The server fetches and parses
+  the replacement URL before saving (invalid URLs are rejected and nothing
+  changes), clears the stored ETag/Last-Modified validators, and refreshes
+  the feed immediately. Existing episodes are kept and matched by GUID.
+  `sourceUrl` is accepted by `PATCH /feeds/{slug}` and included in its
+  response. The "Starting RSS refresh from" log line now logs at INFO with
+  the query string scrubbed, so the pulled URL is visible in default logs.
+- Per-feed episode status counts (#466): `GET /feeds` and `GET /feeds/{slug}`
+  return a `statusCounts` object (discovered, pending, processing, completed,
+  failed, permanently_failed, deferred) computed in the existing feed query.
+  The feed detail page shows stat cards above Feed Settings with the
+  per-status counts (colored to match the episode badges) plus totals for
+  episodes processed, ads removed, time saved, and LLM cost. Dashboard feed
+  cards and list rows show compact per-status count pills.
+- Offline queue (#482, off by default): when the LLM provider or Whisper API
+  endpoint is unreachable (connection refused, DNS failure, timeout, or
+  repeated 5xx -- including a tripped circuit breaker), episodes defer with a
+  new `deferred` status instead of failing. A background tick probes the
+  unreachable service about every 5 minutes, resets the LLM circuit breaker
+  when it answers, and re-queues the deferred episodes automatically.
+  Episodes that wait longer than the configured TTL are marked permanently
+  failed with an explicit log line and failure webhook. Configure via
+  `GET/PUT /settings/offline-queue` (enabled, ttlHours 1-720) or the new
+  Offline Queue section on the Settings page, which also shows how many
+  episodes are waiting. Auth errors, rate limits, and bad responses still
+  fail normally. Deferral does not burn retry attempts; deferred episodes can
+  be reprocessed manually at any time; `GET /system/queue` reports the
+  deferred count.
+
+### Changed
+
+- Feed tags moved into the Feed Settings section on the feed detail page as a
+  nested sub-section (open/closed state is preserved).
+- `deferred_at` and `deferred_service` columns added to the episodes table
+  and `deferred` added to the status CHECK constraint via a data-preserving
+  table rebuild migration.
+
 ## [2.40.0] - 2026-07-08
 
 ### Added
