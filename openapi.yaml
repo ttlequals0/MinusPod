@@ -5970,6 +5970,32 @@ paths:
                             How many SIBLING episodes share this segment (the
                             target episode always matches, so the total number of
                             episodes containing it is episodeMatches + 1).
+                        episodes:
+                          type: array
+                          description: >
+                            Per-episode breakdown: every occurrence of this
+                            candidate in each scanned episode (target first,
+                            then the remaining episodes in request order).
+                            Match times are in each episode's own timeline.
+                            Absent on results cached by versions before
+                            2.42.0; rescan to populate.
+                          items:
+                            type: object
+                            properties:
+                              episodeId:
+                                type: string
+                              matchCount:
+                                type: integer
+                                description: Occurrences in this episode (0 = not found).
+                              matches:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    start:
+                                      type: number
+                                    end:
+                                      type: number
                   error:
                     type: string
                     description: Present when status is error.
