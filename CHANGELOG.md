@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.42.0] - 2026-07-10
+
+### Added
+
+- Cross-episode scan playback and per-episode breakdown (#350): each
+  discovered candidate in the cross-episode scan results has a play button
+  that plays the segment from the target episode's retained original, and a
+  collapsible per-episode list enumerating every occurrence of the candidate
+  in every scanned episode with timestamps, each playable from that
+  episode's audio. Scan-response candidates gain an `episodes` field
+  (`episodeId`, `matchCount`, `matches`); results cached by older versions
+  show a rescan hint instead.
+- Play button on Held for Review rows: each held ad on the episode page can
+  be auditioned (its window of the retained original) before choosing
+  Approve & Recut or Dismiss, matching the Cue Matches play button. Shown
+  only while the original audio is retained.
+
 ## [2.41.0] - 2026-07-10
 
 ### Added
