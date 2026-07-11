@@ -279,167 +279,85 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
     thread.start()
 
 
-_auth_failure_lock = threading.Lock()
-_last_auth_failure_time = 0.0
-_AUTH_FAILURE_DEDUP_SECS = 300  # 5 minutes
+_alert_lock = threading.Lock()
+_last_alert_time = {}
+_ALERT_DEDUP_SECS = 300  # 5 minutes
 
 
-def fire_auth_failure_event(provider, model, error_message, status_code):
-    """Fire an auth failure webhook with 5-minute dedup to avoid spamming."""
-    global _last_auth_failure_time
-
+def _fire_alert_event(event, context, log_detail):
+    """Dispatch an operator-alert webhook with a per-event 5-minute dedup."""
     now = time.time()
-    with _auth_failure_lock:
-        if now - _last_auth_failure_time < _AUTH_FAILURE_DEDUP_SECS:
-            logger.debug("Auth failure webhook suppressed (dedup window)")
+    with _alert_lock:
+        if now - _last_alert_time.get(event, 0.0) < _ALERT_DEDUP_SECS:
+            logger.debug("%s webhook suppressed (dedup window)", event)
             return
-        _last_auth_failure_time = now
+        _last_alert_time[event] = now
 
     webhooks = load_webhooks()
     if not webhooks:
         return
 
     matching = [w for w in webhooks
-                if w.get('enabled', False) and EVENT_AUTH_FAILURE in w.get('events', [])]
+                if w.get('enabled', False) and event in w.get('events', [])]
     if not matching:
         return
 
-    context = {
-        'event': EVENT_AUTH_FAILURE,
-        'provider': provider,
-        'model': model,
-        'error_message': str(error_message),
-        'status_code': status_code,
-        'timestamp': utc_now_iso(),
-    }
+    context = {'event': event, **context, 'timestamp': utc_now_iso()}
 
     def _dispatch():
         for wh in matching:
             try:
                 _prepare_and_dispatch(wh, context)
-                logger.info("Auth failure webhook sent (provider=%s, status=%s)",
-                            provider, status_code)
+                logger.info("%s webhook sent (%s)", event, log_detail)
             except Exception:
-                logger.exception("Failed to send auth failure webhook to %s",
-                                 wh.get('url'))
+                logger.exception("Failed to send %s webhook to %s",
+                                 event, wh.get('url'))
 
     thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()
 
 
-_limit_exceeded_lock = threading.Lock()
-_last_limit_exceeded_time = 0.0
-_LIMIT_EXCEEDED_DEDUP_SECS = 300  # 5 minutes
+def fire_auth_failure_event(provider, model, error_message, status_code):
+    """Fire an auth failure webhook (invalid or expired credentials)."""
+    _fire_alert_event(EVENT_AUTH_FAILURE, {
+        'provider': provider,
+        'model': model,
+        'error_message': str(error_message),
+        'status_code': status_code,
+    }, f"provider={provider}, status={status_code}")
 
 
 def fire_limit_exceeded_event(provider, model, error_message, status_code):
-    """Fire a spend/quota limit webhook with 5-minute dedup.
+    """Fire a spend/quota limit webhook.
 
     Signals that the provider rejected the request because a billing or
     usage limit is exhausted (monthly key limit, out of credits), as opposed
     to bad credentials (Auth Failure) or a per-minute cap (Rate Limit
     Structural).
     """
-    global _last_limit_exceeded_time
-
-    now = time.time()
-    with _limit_exceeded_lock:
-        if now - _last_limit_exceeded_time < _LIMIT_EXCEEDED_DEDUP_SECS:
-            logger.debug("Limit exceeded webhook suppressed (dedup window)")
-            return
-        _last_limit_exceeded_time = now
-
-    webhooks = load_webhooks()
-    if not webhooks:
-        return
-
-    matching = [w for w in webhooks
-                if w.get('enabled', False)
-                and EVENT_LIMIT_EXCEEDED in w.get('events', [])]
-    if not matching:
-        return
-
-    context = {
-        'event': EVENT_LIMIT_EXCEEDED,
+    _fire_alert_event(EVENT_LIMIT_EXCEEDED, {
         'provider': provider,
         'model': model,
         'error_message': str(error_message),
         'status_code': status_code,
-        'timestamp': utc_now_iso(),
-    }
-
-    def _dispatch():
-        for wh in matching:
-            try:
-                _prepare_and_dispatch(wh, context)
-                logger.info("Limit exceeded webhook sent (provider=%s, status=%s)",
-                            provider, status_code)
-            except Exception:
-                logger.exception("Failed to send limit exceeded webhook to %s",
-                                 wh.get('url'))
-
-    thread = threading.Thread(target=_dispatch, daemon=True)
-    thread.start()
-
-
-_rate_limit_lock = threading.Lock()
-_last_rate_limit_time = 0.0
-_RATE_LIMIT_DEDUP_SECS = 300  # 5 minutes
+    }, f"provider={provider}, status={status_code}")
 
 
 def fire_structural_rate_limit_event(provider, model, limit, used, requested, error_message):
-    """Fire a structural-429 webhook with 5-minute dedup.
+    """Fire a structural-429 webhook.
 
     Signals that a single LLM request structurally exceeds the provider's
     per-minute token cap. The user-facing remedy is to shrink the detection
     window or change provider/tier, not to wait for the rate limit to clear.
     """
-    global _last_rate_limit_time
-
-    now = time.time()
-    with _rate_limit_lock:
-        if now - _last_rate_limit_time < _RATE_LIMIT_DEDUP_SECS:
-            logger.debug("Structural rate-limit webhook suppressed (dedup window)")
-            return
-        _last_rate_limit_time = now
-
-    webhooks = load_webhooks()
-    if not webhooks:
-        return
-
-    matching = [w for w in webhooks
-                if w.get('enabled', False)
-                and EVENT_RATE_LIMIT_STRUCTURAL in w.get('events', [])]
-    if not matching:
-        return
-
-    context = {
-        'event': EVENT_RATE_LIMIT_STRUCTURAL,
+    _fire_alert_event(EVENT_RATE_LIMIT_STRUCTURAL, {
         'provider': provider,
         'model': model,
         'limit': limit,
         'used': used,
         'requested': requested,
         'error_message': str(error_message),
-        'timestamp': utc_now_iso(),
-    }
-
-    def _dispatch():
-        for wh in matching:
-            try:
-                _prepare_and_dispatch(wh, context)
-                logger.info(
-                    "Structural rate-limit webhook sent (provider=%s, limit=%s, requested=%s)",
-                    provider, limit, requested,
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to send structural rate-limit webhook to %s",
-                    wh.get('url'),
-                )
-
-    thread = threading.Thread(target=_dispatch, daemon=True)
-    thread.start()
+    }, f"provider={provider}, limit={limit}, requested={requested}")
 
 
 def render_template_preview(template_string):

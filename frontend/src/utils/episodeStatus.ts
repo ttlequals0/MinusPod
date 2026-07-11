@@ -20,6 +20,10 @@ export const EPISODE_STATUS_LABELS: Record<string, string> = {
   deferred: 'queued (offline)',
 };
 
+export function isFailedStatus(status: string): boolean {
+  return status === 'failed' || status === 'permanently_failed';
+}
+
 // Single source of iteration order for status summaries and stat cards.
 export const EPISODE_STATUS_ORDER: readonly EpisodeStatusKey[] = EPISODE_STATUS_KEYS;
 

@@ -180,8 +180,7 @@ def call_llm_for_window(
                 )
             break
 
-    if (response is None and last_error is not None and _is_retryable(last_error)
-            and not is_limit_exceeded_error(last_error)):
+    if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, delay in enumerate([2, 5], 1):
             logger.warning(
                 f"[{slug}:{episode_id}] {window_label} per-window retry "

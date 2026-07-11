@@ -26,8 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quota and billing errors no longer fire the `Auth Failure` webhook; they
   fire `Limit Exceeded` instead. `Auth Failure` now means bad credentials.
   Update webhook subscriptions if you relied on the old routing.
-- OpenAI `insufficient_quota` 429s fail fast instead of burning the full
-  retry backoff cycle; retrying cannot succeed until credits are added.
+- Limit-exceeded errors are now non-retryable at every level: no window
+  retry backoff (an OpenAI `insufficient_quota` 429 previously burned the
+  full cycle) and no episode re-queue -- the episode is marked permanently
+  failed right away, since retrying cannot succeed until credits are added
+  or the limit is raised. Reprocess the episode after fixing the limit.
 
 ## [2.44.0] - 2026-07-11
 

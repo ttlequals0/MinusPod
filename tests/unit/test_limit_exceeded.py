@@ -3,8 +3,9 @@
 A limit-exceeded error means the provider rejected the request because a
 billing or usage limit is exhausted (OpenRouter monthly key limit, out of
 credits, OpenAI insufficient_quota). These must fire the Limit Exceeded
-webhook instead of Auth Failure, and must not shadow the transient-429
-retry path or the Gemini daily/structural classifiers (#491).
+webhook instead of Auth Failure, classify as non-retryable, and must not
+shadow the transient-429 retry path or the Gemini daily/structural
+classifiers (#491).
 """
 
 import json
@@ -13,22 +14,13 @@ from unittest.mock import patch
 
 import httpx
 
-from llm_client import is_limit_exceeded_error, StructuralRateLimitError
-
-
-class _FakeResponse:
-    def __init__(self, text=None, headers=None):
-        self.text = text
-        self.headers = headers or {}
-
-
-class _FakeError(Exception):
-    """Mimics provider error: carries .status_code, .body and/or .response."""
-    def __init__(self, message="", status_code=None, body=None, response=None):
-        super().__init__(message)
-        self.status_code = status_code
-        self.body = body
-        self.response = response
+from llm_client import (
+    is_limit_exceeded_error,
+    is_auth_error,
+    is_retryable_error,
+    StructuralRateLimitError,
+)
+from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 
 
 OPENROUTER_KEY_LIMIT_403 = (
@@ -44,75 +36,86 @@ GEMINI_PER_MINUTE_429 = (
     "your plan and billing details."
 )
 
+INSUFFICIENT_QUOTA_BODY = {
+    "error": {"message": "You exceeded your current quota",
+              "type": "insufficient_quota",
+              "code": "insufficient_quota"}
+}
+
 
 class TestLimitExceededClassifier:
     def test_openrouter_monthly_key_limit_403(self):
-        err = _FakeError(OPENROUTER_KEY_LIMIT_403, status_code=403)
+        err = FakeProviderError(OPENROUTER_KEY_LIMIT_403, status_code=403)
         assert is_limit_exceeded_error(err) is True
 
     def test_402_always_limit_exceeded(self):
-        err = _FakeError("Insufficient credits", status_code=402)
+        err = FakeProviderError("Insufficient credits", status_code=402)
         assert is_limit_exceeded_error(err) is True
 
     def test_openai_insufficient_quota_429(self):
-        body = {"error": {"message": "You exceeded your current quota",
-                          "type": "insufficient_quota",
-                          "code": "insufficient_quota"}}
-        err = _FakeError("Error code: 429", status_code=429, body=body)
+        err = FakeProviderError("Error code: 429", status_code=429,
+                                body=INSUFFICIENT_QUOTA_BODY)
         assert is_limit_exceeded_error(err) is True
 
     def test_anthropic_low_credit_400(self):
-        err = _FakeError(
+        err = FakeProviderError(
             "Your credit balance is too low to access the Anthropic API",
             status_code=400,
         )
         assert is_limit_exceeded_error(err) is True
 
     def test_invalid_key_401_not_limit(self):
-        err = _FakeError("Invalid API key provided", status_code=401)
+        err = FakeProviderError("Invalid API key provided", status_code=401)
         assert is_limit_exceeded_error(err) is False
 
     def test_invalid_key_403_not_limit(self):
-        err = _FakeError("Forbidden: key disabled", status_code=403)
+        err = FakeProviderError("Forbidden: key disabled", status_code=403)
         assert is_limit_exceeded_error(err) is False
 
     def test_generic_429_not_limit(self):
-        err = _FakeError("Rate limit exceeded, retry in 20s", status_code=429)
+        err = FakeProviderError("Rate limit exceeded, retry in 20s", status_code=429)
         assert is_limit_exceeded_error(err) is False
 
     def test_gemini_per_minute_429_not_limit(self):
-        err = _FakeError(GEMINI_PER_MINUTE_429, status_code=429)
+        err = FakeProviderError(GEMINI_PER_MINUTE_429, status_code=429)
         assert is_limit_exceeded_error(err) is False
 
     def test_no_status_code_not_limit(self):
-        err = _FakeError("Key limit exceeded (monthly limit)")
+        err = FakeProviderError("Key limit exceeded (monthly limit)")
         assert is_limit_exceeded_error(err) is False
 
     def test_500_not_limit(self):
-        err = _FakeError("billing service unavailable", status_code=500)
+        err = FakeProviderError("billing service unavailable", status_code=500)
         assert is_limit_exceeded_error(err) is False
 
     def test_response_text_fallback(self):
         text = json.dumps({"error": {"message": "Key limit exceeded (monthly limit)"}})
-        err = _FakeError("Error code: 403", status_code=403,
-                         response=_FakeResponse(text=text))
+        err = FakeProviderError("Error code: 403", status_code=403,
+                                response=FakeResponse(text=text))
         assert is_limit_exceeded_error(err) is True
 
 
-def _call_window(client, max_retries=5):
-    from utils import llm_call
-    return llm_call.call_llm_for_window(
-        llm_client=client,
-        model="test-model",
-        system_prompt="sys",
-        prompt="user",
-        llm_timeout=1.0,
-        max_retries=max_retries,
-        max_tokens=4096,
-        slug="t",
-        episode_id="e",
-        window_label="w",
-    )
+class TestClassifierInteractions:
+    """Limit-exceeded errors must read as non-retryable and non-auth
+    everywhere, not only inside the retry loop's branch ordering."""
+
+    def test_limit_exceeded_is_not_retryable(self):
+        # Without the is_retryable_error exclusion, the "429" in the message
+        # would match the string fallback and keep the error retryable.
+        err = FakeProviderError("Error code: 429", status_code=429,
+                                body=INSUFFICIENT_QUOTA_BODY)
+        assert is_retryable_error(err) is False
+
+    def test_billing_403_is_not_auth_error(self):
+        import openai
+        request = httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions")
+        err = openai.PermissionDeniedError(
+            "Key limit exceeded (monthly limit)",
+            response=httpx.Response(403, request=request),
+            body={"error": {"message": "Key limit exceeded (monthly limit)"}},
+        )
+        assert is_limit_exceeded_error(err) is True
+        assert is_auth_error(err) is False
 
 
 class TestRetryLoopRouting:
@@ -140,11 +143,11 @@ class TestRetryLoopRouting:
             "webhook_service.fire_auth_failure_event",
             lambda *a, **kw: fired.__setitem__("auth", fired["auth"] + 1),
         )
-        response, last_error = _call_window(_Client(), max_retries=max_retries)
+        response, last_error = call_window(_Client(), max_retries=max_retries)
         return response, last_error, calls["n"], fired
 
     def test_key_limit_403_fires_limit_not_auth(self, monkeypatch):
-        err = _FakeError(OPENROUTER_KEY_LIMIT_403, status_code=403)
+        err = FakeProviderError(OPENROUTER_KEY_LIMIT_403, status_code=403)
         response, last_error, n, fired = self._run(err, monkeypatch)
         assert response is None
         assert last_error is err
@@ -152,12 +155,9 @@ class TestRetryLoopRouting:
         assert fired == {"limit": 1, "auth": 0}
 
     def test_insufficient_quota_429_fast_fails(self, monkeypatch):
-        body = {"error": {"message": "You exceeded your current quota",
-                          "type": "insufficient_quota",
-                          "code": "insufficient_quota"}}
-        err = _FakeError("Error code: 429", status_code=429, body=body)
-        # Message contains "429" so _is_retryable would keep it in both the
-        # main loop and the secondary retry without the fast-fail guards.
+        err = FakeProviderError("Error code: 429", status_code=429,
+                                body=INSUFFICIENT_QUOTA_BODY)
+        # One call only: no in-loop retries and no secondary retry pass.
         response, last_error, n, fired = self._run(err, monkeypatch)
         assert response is None
         assert n == 1
@@ -191,7 +191,7 @@ class TestRetryLoopRouting:
                 }],
             }
         }
-        err = _FakeError("429 rate limit", status_code=429, body=body)
+        err = FakeProviderError("429 rate limit", status_code=429, body=body)
         response, last_error, n, fired = self._run(err, monkeypatch)
         assert response is None
         assert isinstance(last_error, StructuralRateLimitError)
@@ -202,7 +202,7 @@ class TestRetryLoopRouting:
 class TestFireLimitExceededEvent:
     def setup_method(self):
         import webhook_service
-        webhook_service._last_limit_exceeded_time = 0.0
+        webhook_service._last_alert_time.clear()
 
     def _fire(self, webhooks):
         import webhook_service
@@ -243,6 +243,7 @@ class TestFireLimitExceededEvent:
         assert context['model'] == 'test-model'
         assert context['error_message'] == 'Key limit exceeded (monthly limit)'
         assert context['status_code'] == 403
+        assert 'timestamp' in context
 
     def test_skips_non_subscribers(self):
         webhooks = [
@@ -256,3 +257,31 @@ class TestFireLimitExceededEvent:
         assert len(self._fire(webhooks)) == 1
         # Second fire inside the 5-minute window is suppressed.
         assert self._fire(webhooks) == []
+
+    def test_dedup_is_per_event(self):
+        # A Limit Exceeded fire must not suppress a later Auth Failure fire.
+        import webhook_service
+        webhooks = [{'enabled': True,
+                     'events': ['Limit Exceeded', 'Auth Failure'],
+                     'url': 'http://x'}]
+        assert len(self._fire(webhooks)) == 1
+
+        dispatched = []
+
+        class _SyncThread:
+            def __init__(self, target=None, args=(), daemon=None):
+                self._target = target
+                self._args = args
+
+            def start(self):
+                self._target(*self._args)
+
+        with patch('webhook_service.load_webhooks', return_value=webhooks), \
+             patch('webhook_service._prepare_and_dispatch',
+                   side_effect=lambda wh, ctx: dispatched.append(ctx)), \
+             patch.object(threading, 'Thread', _SyncThread):
+            webhook_service.fire_auth_failure_event(
+                'openai', 'test-model', 'Invalid API key', 401,
+            )
+        assert len(dispatched) == 1
+        assert dispatched[0]['event'] == 'Auth Failure'

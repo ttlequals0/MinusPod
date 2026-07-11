@@ -1368,6 +1368,10 @@ def is_retryable_error(error: Exception) -> bool:
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):
         return False
+    # Spend/quota exhaustion is terminal until the operator adds credits or
+    # raises the limit; no retry can succeed (#491).
+    if is_limit_exceeded_error(error):
+        return False
     # Anthropic errors
     a = _anthropic_exc()
     if a is not None:
@@ -1405,7 +1409,8 @@ def is_connectivity_error(error: Exception) -> bool:
     """
     if isinstance(error, StructuralRateLimitError):
         return False
-    if is_rate_limit_error(error) or is_auth_error(error) or is_not_found_error(error):
+    if (is_rate_limit_error(error) or is_auth_error(error)
+            or is_limit_exceeded_error(error) or is_not_found_error(error)):
         return False
     # The breaker only opens after repeated call failures, which is exactly
     # the reporter's "circuit breaker trips and jobs error out" scenario.
@@ -1475,7 +1480,14 @@ def is_llm_api_error(error: Exception) -> bool:
 
 
 def is_auth_error(error: Exception) -> bool:
-    """Check if error is an LLM authentication/authorization failure (401/403)."""
+    """Check if error is an LLM authentication/authorization failure (401/403).
+
+    Billing/quota 401/403s are excluded -- they classify as
+    ``is_limit_exceeded_error`` instead, so each error fires exactly one of
+    the Auth Failure / Limit Exceeded webhook events.
+    """
+    if is_limit_exceeded_error(error):
+        return False
     a = _anthropic_exc()
     if a is not None:
         if isinstance(error, (a.AuthenticationError, a.PermissionDeniedError)):
@@ -1514,8 +1526,7 @@ def is_limit_exceeded_error(error: Exception) -> bool:
         markers = ('credit balance is too low',)
     else:
         return False
-    body = extract_error_body(error)
-    text = str(body).lower() if body is not None else str(error).lower()
+    text = str(extract_error_body(error) or error).lower()
     return any(marker in text for marker in markers)
 
 
