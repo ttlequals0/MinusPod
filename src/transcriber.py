@@ -277,6 +277,14 @@ def merge_overlapping_segments(
     return result
 
 
+def _unlink_quiet(path):
+    if path:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def _max_download_mb() -> int:
     """Episode download cap in MB; MAX_AUDIO_DOWNLOAD_MB overrides the
     500MB default (#493). Invalid or non-positive values fall back to 500."""
@@ -285,12 +293,18 @@ def _max_download_mb() -> int:
         return 500
     try:
         mb = int(raw)
+        if mb > 0:
+            if mb > 10240:
+                # Advisory only: the cap is the disk-fill guard, so a typo
+                # with extra zeros should at least leave a trace in the logs.
+                logger.warning(
+                    f"MAX_AUDIO_DOWNLOAD_MB={mb} is over 10GB; the download "
+                    f"cap is the disk-fill guard, check for a typo")
+            return mb
     except ValueError:
-        mb = 0
-    if mb <= 0:
-        logger.warning(f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
-        mb = 500
-    return mb
+        pass
+    logger.warning(f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
+    return 500
 
 
 def _get_whisper_settings() -> Dict[str, str]:
@@ -1216,17 +1230,20 @@ class Transcriber:
             logger.warning(f"SSRF blocked in download_audio: {e}")
             return None
 
+        temp_path = None
         try:
             max_mb = _max_download_mb()
             max_bytes = max_mb * 1024 * 1024
 
-            # Check file size
+            # Check file size (isdigit guards malformed headers; the stream
+            # cap below still protects when the header is unusable)
             content_length = response.headers.get('Content-Length')
-            if content_length:
+            if content_length and content_length.isdigit():
                 size_mb = int(content_length) / (1024 * 1024)
                 if size_mb > max_mb:
+                    response.close()
                     raise ResponseTooLargeError(
-                        f"Audio file is {size_mb:.0f}MB, over the {max_mb}MB download cap"
+                        f"Audio file is {size_mb:.1f}MB, over the {max_mb}MB download cap"
                     )
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
@@ -1237,20 +1254,22 @@ class Transcriber:
                 try:
                     stream_to_file_capped(response, tmp, max_bytes)
                 except ResponseTooLargeError:
-                    try:
-                        os.unlink(temp_path)
-                    except OSError:
-                        pass
+                    response.close()
                     raise ResponseTooLargeError(
                         f"Audio stream exceeded the {max_mb}MB download cap"
                     )
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path
+        # Only the two audio-cap raises above can reach this handler:
+        # safe_get runs in the first try block, and nothing else in this
+        # try uses the capped-read helpers.
         except ResponseTooLargeError as e:
+            _unlink_quiet(temp_path)
             logger.error(f"{e} ({safe_url_for_log(url)})")
             raise AudioTooLargeError(str(e)) from e
         except Exception as e:
+            _unlink_quiet(temp_path)
             logger.error(f"Failed to download audio: {e}")
             return None
 

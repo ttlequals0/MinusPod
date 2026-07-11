@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process it") instead of retrying a generic "Failed to download audio"
   error. The message shows up in the episode failure panel added in 2.45.0.
 
+### Fixed
+- docs: `MINUSPOD_MAX_ARTWORK_BYTES` default corrected to 25MB; the docs
+  still said 5MB from before the 2.x artwork cap raise.
+
 ## [2.45.0] - 2026-07-11
 
 ### Added

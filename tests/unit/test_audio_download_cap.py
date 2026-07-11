@@ -5,7 +5,6 @@ be overridable via MAX_AUDIO_DOWNLOAD_MB, and tripping it must raise the
 typed AudioTooLargeError (permanent, actionable) instead of the generic
 return-None download failure.
 """
-import contextlib
 import os
 from unittest.mock import MagicMock, patch
 
@@ -43,17 +42,15 @@ def _mock_response(content_length=None):
     if content_length is not None:
         headers['Content-Length'] = str(content_length)
     response.headers = headers
-    response.iter_content.return_value = iter([b'data'])
     return response
 
 
 class TestDownloadAudioCap:
     def _download(self, response, stream_error=None):
-        stream_patch = (
-            patch('transcriber.stream_to_file_capped', side_effect=stream_error)
-            if stream_error is not None else contextlib.nullcontext()
-        )
-        with patch('transcriber.safe_get', return_value=response), stream_patch:
+        # side_effect=None leaves the stream mock a no-op; the happy-path
+        # tests only assert a temp path comes back.
+        with patch('transcriber.safe_get', return_value=response), \
+             patch('transcriber.stream_to_file_capped', side_effect=stream_error):
             return Transcriber().download_audio('https://example.com/ep.mp3')
 
     def test_content_length_over_cap_raises(self):
@@ -85,3 +82,20 @@ class TestDownloadAudioCap:
     def test_generic_failure_still_returns_none(self):
         response = _mock_response(content_length=10 * MB)
         assert self._download(response, stream_error=OSError('disk error')) is None
+
+    def test_stream_cap_uses_env_value(self, monkeypatch):
+        # The env override must reach the stream cap too, not only the
+        # Content-Length pre-check; chunked responses rely on it alone.
+        monkeypatch.setenv('MAX_AUDIO_DOWNLOAD_MB', '1000')
+        response = _mock_response(content_length=None)
+        with patch('transcriber.safe_get', return_value=response), \
+             patch('transcriber.stream_to_file_capped') as stream_mock:
+            path = Transcriber().download_audio('https://example.com/ep.mp3')
+        assert path is not None
+        os.unlink(path)
+        assert stream_mock.call_args.args[2] == 1000 * MB
+
+    def test_hint_not_doubled_on_rewrap(self):
+        original = AudioTooLargeError('Audio file is 620.0MB, over the 500MB download cap')
+        rewrapped = AudioTooLargeError(str(original))
+        assert str(rewrapped).count('MAX_AUDIO_DOWNLOAD_MB') == 1

@@ -71,6 +71,10 @@ services:
       # running multiple instances. Ignored when GUNICORN_BIND is set.
       - MINUSPOD_PORT=${MINUSPOD_PORT:-8000}
 
+      # Per-episode download size cap in MB. Raise for feeds with very
+      # long or high-bitrate episodes; failure messages name this var.
+      - MAX_AUDIO_DOWNLOAD_MB=${MAX_AUDIO_DOWNLOAD_MB:-500}
+
       # =================================================================
       # 2.0.0+ Security (defaults shown; override via .env when needed)
       # =================================================================

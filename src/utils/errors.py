@@ -28,5 +28,12 @@ class AudioTooLargeError(Exception):
     appended hint keeps that remedy in every stored error message.
     """
 
+    _HINT = "; raise MAX_AUDIO_DOWNLOAD_MB to process it"
+
     def __init__(self, message: str):
-        super().__init__(f"{message}; raise MAX_AUDIO_DOWNLOAD_MB to process it")
+        # Idempotent so re-wrapping or copy/pickle reconstruction (which
+        # calls cls(*args) with the already-hinted message) cannot double
+        # the hint.
+        if not message.endswith(self._HINT):
+            message += self._HINT
+        super().__init__(message)
