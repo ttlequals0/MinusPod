@@ -28,6 +28,7 @@ import {
   type CueTemplateType,
   type CueCandidate,
 } from '../api/cueTemplates';
+import { episodeOriginalUrl } from '../api/feeds';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -179,7 +180,7 @@ function CueMarkModal({
     podcastSlug, episodeId, 0, totalDuration, resetTick,
   );
 
-  const audioUrl = `/api/v1/feeds/${podcastSlug}/episodes/${episodeId}/original.mp3`;
+  const audioUrl = episodeOriginalUrl(podcastSlug, episodeId);
   const windowDuration = Math.max(0.001, windowEnd - windowStart);
 
   // Peaks for just the visible window (a slice of the full-episode peaks).

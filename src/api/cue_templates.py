@@ -1421,7 +1421,7 @@ def _run_cue_cross_episode_scan(
     Payload saved on success:
         {candidates, targetEpisodeId, episodeIds}
     where candidates matches discover_cross_episode_body's result shape
-    ({start, end, kind, episodeMatches}) so D1c can feed them directly into
+    ({start, end, kind, episodeMatches, episodes}) so D1c can feed them directly into
     the existing Make-template flow (CueMarkModal expects bounds + episode).
     """
     db = get_database()
@@ -1440,6 +1440,19 @@ def _run_cue_cross_episode_scan(
             min_matches=min_matches,
             target_fingerprint=target_fp,
         )
+        # Map the fingerprinter's per-episode indices (0 = target, i = the
+        # i-th supplied episode) to episode IDs, filling episodes it could
+        # not enumerate (failed decode) with an explicit zero-match entry.
+        for cand in candidates:
+            enum = cand.pop('episodes', None)
+            if enum is None:
+                continue
+            by_index = {e['index']: e for e in enum}
+            cand['episodes'] = [{
+                'episodeId': episode_ids[i],
+                'matchCount': by_index[i]['matchCount'] if i in by_index else 0,
+                'matches': by_index[i]['matches'] if i in by_index else [],
+            } for i in range(len(episode_ids))]
         db.save_cue_cross_episode_scan_result(podcast_id, episode_set_hash, {
             'candidates': candidates,
             'targetEpisodeId': target_episode_id,

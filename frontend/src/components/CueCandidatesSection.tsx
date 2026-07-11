@@ -7,6 +7,7 @@ import {
   getCueCandidates, cueCandidateLabel,
   type CueCandidate, type CueTemplateType,
 } from '../api/cueTemplates';
+import { episodeOriginalUrl } from '../api/feeds';
 import { getSettings } from '../api/settings';
 import { formatTimestamp } from '../utils/format';
 
@@ -243,7 +244,7 @@ function CueCandidatesSection({
           })}
           <audio
             ref={audioRef}
-            src={`/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`}
+            src={episodeOriginalUrl(slug, episodeId)}
             preload="metadata"
             className="hidden"
           />

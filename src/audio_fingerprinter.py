@@ -133,6 +133,26 @@ def _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity):
     return len(_greedy_hit_positions(sim, similarity, min_gap))
 
 
+def _enumerate_window_occurrences(window, ep_ints, ep_duration, similarity):
+    """Every occurrence of ``window`` (uint32 array) in one episode's fingerprint.
+
+    Cross-array twin of :func:`_count_window_matches` that keeps positions
+    instead of just the count. Returns ``[(start_s, end_s)]`` in the episode's
+    own timeline; occurrences closer than AUDIO_CUE_FP_MIN_GAP_SECONDS
+    collapse to one (same greedy collection as the self-match counter).
+    """
+    ep_arr = np.asarray(ep_ints, dtype=np.uint32)
+    win = len(window)
+    if win == 0 or len(ep_arr) < win or ep_duration <= 0:
+        return []
+    fps = len(ep_arr) / ep_duration
+    sim = _window_similarity(np.concatenate([window, ep_arr]), 0, win)[win:]
+    min_gap = max(1, int(round(AUDIO_CUE_FP_MIN_GAP_SECONDS * fps)))
+    win_s = win / fps
+    return [(round(p / fps, 2), round(p / fps + win_s, 2))
+            for p in _greedy_hit_positions(sim, similarity, min_gap)]
+
+
 def _cross_pair_similarity(a_arr, a, b_arr, b, length):
     """Bit-similarity (0-1) of ``a_arr[a:a+length]`` vs ``b_arr[b:b+length]``.
 
@@ -791,11 +811,11 @@ class AudioFingerprinter:
             return []
         t_ints, t_dur = target_fp
 
-        sib_fps = []
-        for path in sibling_paths:
+        sib_fps = []  # (original sibling index, (ints, duration))
+        for idx, path in enumerate(sibling_paths):
             fp = self._generate_full_fingerprint(path)
             if fp and fp[0] and fp[1] > 0:
-                sib_fps.append(fp)
+                sib_fps.append((idx, fp))
         if len(sib_fps) < min_matches:
             return []
 
@@ -805,13 +825,39 @@ class AudioFingerprinter:
         max_len = max(min_len, int(round(max_len_s * fps)))
 
         segs = _find_shared_segments(
-            t_ints, [s for s, _ in sib_fps],
+            t_ints, [s for _, (s, _) in sib_fps],
             win, similarity, min_matches, min_len, max_len)
 
+        t_arr = np.asarray(t_ints, dtype=np.uint32)
+        # Target first, then siblings at their original input index + 1.
+        # Arrays are converted once here; the per-candidate enumeration reuses
+        # them (np.asarray on a matching-dtype array is a no-op).
+        all_fps = [(0, (t_arr, t_dur))] + [
+            (i + 1, (np.asarray(s, dtype=np.uint32), d))
+            for i, (s, d) in sib_fps]
         out = []
         for a, b, count in segs:
-            out.append({'start': round(a / fps, 2), 'end': round(b / fps, 2),
-                        'kind': 'recurring', 'episodeMatches': count})
+            cand = {'start': round(a / fps, 2), 'end': round(b / fps, 2),
+                    'kind': 'recurring', 'episodeMatches': count}
+            # Per-episode breakdown (issue #350): every occurrence of this run
+            # in every episode, target included. An enumeration failure must
+            # not cost the candidate itself.
+            try:
+                window = t_arr[a:b]
+                episodes = []
+                for index, (ep_ints, ep_dur) in all_fps:
+                    occ = _enumerate_window_occurrences(
+                        window, ep_ints, ep_dur, similarity)
+                    episodes.append({
+                        'index': index,
+                        'matchCount': len(occ),
+                        'matches': [{'start': s, 'end': e} for s, e in occ],
+                    })
+                cand['episodes'] = episodes
+            except Exception:
+                logger.exception(
+                    "per-episode enumeration failed; candidate kept without breakdown")
+            out.append(cand)
 
         logger.info("Cross-episode body discovery: %d recurring from %d siblings",
                     len(out), len(sib_fps))

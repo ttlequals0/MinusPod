@@ -29,6 +29,8 @@ const mockGetEpisode = vi.fn();
 vi.mock('../api/feeds', () => ({
   getEpisodes: (...args: unknown[]) => mockGetEpisodes(...args),
   getEpisode: (...args: unknown[]) => mockGetEpisode(...args),
+  episodeOriginalUrl: (slug: string, episodeId: string) =>
+    `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
 }));
 
 function makeEpisode(id: string, title: string): Episode {
@@ -78,6 +80,53 @@ beforeEach(() => {
     targetEpisodeId: 'ep-1',
     episodeIds: ['ep-1', 'ep-2'],
     candidates: [{ start: 5, end: 8, kind: 'recurring', episodeMatches: 1 }],
+  });
+});
+
+async function runScan() {
+  await waitFor(() => expect(screen.getByText('Episode 1')).toBeDefined());
+  await userEvent.click(screen.getByLabelText('Select episode Episode 1'));
+  await userEvent.click(screen.getByLabelText('Select episode Episode 2'));
+  await userEvent.click(screen.getByRole('button', { name: /^Scan$/ }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /Make template/i })).toBeDefined());
+}
+
+describe('per-episode breakdown', () => {
+  it('renders a play button per candidate and expands the breakdown', async () => {
+    mockCrossEpisodeScan.mockResolvedValue({
+      status: 'ready',
+      targetEpisodeId: 'ep-1',
+      episodeIds: ['ep-1', 'ep-2'],
+      candidates: [{
+        start: 5, end: 8, kind: 'recurring', episodeMatches: 1,
+        episodes: [
+          { episodeId: 'ep-1', matchCount: 2,
+            matches: [{ start: 5, end: 8 }, { start: 100, end: 103 }] },
+          { episodeId: 'ep-2', matchCount: 0, matches: [] },
+        ],
+      }],
+    });
+    renderModal(() => {});
+    await runScan();
+
+    expect(screen.getByLabelText('Play candidate')).toBeDefined();
+    await userEvent.click(screen.getByLabelText('Show per-episode matches'));
+    await waitFor(() => expect(screen.getByText('2 matches')).toBeDefined());
+    expect(screen.getByText('not found')).toBeDefined();
+    expect(screen.getByText('Episode 2')).toBeDefined();
+    // Two match chips, each a play button labeled with its timestamp.
+    expect(screen.getAllByLabelText(/^Play match at /)).toHaveLength(2);
+    expect(screen.queryByText(/Rescan to fill them in/)).toBeNull();
+  });
+
+  it('shows a rescan hint when candidates lack the breakdown', async () => {
+    // beforeEach default: candidate with no episodes field (old cached scan)
+    renderModal(() => {});
+    await runScan();
+
+    expect(screen.getByText(/Rescan to fill them in/)).toBeDefined();
+    expect(screen.queryByLabelText('Show per-episode matches')).toBeNull();
   });
 });
 

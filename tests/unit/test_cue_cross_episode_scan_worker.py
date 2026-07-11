@@ -146,3 +146,47 @@ def test_target_is_first_episode(tmp_path):
 
     assert captured['target'] == '/audio/target.mp3'
     assert captured['siblings'] == ['/audio/sib.mp3']
+
+
+def test_episodes_indices_mapped_to_episode_ids(tmp_path):
+    """Fingerprinter indices become episode IDs in request order; an episode
+    the fingerprinter could not enumerate gets an explicit zero entry."""
+    db = _make_db()
+    fake_candidates = [{
+        'start': 3.0, 'end': 5.5, 'kind': 'recurring', 'episodeMatches': 2,
+        'episodes': [
+            {'index': 0, 'matchCount': 1,
+             'matches': [{'start': 3.0, 'end': 5.5}]},
+            {'index': 2, 'matchCount': 2,
+             'matches': [{'start': 10.0, 'end': 12.5},
+                         {'start': 40.0, 'end': 42.5}]},
+        ],
+    }]
+    _run(db, 1, 'dd' * 32, 'ep-target', ['ep-target', 'ep-b', 'ep-c'],
+         str(tmp_path / 'target.mp3'),
+         [str(tmp_path / 'sib1.mp3'), str(tmp_path / 'sib2.mp3')],
+         fake_candidates)
+
+    payload = db.save_cue_cross_episode_scan_result.call_args[0][2]
+    eps = payload['candidates'][0]['episodes']
+    assert [e['episodeId'] for e in eps] == ['ep-target', 'ep-b', 'ep-c']
+    assert eps[0]['matchCount'] == 1
+    # ep-b (index 1) was not enumerable -> explicit zero entry
+    assert eps[1] == {'episodeId': 'ep-b', 'matchCount': 0, 'matches': []}
+    assert eps[2]['matchCount'] == 2
+    assert 'index' not in eps[0]
+
+
+def test_candidates_without_episodes_pass_through(tmp_path):
+    """Old-shape candidates (no episodes key) are saved unchanged."""
+    db = _make_db()
+    fake_candidates = [
+        {'start': 3.0, 'end': 5.5, 'kind': 'recurring', 'episodeMatches': 1},
+    ]
+    _run(db, 1, 'ee' * 32, 'ep-a', ['ep-a', 'ep-b'],
+         str(tmp_path / 'target.mp3'),
+         [str(tmp_path / 'sib.mp3')],
+         fake_candidates)
+
+    payload = db.save_cue_cross_episode_scan_result.call_args[0][2]
+    assert 'episodes' not in payload['candidates'][0]

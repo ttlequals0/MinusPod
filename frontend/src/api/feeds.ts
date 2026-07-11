@@ -4,6 +4,12 @@ import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution } from '
 export const CUE_SCORE_MIN = 0.30;
 export const CUE_SCORE_MAX = 0.99;
 
+// Direct URL for an episode's retained original audio; an <audio src> hits it
+// with the session cookie (GET needs no CSRF).
+export function episodeOriginalUrl(slug: string, episodeId: string): string {
+  return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+}
+
 export interface PeaksResponse {
   episodeId: string;
   start: number;

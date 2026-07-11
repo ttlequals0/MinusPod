@@ -418,3 +418,129 @@ def test_import_guard_existing_function_still_importable():
     from audio_fingerprinter import AudioFingerprinter as AF
     assert hasattr(AF, 'discover_cross_episode_cues')
     assert hasattr(AF, 'discover_cross_episode_body')
+
+
+# ---------------------------------------------------------------------------
+# Per-episode breakdown (issue #350: play buttons + per-episode match list)
+# ---------------------------------------------------------------------------
+
+def test_episodes_breakdown_counts_and_positions():
+    rng = np.random.default_rng(61)
+    seg = _rand(40, rng)  # ~5s sting
+
+    t_ints = np.concatenate([_rand(130, rng), seg, _rand(130, rng)])
+    t_dur = len(t_ints) / 8.0
+    s1_ints = np.concatenate([_rand(80, rng), seg, _rand(100, rng)])
+    s2_ints = np.concatenate([_rand(150, rng), seg, _rand(60, rng)])
+
+    fp = _fingerprinter()
+    side_effects = [
+        (t_ints.tolist(), t_dur),
+        (s1_ints.tolist(), len(s1_ints) / 8.0),
+        (s2_ints.tolist(), len(s2_ints) / 8.0),
+    ]
+    with patch.object(fp, '_generate_full_fingerprint', side_effect=side_effects):
+        result = fp.discover_cross_episode_body(
+            'target.mp3', ['sib1.mp3', 'sib2.mp3'], min_matches=2)
+
+    assert len(result) >= 1
+    eps = result[0]['episodes']
+    by_index = {e['index']: e for e in eps}
+    assert set(by_index) == {0, 1, 2}
+    # Target always contains its own run.
+    assert by_index[0]['matchCount'] >= 1
+    assert abs(by_index[0]['matches'][0]['start'] - 130 / 8.0) <= 2.5
+    # Each sibling contains the planted seg once, near its planted offset.
+    assert by_index[1]['matchCount'] >= 1
+    assert abs(by_index[1]['matches'][0]['start'] - 80 / 8.0) <= 2.5
+    assert by_index[2]['matchCount'] >= 1
+    assert abs(by_index[2]['matches'][0]['start'] - 150 / 8.0) <= 2.5
+    for e in eps:
+        assert e['matchCount'] == len(e['matches'])
+        for m in e['matches']:
+            assert m['end'] > m['start']
+
+
+def test_episodes_breakdown_multiple_occurrences_in_one_sibling():
+    rng = np.random.default_rng(67)
+    seg = _rand(40, rng)
+
+    t_ints = np.concatenate([_rand(120, rng), seg, _rand(120, rng)])
+    t_dur = len(t_ints) / 8.0
+    # seg TWICE in sibling 1, starts 100 frames apart (12.5s > 5s min gap).
+    s1_ints = np.concatenate(
+        [_rand(50, rng), seg, _rand(60, rng), seg, _rand(50, rng)])
+    s2_ints = np.concatenate([_rand(90, rng), seg, _rand(90, rng)])
+
+    fp = _fingerprinter()
+    side_effects = [
+        (t_ints.tolist(), t_dur),
+        (s1_ints.tolist(), len(s1_ints) / 8.0),
+        (s2_ints.tolist(), len(s2_ints) / 8.0),
+    ]
+    with patch.object(fp, '_generate_full_fingerprint', side_effect=side_effects):
+        result = fp.discover_cross_episode_body(
+            'target.mp3', ['sib1.mp3', 'sib2.mp3'], min_matches=2)
+
+    assert len(result) >= 1
+    by_index = {e['index']: e for e in result[0]['episodes']}
+    assert by_index[1]['matchCount'] == 2
+    starts = sorted(m['start'] for m in by_index[1]['matches'])
+    assert abs(starts[0] - 50 / 8.0) <= 2.5
+    assert abs(starts[1] - 150 / 8.0) <= 2.5
+
+
+def test_episodes_breakdown_zero_match_sibling_included():
+    rng = np.random.default_rng(71)
+    seg = _rand(40, rng)
+
+    t_ints = np.concatenate([_rand(120, rng), seg, _rand(120, rng)])
+    t_dur = len(t_ints) / 8.0
+    s1_ints = np.concatenate([_rand(70, rng), seg, _rand(70, rng)])
+    s2_ints = np.concatenate([_rand(90, rng), seg, _rand(90, rng)])
+    s3_ints = _rand(280, rng)  # no seg
+
+    fp = _fingerprinter()
+    side_effects = [
+        (t_ints.tolist(), t_dur),
+        (s1_ints.tolist(), len(s1_ints) / 8.0),
+        (s2_ints.tolist(), len(s2_ints) / 8.0),
+        (s3_ints.tolist(), len(s3_ints) / 8.0),
+    ]
+    with patch.object(fp, '_generate_full_fingerprint', side_effect=side_effects):
+        result = fp.discover_cross_episode_body(
+            'target.mp3', ['sib1.mp3', 'sib2.mp3', 'sib3.mp3'], min_matches=2)
+
+    assert len(result) >= 1
+    by_index = {e['index']: e for e in result[0]['episodes']}
+    assert set(by_index) == {0, 1, 2, 3}
+    assert by_index[3]['matchCount'] == 0
+    assert by_index[3]['matches'] == []
+
+
+def test_episodes_breakdown_index_mapping_with_failed_sibling_fingerprint():
+    """sib1's fingerprint fails to decode; sib2/sib3 still carry the scan.
+    Breakdown indices for the survivors must stay 2 and 3 (original input
+    order), and index 1 must be absent."""
+    rng = np.random.default_rng(73)
+    seg = _rand(40, rng)
+
+    t_ints = np.concatenate([_rand(120, rng), seg, _rand(120, rng)])
+    t_dur = len(t_ints) / 8.0
+    s2_ints = np.concatenate([_rand(70, rng), seg, _rand(70, rng)])
+    s3_ints = np.concatenate([_rand(90, rng), seg, _rand(90, rng)])
+
+    fp = _fingerprinter()
+    side_effects = [
+        (t_ints.tolist(), t_dur),
+        None,                                     # sib1 decode failure
+        (s2_ints.tolist(), len(s2_ints) / 8.0),
+        (s3_ints.tolist(), len(s3_ints) / 8.0),
+    ]
+    with patch.object(fp, '_generate_full_fingerprint', side_effect=side_effects):
+        result = fp.discover_cross_episode_body(
+            'target.mp3', ['sib1.mp3', 'sib2.mp3', 'sib3.mp3'], min_matches=2)
+
+    assert len(result) >= 1
+    indices = {e['index'] for e in result[0]['episodes']}
+    assert indices == {0, 2, 3}

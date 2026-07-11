@@ -299,11 +299,27 @@ export interface CueCandidatesResponse {
 
 export type CrossEpisodeScanStatus = 'scanning' | 'ready' | 'error';
 
+export interface CrossEpisodeMatch {
+  start: number;
+  end: number;
+}
+
+// One scanned episode's occurrences of a candidate, in that episode's own
+// timeline. matchCount 0 = the sound was not found there.
+export interface CrossEpisodeCandidateEpisode {
+  episodeId: string;
+  matchCount: number;
+  matches: CrossEpisodeMatch[];
+}
+
 export interface CrossEpisodeCandidate {
   start: number;
   end: number;
   kind?: 'recurring';
   episodeMatches?: number;
+  // Per-episode breakdown (target first, then siblings in request order).
+  // Absent on results cached by servers older than 2.42.0; rescan populates.
+  episodes?: CrossEpisodeCandidateEpisode[];
 }
 
 export interface CrossEpisodeScanResponse {

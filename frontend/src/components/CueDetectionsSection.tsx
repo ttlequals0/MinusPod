@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause } from 'lucide-react';
 import CollapsibleSection from './CollapsibleSection';
 import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
 import type { CueDetection } from '../api/types';
+import { episodeOriginalUrl } from '../api/feeds';
 import { formatTimestamp } from '../utils/format';
+import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -59,75 +60,9 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
 
   const hasPending = detections.some((d) => d.verdict === 'pending');
 
-  // Audition a match: one shared <audio> element plays the [start, end] window
-  // of the original audio so only one row sounds at a time. A timeupdate
-  // listener (held in a ref so it can be detached) pauses at the match end.
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Holds a function that detaches whichever listener is active (the timeupdate
-  // stop, or a pending loadedmetadata seek), so a row switch tears down cleanly.
-  const cleanupRef = useRef<(() => void) | null>(null);
-  // Bumped on every play/stop so a slow cold-load callback for a superseded
-  // row bails instead of arming a stray stop listener or seeking the wrong row.
-  const reqRef = useRef(0);
-  const [playingId, setPlayingId] = useState<number | null>(null);
-  const audioUrl = `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
-
-  const clearStop = () => {
-    reqRef.current += 1;
-    if (cleanupRef.current) cleanupRef.current();
-    cleanupRef.current = null;
-  };
-
-  const playMatch = (d: CueDetection) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    clearStop();
-    const req = reqRef.current;
-    // Set playing state synchronously (not in play().then) so a second click
-    // pauses during a cold load instead of starting a duplicate playback.
-    setPlayingId(d.id);
-    // Pause at the match end; setting currentTime before HAVE_METADATA is
-    // dropped by Chrome/Safari, so the seek waits for metadata.
-    const armStop = () => {
-      const stop = () => {
-        if (audio.currentTime >= d.end_s) { clearStop(); audio.pause(); }
-      };
-      audio.addEventListener('timeupdate', stop);
-      cleanupRef.current = () => audio.removeEventListener('timeupdate', stop);
-    };
-    const fail = () => { if (reqRef.current === req) setPlayingId(null); };
-    if (audio.readyState >= 1) {
-      audio.currentTime = d.start_s;
-      armStop();
-      audio.play().catch(fail);
-    } else {
-      // Metadata not loaded yet. Call play() synchronously so it keeps the
-      // click's user gesture (autoplay policy) AND triggers the load; then
-      // seek to the match start once metadata arrives. Deferring play() into a
-      // loadedmetadata callback loses the gesture and, with no load() kicked
-      // off, the metadata may never arrive -- so the click did nothing.
-      audio.play().then(() => {
-        if (reqRef.current !== req) return;  // a newer click took over
-        const seek = () => { audio.currentTime = d.start_s; armStop(); };
-        if (audio.readyState >= 1) seek();
-        else {
-          audio.addEventListener('loadedmetadata', seek, { once: true });
-          cleanupRef.current = () => audio.removeEventListener('loadedmetadata', seek);
-        }
-      }).catch(fail);
-    }
-  };
-
-  const toggleMatch = (d: CueDetection) => {
-    if (playingId === d.id) {
-      clearStop();
-      audioRef.current?.pause();
-    } else {
-      playMatch(d);
-    }
-  };
-
-  useEffect(() => () => { clearStop(); audioRef.current?.pause(); }, []);
+  // Audition a match: shared windowed player, one row sounds at a time.
+  const audioUrl = episodeOriginalUrl(slug, episodeId);
+  const { playingKey, toggle: toggleMatch, audioElement } = useAuditionPlayer(audioUrl);
 
   return (
     <CollapsibleSection
@@ -157,12 +92,12 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => toggleMatch(d)}
-                    aria-label={playingId === d.id ? 'Pause match' : 'Play this match'}
-                    title={playingId === d.id ? 'Pause' : 'Play this match'}
+                    onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
+                    aria-label={playingKey === String(d.id) ? 'Pause match' : 'Play this match'}
+                    title={playingKey === String(d.id) ? 'Pause' : 'Play this match'}
                     className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
                   >
-                    {playingId === d.id ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                    {playingKey === String(d.id) ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
                   <span className="font-mono text-sm text-foreground">
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
@@ -240,13 +175,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
           );
         })}
       </div>
-      <audio
-        ref={audioRef}
-        src={audioUrl}
-        preload="metadata"
-        onPause={() => setPlayingId(null)}
-        onEnded={() => setPlayingId(null)}
-      />
+      {audioElement}
     </CollapsibleSection>
   );
 }

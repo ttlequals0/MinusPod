@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { ChevronDown, ChevronRight, Play, Square, X } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import CueMarkModal from './CueMarkModal';
 import { ghostBtn, primaryBtn, modalBackdrop, modalPanel, useEscape } from './cueScanStyles';
@@ -10,9 +10,10 @@ import {
   type CrossEpisodeCandidate,
   type CrossEpisodeScanResponse,
 } from '../api/cueTemplates';
-import { getEpisode, getEpisodes } from '../api/feeds';
+import { episodeOriginalUrl, getEpisode, getEpisodes } from '../api/feeds';
 import type { Episode } from '../api/types';
 import { formatTimestamp } from '../utils/format';
+import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 
 const PICKER_PAGE_SIZE = 50;
 // Maximum episodes a user may select for the cross-episode scan (server cap).
@@ -46,6 +47,12 @@ export default function CueCrossEpisodeScanModal({
   const [phase, setPhase] = useState<'picker' | 'results'>('picker');
   // Seed for CueMarkModal when a candidate's "Make template" is clicked.
   const [seed, setSeed] = useState<CrossEpisodeCandidate | null>(null);
+  // Per-candidate breakdown expansion (one at a time), keyed `${start}-${end}`.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  // Shared windowed playback for candidate rows and per-match chips. No
+  // preloadSrc: rows play different episodes' originals.
+  const { playingKey, toggle: togglePlayback, stop: stopPlayback, audioElement } =
+    useAuditionPlayer();
 
   // Escape closes this modal, but only when no stacked CueMarkModal is open --
   // the seed modal owns Escape while it is up, so the parent must stand down.
@@ -108,6 +115,42 @@ export default function CueCrossEpisodeScanModal({
   });
   const targetEp: Episode | undefined =
     knownTargetEp ?? fetchedTargetQuery.data ?? undefined;
+
+  // One key format for playWindow and the playingKey comparisons in the rows.
+  const playKey = (episodeId: string, start: number, end: number) =>
+    `${episodeId}:${start}:${end}`;
+
+  // Play [start, end] of one episode's retained original; clicking the owning
+  // button again stops it.
+  const playWindow = (episodeId: string, start: number, end: number) =>
+    togglePlayback(
+      playKey(episodeId, start, end),
+      episodeOriginalUrl(slug, episodeId),
+      start,
+      end,
+    );
+
+  // Titles for the per-episode breakdown. Known metadata first; ids the modal
+  // never held (cached scan from another selection/page) are fetched. The
+  // target id is excluded -- fetchedTargetQuery above already fetches it.
+  const breakdownIds = scanData?.episodeIds ?? [];
+  const titleById = new Map<string, string>();
+  for (const ep of [...selected, ...pickerEpisodes]) {
+    if (!titleById.has(ep.id)) titleById.set(ep.id, ep.title);
+  }
+  if (targetEp) titleById.set(targetEp.id, targetEp.title);
+  const unknownTitleQueries = useQueries({
+    queries: breakdownIds
+      .filter((id) => id !== targetEpId && !titleById.has(id))
+      .map((id) => ({
+        queryKey: ['cue-xep-episode-title', slug, id],
+        queryFn: () => getEpisode(slug, id),
+        enabled: !!slug,
+      })),
+  });
+  for (const q of unknownTitleQueries) {
+    if (q.data) titleById.set(q.data.id, q.data.title);
+  }
 
   const toggleEpisode = (ep: Episode) => {
     setSelected((prev) => {
@@ -268,7 +311,10 @@ export default function CueCrossEpisodeScanModal({
             <button
               type="button"
               className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
-              onClick={() => setPhase('picker')}
+              onClick={() => {
+                stopPlayback();
+                setPhase('picker');
+              }}
             >
               Change episodes
             </button>
@@ -276,7 +322,11 @@ export default function CueCrossEpisodeScanModal({
               <button
                 type="button"
                 className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
-                onClick={() => rescan()}
+                onClick={() => {
+                  stopPlayback();
+                  setExpandedKey(null);
+                  rescan();
+                }}
               >
                 Rescan
               </button>
@@ -294,36 +344,110 @@ export default function CueCrossEpisodeScanModal({
           {!scanning && !scanError && scanData?.status === 'ready' && candidates.length === 0 && (
             <p className="text-sm text-muted-foreground">No recurring segments found.</p>
           )}
+          {!scanning && !scanError && candidates.length > 0
+            && candidates.some((c) => !c.episodes) && (
+            <p className="text-xs text-muted-foreground mb-2">
+              Some rows have no per-episode matches yet. Rescan to fill them in.
+            </p>
+          )}
 
           {candidates.length > 0 && (
             <ul className="flex-1 overflow-y-auto divide-y divide-border border border-border rounded">
-              {candidates.map((c) => (
-                <li key={`${c.start}-${c.end}`} className="flex items-center gap-3 px-3 py-2 text-sm">
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono text-sm">
-                      {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
-                    </span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {(c.end - c.start).toFixed(2)}s
-                    </span>
-                    {c.episodeMatches != null && (
-                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                        {/* episodeMatches counts SIBLINGS; the target is always a match too, so +1. */}
-                        in {c.episodeMatches + 1} of {episodeCount} eps
-                      </span>
+              {candidates.map((c) => {
+                const rowKey = `${c.start}-${c.end}`;
+                const rowPlayKey = targetEpId
+                  ? playKey(targetEpId, c.start, c.end)
+                  : undefined;
+                const expanded = expandedKey === rowKey;
+                return (
+                  <li key={rowKey} className="px-3 py-2 text-sm">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className={`shrink-0 p-1.5 rounded ${ghostBtn}`}
+                        onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
+                        disabled={!targetEpId}
+                        title={playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
+                        aria-label={playingKey === rowPlayKey ? 'Stop candidate' : 'Play candidate'}
+                      >
+                        {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-mono text-sm">
+                          {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {(c.end - c.start).toFixed(2)}s
+                        </span>
+                        {c.episodeMatches != null && (
+                          <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                            {/* episodeMatches counts SIBLINGS; the target is always a match too, so +1. */}
+                            in {c.episodeMatches + 1} of {episodeCount} eps
+                          </span>
+                        )}
+                      </div>
+                      {c.episodes && (
+                        <button
+                          type="button"
+                          className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground"
+                          onClick={() => setExpandedKey(expanded ? null : rowKey)}
+                          aria-label={expanded ? 'Hide per-episode matches' : 'Show per-episode matches'}
+                          aria-expanded={expanded}
+                        >
+                          {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className={`shrink-0 px-3 py-1.5 rounded ${primaryBtn} text-xs`}
+                        onClick={() => setSeed(c)}
+                      >
+                        Make template
+                      </button>
+                    </div>
+                    {expanded && c.episodes && (
+                      <ul className="mt-2 ml-9 space-y-2">
+                        {c.episodes.map((epm) => (
+                          <li key={epm.episodeId} className="text-xs">
+                            <span className="font-medium">
+                              {titleById.get(epm.episodeId) ?? epm.episodeId}
+                            </span>
+                            <span className="ml-2 text-muted-foreground">
+                              {epm.matchCount === 0
+                                ? 'not found'
+                                : `${epm.matchCount} match${epm.matchCount === 1 ? '' : 'es'}`}
+                            </span>
+                            {epm.matches.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {epm.matches.map((m) => {
+                                  const mKey = playKey(epm.episodeId, m.start, m.end);
+                                  return (
+                                    <button
+                                      key={mKey}
+                                      type="button"
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50"
+                                      onClick={() => playWindow(epm.episodeId, m.start, m.end)}
+                                      aria-label={playingKey === mKey
+                                        ? `Stop match at ${formatTimestamp(m.start)}`
+                                        : `Play match at ${formatTimestamp(m.start)}`}
+                                    >
+                                      {playingKey === mKey ? <Square size={10} /> : <Play size={10} />}
+                                      {formatTimestamp(m.start)}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`shrink-0 px-3 py-1.5 rounded ${primaryBtn} text-xs`}
-                    onClick={() => setSeed(c)}
-                  >
-                    Make template
-                  </button>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
+          {audioElement}
         </div>
       </div>
 
