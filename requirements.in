@@ -28,7 +28,7 @@ pillow>=12.3.0
 feedparser==6.0.12
 python-slugify==8.0.4
 
-# Audio analysis (torch/torchaudio 2.6.0+cu124 pre-installed in Dockerfile)
+# Audio analysis (torch 2.13.0+cu126 pre-installed in Dockerfile)
 numpy<2.0                     # numpy 2.x requires X86_V2; target server lacks them
 huggingface_hub>=1.22.0
 
@@ -48,9 +48,9 @@ jaraco.context>=6.1.0
 wheel>=0.47.0
 urllib3>=2.7.0                 # CVE-2026-44431, CVE-2026-44432 (pulled in by requests)
 idna>=3.17                     # CVE-2026-45409 (pulled in by requests)
-# jaraco.context transitive on Python <3.12 (the Docker image runs 3.11).
-# Pinned unconditionally so pip-compile includes it regardless of the compile
-# host's Python version; harmless on 3.12 (unused code path).
+# jaraco.context transitive on Python <3.12 (the Docker image runs 3.12,
+# where this is an unused code path). Pinned unconditionally so pip-compile
+# includes it regardless of the compile host's Python version.
 backports.tarfile>=1.2.0
 
 # Testing

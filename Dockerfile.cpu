@@ -14,16 +14,17 @@
 #   - Frontend builder stage (verbatim).
 #   - apt package list and `apt-get upgrade -y` step (verbatim).
 #   - System dist-package purge (cryptography*, PyJWT*, jwt*) (verbatim).
-#   - python3.11* deadsnakes pin (verbatim).
+#   - python3.12* deadsnakes pin (verbatim).
 #   - pip/setuptools install + vendored-jaraco/wheel cleanup (verbatim).
 #   - requirements.txt install step (verbatim).
 #   - Entrypoint, user/group creation, HEALTHCHECK, EXPOSE (verbatim).
 #   - Torch version: mirror with matching CPU wheel from
-#     https://download.pytorch.org/whl/cpu (no +cu124, no --extra-index-url).
+#     https://download.pytorch.org/whl/cpu (no +cu126, no --extra-index-url).
 #
 # DO NOT MIRROR:
-#   - CUDA base image bumps (this file stays on ubuntu:24.04).
-#   - LD_LIBRARY_PATH cuDNN/cuBLAS edits.
+#   - GPU base image changes (both files share ubuntu:26.04 now, but the GPU
+#     file's NVIDIA notes/env do not apply here).
+#   - LD_LIBRARY_PATH cuDNN/cuBLAS edits and NVIDIA_* env vars.
 #   - GPU defaults: WHISPER_DEVICE=cuda, WHISPER_MODEL=small.
 # =============================================================================
 
@@ -53,10 +54,11 @@ RUN mkdir -p /app/static/ui/swagger \
           /app/static/ui/swagger/
 
 # Stage 2: Python application (CPU-only base; no NVIDIA runtime layer)
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
-# Install Python 3.11 from deadsnakes PPA and system dependencies
-# Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
+# Install Python 3.12 from deadsnakes PPA and system dependencies
+# Ubuntu 26.04 ships Python 3.14; deadsnakes pins 3.12 (numpy<2.0 caps
+# wheels at cp312, and numpy 2.x needs x86-64-v2 the target server lacks)
 # setpriv (from util-linux, present in the base image) is used by
 # entrypoint.sh to drop privileges after the root-only chown step that
 # migrates the data volume on first boot.
@@ -64,9 +66,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
     ffmpeg \
     curl \
     libsndfile1 \
@@ -78,32 +80,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && setpriv --reuid=nobody --regid=nogroup --init-groups true
 
-# Set python3.11 as default, create venv for all pip installs
+# Set python3.12 as default, create venv for all pip installs
 # Venv avoids pip 26+ "uninstall-no-record-file" errors with system packages
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
-    && python3.11 -m venv /opt/venv
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+    && python3.12 -m venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN pip install --no-cache-dir --upgrade pip==25.2 setuptools==80.9.0 \
-    && rm -rf /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/jaraco* \
-              /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/wheel*
+    && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
+              /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
 
 # Set working directory
 WORKDIR /app
 
-# Pre-install PyTorch 2.6.0 CPU-only wheels (no CUDA, no bundled cuDNN/cuBLAS)
+# Pre-install PyTorch 2.13.0 CPU-only wheels (no CUDA, no bundled cuDNN/cuBLAS)
 RUN pip install --no-cache-dir \
-    torch==2.6.0 \
-    torchaudio==2.6.0 \
+    torch==2.13.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Mirrors the GPU Dockerfile: purge build headers (unfixed kernel-header CVEs).
-RUN apt-get purge -y linux-libc-dev python3.11-dev libpython3.11-dev libc6-dev libexpat1-dev \
+RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
