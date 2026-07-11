@@ -35,6 +35,20 @@ function btnClass(status: string, idleClass: string): string {
   return idleClass;
 }
 
+function AuditionPlayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={playing ? 'Pause ad' : 'Play this ad'}
+      title={playing ? 'Pause' : 'Play this ad'}
+      className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
+    >
+      {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
 function TranscriptBlock({ text }: { text: string }) {
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -139,6 +153,10 @@ function EpisodeDetail() {
     },
     onMutate: () => {
       setSaveStatus('saving');
+      // A saved correction can remove the playing row (and its whole section)
+      // on refetch, which would leave the windowed preview playing with no
+      // visible owner. Stop it up front.
+      markerAudition.stop();
     },
     onSuccess: () => {
       setSaveStatus('success');
@@ -209,13 +227,14 @@ function EpisodeDetail() {
     );
   };
 
-  // Windowed playback for Held for Review rows. Held ads are never cut, and
-  // their marker times are in the original-audio timeline, so the retained
-  // original is the correct source. No preload when the original is gone --
-  // the play buttons are hidden then and preload would fire a wasted request.
-  const heldAudioUrl = episodeOriginalUrl(slug!, episodeId!);
-  const heldAudition = useAuditionPlayer(
-    episode?.hasOriginalAudio ? heldAudioUrl : undefined);
+  // Windowed playback for Held for Review and Rejected Detections rows. Both
+  // kinds of markers are never cut, and their times are in the original-audio
+  // timeline, so the retained original is the correct source. No preload when
+  // the original is gone -- the play buttons are hidden then and preload would
+  // fire a wasted request.
+  const markerAudioUrl = episodeOriginalUrl(slug!, episodeId!);
+  const markerAudition = useAuditionPlayer(
+    episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -703,12 +722,17 @@ function EpisodeDetail() {
         </div>
       )}
 
+      {/* Shared windowed player for the Held for Review and Rejected
+          Detections sections below. Gated so the element (and its metadata
+          preload) only exists when at least one section renders. */}
+      {((episode.pendingReviewMarkers?.length ?? 0) > 0 ||
+        (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
+
       {episode.pendingReviewMarkers && episode.pendingReviewMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-amber-500/30 p-6 mb-6" data-testid="held-for-review-section">
           <h2 className="text-xl font-semibold text-foreground mb-4">
             Held for Review ({episode.pendingReviewMarkers.length})
           </h2>
-          {heldAudition.audioElement}
           <div className="space-y-3">
             {episode.pendingReviewMarkers.map((segment, index) => {
               const correction = getAdCorrection(segment.start, segment.end);
@@ -733,7 +757,7 @@ function EpisodeDetail() {
                   ? saveStatus
                   : 'idle';
               const heldKey = `held-${segment.start}-${segment.end}`;
-              const heldPlaying = heldAudition.playingKey === heldKey;
+              const heldPlaying = markerAudition.playingKey === heldKey;
               return (
                 <div
                   key={index}
@@ -742,15 +766,10 @@ function EpisodeDetail() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
-                        <button
-                          type="button"
-                          onClick={() => heldAudition.toggle(heldKey, heldAudioUrl, segment.start, segment.end)}
-                          aria-label={heldPlaying ? 'Pause ad' : 'Play this ad'}
-                          title={heldPlaying ? 'Pause' : 'Play this ad'}
-                          className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
-                        >
-                          {heldPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        </button>
+                        <AuditionPlayButton
+                          playing={heldPlaying}
+                          onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
+                        />
                       )}
                       <span className="font-mono text-sm">
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
@@ -882,10 +901,18 @@ function EpisodeDetail() {
                     mutAd?.reason === (segment.reason || '')
                       ? saveStatus
                       : 'idle';
+                  const rejectedKey = `rejected-${segment.start}-${segment.end}`;
+                  const rejectedPlaying = markerAudition.playingKey === rejectedKey;
                   return (
                     <>
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
+                          {episode.hasOriginalAudio && (
+                            <AuditionPlayButton
+                              playing={rejectedPlaying}
+                              onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
+                            />
+                          )}
                           <span className="font-mono text-sm">
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
@@ -937,16 +964,9 @@ function EpisodeDetail() {
                               },
                             })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
-                              rowStatus === 'success' ? 'bg-green-700 text-white' :
-                              rowStatus === 'error' ? 'bg-red-600 text-white' :
-                              'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white'
-                            }`}
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                           >
-                            {rowStatus === 'saving' ? 'Saving...' :
-                             rowStatus === 'success' ? 'Saved!' :
-                             rowStatus === 'error' ? 'Error!' :
-                             'Confirm as Ad'}
+                            {btnLabel(rowStatus, 'Confirm as Ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({
@@ -959,16 +979,9 @@ function EpisodeDetail() {
                               },
                             })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
-                              rowStatus === 'success' ? 'bg-green-700 text-white' :
-                              rowStatus === 'error' ? 'bg-red-600 text-white' :
-                              'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground'
-                            }`}
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
                           >
-                            {rowStatus === 'saving' ? 'Saving...' :
-                             rowStatus === 'success' ? 'Saved!' :
-                             rowStatus === 'error' ? 'Error!' :
-                             'Not an Ad'}
+                            {btnLabel(rowStatus, 'Not an Ad')}
                           </button>
                         </div>
                       )}
