@@ -180,6 +180,10 @@ class CueDetectionMixin:
             (podcast_id,)).fetchall()
         grouped: Dict[int, Dict] = {}
         for r in rows:
+            # Guard against future verdict states (the outcome CHECK was
+            # already widened once); unknown verdicts must not KeyError.
+            if r['verdict'] not in ('confirmed', 'rejected'):
+                continue
             g = grouped.setdefault(r['template_id'], {
                 'templateId': r['template_id'], 'label': r['label'],
                 'rejected': [], 'confirmed': []})
