@@ -670,6 +670,54 @@ class AudioFingerprinter:
             logger.error(f"Full-file fingerprint generation failed: {e}")
             return None
 
+    def generate_raw_span_fingerprint(
+        self, audio_path: str, start_s: float, end_s: float,
+    ) -> Optional[Tuple[List[int], float]]:
+        """Raw chromaprint ints for the [start_s, end_s] span of a file.
+
+        Extract-then-fingerprint twin of :meth:`generate_fingerprint` that
+        keeps the ``-raw`` int array (comparable against full-file raw
+        fingerprints via the window-occurrence helpers) instead of the
+        compressed string. Returns (raw_ints, duration) or None on failure.
+        """
+        if not self._fpcalc_path or end_s <= start_s:
+            return None
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                tmp_path = tmp.name
+            try:
+                tracked_run(
+                    ['ffmpeg', '-y', '-i', audio_path,
+                     '-ss', str(start_s), '-t', str(end_s - start_s),
+                     '-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path],
+                    capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT, check=True,
+                )
+                result = tracked_run(
+                    [self._fpcalc_path, '-raw', '-json', tmp_path],
+                    capture_output=True, timeout=FPCALC_TIMEOUT,
+                )
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+            if result.returncode != 0:
+                logger.warning(f"span fpcalc failed: {result.stderr.decode()}")
+                return None
+            data = json.loads(result.stdout.decode())
+            raw_ints = data.get('fingerprint', [])
+            if not raw_ints or not isinstance(raw_ints, list):
+                return None
+            return (raw_ints, data.get('duration', end_s - start_s))
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode() if e.stderr else ''
+            logger.warning(f"span ffmpeg extract failed: {stderr}")
+            return None
+        except subprocess.TimeoutExpired:
+            logger.error("Span fingerprint generation timed out")
+            return None
+        except Exception as e:
+            logger.error(f"Span fingerprint generation failed: {e}")
+            return None
+
     def discover_recurring_spots(self, audio_path, *, similarity, min_count,
                                  target_fingerprint=None):
         """Find recurring sounds in an episode as cue-template candidates.
