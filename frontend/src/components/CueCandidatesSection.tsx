@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import CollapsibleSection from './CollapsibleSection';
 import LoadingSpinner from './LoadingSpinner';
 import CueMarkModal from './CueMarkModal';
 import {
   getCueCandidates, cueCandidateLabel,
+  dismissCueCandidate, listCueCandidateDismissals, undoCueCandidateDismissal,
   type CueCandidate, type CueTemplateType,
 } from '../api/cueTemplates';
 import { episodeOriginalUrl } from '../api/feeds';
@@ -57,13 +58,37 @@ function CueCandidatesSection({
       query.state.data?.status === 'scanning' ? 3000 : false,
   });
 
+  const [showDismissed, setShowDismissed] = useState(false);
+  const dismissalsQuery = useQuery({
+    queryKey: ['cue-dismissals', slug],
+    queryFn: () => listCueCandidateDismissals(slug),
+    enabled: scanned,
+  });
+  const dismissals = dismissalsQuery.data ?? [];
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['cue-candidates', slug, episodeId] });
+    queryClient.invalidateQueries({ queryKey: ['cue-dismissals', slug] });
+  };
+  const dismissMutation = useMutation({
+    mutationFn: (c: CueCandidate) => dismissCueCandidate(slug, episodeId, {
+      start_s: c.start, end_s: c.end, label: cueCandidateLabel(c),
+    }),
+    onSuccess: invalidate,
+  });
+  const undoMutation = useMutation({
+    mutationFn: (id: number) => undoCueCandidateDismissal(id),
+    onSuccess: invalidate,
+  });
+
   const data = candidatesQuery.data;
-  const candidates: CueCandidate[] = data?.candidates ?? [];
+  const allCandidates: CueCandidate[] = data?.candidates ?? [];
+  const candidates = allCandidates.filter((c) => !c.dismissed);
   const scanning = scanned && (candidatesQuery.isLoading || data?.status === 'scanning');
   const scanError = data?.status === 'error'
     ? (data.error || 'Scan failed.')
     : (candidatesQuery.error ? 'Scan failed. Try again.' : null);
-  const noneFound = data?.status === 'ready' && candidates.length === 0;
+  const noneFound = data?.status === 'ready' && allCandidates.length === 0;
 
   const rescan = () =>
     queryClient.fetchQuery({
@@ -184,7 +209,7 @@ function CueCandidatesSection({
         <p className="text-sm text-muted-foreground">No audio cues found.</p>
       )}
 
-      {candidates.length > 0 && (
+      {(candidates.length > 0 || dismissals.length > 0) && (
         <div className="space-y-2">
           {candidates.map((c) => {
             const key = candidateKey(c);
@@ -238,10 +263,50 @@ function CueCandidatesSection({
                   >
                     Make template
                   </button>
+                  <button
+                    onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
+                    disabled={dismissMutation.isPending}
+                    title="Not a cue: hide this sound in every episode of this feed"
+                    className="shrink-0 px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               </div>
             );
           })}
+          {dismissals.length > 0 && (
+            <div className="pt-1">
+              <button
+                onClick={() => setShowDismissed((v) => !v)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showDismissed ? 'Hide dismissed' : `Dismissed (${dismissals.length})`}
+              </button>
+              {showDismissed && (
+                <div className="mt-2 space-y-2">
+                  {dismissals.map((d) => (
+                    <div key={d.id} className="p-2 bg-muted/40 rounded border border-border flex items-center gap-3">
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {formatTimestamp(d.startS)} - {formatTimestamp(d.endS)}
+                      </span>
+                      <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
+                        {d.label || 'Dismissed sound'}
+                        {d.sourceEpisodeId !== episodeId && ' (from another episode)'}
+                      </span>
+                      <button
+                        onClick={() => undoMutation.mutate(d.id)}
+                        disabled={undoMutation.isPending}
+                        className="shrink-0 px-2 py-1 text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+                      >
+                        Undo
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <audio
             ref={audioRef}
             src={episodeOriginalUrl(slug, episodeId)}

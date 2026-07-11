@@ -263,6 +263,8 @@ export interface CueCandidate {
   adBoundaryHits?: number | null;    // recurring: occurrences near a known ad boundary
   boundaryAffinity?: number | null;  // adBoundaryHits / count; null = no ad history
   affinitySource?: 'episode' | 'siblings' | null;  // where affinity data came from
+  dismissed?: boolean;    // matched a feed-wide dismissed sound
+  dismissalId?: number;   // undo handle when dismissed
 }
 
 // Short badge label for a candidate.
@@ -378,6 +380,40 @@ export async function optimizeCueWindow(
     `/feeds/${slug}/cue-templates/${templateId}/optimize-window`,
     { method: 'POST', body: { rescan } },
   );
+}
+
+// Feed-wide "not a cue" feedback (2.44.0). Dismissing stores the sound's
+// fingerprint; future scans of any episode suppress matching candidates.
+export interface CueCandidateDismissal {
+  id: number;
+  label: string | null;
+  sourceEpisodeId: string;
+  startS: number;
+  endS: number;
+  createdAt?: string;
+}
+
+export async function dismissCueCandidate(
+  slug: string,
+  episodeId: string,
+  body: { start_s: number; end_s: number; label?: string | null },
+): Promise<CueCandidateDismissal> {
+  return apiRequest<CueCandidateDismissal>(
+    `/feeds/${slug}/episodes/${encodeURIComponent(episodeId)}/cue-candidates/dismiss`,
+    { method: 'POST', body },
+  );
+}
+
+export async function listCueCandidateDismissals(
+  slug: string,
+): Promise<CueCandidateDismissal[]> {
+  const res = await apiRequest<{ dismissals: CueCandidateDismissal[] }>(
+    `/feeds/${slug}/cue-candidate-dismissals`);
+  return res.dismissals;
+}
+
+export async function undoCueCandidateDismissal(id: number): Promise<void> {
+  await apiRequest(`/cue-candidate-dismissals/${id}`, { method: 'DELETE' });
 }
 
 // On-demand scan: fingerprint the whole episode and return the sounds that
