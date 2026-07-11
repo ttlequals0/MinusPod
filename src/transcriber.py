@@ -277,20 +277,20 @@ def merge_overlapping_segments(
     return result
 
 
-def _max_download_bytes() -> int:
-    """Episode download cap in bytes; MAX_AUDIO_DOWNLOAD_MB overrides the
+def _max_download_mb() -> int:
+    """Episode download cap in MB; MAX_AUDIO_DOWNLOAD_MB overrides the
     500MB default (#493). Invalid or non-positive values fall back to 500."""
-    raw = os.environ.get('MAX_AUDIO_DOWNLOAD_MB', '')
+    raw = os.environ.get('MAX_AUDIO_DOWNLOAD_MB')
+    if not raw:
+        return 500
     try:
         mb = int(raw)
-        if mb <= 0:
-            raise ValueError(raw)
     except ValueError:
-        if raw:
-            logger.warning(
-                f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
+        mb = 0
+    if mb <= 0:
+        logger.warning(f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
         mb = 500
-    return mb * 1024 * 1024
+    return mb
 
 
 def _get_whisper_settings() -> Dict[str, str]:
@@ -1217,17 +1217,16 @@ class Transcriber:
             return None
 
         try:
-            max_bytes = _max_download_bytes()
-            max_mb = max_bytes // (1024 * 1024)
+            max_mb = _max_download_mb()
+            max_bytes = max_mb * 1024 * 1024
 
             # Check file size
             content_length = response.headers.get('Content-Length')
             if content_length:
                 size_mb = int(content_length) / (1024 * 1024)
                 if size_mb > max_mb:
-                    raise AudioTooLargeError(
-                        f"Audio file is {size_mb:.0f}MB, over the {max_mb}MB "
-                        f"download cap; raise MAX_AUDIO_DOWNLOAD_MB to process it"
+                    raise ResponseTooLargeError(
+                        f"Audio file is {size_mb:.0f}MB, over the {max_mb}MB download cap"
                     )
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
@@ -1242,16 +1241,15 @@ class Transcriber:
                         os.unlink(temp_path)
                     except OSError:
                         pass
-                    raise AudioTooLargeError(
-                        f"Audio stream exceeded the {max_mb}MB download cap; "
-                        f"raise MAX_AUDIO_DOWNLOAD_MB to process it"
+                    raise ResponseTooLargeError(
+                        f"Audio stream exceeded the {max_mb}MB download cap"
                     )
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path
-        except AudioTooLargeError as e:
+        except ResponseTooLargeError as e:
             logger.error(f"{e} ({safe_url_for_log(url)})")
-            raise
+            raise AudioTooLargeError(str(e)) from e
         except Exception as e:
             logger.error(f"Failed to download audio: {e}")
             return None

@@ -154,9 +154,7 @@ class TestAudioTooLargeEpisodeOutcome:
     permanently with the actionable cap message (#493)."""
 
     TOO_LARGE = AudioTooLargeError(
-        "Audio file is 620MB, over the 500MB download cap; "
-        "raise MAX_AUDIO_DOWNLOAD_MB to process it"
-    )
+        "Audio file is 620MB, over the 500MB download cap")
 
     def test_not_transient(self):
         assert is_transient_error(self.TOO_LARGE) is False

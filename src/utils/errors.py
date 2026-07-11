@@ -24,6 +24,9 @@ class AudioTooLargeError(Exception):
     """An episode enclosure exceeds the configured download size cap.
 
     Permanent for the episode: the file will not shrink on retry. The
-    operator can raise MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
+    operator can raise MAX_AUDIO_DOWNLOAD_MB and reprocess (#493); the
+    appended hint keeps that remedy in every stored error message.
     """
-    pass
+
+    def __init__(self, message: str):
+        super().__init__(f"{message}; raise MAX_AUDIO_DOWNLOAD_MB to process it")
