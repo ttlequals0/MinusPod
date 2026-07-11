@@ -325,9 +325,6 @@ AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS = 20.0
 # non-ad cluster nearly ties the real sting), so do not go below ~0.72.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.73   # fingerprint bit-similarity to call two windows the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
-# Candidate-dismissal matching (2.44.0): fingerprint bit-similarity at which a
-# scanned candidate counts as the same sound as a dismissed one.
-AUDIO_CUE_DISMISSAL_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY
 # Verdict-labeled threshold suggestion: minimum reviewed detections before
 # labels steer the suggestion.
 AUDIO_CUE_SUGGEST_MIN_LABELED = 3
@@ -389,6 +386,9 @@ AUDIO_CUE_SCAN_MAX_DURATION_SECONDS = 12.0  # allow sustained musical beds (live
 # runs in a background thread and the result is cached. A scan row older than
 # this is treated as crashed/expired and reclaimable for a fresh run.
 AUDIO_CUE_CANDIDATE_SCAN_STALE_SECONDS = 900
+# Longest span a candidate dismissal may fingerprint; anything longer is not
+# a cue and would make the request thread decode minutes of audio.
+AUDIO_CUE_DISMISS_MAX_SPAN_SECONDS = 120.0
 
 # Threshold auto-suggest (#350). The diagnostic sweep runs the matcher at a low
 # floor across a few episodes; the helper gap-finds between the noise cluster and

@@ -503,6 +503,22 @@ class CueTemplateMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def list_cue_candidate_dismissals_decoded(self, podcast_id: int) -> List[Dict]:
+        """Dismissals with fingerprint decoded to raw ints, for the scan
+        worker. Rows whose fingerprint does not decode to a non-empty list
+        are skipped with a warning -- corrupt feedback must never fail a scan."""
+        out = []
+        for d in self.list_cue_candidate_dismissals(podcast_id):
+            try:
+                ints = json.loads(d['fingerprint'])
+            except (ValueError, TypeError):
+                ints = None
+            if isinstance(ints, list) and ints:
+                out.append({'id': d['id'], 'raw_ints': ints})
+            else:
+                logger.warning('dismissal %s: unreadable fingerprint; skipped', d['id'])
+        return out
+
     # Cross-episode body scan family (D1b, #350).  Keyed by
     # (podcast_id, episode_set_hash) -- a sha256 hex of the sorted episode-id
     # list -- so the cache is shared across any identical episode set regardless

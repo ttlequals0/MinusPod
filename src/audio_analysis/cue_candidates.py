@@ -5,7 +5,7 @@ directly.
 """
 import numpy as np
 
-from audio_fingerprinter import _enumerate_window_occurrences
+from audio_fingerprinter import enumerate_window_occurrences
 from config import (
     AUDIO_CUE_TYPE_SHOW_INTRO, AUDIO_CUE_TYPE_SHOW_OUTRO,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
@@ -158,16 +158,14 @@ def mark_dismissed_candidates(candidates, dismissals, target_fp, similarity):
     number of candidates marked.
     """
     raw_ints, duration = target_fp
+    ep_arr = np.asarray(raw_ints, dtype=np.uint32)
     marked = 0
-    undismissed = sum(1 for c in candidates if not c.get('dismissed'))
     for d in dismissals:
-        if marked >= undismissed:
-            break
         window = np.asarray(d.get('raw_ints') or [], dtype=np.uint32)
         if window.size == 0:
             continue
-        occurrences = _enumerate_window_occurrences(
-            window, raw_ints, duration, similarity)
+        occurrences = enumerate_window_occurrences(
+            window, ep_arr, duration, similarity)
         if not occurrences:
             continue
         for c in candidates:

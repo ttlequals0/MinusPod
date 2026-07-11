@@ -37,3 +37,14 @@ def test_cascade_on_podcast_delete(temp_db):
     did = temp_db.create_cue_candidate_dismissal(pid, 'ep1', 1.0, 2.0, None, '[1]')
     temp_db.delete_podcast('feed')
     assert temp_db.get_cue_candidate_dismissal(did) is None
+
+
+def test_decoded_returns_only_good_rows(temp_db):
+    pid = temp_db.create_podcast('dfeed', 'http://x/rss', 'Feed')
+    temp_db.create_cue_candidate_dismissal(pid, 'ep1', 1.0, 2.0, None, '[1, 2, 3]')
+    temp_db.create_cue_candidate_dismissal(pid, 'ep1', 3.0, 4.0, None, 'not json')
+    temp_db.create_cue_candidate_dismissal(pid, 'ep1', 5.0, 6.0, None, '[]')
+    temp_db.create_cue_candidate_dismissal(pid, 'ep1', 7.0, 8.0, None, '{"a": 1}')
+    out = temp_db.list_cue_candidate_dismissals_decoded(pid)
+    assert len(out) == 1
+    assert out[0]['raw_ints'] == [1, 2, 3]

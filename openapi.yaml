@@ -5764,7 +5764,7 @@ paths:
                   sourceEpisodeId:
                     type: string
         '400':
-          description: Invalid span or missing required fields
+          description: Invalid span, span exceeds 120 s maximum, or missing required fields
         '404':
           description: Feed not found or original audio unavailable
         '503':

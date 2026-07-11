@@ -133,7 +133,7 @@ def _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity):
     return len(_greedy_hit_positions(sim, similarity, min_gap))
 
 
-def _enumerate_window_occurrences(window, ep_ints, ep_duration, similarity):
+def enumerate_window_occurrences(window, ep_ints, ep_duration, similarity):
     """Every occurrence of ``window`` (uint32 array) in one episode's fingerprint.
 
     Cross-array twin of :func:`_count_window_matches` that keeps positions
@@ -472,31 +472,11 @@ class AudioFingerprinter:
 
             # If we need a specific segment, extract it first
             if start > 0 or duration is not None:
-                # Use ffmpeg to extract segment
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
                     tmp_path = tmp.name
 
                 try:
-                    ffmpeg_cmd = [
-                        'ffmpeg', '-y', '-i', audio_path,
-                        '-ss', str(start),
-                    ]
-                    if duration:
-                        ffmpeg_cmd.extend(['-t', str(duration)])
-                    ffmpeg_cmd.extend([
-                        '-ac', '1',  # Mono
-                        '-ar', '16000',  # 16kHz
-                        '-f', 'wav',
-                        tmp_path
-                    ])
-
-                    tracked_run(
-                        ffmpeg_cmd,
-                        capture_output=True,
-                        timeout=FFMPEG_SHORT_TIMEOUT,
-                        check=True,
-                    )
-
+                    self._extract_wav_segment(audio_path, tmp_path, start, duration)
                     cmd.append(tmp_path)
                     result = tracked_run(
                         cmd,
@@ -670,6 +650,15 @@ class AudioFingerprinter:
             logger.error(f"Full-file fingerprint generation failed: {e}")
             return None
 
+    def _extract_wav_segment(self, audio_path, tmp_path, start, duration):
+        """Decode [start, start+duration) (duration None = to EOF) to mono
+        16 kHz WAV at tmp_path for fpcalc."""
+        cmd = ['ffmpeg', '-y', '-i', audio_path, '-ss', str(start)]
+        if duration is not None:
+            cmd.extend(['-t', str(duration)])
+        cmd.extend(['-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path])
+        tracked_run(cmd, capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT, check=True)
+
     def generate_raw_span_fingerprint(
         self, audio_path: str, start_s: float, end_s: float,
     ) -> Optional[Tuple[List[int], float]]:
@@ -686,12 +675,7 @@ class AudioFingerprinter:
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
                 tmp_path = tmp.name
             try:
-                tracked_run(
-                    ['ffmpeg', '-y', '-i', audio_path,
-                     '-ss', str(start_s), '-t', str(end_s - start_s),
-                     '-ac', '1', '-ar', '16000', '-f', 'wav', tmp_path],
-                    capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT, check=True,
-                )
+                self._extract_wav_segment(audio_path, tmp_path, start_s, end_s - start_s)
                 result = tracked_run(
                     [self._fpcalc_path, '-raw', '-json', tmp_path],
                     capture_output=True, timeout=FPCALC_TIMEOUT,
@@ -894,7 +878,7 @@ class AudioFingerprinter:
                 window = t_arr[a:b]
                 episodes = []
                 for index, (ep_ints, ep_dur) in all_fps:
-                    occ = _enumerate_window_occurrences(
+                    occ = enumerate_window_occurrences(
                         window, ep_ints, ep_dur, similarity)
                     episodes.append({
                         'index': index,

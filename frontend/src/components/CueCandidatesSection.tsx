@@ -82,20 +82,12 @@ function CueCandidatesSection({
   });
 
   const data = candidatesQuery.data;
-  const allCandidates: CueCandidate[] = data?.candidates ?? [];
-  // A stamp whose dismissal row no longer exists is stale (undo happened after
-  // this episode's scan was cached); show the candidate. Gate on isSuccess so
-  // candidates don't flash back while the dismissals list is loading.
-  const liveDismissalIds = new Set(dismissals.map((d) => d.id));
-  const candidates = allCandidates.filter(
-    (c) => !c.dismissed
-      || (dismissalsQuery.isSuccess && !liveDismissalIds.has(c.dismissalId ?? -1)),
-  );
+  const candidates = (data?.candidates ?? []).filter((c) => !c.dismissed);
   const scanning = scanned && (candidatesQuery.isLoading || data?.status === 'scanning');
   const scanError = data?.status === 'error'
     ? (data.error || 'Scan failed.')
     : (candidatesQuery.error ? 'Scan failed. Try again.' : null);
-  const noneFound = data?.status === 'ready' && allCandidates.length === 0;
+  const noneFound = data?.status === 'ready' && !data.candidates?.length;
 
   const rescan = () =>
     queryClient.fetchQuery({

@@ -73,7 +73,7 @@ from config import (
     AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS,
     AUDIO_CUE_AD_AFFINITY_MIN_FRACTION,
     AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION,
-    AUDIO_CUE_DISMISSAL_SIMILARITY,
+    AUDIO_CUE_DISMISS_MAX_SPAN_SECONDS,
     resolve_cue_template_score,
     resolve_cue_template_score_with_source,
     AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN,
@@ -1102,23 +1102,19 @@ def _capture_ceiling(db, cue_type):
     return cap_max
 
 
-def _decoded_dismissals(db, podcast_id):
-    """Feed dismissals with raw ints decoded from stored JSON.
-
-    A row whose fingerprint does not decode to a non-empty list is skipped
-    with a warning -- a corrupt dismissal must never fail the scan.
-    """
-    out = []
-    for d in db.list_cue_candidate_dismissals(podcast_id):
-        try:
-            ints = json.loads(d['fingerprint'])
-        except (ValueError, TypeError):
-            ints = None
-        if isinstance(ints, list) and ints:
-            out.append({'id': d['id'], 'raw_ints': ints})
-        else:
-            logger.warning('dismissal %s: unreadable fingerprint; skipped', d['id'])
-    return out
+def _strip_stale_dismissal_stamps(db, podcast_id, candidates):
+    """Drop dismissed/dismissalId stamps whose dismissal row no longer exists
+    (an undo after this episode's scan was cached). Read-time reconciliation:
+    the cache itself is rewritten on the next rescan."""
+    stamped_ids = {c.get('dismissalId') for c in candidates if c.get('dismissed')}
+    if not stamped_ids:
+        return candidates
+    live = {d['id'] for d in db.list_cue_candidate_dismissals(podcast_id)}
+    for c in candidates:
+        if c.get('dismissed') and c.get('dismissalId') not in live:
+            c.pop('dismissed', None)
+            c.pop('dismissalId', None)
+    return candidates
 
 
 def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
@@ -1192,10 +1188,11 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
             cross_episode = []
         templated = _templated_cue_spans(db, podcast_id, slug, episode_id)
         candidates = merge_cue_candidates(recurring, cross_episode, templated)
-        dismissals = _decoded_dismissals(db, podcast_id)
+        dismissals = db.list_cue_candidate_dismissals_decoded(podcast_id)
         if dismissals and target_fp:
+            # same "same sound" judgment as recurrence discovery, honors per-install tuning
             marked = mark_dismissed_candidates(
-                candidates, dismissals, target_fp, AUDIO_CUE_DISMISSAL_SIMILARITY)
+                candidates, dismissals, target_fp, similarity)
             if marked:
                 logger.info(
                     'cue candidate scan: %d candidate(s) matched dismissed sounds',
@@ -1271,6 +1268,7 @@ def episode_cue_candidates(slug, episode_id):
         if row and row.get('status') == 'ready':
             candidates = json.loads(row.get('candidates_json') or '[]')
             if _candidates_are_current(candidates):
+                candidates = _strip_stale_dismissal_stamps(db, podcast_id, candidates)
                 return json_response({
                     'episodeId': episode_id, 'status': 'ready', 'candidates': candidates,
                 })
@@ -1283,6 +1281,7 @@ def episode_cue_candidates(slug, episode_id):
         row = db.get_cue_candidate_scan(podcast_id, episode_id)
         candidates = json.loads((row or {}).get('candidates_json') or '[]')
         if _candidates_are_current(candidates):
+            candidates = _strip_stale_dismissal_stamps(db, podcast_id, candidates)
             return json_response({
                 'episodeId': episode_id, 'status': 'ready', 'candidates': candidates,
             })
@@ -1973,18 +1972,26 @@ def cue_window_optimize(slug, template_id):
     return json_response({'status': 'scanning', 'templateId': template_id})
 
 
+def _load_cached_candidates(db, podcast_id, episode_id):
+    """Candidates list from a ready cached scan, or None (missing, not ready,
+    or unparseable -- callers no-op)."""
+    row = db.get_cue_candidate_scan(podcast_id, episode_id)
+    if not row or row.get('status') != 'ready':
+        return None
+    try:
+        return json.loads(row.get('candidates_json') or '[]')
+    except ValueError:
+        return None
+
+
 def _stamp_cached_candidate(db, podcast_id, episode_id, start_s, end_s, dismissal_id):
     """Mark the just-dismissed candidate in this episode's cached scan.
 
     Other episodes' caches self-correct on their next rescan; only the episode
     the dismissal was made from is stamped immediately.
     """
-    row = db.get_cue_candidate_scan(podcast_id, episode_id)
-    if not row or row.get('status') != 'ready':
-        return
-    try:
-        candidates = json.loads(row.get('candidates_json') or '[]')
-    except ValueError:
+    candidates = _load_cached_candidates(db, podcast_id, episode_id)
+    if candidates is None:
         return
     changed = False
     for c in candidates:
@@ -2000,12 +2007,8 @@ def _stamp_cached_candidate(db, podcast_id, episode_id, start_s, end_s, dismissa
 
 def _unstamp_cached_candidates(db, podcast_id, episode_id, dismissal_id):
     """Undo twin of _stamp_cached_candidate: clear flags carrying this id."""
-    row = db.get_cue_candidate_scan(podcast_id, episode_id)
-    if not row or row.get('status') != 'ready':
-        return
-    try:
-        candidates = json.loads(row.get('candidates_json') or '[]')
-    except ValueError:
+    candidates = _load_cached_candidates(db, podcast_id, episode_id)
+    if candidates is None:
         return
     changed = False
     for c in candidates:
@@ -2037,6 +2040,8 @@ def dismiss_cue_candidate(slug, episode_id):
         return error_response('start_s and end_s must be numbers', 400)
     if not (math.isfinite(start_s) and math.isfinite(end_s)) or end_s <= start_s:
         return error_response('invalid span', 400)
+    if end_s - start_s > AUDIO_CUE_DISMISS_MAX_SPAN_SECONDS:
+        return error_response('span too long to be a cue', 400)
     label = data.get('label') or None
 
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)

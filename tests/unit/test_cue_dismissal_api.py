@@ -109,3 +109,45 @@ def test_list_and_undo(client, db):
 def test_undo_unknown_id(client):
     r = client.delete('/api/v1/cue-candidate-dismissals/999999')
     assert r.status_code == 404
+
+
+def test_dismiss_span_too_long(client, db):
+    db.create_podcast('dfeed5', 'http://x/rss', 'Feed')
+    r = client.post(
+        '/api/v1/feeds/dfeed5/episodes/abcdef123456/cue-candidates/dismiss',
+        json={'start_s': 0.0, 'end_s': 200.0})
+    assert r.status_code == 400
+
+
+def test_peek_strips_stale_stamp(client, db):
+    ep = 'aabbcc112233'
+    pid = db.create_podcast('psfeed', 'http://x/rss', 'Feed')
+    # Seed a ready cache with a candidate stamped dismissed:true, dismissalId:12345
+    # but no such dismissal row exists.
+    _seed_cache(db, pid, ep, [
+        {'start': 10.0, 'end': 12.0, 'kind': 'recurring', 'sv': 5,
+         'dismissed': True, 'dismissalId': 12345},
+    ])
+    r = client.get(f'/api/v1/feeds/psfeed/episodes/{ep}/cue-candidates?peek=1')
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data['status'] == 'ready'
+    c = data['candidates'][0]
+    assert 'dismissed' not in c
+    assert 'dismissalId' not in c
+
+
+def test_peek_keeps_live_stamp(client, db):
+    ep = 'aabbcc112244'
+    pid = db.create_podcast('psfeed2', 'http://x/rss', 'Feed')
+    did = db.create_cue_candidate_dismissal(pid, ep, 10.0, 12.0, None, '[1, 2, 3]')
+    _seed_cache(db, pid, ep, [
+        {'start': 10.0, 'end': 12.0, 'kind': 'recurring', 'sv': 5,
+         'dismissed': True, 'dismissalId': did},
+    ])
+    r = client.get(f'/api/v1/feeds/psfeed2/episodes/{ep}/cue-candidates?peek=1')
+    assert r.status_code == 200
+    data = r.get_json()
+    c = data['candidates'][0]
+    assert c.get('dismissed') is True
+    assert c.get('dismissalId') == did
