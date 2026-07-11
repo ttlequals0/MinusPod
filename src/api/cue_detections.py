@@ -49,6 +49,9 @@ def get_cue_detections_advisory(slug):
     if not podcast:
         return error_response('feed not found', 404)
     payload = db.cue_feed_advisory(podcast['id'])
+    if not (payload['confirmed'] or payload['rejected']):
+        payload['templateHints'] = []
+        return json_response(payload)
     threshold = resolve_cue_template_score(db, podcast['id'])
     hints = []
     for t in db.cue_template_verdict_scores(podcast['id']):

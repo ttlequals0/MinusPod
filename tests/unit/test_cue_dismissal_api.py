@@ -137,6 +137,24 @@ def test_peek_strips_stale_stamp(client, db):
     assert 'dismissalId' not in c
 
 
+def test_ready_path_strips_stale_stamp(client, db):
+    """Non-peek ready path also reconciles stale dismissal stamps."""
+    ep = 'ccddee334455'
+    pid = db.create_podcast('rpfeed', 'http://x/rss', 'Feed')
+    # Seed a ready cache at current sv with a dangling dismissalId (no DB row).
+    _seed_cache(db, pid, ep, [
+        {'start': 20.0, 'end': 22.0, 'kind': 'recurring', 'sv': 5,
+         'dismissed': True, 'dismissalId': 99999},
+    ])
+    r = client.get(f'/api/v1/feeds/rpfeed/episodes/{ep}/cue-candidates')
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data['status'] == 'ready'
+    c = data['candidates'][0]
+    assert 'dismissed' not in c
+    assert 'dismissalId' not in c
+
+
 def test_peek_keeps_live_stamp(client, db):
     ep = 'aabbcc112244'
     pid = db.create_podcast('psfeed2', 'http://x/rss', 'Feed')

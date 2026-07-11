@@ -87,7 +87,7 @@ function CueCandidatesSection({
   const scanError = data?.status === 'error'
     ? (data.error || 'Scan failed.')
     : (candidatesQuery.error ? 'Scan failed. Try again.' : null);
-  const noneFound = data?.status === 'ready' && !data.candidates?.length;
+  const noneFound = data?.status === 'ready' && candidates.length === 0 && dismissals.length === 0;
 
   const rescan = () =>
     queryClient.fetchQuery({

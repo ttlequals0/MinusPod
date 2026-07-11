@@ -503,6 +503,15 @@ class CueTemplateMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def list_cue_candidate_dismissal_ids(self, podcast_id: int) -> set:
+        """Just the ids, for read-time stamp reconciliation (skips the
+        fingerprint blobs)."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            "SELECT id FROM cue_candidate_dismissals WHERE podcast_id = ?",
+            (podcast_id,)).fetchall()
+        return {r['id'] for r in rows}
+
     def list_cue_candidate_dismissals_decoded(self, podcast_id: int) -> List[Dict]:
         """Dismissals with fingerprint decoded to raw ints, for the scan
         worker. Rows whose fingerprint does not decode to a non-empty list

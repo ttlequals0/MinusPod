@@ -1109,7 +1109,7 @@ def _strip_stale_dismissal_stamps(db, podcast_id, candidates):
     stamped_ids = {c.get('dismissalId') for c in candidates if c.get('dismissed')}
     if not stamped_ids:
         return candidates
-    live = {d['id'] for d in db.list_cue_candidate_dismissals(podcast_id)}
+    live = db.list_cue_candidate_dismissal_ids(podcast_id)
     for c in candidates:
         if c.get('dismissed') and c.get('dismissalId') not in live:
             c.pop('dismissed', None)
@@ -1990,6 +1990,8 @@ def _stamp_cached_candidate(db, podcast_id, episode_id, start_s, end_s, dismissa
     Other episodes' caches self-correct on their next rescan; only the episode
     the dismissal was made from is stamped immediately.
     """
+    # Guarded so a mid-flight rescan wins over a stale stamp write.
+    epoch = db.get_cue_candidate_scan_claim_epoch(podcast_id, episode_id)
     candidates = _load_cached_candidates(db, podcast_id, episode_id)
     if candidates is None:
         return
@@ -2002,11 +2004,14 @@ def _stamp_cached_candidate(db, podcast_id, episode_id, start_s, end_s, dismissa
             changed = True
             break
     if changed:
-        db.save_cue_candidate_scan_result(podcast_id, episode_id, candidates)
+        db.save_cue_candidate_scan_result(podcast_id, episode_id, candidates,
+                                          claim_epoch=epoch)
 
 
 def _unstamp_cached_candidates(db, podcast_id, episode_id, dismissal_id):
     """Undo twin of _stamp_cached_candidate: clear flags carrying this id."""
+    # Guarded so a mid-flight rescan wins over a stale stamp write.
+    epoch = db.get_cue_candidate_scan_claim_epoch(podcast_id, episode_id)
     candidates = _load_cached_candidates(db, podcast_id, episode_id)
     if candidates is None:
         return
@@ -2017,7 +2022,8 @@ def _unstamp_cached_candidates(db, podcast_id, episode_id, dismissal_id):
             c.pop('dismissalId', None)
             changed = True
     if changed:
-        db.save_cue_candidate_scan_result(podcast_id, episode_id, candidates)
+        db.save_cue_candidate_scan_result(podcast_id, episode_id, candidates,
+                                          claim_epoch=epoch)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/cue-candidates/dismiss',
@@ -2090,7 +2096,10 @@ def delete_cue_candidate_dismissal_route(dismissal_id):
     row = db.get_cue_candidate_dismissal(dismissal_id)
     if not row:
         return error_response('dismissal not found', 404)
+    # Delete the DB row first: a crash after delete but before unstamp leaves a
+    # stale stamp that read-time reconciliation corrects; the old order left an
+    # unstamped cache with a live dismissal row, which is harder to recover from.
+    db.delete_cue_candidate_dismissal(dismissal_id)
     _unstamp_cached_candidates(
         db, row['podcast_id'], row['source_episode_id'], dismissal_id)
-    db.delete_cue_candidate_dismissal(dismissal_id)
     return json_response({'deleted': True})

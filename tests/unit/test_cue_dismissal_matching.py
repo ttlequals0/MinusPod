@@ -35,6 +35,18 @@ def test_no_dismissals_no_change():
     assert 'dismissed' not in candidates[0]
 
 
+def test_saturation_early_exit():
+    """All candidates stamped: remaining dismissals should not be scanned."""
+    # One candidate, two dismissals. Only the first dismissal matches; after
+    # it stamps the one candidate, marked == len(candidates) so the loop breaks.
+    candidates = [{'start': 20.0, 'end': 28.0, 'kind': 'recurring'}]
+    d1 = {'id': 1, 'raw_ints': list(_WINDOW)}
+    d2 = {'id': 2, 'raw_ints': list(_WINDOW)}  # would also match but never reached
+    marked = mark_dismissed_candidates(candidates, [d1, d2], _target(), 0.95)
+    assert marked == 1
+    assert candidates[0]['dismissalId'] == 1
+
+
 def test_empty_window_skipped():
     candidates = [{'start': 20.0, 'end': 28.0}]
     marked = mark_dismissed_candidates(

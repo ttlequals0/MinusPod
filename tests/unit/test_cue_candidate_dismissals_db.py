@@ -39,6 +39,14 @@ def test_cascade_on_podcast_delete(temp_db):
     assert temp_db.get_cue_candidate_dismissal(did) is None
 
 
+def test_list_ids_returns_id_set(temp_db):
+    pid = temp_db.create_podcast('idfeed', 'http://x/rss', 'Feed')
+    d1 = temp_db.create_cue_candidate_dismissal(pid, 'ep1', 1.0, 2.0, None, '[1]')
+    d2 = temp_db.create_cue_candidate_dismissal(pid, 'ep1', 3.0, 4.0, None, '[2]')
+    ids = temp_db.list_cue_candidate_dismissal_ids(pid)
+    assert ids == {d1, d2}
+
+
 def test_decoded_returns_only_good_rows(temp_db):
     pid = temp_db.create_podcast('dfeed', 'http://x/rss', 'Feed')
     temp_db.create_cue_candidate_dismissal(pid, 'ep1', 1.0, 2.0, None, '[1, 2, 3]')

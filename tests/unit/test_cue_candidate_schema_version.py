@@ -1,4 +1,4 @@
-"""list_cue_candidate_dismissals_decoded: JSON decode + bad-row tolerance."""
+"""CUE_CANDIDATE_SCHEMA_VERSION sentinel: bumped to 5 for candidate dismissals (2.44.0)."""
 from api.cue_templates import CUE_CANDIDATE_SCHEMA_VERSION
 
 
