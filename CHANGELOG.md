@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.43.1] - 2026-07-11
+
+### Added
+- Play buttons on Rejected Detections rows: each rejected marker can now be
+  played from the episode's retained original audio (same windowed player
+  the Held for Review section uses), so you can hear what a detection is
+  before confirming or dismissing it. Buttons appear only while the original
+  audio is retained, and saving a correction stops any in-progress preview.
+
 ## [2.43.0] - 2026-07-10
 
 ### Changed
