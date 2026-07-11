@@ -82,3 +82,16 @@ def test_confirmed_only_caps_suggestion():
     labeled = [(base['suggested'] - 0.05, 'confirmed')] * 3
     r = suggest_cue_threshold(scores, labeled_scores=labeled)
     assert r['suggested'] < base['suggested']
+
+
+def test_labeled_tight_gap_uses_midpoint():
+    # MARGIN=0.02; gap 0.865-0.850=0.015 < 2*MARGIN=0.04 triggers midpoint path.
+    # midpoint = (0.850+0.865)/2 = 0.8575 -> rounds to 0.86, strictly inside gap.
+    scores = [0.4, 0.45, 0.5, 0.86, 0.9, 0.93]
+    labeled = (
+        [(0.85, 'rejected')] * 3
+        + [(0.865, 'confirmed')] * 3
+    )
+    r = suggest_cue_threshold(scores, labeled_scores=labeled)
+    assert r['labeledOverlap'] is False
+    assert 0.850 < r['suggested'] < 0.865

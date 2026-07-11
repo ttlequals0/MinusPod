@@ -83,7 +83,14 @@ function CueCandidatesSection({
 
   const data = candidatesQuery.data;
   const allCandidates: CueCandidate[] = data?.candidates ?? [];
-  const candidates = allCandidates.filter((c) => !c.dismissed);
+  // A stamp whose dismissal row no longer exists is stale (undo happened after
+  // this episode's scan was cached); show the candidate. Gate on isSuccess so
+  // candidates don't flash back while the dismissals list is loading.
+  const liveDismissalIds = new Set(dismissals.map((d) => d.id));
+  const candidates = allCandidates.filter(
+    (c) => !c.dismissed
+      || (dismissalsQuery.isSuccess && !liveDismissalIds.has(c.dismissalId ?? -1)),
+  );
   const scanning = scanned && (candidatesQuery.isLoading || data?.status === 'scanning');
   const scanError = data?.status === 'error'
     ? (data.error || 'Scan failed.')
@@ -275,6 +282,14 @@ function CueCandidatesSection({
               </div>
             );
           })}
+          <div className="pt-1">
+            <button
+              onClick={() => rescan()}
+              className="shrink-0 px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+            >
+              Rescan
+            </button>
+          </div>
           {dismissals.length > 0 && (
             <div className="pt-1">
               <button

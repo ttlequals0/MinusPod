@@ -130,13 +130,16 @@ def suggest_cue_threshold(
         if rejected[-1] >= confirmed[0]:
             result['labeledOverlap'] = True
             return result
-        # Initial midpoint estimate; MARGIN clamps may override it when the gap
-        # is tight, keeping the suggestion safely off both cluster edges.
-        suggested = min(
-            max((rejected[-1] + confirmed[0]) / 2,
-                rejected[-1] + AUDIO_CUE_SUGGEST_MARGIN),
-            confirmed[0] - AUDIO_CUE_SUGGEST_MARGIN,
-        )
+        midpoint = (rejected[-1] + confirmed[0]) / 2
+        # When the labeled gap is narrower than 2x MARGIN the clamp pair can
+        # place the suggestion at or below rejected[-1]; use the plain midpoint.
+        if confirmed[0] - rejected[-1] < 2 * AUDIO_CUE_SUGGEST_MARGIN:
+            suggested = midpoint
+        else:
+            suggested = min(
+                max(midpoint, rejected[-1] + AUDIO_CUE_SUGGEST_MARGIN),
+                confirmed[0] - AUDIO_CUE_SUGGEST_MARGIN,
+            )
         result.update({
             'confidence': 'partial' if confirmed[0] < effect_floor else 'high',
             'suggested': round(min(max(suggested, 0.0), 0.99), 2),

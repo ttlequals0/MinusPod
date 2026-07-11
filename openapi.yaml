@@ -6024,7 +6024,7 @@ paths:
                             type: integer
                       labeledOverlap:
                         type: boolean
-                        description: True when the rejected and confirmed labeled score ranges overlap (no clean labeled placement is possible). Present only when both verdicts carry enough labeled scores to attempt one.
+                        description: True when the rejected and confirmed labeled score ranges overlap (no clean labeled placement is possible). Set when at least AUDIO_CUE_SUGGEST_MIN_LABELED total reviewed detections exist with both confirmed and rejected present, and the labeled score ranges overlap.
                   sampleEpisodes:
                     type: integer
                     description: Number of episodes included in the sweep.

@@ -102,4 +102,17 @@ describe('CueCandidatesSection dismissals', () => {
     await userEvent.click(screen.getByRole('button', { name: /undo/i }));
     await waitFor(() => expect(undoCueCandidateDismissal).toHaveBeenCalledWith(9));
   });
+
+  it('stale dismissed stamp is shown as active when dismissal row is gone', async () => {
+    // Candidate has dismissed:true / dismissalId:9 in cached scan data, but the
+    // live dismissals list is empty (undo happened after this episode was cached).
+    // The live list is the source of truth; the candidate should appear active.
+    vi.mocked(listCueCandidateDismissals).mockResolvedValue([]);
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
+    // "Repeats 3x" is the label for the dismissed candidate (start:50 end:52 count:3).
+    await waitFor(() => expect(screen.getByText(/Repeats 3x/)).toBeDefined());
+    // No dismissed group should be rendered.
+    expect(screen.queryByRole('button', { name: /dismissed/i })).toBeNull();
+  });
 });
