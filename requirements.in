@@ -29,7 +29,10 @@ feedparser==6.0.12
 python-slugify==8.0.4
 
 # Audio analysis (torch 2.13.0+cu126 pre-installed in Dockerfile)
-numpy<2.0                     # numpy 2.x requires X86_V2; target server lacks them
+# numpy 2.x requires X86_V2; target server lacks them. This pin also caps
+# container Python at 3.12: numpy<2.0 ships no cp313+ wheels, which is why
+# the Dockerfiles pin python3.12 via deadsnakes.
+numpy<2.0
 huggingface_hub>=1.22.0
 
 # Cross-episode ad training (fingerprinting + text matching)
@@ -48,10 +51,10 @@ jaraco.context>=6.1.0
 wheel>=0.47.0
 urllib3>=2.7.0                 # CVE-2026-44431, CVE-2026-44432 (pulled in by requests)
 idna>=3.17                     # CVE-2026-45409 (pulled in by requests)
-# jaraco.context transitive on Python <3.12 (the Docker image runs 3.12,
-# where this is an unused code path). Pinned unconditionally so pip-compile
-# includes it regardless of the compile host's Python version.
-backports.tarfile>=1.2.0
+# jaraco.context needs this only on Python <3.12; the image, CI, and the
+# compile host all run 3.12, so the marker keeps it out of the lockfile
+# while staying correct if anything ever compiles or installs on 3.11.
+backports.tarfile>=1.2.0; python_version < "3.12"
 
 # Testing
 pytest>=9.1.1

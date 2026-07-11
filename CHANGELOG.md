@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Base images upgraded from Ubuntu 24.04 to Ubuntu 26.04 (GPU and CPU variants). System ffmpeg moves from 6.x to 8.0, bringing faster transcode paths and current upstream security fixes.
-- GPU image no longer builds on `nvidia/cuda` base images; it now uses plain `ubuntu:26.04`. ctranslate2 statically links the CUDA runtime and cuDNN/cuBLAS already come from pip `nvidia-*` wheels, so the CUDA base layer was redundant. This also sidesteps the driver >= 580 requirement that CUDA 13.x base images enforce (the only NVIDIA base images published for Ubuntu 26.04). Note: `:latest` no longer contains a system CUDA toolkit layer.
+- GPU image no longer builds on `nvidia/cuda` base images; it now uses plain `ubuntu:26.04`. ctranslate2 statically links the CUDA runtime and cuDNN/cuBLAS already come from pip `nvidia-*` wheels, so the CUDA base layer was redundant. This also sidesteps the driver >= 580 requirement that CUDA 13.x base images enforce (the only NVIDIA base images published for Ubuntu 26.04). CUDA userland now comes solely from the pip wheels in the venv; there is no apt-level CUDA layer.
 - Container Python upgraded from 3.11 to 3.12 (deadsnakes), matching the version requirements.txt is compiled against.
 - PyTorch upgraded from 2.6.0 (cu124) to 2.13.0 (cu126). CUDA 12.x wheels keep the host driver requirement at >= 525.
 - torchaudio removed from both images and CI: nothing imports it.

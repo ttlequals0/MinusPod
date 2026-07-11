@@ -7,18 +7,16 @@
 # linux-libc-dev kernel CVEs (HIGH/CRITICAL, no upstream fix yet) -- 2026-06-19
 # ----------------------------------------------------------------------------
 # Every entry below is in linux-libc-dev, Ubuntu's kernel-headers package
-# pulled in by the build toolchain (list derived from a 24.04 scan; the
-# package is purged from final images, so these only matter for scans of
-# intermediate layers). Re-derive against ubuntu:26.04 when one fires. They describe host-kernel
-# vulnerabilities; a container image cannot patch the running kernel, and
-# Ubuntu has published no fixed version (Trivy status "affected", FixedVersion
-# empty). None is in an application dependency and none was introduced by
-# MinusPod code -- they are freshly-disclosed 2026 kernel CVEs that entered
-# Trivy's database after 2.9.2 was scanned. The kernel that actually runs is
-# the host's, on the host's patch cadence, not this image's headers.
+# pulled in by the build toolchain. They describe host-kernel vulnerabilities;
+# a container image cannot patch the running kernel, and Ubuntu has published
+# no fixed version (Trivy status "affected", FixedVersion empty). None is in
+# an application dependency. The kernel that actually runs is the host's, on
+# the host's patch cadence, not this image's headers.
 #
-# Revisit when Ubuntu ships fixes (FixedVersion will populate) and drop the
-# corresponding IDs.
+# The list was derived from a 24.04 scan; linux-libc-dev is purged from final
+# images, so these entries only matter for scans of intermediate layers.
+# Re-derive against ubuntu:26.04 if one fires, and drop IDs when Ubuntu
+# ships fixes (FixedVersion will populate).
 CVE-2025-40190
 CVE-2025-54518
 CVE-2025-71315

@@ -10,8 +10,8 @@ name: CPU image (multi-arch)
 # Requires repo secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN.
 #
 # The GPU image (ttlequals0/minuspod:<version>, :latest) is still built
-# locally via the /build-and-push skill; only the CPU variant is here
-# because NVIDIA's arm64 CUDA images target Jetson, not generic arm servers.
+# locally via the /build-and-push skill and stays amd64-only: the release
+# flow gates on a local build and there is no arm64 GPU deployment target.
 
 on:
   workflow_dispatch:

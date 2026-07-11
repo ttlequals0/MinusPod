@@ -89,9 +89,17 @@ RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev l
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
 # HOME must point to writable location (/app/data is the volume mount)
 # ORT_LOG_LEVEL=3 suppresses onnxruntime warnings (GPU discovery fails for AMD, irrelevant for NVIDIA)
-# LD_LIBRARY_PATH: venv nvidia pip dirs (cuDNN 9 bundled with torch, cuBLAS)
+# LD_LIBRARY_PATH: venv nvidia pip dirs for ctranslate2, which dlopens cuDNN 9
+# and cuBLAS and statically links the rest. torch pins these via its
+# cuda-toolkit metapackage dep; re-check the paths on the next torch bump.
+# cuda_runtime is unused today (ct2 links cudart statically) but kept on the
+# path so a future ctranslate2 that links it dynamically still resolves.
 # NVIDIA_*: make the NVIDIA container runtime inject the driver under
-# --gpus/legacy runtime (compose device reservations inject regardless)
+# --gpus/legacy runtime (compose device reservations inject regardless).
+# NVIDIA_REQUIRE_CUDA restores the fail-fast start gate the nvidia/cuda base
+# provided, at the true cu126-wheel floor: CUDA 12.x minor-version compat
+# means any driver >= 525 (CUDA 12.0) works. Do NOT raise it to cuda>=12.6 --
+# that would refuse drivers that merely predate 12.6 but run cu126 fine.
 ENV HOME=/app/data \
     WHISPER_MODEL=small \
     HF_HOME=/app/data/.cache \
@@ -101,7 +109,8 @@ ENV HOME=/app/data \
     ORT_LOG_LEVEL=3 \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
-    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib
+    NVIDIA_REQUIRE_CUDA="cuda>=12.0" \
+    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib
 
 # Copy application code
 COPY src/ ./src/
