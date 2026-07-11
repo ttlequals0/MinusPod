@@ -325,6 +325,16 @@ AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS = 20.0
 # non-ad cluster nearly ties the real sting), so do not go below ~0.72.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.73   # fingerprint bit-similarity to call two windows the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
+# Candidate-dismissal matching (2.44.0): fingerprint bit-similarity at which a
+# scanned candidate counts as the same sound as a dismissed one.
+AUDIO_CUE_DISMISSAL_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY
+# Verdict-labeled threshold suggestion: minimum reviewed detections before
+# labels steer the suggestion.
+AUDIO_CUE_SUGGEST_MIN_LABELED = 3
+# Per-template verdict hints: minimum rejections before a hint fires, and the
+# score band above the current threshold that reads as "just above threshold".
+AUDIO_CUE_HINT_MIN_REJECTIONS = 3
+AUDIO_CUE_HINT_NEAR_BAND = 0.10
 # Cross-episode intro/outro detection (candidate scan). Real intros/outros play
 # once per episode, so within-episode recurrence cannot see them, but they recur
 # ACROSS episodes near the start/end. We fingerprint this episode's head and tail

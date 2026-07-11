@@ -424,6 +424,23 @@ CREATE TABLE IF NOT EXISTS cue_threshold_scans (
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );
 
+-- cue_candidate_dismissals (2.44.0). Feed-wide "not a cue" feedback: one row
+-- per dismissed sound. fingerprint stores a JSON array of fpcalc -raw ints for
+-- the dismissed span; the candidate scan suppresses matching candidates.
+CREATE TABLE IF NOT EXISTS cue_candidate_dismissals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL,
+    source_episode_id TEXT NOT NULL,
+    start_s REAL NOT NULL,
+    end_s REAL NOT NULL,
+    label TEXT,
+    fingerprint TEXT NOT NULL,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
+    ON cue_candidate_dismissals(podcast_id);
+
 -- cue_cross_episode_scans: cached result of the cross-episode body scan (D1b, #350).
 -- Keyed by (podcast_id, episode_set_hash) where episode_set_hash is the sha256
 -- of the sorted episode-id list (hex). Stores candidates in target-episode

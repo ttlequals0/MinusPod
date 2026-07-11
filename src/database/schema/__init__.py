@@ -1688,6 +1688,35 @@ class SchemaMixin:
             conn.rollback()
             logger.warning(f"cue_threshold_scans table creation: {e}")
 
+        # cue_candidate_dismissals: feed-wide "not a cue" feedback (2.44.0).
+        # One row per dismissed sound; the candidate scan marks matching
+        # candidates dismissed. fingerprint = JSON array of fpcalc -raw ints.
+        try:
+            fresh_ccd = not self._table_exists(conn, 'cue_candidate_dismissals')
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS cue_candidate_dismissals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    podcast_id INTEGER NOT NULL,
+                    source_episode_id TEXT NOT NULL,
+                    start_s REAL NOT NULL,
+                    end_s REAL NOT NULL,
+                    label TEXT,
+                    fingerprint TEXT NOT NULL,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
+                ON cue_candidate_dismissals(podcast_id)
+            """)
+            conn.commit()
+            if fresh_ccd:
+                logger.info("Migration: Created cue_candidate_dismissals table")
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"cue_candidate_dismissals table creation: {e}")
+
         # cue_cross_episode_scans: cached result of the cross-episode body scan
         # (D1b, #350). Additive, no data-loss risk. DDL identical to SCHEMA_SQL.
         try:
