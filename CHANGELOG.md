@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Container Python upgraded from 3.11 to 3.12 (deadsnakes), matching the version requirements.txt is compiled against.
 - PyTorch upgraded from 2.6.0 (cu124) to 2.13.0 (cu126). CUDA 12.x wheels keep the host driver requirement at >= 525.
 - torchaudio removed from both images and CI: nothing imports it.
+- Removed `pebble` (unused service manager shipped in the ubuntu:26.04 OCI rootfs) from both images; its embedded Go dependencies carry unfixed HIGH CVEs.
 
 ## [2.42.0] - 2026-07-10
 
