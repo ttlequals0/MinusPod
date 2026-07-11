@@ -48,7 +48,11 @@ from llm_capabilities import (
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
     clear_fallback,
 )
-from llm_client import is_retryable_error, is_llm_api_error, is_rate_limit_error, start_episode_token_tracking, get_episode_token_totals
+from llm_client import (
+    is_retryable_error, is_llm_api_error, is_rate_limit_error,
+    is_limit_exceeded_error, LimitExceededError,
+    start_episode_token_tracking, get_episode_token_totals,
+)
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
@@ -105,6 +109,11 @@ def is_transient_error(error: Exception) -> bool:
     # offline queue (#482) disabled this keeps today's retry behavior.
     if isinstance(error, ServiceUnavailableError):
         return True
+
+    # Provider spend/usage limits are terminal until the operator adds
+    # credits or raises the limit (#491).
+    if is_limit_exceeded_error(error):
+        return False
 
     # Network/connection errors are transient
     if isinstance(error, (
@@ -549,6 +558,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             # Endpoint unreachable rather than a bad response: typed so the
             # offline queue (#482) can defer instead of failing the episode.
             raise ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
+        if ad_result.get('limit_exceeded'):
+            # Typed so the failure handler sees a terminal limit error instead
+            # of re-classifying the stringified 429 text as transient (#491).
+            raise LimitExceededError(f"Ad detection failed: {error_msg}")
         raise Exception(f"Ad detection failed: {error_msg}")
 
     db.upsert_episode(slug, episode_id, ad_detection_status='success')

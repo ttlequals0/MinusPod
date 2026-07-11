@@ -6,6 +6,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.45.0] - 2026-07-11
+
+### Added
+- `Limit Exceeded` webhook event: fires when the LLM provider rejects a
+  request because a spend or usage limit is exhausted (OpenRouter monthly
+  key limit 403, out-of-credits 402, OpenAI `insufficient_quota`, Anthropic
+  low credit balance), with the same 5-minute dedup as the other alert
+  events. Previously these fired the misleading `Auth Failure` event (#491).
+- Failure reasons in the UI: episodes with failed or permanently failed
+  status now show the stored error message in a panel on the episode detail
+  page and as a tooltip on the status badge in the episode list. The message
+  was already saved and returned by the API; it was just never displayed
+  outside the History page (#491).
+- Webhook settings picker now lists the `Rate Limit Structural` event, which
+  was valid in the backend but missing from the UI dropdown.
+
+### Changed
+- Quota and billing errors no longer fire the `Auth Failure` webhook; they
+  fire `Limit Exceeded` instead. `Auth Failure` now means bad credentials.
+  Update webhook subscriptions if you relied on the old routing.
+- Limit-exceeded errors are now non-retryable at every level: no window
+  retry backoff (an OpenAI `insufficient_quota` 429 previously burned the
+  full cycle) and no episode re-queue -- the episode is marked permanently
+  failed right away, since retrying cannot succeed until credits are added
+  or the limit is raised. Reprocess the episode after fixing the limit.
+
 ## [2.44.0] - 2026-07-11
 
 ### Added

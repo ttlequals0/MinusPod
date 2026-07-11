@@ -8,23 +8,10 @@ to the existing transient retry path.
 """
 
 from llm_client import classify_structural_rate_limit
+from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
 
 
-class _FakeResponse:
-    def __init__(self, text=None, headers=None):
-        self.text = text
-        self.headers = headers or {}
-
-
-class _FakeError(Exception):
-    """Mimics provider error: carries .body and/or .response."""
-    def __init__(self, message="", body=None, response=None):
-        super().__init__(message)
-        self.body = body
-        self.response = response
-
-
-class _FakeRateLimitError(_FakeError):
+class _FakeRateLimitError(FakeProviderError):
     """A RateLimitError so is_rate_limit_error returns True via string-match."""
     def __init__(self, message="rate limit 429", **kw):
         super().__init__(message, **kw)
@@ -78,7 +65,7 @@ class TestStructuralClassifier:
         assert classify_structural_rate_limit(err) is None
 
     def test_non_rate_limit_error_returns_false(self):
-        err = _FakeError(message="connection timeout")
+        err = FakeProviderError(message="connection timeout")
         assert classify_structural_rate_limit(err) is None
 
     def test_message_string_fallback(self):
@@ -93,7 +80,7 @@ class TestStructuralClassifier:
             '{"error":{"message":"tokens per minute: Limit 5000, Used 0, '
             'Requested ~7000","type":"tokens","code":"rate_limit_exceeded"}}'
         )
-        err = _FakeRateLimitError(response=_FakeResponse(text=body_text))
+        err = _FakeRateLimitError(response=FakeResponse(text=body_text))
         assert classify_structural_rate_limit(err) is not None
 
 
@@ -126,18 +113,7 @@ class TestRetryLoopFastFail:
             lambda *a, **kw: None,
         )
 
-        response, last_error = llm_call.call_llm_for_window(
-            llm_client=_Client(),
-            model="test-model",
-            system_prompt="sys",
-            prompt="user",
-            llm_timeout=1.0,
-            max_retries=5,  # would normally allow many retries
-            max_tokens=4096,
-            slug="t",
-            episode_id="e",
-            window_label="w",
-        )
+        response, last_error = call_window(_Client(), max_retries=5)
 
         assert response is None
         assert last_error is not None
@@ -167,18 +143,7 @@ class TestRetryLoopFastFail:
         monkeypatch.setattr(llm_call.time, "sleep", lambda s: None)
         monkeypatch.setattr(llm_call.random, "uniform", lambda a, b: 0.0)
 
-        response, last_error = llm_call.call_llm_for_window(
-            llm_client=_Client(),
-            model="test-model",
-            system_prompt="sys",
-            prompt="user",
-            llm_timeout=1.0,
-            max_retries=2,
-            max_tokens=4096,
-            slug="t",
-            episode_id="e",
-            window_label="w",
-        )
+        response, last_error = call_window(_Client(), max_retries=2)
 
         # Transient path: max_retries+1 (=3) main attempts + 2 fallback = 5.
         # Confirms structural fast-fail did NOT kick in.

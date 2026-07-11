@@ -512,3 +512,62 @@ describe('Held for Review section: playback', () => {
     expect(screen.queryByLabelText('Play this ad')).toBeNull();
   });
 });
+
+describe('Failure reason display', () => {
+  it('shows the error panel for a permanently failed episode', async () => {
+    renderDetail(makeEpisode({
+      status: 'permanently_failed',
+      error: 'Error code: 403 - Key limit exceeded (monthly limit)',
+      pendingReviewMarkers: [],
+    }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.getByText('Processing failed permanently')).toBeDefined();
+    expect(
+      screen.getByText('Error code: 403 - Key limit exceeded (monthly limit)'),
+    ).toBeDefined();
+  });
+
+  it('shows the error panel for a failed episode', async () => {
+    renderDetail(makeEpisode({
+      status: 'failed',
+      error: 'Transcription failed: corrupt audio',
+      pendingReviewMarkers: [],
+    }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.getByText('Processing failed')).toBeDefined();
+    expect(screen.getByText('Transcription failed: corrupt audio')).toBeDefined();
+  });
+
+  it('does not show the panel for a completed episode', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [] }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText('Processing failed')).toBeNull();
+    expect(screen.queryByText('Processing failed permanently')).toBeNull();
+  });
+
+  it('does not show the panel when a failed episode has no error text', async () => {
+    renderDetail(makeEpisode({ status: 'permanently_failed', error: null, pendingReviewMarkers: [] }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText('Processing failed permanently')).toBeNull();
+  });
+
+  it('puts the error text on the status badge tooltip', async () => {
+    renderDetail(makeEpisode({
+      status: 'permanently_failed',
+      error: 'Key limit exceeded',
+      pendingReviewMarkers: [],
+    }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.getByTitle('Key limit exceeded')).toBeDefined();
+  });
+});

@@ -87,6 +87,7 @@ export interface Episode {
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
+  error?: string | null;
 }
 
 export interface EpisodeNeighbor {

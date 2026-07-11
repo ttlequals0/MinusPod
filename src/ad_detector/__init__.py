@@ -15,7 +15,7 @@ from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
     is_connectivity_error, is_retryable_error, is_not_found_error,
-    is_rate_limit_error,
+    is_rate_limit_error, is_limit_exceeded_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError,
@@ -197,12 +197,18 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
     """
     last_err_type = type(last_error).__name__ if last_error else 'Unknown'
     last_err_status = getattr(last_error, 'status_code', None)
+    limit_exceeded = is_limit_exceeded_error(last_error) if last_error else False
     parts = [f"All {num_windows} {stage} windows failed (last error: {last_err_type}"]
     if last_err_status:
         parts.append(f", status={last_err_status}")
     if last_error:
         if isinstance(last_error, StructuralRateLimitError):
             # Our own sanitized, actionable text (per-minute cap / daily quota).
+            parts.append(f": {last_error}")
+        elif limit_exceeded:
+            # The billing/quota text is the actionable part ("Key limit
+            # exceeded (monthly limit)..."); the #435 sanitization below
+            # would mislabel it as a transient rate limit.
             parts.append(f": {last_error}")
         elif is_rate_limit_error(last_error):
             # Hide the raw provider 429 payload from the episode error message (#435).
@@ -217,7 +223,10 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
         "ads": [],
         "status": "failed",
         "error": "".join(parts),
-        "retryable": not not_found_hint,
+        "retryable": not not_found_hint and not limit_exceeded,
+        # Lets processing raise a typed LimitExceededError so the episode
+        # fails permanently instead of re-queuing on the 429 string (#491).
+        "limit_exceeded": limit_exceeded,
         # Lets the pipeline tell "endpoint down" apart from a bad response so
         # the offline queue (#482) defers only genuine outages. Includes
         # CircuitBreakerOpen, which reaches here as last_error because

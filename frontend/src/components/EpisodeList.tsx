@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Episode } from '../api/types';
-import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
+import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
 import Artwork from './Artwork';
 import Checkbox from './Checkbox';
@@ -76,6 +76,8 @@ function EpisodeRow({
   };
 
   const canSelect = episode.status !== 'processing';
+  const failureReason =
+    isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
   return (
     <div className="relative bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
@@ -120,7 +122,10 @@ function EpisodeRow({
                 {episode.pendingReviewCount} held
               </span>
             )}
-            <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
+            <span
+              className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}${failureReason ? ' cursor-help' : ''}`}
+              title={failureReason}
+            >
               {EPISODE_STATUS_LABELS[episode.status] || episode.status}
             </span>
           </div>

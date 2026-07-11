@@ -10,14 +10,16 @@ from llm_client import (
     classify_structural_rate_limit,
     classify_daily_quota_exhaustion,
     is_auth_error,
+    is_limit_exceeded_error,
     extract_retry_after,
     get_effective_provider,
     StructuralRateLimitError,
 )
-# webhook_service is lazy-imported at the call site below (only entered on
-# is_auth_error or structural-429). Keeping it out of this module's import-time
-# graph lets the offline benchmark in benchmarks/llm/ import ad_detector ->
-# utils.llm_call without pulling in jinja2/flask transitively.
+# webhook_service is lazy-imported at the call sites below (only entered on
+# the alert paths: auth failure, limit exceeded, structural-429). Keeping it
+# out of this module's import-time graph lets the offline benchmark in
+# benchmarks/llm/ import ad_detector -> utils.llm_call without pulling in
+# jinja2/flask transitively.
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,17 @@ def _call_once(llm_client, llm_kwargs, model):
 
 def _is_retryable(error) -> bool:
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
+
+
+def _fire_limit_exceeded_webhook(error, model):
+    try:
+        from webhook_service import fire_limit_exceeded_event
+        fire_limit_exceeded_event(
+            get_effective_provider(), model, str(error),
+            getattr(error, 'status_code', None),
+        )
+    except Exception:
+        logger.exception("Failed to fire limit-exceeded webhook")
 
 
 def call_llm_for_window(
@@ -135,6 +148,14 @@ def call_llm_for_window(
                 except Exception:
                     logger.exception("Failed to fire structural rate-limit webhook")
                 break
+            if is_limit_exceeded_error(e):
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label} provider limit exceeded: {e}"
+                )
+                _fire_limit_exceeded_webhook(e, model)
+                # is_retryable_error excludes limit-exceeded errors, so the
+                # post-loop secondary retry pass below also skips them.
+                break
             if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
                     retry_after = extract_retry_after(e)
@@ -184,5 +205,10 @@ def call_llm_for_window(
                 logger.warning(
                     f"[{slug}:{episode_id}] {window_label} retry {retry_num} failed: {e}"
                 )
+                # A limit can trip mid-retry (the main loop only saw the
+                # transient error); alert and stop the pointless second try.
+                if is_limit_exceeded_error(e):
+                    _fire_limit_exceeded_webhook(e, model)
+                    break
 
     return None, last_error

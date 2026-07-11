@@ -7,7 +7,7 @@ import { submitCorrection } from '../api/patterns';
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Artwork from '../components/Artwork';
-import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
+import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_META } from '../utils/corroboration';
 import { stripHtml } from '../utils/stripHtml';
@@ -251,6 +251,9 @@ function EpisodeDetail() {
     );
   }
 
+  const failureReason =
+    isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -296,7 +299,10 @@ function EpisodeDetail() {
               {episode.fileSize && (
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}`}>
+              <span
+                className={`px-2 py-0.5 rounded-full text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}${failureReason ? ' cursor-help' : ''}`}
+                title={failureReason}
+              >
                 {episode.status}
               </span>
               {episode.transcriptVttAvailable && (
@@ -405,6 +411,19 @@ function EpisodeDetail() {
             </div>
           </div>
         </div>
+
+        {failureReason && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm">
+              <p className="font-medium mb-1">
+                {episode.status === 'permanently_failed'
+                  ? 'Processing failed permanently'
+                  : 'Processing failed'}
+              </p>
+              <p className="break-words">{failureReason}</p>
+            </div>
+          </div>
+        )}
 
         {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">

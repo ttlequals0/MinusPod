@@ -1368,6 +1368,10 @@ def is_retryable_error(error: Exception) -> bool:
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):
         return False
+    # Spend/quota exhaustion is terminal until the operator adds credits or
+    # raises the limit; no retry can succeed (#491).
+    if is_limit_exceeded_error(error):
+        return False
     # Anthropic errors
     a = _anthropic_exc()
     if a is not None:
@@ -1405,7 +1409,8 @@ def is_connectivity_error(error: Exception) -> bool:
     """
     if isinstance(error, StructuralRateLimitError):
         return False
-    if is_rate_limit_error(error) or is_auth_error(error) or is_not_found_error(error):
+    if (is_rate_limit_error(error) or is_auth_error(error)
+            or is_limit_exceeded_error(error) or is_not_found_error(error)):
         return False
     # The breaker only opens after repeated call failures, which is exactly
     # the reporter's "circuit breaker trips and jobs error out" scenario.
@@ -1475,7 +1480,14 @@ def is_llm_api_error(error: Exception) -> bool:
 
 
 def is_auth_error(error: Exception) -> bool:
-    """Check if error is an LLM authentication/authorization failure (401/403)."""
+    """Check if error is an LLM authentication/authorization failure (401/403).
+
+    Billing/quota 401/403s are excluded -- they classify as
+    ``is_limit_exceeded_error`` instead, so each error fires exactly one of
+    the Auth Failure / Limit Exceeded webhook events.
+    """
+    if is_limit_exceeded_error(error):
+        return False
     a = _anthropic_exc()
     if a is not None:
         if isinstance(error, (a.AuthenticationError, a.PermissionDeniedError)):
@@ -1489,6 +1501,35 @@ def is_auth_error(error: Exception) -> bool:
         if isinstance(error, o.APIError) and _provider_status_code(error) in (401, 403):
             return True
     return False
+
+
+def is_limit_exceeded_error(error: Exception) -> bool:
+    """Check if error is a provider spend/quota limit rather than bad credentials.
+
+    Distinguishes billing exhaustion (OpenRouter monthly key limit 403s,
+    HTTP 402, OpenAI insufficient_quota 429s, Anthropic low-credit 400s) from
+    invalid-key auth errors and transient rate limits so webhooks can alert
+    with the right event. Keyword markers are scoped per status code: on 429
+    only the literal OpenAI ``insufficient_quota`` code counts, because
+    Gemini's transient per-minute 429 message also says "exceeded your
+    current quota ... billing details" and must keep retrying.
+    """
+    if isinstance(error, LimitExceededError):
+        return True
+    status = _provider_status_code(error)
+    if status == 402:
+        return True
+    if status in (401, 403):
+        markers = ('limit exceeded', 'quota', 'billing', 'insufficient credit',
+                   'insufficient fund', 'payment', 'spend limit')
+    elif status == 429:
+        markers = ('insufficient_quota',)
+    elif status == 400:
+        markers = ('credit balance is too low',)
+    else:
+        return False
+    text = str(extract_error_body(error) or error).lower()
+    return any(marker in text for marker in markers)
 
 
 def is_not_found_error(error: Exception) -> bool:
@@ -1545,6 +1586,17 @@ class StructuralRateLimitError(Exception):
     Retrying cannot succeed at the current window size; callers must shrink
     the detection window or change provider/tier. Explicitly excluded from
     ``is_retryable_error`` below.
+    """
+    pass
+
+
+class LimitExceededError(Exception):
+    """A provider rejection caused by an exhausted spend/usage limit.
+
+    Used to carry the limit-exceeded classification across layers that
+    stringify errors (ad detector -> episode failure handler, #491).
+    Recognized by ``is_limit_exceeded_error`` and therefore excluded from
+    ``is_retryable_error``.
     """
     pass
 

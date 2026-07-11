@@ -31,9 +31,9 @@ storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
-from llm_client import is_connectivity_error, StructuralRateLimitError
+from llm_client import is_connectivity_error, LimitExceededError, StructuralRateLimitError
 from main_app import db
-from main_app.processing import _handle_processing_failure
+from main_app.processing import _handle_processing_failure, is_transient_error
 from offline_queue import offline_queue_tick
 from utils.circuit_breaker import CircuitBreakerOpen
 from utils.errors import ServiceUnavailableError
@@ -126,6 +126,27 @@ class TestDeferral:
         episode = db.get_episode(SLUG, seeded_episode)
         assert episode['status'] == 'deferred'
         assert episode['deferred_at'] == first
+
+
+class TestLimitExceededEpisodeOutcome:
+    """A wrapped LimitExceededError must fail the episode permanently: its
+    message carries "429"/"RateLimitError" text that the string fallbacks
+    would misread as a transient rate limit and re-queue forever (#491)."""
+
+    WRAPPED = LimitExceededError(
+        "Ad detection failed: All 5 detection windows failed "
+        "(last error: RateLimitError, status=429: quota exhausted)"
+    )
+
+    def test_not_transient(self):
+        assert is_transient_error(self.WRAPPED) is False
+
+    def test_episode_goes_permanently_failed(self, seeded_episode):
+        _fail(seeded_episode, self.WRAPPED)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'permanently_failed'
+        assert episode['retry_count'] == 1  # untouched: no retry ladder
+        assert 'quota exhausted' in episode['error_message']
 
 
 class TestTtlAndRequeue:

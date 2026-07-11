@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.44.0
+  version: 2.45.0
   contact:
     name: MinusPod
   license:
@@ -4314,8 +4314,9 @@ paths:
                       - Episode Processed
                       - Episode Failed
                       - Auth Failure
+                      - Limit Exceeded
                       - Rate Limit Structural
-                  description: List of event types to subscribe to. `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap.
+                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -6856,6 +6857,7 @@ components:
         error:
           type: string
           nullable: true
+          description: Failure reason from the most recent processing attempt, present when status is failed or permanently_failed
 
     EpisodeDetail:
       allOf:

@@ -75,7 +75,7 @@ Key endpoints:
 
 ## Webhooks
 
-MinusPod fires an HTTP POST to configured URLs when episodes complete processing, permanently fail, or when LLM authentication fails. Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
+MinusPod fires an HTTP POST to configured URLs when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
 
 Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API.
 
@@ -85,7 +85,8 @@ Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API
 |---|---|
 | `Episode Processed` | Episode completes processing successfully |
 | `Episode Failed` | Episode reaches permanently failed status |
-| `Auth Failure` | LLM provider returns 401/403 (rate-limited to one per 5 minutes) |
+| `Auth Failure` | LLM provider rejects the API key as invalid or expired (401/403 without billing markers; rate-limited to one per 5 minutes) |
+| `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
 | `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
 
 ### Template Variables
@@ -94,7 +95,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, or `Rate Limit Structural` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, or `Rate Limit Structural` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -122,6 +123,17 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `model` | string | Model that failed authentication |
 | `error_message` | string | Error details from the provider |
 | `status_code` | int/null | HTTP status code (401 or 403) |
+
+**Limit Exceeded events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Limit Exceeded` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `provider` | string | LLM provider name (openrouter, openai, etc.) |
+| `model` | string | Model the rejected request targeted |
+| `error_message` | string | Error details from the provider |
+| `status_code` | int/null | HTTP status code (402, 403, 429, or 400 depending on provider) |
 
 **Rate Limit Structural events use a different payload:**
 
@@ -204,6 +216,19 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "model": "claude-sonnet-4-20250514",
   "error_message": "Invalid API key provided",
   "status_code": 401
+}
+```
+
+**Limit Exceeded:**
+
+```json
+{
+  "event": "Limit Exceeded",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "provider": "openrouter",
+  "model": "anthropic/claude-sonnet-4",
+  "error_message": "Key limit exceeded (monthly limit). Manage it using https://openrouter.ai/settings/keys",
+  "status_code": 403
 }
 ```
 
