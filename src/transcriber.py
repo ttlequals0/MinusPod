@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
 
 from utils.audio import get_audio_duration
-from utils.errors import ServiceUnavailableError
+from utils.errors import ServiceUnavailableError, AudioTooLargeError
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
@@ -275,6 +275,22 @@ def merge_overlapping_segments(
         result.append(seg)
 
     return result
+
+
+def _max_download_bytes() -> int:
+    """Episode download cap in bytes; MAX_AUDIO_DOWNLOAD_MB overrides the
+    500MB default (#493). Invalid or non-positive values fall back to 500."""
+    raw = os.environ.get('MAX_AUDIO_DOWNLOAD_MB', '')
+    try:
+        mb = int(raw)
+        if mb <= 0:
+            raise ValueError(raw)
+    except ValueError:
+        if raw:
+            logger.warning(
+                f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
+        mb = 500
+    return mb * 1024 * 1024
 
 
 def _get_whisper_settings() -> Dict[str, str]:
@@ -1174,6 +1190,11 @@ class Transcriber:
         Args:
             url: Audio file URL
             timeout: (connect_timeout, read_timeout) in seconds
+
+        Raises:
+            AudioTooLargeError: the enclosure exceeds the MAX_AUDIO_DOWNLOAD_MB
+                cap (default 500MB). Other failures keep the return-None
+                contract.
         """
         try:
             logger.info(f"Downloading audio from: {safe_url_for_log(url)}")
@@ -1196,33 +1217,41 @@ class Transcriber:
             return None
 
         try:
+            max_bytes = _max_download_bytes()
+            max_mb = max_bytes // (1024 * 1024)
 
             # Check file size
             content_length = response.headers.get('Content-Length')
             if content_length:
                 size_mb = int(content_length) / (1024 * 1024)
-                if size_mb > 500:
-                    logger.error(f"Audio file too large: {size_mb:.1f}MB (max 500MB)")
-                    return None
+                if size_mb > max_mb:
+                    raise AudioTooLargeError(
+                        f"Audio file is {size_mb:.0f}MB, over the {max_mb}MB "
+                        f"download cap; raise MAX_AUDIO_DOWNLOAD_MB to process it"
+                    )
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
             # Cap the stream independent of Content-Length (absent on chunked
             # responses) so a feed enclosure can't fill the disk (transcription-1).
-            max_bytes = 500 * 1024 * 1024
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
                 temp_path = tmp.name
                 try:
                     stream_to_file_capped(response, tmp, max_bytes)
                 except ResponseTooLargeError:
-                    logger.error(f"Audio stream over {max_bytes // (1024 * 1024)}MB cap: {safe_url_for_log(url)}")
                     try:
                         os.unlink(temp_path)
                     except OSError:
                         pass
-                    return None
+                    raise AudioTooLargeError(
+                        f"Audio stream exceeded the {max_mb}MB download cap; "
+                        f"raise MAX_AUDIO_DOWNLOAD_MB to process it"
+                    )
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path
+        except AudioTooLargeError as e:
+            logger.error(f"{e} ({safe_url_for_log(url)})")
+            raise
         except Exception as e:
             logger.error(f"Failed to download audio: {e}")
             return None

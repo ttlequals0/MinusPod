@@ -35,6 +35,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. |
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
+| `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). The cap guards against a broken or malicious enclosure filling the disk, so keep it finite. |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 | `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |

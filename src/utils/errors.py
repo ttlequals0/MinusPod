@@ -18,3 +18,12 @@ class ServiceUnavailableError(Exception):
     def __init__(self, service: str, message: str):
         super().__init__(message)
         self.service = service  # 'llm' or 'whisper'
+
+
+class AudioTooLargeError(Exception):
+    """An episode enclosure exceeds the configured download size cap.
+
+    Permanent for the episode: the file will not shrink on retry. The
+    operator can raise MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
+    """
+    pass
