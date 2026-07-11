@@ -24,12 +24,15 @@ RUN mkdir -p /app/static/ui/swagger \
           /app/static/ui/swagger/
 
 # Stage 2: Python application
-# Use CUDA runtime image - PyTorch bundles its own cuDNN/cuBLAS via pip
-# Base image CUDA only needs host driver compatibility (forward compatible)
-FROM nvidia/cuda:12.9.2-runtime-ubuntu24.04
+# Plain Ubuntu base - no nvidia/cuda image. ctranslate2 statically links the
+# CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels (torch
+# deps) via LD_LIBRARY_PATH below. GPU access is injected by the NVIDIA
+# container runtime, driven by the NVIDIA_* env vars in the ENV block.
+FROM ubuntu:26.04
 
-# Install Python 3.11 from deadsnakes PPA and system dependencies
-# Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
+# Install Python 3.12 from deadsnakes PPA and system dependencies
+# Ubuntu 26.04 ships Python 3.14; deadsnakes pins 3.12 (cp312 is the
+# ceiling for numpy<2.0 wheels; see the numpy pin in requirements.in)
 # setpriv (from util-linux, present in the base image) is used by
 # entrypoint.sh to drop privileges after the root-only chown step that
 # migrates the data volume on first boot.
@@ -37,9 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
-    python3.11-venv \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
     ffmpeg \
     curl \
     libsndfile1 \
@@ -48,36 +51,40 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /usr/lib/python3/dist-packages/cryptography* \
               /usr/lib/python3/dist-packages/PyJWT* \
               /usr/lib/python3/dist-packages/jwt* \
+    # pebble ships in the ubuntu:26.04 OCI rootfs (not dpkg-owned); unused
+    # here and its embedded Go deps carry unfixed HIGH CVEs, so drop it
+    && rm -rf /usr/bin/pebble /var/lib/pebble \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && setpriv --reuid=nobody --regid=nogroup --init-groups true
 
-# Set python3.11 as default, create venv for all pip installs
+# Set python3.12 as default, create venv for all pip installs
 # Venv avoids pip 26+ "uninstall-no-record-file" errors with system packages
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
-    && python3.11 -m venv /opt/venv
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+    && python3.12 -m venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN pip install --no-cache-dir --upgrade pip==25.2 setuptools==80.9.0 \
-    && rm -rf /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/jaraco* \
-              /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/wheel*
+    && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
+              /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
 
 # Set working directory
 WORKDIR /app
 
-# Pre-install PyTorch 2.6.0 with CUDA 12.4 (includes bundled cuDNN 9)
+# Pre-install PyTorch 2.13.0 with CUDA 12.6 (bundled cuDNN 9 / cuBLAS via
+# pip nvidia-* deps). Stay on CUDA 12.x wheels: they run on driver >= 525,
+# while cu13x wheels raise the host driver floor to >= 580.
 RUN pip install --no-cache-dir \
-    torch==2.6.0+cu124 \
-    torchaudio==2.6.0+cu124 \
-    --extra-index-url https://download.pytorch.org/whl/cu124
+    torch==2.13.0+cu126 \
+    --extra-index-url https://download.pytorch.org/whl/cu126
 
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 # Build headers only needed for pip C-extension builds above; linux-libc-dev
 # carries a stream of unfixed kernel-header CVEs the runtime never touches.
-RUN apt-get purge -y linux-libc-dev python3.11-dev libpython3.11-dev libc6-dev libexpat1-dev \
+RUN apt-get purge -y linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
@@ -85,7 +92,17 @@ RUN apt-get purge -y linux-libc-dev python3.11-dev libpython3.11-dev libc6-dev l
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
 # HOME must point to writable location (/app/data is the volume mount)
 # ORT_LOG_LEVEL=3 suppresses onnxruntime warnings (GPU discovery fails for AMD, irrelevant for NVIDIA)
-# LD_LIBRARY_PATH: venv nvidia pip dirs (cuDNN 9 bundled with torch, cuBLAS)
+# LD_LIBRARY_PATH: venv nvidia pip dirs for ctranslate2, which dlopens cuDNN 9
+# and cuBLAS and statically links the rest. torch pins these via its
+# cuda-toolkit metapackage dep; re-check the paths on the next torch bump.
+# cuda_runtime is unused today (ct2 links cudart statically) but kept on the
+# path so a future ctranslate2 that links it dynamically still resolves.
+# NVIDIA_*: make the NVIDIA container runtime inject the driver under
+# --gpus/legacy runtime (compose device reservations inject regardless).
+# NVIDIA_REQUIRE_CUDA restores the fail-fast start gate the nvidia/cuda base
+# provided, at the true cu126-wheel floor: CUDA 12.x minor-version compat
+# means any driver >= 525 (CUDA 12.0) works. Do NOT raise it to cuda>=12.6 --
+# that would refuse drivers that merely predate 12.6 but run cu126 fine.
 ENV HOME=/app/data \
     WHISPER_MODEL=small \
     HF_HOME=/app/data/.cache \
@@ -93,7 +110,10 @@ ENV HOME=/app/data \
     XDG_CACHE_HOME=/app/data/.cache \
     RETENTION_PERIOD=1440 \
     ORT_LOG_LEVEL=3 \
-    LD_LIBRARY_PATH=/opt/venv/lib/python3.11/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.11/site-packages/nvidia/cublas/lib
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility \
+    NVIDIA_REQUIRE_CUDA="cuda>=12.0" \
+    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib
 
 # Copy application code
 COPY src/ ./src/

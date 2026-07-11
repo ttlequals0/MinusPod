@@ -56,7 +56,7 @@ A fresh install has no password, so the instance is fully open until you set one
 
 ### CPU-only image (no GPU)
 
-No NVIDIA GPU? Pull the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the image is around 3 GB instead of ~16 GB. The CPU image is published as a multi-arch manifest covering `linux/amd64` and `linux/arm64`, so Docker on the puller's machine picks the right architecture automatically. The GPU image stays amd64-only.
+No NVIDIA GPU? Pull the CPU variant. It drops the bundled NVIDIA/CUDA Python wheels; the image is around 3 GB instead of ~12 GB. The CPU image is published as a multi-arch manifest covering `linux/amd64` and `linux/arm64`, so Docker on the puller's machine picks the right architecture automatically. The GPU image stays amd64-only.
 
 Reuse the same `.env` and `data/` directory as the Quick Start, then:
 
