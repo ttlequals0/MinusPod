@@ -5705,6 +5705,141 @@ paths:
         '404':
           description: Feed or original audio not found
 
+  /feeds/{slug}/episodes/{episode_id}/cue-candidates/dismiss:
+    post:
+      tags: [AudioCueTemplates]
+      summary: Dismiss a candidate span feed-wide
+      description: |
+        Fingerprints the given audio span and records a feed-wide dismissal so
+        the sound is suppressed from future candidate scans across all episodes.
+        The episode's cached candidate scan is stamped immediately; other episodes
+        self-correct on their next rescan.
+      operationId: dismissCueCandidate
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_s, end_s]
+              properties:
+                start_s:
+                  type: number
+                  description: Start of the span to dismiss (seconds)
+                end_s:
+                  type: number
+                  description: End of the span to dismiss (seconds)
+                label:
+                  type: string
+                  nullable: true
+                  description: Optional human-readable label for the dismissal
+      responses:
+        '201':
+          description: Dismissal created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  label:
+                    type: string
+                    nullable: true
+                  startS:
+                    type: number
+                  endS:
+                    type: number
+                  sourceEpisodeId:
+                    type: string
+        '400':
+          description: Invalid span or missing required fields
+        '404':
+          description: Feed not found or original audio unavailable
+        '503':
+          description: Audio fingerprinting failed
+
+  /feeds/{slug}/cue-candidate-dismissals:
+    get:
+      tags: [AudioCueTemplates]
+      summary: List dismissed candidate sounds for a feed
+      description: |
+        Returns all feed-wide dismissals, newest first. These are the undo
+        targets exposed in the UI.
+      operationId: listCueCandidateDismissals
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of dismissals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dismissals:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        label:
+                          type: string
+                          nullable: true
+                        sourceEpisodeId:
+                          type: string
+                        startS:
+                          type: number
+                        endS:
+                          type: number
+                        createdAt:
+                          type: string
+        '404':
+          description: Feed not found
+
+  /cue-candidate-dismissals/{id}:
+    delete:
+      tags: [AudioCueTemplates]
+      summary: Undo a cue candidate dismissal
+      description: |
+        Removes the dismissal record so the sound becomes suggestible again.
+        The source episode's cached candidate scan is unstamped immediately.
+      operationId: deleteCueCandidateDismissal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Dismissal removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        '404':
+          description: Dismissal not found
+
   /cue-detections/{detectionId}/verdict:
     post:
       tags: [AudioCueTemplates]
