@@ -16,6 +16,7 @@ import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
+import AdReviewTab from './patterns/AdReviewTab';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -66,6 +67,14 @@ function PatternsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
+
+  type PatternsTab = 'patterns' | 'ad-review';
+  const activeTab: PatternsTab =
+    searchParams.get('tab') === 'ad-review' ? 'ad-review' : 'patterns';
+
+  const switchTab = (tab: PatternsTab) => {
+    setSearchParams(tab === 'patterns' ? {} : { tab });
+  };
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', scopeFilter, showInactive, sourceFilter],
@@ -205,18 +214,6 @@ function PatternsPage() {
     );
   };
 
-  if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-destructive">Failed to load patterns</p>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -261,6 +258,38 @@ function PatternsPage() {
         patterns={sortedPatterns || []}
         onClose={() => setExportOpen(false)}
       />
+
+      <div role="tablist" className="flex gap-1 border-b border-border mb-6">
+        {([['patterns', 'Patterns'], ['ad-review', 'Ad Review']] as const).map(
+          ([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={activeTab === key}
+              onClick={() => switchTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ),
+        )}
+      </div>
+
+      {activeTab === 'ad-review' && <AdReviewTab />}
+
+      {activeTab === 'patterns' && (<>
+
+      {isLoading && <LoadingSpinner className="py-12" />}
+      {error && (
+        <div className="text-center py-12">
+          <p className="text-destructive">Failed to load patterns</p>
+        </div>
+      )}
+      {!isLoading && !error && (<>
 
       {/* Stats Summary */}
       {stats && (
@@ -589,6 +618,9 @@ function PatternsPage() {
           }}
         />
       )}
+
+      </>)}
+      </>)}
     </div>
   );
 }
