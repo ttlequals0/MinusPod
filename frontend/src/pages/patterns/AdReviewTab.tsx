@@ -87,7 +87,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
     ? 'flex-1 px-3 py-2 text-sm rounded touch-manipulation'
     : 'px-2 py-1 text-xs rounded';
   return (
-    <div className={isCard ? 'flex items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
+    <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {d.hasOriginalAudio && (
         <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
       )}
@@ -284,7 +284,11 @@ export default function AdReviewTab() {
           <select
             id="ad-review-sort"
             value={sort}
-            onChange={(e) => { setSort(e.target.value as DetectionSort); setPage(1); }}
+            onChange={(e) => {
+              setSort(e.target.value as DetectionSort);
+              setOrder('desc');
+              setPage(1);
+            }}
             className="flex-1 min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           >
             {SORT_OPTIONS.map(([value, label]) => (
@@ -294,7 +298,7 @@ export default function AdReviewTab() {
           <button
             type="button"
             onClick={() => { setOrder(order === 'desc' ? 'asc' : 'desc'); setPage(1); }}
-            aria-label={order === 'desc' ? 'Sorted newest first' : 'Sorted oldest first'}
+            aria-label={order === 'desc' ? 'Sort descending' : 'Sort ascending'}
             className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
           >
             {order === 'desc'

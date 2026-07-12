@@ -66,7 +66,9 @@ beforeEach(() => {
 describe('AdReviewTab', () => {
   it('renders a detection row with episode link and status', async () => {
     renderTab();
-    const [link] = await screen.findAllByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    const table = screen.getByRole('table');
+    const link = within(table).getByRole('link', { name: 'Episode One' });
     expect(link.getAttribute('href')).toBe('/feeds/feed-a/episodes/ep-1');
     // Scope to the row: "Feed A" also appears as a filter <option> label.
     const row = link.closest('tr')!;
@@ -128,10 +130,14 @@ describe('AdReviewTab', () => {
     expect(within(cards).getByText('Acme')).toBeTruthy();
   });
 
-  it('sorts from the mobile sort control', async () => {
+  it('sorts from the mobile sort control and resets direction on column change', async () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getByRole('button', { name: 'Sort descending' }));
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
+    });
     await user.selectOptions(screen.getByLabelText('Sort'), 'confidence');
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
