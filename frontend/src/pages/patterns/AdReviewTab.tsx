@@ -31,14 +31,14 @@ const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
-  ['confidence', 'Confidence'],
+  ['confidence', 'Conf.'],
   ['podcast', 'Podcast'],
 ];
 
 const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', 'bg-green-500/10 text-green-600 dark:text-green-400'],
   rejected: ['Rejected', 'bg-red-500/10 text-red-600 dark:text-red-400'],
-  pending: ['Pending review', 'bg-amber-500/10 text-amber-600 dark:text-amber-400'],
+  pending: ['Pending', 'bg-amber-500/10 text-amber-600 dark:text-amber-400'],
 };
 
 const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
@@ -47,8 +47,12 @@ const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> 
   dismissed: ['Dismissed', 'bg-secondary text-muted-foreground'],
 };
 
-const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap';
-const td = 'px-3 py-2 text-sm text-muted-foreground whitespace-nowrap';
+const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider truncate';
+const td = 'px-3 py-2 text-sm text-muted-foreground truncate';
+
+// Percentages for the fixed table layout; must sum to 100. Sponsor lives
+// under the episode title, matching the mobile card.
+const COL_WIDTHS = ['10%', '22%', '8%', '11%', '7%', '8%', '7%', '8%', '19%'];
 
 const SORT_LABELS = Object.fromEntries(SORT_OPTIONS) as Record<DetectionSort, string>;
 
@@ -59,6 +63,9 @@ const keyOf = (d: ReviewDetection, index: number) =>
 
 const timeLabel = (d: ReviewDetection) =>
   `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
+
+const spanLabel = (d: ReviewDetection) =>
+  `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)}`;
 
 function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] }) {
   const [label, cls] = STATUS_BADGE[status];
@@ -85,7 +92,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
   const isCard = variant === 'card';
   const btn = isCard
     ? 'flex-1 px-3 py-2 text-sm rounded touch-manipulation'
-    : 'px-2 py-1 text-xs rounded';
+    : 'px-1.5 py-1 text-xs rounded';
   return (
     <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {d.hasOriginalAudio && (
@@ -212,6 +219,9 @@ export default function AdReviewTab() {
   });
 
   const { data: feeds } = useQuery({ queryKey: ['feeds'], queryFn: getFeeds });
+  const sortedFeeds = feeds
+    ? [...feeds].sort((a, b) => a.title.localeCompare(b.title))
+    : undefined;
 
   const sortHeader = (key: DetectionSort) => (
     <button
@@ -236,8 +246,47 @@ export default function AdReviewTab() {
     </button>
   );
 
+  const counts = data?.counts;
+
   return (
     <div>
+      {counts && (
+        <div className="bg-card rounded-lg border border-border p-4 mb-6">
+          <h2 className="text-sm font-medium text-foreground mb-3">Detection Statistics</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Total</p>
+              <p className="font-medium text-foreground">{counts.total}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Needs Review</p>
+              <p className={`font-medium ${counts.needsReview > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+                {counts.needsReview}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Pending</p>
+              <p className="font-medium text-foreground">{counts.pending}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Rejected</p>
+              <p className="font-medium text-foreground">{counts.rejected}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Accepted</p>
+              <p className="font-medium text-green-600 dark:text-green-400">{counts.accepted}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Confirmed</p>
+              <p className="font-medium text-foreground">{counts.confirmed}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Dismissed</p>
+              <p className="font-medium text-foreground">{counts.dismissed}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <label htmlFor="ad-review-status" className="text-sm text-muted-foreground shrink-0">Status</label>
@@ -261,7 +310,7 @@ export default function AdReviewTab() {
             className="flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           >
             <option value="">All podcasts</option>
-            {feeds?.map((f) => (
+            {sortedFeeds?.map((f) => (
               <option key={f.slug} value={f.slug}>{f.title}</option>
             ))}
           </select>
@@ -328,14 +377,16 @@ export default function AdReviewTab() {
       ) : (
         <>
           <div className="hidden md:block overflow-x-auto bg-card rounded-lg border border-border">
-            <table className="w-full divide-y divide-border">
+            <table className="w-full min-w-[64rem] table-fixed divide-y divide-border">
+              <colgroup>
+                {COL_WIDTHS.map((width, i) => <col key={i} style={{ width }} />)}
+              </colgroup>
               <thead className="bg-muted/50">
                 <tr>
                   <th className={th}>{sortHeader('podcast')}</th>
                   <th className={th}>Episode</th>
                   <th className={th}>{sortHeader('date')}</th>
                   <th className={th}>Time</th>
-                  <th className={th}>Sponsor</th>
                   <th className={th}>{sortHeader('confidence')}</th>
                   <th className={th}>Stage</th>
                   <th className={th}>Status</th>
@@ -348,19 +399,21 @@ export default function AdReviewTab() {
                   const rowKey = keyOf(d, index);
                   return (
                   <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
-                    <td className={`${td} max-w-48 truncate`} title={d.feedTitle}>{d.feedTitle}</td>
+                    <td className={td} title={d.feedTitle}>{d.feedTitle}</td>
                     <td className="px-3 py-2 text-sm">
                       <Link
                         to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
                         title={d.episodeTitle}
-                        className="block max-w-xs truncate text-primary hover:underline"
+                        className="block truncate text-primary hover:underline"
                       >
                         {d.episodeTitle}
                       </Link>
+                      {d.sponsor && (
+                        <div className="text-xs text-muted-foreground truncate" title={d.sponsor}>{d.sponsor}</div>
+                      )}
                     </td>
                     <td className={td}>{formatDate(d.publishDate)}</td>
-                    <td className={td}>{timeLabel(d)}</td>
-                    <td className="px-3 py-2 text-sm text-foreground max-w-40 truncate" title={d.sponsor ?? undefined}>{d.sponsor || '-'}</td>
+                    <td className={td} title={`${Math.round(d.end - d.start)}s`}>{spanLabel(d)}</td>
                     <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
                     <td className={td}>{d.detectionStage ? <StageBadge stage={d.detectionStage} /> : '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap"><DetectionStatusBadge status={d.status} /></td>

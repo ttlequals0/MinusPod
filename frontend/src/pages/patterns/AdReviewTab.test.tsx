@@ -7,10 +7,15 @@ import AdReviewTab from './AdReviewTab';
 import type { ReviewDetection } from '../../api/detections';
 
 const mockGetDetections = vi.fn();
+// Deliberately unsorted: the dropdown must sort by title.
 const mockGetFeeds = vi.fn().mockResolvedValue([
-  { slug: 'feed-a', title: 'Feed A' },
   { slug: 'feed-b', title: 'Feed B' },
+  { slug: 'feed-a', title: 'Feed A' },
 ]);
+const COUNTS = {
+  total: 1, needsReview: 1, pending: 0, rejected: 1,
+  accepted: 0, confirmed: 0, dismissed: 0,
+};
 const mockSubmitCorrection = vi.fn().mockResolvedValue(undefined);
 const mockReprocess = vi.fn().mockResolvedValue({ message: '', mode: 'recut' });
 
@@ -58,6 +63,7 @@ function renderTab() {
 beforeEach(() => {
   mockGetDetections.mockResolvedValue({
     detections: [detection()], total: 1, page: 1, totalPages: 1, limit: 20,
+    counts: COUNTS,
   });
   mockSubmitCorrection.mockClear();
   mockReprocess.mockClear();
@@ -121,6 +127,16 @@ describe('AdReviewTab', () => {
     });
   });
 
+  it('renders the stats card and sorts the podcast dropdown by title', async () => {
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(screen.getByText('Detection Statistics')).toBeTruthy();
+    expect(screen.getByText('Needs Review')).toBeTruthy();
+    const select = await screen.findByLabelText('Podcast') as HTMLSelectElement;
+    const labels = [...select.options].map((o) => o.text);
+    expect(labels).toEqual(['All podcasts', 'Feed A', 'Feed B']);
+  });
+
   it('renders a mobile card for each detection alongside the table', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
@@ -149,6 +165,7 @@ describe('AdReviewTab', () => {
   it('shows the empty state when nothing needs review', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [], total: 0, page: 1, totalPages: 1, limit: 20,
+      counts: { ...COUNTS, total: 0, needsReview: 0, rejected: 0 },
     });
     renderTab();
     expect(await screen.findByText('No detections need review.')).toBeTruthy();
@@ -174,7 +191,7 @@ describe('AdReviewTab row actions', () => {
   it('approve without original audio skips the recut', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({ hasOriginalAudio: false })],
-      total: 1, page: 1, totalPages: 1, limit: 20,
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
     });
     renderTab();
     const user = userEvent.setup();
@@ -197,7 +214,7 @@ describe('AdReviewTab row actions', () => {
   it('resolved rows show no approve or dismiss buttons', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({ resolution: 'dismissed' })],
-      total: 1, page: 1, totalPages: 1, limit: 20,
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
     });
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
@@ -208,7 +225,7 @@ describe('AdReviewTab row actions', () => {
   it('hides the play button when original audio is gone', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection({ hasOriginalAudio: false })],
-      total: 1, page: 1, totalPages: 1, limit: 20,
+      total: 1, page: 1, totalPages: 1, limit: 20, counts: COUNTS,
     });
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });

@@ -45,6 +45,10 @@ def test_default_returns_needs_review_only(app_client, seeded_detections):
     for d in body['detections']:
         assert d['processedUrl'].startswith('/episodes/')
         assert 'processedVersion' not in d
+    assert body['counts'] == {
+        'total': 3, 'needsReview': 2, 'pending': 1, 'rejected': 1,
+        'accepted': 1, 'confirmed': 0, 'dismissed': 0,
+    }
 
 
 def test_status_all_includes_accepted(app_client, seeded_detections):

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.48.2
+  version: 2.48.3
   contact:
     name: MinusPod
   license:
@@ -2846,6 +2846,17 @@ paths:
                   page: { type: integer }
                   totalPages: { type: integer }
                   limit: { type: integer }
+                  counts:
+                    type: object
+                    description: Pre-filter overview counts across all detections
+                    properties:
+                      total: { type: integer }
+                      needsReview: { type: integer }
+                      pending: { type: integer }
+                      rejected: { type: integer }
+                      accepted: { type: integer }
+                      confirmed: { type: integer }
+                      dismissed: { type: integer }
         '400':
           $ref: '#/components/responses/BadRequest'
 

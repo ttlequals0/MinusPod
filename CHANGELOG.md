@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.3] - 2026-07-12
+
+### Added
+- Detection Statistics card on the Ad Review tab: totals for needs
+  review, pending, rejected, accepted, confirmed, and dismissed
+  detections across all podcasts.
+
+### Fixed
+- The Ad Review table now uses a fixed column layout so it fills the
+  page without inner scrolling on desktops (1024 px and up keep a
+  scroll fallback). Sponsor moved under the episode title, long text
+  truncates with the full value on hover, and the ad span's duration
+  shows on hover over the time range.
+- The Ad Review podcast filter lists podcasts alphabetically.
+
 ## [2.48.2] - 2026-07-12
 
 ### Fixed

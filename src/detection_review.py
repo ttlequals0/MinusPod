@@ -85,6 +85,28 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
     return items
 
 
+def summarize_detections(items: List[Dict]) -> Dict:
+    """Pre-filter overview counts for the review tab's stats card."""
+    counts = {
+        'total': len(items),
+        'needsReview': 0,
+        'pending': 0,
+        'rejected': 0,
+        'accepted': 0,
+        'confirmed': 0,
+        'dismissed': 0,
+    }
+    for item in items:
+        counts[item['status']] += 1
+        if item['resolution'] == 'confirmed':
+            counts['confirmed'] += 1
+        elif item['resolution'] == 'dismissed':
+            counts['dismissed'] += 1
+        elif item['status'] in ('pending', 'rejected'):
+            counts['needsReview'] += 1
+    return counts
+
+
 def filter_detections(items: List[Dict], status: str = 'needs_review',
                       feed: Optional[str] = None,
                       q: Optional[str] = None) -> List[Dict]:

@@ -25,12 +25,23 @@ export interface ReviewDetection {
   resolution: DetectionResolution;
 }
 
+export interface DetectionCounts {
+  total: number;
+  needsReview: number;
+  pending: number;
+  rejected: number;
+  accepted: number;
+  confirmed: number;
+  dismissed: number;
+}
+
 export interface DetectionListResponse {
   detections: ReviewDetection[];
   total: number;
   page: number;
   totalPages: number;
   limit: number;
+  counts: DetectionCounts;
 }
 
 // Type alias (not interface) so it satisfies buildQueryString's Record

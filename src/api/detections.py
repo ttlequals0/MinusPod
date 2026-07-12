@@ -9,6 +9,7 @@ from api import (
 )
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
+    summarize_detections,
 )
 from utils.episode_paths import episode_public_url
 
@@ -42,6 +43,7 @@ def list_detections():
     rows = db.get_detection_rows()
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
+    counts = summarize_detections(items)
     items = filter_detections(items, status=status, feed=feed, q=q)
     items = sort_detections(items, sort=sort, order=order)
     page_items, total, total_pages, page = paginate(items, page, limit)
@@ -62,4 +64,5 @@ def list_detections():
         'page': page,
         'totalPages': total_pages,
         'limit': limit,
+        'counts': counts,
     })

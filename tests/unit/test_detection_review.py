@@ -1,6 +1,7 @@
 """Tests for the pure cross-episode detection aggregation logic."""
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
+    summarize_detections,
 )
 import json
 
@@ -112,6 +113,27 @@ class TestFlatten:
 
     def test_marker_with_none_start_is_skipped(self):
         assert flatten_detections([_row(markers=[{'start': None, 'end': 30.0}])], []) == []
+
+
+class TestSummarize:
+    def test_counts_by_status_and_resolution(self):
+        corrections = [
+            {'episode_id': 'ep-1', 'correction_type': 'false_positive',
+             'start': 100.0, 'end': 130.0},
+        ]
+        items = flatten_detections(
+            [_row(markers=[ACCEPTED, REJECTED, HELD])], corrections)
+        counts = summarize_detections(items)
+        assert counts == {
+            'total': 3, 'needsReview': 1, 'pending': 1, 'rejected': 1,
+            'accepted': 1, 'confirmed': 0, 'dismissed': 1,
+        }
+
+    def test_empty(self):
+        assert summarize_detections([]) == {
+            'total': 0, 'needsReview': 0, 'pending': 0, 'rejected': 0,
+            'accepted': 0, 'confirmed': 0, 'dismissed': 0,
+        }
 
 
 class TestFilter:
