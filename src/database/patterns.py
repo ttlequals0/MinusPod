@@ -472,6 +472,34 @@ class PatternMixin:
             results.append(item)
         return results
 
+    def get_review_corrections(self) -> List[Dict]:
+        """All confirm/false_positive corrections with parsed bounds, for
+        resolution matching in the cross-episode ad review endpoint."""
+        conn = self.get_connection()
+        cursor = conn.execute('''
+            SELECT episode_id, correction_type, original_bounds
+            FROM pattern_corrections
+            WHERE correction_type IN ('confirm', 'false_positive')
+        ''')
+        out = []
+        for row in cursor.fetchall():
+            try:
+                bounds = json.loads(row['original_bounds'])
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(bounds, dict):
+                continue
+            start, end = bounds.get('start'), bounds.get('end')
+            if start is None or end is None:
+                continue
+            out.append({
+                'episode_id': row['episode_id'],
+                'correction_type': row['correction_type'],
+                'start': start,
+                'end': end,
+            })
+        return out
+
     def get_false_positive_corrections(self, episode_id: str) -> List[Dict]:
         """Get false_positive corrections for an episode with parsed bounds.
 

@@ -671,6 +671,23 @@ class EpisodeMixin:
         ).fetchone()
         return row is not None
 
+    def get_detection_rows(self) -> List[Dict]:
+        """All episodes that have ad markers, with feed metadata, for the
+        cross-episode ad review endpoint."""
+        conn = self.get_connection()
+        cursor = conn.execute('''
+            SELECT p.slug AS feed_slug, p.title AS feed_title,
+                   e.episode_id, e.title AS episode_title,
+                   e.published_at, e.created_at, e.original_file,
+                   ed.ad_markers_json
+            FROM episodes e
+            JOIN podcasts p ON e.podcast_id = p.id
+            JOIN episode_details ed ON ed.episode_id = e.id
+            WHERE ed.ad_markers_json IS NOT NULL
+              AND ed.ad_markers_json NOT IN ('', '[]', 'null')
+        ''')
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_processed_episodes_for_feed(self, podcast_id: int) -> List[Dict]:
         """Get all processed episodes with files for inclusion in RSS feed."""
         conn = self.get_connection()
