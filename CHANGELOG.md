@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.1] - 2026-07-12
+
+### Fixed
+- The Ad Review tab now works on phones: rows render as stacked cards
+  instead of a table that needed horizontal scrolling, filter dropdowns
+  no longer overflow the filter card, and a sort control appears in the
+  filter bar on small screens (the table's sortable headers remain on
+  desktop).
+
 ## [2.48.0] - 2026-07-12
 
 ### Added

@@ -109,6 +109,8 @@ The Patterns page has two tabs: Patterns and Ad Review. The Ad Review tab lists 
 
 Each row covers one detected segment: podcast name, episode title (linked to the episode page), publish date, start/end timestamps and duration, sponsor name, confidence score, detection stage, status, and resolution.
 
+On phones the list renders as stacked cards instead of a table, with a sort control in the filter bar.
+
 The tab opens with "Needs review" selected. That filter shows detections that are held for review or rejected with no correction yet. Other options are Pending review, Rejected, Accepted, and All. A podcast dropdown narrows the list to one feed. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
 
 Each row has up to four actions:

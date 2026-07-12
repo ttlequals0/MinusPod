@@ -66,7 +66,7 @@ beforeEach(() => {
 describe('AdReviewTab', () => {
   it('renders a detection row with episode link and status', async () => {
     renderTab();
-    const link = await screen.findByRole('link', { name: 'Episode One' });
+    const [link] = await screen.findAllByRole('link', { name: 'Episode One' });
     expect(link.getAttribute('href')).toBe('/feeds/feed-a/episodes/ep-1');
     // Scope to the row: "Feed A" also appears as a filter <option> label.
     const row = link.closest('tr')!;
@@ -86,7 +86,7 @@ describe('AdReviewTab', () => {
   it('changes the status filter and resets to page 1', async () => {
     renderTab();
     const user = userEvent.setup();
-    await screen.findByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
     await user.selectOptions(screen.getByLabelText('Status'), 'all');
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
@@ -98,7 +98,7 @@ describe('AdReviewTab', () => {
   it('filters by podcast', async () => {
     renderTab();
     const user = userEvent.setup();
-    await screen.findByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
     await user.selectOptions(await screen.findByLabelText('Podcast'), 'feed-b');
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
@@ -110,11 +110,32 @@ describe('AdReviewTab', () => {
   it('toggles sort direction when the active sort column is clicked', async () => {
     renderTab();
     const user = userEvent.setup();
-    await screen.findByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
     await user.click(screen.getByRole('button', { name: /Published/ }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
         sort: 'date', order: 'asc',
+      });
+    });
+  });
+
+  it('renders a mobile card for each detection alongside the table', async () => {
+    renderTab();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    const cards = screen.getByTestId('detections-cards');
+    expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
+    expect(within(cards).getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(within(cards).getByText('Acme')).toBeTruthy();
+  });
+
+  it('sorts from the mobile sort control', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.selectOptions(screen.getByLabelText('Sort'), 'confidence');
+    await waitFor(() => {
+      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
+        sort: 'confidence', order: 'desc', page: 1,
       });
     });
   });
@@ -132,7 +153,7 @@ describe('AdReviewTab row actions', () => {
   it('approve submits a confirm correction and triggers recut', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][0]).toBe('feed-a');
     expect(mockSubmitCorrection.mock.calls[0][1]).toBe('ep-1');
@@ -151,7 +172,7 @@ describe('AdReviewTab row actions', () => {
     });
     renderTab();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockReprocess).not.toHaveBeenCalled();
   });
@@ -159,7 +180,7 @@ describe('AdReviewTab row actions', () => {
   it('dismiss submits a reject correction with no recut', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Dismiss' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
       type: 'reject',
@@ -173,7 +194,7 @@ describe('AdReviewTab row actions', () => {
       total: 1, page: 1, totalPages: 1, limit: 20,
     });
     renderTab();
-    await screen.findByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
   });
@@ -184,7 +205,7 @@ describe('AdReviewTab row actions', () => {
       total: 1, page: 1, totalPages: 1, limit: 20,
     });
     renderTab();
-    await screen.findByRole('link', { name: 'Episode One' });
+    await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: /play/i })).toBeNull();
   });
 
@@ -193,7 +214,7 @@ describe('AdReviewTab row actions', () => {
     mockSubmitCorrection.mockRejectedValueOnce(new Error('boom'));
     renderTab();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
     expect(await screen.findByText('Failed to save correction. Try again.')).toBeTruthy();
     expect(mockReprocess).not.toHaveBeenCalled();
     errSpy.mockRestore();
@@ -204,7 +225,7 @@ describe('AdReviewTab row actions', () => {
     mockReprocess.mockRejectedValueOnce(new Error('recut boom'));
     renderTab();
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
     expect(
       await screen.findByText(
         'Approved, but the recut did not start. The cut applies on the next reprocess.',

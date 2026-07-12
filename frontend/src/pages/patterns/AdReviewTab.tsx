@@ -29,6 +29,12 @@ const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['all', 'All'],
 ];
 
+const SORT_OPTIONS: Array<[DetectionSort, string]> = [
+  ['date', 'Published'],
+  ['confidence', 'Confidence'],
+  ['podcast', 'Podcast'],
+];
+
 const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', 'bg-green-500/10 text-green-600 dark:text-green-400'],
   rejected: ['Rejected', 'bg-red-500/10 text-red-600 dark:text-red-400'],
@@ -43,6 +49,79 @@ const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> 
 
 const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap';
 const td = 'px-3 py-2 text-sm text-muted-foreground whitespace-nowrap';
+
+function StatusBadge({ status }: { status: ReviewDetection['status'] }) {
+  const [label, cls] = STATUS_BADGE[status];
+  return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+}
+
+function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
+  const [label, cls] = RESOLUTION_BADGE[resolution];
+  return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+}
+
+function StageBadge({ stage }: { stage: string | null }) {
+  if (!stage) return <span>-</span>;
+  const meta = DETECTION_STAGE_META[stage as DetectionStage];
+  return (
+    <span className={`px-1.5 py-0.5 text-xs rounded font-medium whitespace-nowrap ${meta?.className ?? 'bg-secondary text-muted-foreground'}`}>
+      {meta?.label ?? stage}
+    </span>
+  );
+}
+
+// One set of row actions rendered in two densities: compact inside the
+// desktop table cell, touch-sized inside the mobile card footer.
+function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDismiss, onEdit, busy }: {
+  d: ReviewDetection;
+  variant: 'row' | 'card';
+  playing: boolean;
+  onTogglePlay: () => void;
+  onApprove: () => void;
+  onDismiss: () => void;
+  onEdit: () => void;
+  busy: boolean;
+}) {
+  const isCard = variant === 'card';
+  const btn = isCard
+    ? 'flex-1 px-3 py-2 text-sm rounded touch-manipulation'
+    : 'px-2 py-1 text-xs rounded';
+  return (
+    <div className={isCard ? 'flex items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
+      {d.hasOriginalAudio && (
+        <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+      )}
+      {d.resolution === 'unresolved' && (
+        <>
+          <button
+            type="button"
+            onClick={onApprove}
+            disabled={busy}
+            className={`${btn} bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={busy}
+            className={`${btn} bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
+          >
+            Dismiss
+          </button>
+        </>
+      )}
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={busy}
+        className={`${btn} border border-border hover:bg-accent disabled:opacity-50`}
+      >
+        Edit
+      </button>
+    </div>
+  );
+}
 
 export default function AdReviewTab() {
   const [page, setPage] = useState(1);
@@ -157,29 +236,51 @@ export default function AdReviewTab() {
     </button>
   );
 
+  // Same audition key for the table row and its mobile card twin, so the
+  // playing state stays in sync across the responsive variants.
+  const keyOf = (d: ReviewDetection, index: number) =>
+    `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
+
+  const actionsFor = (d: ReviewDetection, rowKey: string, variant: 'row' | 'card') => (
+    <DetectionActions
+      d={d}
+      variant={variant}
+      playing={audition.playingKey === rowKey}
+      onTogglePlay={() => audition.toggle(
+        rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
+      onApprove={() => approve(d)}
+      onDismiss={() => dismiss(d)}
+      onEdit={() => setEditing(d)}
+      busy={correctionMutation.isPending}
+    />
+  );
+
+  const timeLabel = (d: ReviewDetection) =>
+    `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
+
   return (
     <div>
       <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex items-center gap-2">
-          <label htmlFor="ad-review-status" className="text-sm text-muted-foreground">Status</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label htmlFor="ad-review-status" className="text-sm text-muted-foreground shrink-0">Status</label>
           <select
             id="ad-review-status"
             value={status}
             onChange={(e) => { setStatus(e.target.value as DetectionStatusFilter); setPage(1); }}
-            className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+            className="flex-1 sm:flex-none min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="ad-review-feed" className="text-sm text-muted-foreground">Podcast</label>
+        <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
+          <label htmlFor="ad-review-feed" className="text-sm text-muted-foreground shrink-0">Podcast</label>
           <select
             id="ad-review-feed"
             value={feed}
             onChange={(e) => { setFeed(e.target.value); setPage(1); }}
-            className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+            className="flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           >
             <option value="">All podcasts</option>
             {feeds?.map((f) => (
@@ -187,16 +288,41 @@ export default function AdReviewTab() {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-          <label htmlFor="ad-review-q" className="text-sm text-muted-foreground">Search</label>
+        <div className="flex items-center gap-2 w-full sm:flex-1 sm:min-w-[200px]">
+          <label htmlFor="ad-review-q" className="text-sm text-muted-foreground shrink-0">Search</label>
           <input
             id="ad-review-q"
             type="text"
             value={q}
             onChange={(e) => { setQ(e.target.value); }}
             placeholder="Sponsor or reason"
-            className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+            className="w-full min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           />
+        </div>
+        {/* Cards have no sortable headers, so sorting gets its own control
+            below the md breakpoint. */}
+        <div className="flex items-center gap-2 w-full md:hidden">
+          <label htmlFor="ad-review-sort" className="text-sm text-muted-foreground shrink-0">Sort</label>
+          <select
+            id="ad-review-sort"
+            value={sort}
+            onChange={(e) => { setSort(e.target.value as DetectionSort); setPage(1); }}
+            className="flex-1 min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+          >
+            {SORT_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => { setOrder(order === 'desc' ? 'asc' : 'desc'); setPage(1); }}
+            aria-label={order === 'desc' ? 'Sorted newest first' : 'Sorted oldest first'}
+            className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
+          >
+            {order === 'desc'
+              ? <ChevronDown className="w-4 h-4" aria-hidden />
+              : <ChevronUp className="w-4 h-4" aria-hidden />}
+          </button>
         </div>
       </div>
 
@@ -219,7 +345,7 @@ export default function AdReviewTab() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto bg-card rounded-lg border border-border">
+          <div className="hidden md:block overflow-x-auto bg-card rounded-lg border border-border">
             <table className="w-full divide-y divide-border">
               <thead className="bg-muted/50">
                 <tr>
@@ -237,9 +363,7 @@ export default function AdReviewTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {data.detections.map((d, index) => {
-                  // Index suffix keeps keys unique if two markers in one
-                  // episode ever share identical bounds.
-                  const rowKey = `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
+                  const rowKey = keyOf(d, index);
                   return (
                   <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
                     <td className={td}>{d.feedTitle}</td>
@@ -249,72 +373,50 @@ export default function AdReviewTab() {
                       </Link>
                     </td>
                     <td className={td}>{formatDate(d.publishDate)}</td>
-                    <td className={td}>
-                      {formatTimestamp(d.start)} - {formatTimestamp(d.end)} ({Math.round(d.end - d.start)}s)
-                    </td>
+                    <td className={td}>{timeLabel(d)}</td>
                     <td className="px-3 py-2 text-sm text-foreground">{d.sponsor || '-'}</td>
                     <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
-                    <td className={td}>
-                      {d.detectionStage ? (
-                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[d.detectionStage as DetectionStage]?.className ?? 'bg-secondary text-muted-foreground'}`}>
-                          {DETECTION_STAGE_META[d.detectionStage as DetectionStage]?.label ?? d.detectionStage}
-                        </span>
-                      ) : '-'}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-xs ${STATUS_BADGE[d.status][1]}`}>
-                        {STATUS_BADGE[d.status][0]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-xs ${RESOLUTION_BADGE[d.resolution][1]}`}>
-                        {RESOLUTION_BADGE[d.resolution][0]}
-                      </span>
-                    </td>
+                    <td className={td}><StageBadge stage={d.detectionStage} /></td>
+                    <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={d.status} /></td>
+                    <td className="px-3 py-2 whitespace-nowrap"><ResolutionBadge resolution={d.resolution} /></td>
                     <td className="px-3 py-2 whitespace-nowrap" data-testid="row-actions">
-                      <div className="flex items-center gap-1.5">
-                        {d.hasOriginalAudio && (
-                          <AuditionPlayButton
-                            playing={audition.playingKey === rowKey}
-                            onClick={() => audition.toggle(
-                              rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
-                          />
-                        )}
-                        {d.resolution === 'unresolved' && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => approve(d)}
-                              disabled={correctionMutation.isPending}
-                              className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => dismiss(d)}
-                              disabled={correctionMutation.isPending}
-                              className="px-2 py-1 text-xs rounded bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50"
-                            >
-                              Dismiss
-                            </button>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setEditing(d)}
-                          disabled={correctionMutation.isPending}
-                          className="px-2 py-1 text-xs rounded border border-border hover:bg-accent disabled:opacity-50"
-                        >
-                          Edit
-                        </button>
-                      </div>
+                      {actionsFor(d, rowKey, 'row')}
                     </td>
                   </tr>
                   );
                 })}
               </tbody>
             </table>
+          </div>
+          <div className="md:hidden space-y-3" data-testid="detections-cards">
+            {data.detections.map((d, index) => {
+              const rowKey = keyOf(d, index);
+              return (
+                <div key={rowKey} className="bg-card rounded-lg border border-border p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs text-muted-foreground min-w-0 truncate">{d.feedTitle}</span>
+                    <div className="flex gap-1.5 shrink-0">
+                      <StatusBadge status={d.status} />
+                      <ResolutionBadge resolution={d.resolution} />
+                    </div>
+                  </div>
+                  <Link
+                    to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
+                    className="block text-sm font-medium text-primary hover:underline"
+                  >
+                    {d.episodeTitle}
+                  </Link>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>{formatDate(d.publishDate)}</span>
+                    <span>{timeLabel(d)}</span>
+                    {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
+                    <StageBadge stage={d.detectionStage} />
+                  </div>
+                  {d.sponsor && <div className="text-sm text-foreground">{d.sponsor}</div>}
+                  {actionsFor(d, rowKey, 'card')}
+                </div>
+              );
+            })}
           </div>
           <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
         </>
