@@ -1,6 +1,8 @@
 """Integration tests for GET /api/v1/detections."""
 import pytest
 
+from api import get_database
+
 
 def _csrf(app_client):
     with app_client.session_transaction() as sess:
@@ -12,7 +14,6 @@ def _csrf(app_client):
 
 @pytest.fixture
 def seeded_detections(app_client):
-    from api import get_database
     db = get_database()
     slug = 'detections-feed'
     db.create_podcast(slug, 'https://example.com/feed.xml',

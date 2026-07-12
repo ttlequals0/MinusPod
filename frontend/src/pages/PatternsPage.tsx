@@ -133,6 +133,11 @@ function PatternsPage() {
   // Handle ?id= query param to open pattern detail. setSearchParams writes
   // router state, so this lives in an effect rather than running during render.
   useEffect(() => {
+    // Only consume ?id= while the Patterns tab is visible; the detail modal
+    // renders inside the patterns conditional, so consuming it on the
+    // ad-review tab would silently eat the deep link. Switching tabs re-runs
+    // this effect, so a pending ?id= opens the modal then.
+    if (activeTab !== 'patterns') return;
     const idParam = searchParams.get('id');
     if (idParam && patterns) {
       const pattern = patterns.find(p => p.id === parseInt(idParam));
@@ -147,7 +152,7 @@ function PatternsPage() {
         });
       }
     }
-  }, [patterns, searchParams, setSearchParams]);
+  }, [activeTab, patterns, searchParams, setSearchParams]);
 
   const filteredPatterns = patterns?.filter(pattern => {
     if (originFilter === 'user' && pattern.created_by !== 'user') return false;

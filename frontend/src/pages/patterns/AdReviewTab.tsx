@@ -57,6 +57,7 @@ export default function AdReviewTab() {
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const closeModal = () => setEditing(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -199,24 +200,25 @@ export default function AdReviewTab() {
         </div>
       </div>
 
+      {/* Outside the has-rows branch so a recut/correction failure stays
+          visible even when the refetch empties the current page. */}
+      {actionError && (
+        <div className="text-destructive text-sm mb-3">{actionError}</div>
+      )}
       {isLoading && <LoadingSpinner className="py-12" />}
       {error && (
         <div className="text-destructive text-sm">
           Failed to load detections.
         </div>
       )}
-      {!isLoading && !error && data && data.total === 0 && (
+      {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
           {status === 'needs_review'
             ? 'No detections need review.'
             : 'No detections match the current filters.'}
         </div>
-      )}
-      {!isLoading && !error && data && data.total > 0 && (
+      ) : (
         <>
-          {actionError && (
-            <div className="text-destructive text-sm mb-3">{actionError}</div>
-          )}
           <div className="overflow-x-auto bg-card rounded-lg border border-border">
             <table className="w-full divide-y divide-border">
               <thead className="bg-muted/50">
@@ -234,8 +236,10 @@ export default function AdReviewTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data.detections.map((d) => {
-                  const rowKey = `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}`;
+                {data.detections.map((d, index) => {
+                  // Index suffix keeps keys unique if two markers in one
+                  // episode ever share identical bounds.
+                  const rowKey = `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
                   return (
                   <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
                     <td className={td}>{d.feedTitle}</td>
@@ -299,7 +303,8 @@ export default function AdReviewTab() {
                         <button
                           type="button"
                           onClick={() => setEditing(d)}
-                          className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
+                          disabled={correctionMutation.isPending}
+                          className="px-2 py-1 text-xs rounded border border-border hover:bg-accent disabled:opacity-50"
                         >
                           Edit
                         </button>
@@ -313,7 +318,7 @@ export default function AdReviewTab() {
           </div>
           <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
         </>
-      )}
+      ))}
 
       {audition.audioElement}
       {editing && (
@@ -333,8 +338,8 @@ export default function AdReviewTab() {
           hasOriginal={editing.hasOriginalAudio}
           audioMode={editing.hasOriginalAudio ? 'original' : 'processed'}
           processedAudioUrl={editing.processedUrl}
-          onClose={() => setEditing(null)}
-          onSkip={() => setEditing(null)}
+          onClose={closeModal}
+          onSkip={closeModal}
           onSubmit={(s: AdReviewSubmit) => {
             const d = editing;
             if (s.kind === 'adjust') {
