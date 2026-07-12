@@ -70,6 +70,14 @@ class TestFlatten:
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
         assert items[0]['resolution'] == 'dismissed'
 
+    def test_boundary_adjustment_maps_to_confirmed(self):
+        corrections = [
+            {'episode_id': 'ep-1', 'correction_type': 'boundary_adjustment',
+             'start': 100.0, 'end': 130.0},
+        ]
+        items = flatten_detections([_row(markers=[REJECTED])], corrections)
+        assert items[0]['resolution'] == 'confirmed'
+
     def test_correction_missing_bounds_is_ignored(self):
         corrections = [
             {'episode_id': 'ep-1', 'correction_type': 'confirm'},

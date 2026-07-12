@@ -13,6 +13,7 @@ export interface ReviewDetection {
   episodeTitle: string;
   publishDate: string | null;
   hasOriginalAudio: boolean;
+  processedUrl: string;
   start: number;
   end: number;
   confidence: number | null;
@@ -32,7 +33,9 @@ export interface DetectionListResponse {
   limit: number;
 }
 
-export interface DetectionListParams {
+// Type alias (not interface) so it satisfies buildQueryString's Record
+// param via TypeScript's implicit index signature.
+export type DetectionListParams = {
   page?: number;
   limit?: number;
   status?: DetectionStatusFilter;
@@ -40,19 +43,10 @@ export interface DetectionListParams {
   q?: string;
   sort?: DetectionSort;
   order?: 'asc' | 'desc';
-}
+};
 
 export async function getDetections(
   params: DetectionListParams = {},
 ): Promise<DetectionListResponse> {
-  const qs = buildQueryString({
-    page: params.page,
-    limit: params.limit,
-    status: params.status,
-    feed: params.feed,
-    q: params.q,
-    sort: params.sort,
-    order: params.order,
-  });
-  return apiRequest<DetectionListResponse>(`/detections${qs}`);
+  return apiRequest<DetectionListResponse>(`/detections${buildQueryString(params)}`);
 }

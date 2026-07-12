@@ -42,7 +42,7 @@ class TestGetDetectionRows:
 
 
 class TestGetReviewCorrections:
-    def test_returns_confirm_and_false_positive_with_parsed_bounds(
+    def test_returns_resolving_correction_types_with_parsed_bounds(
             self, temp_db, mock_podcast):
         temp_db.create_pattern_correction(
             correction_type='confirm', pattern_id=None, episode_id='ep-1',
@@ -53,9 +53,12 @@ class TestGetReviewCorrections:
         temp_db.create_pattern_correction(
             correction_type='boundary_adjustment', pattern_id=None,
             episode_id='ep-3', original_bounds={'start': 1.0, 'end': 2.0})
+        temp_db.create_pattern_correction(
+            correction_type='create', pattern_id=None,
+            episode_id='ep-4', original_bounds={'start': 3.0, 'end': 4.0})
         rows = temp_db.get_review_corrections()
         types = sorted(r['correction_type'] for r in rows)
-        assert types == ['confirm', 'false_positive']
+        assert types == ['boundary_adjustment', 'confirm', 'false_positive']
         confirm = next(r for r in rows if r['correction_type'] == 'confirm')
         assert confirm == {'episode_id': 'ep-1', 'correction_type': 'confirm',
                            'start': 10.0, 'end': 40.0}

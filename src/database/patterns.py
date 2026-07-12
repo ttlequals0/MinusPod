@@ -473,13 +473,15 @@ class PatternMixin:
         return results
 
     def get_review_corrections(self) -> List[Dict]:
-        """All confirm/false_positive corrections with parsed bounds, for
-        resolution matching in the cross-episode ad review endpoint."""
+        """All corrections that resolve a detection (confirm, false_positive,
+        boundary_adjustment) with parsed bounds, for resolution matching in
+        the cross-episode ad review endpoint."""
         conn = self.get_connection()
         cursor = conn.execute('''
             SELECT episode_id, correction_type, original_bounds
             FROM pattern_corrections
-            WHERE correction_type IN ('confirm', 'false_positive')
+            WHERE correction_type IN ('confirm', 'false_positive',
+                                      'boundary_adjustment')
             ORDER BY id DESC
         ''')
         out = []

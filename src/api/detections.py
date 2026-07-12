@@ -5,11 +5,12 @@ from flask import request
 
 from api import (
     api, log_request, json_response, error_response,
-    get_database,
+    get_database, get_feed_auth_key,
 )
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
 )
+from utils.episode_paths import episode_public_url
 
 logger = logging.getLogger('podcast.api')
 
@@ -44,6 +45,16 @@ def list_detections():
     items = filter_detections(items, status=status, feed=feed, q=q)
     items = sort_detections(items, sort=sort, order=order)
     page_items, total, total_pages, page = paginate(items, page, limit)
+
+    # Same-origin processed-audio URL, carrying the feed auth key when
+    # enabled so the waveform editor does not 401 (mirrors the episode
+    # detail endpoint's processedUrl). Built only for the returned page.
+    feed_auth_key = get_feed_auth_key(db)
+    for item in page_items:
+        version = item.pop('processedVersion', 0)
+        item['processedUrl'] = episode_public_url(
+            "", item['feedSlug'], item['episodeId'], version,
+            key=feed_auth_key)
 
     return json_response({
         'detections': page_items,

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, Pause, Play } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   getDetections,
   type DetectionSort,
@@ -17,23 +17,9 @@ import AdReviewModal, {
 } from '../../components/AdReviewModal';
 import { Pagination } from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { AuditionPlayButton } from '../../components/AuditionPlayButton';
 import { formatTimestamp, formatDate } from '../../utils/format';
-
-// Small play/pause button matching EpisodeDetail's AuditionPlayButton at
-// table-cell scale (that one is local to EpisodeDetail, so it's inlined here).
-function AuditionPlayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={playing ? 'Pause' : 'Play'}
-      title={playing ? 'Pause' : 'Play this ad'}
-      className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
-    >
-      {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-    </button>
-  );
-}
+import { DETECTION_STAGE_META, type DetectionStage } from '../../utils/detectionStage';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
@@ -54,6 +40,9 @@ const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> 
   confirmed: ['Confirmed', 'bg-green-500/10 text-green-600 dark:text-green-400'],
   dismissed: ['Dismissed', 'bg-secondary text-muted-foreground'],
 };
+
+const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap';
+const td = 'px-3 py-2 text-sm text-muted-foreground whitespace-nowrap';
 
 export default function AdReviewTab() {
   const [page, setPage] = useState(1);
@@ -167,9 +156,6 @@ export default function AdReviewTab() {
     </button>
   );
 
-  const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap';
-  const td = 'px-3 py-2 text-sm text-muted-foreground whitespace-nowrap';
-
   return (
     <div>
       <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
@@ -264,7 +250,13 @@ export default function AdReviewTab() {
                     </td>
                     <td className="px-3 py-2 text-sm text-foreground">{d.sponsor || '-'}</td>
                     <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
-                    <td className={td}>{d.detectionStage || '-'}</td>
+                    <td className={td}>
+                      {d.detectionStage ? (
+                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[d.detectionStage as DetectionStage]?.className ?? 'bg-secondary text-muted-foreground'}`}>
+                          {DETECTION_STAGE_META[d.detectionStage as DetectionStage]?.label ?? d.detectionStage}
+                        </span>
+                      ) : '-'}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-xs ${STATUS_BADGE[d.status][1]}`}>
                         {STATUS_BADGE[d.status][0]}
@@ -284,7 +276,7 @@ export default function AdReviewTab() {
                               rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
                           />
                         )}
-                        {d.resolution === 'unresolved' ? (
+                        {d.resolution === 'unresolved' && (
                           <>
                             <button
                               type="button"
@@ -303,10 +295,6 @@ export default function AdReviewTab() {
                               Dismiss
                             </button>
                           </>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {RESOLUTION_BADGE[d.resolution][0]}
-                          </span>
                         )}
                         <button
                           type="button"
@@ -344,7 +332,7 @@ export default function AdReviewTab() {
           } satisfies AdReviewItem}
           hasOriginal={editing.hasOriginalAudio}
           audioMode={editing.hasOriginalAudio ? 'original' : 'processed'}
-          processedAudioUrl={`/episodes/${editing.feedSlug}/${editing.episodeId}.mp3`}
+          processedAudioUrl={editing.processedUrl}
           onClose={() => setEditing(null)}
           onSkip={() => setEditing(null)}
           onSubmit={(s: AdReviewSubmit) => {

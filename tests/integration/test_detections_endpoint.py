@@ -41,6 +41,9 @@ def test_default_returns_needs_review_only(app_client, seeded_detections):
     assert body['total'] == 2
     assert body['page'] == 1
     assert body['totalPages'] == 1
+    for d in body['detections']:
+        assert d['processedUrl'].startswith('/episodes/')
+        assert 'processedVersion' not in d
 
 
 def test_status_all_includes_accepted(app_client, seeded_detections):

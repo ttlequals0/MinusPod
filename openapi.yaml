@@ -7254,6 +7254,9 @@ components:
         episodeTitle: { type: string }
         publishDate: { type: string, nullable: true }
         hasOriginalAudio: { type: boolean }
+        processedUrl:
+          type: string
+          description: Same-origin processed-audio URL (carries the feed auth key when enabled)
         start: { type: number }
         end: { type: number }
         confidence: { type: number, nullable: true }

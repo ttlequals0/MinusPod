@@ -35,6 +35,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     feedSlug: 'feed-a', feedTitle: 'Feed A',
     episodeId: 'ep-1', episodeTitle: 'Episode One',
     publishDate: '2026-07-01T00:00:00Z', hasOriginalAudio: true,
+    processedUrl: '/episodes/feed-a/ep-1.mp3',
     start: 100, end: 130, confidence: 0.4,
     sponsor: 'Acme', reason: 'sponsor read',
     patternId: null, detectionStage: 'first_pass',

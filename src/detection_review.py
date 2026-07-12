@@ -2,7 +2,8 @@
 
 Flattens per-episode ad_markers_json rows into one detection list with a
 computed status (same three-bucket logic as the episode detail endpoint)
-and a resolution derived from confirm/false_positive corrections.
+and a resolution derived from corrections: false_positive dismisses, while
+confirm and boundary_adjustment (an Edit that kept the ad) confirm.
 Kept free of Flask and DB imports so it can be unit tested directly.
 """
 import json
@@ -38,7 +39,7 @@ def marker_resolution(marker: Dict, episode_corrections: List[Dict]) -> str:
             continue
         if (abs(start - c_start) <= BOUNDS_TOLERANCE_S
                 and abs(end - c_end) <= BOUNDS_TOLERANCE_S):
-            return 'confirmed' if c['correction_type'] == 'confirm' else 'dismissed'
+            return 'dismissed' if c['correction_type'] == 'false_positive' else 'confirmed'
     return 'unresolved'
 
 
@@ -68,6 +69,9 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
                 'episodeTitle': row['episode_title'],
                 'publishDate': row.get('published_at') or row.get('created_at'),
                 'hasOriginalAudio': bool(row.get('original_file')),
+                # Consumed by the endpoint to build processedUrl, then dropped
+                # from the response.
+                'processedVersion': row.get('processed_version') or 0,
                 'start': marker.get('start'),
                 'end': marker.get('end'),
                 'confidence': marker.get('confidence'),
