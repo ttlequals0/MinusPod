@@ -182,3 +182,17 @@ class TestSortAndPaginate:
     def test_paginate_empty(self):
         page_items, total, total_pages, page = paginate([], page=1, limit=20)
         assert (page_items, total, total_pages, page) == ([], 0, 1, 1)
+
+    def test_tied_confidence_breaks_ties_by_date_then_start(self):
+        rows = [
+            _row(episode_id='ep-1', published='2026-07-01T00:00:00Z',
+                 markers=[{'start': 50.0, 'end': 60.0, 'confidence': 0.5},
+                          {'start': 10.0, 'end': 20.0, 'confidence': 0.5}]),
+            _row(slug='feed-b', title='B Feed', episode_id='ep-2',
+                 published='2026-07-05T00:00:00Z',
+                 markers=[{'start': 30.0, 'end': 40.0, 'confidence': 0.5}]),
+        ]
+        items = flatten_detections(rows, [])
+        out = sort_detections(items, sort='confidence', order='asc')
+        assert [(i['episodeId'], i['start']) for i in out] == [
+            ('ep-1', 10.0), ('ep-1', 50.0), ('ep-2', 30.0)]
