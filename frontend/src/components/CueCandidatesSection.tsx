@@ -20,8 +20,12 @@ interface CueCandidatesSectionProps {
   hasOriginalAudio: boolean;
 }
 
+const btnBase =
+  'px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0';
 const makeBtn =
-  'px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0';
+  `${btnBase} bg-primary text-primary-foreground hover:bg-primary/90`;
+const secondaryBtn =
+  `${btnBase} bg-secondary text-secondary-foreground hover:bg-secondary/80`;
 
 function CueCandidatesSection({
   slug, episodeId, episodeTitle, episodeDuration, hasOriginalAudio,
@@ -217,26 +221,26 @@ function CueCandidatesSection({
               <div key={key} className="p-3 bg-secondary/40 rounded-lg border border-border">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <button
-                    onClick={() => togglePreview(c)}
-                    disabled={!hasOriginalAudio}
-                    aria-label={isPlaying ? 'Stop preview' : 'Play candidate'}
-                    title={hasOriginalAudio
-                      ? (isPlaying ? 'Stop' : 'Play this sound')
-                      : 'Original audio not retained for this episode'}
-                    className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation"
-                  >
-                    {isPlaying ? (
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <rect x="6" y="5" width="4" height="14" rx="1" />
-                        <rect x="14" y="5" width="4" height="14" rx="1" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    )}
-                  </button>
+                    <button
+                      onClick={() => togglePreview(c)}
+                      disabled={!hasOriginalAudio}
+                      aria-label={isPlaying ? 'Stop preview' : 'Play candidate'}
+                      title={hasOriginalAudio
+                        ? (isPlaying ? 'Stop' : 'Play this sound')
+                        : 'Original audio not retained for this episode'}
+                      className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation"
+                    >
+                      {isPlaying ? (
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <rect x="6" y="5" width="4" height="14" rx="1" />
+                          <rect x="14" y="5" width="4" height="14" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm text-foreground whitespace-nowrap">
                         {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
@@ -269,7 +273,7 @@ function CueCandidatesSection({
                       onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
                       disabled={dismissMutation.isPending}
                       title="Not a cue: hide this sound in every episode of this feed"
-                      className="flex-1 sm:flex-none px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                      className={`${secondaryBtn} flex-1 sm:flex-none`}
                     >
                       Dismiss
                     </button>
@@ -281,7 +285,7 @@ function CueCandidatesSection({
           <div className="pt-1">
             <button
               onClick={() => rescan()}
-              className="shrink-0 px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+              className={`${secondaryBtn} shrink-0`}
             >
               Rescan
             </button>
