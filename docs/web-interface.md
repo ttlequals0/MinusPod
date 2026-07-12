@@ -21,7 +21,7 @@ The server includes a web-based management UI at `/ui/`:
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, or delete (the per-episode Recut Audio mode is not a bulk action)
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
-- Pattern management: view and manage cross-episode ad patterns with sponsor names
+- Pattern management: view and manage cross-episode ad patterns with sponsor names; includes an Ad Review tab for triaging detections across all podcasts
 - Sponsor management: view, add, edit, and remove sponsors, each with its linked-pattern count, created and last-matched dates, and tags; plus a tab for name normalization rules
 - Processing history with stats, filtering by podcast, and CSV/JSON export
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
@@ -102,6 +102,27 @@ The modal has two input modes, toggled by a tab strip at the top:
 Switching tabs preserves your selection, so you can refine bounds in either view. Pick a sponsor from the autocomplete or type a new one. The optional Reason field is available in both modes.
 
 Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher picks it up on future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
+
+### Ad Review tab
+
+The Patterns page has two tabs: Patterns and Ad Review. The Ad Review tab lists ad detections across all your podcasts so you can triage them without opening each episode.
+
+Each row covers one detected segment: podcast name, episode title (linked to the episode page), publish date, start/end timestamps and duration, sponsor name, confidence score, detection stage, status, and resolution.
+
+A Detection Statistics card above the filters shows totals by status and resolution across all podcasts. On phones the list renders as stacked cards instead of a table, with a sort control in the filter bar.
+
+The tab opens with "Needs review" selected. That filter shows detections that are held for review or rejected with no correction yet. Other options are Pending review, Rejected, Accepted, and All. A podcast dropdown narrows the list to one feed. The search box filters by sponsor name or detection reason. The list shows 20 rows per page. Click a column header (Podcast, Published, Confidence) to sort; click again to reverse.
+
+Each row has up to four actions:
+
+- Play -- auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
+- Approve -- records a confirm correction. Triggers an immediate recut if the original audio is present; otherwise the cut applies on the next reprocess.
+- Dismiss -- records a rejection and leaves the audio unchanged.
+- Edit -- opens the waveform editor so you can adjust the ad boundaries before deciding.
+
+Approve and Dismiss only appear for unresolved detections; the resolution badge replaces them once a decision is recorded.
+
+Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
 
 ### Audio Cue Templates
 

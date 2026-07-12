@@ -1,7 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause } from 'lucide-react';
 import { episodeOriginalUrl, getEpisode, getFeed, getOriginalTranscript, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import PrevNextLink from '../components/PrevNextLink';
@@ -21,6 +20,8 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage, formatDuration } from './settings/settingsUtils';
 import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
+import { AuditionPlayButton } from '../components/AuditionPlayButton';
+import { StageBadge } from '../components/StageBadge';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -33,20 +34,6 @@ function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-green-700 text-white';
   if (status === 'error') return 'bg-red-600 text-white';
   return idleClass;
-}
-
-function AuditionPlayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={playing ? 'Pause ad' : 'Play this ad'}
-      title={playing ? 'Pause' : 'Play this ad'}
-      className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
-    >
-      {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-    </button>
-  );
 }
 
 function TranscriptBlock({ text }: { text: string }) {
@@ -621,9 +608,7 @@ function EpisodeDetail() {
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
-                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
-                      {DETECTION_STAGE_META[segment.detection_stage].label}
-                    </span>
+                    <StageBadge stage={segment.detection_stage} />
                   )}
                   {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                     <span
@@ -794,9 +779,7 @@ function EpisodeDetail() {
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
-                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
-                          {DETECTION_STAGE_META[segment.detection_stage].label}
-                        </span>
+                        <StageBadge stage={segment.detection_stage} />
                       )}
                       {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                         <span

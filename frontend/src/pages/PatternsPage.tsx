@@ -16,11 +16,13 @@ import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
+import AdReviewTab from './patterns/AdReviewTab';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type SortDirection = 'asc' | 'desc';
+type PatternsTab = 'patterns' | 'ad-review';
 
 function SortHeader({
   field,
@@ -66,6 +68,13 @@ function PatternsPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const activeTab: PatternsTab =
+    searchParams.get('tab') === 'ad-review' ? 'ad-review' : 'patterns';
+
+  const switchTab = (tab: PatternsTab) => {
+    setSearchParams(tab === 'patterns' ? {} : { tab });
+  };
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', scopeFilter, showInactive, sourceFilter],
@@ -124,17 +133,26 @@ function PatternsPage() {
   // Handle ?id= query param to open pattern detail. setSearchParams writes
   // router state, so this lives in an effect rather than running during render.
   useEffect(() => {
+    // Only consume ?id= while the Patterns tab is visible; the detail modal
+    // renders inside the patterns conditional, so consuming it on the
+    // ad-review tab would silently eat the deep link. Switching tabs re-runs
+    // this effect, so a pending ?id= opens the modal then.
+    if (activeTab !== 'patterns') return;
     const idParam = searchParams.get('id');
     if (idParam && patterns) {
       const pattern = patterns.find(p => p.id === parseInt(idParam));
       if (pattern) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedPattern(pattern);
-        // Clear the param after opening
-        setSearchParams({});
+        // Clear only the id param, preserve other params
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('id');
+          return next;
+        });
       }
     }
-  }, [patterns, searchParams, setSearchParams]);
+  }, [activeTab, patterns, searchParams, setSearchParams]);
 
   const filteredPatterns = patterns?.filter(pattern => {
     if (originFilter === 'user' && pattern.created_by !== 'user') return false;
@@ -205,51 +223,41 @@ function PatternsPage() {
     );
   };
 
-  if (isLoading) {
-    return <LoadingSpinner className="py-12" />;
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-destructive">Failed to load patterns</p>
-      </div>
-    );
-  }
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Ad Patterns</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">
-            {sortedPatterns?.length || 0} patterns
-          </span>
-          {syncStatus?.lastRun && (
+        {activeTab === 'patterns' && (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">
+              {sortedPatterns?.length || 0} patterns
+            </span>
+            {syncStatus?.lastRun && (
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                className="px-2 py-1 rounded text-xs border border-border hover:bg-accent transition-colors"
+                title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+              >
+                ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleSyncNow}
-              className="px-2 py-1 rounded text-xs border border-border hover:bg-accent transition-colors"
-              title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+              onClick={() => setImportOpen(true)}
+              className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
             >
-              ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+              Import
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
-          >
-            Import
-          </button>
-          <button
-            type="button"
-            onClick={() => setExportOpen(true)}
-            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
-          >
-            Export
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
+            >
+              Export
+            </button>
+          </div>
+        )}
       </div>
       <PatternImportDialog
         open={importOpen}
@@ -261,6 +269,38 @@ function PatternsPage() {
         patterns={sortedPatterns || []}
         onClose={() => setExportOpen(false)}
       />
+
+      <div role="tablist" className="flex gap-1 border-b border-border mb-6">
+        {([['patterns', 'Patterns'], ['ad-review', 'Ad Review']] as const).map(
+          ([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={activeTab === key}
+              onClick={() => switchTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ),
+        )}
+      </div>
+
+      {activeTab === 'ad-review' && <AdReviewTab />}
+
+      {activeTab === 'patterns' && (<>
+
+      {isLoading && <LoadingSpinner className="py-12" />}
+      {error && (
+        <div className="text-center py-12">
+          <p className="text-destructive">Failed to load patterns</p>
+        </div>
+      )}
+      {!isLoading && !error && (<>
 
       {/* Stats Summary */}
       {stats && (
@@ -589,6 +629,9 @@ function PatternsPage() {
           }}
         />
       )}
+
+      </>)}
+      </>)}
     </div>
   );
 }

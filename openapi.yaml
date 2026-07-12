@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.47.0
+  version: 2.48.4
   contact:
     name: MinusPod
   license:
@@ -2782,6 +2782,83 @@ paths:
 
                   Unauthenticated stream: single frame
                   `event: auth-failed\ndata: {}\n\n` then close.
+
+  /detections:
+    get:
+      tags:
+        - Patterns
+      summary: List ad detections across all feeds
+      description: >
+        Flattens every episode's ad markers into one list for the Ad Review
+        tab, with a computed status and resolution per detection. Detections
+        are resolved by POSTing to the existing per-episode corrections
+        endpoint.
+      operationId: listDetections
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: status
+          in: query
+          description: >
+            needs_review returns pending-review and rejected detections
+            that have no matching correction yet.
+          schema:
+            type: string
+            enum: [needs_review, pending, rejected, accepted, all]
+            default: needs_review
+        - name: feed
+          in: query
+          description: Filter to a single feed by slug
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Case-insensitive match against sponsor and reason
+          schema: { type: string }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [date, confidence, podcast]
+            default: date
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Paginated detection list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detections:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReviewDetection'
+                  total: { type: integer }
+                  page: { type: integer }
+                  totalPages: { type: integer }
+                  limit: { type: integer }
+                  counts:
+                    type: object
+                    description: Pre-filter overview counts across all detections
+                    properties:
+                      total: { type: integer }
+                      needsReview: { type: integer }
+                      pending: { type: integer }
+                      rejected: { type: integer }
+                      accepted: { type: integer }
+                      confirmed: { type: integer }
+                      dismissed: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /history:
     get:
@@ -7178,6 +7255,32 @@ components:
               items:
                 type: string
               description: Auto-corrections applied (merged ads, clamped boundaries)
+
+    ReviewDetection:
+      type: object
+      properties:
+        feedSlug: { type: string }
+        feedTitle: { type: string }
+        episodeId: { type: string }
+        episodeTitle: { type: string }
+        publishDate: { type: string, nullable: true }
+        hasOriginalAudio: { type: boolean }
+        processedUrl:
+          type: string
+          description: Same-origin processed-audio URL (carries the feed auth key when enabled)
+        start: { type: number }
+        end: { type: number }
+        confidence: { type: number, nullable: true }
+        sponsor: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        patternId: { type: integer, nullable: true }
+        detectionStage: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [accepted, rejected, pending]
+        resolution:
+          type: string
+          enum: [unresolved, confirmed, dismissed]
 
     Model:
       type: object

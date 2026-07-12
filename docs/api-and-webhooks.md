@@ -42,6 +42,7 @@ Key endpoints:
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cue-template-preview` - Run a single template (`templateId`) against an episode
 - `POST /api/v1/feeds/{slug}/cue-cross-episode-scan` - Full-body cross-episode scan for recurring segments (`episodeIds`, 2-5; the first sets the coordinate frame). Poll with the same body; `rescan: true` forces a fresh run
 - `POST /api/v1/feeds/{slug}/cue-templates/{id}/optimize-window` - Sweep start/end trims (up to 0.5s each way, 0.1s steps) for the window with the best mean match score across the source episode and up to 4 siblings; 409 when the source original has aged out
+- `GET /api/v1/detections` - List ad detections across all feeds with status filter (`needs_review`, `pending`, `rejected`, `accepted`, `all`; default `needs_review`), optional podcast slug (`feed`), free-text search (`q`), sort (`date`, `confidence`, `podcast`), order (`asc`, `desc`), and pagination (`page`, `limit` 1-100, default 20). Powers the Patterns > Ad Review tab.
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)

@@ -6,6 +6,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.4] - 2026-07-12
+
+### Fixed
+- Ad Review column widths rebalanced against live data so the
+  Published and Resolution headers and the stage badges no longer
+  truncate on desktop.
+
+## [2.48.3] - 2026-07-12
+
+### Added
+- Detection Statistics card on the Ad Review tab: totals for needs
+  review, pending, rejected, accepted, confirmed, and dismissed
+  detections across all podcasts.
+
+### Fixed
+- The Ad Review table now uses a fixed column layout so it fills the
+  page without inner scrolling on desktops (1024 px and up keep a
+  scroll fallback). Sponsor moved under the episode title, long text
+  truncates with the full value on hover, and the ad span's duration
+  shows on hover over the time range.
+- The Ad Review podcast filter lists podcasts alphabetically.
+
+## [2.48.2] - 2026-07-12
+
+### Fixed
+- The Ad Review table fits a 1280 px desktop without scrolling inside
+  its container: long episode, podcast, and sponsor names truncate with
+  the full text shown on hover.
+
+## [2.48.1] - 2026-07-12
+
+### Fixed
+- The Ad Review tab now works on phones: rows render as stacked cards
+  instead of a table that needed horizontal scrolling, filter dropdowns
+  no longer overflow the filter card, and a sort control appears in the
+  filter bar on small screens (the table's sortable headers remain on
+  desktop).
+
+## [2.48.0] - 2026-07-12
+
+### Added
+- Ad Review tab on the Patterns page: one paginated list of every ad
+  detection across all podcasts, with status and podcast filters, text
+  search, and sortable columns. Defaults to detections that need a
+  decision (held for review or rejected, with no correction yet), so
+  unresolved rejected detections can be worked through in one place
+  instead of episode by episode (issue #417). Rows support Approve,
+  Dismiss, waveform Edit, and audio preview using the same correction
+  flow as the episode page. New endpoint: `GET /api/v1/detections`.
+
 ## [2.47.0] - 2026-07-12
 
 ### Added
