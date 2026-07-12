@@ -12,6 +12,7 @@ from jinja2.sandbox import SecurityError
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from tests.unit.thread_fakes import SyncThread
 from webhook_service import (
     render_template_preview,
     _build_context,
@@ -393,17 +394,6 @@ class TestFormatCost:
         assert _format_cost(0.0) == '$0.00'
 
 
-class _SyncThread:
-    """Thread stand-in that runs the target inline."""
-
-    def __init__(self, target=None, args=(), daemon=None):
-        self._target = target
-        self._args = args
-
-    def start(self):
-        self._target(*self._args)
-
-
 class TestEmailDispatchHooks:
     """Email is a peer notification channel: it must fire even with zero
     webhooks configured, must not be blocked by webhook failures (and vice
@@ -422,12 +412,21 @@ class TestEmailDispatchHooks:
         assert event == EVENT_EPISODE_PROCESSED
         assert context['episode']['id'] == 'ep1'
 
-    def test_webhook_still_fires_when_email_raises(self):
+    def test_webhook_still_fires_when_smtp_is_down(self):
+        # send_event_email guarantees never-raises; exercise that guarantee
+        # end to end by failing at the SMTP layer, not by faking a raise.
+        import email_service
         webhooks = [{'enabled': True, 'events': [EVENT_EPISODE_PROCESSED],
                      'url': 'http://x'}]
+        ready_cfg = email_service.EmailConfig(
+            enabled=True, events=[EVENT_EPISODE_PROCESSED],
+            host='mail.example.com', port=587, security='none',
+            username='', password=None, from_addr='a@b.c',
+            recipients=['d@e.f'])
         with patch('webhook_service.load_webhooks', return_value=webhooks), \
              patch('webhook_service._prepare_and_dispatch') as dispatch, \
-             patch('email_service.send_event_email', side_effect=RuntimeError('smtp down')):
+             patch('email_service.load_email_config', return_value=ready_cfg), \
+             patch('email_service._send', side_effect=OSError('smtp down')):
             _fire_event_sync(_make_payload())
         dispatch.assert_called_once()
 
@@ -445,7 +444,7 @@ class TestEmailDispatchHooks:
         import webhook_service
         with patch('webhook_service.load_webhooks', return_value=[]), \
              patch('email_service.send_event_email') as send, \
-             patch.object(threading, 'Thread', _SyncThread):
+             patch.object(threading, 'Thread', SyncThread):
             webhook_service.fire_limit_exceeded_event(
                 'openrouter', 'm', 'limit hit', 403)
         send.assert_called_once()
@@ -459,7 +458,7 @@ class TestEmailDispatchHooks:
         import webhook_service
         with patch('webhook_service.load_webhooks', return_value=[]), \
              patch('email_service.send_event_email') as send, \
-             patch.object(threading, 'Thread', _SyncThread):
+             patch.object(threading, 'Thread', SyncThread):
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
             webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
         assert send.call_count == 1

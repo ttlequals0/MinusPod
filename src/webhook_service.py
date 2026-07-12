@@ -18,6 +18,7 @@ from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import format_duration, utc_now_iso
 from utils.url import SSRFError
+import email_service
 
 logger = logging.getLogger('podcast.webhooks')
 
@@ -242,11 +243,7 @@ def _fire_event_sync(payload: WebhookPayload):
         except Exception:
             logger.exception("Unexpected error dispatching webhook to %s", wh.get('url'))
 
-    try:
-        from email_service import send_event_email
-        send_event_email(payload.event, context)
-    except Exception:
-        logger.exception("Email dispatch failed for %s", payload.event)
+    email_service.send_event_email(payload.event, context)
 
 
 def fire_event(event, episode_id, slug, episode_title, processing_time,
@@ -312,11 +309,7 @@ def _fire_alert_event(event, context, log_detail):
             except Exception:
                 logger.exception("Failed to send %s webhook to %s",
                                  event, wh.get('url'))
-        try:
-            from email_service import send_event_email
-            send_event_email(event, context)
-        except Exception:
-            logger.exception("Email dispatch failed for %s", event)
+        email_service.send_event_email(event, context)
 
     thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()

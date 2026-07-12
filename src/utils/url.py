@@ -135,10 +135,7 @@ def validate_base_url(url: str) -> str:
     if not parsed.hostname:
         raise SSRFError("Missing hostname in URL")
 
-    host = parsed.hostname.strip('[]')
-    if host in _CLOUD_METADATA_IPS:
-        raise SSRFError(f"Blocked cloud metadata IP: {host}")
-
+    host = parsed.hostname
     port = parsed.port
     if port is None:
         port = 443 if scheme == 'https' else 80

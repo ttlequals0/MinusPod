@@ -1,22 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import {
   getWebhooks, createWebhook, updateWebhook, deleteWebhook,
   testWebhook, validateTemplate,
-  getEmailNotificationSettings, updateEmailNotificationSettings, sendTestEmail,
 } from '../../api/settings';
-import type {
-  Webhook, WebhookPayload, EmailNotificationSettings, EmailNotificationSettingsPayload,
-} from '../../api/settings';
-
-const EVENT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'Episode Processed', label: 'Episode Processed' },
-  { value: 'Episode Failed', label: 'Episode Failed' },
-  { value: 'Auth Failure', label: 'Auth Failure' },
-  { value: 'Limit Exceeded', label: 'Limit Exceeded' },
-  { value: 'Rate Limit Structural', label: 'Rate Limit Structural' },
-];
+import type { Webhook, WebhookPayload } from '../../api/settings';
+import EmailSettingsForm from './EmailSettingsForm';
+import { EVENT_OPTIONS } from './notificationEvents';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -44,320 +35,6 @@ const emptyForm: WebhookFormData = {
   payloadTemplate: '',
   contentType: 'application/json',
 };
-
-interface EmailDraft {
-  enabled: boolean;
-  events: string[];
-  smtpHost: string;
-  smtpPort: string;
-  smtpSecurity: 'none' | 'starttls' | 'ssl';
-  smtpUsername: string;
-  smtpPassword: string;
-  fromAddress: string;
-  recipients: string;
-}
-
-function draftFromSettings(s: EmailNotificationSettings): EmailDraft {
-  return {
-    enabled: s.enabled,
-    events: [...s.events],
-    smtpHost: s.smtpHost,
-    smtpPort: String(s.smtpPort),
-    smtpSecurity: s.smtpSecurity,
-    smtpUsername: s.smtpUsername,
-    smtpPassword: '',
-    fromAddress: s.fromAddress,
-    recipients: s.recipients,
-  };
-}
-
-const emailInputClass =
-  'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground '
-  + 'placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm';
-
-function EmailSettingsForm() {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<EmailDraft | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const { data: settings, isLoading, isError } = useQuery({
-    queryKey: ['emailNotifications'],
-    queryFn: getEmailNotificationSettings,
-  });
-
-  useEffect(() => {
-    if (settings) setDraft(draftFromSettings(settings));
-  }, [settings]);
-
-  const saveMutation = useMutation({
-    mutationFn: (payload: EmailNotificationSettingsPayload) =>
-      updateEmailNotificationSettings(payload),
-    onSuccess: (data) => {
-      queryClient.setQueryData(['emailNotifications'], data);
-      setShowPassword(false);
-    },
-  });
-
-  const testMutation = useMutation({
-    mutationFn: sendTestEmail,
-    onSuccess: (data) => {
-      setTestResult(data);
-      setTimeout(() => setTestResult(null), 4000);
-    },
-    onError: () => {
-      setTestResult({ success: false, message: 'Request failed' });
-      setTimeout(() => setTestResult(null), 4000);
-    },
-  });
-
-  if (isLoading || !draft) {
-    return <p className="text-sm text-muted-foreground">Loading email settings...</p>;
-  }
-  if (isError) {
-    return <p className="text-sm text-destructive">Failed to load email settings.</p>;
-  }
-
-  const dirty = settings != null && (
-    draft.enabled !== settings.enabled
-    || draft.smtpHost !== settings.smtpHost
-    || draft.smtpPort !== String(settings.smtpPort)
-    || draft.smtpSecurity !== settings.smtpSecurity
-    || draft.smtpUsername !== settings.smtpUsername
-    || draft.fromAddress !== settings.fromAddress
-    || draft.recipients !== settings.recipients
-    || draft.smtpPassword !== ''
-    || draft.events.length !== settings.events.length
-    || draft.events.some((e) => !settings.events.includes(e))
-  );
-
-  const savedSendReady = settings != null && settings.enabled
-    && !!settings.smtpHost && !!settings.fromAddress && !!settings.recipients;
-
-  function set<K extends keyof EmailDraft>(key: K, value: EmailDraft[K]) {
-    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
-  }
-
-  function toggleEvent(event: string) {
-    setDraft((prev) => {
-      if (!prev) return prev;
-      const events = prev.events.includes(event)
-        ? prev.events.filter((e) => e !== event)
-        : [...prev.events, event];
-      return { ...prev, events };
-    });
-  }
-
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    if (!draft) return;
-    const port = parseInt(draft.smtpPort, 10);
-    const payload: EmailNotificationSettingsPayload = {
-      enabled: draft.enabled,
-      events: draft.events,
-      smtpHost: draft.smtpHost.trim(),
-      smtpPort: Number.isNaN(port) ? undefined : port,
-      smtpSecurity: draft.smtpSecurity,
-      smtpUsername: draft.smtpUsername.trim(),
-      fromAddress: draft.fromAddress.trim(),
-      recipients: draft.recipients,
-    };
-    if (draft.smtpPassword) {
-      payload.smtpPassword = draft.smtpPassword;
-    }
-    saveMutation.mutate(payload);
-  }
-
-  return (
-    <form onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-background">
-      <p className="text-xs text-muted-foreground">
-        Send an email through your own SMTP server when the selected events happen.
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-2">
-          <label htmlFor="email-smtp-host" className="block text-sm font-medium text-foreground mb-1">
-            SMTP host
-          </label>
-          <input
-            id="email-smtp-host"
-            type="text"
-            value={draft.smtpHost}
-            onChange={(e) => set('smtpHost', e.target.value)}
-            placeholder="mail.example.com"
-            className={emailInputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="email-smtp-port" className="block text-sm font-medium text-foreground mb-1">
-            Port
-          </label>
-          <input
-            id="email-smtp-port"
-            type="number"
-            min={1}
-            max={65535}
-            value={draft.smtpPort}
-            onChange={(e) => set('smtpPort', e.target.value)}
-            className={emailInputClass}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <label htmlFor="email-smtp-security" className="block text-sm font-medium text-foreground mb-1">
-            Security
-          </label>
-          <select
-            id="email-smtp-security"
-            value={draft.smtpSecurity}
-            onChange={(e) => set('smtpSecurity', e.target.value as EmailDraft['smtpSecurity'])}
-            className={emailInputClass}
-          >
-            <option value="none">None</option>
-            <option value="starttls">STARTTLS</option>
-            <option value="ssl">SSL/TLS</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="email-smtp-username" className="block text-sm font-medium text-foreground mb-1">
-            Username <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
-          <input
-            id="email-smtp-username"
-            type="text"
-            value={draft.smtpUsername}
-            onChange={(e) => set('smtpUsername', e.target.value)}
-            autoComplete="off"
-            className={emailInputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="email-smtp-password" className="block text-sm font-medium text-foreground mb-1">
-            Password <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
-          <div className="relative">
-            <input
-              id="email-smtp-password"
-              type={showPassword ? 'text' : 'password'}
-              value={draft.smtpPassword}
-              onChange={(e) => set('smtpPassword', e.target.value)}
-              placeholder={settings?.smtpPasswordConfigured
-                ? '(stored - enter new value to change)'
-                : ''}
-              autoComplete="off"
-              className={`${emailInputClass} pr-16`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label htmlFor="email-from" className="block text-sm font-medium text-foreground mb-1">
-            From address
-          </label>
-          <input
-            id="email-from"
-            type="email"
-            value={draft.fromAddress}
-            onChange={(e) => set('fromAddress', e.target.value)}
-            placeholder="minuspod@example.com"
-            className={emailInputClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="email-recipients" className="block text-sm font-medium text-foreground mb-1">
-            Recipients
-          </label>
-          <input
-            id="email-recipients"
-            type="text"
-            value={draft.recipients}
-            onChange={(e) => set('recipients', e.target.value)}
-            placeholder="you@example.com, other@example.com"
-            className={emailInputClass}
-          />
-          <p className="text-xs text-muted-foreground mt-1">Comma-separated email addresses</p>
-        </div>
-      </div>
-
-      <div>
-        <span className="block text-sm font-medium text-foreground mb-1">Events</span>
-        <div className="space-y-1.5">
-          {EVENT_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={draft.events.includes(opt.value)}
-                onChange={() => toggleEvent(opt.value)}
-                className="rounded border-input"
-              />
-              <span className="text-sm text-foreground">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={(e) => set('enabled', e.target.checked)}
-          className="rounded border-input"
-        />
-        <span className="text-sm text-foreground">Enabled</span>
-      </label>
-
-      {saveMutation.isError && (
-        <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {(saveMutation.error as Error)?.message || 'Failed to save email settings'}
-        </div>
-      )}
-
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          type="submit"
-          disabled={saveMutation.isPending || !dirty}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
-        >
-          {saveMutation.isPending ? 'Saving...' : 'Save'}
-        </button>
-        <button
-          type="button"
-          onClick={() => testMutation.mutate()}
-          disabled={testMutation.isPending || !savedSendReady || dirty}
-          className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm"
-        >
-          {testMutation.isPending ? 'Sending...' : 'Send test email'}
-        </button>
-        {dirty && (
-          <span className="text-xs text-muted-foreground">
-            The test uses saved settings; save your changes first.
-          </span>
-        )}
-        {!dirty && !savedSendReady && (
-          <span className="text-xs text-muted-foreground">
-            Save an SMTP host, from address, and recipients, then turn email on to test.
-          </span>
-        )}
-        {testResult && (
-          <span className={`text-xs ${testResult.success ? 'text-green-500' : 'text-destructive'}`}>
-            {testResult.message}
-          </span>
-        )}
-      </div>
-    </form>
-  );
-}
 
 function WebhooksBlock() {
   const queryClient = useQueryClient();
@@ -500,267 +177,267 @@ function WebhooksBlock() {
 
   return (
     <div className="space-y-4">
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Loading webhooks...</p>
-        )}
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">Loading webhooks...</p>
+      )}
 
-        {!isLoading && webhooks.length === 0 && !showForm && (
-          <p className="text-sm text-muted-foreground">No webhooks configured.</p>
-        )}
+      {!isLoading && webhooks.length === 0 && !showForm && (
+        <p className="text-sm text-muted-foreground">No webhooks configured.</p>
+      )}
 
-        {/* Webhook list */}
-        {webhooks.length > 0 && (
-          <div className="space-y-2">
-            {webhooks.map((wh) => (
-              <div
-                key={wh.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-background"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-mono truncate max-w-xs" title={wh.url}>
-                      {wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url}
+      {/* Webhook list */}
+      {webhooks.length > 0 && (
+        <div className="space-y-2">
+          {webhooks.map((wh) => (
+            <div
+              key={wh.id}
+              className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-background"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-mono truncate max-w-xs" title={wh.url}>
+                    {wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url}
+                  </span>
+                  {wh.payloadTemplate && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      custom template
                     </span>
-                    {wh.payloadTemplate && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                        custom template
-                      </span>
-                    )}
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded ${
-                        wh.enabled
-                          ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {wh.enabled ? 'enabled' : 'disabled'}
-                    </span>
-                  </div>
-                  <div className="flex gap-1.5 mt-1 flex-wrap">
-                    {wh.events.map((ev) => {
-                      const label = EVENT_OPTIONS.find((o) => o.value === ev)?.label || ev;
-                      return (
-                        <span
-                          key={ev}
-                          className="text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground"
-                        >
-                          {label}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  {testResults[wh.id] && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        testResults[wh.id].success ? 'text-green-500' : 'text-destructive'
-                      }`}
-                    >
-                      {testResults[wh.id].message}
-                    </p>
                   )}
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded ${
+                      wh.enabled
+                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                  >
+                    {wh.enabled ? 'enabled' : 'disabled'}
+                  </span>
                 </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => testMutation.mutate(wh.id)}
-                    disabled={testMutation.isPending}
-                    className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-                  >
-                    Test
-                  </button>
-                  <button
-                    onClick={() => startEdit(wh)}
-                    className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteClick(wh.id)}
-                    disabled={deleteMutation.isPending}
-                    className="px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors"
-                  >
-                    {deleteConfirmId === wh.id ? 'Confirm?' : 'Delete'}
-                  </button>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  {wh.events.map((ev) => {
+                    const label = EVENT_OPTIONS.find((o) => o.value === ev)?.label || ev;
+                    return (
+                      <span
+                        key={ev}
+                        className="text-xs px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground"
+                      >
+                        {label}
+                      </span>
+                    );
+                  })}
                 </div>
+                {testResults[wh.id] && (
+                  <p
+                    className={`text-xs mt-1 ${
+                      testResults[wh.id].success ? 'text-green-500' : 'text-destructive'
+                    }`}
+                  >
+                    {testResults[wh.id].message}
+                  </p>
+                )}
               </div>
-            ))}
-          </div>
-        )}
 
-        {/* Add button */}
-        {!showForm && (
-          <button
-            onClick={() => {
-              setForm({ ...emptyForm });
-              setEditingId(null);
-              setShowForm(true);
-              setTemplatePreview(null);
-            }}
-            className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm"
-          >
-            Add Webhook
-          </button>
-        )}
-
-        {/* Form */}
-        {showForm && (
-          <form onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border bg-background">
-            <h3 className="text-sm font-semibold text-foreground">
-              {editingId ? 'Edit Webhook' : 'New Webhook'}
-            </h3>
-
-            {/* URL */}
-            <div>
-              <label htmlFor="webhook-url" className="block text-sm font-medium text-foreground mb-1">
-                URL
-              </label>
-              <input
-                id="webhook-url"
-                type="url"
-                required
-                value={form.url}
-                onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
-                placeholder="https://example.com/webhook"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
-              />
-            </div>
-
-            {/* Events */}
-            <div>
-              <span className="block text-sm font-medium text-foreground mb-1">Events</span>
-              <div className="space-y-1.5">
-                {EVENT_OPTIONS.map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.events.includes(opt.value)}
-                      onChange={() => handleEventToggle(opt.value)}
-                      className="rounded border-input"
-                    />
-                    <span className="text-sm text-foreground">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Payload Template */}
-            <div>
-              <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-0.5">
-                Payload Template (optional)
-              </label>
-              <p className="text-xs text-muted-foreground mb-1">
-                Customize the JSON body sent to your endpoint
-              </p>
-              <textarea
-                id="webhook-template"
-                value={form.payloadTemplate}
-                onChange={(e) => {
-                  setForm((prev) => ({ ...prev, payloadTemplate: e.target.value }));
-                  setTemplatePreview(null);
-                }}
-                placeholder={DEFAULT_TEMPLATE_PLACEHOLDER}
-                rows={6}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm font-mono"
-              />
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
-                  type="button"
-                  onClick={handleValidateTemplate}
-                  disabled={validating || !form.payloadTemplate.trim()}
-                  className="px-3 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                  onClick={() => testMutation.mutate(wh.id)}
+                  disabled={testMutation.isPending}
+                  className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
                 >
-                  {validating ? 'Validating...' : 'Validate & Preview'}
+                  Test
                 </button>
-              </div>
-              {templatePreview && (
-                <div
-                  className={`mt-2 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap ${
-                    templatePreview.valid
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : 'bg-destructive/10 text-destructive'
-                  }`}
-                >
-                  {templatePreview.valid ? templatePreview.preview : templatePreview.error}
-                </div>
-              )}
-            </div>
-
-            {/* Content Type */}
-            <div>
-              <label htmlFor="webhook-content-type" className="block text-sm font-medium text-foreground mb-1">
-                Content-Type
-              </label>
-              <input
-                id="webhook-content-type"
-                type="text"
-                value={form.contentType}
-                onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
-              />
-            </div>
-
-            {/* Secret */}
-            <div>
-              <label htmlFor="webhook-secret" className="block text-sm font-medium text-foreground mb-1">
-                Secret {editingId && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
-              </label>
-              <div className="relative">
-                <input
-                  id="webhook-secret"
-                  type={showSecret ? 'text' : 'password'}
-                  value={form.secret}
-                  onChange={(e) => setForm((prev) => ({ ...prev, secret: e.target.value }))}
-                  placeholder="Optional signing secret"
-                  autoComplete="off"
-                  className="w-full px-4 py-2 pr-16 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
-                />
                 <button
-                  type="button"
-                  onClick={() => setShowSecret((prev) => !prev)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => startEdit(wh)}
+                  className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                 >
-                  {showSecret ? 'Hide' : 'Show'}
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteClick(wh.id)}
+                  disabled={deleteMutation.isPending}
+                  className="px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors"
+                >
+                  {deleteConfirmId === wh.id ? 'Confirm?' : 'Delete'}
                 </button>
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Enabled */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-                className="rounded border-input"
-              />
-              <span className="text-sm text-foreground">Enabled</span>
+      {/* Add button */}
+      {!showForm && (
+        <button
+          onClick={() => {
+            setForm({ ...emptyForm });
+            setEditingId(null);
+            setShowForm(true);
+            setTemplatePreview(null);
+          }}
+          className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm"
+        >
+          Add Webhook
+        </button>
+      )}
+
+      {/* Form */}
+      {showForm && (
+        <form onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+          <h3 className="text-sm font-semibold text-foreground">
+            {editingId ? 'Edit Webhook' : 'New Webhook'}
+          </h3>
+
+          {/* URL */}
+          <div>
+            <label htmlFor="webhook-url" className="block text-sm font-medium text-foreground mb-1">
+              URL
             </label>
+            <input
+              id="webhook-url"
+              type="url"
+              required
+              value={form.url}
+              onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
+              placeholder="https://example.com/webhook"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+            />
+          </div>
 
-            {/* Error messages */}
-            {(createMutation.isError || updateMutation.isError) && (
-              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                {((createMutation.error || updateMutation.error) as Error)?.message || 'Failed to save webhook'}
-              </div>
-            )}
+          {/* Events */}
+          <div>
+            <span className="block text-sm font-medium text-foreground mb-1">Events</span>
+            <div className="space-y-1.5">
+              {EVENT_OPTIONS.map((opt) => (
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.events.includes(opt.value)}
+                    onChange={() => handleEventToggle(opt.value)}
+                    className="rounded border-input"
+                  />
+                  <span className="text-sm text-foreground">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={isSaving || form.events.length === 0}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
-              >
-                {isSaving ? 'Saving...' : editingId ? 'Update Webhook' : 'Create Webhook'}
-              </button>
+          {/* Payload Template */}
+          <div>
+            <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-0.5">
+              Payload Template (optional)
+            </label>
+            <p className="text-xs text-muted-foreground mb-1">
+              Customize the JSON body sent to your endpoint
+            </p>
+            <textarea
+              id="webhook-template"
+              value={form.payloadTemplate}
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, payloadTemplate: e.target.value }));
+                setTemplatePreview(null);
+              }}
+              placeholder={DEFAULT_TEMPLATE_PLACEHOLDER}
+              rows={6}
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm font-mono"
+            />
+            <div className="flex items-center gap-2 mt-1">
               <button
                 type="button"
-                onClick={resetForm}
-                className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+                onClick={handleValidateTemplate}
+                disabled={validating || !form.payloadTemplate.trim()}
+                className="px-3 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
               >
-                Cancel
+                {validating ? 'Validating...' : 'Validate & Preview'}
               </button>
             </div>
-          </form>
-        )}
+            {templatePreview && (
+              <div
+                className={`mt-2 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap ${
+                  templatePreview.valid
+                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    : 'bg-destructive/10 text-destructive'
+                }`}
+              >
+                {templatePreview.valid ? templatePreview.preview : templatePreview.error}
+              </div>
+            )}
+          </div>
+
+          {/* Content Type */}
+          <div>
+            <label htmlFor="webhook-content-type" className="block text-sm font-medium text-foreground mb-1">
+              Content-Type
+            </label>
+            <input
+              id="webhook-content-type"
+              type="text"
+              value={form.contentType}
+              onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+            />
+          </div>
+
+          {/* Secret */}
+          <div>
+            <label htmlFor="webhook-secret" className="block text-sm font-medium text-foreground mb-1">
+              Secret {editingId && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
+            </label>
+            <div className="relative">
+              <input
+                id="webhook-secret"
+                type={showSecret ? 'text' : 'password'}
+                value={form.secret}
+                onChange={(e) => setForm((prev) => ({ ...prev, secret: e.target.value }))}
+                placeholder="Optional signing secret"
+                autoComplete="off"
+                className="w-full px-4 py-2 pr-16 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecret((prev) => !prev)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showSecret ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+
+          {/* Enabled */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.enabled}
+              onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="rounded border-input"
+            />
+            <span className="text-sm text-foreground">Enabled</span>
+          </label>
+
+          {/* Error messages */}
+          {(createMutation.isError || updateMutation.isError) && (
+            <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              {((createMutation.error || updateMutation.error) as Error)?.message || 'Failed to save webhook'}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={isSaving || form.events.length === 0}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+            >
+              {isSaving ? 'Saving...' : editingId ? 'Update Webhook' : 'Create Webhook'}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

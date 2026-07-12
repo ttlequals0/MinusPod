@@ -4,10 +4,7 @@ Covers config loading, per-event formatting, MIME structure (HTML with CID
 logo + plain fallback), SMTP branch selection, and the two safety
 properties: event filtering and never-raises dispatch.
 """
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 import email_service
 from email_service import (
@@ -166,9 +163,8 @@ class TestFormatters:
 
 class TestBuildMessage:
     def setup_method(self):
-        # Reset the module-level logo cache so each test controls it.
-        email_service._logo_cache = None
-        email_service._logo_missing_logged = False
+        # Reset the logo cache so each test controls it.
+        email_service._logo_bytes.cache_clear()
 
     def test_mime_structure_with_logo(self, monkeypatch, tmp_path):
         logo = tmp_path / 'logo.png'

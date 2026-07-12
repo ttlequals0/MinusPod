@@ -11,11 +11,12 @@ Emails are multipart: a plain-text body in the reference mailer's
 embedded via CID (no external image fetch, so it renders with images
 blocked-by-default clients too once allowed).
 """
+import functools
+import html
 import json
 import logging
 import smtplib
 import ssl
-import threading
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
@@ -33,10 +34,6 @@ DEFAULT_EVENTS = [
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
 # parent.parent resolves to the right root in both.
 LOGO_PATH = Path(__file__).resolve().parent.parent / 'static' / 'ui' / 'logo.png'
-
-_logo_lock = threading.Lock()
-_logo_cache: Optional[bytes] = None
-_logo_missing_logged = False
 
 
 @dataclass
@@ -197,10 +194,6 @@ def _render_plain(rows, action_hint) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def _escape(text: str) -> str:
-    return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
-
-
 def _render_html(rows, action_hint, logo_cid: Optional[str]) -> str:
     parts = ['<div style="font-family: sans-serif; max-width: 600px;">']
     if logo_cid:
@@ -213,34 +206,27 @@ def _render_html(rows, action_hint, logo_cid: Optional[str]) -> str:
         parts.append(
             '<tr>'
             f'<td style="padding: 4px 16px 4px 0; color: #666; '
-            f'vertical-align: top; white-space: nowrap;">{_escape(label)}</td>'
-            f'<td style="padding: 4px 0;">{_escape(value)}</td>'
+            f'vertical-align: top; white-space: nowrap;">{html.escape(label)}</td>'
+            f'<td style="padding: 4px 0;">{html.escape(value)}</td>'
             '</tr>'
         )
     parts.append('</table>')
     if action_hint:
         parts.append(
             f'<p style="font-size: 14px; margin-top: 16px;">'
-            f'<strong>Action:</strong> {_escape(action_hint)}</p>'
+            f'<strong>Action:</strong> {html.escape(action_hint)}</p>'
         )
     parts.append('</div>')
     return ''.join(parts)
 
 
+@functools.lru_cache(maxsize=1)
 def _logo_bytes() -> Optional[bytes]:
-    global _logo_cache, _logo_missing_logged
-    with _logo_lock:
-        if _logo_cache is not None:
-            return _logo_cache
-        try:
-            _logo_cache = LOGO_PATH.read_bytes()
-        except OSError:
-            if not _logo_missing_logged:
-                logger.warning("Email logo not found at %s; sending without it",
-                               LOGO_PATH)
-                _logo_missing_logged = True
-            return None
-        return _logo_cache
+    try:
+        return LOGO_PATH.read_bytes()
+    except OSError:
+        logger.warning("Email logo not found at %s; sending without it", LOGO_PATH)
+        return None
 
 
 def build_message(subject, rows, action_hint, from_addr, recipients) -> EmailMessage:

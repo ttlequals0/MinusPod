@@ -2077,9 +2077,7 @@ def update_email_notification_settings():
             if any(c in host for c in '\r\n '):
                 return error_response('smtpHost must not contain spaces or line breaks', 400)
             try:
-                port_for_check = int(staged.get('email_smtp_port', 0)) or \
-                    email_service.load_email_config(db).port
-                validate_outbound_host(host, port_for_check)
+                validate_outbound_host(host)
             except SSRFError as e:
                 return error_response(str(e), 400)
         staged['email_smtp_host'] = host
