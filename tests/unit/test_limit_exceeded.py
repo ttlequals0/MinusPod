@@ -27,6 +27,7 @@ from utils import llm_call
 from webhook_service import VALID_EVENTS, EVENT_LIMIT_EXCEEDED
 import ad_detector
 from tests.unit.provider_error_fakes import FakeResponse, FakeProviderError, call_window
+from tests.unit.thread_fakes import SyncThread
 
 
 OPENROUTER_KEY_LIMIT_403 = (
@@ -47,17 +48,6 @@ INSUFFICIENT_QUOTA_BODY = {
               "type": "insufficient_quota",
               "code": "insufficient_quota"}
 }
-
-
-class _SyncThread:
-    """Thread stand-in that runs the target inline so tests see dispatches."""
-
-    def __init__(self, target=None, args=(), daemon=None):
-        self._target = target
-        self._args = args
-
-    def start(self):
-        self._target(*self._args)
 
 
 class TestLimitExceededClassifier:
@@ -297,7 +287,8 @@ class TestFireLimitExceededEvent:
         with patch('webhook_service.load_webhooks', return_value=webhooks), \
              patch('webhook_service._prepare_and_dispatch',
                    side_effect=lambda wh, ctx: dispatched.append(ctx)), \
-             patch.object(threading, 'Thread', _SyncThread):
+             patch('email_service.send_event_email'), \
+             patch.object(threading, 'Thread', SyncThread):
             fire_fn(*args)
         return dispatched
 

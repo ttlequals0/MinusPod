@@ -12,6 +12,11 @@ from jinja2.sandbox import SecurityError
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import threading
+
+import email_service
+import webhook_service
+from tests.unit.thread_fakes import SyncThread
 from webhook_service import (
     render_template_preview,
     _build_context,
@@ -391,3 +396,67 @@ class TestFormatCost:
 
     def test_zero(self):
         assert _format_cost(0.0) == '$0.00'
+
+
+class TestEmailDispatchHooks:
+    """Email is a peer notification channel: it must fire even with zero
+    webhooks configured, must not be blocked by webhook failures (and vice
+    versa), and must inherit the alert dedup window (#491 follow-up)."""
+
+    def setup_method(self):
+        webhook_service._last_alert_time.clear()
+
+    def test_episode_event_emails_with_zero_webhooks(self):
+        with patch('webhook_service.load_webhooks', return_value=[]), \
+             patch('email_service.send_event_email') as send:
+            _fire_event_sync(_make_payload())
+        send.assert_called_once()
+        event, context = send.call_args.args
+        assert event == EVENT_EPISODE_PROCESSED
+        assert context['episode']['id'] == 'ep1'
+
+    def test_webhook_still_fires_when_smtp_is_down(self):
+        # send_event_email guarantees never-raises; exercise that guarantee
+        # end to end by failing at the SMTP layer, not by faking a raise.
+        webhooks = [{'enabled': True, 'events': [EVENT_EPISODE_PROCESSED],
+                     'url': 'http://x'}]
+        ready_cfg = email_service.EmailConfig(
+            enabled=True, events=[EVENT_EPISODE_PROCESSED],
+            host='mail.example.com', port=587, security='none',
+            username='', password=None, from_addr='a@b.c',
+            recipients=['d@e.f'])
+        with patch('webhook_service.load_webhooks', return_value=webhooks), \
+             patch('webhook_service._prepare_and_dispatch') as dispatch, \
+             patch('email_service.load_email_config', return_value=ready_cfg), \
+             patch('email_service._send', side_effect=OSError('smtp down')):
+            _fire_event_sync(_make_payload())
+        dispatch.assert_called_once()
+
+    def test_email_still_fires_when_webhook_raises(self):
+        webhooks = [{'enabled': True, 'events': [EVENT_EPISODE_PROCESSED],
+                     'url': 'http://x'}]
+        with patch('webhook_service.load_webhooks', return_value=webhooks), \
+             patch('webhook_service._prepare_and_dispatch', side_effect=RuntimeError('boom')), \
+             patch('email_service.send_event_email') as send:
+            _fire_event_sync(_make_payload())
+        send.assert_called_once()
+
+    def test_alert_emails_with_zero_webhooks(self):
+        with patch('webhook_service.load_webhooks', return_value=[]), \
+             patch('email_service.send_event_email') as send, \
+             patch.object(threading, 'Thread', SyncThread):
+            webhook_service.fire_limit_exceeded_event(
+                'openrouter', 'm', 'limit hit', 403)
+        send.assert_called_once()
+        event, context = send.call_args.args
+        assert event == 'Limit Exceeded'
+        assert context['provider'] == 'openrouter'
+        assert 'timestamp' in context
+
+    def test_alert_dedup_suppresses_email_too(self):
+        with patch('webhook_service.load_webhooks', return_value=[]), \
+             patch('email_service.send_event_email') as send, \
+             patch.object(threading, 'Thread', SyncThread):
+            webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
+            webhook_service.fire_limit_exceeded_event('openrouter', 'm', 'x', 403)
+        assert send.call_count == 1

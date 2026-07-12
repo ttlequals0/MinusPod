@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.46.1
+  version: 2.47.0
   contact:
     name: MinusPod
   license:
@@ -4474,6 +4474,79 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /settings/notifications/email:
+    get:
+      tags:
+        - Settings
+      summary: Get email notification settings
+      description: Returns the email notification configuration. The SMTP password is never included; only the smtpPasswordConfigured flag.
+      operationId: getEmailNotificationSettings
+      responses:
+        '200':
+          description: Email notification settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailNotificationSettings'
+    put:
+      tags:
+        - Settings
+      summary: Update email notification settings
+      description: |
+        Partial update. smtpPassword is write-only: send a value to set it, an empty string to clear it, or omit the field to keep the stored password. Setting enabled to true requires an SMTP host, from address, and at least one recipient.
+      operationId: updateEmailNotificationSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailNotificationSettingsUpdate'
+      responses:
+        '200':
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailNotificationSettings'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Secret store unavailable (set MINUSPOD_MASTER_PASSPHRASE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings/notifications/email/test:
+    post:
+      tags:
+        - Settings
+      summary: Send a test email
+      description: Sends a test email using the saved settings. Rate limited to 10/min.
+      operationId: sendTestEmail
+      responses:
+        '200':
+          description: Test outcome
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /feeds/{slug}/episodes/bulk:
     post:
       tags:
@@ -8169,6 +8242,69 @@ components:
           type: string
           description: Content type for webhook delivery
       description: Webhook configuration. Note -- the secret field is never returned in responses.
+
+    EmailNotificationSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - Episode Processed
+              - Episode Failed
+              - Auth Failure
+              - Limit Exceeded
+              - Rate Limit Structural
+        smtpHost:
+          type: string
+        smtpPort:
+          type: integer
+        smtpSecurity:
+          type: string
+          enum: [none, starttls, ssl]
+        smtpUsername:
+          type: string
+        smtpPasswordConfigured:
+          type: boolean
+          description: Whether an SMTP password is stored. The password itself is never returned.
+        fromAddress:
+          type: string
+        recipients:
+          type: string
+          description: Comma-separated recipient addresses
+
+    EmailNotificationSettingsUpdate:
+      type: object
+      description: Partial update; omitted fields keep their stored values.
+      properties:
+        enabled:
+          type: boolean
+        events:
+          type: array
+          items:
+            type: string
+        smtpHost:
+          type: string
+        smtpPort:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        smtpSecurity:
+          type: string
+          enum: [none, starttls, ssl]
+        smtpUsername:
+          type: string
+        smtpPassword:
+          type: string
+          writeOnly: true
+          description: Write-only. Empty string clears the stored password.
+        fromAddress:
+          type: string
+        recipients:
+          type: string
 
     Error:
       type: object

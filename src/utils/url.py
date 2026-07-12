@@ -135,25 +135,36 @@ def validate_base_url(url: str) -> str:
     if not parsed.hostname:
         raise SSRFError("Missing hostname in URL")
 
-    host = parsed.hostname.strip('[]')
-    if host in _CLOUD_METADATA_IPS:
-        raise SSRFError(f"Blocked cloud metadata IP: {host}")
-
-    # Resolve and reject cloud-metadata / link-local targets even when reached
-    # via a hostname, a DNS rebind, or a decimal/IPv6-encoded address -- the
-    # literal-string check above is bypassable. Private and loopback IPs stay
-    # allowed because operators legitimately point LLM, Whisper, and webhook
-    # URLs at localhost / Docker / LAN hosts.
+    host = parsed.hostname
     port = parsed.port
     if port is None:
         port = 443 if scheme == 'https' else 80
+    validate_outbound_host(host, port)
+
+    return url
+
+
+def validate_outbound_host(host: str, port: int = 0) -> str:
+    """Validate a bare operator-configured hostname (no URL scheme).
+
+    Same policy as validate_base_url: resolve and reject cloud-metadata and
+    link-local targets even when reached via a hostname, a DNS rebind, or a
+    decimal/IPv6-encoded address. Private and loopback IPs stay allowed
+    because operators legitimately point SMTP relays and similar services at
+    localhost / Docker / LAN hosts. Unresolvable hosts are allowed: the
+    connection fails at connect time and reaches no internal IP.
+
+    Returns the stripped host. Raises SSRFError on a blocked target.
+    """
+    if not host or not host.strip():
+        raise SSRFError("Empty host")
+    host = host.strip().strip('[]')
+    if host in _CLOUD_METADATA_IPS:
+        raise SSRFError(f"Blocked cloud metadata IP: {host}")
     try:
-        addrinfos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+        addrinfos = socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        # Unresolvable host: the request fails at connect time and reaches no
-        # internal IP, so there is nothing to block. Allow (the strict
-        # validate_url tier still rejects unresolvable feed-content URLs).
-        return url
+        return host
     for _family, _type, _proto, _canonname, sockaddr in addrinfos:
         ip_str = sockaddr[0]
         if ip_str in _CLOUD_METADATA_IPS:
@@ -165,4 +176,4 @@ def validate_base_url(url: str) -> str:
         if addr.is_link_local:
             raise SSRFError(f"Blocked link-local IP: {ip_str}")
 
-    return url
+    return host

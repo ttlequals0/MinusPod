@@ -72,12 +72,16 @@ Key endpoints:
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
 - `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template
+- `GET/PUT /api/v1/settings/notifications/email` - Email notification settings
+- `POST /api/v1/settings/notifications/email/test` - Send a test email
+
+## Notifications
+
+MinusPod can notify you when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Two channels share the same events: webhooks (HTTP POST to any endpoint) and native email through your own SMTP server. Configure both in **Settings > Notifications** in the web UI, or via the REST API.
 
 ## Webhooks
 
-MinusPod fires an HTTP POST to configured URLs when episodes complete processing, permanently fail, or when the LLM provider rejects requests (bad credentials, exhausted spend limits, oversized requests). Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
-
-Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API.
+Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
 
 ### Events
 
@@ -246,6 +250,14 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "error_message": "rate_limit_exceeded: Request too large for model on tokens per minute"
 }
 ```
+
+## Email notifications
+
+Point MinusPod at an SMTP server and it emails you for the events you pick. Community webhook-to-email sidecars like minuspod-webhook-mailer are no longer needed. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
+
+Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
+
+By default the failure and alert events are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing.
 
 ### Example: Pushover
 

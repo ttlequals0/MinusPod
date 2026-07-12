@@ -255,3 +255,40 @@ export async function validateTemplate(template: string): Promise<TemplateValida
     body: { template },
   });
 }
+
+// Email notifications
+
+export interface EmailNotificationSettings {
+  enabled: boolean;
+  events: string[];
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: 'none' | 'starttls' | 'ssl';
+  smtpUsername: string;
+  smtpPasswordConfigured: boolean;
+  fromAddress: string;
+  recipients: string;
+}
+
+export type EmailNotificationSettingsPayload =
+  Partial<Omit<EmailNotificationSettings, 'smtpPasswordConfigured'>> & { smtpPassword?: string };
+
+export async function getEmailNotificationSettings(): Promise<EmailNotificationSettings> {
+  return apiRequest<EmailNotificationSettings>('/settings/notifications/email');
+}
+
+export async function updateEmailNotificationSettings(
+  payload: EmailNotificationSettingsPayload,
+): Promise<EmailNotificationSettings> {
+  return apiRequest<EmailNotificationSettings>('/settings/notifications/email', {
+    method: 'PUT',
+    body: payload,
+  });
+}
+
+export async function sendTestEmail(): Promise<{ success: boolean; message: string }> {
+  return apiRequest<{ success: boolean; message: string }>('/settings/notifications/email/test', {
+    method: 'POST',
+    skipRetry: true,
+  });
+}

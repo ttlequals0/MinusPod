@@ -44,6 +44,7 @@ SECRET_SETTING_KEYS = frozenset(
         "whisper_api_key",
         "podcast_index_api_key",
         "podcast_index_api_secret",
+        "email_smtp_password",
     }
 )
 
