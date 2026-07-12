@@ -480,6 +480,7 @@ class PatternMixin:
             SELECT episode_id, correction_type, original_bounds
             FROM pattern_corrections
             WHERE correction_type IN ('confirm', 'false_positive')
+            ORDER BY id DESC
         ''')
         out = []
         for row in cursor.fetchall():

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Pause, Play } from 'lucide-react';
@@ -60,13 +60,22 @@ export default function AdReviewTab() {
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
   const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
 
   const queryClient = useQueryClient();
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
-  const [actionError, setActionError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQ(q);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [q]);
 
   const correctionMutation = useMutation({
     mutationFn: async (args: {
@@ -77,7 +86,7 @@ export default function AdReviewTab() {
       await submitCorrection(args.d.feedSlug, args.d.episodeId, args.correction);
     },
     onMutate: () => {
-      setActionError(false);
+      setActionError(null);
       // A saved correction can drop the playing row on refetch; stop the
       // windowed preview up front (same guard EpisodeDetail uses).
       audition.stop();
@@ -87,13 +96,16 @@ export default function AdReviewTab() {
       queryClient.invalidateQueries({ queryKey: ['detections'] });
       if (vars.recut) {
         reprocessEpisode(vars.d.feedSlug, vars.d.episodeId, 'recut').catch(
-          (error) => console.error('Failed to trigger recut:', error),
+          (error) => {
+            console.error('Failed to trigger recut:', error);
+            setActionError('Approved, but the recut did not start. The cut applies on the next reprocess.');
+          },
         );
       }
     },
     onError: (error) => {
       console.error('Failed to save correction:', error);
-      setActionError(true);
+      setActionError('Failed to save correction. Try again.');
     },
   });
 
@@ -119,12 +131,12 @@ export default function AdReviewTab() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', page, status, feed, q, sort, order],
+    queryKey: ['detections', page, status, feed, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status,
       feed: feed || undefined,
-      q: q || undefined,
+      q: debouncedQ || undefined,
       sort,
       order,
     }),
@@ -194,7 +206,7 @@ export default function AdReviewTab() {
             id="ad-review-q"
             type="text"
             value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
+            onChange={(e) => { setQ(e.target.value); }}
             placeholder="Sponsor or reason"
             className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           />
@@ -209,13 +221,15 @@ export default function AdReviewTab() {
       )}
       {!isLoading && !error && data && data.total === 0 && (
         <div className="text-muted-foreground text-sm py-8 text-center">
-          No detections need review.
+          {status === 'needs_review'
+            ? 'No detections need review.'
+            : 'No detections match the current filters.'}
         </div>
       )}
       {!isLoading && !error && data && data.total > 0 && (
         <>
           {actionError && (
-            <div className="text-destructive text-sm mb-3">Failed to save correction. Try again.</div>
+            <div className="text-destructive text-sm mb-3">{actionError}</div>
           )}
           <div className="overflow-x-auto bg-card rounded-lg border border-border">
             <table className="w-full divide-y divide-border">

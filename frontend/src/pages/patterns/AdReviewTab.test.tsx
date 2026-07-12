@@ -197,4 +197,18 @@ describe('AdReviewTab row actions', () => {
     expect(mockReprocess).not.toHaveBeenCalled();
     errSpy.mockRestore();
   });
+
+  it('shows recut-failure banner when correction succeeds but reprocess fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockReprocess.mockRejectedValueOnce(new Error('recut boom'));
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(
+      await screen.findByText(
+        'Approved, but the recut did not start. The cut applies on the next reprocess.',
+      ),
+    ).toBeTruthy();
+    errSpy.mockRestore();
+  });
 });

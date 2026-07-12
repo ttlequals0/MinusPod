@@ -59,6 +59,8 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
         for marker in markers:
             if not isinstance(marker, dict):
                 continue
+            if not isinstance(marker.get('start'), (int, float)) or not isinstance(marker.get('end'), (int, float)):
+                continue
             items.append({
                 'feedSlug': row['feed_slug'],
                 'feedTitle': row['feed_title'],

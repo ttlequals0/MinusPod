@@ -99,6 +99,12 @@ class TestFlatten:
         row['ad_markers_json'] = '{not json'
         assert flatten_detections([row], []) == []
 
+    def test_marker_missing_start_is_skipped(self):
+        assert flatten_detections([_row(markers=[{'end': 30.0}])], []) == []
+
+    def test_marker_with_none_start_is_skipped(self):
+        assert flatten_detections([_row(markers=[{'start': None, 'end': 30.0}])], []) == []
+
 
 class TestFilter:
     def _items(self):

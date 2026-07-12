@@ -139,8 +139,12 @@ function PatternsPage() {
       if (pattern) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedPattern(pattern);
-        // Clear the param after opening
-        setSearchParams({});
+        // Clear only the id param, preserve other params
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('id');
+          return next;
+        });
       }
     }
   }, [patterns, searchParams, setSearchParams]);
