@@ -1,1 +1,0 @@
-{"error":"Image input not supported"}

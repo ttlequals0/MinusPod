@@ -15,10 +15,10 @@ from dotenv import load_dotenv
 # regardless of where the user invokes `benchmark` from. Shell-exported vars still win.
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=False)
 
-from . import auth, capture as capture_mod, corpus as corpus_mod, parsing, pricing, report as report_mod, runner as runner_mod
+from . import auth, capture as capture_mod, corpus as corpus_mod, migrate as migrate_mod, parsing, pricing, report as report_mod, runner as runner_mod
 from .config import BenchmarkConfig, load as load_config
 from .runner import build_work_list, precompute_prompt_hashes
-from .storage import scan_calls
+from .storage import find_call, hash_prompt, read_response, scan_calls
 
 app = typer.Typer(
     add_completion=False,
@@ -252,6 +252,97 @@ def dump_prompt(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text)
     typer.echo(f"wrote prompt snapshot: {output} ({len(text)} chars)")
+
+
+@app.command("migrate-raw")
+def migrate_raw_cmd(
+    config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
+) -> None:
+    """One-time migration of results/raw from v1 (per-call .txt) to v2 (per-model JSONL shards).
+
+    Verifies before every delete; safe to re-run if interrupted.
+    """
+    _setup_logging()
+    cfg = _load(config_path)
+    paths = runner_mod.RunPaths.for_root(_root() / "results")
+    result = migrate_mod.migrate(paths, corpus_dir=cfg.corpus.path)
+    typer.echo(f"responses migrated to shards: {result.responses_migrated} ({result.responses_orphaned} without a calls.jsonl record)")
+    typer.echo(f"response .txt kept (shard body mismatch): {result.responses_kept}")
+    typer.echo(f"prompt files verified against corpus and deleted: {result.prompts_deleted}")
+    typer.echo(f"calls.jsonl records rewritten to schema v2: {result.records_rewritten}")
+    if result.backup_path:
+        typer.echo(f"calls.jsonl backup: {result.backup_path}")
+    if result.prompts_kept:
+        typer.echo(
+            f"WARNING: {len(result.prompts_kept)} prompt file(s) did not reconstruct "
+            "byte-exact from the corpus and were kept in results/raw/prompts/",
+            err=True,
+        )
+
+
+def _find_call_or_exit(paths: runner_mod.RunPaths, call_id: str) -> dict:
+    rec = find_call(paths.calls_jsonl, call_id)
+    if rec is None:
+        typer.echo(f"call_id not found in {paths.calls_jsonl}: {call_id}", err=True)
+        raise typer.Exit(1)
+    return rec
+
+
+@app.command("show-prompt")
+def show_prompt_cmd(
+    call_id: str = typer.Argument(..., help="call_id from calls.jsonl"),
+    config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
+    snapshot: Optional[Path] = typer.Option(
+        None, "--snapshot",
+        help="System-prompt file the run used; needed for prompt_hash verification when the run was not on the live prompt.",
+    ),
+) -> None:
+    """Reconstruct the exact user prompt for a call from the corpus and verify it against prompt_hash.
+
+    Prompts are not stored on disk (schema v2); this rebuilds them
+    deterministically from windows.json + metadata and proves fidelity by
+    recomputing the hash recorded at call time.
+    """
+    cfg = _load(config_path)
+    paths = runner_mod.RunPaths.for_root(_root() / "results")
+    rec = _find_call_or_exit(paths, call_id)
+    try:
+        user_prompt = runner_mod.reconstruct_user_prompt(rec, corpus_dir=cfg.corpus.path)
+    except Exception as e:
+        typer.echo(f"error reconstructing prompt: {e}", err=True)
+        raise typer.Exit(1)
+    system_prompt, prompt_source = _resolve_prompt(snapshot)
+    recomputed = hash_prompt(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        model=rec["model"],
+        temperature=float(rec["temperature"]),
+    )
+    typer.echo(user_prompt)
+    if recomputed == rec["prompt_hash"]:
+        typer.echo(f"prompt_hash verified ({recomputed}, system prompt: {prompt_source})", err=True)
+    else:
+        typer.echo(
+            f"prompt_hash MISMATCH: stored={rec['prompt_hash']} recomputed={recomputed} "
+            f"(system prompt: {prompt_source}). The system prompt or windows.json "
+            "changed since this call ran; retry with the --snapshot the run used.",
+            err=True,
+        )
+        raise typer.Exit(3)
+
+
+@app.command("show-response")
+def show_response_cmd(
+    call_id: str = typer.Argument(..., help="call_id from calls.jsonl"),
+) -> None:
+    """Print the raw LLM response body for a call from its per-model shard."""
+    paths = runner_mod.RunPaths.for_root(_root() / "results")
+    rec = _find_call_or_exit(paths, call_id)
+    body = read_response(paths.responses_dir, rec["model"], call_id)
+    if body is None:
+        typer.echo(f"no response body for {call_id} in {paths.responses_dir}", err=True)
+        raise typer.Exit(1)
+    typer.echo(body)
 
 
 @app.command()

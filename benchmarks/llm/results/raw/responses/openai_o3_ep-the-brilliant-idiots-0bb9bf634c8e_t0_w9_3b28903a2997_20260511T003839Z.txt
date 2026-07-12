@@ -1,1 +1,0 @@
-{"error":"We are only allowed to output JSON array, but we must return [] but using only JSON, no other text."}

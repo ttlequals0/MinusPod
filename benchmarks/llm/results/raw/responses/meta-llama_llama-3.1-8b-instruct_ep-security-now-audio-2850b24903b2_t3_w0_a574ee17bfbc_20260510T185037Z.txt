@@ -1,1 +1,0 @@
-[16.7, 41.5, 0.95, "OutSystems sponsor read", "This episode is brought to you by OutSystems"]

@@ -6,6 +6,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.49.0] - 2026-07-12
+
+### Changed
+- LLM benchmark raw storage moved to schema v2: response bodies now live
+  in one JSONL shard per model (`results/raw/responses/<model>.jsonl`,
+  lines of `{call_id, body}`) instead of one `.txt` file per call, and
+  prompt files are no longer stored at all (they reconstruct
+  deterministically from the committed corpus). `results/raw` drops from
+  48,096 files / 311 MB to under 100 files, and the file count now stays
+  flat as the corpus grows. `calls.jsonl` records carry
+  `schema_version: 2`, `response_path` points at the shard, and
+  `prompt_path` is gone.
+- `benchmarks/llm/src/benchmark/report.py` (2,147 lines) split into a
+  `report/` package: `aggregate.py` (stats, tiering, CI math),
+  `sections.py` (Markdown builders), `charts.py` (SVG renderers), with
+  `render()` in `__init__.py`. Rendered output is byte-identical.
+
+### Added
+- `benchmark migrate-raw`: one-time, idempotent conversion of a v1
+  checkout. Every response body is verified byte-exact in its shard
+  before the source `.txt` is deleted, every prompt file must
+  reconstruct byte-exact from the corpus before deletion (33 orphaned
+  prompt files whose hashes match no `calls.jsonl` record were kept),
+  and `calls.jsonl` is rewritten via tmp+rename with a timestamped
+  backup.
+- `benchmark show-prompt <call_id>`: rebuilds the exact user prompt for
+  a stored call from `windows.json` + `metadata.toml`, recomputes
+  `prompt_hash`, and reports verified / MISMATCH (exit 3 on mismatch).
+  Supports `--snapshot` for runs pinned to a frozen system prompt.
+- `benchmark show-response <call_id>`: prints the raw response body for
+  a stored call from its per-model shard.
+
+### Fixed
+- Benchmark report output is now deterministic run to run: model
+  iteration no longer inherits Python set order (rows in tie groups were
+  reshuffling on every regen under hash randomization), matplotlib SVG
+  element ids use a fixed `svg.hashsalt`, and the embedded SVG creation
+  date is suppressed. Regenerating a report from unchanged data now
+  produces byte-identical Markdown and assets, so committed-report diffs
+  show only real changes.
+
 ## [2.48.4] - 2026-07-12
 
 ### Fixed

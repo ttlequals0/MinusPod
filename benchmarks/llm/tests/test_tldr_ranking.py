@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import math
 
-from benchmark import report
 from benchmark.metrics import AccuracyResult
-from benchmark.report import ModelStats, _assign_tiers, _ci_half_width, _reliability_flags, _render_tldr, _sig_worse, _tier_label
+from benchmark.report import aggregate
+from benchmark.report.aggregate import ModelStats, _assign_tiers, _ci_half_width, _sig_worse, _tier_label
+from benchmark.report.sections import _reliability_flags, _render_tldr
 
 
 def _mr(tp, fp, fn):
@@ -37,7 +38,7 @@ def test_ci_half_width_zero_for_under_two_points():
 def test_ci_half_width_matches_t_formula():
     vals = [0.6, 0.8, 1.0]
     got = _ci_half_width(vals)
-    expected = report._T_CRIT["two"][2] * 0.2 / math.sqrt(3)  # stdev of [.6,.8,1.0] = 0.2, df=2
+    expected = aggregate._T_CRIT["two"][2] * 0.2 / math.sqrt(3)  # stdev of [.6,.8,1.0] = 0.2, df=2
     assert math.isclose(got, expected, rel_tol=1e-9)
 
 

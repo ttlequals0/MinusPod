@@ -1,4 +1,0 @@
-{
-  "ads": [],
-  "confidence": 0
-}

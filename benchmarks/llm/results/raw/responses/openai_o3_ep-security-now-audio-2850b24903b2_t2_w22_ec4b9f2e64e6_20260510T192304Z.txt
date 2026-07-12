@@ -1,1 +1,0 @@
-{"error": "Please provide an image input for analysis."}

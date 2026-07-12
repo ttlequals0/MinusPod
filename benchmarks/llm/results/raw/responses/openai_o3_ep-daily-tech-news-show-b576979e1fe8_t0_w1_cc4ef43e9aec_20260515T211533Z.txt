@@ -1,1 +1,0 @@
-{"error":"No ad segments found in provided window."}

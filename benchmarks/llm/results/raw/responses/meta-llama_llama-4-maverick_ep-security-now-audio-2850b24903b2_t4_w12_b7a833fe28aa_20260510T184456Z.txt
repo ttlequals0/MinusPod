@@ -1,1 +1,0 @@
-{"type": "Function", "name": "analyze_transcript", "parameters": {"transcript": "your_transcript_here"}}

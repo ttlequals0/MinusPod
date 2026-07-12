@@ -1,7 +1,0 @@
-{
-  "start": null,
-  "end": null,
-  "confidence": null,
-  "reason": null,
-  "end_text": null
-}

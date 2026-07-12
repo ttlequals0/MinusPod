@@ -1,5 +1,0 @@
-{
-  "ad_segments": [],
-  "window_end": 1440.0,
-  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in the transcript"
-}

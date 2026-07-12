@@ -1,1 +1,0 @@
-{"error": "Please supply the full transcript window text so I can search it for any advertisements."}

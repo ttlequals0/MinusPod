@@ -1,7 +1,0 @@
-{
-  "start": 1081.8,
-  "end": 1081.8,
-  "confidence": 0.95,
-  "reason": "Host-read sponsor segment for Shopify",
-  "end_text": "shopify.com/podcast"
-}

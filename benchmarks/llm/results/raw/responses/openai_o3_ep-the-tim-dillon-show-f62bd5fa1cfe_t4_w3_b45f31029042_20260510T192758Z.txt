@@ -1,3 +1,0 @@
-{
-  "error": "No transcript or audio segments corresponding to indexes <null> found in the current window context"
-}

@@ -1,2 +1,0 @@
-t.
-{"start": 1493.2, "end": 1536.8, "confidence": 0.95, "reason": "Capital One and AllTrails sponsor read", "end_text": "the outdoors with AllTrails"}

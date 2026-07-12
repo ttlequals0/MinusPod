@@ -1,1 +1,0 @@
-{"start": 5005.6, "end": 5024.4, "confidence": 0.95, "reason": "Repeated catchphrase transition - no promotional language detected, appears to be show content/bumper", "end_text": "what I'm talking about"}

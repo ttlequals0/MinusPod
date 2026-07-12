@@ -1,8 +1,0 @@
-
-{
-	"start": 0.0,
-	"end": 59.8,
-	"confidence": 0.95,
-	"reason": "Hex.ai analytics platform ad",
-	"end_text": "Find your fresh state of mind at PickOCNY.com."
-}

@@ -1,1 +1,0 @@
-{"start": 84.0, "end": 94.0, "confidence": 0.0, "reason": "no ads found in this window", "end_text": "no ads found"}

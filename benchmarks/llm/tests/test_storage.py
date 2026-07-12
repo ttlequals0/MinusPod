@@ -1,19 +1,37 @@
-import json
-from pathlib import Path
 
 import pytest
 
 from benchmark.storage import (
     StorageError,
     append_jsonl,
+    append_response,
     dedup_index,
     errored_keys,
+    find_call,
     hash_prompt,
     read_jsonl,
+    read_response,
+    safe_model_id,
     sanitize_error,
-    write_prompt,
-    write_response,
 )
+
+
+def test_find_call_returns_last_match(tmp_path):
+    p = tmp_path / "calls.jsonl"
+    append_jsonl(p, {"call_id": "c1", "trial": 0})
+    append_jsonl(p, {"call_id": "c2", "trial": 0})
+    append_jsonl(p, {"call_id": "c1", "trial": 1})
+    assert find_call(p, "c1") == {"call_id": "c1", "trial": 1}
+    assert find_call(p, "absent") is None
+
+
+def test_find_call_raises_storage_error_on_corrupt_matching_line(tmp_path):
+    """A torn line (crash mid-append) must surface as a StorageError with the
+    file path, matching read_jsonl, not a raw JSONDecodeError traceback."""
+    p = tmp_path / "calls.jsonl"
+    p.write_text('{"call_id": "c1", "trial": 0}\n{"call_id": "c2", "tr\n')
+    with pytest.raises(StorageError, match="invalid JSON"):
+        find_call(p, "c2")
 
 
 def test_append_and_read_round_trip(tmp_path):
@@ -59,17 +77,30 @@ def test_hash_prompt_changes_with_each_field():
     assert h_base != hash_prompt(**{**base, "temperature": 0.7})
 
 
-def test_write_response(tmp_path):
-    p = write_response(tmp_path, "call-001", "hello world")
-    assert p.read_text() == "hello world"
-    assert p.name == "call-001.txt"
+def test_safe_model_id_sanitizes_separators():
+    assert safe_model_id("openai/gpt-4:mini") == "openai_gpt-4_mini"
+    assert safe_model_id("m1") == "m1"
 
 
-def test_write_prompt_idempotent(tmp_path):
-    p1 = write_prompt(tmp_path, "sha256:abc", "prompt body")
-    p2 = write_prompt(tmp_path, "sha256:abc", "prompt body")
-    assert p1 == p2
-    assert p1.read_text() == "prompt body"
+def test_append_response_shards_by_model(tmp_path):
+    p1 = append_response(tmp_path, "openai/gpt-4", "call-1", "body one")
+    p2 = append_response(tmp_path, "openai/gpt-4", "call-2", "body two")
+    p3 = append_response(tmp_path, "anthropic:claude", "call-3", "body three")
+    assert p1 == p2 == tmp_path / "openai_gpt-4.jsonl"
+    assert p3 == tmp_path / "anthropic_claude.jsonl"
+    assert list(read_jsonl(p1)) == [
+        {"call_id": "call-1", "body": "body one"},
+        {"call_id": "call-2", "body": "body two"},
+    ]
+
+
+def test_read_response_returns_last_write(tmp_path):
+    append_response(tmp_path, "m", "c1", "first")
+    append_response(tmp_path, "m", "c2", "other")
+    append_response(tmp_path, "m", "c1", "second")
+    assert read_response(tmp_path, "m", "c1") == "second"
+    assert read_response(tmp_path, "m", "missing") is None
+    assert read_response(tmp_path, "absent-model", "c1") is None
 
 
 def test_dedup_index_built_from_calls(tmp_path):

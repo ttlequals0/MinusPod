@@ -1,8 +1,11 @@
 """Shared fixtures for benchmark tests."""
 from __future__ import annotations
 
+import json
+
 import pytest
 
+from benchmark import corpus
 from benchmark.config import BenchmarkConfig, CorpusConfig, MinusPodConfig, ModelConfig, ProviderConfig, RunConfig
 from benchmark.corpus import Episode, EpisodeMetadata, Window
 from benchmark.pricing import ModelPrice, PricingSnapshot
@@ -68,3 +71,42 @@ def pricing_snapshot() -> PricingSnapshot:
             ModelPrice(match_key="anthropic/claude-sonnet-4.6", raw_model_id="anthropic/claude-sonnet-4.6", input_cost_per_mtok=3.0, output_cost_per_mtok=15.0),
         ],
     )
+
+
+_DEFAULT_SEGMENTS = [
+    {"start": 0.0, "end": 5.0, "text": "This episode is brought to you by BetterHelp"},
+    {"start": 5.0, "end": 30.0, "text": "BetterHelp is online therapy that fits"},
+    {"start": 30.0, "end": 60.0, "text": "Now back to the show"},
+    {"start": 60.0, "end": 100.0, "text": "Welcome back everyone"},
+]
+
+_DEFAULT_TRUTH = """
+start: 0
+end: 30
+text: This episode is brought to you by BetterHelp BetterHelp is online therapy
+"""
+
+
+@pytest.fixture
+def write_corpus_episode():
+    """Write a loadable single-window corpus episode to disk; returns its directory.
+
+    Windows carry transcript_lines derived from the segments, so prompts
+    reconstructed from the written episode contain the segment text.
+    """
+    def _write(root, ep_id="ep-test-001", segments=None, truth_text=None):
+        segments = segments or _DEFAULT_SEGMENTS
+        ep_dir = root / ep_id
+        ep_dir.mkdir(parents=True)
+        (ep_dir / "segments.json").write_text(json.dumps(segments))
+        corpus.write_metadata(ep_dir, EpisodeMetadata(
+            ep_id=ep_id, podcast_slug="test-show", podcast_name="Test Show",
+            episode_id="abc123", title="Test Episode",
+            duration=float(segments[-1]["end"]),
+            segments_hash=corpus.hash_segments(segments),
+        ))
+        (ep_dir / "truth.txt").write_text(truth_text or _DEFAULT_TRUTH)
+        corpus.write_windows(ep_dir, corpus.compute_windows(segments))
+        return ep_dir
+
+    return _write
