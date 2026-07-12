@@ -11,7 +11,7 @@ import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPaylo
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
 import DataManagementSection from './settings/DataManagementSection';
-import WebhooksSection from './settings/WebhooksSection';
+import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
@@ -943,7 +943,7 @@ function Settings() {
 
       <DatabaseBackupSection />
 
-      <WebhooksSection />
+      <NotificationsSection />
 
       <AuthenticatedFeedsSection />
 

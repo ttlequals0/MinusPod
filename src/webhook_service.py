@@ -227,14 +227,12 @@ def load_webhooks(db=None):
 
 
 def _fire_event_sync(payload: WebhookPayload):
-    """Synchronous webhook dispatch -- called in a daemon thread by fire_event."""
-    webhooks = load_webhooks()
-    if not webhooks:
-        return
-
+    """Synchronous notification dispatch -- called in a daemon thread by
+    fire_event. Webhooks and email each get the event; a failure in one
+    channel never blocks the other."""
     context = _build_context(payload)
 
-    for wh in webhooks:
+    for wh in load_webhooks():
         if not wh.get('enabled', False):
             continue
         if payload.event not in wh.get('events', []):
@@ -243,6 +241,12 @@ def _fire_event_sync(payload: WebhookPayload):
             _prepare_and_dispatch(wh, context)
         except Exception:
             logger.exception("Unexpected error dispatching webhook to %s", wh.get('url'))
+
+    try:
+        from email_service import send_event_email
+        send_event_email(payload.event, context)
+    except Exception:
+        logger.exception("Email dispatch failed for %s", payload.event)
 
 
 def fire_event(event, episode_id, slug, episode_title, processing_time,
@@ -285,22 +289,18 @@ _ALERT_DEDUP_SECS = 300  # 5 minutes
 
 
 def _fire_alert_event(event, context, log_detail):
-    """Dispatch an operator-alert webhook with a per-event 5-minute dedup."""
+    """Dispatch an operator alert to webhooks and email with a per-event
+    5-minute dedup. Email is not gated on any webhook existing: the thread
+    always runs so email-only setups still get alerts."""
     now = time.time()
     with _alert_lock:
         if now - _last_alert_time.get(event, 0.0) < _ALERT_DEDUP_SECS:
-            logger.debug("%s webhook suppressed (dedup window)", event)
+            logger.debug("%s alert suppressed (dedup window)", event)
             return
         _last_alert_time[event] = now
 
-    webhooks = load_webhooks()
-    if not webhooks:
-        return
-
-    matching = [w for w in webhooks
+    matching = [w for w in load_webhooks()
                 if w.get('enabled', False) and event in w.get('events', [])]
-    if not matching:
-        return
 
     context = {'event': event, **context, 'timestamp': utc_now_iso()}
 
@@ -312,6 +312,11 @@ def _fire_alert_event(event, context, log_detail):
             except Exception:
                 logger.exception("Failed to send %s webhook to %s",
                                  event, wh.get('url'))
+        try:
+            from email_service import send_event_email
+            send_event_email(event, context)
+        except Exception:
+            logger.exception("Email dispatch failed for %s", event)
 
     thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()

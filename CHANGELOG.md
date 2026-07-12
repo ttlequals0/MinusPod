@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.47.0] - 2026-07-12
+
+### Added
+- Native email notifications: point MinusPod at your own SMTP server and
+  get an email for the events you pick (same five events as webhooks, with
+  the same 5-minute dedup on alert events). Emails are HTML with the
+  MinusPod logo and a plain-text fallback; the SMTP password is stored
+  encrypted; a Send test email button verifies the saved settings. Replaces
+  the need for a webhook-to-email sidecar. New endpoints:
+  `GET/PUT /api/v1/settings/notifications/email` and
+  `POST /api/v1/settings/notifications/email/test`.
+- The Webhooks settings section is now Notifications, with Email and
+  Webhooks subsections. Webhook API endpoints are unchanged.
+
 ## [2.46.1] - 2026-07-11
 
 ### Fixed

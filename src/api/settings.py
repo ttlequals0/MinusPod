@@ -43,10 +43,12 @@ from llm_client import (
 )
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import modified_feed_url
-from utils.url import validate_base_url, SSRFError
+from utils.url import validate_base_url, validate_outbound_host, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
+import email_service
+from email.utils import parseaddr
 from db_backup_service import (
     DEFAULT_CRON, KEEP_COUNT_MAX, KEEP_COUNT_MIN, dest_writable,
     validate_backup_dest,
@@ -1999,6 +2001,146 @@ def test_webhook(webhook_id):
         return json_response({
             'success': False,
             'message': 'webhook test failed; see server logs for details',
+        })
+
+
+# ========== Email Notification settings ==========
+
+def _email_address_invalid(addr: str) -> bool:
+    """Reject addresses that fail a minimal name@host check or carry CR/LF
+    (header injection)."""
+    if '\r' in addr or '\n' in addr:
+        return True
+    _, parsed = parseaddr(addr)
+    return parsed != addr or '@' not in parsed.strip('@')
+
+
+def _email_settings_response(db):
+    cfg = email_service.load_email_config(db)
+    return json_response({
+        'enabled': cfg.enabled,
+        'events': cfg.events,
+        'smtpHost': cfg.host,
+        'smtpPort': cfg.port,
+        'smtpSecurity': cfg.security,
+        'smtpUsername': cfg.username,
+        'smtpPasswordConfigured': bool(db.get_setting('email_smtp_password')),
+        'fromAddress': cfg.from_addr,
+        'recipients': db.get_setting('email_recipients') or '',
+    })
+
+
+@api.route('/settings/notifications/email', methods=['GET'])
+@log_request
+def get_email_notification_settings():
+    """Return the email notification settings (password never included)."""
+    return _email_settings_response(get_database())
+
+
+@api.route('/settings/notifications/email', methods=['PUT'])
+@log_request
+def update_email_notification_settings():
+    """Update email notification settings.
+
+    Partial body; smtpPassword is write-only (empty string clears it).
+    Two-phase staged validation so a late 400 never leaves earlier fields
+    persisted.
+    """
+    db = get_database()
+    data = request.get_json() or {}
+
+    staged = {}
+    if 'events' in data:
+        events = data['events']
+        if not isinstance(events, list) or any(e not in VALID_EVENTS for e in events):
+            return error_response(
+                f"events must be a list drawn from: {', '.join(sorted(VALID_EVENTS))}",
+                400,
+            )
+        staged['email_events'] = json.dumps(events)
+    if 'smtpPort' in data:
+        port = data['smtpPort']
+        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            return error_response('smtpPort must be an integer between 1 and 65535', 400)
+        staged['email_smtp_port'] = str(port)
+    if 'smtpSecurity' in data:
+        security = data['smtpSecurity']
+        if security not in email_service.VALID_SECURITY:
+            return error_response(
+                f"smtpSecurity must be one of: {', '.join(email_service.VALID_SECURITY)}",
+                400,
+            )
+        staged['email_smtp_security'] = security
+    if 'smtpHost' in data:
+        host = (data['smtpHost'] or '').strip()
+        if host:
+            if any(c in host for c in '\r\n '):
+                return error_response('smtpHost must not contain spaces or line breaks', 400)
+            try:
+                port_for_check = int(staged.get('email_smtp_port', 0)) or \
+                    email_service.load_email_config(db).port
+                validate_outbound_host(host, port_for_check)
+            except SSRFError as e:
+                return error_response(str(e), 400)
+        staged['email_smtp_host'] = host
+    if 'smtpUsername' in data:
+        username = (data['smtpUsername'] or '').strip()
+        if '\r' in username or '\n' in username:
+            return error_response('smtpUsername must not contain line breaks', 400)
+        staged['email_smtp_username'] = username
+    if 'fromAddress' in data:
+        from_addr = (data['fromAddress'] or '').strip()
+        if from_addr and _email_address_invalid(from_addr):
+            return error_response('fromAddress is not a valid email address', 400)
+        staged['email_smtp_from'] = from_addr
+    if 'recipients' in data:
+        raw = (data['recipients'] or '').strip()
+        recipients = email_service.parse_recipients(raw)
+        for addr in recipients:
+            if _email_address_invalid(addr):
+                return error_response(f'invalid recipient address: {addr}', 400)
+        staged['email_recipients'] = ', '.join(recipients)
+    if 'enabled' in data:
+        enabled = bool(data['enabled'])
+        if enabled:
+            cfg = email_service.load_email_config(db)
+            host = staged.get('email_smtp_host', cfg.host)
+            from_addr = staged.get('email_smtp_from', cfg.from_addr)
+            recipients = staged.get('email_recipients',
+                                    ', '.join(cfg.recipients))
+            if not (host and from_addr and recipients):
+                return error_response(
+                    'set an SMTP host, from address, and at least one '
+                    'recipient before turning email notifications on',
+                    400,
+                )
+        staged['email_enabled'] = 'true' if enabled else 'false'
+
+    if 'smtpPassword' in data:
+        try:
+            set_or_clear_secret(db, 'email_smtp_password', data['smtpPassword'])
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
+        logger.info("Updated SMTP password")
+
+    for key, value in staged.items():
+        db.set_setting(key, value, is_default=False)
+    return _email_settings_response(db)
+
+
+@api.route('/settings/notifications/email/test', methods=['POST'])
+@log_request
+@limiter.limit("10/minute")
+def test_email_notifications():
+    """Send a test email using the saved settings."""
+    try:
+        success, message = email_service.send_test_email(get_database())
+        return json_response({'success': success, 'message': message})
+    except Exception as e:
+        logger.error(f"Email test failed: {e}")
+        return json_response({
+            'success': False,
+            'message': 'email test failed; see server logs for details',
         })
 
 
