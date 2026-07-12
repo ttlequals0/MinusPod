@@ -60,7 +60,7 @@ from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_relative_path
-from utils.errors import ServiceUnavailableError
+from utils.errors import ServiceUnavailableError, AudioTooLargeError
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
@@ -113,6 +113,11 @@ def is_transient_error(error: Exception) -> bool:
     # Provider spend/usage limits are terminal until the operator adds
     # credits or raises the limit (#491).
     if is_limit_exceeded_error(error):
+        return False
+
+    # Oversized enclosures never shrink on retry; the operator can raise
+    # MAX_AUDIO_DOWNLOAD_MB and reprocess (#493).
+    if isinstance(error, AudioTooLargeError):
         return False
 
     # Network/connection errors are transient

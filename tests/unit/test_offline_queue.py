@@ -36,7 +36,7 @@ from main_app import db
 from main_app.processing import _handle_processing_failure, is_transient_error
 from offline_queue import offline_queue_tick
 from utils.circuit_breaker import CircuitBreakerOpen
-from utils.errors import ServiceUnavailableError
+from utils.errors import ServiceUnavailableError, AudioTooLargeError
 
 
 class TestIsConnectivityError:
@@ -147,6 +147,23 @@ class TestLimitExceededEpisodeOutcome:
         assert episode['status'] == 'permanently_failed'
         assert episode['retry_count'] == 1  # untouched: no retry ladder
         assert 'quota exhausted' in episode['error_message']
+
+
+class TestAudioTooLargeEpisodeOutcome:
+    """An oversized enclosure never shrinks; the episode must fail
+    permanently with the actionable cap message (#493)."""
+
+    TOO_LARGE = AudioTooLargeError(
+        "Audio file is 620MB, over the 500MB download cap")
+
+    def test_not_transient(self):
+        assert is_transient_error(self.TOO_LARGE) is False
+
+    def test_episode_goes_permanently_failed(self, seeded_episode):
+        _fail(seeded_episode, self.TOO_LARGE)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] == 'permanently_failed'
+        assert 'MAX_AUDIO_DOWNLOAD_MB' in episode['error_message']
 
 
 class TestTtlAndRequeue:

@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.0] - 2026-07-11
+
+### Added
+- `MAX_AUDIO_DOWNLOAD_MB` env var: the per-episode download size cap is now
+  configurable (default stays 500MB). Very long or high-bitrate episodes,
+  like a 260-minute show at 256kbps, were hitting the hardcoded cap (#493).
+
+### Changed
+- Oversized episodes now fail permanently with a clear reason ("Audio file
+  is 620MB, over the 500MB download cap; raise MAX_AUDIO_DOWNLOAD_MB to
+  process it") instead of retrying a generic "Failed to download audio"
+  error. The message shows up in the episode failure panel added in 2.45.0.
+
+### Fixed
+- docs: `MINUSPOD_MAX_ARTWORK_BYTES` default corrected to 25MB; the docs
+  still said 5MB from before the 2.x artwork cap raise.
+
 ## [2.45.0] - 2026-07-11
 
 ### Added
