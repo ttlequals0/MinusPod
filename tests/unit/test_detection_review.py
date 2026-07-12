@@ -70,6 +70,15 @@ class TestFlatten:
         items = flatten_detections([_row(markers=[REJECTED])], corrections)
         assert items[0]['resolution'] == 'dismissed'
 
+    def test_correction_missing_bounds_is_ignored(self):
+        corrections = [
+            {'episode_id': 'ep-1', 'correction_type': 'confirm'},
+            {'episode_id': 'ep-1', 'correction_type': 'confirm',
+             'start': None, 'end': None},
+        ]
+        items = flatten_detections([_row(markers=[REJECTED])], corrections)
+        assert items[0]['resolution'] == 'unresolved'
+
     def test_output_field_mapping(self):
         items = flatten_detections([_row(markers=[ACCEPTED])], [])
         item = items[0]
@@ -147,6 +156,12 @@ class TestSortAndPaginate:
         items = self._items()
         items[0]['confidence'] = None
         out = sort_detections(items, sort='confidence', order='desc')
+        assert out[-1]['confidence'] is None
+
+    def test_none_confidence_sorts_last_on_asc(self):
+        items = self._items()
+        items[0]['confidence'] = None
+        out = sort_detections(items, sort='confidence', order='asc')
         assert out[-1]['confidence'] is None
 
     def test_podcast_sort(self):

@@ -32,8 +32,12 @@ def marker_resolution(marker: Dict, episode_corrections: List[Dict]) -> str:
     if start is None or end is None:
         return 'unresolved'
     for c in episode_corrections:
-        if (abs(start - c['start']) <= BOUNDS_TOLERANCE_S
-                and abs(end - c['end']) <= BOUNDS_TOLERANCE_S):
+        c_start = c.get('start')
+        c_end = c.get('end')
+        if c_start is None or c_end is None:
+            continue
+        if (abs(start - c_start) <= BOUNDS_TOLERANCE_S
+                and abs(end - c_end) <= BOUNDS_TOLERANCE_S):
             return 'confirmed' if c['correction_type'] == 'confirm' else 'dismissed'
     return 'unresolved'
 
