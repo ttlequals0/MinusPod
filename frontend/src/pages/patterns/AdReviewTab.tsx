@@ -348,15 +348,19 @@ export default function AdReviewTab() {
                   const rowKey = keyOf(d, index);
                   return (
                   <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
-                    <td className={td}>{d.feedTitle}</td>
+                    <td className={`${td} max-w-48 truncate`} title={d.feedTitle}>{d.feedTitle}</td>
                     <td className="px-3 py-2 text-sm">
-                      <Link to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`} className="text-primary hover:underline">
+                      <Link
+                        to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
+                        title={d.episodeTitle}
+                        className="block max-w-xs truncate text-primary hover:underline"
+                      >
                         {d.episodeTitle}
                       </Link>
                     </td>
                     <td className={td}>{formatDate(d.publishDate)}</td>
                     <td className={td}>{timeLabel(d)}</td>
-                    <td className="px-3 py-2 text-sm text-foreground">{d.sponsor || '-'}</td>
+                    <td className="px-3 py-2 text-sm text-foreground max-w-40 truncate" title={d.sponsor ?? undefined}>{d.sponsor || '-'}</td>
                     <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
                     <td className={td}>{d.detectionStage ? <StageBadge stage={d.detectionStage} /> : '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap"><DetectionStatusBadge status={d.status} /></td>
