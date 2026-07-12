@@ -66,6 +66,7 @@ export default function AdReviewTab() {
   const queryClient = useQueryClient();
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
+  const [actionError, setActionError] = useState(false);
 
   const correctionMutation = useMutation({
     mutationFn: async (args: {
@@ -74,18 +75,25 @@ export default function AdReviewTab() {
       recut: boolean;
     }) => {
       await submitCorrection(args.d.feedSlug, args.d.episodeId, args.correction);
-      if (args.recut) {
-        await reprocessEpisode(args.d.feedSlug, args.d.episodeId, 'recut');
-      }
     },
     onMutate: () => {
+      setActionError(false);
       // A saved correction can drop the playing row on refetch; stop the
       // windowed preview up front (same guard EpisodeDetail uses).
       audition.stop();
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       setEditing(null);
       queryClient.invalidateQueries({ queryKey: ['detections'] });
+      if (vars.recut) {
+        reprocessEpisode(vars.d.feedSlug, vars.d.episodeId, 'recut').catch(
+          (error) => console.error('Failed to trigger recut:', error),
+        );
+      }
+    },
+    onError: (error) => {
+      console.error('Failed to save correction:', error);
+      setActionError(true);
     },
   });
 
@@ -206,6 +214,9 @@ export default function AdReviewTab() {
       )}
       {!isLoading && !error && data && data.total > 0 && (
         <>
+          {actionError && (
+            <div className="text-destructive text-sm mb-3">Failed to save correction. Try again.</div>
+          )}
           <div className="overflow-x-auto bg-card rounded-lg border border-border">
             <table className="w-full divide-y divide-border">
               <thead className="bg-muted/50">

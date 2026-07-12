@@ -186,4 +186,15 @@ describe('AdReviewTab row actions', () => {
     await screen.findByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: /play/i })).toBeNull();
   });
+
+  it('shows error banner when correction fails and does not call reprocess', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockSubmitCorrection.mockRejectedValueOnce(new Error('boom'));
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('Failed to save correction. Try again.')).toBeTruthy();
+    expect(mockReprocess).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
 });
