@@ -215,7 +215,8 @@ function CueCandidatesSection({
             const isPlaying = playingKey === key;
             return (
               <div key={key} className="p-3 bg-secondary/40 rounded-lg border border-border">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                   <button
                     onClick={() => togglePreview(c)}
                     disabled={!hasOriginalAudio}
@@ -236,40 +237,43 @@ function CueCandidatesSection({
                       </svg>
                     )}
                   </button>
-                  <div className="flex-1 min-w-0 flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm text-foreground">
-                      {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
-                    </span>
-                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
-                      c.kind === 'intro' || c.kind === 'outro'
-                        ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                        : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                    }`}>
-                      {cueCandidateLabel(c)}
-                    </span>
-                    {c.kind === 'recurring' && c.suggestedType && (
-                      <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">
-                        {c.suggestedType.replace(/_/g, ' ')}
+                    <div className="min-w-0 flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm text-foreground whitespace-nowrap">
+                        {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                       </span>
-                    )}
+                      <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                        c.kind === 'intro' || c.kind === 'outro'
+                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                      }`}>
+                        {cueCandidateLabel(c)}
+                      </span>
+                      {c.kind === 'recurring' && c.suggestedType && (
+                        <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground">
+                          {c.suggestedType.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => makeTemplate(c)}
-                    disabled={!hasOriginalAudio}
-                    title={hasOriginalAudio ? 'Open the capture tool to make a template'
-                      : 'Original audio not retained for this episode'}
-                    className={`${makeBtn} shrink-0`}
-                  >
-                    Make template
-                  </button>
-                  <button
-                    onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
-                    disabled={dismissMutation.isPending}
-                    title="Not a cue: hide this sound in every episode of this feed"
-                    className="shrink-0 px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
-                  >
-                    Dismiss
-                  </button>
+                  <div className="flex gap-2 sm:shrink-0">
+                    <button
+                      onClick={() => makeTemplate(c)}
+                      disabled={!hasOriginalAudio}
+                      title={hasOriginalAudio ? 'Open the capture tool to make a template'
+                        : 'Original audio not retained for this episode'}
+                      className={`${makeBtn} flex-1 sm:flex-none`}
+                    >
+                      Make template
+                    </button>
+                    <button
+                      onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
+                      disabled={dismissMutation.isPending}
+                      title="Not a cue: hide this sound in every episode of this feed"
+                      className="flex-1 sm:flex-none px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 </div>
               </div>
             );
