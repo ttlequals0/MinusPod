@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.0] - 2026-07-12
+
+### Added
+- Ad Review tab on the Patterns page: one paginated list of every ad
+  detection across all podcasts, with status and podcast filters, text
+  search, and sortable columns. Defaults to detections that need a
+  decision (held for review or rejected, with no correction yet), so
+  unresolved rejected detections can be worked through in one place
+  instead of episode by episode (issue #417). Rows support Approve,
+  Dismiss, waveform Edit, and audio preview using the same correction
+  flow as the episode page. New endpoint: `GET /api/v1/detections`.
+
 ## [2.47.0] - 2026-07-12
 
 ### Added
