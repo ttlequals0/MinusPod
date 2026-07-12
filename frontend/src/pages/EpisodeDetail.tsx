@@ -21,6 +21,7 @@ import { formatStorage, formatDuration } from './settings/settingsUtils';
 import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
+import { StageBadge } from '../components/StageBadge';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -607,9 +608,7 @@ function EpisodeDetail() {
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
-                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
-                      {DETECTION_STAGE_META[segment.detection_stage].label}
-                    </span>
+                    <StageBadge stage={segment.detection_stage} />
                   )}
                   {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                     <span
@@ -780,9 +779,7 @@ function EpisodeDetail() {
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
-                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
-                          {DETECTION_STAGE_META[segment.detection_stage].label}
-                        </span>
+                        <StageBadge stage={segment.detection_stage} />
                       )}
                       {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                         <span

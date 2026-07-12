@@ -18,8 +18,8 @@ import AdReviewModal, {
 import { Pagination } from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
+import { StageBadge } from '../../components/StageBadge';
 import { formatTimestamp, formatDate } from '../../utils/format';
-import { DETECTION_STAGE_META, type DetectionStage } from '../../utils/detectionStage';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
@@ -50,7 +50,17 @@ const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> 
 const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap';
 const td = 'px-3 py-2 text-sm text-muted-foreground whitespace-nowrap';
 
-function StatusBadge({ status }: { status: ReviewDetection['status'] }) {
+const SORT_LABELS = Object.fromEntries(SORT_OPTIONS) as Record<DetectionSort, string>;
+
+// Same audition key for the table row and its mobile card twin, so the
+// playing state stays in sync across the responsive variants.
+const keyOf = (d: ReviewDetection, index: number) =>
+  `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
+
+const timeLabel = (d: ReviewDetection) =>
+  `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
+
+function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] }) {
   const [label, cls] = STATUS_BADGE[status];
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
@@ -58,16 +68,6 @@ function StatusBadge({ status }: { status: ReviewDetection['status'] }) {
 function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
   const [label, cls] = RESOLUTION_BADGE[resolution];
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
-}
-
-function StageBadge({ stage }: { stage: string | null }) {
-  if (!stage) return <span>-</span>;
-  const meta = DETECTION_STAGE_META[stage as DetectionStage];
-  return (
-    <span className={`px-1.5 py-0.5 text-xs rounded font-medium whitespace-nowrap ${meta?.className ?? 'bg-secondary text-muted-foreground'}`}>
-      {meta?.label ?? stage}
-    </span>
-  );
 }
 
 // One set of row actions rendered in two densities: compact inside the
@@ -213,7 +213,7 @@ export default function AdReviewTab() {
 
   const { data: feeds } = useQuery({ queryKey: ['feeds'], queryFn: getFeeds });
 
-  const sortHeader = (key: DetectionSort, label: string) => (
+  const sortHeader = (key: DetectionSort) => (
     <button
       type="button"
       onClick={() => {
@@ -227,7 +227,7 @@ export default function AdReviewTab() {
       }}
       className="flex items-center gap-1 font-medium hover:text-foreground"
     >
-      {label}
+      {SORT_LABELS[key]}
       {sort === key && (
         order === 'desc'
           ? <ChevronDown className="w-3.5 h-3.5" aria-hidden />
@@ -235,28 +235,6 @@ export default function AdReviewTab() {
       )}
     </button>
   );
-
-  // Same audition key for the table row and its mobile card twin, so the
-  // playing state stays in sync across the responsive variants.
-  const keyOf = (d: ReviewDetection, index: number) =>
-    `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
-
-  const actionsFor = (d: ReviewDetection, rowKey: string, variant: 'row' | 'card') => (
-    <DetectionActions
-      d={d}
-      variant={variant}
-      playing={audition.playingKey === rowKey}
-      onTogglePlay={() => audition.toggle(
-        rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
-      onApprove={() => approve(d)}
-      onDismiss={() => dismiss(d)}
-      onEdit={() => setEditing(d)}
-      busy={correctionMutation.isPending}
-    />
-  );
-
-  const timeLabel = (d: ReviewDetection) =>
-    `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
 
   return (
     <div>
@@ -349,12 +327,12 @@ export default function AdReviewTab() {
             <table className="w-full divide-y divide-border">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className={th}>{sortHeader('podcast', 'Podcast')}</th>
+                  <th className={th}>{sortHeader('podcast')}</th>
                   <th className={th}>Episode</th>
-                  <th className={th}>{sortHeader('date', 'Published')}</th>
+                  <th className={th}>{sortHeader('date')}</th>
                   <th className={th}>Time</th>
                   <th className={th}>Sponsor</th>
-                  <th className={th}>{sortHeader('confidence', 'Confidence')}</th>
+                  <th className={th}>{sortHeader('confidence')}</th>
                   <th className={th}>Stage</th>
                   <th className={th}>Status</th>
                   <th className={th}>Resolution</th>
@@ -376,11 +354,21 @@ export default function AdReviewTab() {
                     <td className={td}>{timeLabel(d)}</td>
                     <td className="px-3 py-2 text-sm text-foreground">{d.sponsor || '-'}</td>
                     <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
-                    <td className={td}><StageBadge stage={d.detectionStage} /></td>
-                    <td className="px-3 py-2 whitespace-nowrap"><StatusBadge status={d.status} /></td>
+                    <td className={td}>{d.detectionStage ? <StageBadge stage={d.detectionStage} /> : '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap"><DetectionStatusBadge status={d.status} /></td>
                     <td className="px-3 py-2 whitespace-nowrap"><ResolutionBadge resolution={d.resolution} /></td>
                     <td className="px-3 py-2 whitespace-nowrap" data-testid="row-actions">
-                      {actionsFor(d, rowKey, 'row')}
+                      <DetectionActions
+                        d={d}
+                        variant="row"
+                        playing={audition.playingKey === rowKey}
+                        onTogglePlay={() => audition.toggle(
+                          rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
+                        onApprove={() => approve(d)}
+                        onDismiss={() => dismiss(d)}
+                        onEdit={() => setEditing(d)}
+                        busy={correctionMutation.isPending}
+                      />
                     </td>
                   </tr>
                   );
@@ -396,7 +384,7 @@ export default function AdReviewTab() {
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs text-muted-foreground min-w-0 truncate">{d.feedTitle}</span>
                     <div className="flex gap-1.5 shrink-0">
-                      <StatusBadge status={d.status} />
+                      <DetectionStatusBadge status={d.status} />
                       <ResolutionBadge resolution={d.resolution} />
                     </div>
                   </div>
@@ -410,10 +398,20 @@ export default function AdReviewTab() {
                     <span>{formatDate(d.publishDate)}</span>
                     <span>{timeLabel(d)}</span>
                     {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
-                    <StageBadge stage={d.detectionStage} />
+                    {d.detectionStage && <StageBadge stage={d.detectionStage} />}
                   </div>
                   {d.sponsor && <div className="text-sm text-foreground">{d.sponsor}</div>}
-                  {actionsFor(d, rowKey, 'card')}
+                  <DetectionActions
+                    d={d}
+                    variant="card"
+                    playing={audition.playingKey === rowKey}
+                    onTogglePlay={() => audition.toggle(
+                      rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
+                    onApprove={() => approve(d)}
+                    onDismiss={() => dismiss(d)}
+                    onEdit={() => setEditing(d)}
+                    busy={correctionMutation.isPending}
+                  />
                 </div>
               );
             })}
