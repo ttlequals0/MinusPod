@@ -105,13 +105,14 @@ def sort_detections(items: List[Dict], sort: str = 'date',
     if sort == 'confidence':
         # None confidences always sort last regardless of direction, so the
         # group flag must flip with the sort direction.
-        if reverse:
-            key = lambda i: (1 if i['confidence'] is not None else 0,
-                             i['confidence'] if i['confidence'] is not None else 0)
-            return sorted(items, key=key, reverse=True)
-        key = lambda i: (0 if i['confidence'] is not None else 1,
-                         i['confidence'] if i['confidence'] is not None else 0)
-        return sorted(items, key=key)
+        def key(i):
+            c = i['confidence']
+            has = c is not None
+            # publishDate/start tie-breaks keep pagination deterministic,
+            # matching the other sort branches.
+            return (has if reverse else not has, c if has else 0,
+                    i['publishDate'] or '', i['start'] or 0)
+        return sorted(items, key=key, reverse=reverse)
     if sort == 'podcast':
         key = lambda i: ((i['feedTitle'] or '').lower(),
                          i['publishDate'] or '', i['start'] or 0)
