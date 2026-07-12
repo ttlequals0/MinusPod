@@ -285,7 +285,7 @@ function CueCandidatesSection({
           <div className="pt-1">
             <button
               onClick={() => rescan()}
-              className={`${secondaryBtn} shrink-0`}
+              className={secondaryBtn}
             >
               Rescan
             </button>
