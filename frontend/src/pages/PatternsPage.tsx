@@ -22,6 +22,7 @@ type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type SortDirection = 'asc' | 'desc';
+type PatternsTab = 'patterns' | 'ad-review';
 
 function SortHeader({
   field,
@@ -68,7 +69,6 @@ function PatternsPage() {
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  type PatternsTab = 'patterns' | 'ad-review';
   const activeTab: PatternsTab =
     searchParams.get('tab') === 'ad-review' ? 'ad-review' : 'patterns';
 
@@ -218,35 +218,37 @@ function PatternsPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Ad Patterns</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">
-            {sortedPatterns?.length || 0} patterns
-          </span>
-          {syncStatus?.lastRun && (
+        {activeTab === 'patterns' && (
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">
+              {sortedPatterns?.length || 0} patterns
+            </span>
+            {syncStatus?.lastRun && (
+              <button
+                type="button"
+                onClick={handleSyncNow}
+                className="px-2 py-1 rounded text-xs border border-border hover:bg-accent transition-colors"
+                title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+              >
+                ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleSyncNow}
-              className="px-2 py-1 rounded text-xs border border-border hover:bg-accent transition-colors"
-              title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+              onClick={() => setImportOpen(true)}
+              className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
             >
-              ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+              Import
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setImportOpen(true)}
-            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
-          >
-            Import
-          </button>
-          <button
-            type="button"
-            onClick={() => setExportOpen(true)}
-            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
-          >
-            Export
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
+            >
+              Export
+            </button>
+          </div>
+        )}
       </div>
       <PatternImportDialog
         open={importOpen}
