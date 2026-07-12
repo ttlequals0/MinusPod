@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.46.1] - 2026-07-11
+
+### Fixed
+- Audio cue candidate cards no longer collapse on phones: the action
+  buttons squeezed the label into a one-word-wide column and overflowed
+  the card. Buttons now stack full-width below the candidate info on
+  small screens, matching the episode page's action rows. The
+  cross-episode scan modal rows wrap instead of crushing their content.
+
 ## [2.46.0] - 2026-07-11
 
 ### Added

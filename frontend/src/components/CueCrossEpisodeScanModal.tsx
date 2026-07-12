@@ -361,7 +361,7 @@ export default function CueCrossEpisodeScanModal({
                 const expanded = expandedKey === rowKey;
                 return (
                   <li key={rowKey} className="px-3 py-2 text-sm">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <button
                         type="button"
                         className={`shrink-0 p-1.5 rounded ${ghostBtn}`}
