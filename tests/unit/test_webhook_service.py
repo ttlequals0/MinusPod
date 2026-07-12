@@ -12,6 +12,10 @@ from jinja2.sandbox import SecurityError
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import threading
+
+import email_service
+import webhook_service
 from tests.unit.thread_fakes import SyncThread
 from webhook_service import (
     render_template_preview,
@@ -400,7 +404,6 @@ class TestEmailDispatchHooks:
     versa), and must inherit the alert dedup window (#491 follow-up)."""
 
     def setup_method(self):
-        import webhook_service
         webhook_service._last_alert_time.clear()
 
     def test_episode_event_emails_with_zero_webhooks(self):
@@ -415,7 +418,6 @@ class TestEmailDispatchHooks:
     def test_webhook_still_fires_when_smtp_is_down(self):
         # send_event_email guarantees never-raises; exercise that guarantee
         # end to end by failing at the SMTP layer, not by faking a raise.
-        import email_service
         webhooks = [{'enabled': True, 'events': [EVENT_EPISODE_PROCESSED],
                      'url': 'http://x'}]
         ready_cfg = email_service.EmailConfig(
@@ -440,8 +442,6 @@ class TestEmailDispatchHooks:
         send.assert_called_once()
 
     def test_alert_emails_with_zero_webhooks(self):
-        import threading
-        import webhook_service
         with patch('webhook_service.load_webhooks', return_value=[]), \
              patch('email_service.send_event_email') as send, \
              patch.object(threading, 'Thread', SyncThread):
@@ -454,8 +454,6 @@ class TestEmailDispatchHooks:
         assert 'timestamp' in context
 
     def test_alert_dedup_suppresses_email_too(self):
-        import threading
-        import webhook_service
         with patch('webhook_service.load_webhooks', return_value=[]), \
              patch('email_service.send_event_email') as send, \
              patch.object(threading, 'Thread', SyncThread):

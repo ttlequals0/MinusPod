@@ -287,6 +287,7 @@ class TestFireLimitExceededEvent:
         with patch('webhook_service.load_webhooks', return_value=webhooks), \
              patch('webhook_service._prepare_and_dispatch',
                    side_effect=lambda wh, ctx: dispatched.append(ctx)), \
+             patch('email_service.send_event_email'), \
              patch.object(threading, 'Thread', SyncThread):
             fire_fn(*args)
         return dispatched

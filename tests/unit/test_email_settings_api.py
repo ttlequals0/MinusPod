@@ -103,6 +103,17 @@ class TestPutEmailSettings:
     def test_bad_recipient(self, client):
         assert _put(client, {'recipients': 'not-an-address'}).status_code == 400
         assert _put(client, {'recipients': 'a@b.c, junk'}).status_code == 400
+        assert _put(client, {'recipients': 'john smith@example.com'}).status_code == 400
+
+    def test_non_string_fields_rejected(self, client):
+        assert _put(client, {'recipients': ['a@b.c']}).status_code == 400
+        assert _put(client, {'smtpHost': 123}).status_code == 400
+        assert _put(client, {'smtpPassword': {'x': 1}}).status_code == 400
+
+    def test_ipv6_host_stored_without_brackets(self, client):
+        response = _put(client, {'smtpHost': '[::1]'})
+        assert response.status_code == 200
+        assert json.loads(response.data)['smtpHost'] == '::1'
 
     def test_bad_from_address(self, client):
         assert _put(client, {'fromAddress': 'nope'}).status_code == 400

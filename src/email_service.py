@@ -23,6 +23,8 @@ from email.utils import make_msgid
 from pathlib import Path
 from typing import Optional
 
+from utils.url import validate_outbound_host
+
 logger = logging.getLogger('podcast.email')
 
 SMTP_TIMEOUT_SECONDS = 10
@@ -57,7 +59,7 @@ def parse_recipients(raw: str) -> list:
 def load_email_config(db=None) -> EmailConfig:
     """Load the email notification settings; safe defaults for missing rows."""
     if db is None:
-        from database import Database
+        from database import Database  # deferred to avoid circular imports
         db = Database()
 
     raw_events = db.get_setting('email_events')
@@ -134,31 +136,29 @@ def _fmt_episode_failed(ctx):
     return subject, rows, None
 
 
-def _fmt_auth_failure(ctx):
-    subject = (f"[MinusPod] Auth Failure: {ctx.get('provider', 'unknown')}"
-               f" / {ctx.get('model', 'unknown')}")
-    rows = [
+def _provider_alert_rows(ctx):
+    return [
         ('Provider', _value(ctx.get('provider'))),
         ('Model', _value(ctx.get('model'))),
         ('Status code', _value(ctx.get('status_code'))),
         ('Error', _value(ctx.get('error_message'))),
         ('Timestamp', _value(ctx.get('timestamp'))),
     ]
-    return subject, rows, 'Check or rotate the API key for this provider.'
+
+
+def _fmt_auth_failure(ctx):
+    subject = (f"[MinusPod] Auth Failure: {ctx.get('provider', 'unknown')}"
+               f" / {ctx.get('model', 'unknown')}")
+    return subject, _provider_alert_rows(ctx), \
+        'Check or rotate the API key for this provider.'
 
 
 def _fmt_limit_exceeded(ctx):
     subject = (f"[MinusPod] Limit Exceeded: {ctx.get('provider', 'unknown')}"
                f" / {ctx.get('model', 'unknown')}")
-    rows = [
-        ('Provider', _value(ctx.get('provider'))),
-        ('Model', _value(ctx.get('model'))),
-        ('Status code', _value(ctx.get('status_code'))),
-        ('Error', _value(ctx.get('error_message'))),
-        ('Timestamp', _value(ctx.get('timestamp'))),
-    ]
-    return subject, rows, ('Add credits or raise the limit, then reprocess the '
-                           'affected episode manually (it will not auto-retry).')
+    return subject, _provider_alert_rows(ctx), \
+        ('Add credits or raise the limit, then reprocess the '
+         'affected episode manually (it will not auto-retry).')
 
 
 def _fmt_rate_limit_structural(ctx):
@@ -252,7 +252,13 @@ def build_message(subject, rows, action_hint, from_addr, recipients) -> EmailMes
 
 
 def _send(cfg: EmailConfig, msg: EmailMessage) -> None:
-    """Deliver one message; raises on failure. One connection per call."""
+    """Deliver one message; raises on failure. One connection per call.
+
+    Revalidates the host at connect time (not only at save time) so a DNS
+    rebind cannot point a saved hostname at a blocked target, matching the
+    per-dispatch revalidation webhooks get from safe_post.
+    """
+    validate_outbound_host(cfg.host, cfg.port)
     context = ssl.create_default_context()
     if cfg.security == 'ssl':
         smtp = smtplib.SMTP_SSL(cfg.host, cfg.port,
@@ -265,6 +271,10 @@ def _send(cfg: EmailConfig, msg: EmailMessage) -> None:
             smtp.ehlo()
         if cfg.username and cfg.password:
             smtp.login(cfg.username, cfg.password)
+        elif cfg.username:
+            logger.warning(
+                "SMTP username is set but no password is available "
+                "(missing or not decryptable); connecting without login")
         smtp.send_message(msg)
 
 
@@ -292,11 +302,17 @@ def send_test_email(db=None):
 
     Returns (success, message) for the settings test endpoint.
     """
+    if db is None:
+        from database import Database  # deferred to avoid circular imports
+        db = Database()
     cfg = load_email_config(db)
     if not is_send_ready(cfg):
         return False, ('Email notifications are not configured: save an SMTP '
                        'host, from address, and at least one recipient, and '
                        'turn them on first')
+    if cfg.username and not cfg.password and db.get_setting('email_smtp_password'):
+        return False, ('A password is stored but cannot be decrypted; check '
+                       'MINUSPOD_MASTER_PASSPHRASE, then save the password again')
     rows = [
         ('What', 'Test email from MinusPod'),
         ('SMTP server', f"{cfg.host}:{cfg.port} ({cfg.security})"),

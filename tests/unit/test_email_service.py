@@ -6,7 +6,11 @@ properties: event filtering and never-raises dispatch.
 """
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import email_service
+from utils.url import SSRFError
+from webhook_service import VALID_EVENTS
 from email_service import (
     EmailConfig,
     build_message,
@@ -120,7 +124,6 @@ class TestLoadEmailConfig:
 
 class TestFormatters:
     def test_all_events_have_formatters(self):
-        from webhook_service import VALID_EVENTS
         assert set(FORMATTERS) == VALID_EVENTS
 
     def test_episode_failed(self):
@@ -219,6 +222,12 @@ class TestSend:
         assert smtp_cls.call_args.args == ('mail.example.com', 465)
         assert smtp_cls.call_args.kwargs['timeout'] == 10
 
+    def test_blocked_host_raises_before_connect(self):
+        with patch('email_service.smtplib.SMTP') as smtp_cls:
+            with pytest.raises(SSRFError):
+                email_service._send(_cfg(host='169.254.169.254'), MagicMock())
+        smtp_cls.assert_not_called()
+
     def test_login_only_with_both_creds(self):
         with patch('email_service.smtplib.SMTP') as smtp_cls:
             email_service._send(_cfg(username='u', password=None), MagicMock())
@@ -278,6 +287,19 @@ class TestSendTestEmail:
         assert success is True
         assert '1 recipient' in message
         send.assert_called_once()
+
+    def test_undecryptable_password_diagnosed(self):
+        db = _mock_db({
+            'email_enabled': 'true',
+            'email_smtp_host': 'mail.example.com',
+            'email_smtp_username': 'user',
+            'email_smtp_from': 'from@example.com',
+            'email_recipients': 'a@b.c',
+            'email_smtp_password': 'enc:v1:ciphertext',
+        }, secret=None)
+        success, message = send_test_email(db)
+        assert success is False
+        assert 'MINUSPOD_MASTER_PASSPHRASE' in message
 
     def test_failure_reports_error(self):
         db = _mock_db({

@@ -2007,9 +2007,9 @@ def test_webhook(webhook_id):
 # ========== Email Notification settings ==========
 
 def _email_address_invalid(addr: str) -> bool:
-    """Reject addresses that fail a minimal name@host check or carry CR/LF
-    (header injection)."""
-    if '\r' in addr or '\n' in addr:
+    """Reject addresses that fail a minimal name@host check, contain spaces,
+    or carry CR/LF (header injection)."""
+    if any(c in addr for c in '\r\n '):
         return True
     _, parsed = parseaddr(addr)
     return parsed != addr or '@' not in parsed.strip('@')
@@ -2026,7 +2026,7 @@ def _email_settings_response(db):
         'smtpUsername': cfg.username,
         'smtpPasswordConfigured': bool(db.get_setting('email_smtp_password')),
         'fromAddress': cfg.from_addr,
-        'recipients': db.get_setting('email_recipients') or '',
+        'recipients': ', '.join(cfg.recipients),
     })
 
 
@@ -2050,6 +2050,9 @@ def update_email_notification_settings():
     data = request.get_json() or {}
 
     staged = {}
+    for field in ('smtpHost', 'smtpUsername', 'smtpPassword', 'fromAddress', 'recipients'):
+        if field in data and not isinstance(data[field], (str, type(None))):
+            return error_response(f'{field} must be a string', 400)
     if 'events' in data:
         events = data['events']
         if not isinstance(events, list) or any(e not in VALID_EVENTS for e in events):
@@ -2077,7 +2080,7 @@ def update_email_notification_settings():
             if any(c in host for c in '\r\n '):
                 return error_response('smtpHost must not contain spaces or line breaks', 400)
             try:
-                validate_outbound_host(host)
+                host = validate_outbound_host(host)
             except SSRFError as e:
                 return error_response(str(e), 400)
         staged['email_smtp_host'] = host
