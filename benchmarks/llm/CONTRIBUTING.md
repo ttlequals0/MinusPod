@@ -69,7 +69,7 @@ uv run pytest tests/ -q
 
 All tests must pass. A schema-version bump on `calls.jsonl` or `episode_results.jsonl` requires a maintainer review thread and a migration path for existing data (see `benchmark migrate-raw` for the v1 -> v2 precedent). The current schema is v2.
 
-For changes to `report.py`, charts, or the metric glossary: the bar is clarity for a deep-technical-but-not-ML-research audience, not just correctness. Reviewers will read the rendered Markdown, not just the diff.
+For changes to the report package (`src/benchmark/report/`), charts, or the metric glossary: the bar is clarity for a deep-technical-but-not-ML-research audience, not just correctness. Reviewers will read the rendered Markdown, not just the diff.
 
 ## What's in the repo vs what your PR should include
 

@@ -21,7 +21,7 @@ benchmarks/llm/
     archive/                 # explicit snapshots: results/archive/<date>/
 ```
 
-Raw response bodies live in one JSONL shard per model (`results/raw/responses/<model>.jsonl`, lines of `{call_id, body}`), so the file count stays flat as the corpus grows. Prompts are not stored at all: they reconstruct deterministically from the corpus, and `benchmark show-prompt <call_id>` proves fidelity by recomputing the `prompt_hash` recorded at call time. `benchmark show-response <call_id>` prints a single raw response body.
+Raw response bodies live in one JSONL shard per model (`results/raw/responses/<model>.jsonl`, lines of `{call_id, body}`), so the file count stays flat as the corpus grows. Prompts are not stored at all: they reconstruct deterministically from the corpus, and `benchmark show-prompt <call_id>` verifies the result against the `prompt_hash` recorded at call time. `benchmark show-response <call_id>` prints a single raw response body.
 
 ## Setup
 
