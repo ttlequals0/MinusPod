@@ -11,6 +11,8 @@ const mockGetFeeds = vi.fn().mockResolvedValue([
   { slug: 'feed-a', title: 'Feed A' },
   { slug: 'feed-b', title: 'Feed B' },
 ]);
+const mockSubmitCorrection = vi.fn().mockResolvedValue(undefined);
+const mockReprocess = vi.fn().mockResolvedValue({ message: '', mode: 'recut' });
 
 vi.mock('../../api/detections', () => ({
   getDetections: (...a: unknown[]) => mockGetDetections(...a),
@@ -18,7 +20,15 @@ vi.mock('../../api/detections', () => ({
 vi.mock('../../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/feeds')>()),
   getFeeds: (...a: unknown[]) => mockGetFeeds(...a),
+  reprocessEpisode: (...a: unknown[]) => mockReprocess(...a),
 }));
+vi.mock('../../api/patterns', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/patterns')>()),
+  submitCorrection: (...a: unknown[]) => mockSubmitCorrection(...a),
+}));
+// AdReviewModal renders WaveSurfer; its own behavior is covered by its use on
+// the episode page. Here only AdReviewTab's submit mapping matters.
+vi.mock('../../components/AdReviewModal', () => ({ default: () => null }));
 
 function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
   return {
@@ -48,6 +58,8 @@ beforeEach(() => {
   mockGetDetections.mockResolvedValue({
     detections: [detection()], total: 1, page: 1, totalPages: 1, limit: 20,
   });
+  mockSubmitCorrection.mockClear();
+  mockReprocess.mockClear();
 });
 
 describe('AdReviewTab', () => {
@@ -112,5 +124,66 @@ describe('AdReviewTab', () => {
     });
     renderTab();
     expect(await screen.findByText('No detections need review.')).toBeTruthy();
+  });
+});
+
+describe('AdReviewTab row actions', () => {
+  it('approve submits a confirm correction and triggers recut', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    expect(mockSubmitCorrection.mock.calls[0][0]).toBe('feed-a');
+    expect(mockSubmitCorrection.mock.calls[0][1]).toBe('ep-1');
+    expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
+      type: 'confirm',
+      original_ad: { start: 100, end: 130 },
+    });
+    await waitFor(() =>
+      expect(mockReprocess).toHaveBeenCalledWith('feed-a', 'ep-1', 'recut'));
+  });
+
+  it('approve without original audio skips the recut', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ hasOriginalAudio: false })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('dismiss submits a reject correction with no recut', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
+    expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
+      type: 'reject',
+    });
+    expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('resolved rows show no approve or dismiss buttons', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ resolution: 'dismissed' })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+    });
+    renderTab();
+    await screen.findByRole('link', { name: 'Episode One' });
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+  });
+
+  it('hides the play button when original audio is gone', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ hasOriginalAudio: false })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+    });
+    renderTab();
+    await screen.findByRole('link', { name: 'Episode One' });
+    expect(screen.queryByRole('button', { name: /play/i })).toBeNull();
   });
 });

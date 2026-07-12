@@ -1,17 +1,39 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, ChevronUp, Pause, Play } from 'lucide-react';
 import {
   getDetections,
   type DetectionSort,
   type DetectionStatusFilter,
   type ReviewDetection,
 } from '../../api/detections';
-import { getFeeds } from '../../api/feeds';
+import { episodeOriginalUrl, getFeeds, reprocessEpisode } from '../../api/feeds';
+import { submitCorrection, type PatternCorrection } from '../../api/patterns';
+import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
+import AdReviewModal, {
+  type AdReviewItem,
+  type AdReviewSubmit,
+} from '../../components/AdReviewModal';
 import { Pagination } from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatTimestamp, formatDate } from '../../utils/format';
+
+// Small play/pause button matching EpisodeDetail's AuditionPlayButton at
+// table-cell scale (that one is local to EpisodeDetail, so it's inlined here).
+function AuditionPlayButton({ playing, onClick }: { playing: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={playing ? 'Pause' : 'Play'}
+      title={playing ? 'Pause' : 'Play this ad'}
+      className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
+    >
+      {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
@@ -40,6 +62,53 @@ export default function AdReviewTab() {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
   const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+
+  const queryClient = useQueryClient();
+  const audition = useAuditionPlayer();
+  const [editing, setEditing] = useState<ReviewDetection | null>(null);
+
+  const correctionMutation = useMutation({
+    mutationFn: async (args: {
+      d: ReviewDetection;
+      correction: PatternCorrection;
+      recut: boolean;
+    }) => {
+      await submitCorrection(args.d.feedSlug, args.d.episodeId, args.correction);
+      if (args.recut) {
+        await reprocessEpisode(args.d.feedSlug, args.d.episodeId, 'recut');
+      }
+    },
+    onMutate: () => {
+      // A saved correction can drop the playing row on refetch; stop the
+      // windowed preview up front (same guard EpisodeDetail uses).
+      audition.stop();
+    },
+    onSuccess: () => {
+      setEditing(null);
+      queryClient.invalidateQueries({ queryKey: ['detections'] });
+    },
+  });
+
+  const originalAdOf = (d: ReviewDetection) => ({
+    start: d.start,
+    end: d.end,
+    pattern_id: d.patternId ?? undefined,
+    confidence: d.confidence ?? undefined,
+    reason: d.reason ?? undefined,
+    sponsor: d.sponsor ?? undefined,
+  });
+
+  const approve = (d: ReviewDetection) => correctionMutation.mutate({
+    d,
+    correction: { type: 'confirm', original_ad: originalAdOf(d) },
+    recut: d.hasOriginalAudio,
+  });
+
+  const dismiss = (d: ReviewDetection) => correctionMutation.mutate({
+    d,
+    correction: { type: 'reject', original_ad: originalAdOf(d) },
+    recut: false,
+  });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['detections', page, status, feed, q, sort, order],
@@ -154,8 +223,10 @@ export default function AdReviewTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data.detections.map((d) => (
-                  <tr key={`${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}`} className="hover:bg-accent/50 transition-colors">
+                {data.detections.map((d) => {
+                  const rowKey = `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}`;
+                  return (
+                  <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
                     <td className={td}>{d.feedTitle}</td>
                     <td className="px-3 py-2 text-sm">
                       <Link to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`} className="text-primary hover:underline">
@@ -179,14 +250,99 @@ export default function AdReviewTab() {
                         {RESOLUTION_BADGE[d.resolution][0]}
                       </span>
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap" data-testid="row-actions" />
+                    <td className="px-3 py-2 whitespace-nowrap" data-testid="row-actions">
+                      <div className="flex items-center gap-1.5">
+                        {d.hasOriginalAudio && (
+                          <AuditionPlayButton
+                            playing={audition.playingKey === rowKey}
+                            onClick={() => audition.toggle(
+                              rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
+                          />
+                        )}
+                        {d.resolution === 'unresolved' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => approve(d)}
+                              disabled={correctionMutation.isPending}
+                              className="px-2 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => dismiss(d)}
+                              disabled={correctionMutation.isPending}
+                              className="px-2 py-1 text-xs rounded bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50"
+                            >
+                              Dismiss
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {RESOLUTION_BADGE[d.resolution][0]}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEditing(d)}
+                          className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
         </>
+      )}
+
+      {audition.audioElement}
+      {editing && (
+        <AdReviewModal
+          item={{
+            podcastSlug: editing.feedSlug,
+            episodeId: editing.episodeId,
+            start: editing.start,
+            end: editing.end,
+            sponsor: editing.sponsor,
+            reason: editing.reason,
+            confidence: editing.confidence,
+            detectionStage: editing.detectionStage,
+            patternId: editing.patternId,
+            correctedBounds: null,
+          } satisfies AdReviewItem}
+          hasOriginal={editing.hasOriginalAudio}
+          audioMode={editing.hasOriginalAudio ? 'original' : 'processed'}
+          processedAudioUrl={`/episodes/${editing.feedSlug}/${editing.episodeId}.mp3`}
+          onClose={() => setEditing(null)}
+          onSkip={() => setEditing(null)}
+          onSubmit={(s: AdReviewSubmit) => {
+            const d = editing;
+            if (s.kind === 'adjust') {
+              correctionMutation.mutate({
+                d,
+                correction: {
+                  type: 'adjust',
+                  original_ad: originalAdOf(d),
+                  adjusted_start: s.adjustedStart,
+                  adjusted_end: s.adjustedEnd,
+                  sponsor: s.sponsor,
+                },
+                recut: false,
+              });
+            } else if (s.kind === 'confirm') {
+              approve(d);
+            } else {
+              dismiss(d);
+            }
+          }}
+        />
       )}
     </div>
   );
