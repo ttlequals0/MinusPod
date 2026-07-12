@@ -1,1 +1,0 @@
-{ "start": 2428.9, "end": 2447.5, "confidence": 0.95, "reason": "PC Richard & Son lease to own program ad", "end_text": "family owned and operated" }

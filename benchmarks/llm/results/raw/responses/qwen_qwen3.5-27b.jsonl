@@ -1,0 +1,869 @@
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w0_67952656a3ba_20260521T205430Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w1_3cdae99d917a_20260521T205433Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w2_ab24cdae147f_20260521T205438Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w0_67952656a3ba_20260521T205449Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w1_3cdae99d917a_20260521T205512Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w2_ab24cdae147f_20260521T205544Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w0_67952656a3ba_20260521T205609Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w1_3cdae99d917a_20260521T205610Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w2_ab24cdae147f_20260521T205625Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w0_67952656a3ba_20260521T205637Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w1_3cdae99d917a_20260521T205722Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w2_ab24cdae147f_20260521T205723Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w0_67952656a3ba_20260521T205738Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w1_3cdae99d917a_20260521T205754Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w2_ab24cdae147f_20260521T205832Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w0_c7a82159ee82_20260521T205835Z","body":"[{\"start\": 0.0, \"end\": 69.8, \"confidence\": 0.98, \"reason\": \"Pre-roll sponsor reads for Vitel Global, LinkedIn Premium, and Hertz\", \"end_text\": \"newest fleet yet at Hertz.com\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w1_3a7777440d61_20260521T205841Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w2_89f83a421a16_20260521T205910Z","body":"[{\"start\": 1036.2, \"end\": 1129.6, \"confidence\": 0.98, \"reason\": \"SoFi and LinkedIn sponsor reads\", \"end_text\": \"LinkedIn.com slash all-in-one.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w3_179e2f4a09c2_20260521T205917Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w4_04b990ee74b3_20260521T205927Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w5_a3580df8a5df_20260521T205948Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t0_w6_f90c7503dea1_20260521T210058Z","body":"[{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.98, \"reason\": \"LinkedIn Premium All-in-One sponsor read with URL and product pitch\", \"end_text\": \"LinkedIn.com slash all-in-one\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w0_c7a82159ee82_20260521T210120Z","body":"[{\"start\": 0.0, \"end\": 98.4, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads for Vitel Global, LinkedIn Premium, and Hertz followed by host intro\", \"end_text\": \"nothing to go on.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w1_3a7777440d61_20260521T210125Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w2_89f83a421a16_20260521T210228Z","body":"[{\"start\": 1036.2, \"end\": 1129.6, \"confidence\": 0.98, \"reason\": \"SoFi and LinkedIn sponsor reads\", \"end_text\": \"LinkedIn.com slash all-in-one.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w3_179e2f4a09c2_20260521T212547Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w4_04b990ee74b3_20260521T212616Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w5_a3580df8a5df_20260521T212621Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t1_w6_f90c7503dea1_20260521T212644Z","body":"[{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.98, \"reason\": \"LinkedIn Premium All-in-One sponsor read with URL and call to action\", \"end_text\": \"LinkedIn.com slash all-in-one\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w0_c7a82159ee82_20260521T212645Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w1_3a7777440d61_20260521T212829Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w2_89f83a421a16_20260521T212905Z","body":"[{\"start\": 1012.8, \"end\": 1129.6, \"confidence\": 0.98, \"reason\": \"SoFi and LinkedIn sponsor reads\", \"end_text\": \"LinkedIn.com slash all-in-one.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w3_179e2f4a09c2_20260521T212910Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w4_04b990ee74b3_20260521T212917Z","body":"[{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.98, \"reason\": \"Rakuten, LinkedIn Premium, and Hertz sponsor reads\", \"end_text\": \"newest fleet yet at Hertz.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w5_a3580df8a5df_20260521T212917Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t2_w6_f90c7503dea1_20260521T213015Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.98,\n  \"reason\": \"LinkedIn Premium sponsor read with product pitch and URL\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w0_c7a82159ee82_20260521T213016Z","body":"[{\"start\": 0.0, \"end\": 98.4, \"confidence\": 0.98, \"reason\": \"Vitel Global, LinkedIn Premium, and Hertz sponsor reads\", \"end_text\": \"nothing to go on.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w1_3a7777440d61_20260521T213026Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w2_89f83a421a16_20260521T213130Z","body":"[{\"start\": 1036.2, \"end\": 1097.9, \"confidence\": 0.98, \"reason\": \"SoFi sponsor read with promo code CJ\", \"end_text\": \"NMLS 696891.\"}, {\"start\": 1099.8, \"end\": 1129.6, \"confidence\": 0.98, \"reason\": \"LinkedIn Premium All-in-One sponsor read with URL\", \"end_text\": \"LinkedIn.com slash all-in-one.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w3_179e2f4a09c2_20260521T213137Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w4_04b990ee74b3_20260521T213148Z","body":"[{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.98, \"reason\": \"Rakuten, LinkedIn, and Hertz sponsor reads\", \"end_text\": \"newest fleet yet at Hertz.com\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w5_a3580df8a5df_20260521T213239Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t3_w6_f90c7503dea1_20260521T213303Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.98,\n  \"reason\": \"LinkedIn Premium sponsor read\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w0_c7a82159ee82_20260521T213335Z","body":"[{\"start\": 0.0, \"end\": 69.8, \"confidence\": 0.98, \"reason\": \"Pre-roll sponsor reads for Vitel Global, LinkedIn Premium, and Hertz\", \"end_text\": \"newest fleet yet at Hertz.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w1_3a7777440d61_20260521T213440Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w2_89f83a421a16_20260521T213453Z","body":"[{\"start\": 1036.2, \"end\": 1129.6, \"confidence\": 0.98, \"reason\": \"SoFi and LinkedIn sponsor reads\", \"end_text\": \"LinkedIn.com slash all-in-one.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w3_179e2f4a09c2_20260521T213549Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w4_04b990ee74b3_20260521T213550Z","body":"[{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.98, \"reason\": \"Rakuten, LinkedIn, and Hertz sponsor reads\", \"end_text\": \"newest fleet yet at Hertz.com\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w5_a3580df8a5df_20260521T213631Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-crime-junkie-8ce498f299d7_t4_w6_f90c7503dea1_20260521T213639Z","body":"[{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.98, \"reason\": \"LinkedIn Premium sponsor read\", \"end_text\": \"LinkedIn.com slash all-in-one\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t0_w0_7c811de5868e_20260521T213656Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t0_w1_f57d2769c87f_20260521T213747Z","body":"[{\"start\": 521.5, \"end\": 548.5, \"confidence\": 0.95, \"reason\": \"Network promo for Crain's Weekly News Quiz with URL and call to action\", \"end_text\": \"Daily Gist with Amy Guth\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t0_w2_682f0bedac15_20260521T213853Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t0_w3_e0edeaabd147_20260521T213918Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t1_w0_7c811de5868e_20260521T213931Z","body":"[{\"start\": 54.1, \"end\": 64.7, \"confidence\": 0.98, \"reason\": \"Old National Bank sponsor read with URL and call to action\", \"end_text\": \"Member FDIC.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t1_w1_f57d2769c87f_20260521T213958Z","body":"[\n  {\n    \"start\": 506.4,\n    \"end\": 548.5,\n    \"confidence\": 0.95,\n    \"reason\": \"Crain's Weekly News Quiz promotion with URL and call to action, including transition\",\n    \"end_text\": \"Daily Gist with Amy Guth.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t1_w2_682f0bedac15_20260521T214037Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t1_w3_e0edeaabd147_20260521T214103Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t2_w0_7c811de5868e_20260521T214117Z","body":"[{\"start\": 54.1, \"end\": 64.7, \"confidence\": 0.98, \"reason\": \"Old National Bank sponsor read\", \"end_text\": \"commercial banking. Member FDIC.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t2_w1_f57d2769c87f_20260521T214129Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t2_w2_682f0bedac15_20260521T214519Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t2_w3_e0edeaabd147_20260521T214542Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t3_w0_7c811de5868e_20260521T214552Z","body":"[{\"start\": 54.1, \"end\": 64.7, \"confidence\": 0.98, \"reason\": \"Old National Bank sponsor read with URL and call to action\", \"end_text\": \"Member FDIC.\"}, {\"start\": 506.4, \"end\": 548.5, \"confidence\": 0.95, \"reason\": \"Crain's Weekly News Quiz promotional segment with URL and transition phrase\", \"end_text\": \"Daily Gist with Amy Guth.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t3_w1_f57d2769c87f_20260521T215548Z","body":"[{\"start\": 521.5, \"end\": 548.5, \"confidence\": 0.9, \"reason\": \"Network promo for Crain's Weekly News Quiz and website\", \"end_text\": \"Daily Gist with Amy Guth\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t3_w2_682f0bedac15_20260521T215646Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t3_w3_e0edeaabd147_20260521T215709Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t4_w0_7c811de5868e_20260521T215719Z","body":"[{\"start\": 54.1, \"end\": 64.7, \"confidence\": 0.98, \"reason\": \"Old National Bank sponsor read\", \"end_text\": \"commercial banking. Member FDIC.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t4_w1_f57d2769c87f_20260521T215748Z","body":"[\n  {\n    \"start\": 521.5,\n    \"end\": 548.5,\n    \"confidence\": 0.95,\n    \"reason\": \"Crain's Weekly News Quiz promotion with URL and call to action\",\n    \"end_text\": \"Daily Gist with Amy Guth.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t4_w2_682f0bedac15_20260521T215823Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-gist-chicago-70a82fe93a5c_t4_w3_e0edeaabd147_20260521T215844Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t0_w0_a0638a8258a0_20260521T215856Z","body":"[{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.98, \"reason\": \"Back-to-back sponsor reads for Capital One, Every Brilliant Thing, AllTrails, and Zyn\", \"end_text\": \"is an addictive chemical\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t0_w1_ced72ff47cca_20260521T215859Z","body":"[{\"start\": 591.3, \"end\": 776.6, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Parloa, Capital One, AllTrails, Zinn) and network promo (Lemonada Media) following transition phrase\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t0_w2_25805909ec13_20260521T220052Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t0_w3_d2ec62e74d70_20260521T220150Z","body":"{\n  \"start\": 1493.2,\n  \"end\": 1536.8,\n  \"confidence\": 0.98,\n  \"reason\": \"Capital One and AllTrails sponsor reads\",\n  \"end_text\": \"find your outside.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t0_w4_3513fd7cec66_20260521T220242Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t1_w0_a0638a8258a0_20260521T220347Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t1_w1_ced72ff47cca_20260521T220451Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t1_w2_25805909ec13_20260521T221256Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t1_w3_d2ec62e74d70_20260521T221409Z","body":"[{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.98, \"reason\": \"Capital One and AllTrails sponsor reads\", \"end_text\": \"find your outside\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t1_w4_3513fd7cec66_20260521T221445Z","body":"[\n  {\n    \"start\": 2015.9,\n    \"end\": 2073.2,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promotion\",\n    \"end_text\": \"hear the six-part Thrive series.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t2_w0_a0638a8258a0_20260521T221507Z","body":"[{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.98, \"reason\": \"Sequence of sponsor reads (Capital One, Broadway, AllTrails, Zinn) and disclaimer\", \"end_text\": \"Nicotine is an addictive chemical.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t2_w1_ced72ff47cca_20260521T221540Z","body":"[{\"start\": 591.3, \"end\": 776.6, \"confidence\": 0.95, \"reason\": \"Sponsor reads for Parloa, Capital One, AllTrails, Zinn, and Lemonada Media, preceded by host transition\", \"end_text\": \"the six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t2_w2_25805909ec13_20260521T221732Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t2_w3_d2ec62e74d70_20260521T221744Z","body":"[{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.98, \"reason\": \"Capital One and AllTrails sponsor reads\", \"end_text\": \"find your outside.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t2_w4_3513fd7cec66_20260521T221826Z","body":"[{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"hear the six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t3_w0_a0638a8258a0_20260521T221927Z","body":"[{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.98, \"reason\": \"Pre-roll ad block featuring Capital One, Broadway show, AllTrails, and Zinn Nicotine Pouches\", \"end_text\": \"Nicotine is an addictive chemical.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t3_w1_ced72ff47cca_20260521T221935Z","body":"[{\"start\": 591.3, \"end\": 776.6, \"confidence\": 0.95, \"reason\": \"Sponsor reads (Parloa, Capital One, AllTrails, Zinn, Lemonada Media) with transition\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t3_w2_25805909ec13_20260521T222039Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t3_w3_d2ec62e74d70_20260521T222125Z","body":"[{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.98, \"reason\": \"Capital One and AllTrails sponsor reads\", \"end_text\": \"today and find your outside\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t3_w4_3513fd7cec66_20260521T222152Z","body":"[{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t4_w0_a0638a8258a0_20260521T222237Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t4_w1_ced72ff47cca_20260521T222258Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t4_w2_25805909ec13_20260521T222432Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t4_w3_d2ec62e74d70_20260521T222441Z","body":"[{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.98, \"reason\": \"Capital One and AllTrails sponsor reads with promotional language and calls to action\", \"end_text\": \"find your outside.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-b576979e1fe8_t4_w4_3513fd7cec66_20260521T222446Z","body":"[{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"hear the six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w0_c1865783d954_20260521T222507Z","body":"[{\"start\": 0.0, \"end\": 100.9, \"confidence\": 0.98, \"reason\": \"Capital One, Xero, and Spectrum Business sponsor reads\", \"end_text\": \"support with 100%\"}, {\"start\": 124.0, \"end\": 152.9, \"confidence\": 0.98, \"reason\": \"Warby Parker sponsor read\", \"end_text\": \"That's warbyparker.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w1_9f700d8bfe93_20260521T222550Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.95, \"reason\": \"Continuous ad block featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w2_32806c189660_20260521T224633Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.98, \"reason\": \"Mid-roll ad break featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w3_28fdbef42414_20260521T222651Z","body":"[{\"start\": 1742.3, \"end\": 1799.6, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"hear the six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w4_689e7482a70f_20260521T222739Z","body":"[\n  {\n    \"start\": 1742.3,\n    \"end\": 1799.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One sponsor read followed by Lemonada Media network promo\",\n    \"end_text\": \"six-part Thrive series.\"\n  },\n  {\n    \"start\": 2246.0,\n    \"end\": 2280.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One sponsor read followed by Rinse laundry service ad (continues in next)\",\n    \"end_text\": \"friction of a relentless task.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t0_w5_1a91d86f9a60_20260521T224634Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w0_c1865783d954_20260521T222946Z","body":"[{\"start\": 0.0, \"end\": 100.9, \"confidence\": 0.98, \"reason\": \"Capital One, Xero, and Spectrum Business sponsor reads\", \"end_text\": \"support with 100%\"}, {\"start\": 124.0, \"end\": 152.9, \"confidence\": 0.98, \"reason\": \"Warby Parker sponsor read\", \"end_text\": \"That's warbyparker.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w1_9f700d8bfe93_20260521T224634Z","body":"[{\"start\": 821.4, \"end\": 1020.0, \"confidence\": 0.98, \"reason\": \"Continuous ad block featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with cross-promo\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w2_32806c189660_20260521T223741Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w3_28fdbef42414_20260521T223845Z","body":"[{\"start\": 1742.3, \"end\": 1799.6, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w4_689e7482a70f_20260521T224111Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t1_w5_1a91d86f9a60_20260521T224634Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w0_c1865783d954_20260521T224745Z","body":"[{\"start\": 0.0, \"end\": 100.9, \"confidence\": 0.98, \"reason\": \"Capital One, Xero, and Spectrum Business sponsor reads\", \"end_text\": \"support with 100%\"}, {\"start\": 124.0, \"end\": 152.9, \"confidence\": 0.98, \"reason\": \"Warby Parker sponsor read\", \"end_text\": \"That's warbyparker.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w1_9f700d8bfe93_20260521T224750Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.98, \"reason\": \"Continuous ad block featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w2_32806c189660_20260521T224750Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse) with transition phrases and URLs.\", \"end_text\": \"time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w3_28fdbef42414_20260521T224907Z","body":"[{\"start\": 1742.3, \"end\": 1799.6, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w4_689e7482a70f_20260521T224913Z","body":"[\n  {\n    \"start\": 1742.3,\n    \"end\": 1799.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One and Lemonada Media sponsor reads\",\n    \"end_text\": \"six-part Thrive series.\"\n  },\n  {\n    \"start\": 2246.0,\n    \"end\": 2301.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One and Rinse/Ted's Rethinking sponsor reads\",\n    \"end_text\": \"relentless task.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t2_w5_1a91d86f9a60_20260521T225033Z","body":"[{\"start\": 2246.0, \"end\": 2314.4, \"confidence\": 0.98, \"reason\": \"Capital One and Rinse sponsor reads\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w0_c1865783d954_20260521T225138Z","body":"[{\"start\": 0.0, \"end\": 100.9, \"confidence\": 0.98, \"reason\": \"Capital One, Xero, and Spectrum Business sponsor reads\", \"end_text\": \"support with 100%\"}, {\"start\": 124.0, \"end\": 152.9, \"confidence\": 0.98, \"reason\": \"Warby Parker sponsor read\", \"end_text\": \"That's warbyparker.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w1_9f700d8bfe93_20260521T230941Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.98, \"reason\": \"Continuous ad block featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse\", \"end_text\": \"time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w2_32806c189660_20260521T231058Z","body":"[{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.98, \"reason\": \"Mid-roll ad break featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w3_28fdbef42414_20260521T231131Z","body":"[{\"start\": 1742.3, \"end\": 1799.6, \"confidence\": 0.98, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promotion\", \"end_text\": \"six-part Thrive series.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w4_689e7482a70f_20260521T231210Z","body":"[\n  {\n    \"start\": 1742.3,\n    \"end\": 1799.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\",\n    \"end_text\": \"six-part Thrive series.\"\n  },\n  {\n    \"start\": 2246.0,\n    \"end\": 2301.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One sponsor read followed by Rinse laundry service ad (continues in next)\",\n    \"end_text\": \"friction of a relentless task.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t3_w5_1a91d86f9a60_20260521T231233Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w0_c1865783d954_20260521T231342Z","body":"[{\"start\": 0.0, \"end\": 100.9, \"confidence\": 0.98, \"reason\": \"Capital One, Xero, and Spectrum Business sponsor reads\", \"end_text\": \"You get support with 100%\"}, {\"start\": 124.0, \"end\": 152.9, \"confidence\": 0.98, \"reason\": \"Warby Parker sponsor read\", \"end_text\": \"visit warbyparker.com today. That's warbyparker.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w1_9f700d8bfe93_20260521T231418Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w2_32806c189660_20260521T231511Z","body":"[\n    {\n        \"start\": 821.4,\n        \"end\": 1021.1,\n        \"confidence\": 0.98,\n        \"reason\": \"Sponsor reads for Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse.\",\n        \"end_text\": \"It's time to be great.\"\n    }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w3_28fdbef42414_20260521T231537Z","body":"[{\"start\": 1718.3, \"end\": 1799.6, \"confidence\": 0.95, \"reason\": \"Combined ad block: Host merch store pitch, Capital One sponsor read, and Lemonada Media cross-promo\", \"end_text\": \"six-part Thrive series\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w4_689e7482a70f_20260521T231736Z","body":"[\n  {\n    \"start\": 1742.3,\n    \"end\": 1799.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One and Lemonada Media sponsor reads\",\n    \"end_text\": \"six-part Thrive series.\"\n  },\n  {\n    \"start\": 2246.0,\n    \"end\": 2301.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Capital One and Rinse/Ted's Rethinking sponsor reads\",\n    \"end_text\": \"relentless task.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-daily-tech-news-show-c1904b8605f7_t4_w5_1a91d86f9a60_20260521T231859Z","body":"[{\"start\": 2246.0, \"end\": 2314.4, \"confidence\": 0.98, \"reason\": \"Capital One and Rinse sponsor reads\", \"end_text\": \"It's time to be great.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w0_c49072aef3d0_20260521T232001Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w10_456db188b45f_20260521T232530Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w11_e3d62ee88953_20260521T232606Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w12_c7080b0c6041_20260521T232736Z","body":"[{\"start\": 5420.4, \"end\": 5441.4, \"confidence\": 0.95, \"reason\": \"Segment contains repeated promotional language ('promo code', 'discount code') indicating a sponsor break\", \"end_text\": \"discount code, discount code,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w13_e4e3f04ae079_20260521T232800Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w14_4133d0e21d31_20260521T232844Z","body":"[{\"start\": 6208.7, \"end\": 6374.4, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Airtasker, Decisions Decisions (Gilead), OnDeck, and Public\", \"end_text\": \"those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w15_71cd32e4d832_20260521T232917Z","body":"[{\"start\": 6283.4, \"end\": 6318.1, \"confidence\": 0.98, \"reason\": \"OnDeck and Public sponsor reads\", \"end_text\": \"take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w16_26d28e2bfb8e_20260521T233213Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w17_84769fa1bd1a_20260521T233257Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w18_175a9a361101_20260521T233329Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w19_4935c2a538ef_20260521T233406Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w1_eb35eb9eb448_20260521T232112Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w20_225731d4cac1_20260521T233506Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w21_d8858eaccb14_20260521T233613Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w22_bbc15c61eb5a_20260521T233729Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w23_3818a2d406a7_20260521T233814Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w24_bcb5c4d1c066_20260521T233846Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w25_6a23ccb687eb_20260521T233926Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w26_f28022b5541b_20260521T234002Z","body":"[\n  {\n    \"start\": 11335.2,\n    \"end\": 11365.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Airtasker sponsor read with story and call to action\",\n    \"end_text\": \"get anything done.\"\n  },\n  {\n    \"start\": 11366.2,\n    \"end\": 11424.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Decisions Decisions network promo with Gilead Sciences sponsorship\",\n    \"end_text\": \"from Gilead Sciences.\"\n  },\n  {\n    \"start\": 11425.3,\n    \"end\": 11455.4,\n    \"confidence\": 0.98,\n    \"reason\": \"OnDeck financial services ad with legal disclaimer\",\n    \"end_text\": \"subject to lender approval.\"\n  },\n  {\n    \"start\": 11513.7,\n    \"end\": 11536.6,\n    \"confidence\": 0.95,\n    \"reason\": \"Public.com sponsor read (disclosure + pitch), conversation resumes mid-block\",\n    \"end_text\": \"That ain't no art.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w27_8998ea9e3ee9_20260521T234155Z","body":"[{\"start\": 11335.2, \"end\": 11365.6, \"confidence\": 0.98, \"reason\": \"Airtasker network-inserted ad with product pitch and call to action\", \"end_text\": \"Airtasker, get anything done.\"}, {\"start\": 11366.2, \"end\": 11424.6, \"confidence\": 0.98, \"reason\": \"Decisions Decisions cross-promotion with Care for the Culture sponsorship\", \"end_text\": \"Sponsored by Care for the Culture from Gilead Sciences.\"}, {\"start\": 11425.3, \"end\": 11455.4, \"confidence\": 0.98, \"reason\": \"OnDeck small business loan ad with URL and call to action\", \"end_text\": \"All loans...\"}, {\"start\": 11513.7, \"end\": 11536.6, \"confidence\": 0.95, \"reason\": \"Public.com ad with disclosure URL and financial pitch\", \"end_text\": \"That ain't no art.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w28_71121dc4479d_20260521T234207Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w29_cb9d95588107_20260521T234250Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w2_9e56492fb5cb_20260521T232206Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w30_beef7697bcb7_20260521T234333Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w31_f30912972b56_20260521T234412Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w32_0edbf4c398ee_20260521T234457Z","body":"[\n  {\n    \"start\": 13669.1,\n    \"end\": 13696.9,\n    \"confidence\": 0.98,\n    \"reason\": \"Airtasker sponsor read with URL and call to action\",\n    \"end_text\": \"go to Airtasker.com.\"\n  },\n  {\n    \"start\": 13697.3,\n    \"end\": 13758.2,\n    \"confidence\": 0.95,\n    \"reason\": \"Network promo for Decisions Decisions show, sponsored by Gilead Sciences\",\n    \"end_text\": \"from Gilead Sciences.\"\n  },\n  {\n    \"start\": 13759.0,\n    \"end\": 13786.2,\n    \"confidence\": 0.98,\n    \"reason\": \"OnDeck sponsor read with URL and legal disclaimer\",\n    \"end_text\": \"lender approval.\"\n  },\n  {\n    \"start\": 13786.9,\n    \"end\": 13854.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Public investing platform sponsor read including legal disclaimer\",\n    \"end_text\": \"public.com slash disclosures.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w33_3db236e8641a_20260521T234501Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w34_f07617fb90fd_20260521T234509Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w35_1a1f44c03a9d_20260521T234550Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w36_df2c14e9334c_20260521T234604Z","body":"[{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Airtasker, CVS, Trashy, and Try Fencing\", \"end_text\": \"iHeart Podcast. Guaranteed human.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w3_4f3f8cc79a7f_20260521T232210Z","body":"[{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.98, \"reason\": \"Consecutive sponsor reads for Airtasker, Decisions Decisions (Gilead), OnDeck, and BetMGM\", \"end_text\": \"Kansas Crossing Casino and Hotel.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w4_e72d32047ac4_20260521T232231Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w5_46b44b1b9a01_20260521T232300Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w6_e2f9958c2946_20260521T232311Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w7_4c5c5b85c6ac_20260521T232326Z","body":"[{\"start\": 3503.7, \"end\": 3556.2, \"confidence\": 0.95, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions podcast cross-promotion\", \"end_text\": \"the conversation about abstinence?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w8_b8b8e9320573_20260521T232356Z","body":"[{\"start\": 3478.9, \"end\": 3690.2, \"confidence\": 0.95, \"reason\": \"Mid-roll ad break featuring Airtasker, Decisions Decisions, OnDeck, and Public\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t0_w9_b11a6873751b_20260521T232423Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w0_c49072aef3d0_20260521T234724Z","body":"[{\"start\": 0.0, \"end\": 150.5, \"confidence\": 0.98, \"reason\": \"Pre-roll ad block featuring Airtasker, Decisions Decisions, Care for the Culture, Nissan, and Shopify\", \"end_text\": \"Shopify.com slash B-E-N\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w10_456db188b45f_20260521T235956Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w11_e3d62ee88953_20260522T000033Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w12_c7080b0c6041_20260522T000110Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w13_e4e3f04ae079_20260522T000124Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w14_4133d0e21d31_20260522T000128Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w15_71cd32e4d832_20260522T000151Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w16_26d28e2bfb8e_20260522T000157Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w17_84769fa1bd1a_20260522T000329Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w18_175a9a361101_20260522T000351Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w19_4935c2a538ef_20260522T000401Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w1_eb35eb9eb448_20260521T234913Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w20_225731d4cac1_20260522T000428Z","body":"[{\"start\": 8724.9, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"Sponsor reads for AirTasker, OnDeck, Public, and cross-promo for Decisions Decisions podcast\", \"end_text\": \"those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w21_d8858eaccb14_20260522T000441Z","body":"[{\"start\": 8799.1, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"OnDeck and Public sponsor reads\", \"end_text\": \"take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w22_bbc15c61eb5a_20260522T000449Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w23_3818a2d406a7_20260522T000528Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w24_bcb5c4d1c066_20260522T000542Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w25_6a23ccb687eb_20260522T000553Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w26_f28022b5541b_20260522T000600Z","body":"[\n  {\n    \"start\": 11335.2,\n    \"end\": 11365.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Airtasker sponsor read with product pitch and URL\",\n    \"end_text\": \"Airtasker, get anything done.\"\n  },\n  {\n    \"start\": 11366.2,\n    \"end\": 11424.6,\n    \"confidence\": 0.95,\n    \"reason\": \"Cross-promotion for Decisions Decisions podcast, sponsored by Gilead Sciences\",\n    \"end_text\": \"Care for the Culture from Gilead Sciences.\"\n  },\n  {\n    \"start\": 11425.3,\n    \"end\": 11455.4,\n    \"confidence\": 0.98,\n    \"reason\": \"OnDeck sponsor read with product pitch and URL\",\n    \"end_text\": \"an amount subject to lender approval.\"\n  },\n  {\n    \"start\": 11513.7,\n    \"end\": 11536.6,\n    \"confidence\": 0.85,\n    \"reason\": \"Public.com sponsor disclosure followed by show content transition\",\n    \"end_text\": \"That ain't no art.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w27_8998ea9e3ee9_20260522T000612Z","body":"[\n  {\n    \"start\": 11335.2,\n    \"end\": 11455.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Airtasker, Decisions Decisions, and OnDeck sponsor reads merged due to <15s gaps\",\n    \"end_text\": \"amount subject to lender approval.\"\n  },\n  {\n    \"start\": 11513.7,\n    \"end\": 11536.6,\n    \"confidence\": 0.85,\n    \"reason\": \"Public.com disclosure (tail end of ad, includes show content transition)\",\n    \"end_text\": \"off that resume.\"\n  },\n  {\n    \"start\": 11614.6,\n    \"end\": 11630.6,\n    \"confidence\": 0.90,\n    \"reason\": \"Sponsor list bumper (Athletic Greens, Audible, etc.)\",\n    \"end_text\": \"Manscaped, Stamps.com,\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w28_71121dc4479d_20260522T000626Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w29_cb9d95588107_20260522T000709Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w2_9e56492fb5cb_20260521T235009Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w30_beef7697bcb7_20260522T000733Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w31_f30912972b56_20260522T000753Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w32_0edbf4c398ee_20260522T000812Z","body":"[{\"start\": 13669.1, \"end\": 13815.9, \"confidence\": 0.98, \"reason\": \"Mid-roll ad break containing Airtasker, Decisions Decisions (Gilead), OnDeck, and Public sponsor reads\", \"end_text\": \"back test it again.\"}, {\"start\": 13844.8, \"end\": 13854.6, \"confidence\": 0.95, \"reason\": \"Public ad legal disclaimer with URL\", \"end_text\": \"public.com slash disclosures.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w33_3db236e8641a_20260522T000841Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w34_f07617fb90fd_20260522T000916Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w35_1a1f44c03a9d_20260522T000925Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w36_df2c14e9334c_20260522T001019Z","body":"[{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block (Airtasker, CVS, Trashy, Fencing)\", \"end_text\": \"tryfencing.org. This is an iHeart Podcast. Guaranteed human.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w3_4f3f8cc79a7f_20260521T235057Z","body":"[{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.98, \"reason\": \"Consecutive sponsor reads for Airtasker, Decisions Decisions (Gilead), OnDeck, and BetMGM\", \"end_text\": \"Kansas Crossing Casino and Hotel.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w4_e72d32047ac4_20260521T235147Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w5_46b44b1b9a01_20260521T235219Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w6_e2f9958c2946_20260521T235310Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w7_4c5c5b85c6ac_20260521T235355Z","body":"[{\"start\": 3503.7, \"end\": 3556.2, \"confidence\": 0.95, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions podcast cross-promotion\", \"end_text\": \"the conversation about abstinence?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w8_b8b8e9320573_20260521T235452Z","body":"[{\"start\": 3478.9, \"end\": 3650.4, \"confidence\": 0.98, \"reason\": \"Sponsor block containing Airtasker, Decisions Decisions/Gilead, OnDeck, Public, and CastingWords reads\", \"end_text\": \"Transcription by CastingWords\"}, {\"start\": 3666.3, \"end\": 3669.0, \"confidence\": 0.95, \"reason\": \"Public.com legal disclosure segment\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t1_w9_b11a6873751b_20260521T235930Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w0_c49072aef3d0_20260522T001106Z","body":"[{\"start\": 0.0, \"end\": 150.5, \"confidence\": 0.98, \"reason\": \"Continuous ad block featuring Airtasker, Decisions Decisions, Care for the Culture, Nissan, and Shopify\", \"end_text\": \"Shopify.com slash B-E-N.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w10_456db188b45f_20260522T001443Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w11_e3d62ee88953_20260522T001445Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w12_c7080b0c6041_20260522T001514Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w13_e4e3f04ae079_20260522T001543Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w14_4133d0e21d31_20260522T001633Z","body":"[{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.95, \"reason\": \"Continuous ad break featuring Airtasker, Decisions Decisions cross-promo, OnDeck, and Public sponsor reads\", \"end_text\": \"those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w15_71cd32e4d832_20260522T001636Z","body":"[{\"start\": 6283.4, \"end\": 6355.7, \"confidence\": 0.95, \"reason\": \"OnDeck and Public sponsor reads followed by CastingWords credit\", \"end_text\": \"Transcription by CastingWords\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w16_26d28e2bfb8e_20260522T001752Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w17_84769fa1bd1a_20260522T001809Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w18_175a9a361101_20260522T001827Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w19_4935c2a538ef_20260522T001914Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w1_eb35eb9eb448_20260522T001125Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w20_225731d4cac1_20260522T001924Z","body":"[{\"start\": 8724.9, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (AirTasker, Decisions Decisions, OnDeck, Public)\", \"end_text\": \"take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w21_d8858eaccb14_20260522T002010Z","body":"[{\"start\": 8799.1, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"OnDeck and Public sponsor reads\", \"end_text\": \"take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w22_bbc15c61eb5a_20260522T002113Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w23_3818a2d406a7_20260522T002114Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w24_bcb5c4d1c066_20260522T002131Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w25_6a23ccb687eb_20260522T002134Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w26_f28022b5541b_20260522T002210Z","body":"[{\"start\": 11335.2, \"end\": 11455.4, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Airtasker, Decisions Decisions/Gilead, OnDeck)\", \"end_text\": \"subject to lender approval.\"}, {\"start\": 11513.7, \"end\": 11536.6, \"confidence\": 0.95, \"reason\": \"Public.com sponsor read (disclosure and pitch)\", \"end_text\": \"That ain't no art.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w27_8998ea9e3ee9_20260522T002220Z","body":"[{\"start\": 11335.2, \"end\": 11455.4, \"confidence\": 0.98, \"reason\": \"Network ad block containing Airtasker, Decisions Decisions cross-promo, and OnDeck sponsor reads\", \"end_text\": \"subject to lender approval.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w28_71121dc4479d_20260522T002813Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w29_cb9d95588107_20260522T002849Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w2_9e56492fb5cb_20260522T001159Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w30_beef7697bcb7_20260522T002951Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w31_f30912972b56_20260522T002958Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w32_0edbf4c398ee_20260522T003025Z","body":"[{\"start\": 13669.1, \"end\": 13854.6, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Airtasker, Decisions Decisions, OnDeck, and Public\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w33_3db236e8641a_20260522T003033Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w34_f07617fb90fd_20260522T003123Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w35_1a1f44c03a9d_20260522T003157Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w36_df2c14e9334c_20260522T003205Z","body":"[{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Airtasker, CVS, Trashy, and Try Fencing\", \"end_text\": \"iHeart Podcast. Guaranteed human.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w3_4f3f8cc79a7f_20260522T001210Z","body":"[{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.98, \"reason\": \"Consecutive sponsor reads for Airtasker, Decisions Decisions/Gilead Sciences, OnDeck, and BetMGM\", \"end_text\": \"Kansas Crossing Casino and Hotel.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w4_e72d32047ac4_20260522T001241Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w5_46b44b1b9a01_20260522T001250Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w6_e2f9958c2946_20260522T001314Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w7_4c5c5b85c6ac_20260522T001323Z","body":"[{\"start\": 3503.7, \"end\": 3556.2, \"confidence\": 0.95, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions podcast cross-promotion\", \"end_text\": \"conversation about abstinence?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w8_b8b8e9320573_20260522T001347Z","body":"[{\"start\": 3478.9, \"end\": 3690.2, \"confidence\": 0.98, \"reason\": \"Commercial break with Airtasker, Decisions Decisions, OnDeck, and Public.com ads\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t2_w9_b11a6873751b_20260522T001357Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w0_c49072aef3d0_20260522T003306Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w10_456db188b45f_20260522T003859Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w10_456db188b45f_20260522T152129Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w11_e3d62ee88953_20260522T003907Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w12_c7080b0c6041_20260522T003926Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w13_e4e3f04ae079_20260522T004013Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w14_4133d0e21d31_20260522T004025Z","body":"[{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Airtasker, Decisions Decisions, OnDeck, Public)\", \"end_text\": \"those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w15_71cd32e4d832_20260522T004032Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w16_26d28e2bfb8e_20260522T005457Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w17_84769fa1bd1a_20260522T005602Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w18_175a9a361101_20260522T005710Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w19_4935c2a538ef_20260522T005744Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w1_eb35eb9eb448_20260522T003330Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w20_225731d4cac1_20260522T005808Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w21_d8858eaccb14_20260522T005811Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w22_bbc15c61eb5a_20260522T005826Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w23_3818a2d406a7_20260522T005847Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w24_bcb5c4d1c066_20260522T010024Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w25_6a23ccb687eb_20260522T010056Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w26_f28022b5541b_20260522T010109Z","body":"[\n  {\n    \"start\": 11335.2,\n    \"end\": 11455.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Ad break featuring Airtasker, Decisions Decisions, and OnDeck\",\n    \"end_text\": \"subject to lender approval.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w27_8998ea9e3ee9_20260522T010120Z","body":"[{\"start\": 11335.2, \"end\": 11455.4, \"confidence\": 0.98, \"reason\": \"Ad break containing Airtasker, Decisions Decisions cross-promo, and OnDeck sponsor reads\", \"end_text\": \"subject to lender approval.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w28_71121dc4479d_20260522T010137Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w29_cb9d95588107_20260522T010246Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w2_9e56492fb5cb_20260522T003607Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w30_beef7697bcb7_20260522T010307Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w31_f30912972b56_20260522T010318Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w32_0edbf4c398ee_20260522T010341Z","body":"[{\"start\": 13669.1, \"end\": 13854.6, \"confidence\": 0.98, \"reason\": \"Ad break with Airtasker, Decisions Decisions (Gilead), OnDeck, and Public sponsor reads\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w33_3db236e8641a_20260522T010351Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w34_f07617fb90fd_20260522T010420Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w35_1a1f44c03a9d_20260522T010429Z","body":"[{\"start\": 15261.8, \"end\": 15285.2, \"confidence\": 0.85, \"reason\": \"Sponsor segment indicated by repeated 'promo code' and 'discount code' text\", \"end_text\": \"discount code,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w36_df2c14e9334c_20260522T010450Z","body":"[{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Airtasker, CVS, Trashy, and Try Fencing with URLs and calls to action\", \"end_text\": \"iHeart Podcast. Guaranteed human.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w3_4f3f8cc79a7f_20260522T003623Z","body":"[{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.98, \"reason\": \"Consecutive sponsor reads for Airtasker, Decisions Decisions (Gilead Sciences), OnDeck, and BetMGM\", \"end_text\": \"Kansas Crossing Casino and Hotel.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w4_e72d32047ac4_20260522T003706Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w5_46b44b1b9a01_20260522T003717Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w6_e2f9958c2946_20260522T003740Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w7_4c5c5b85c6ac_20260522T003803Z","body":"[{\"start\": 3478.9, \"end\": 3556.2, \"confidence\": 0.95, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions podcast cross-promotion\", \"end_text\": \"conversation about abstinence?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w8_b8b8e9320573_20260522T003807Z","body":"[{\"start\": 3478.9, \"end\": 3690.2, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Airtasker, Decisions Decisions, OnDeck, Public) with network promos and legal disclosures\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t3_w9_b11a6873751b_20260522T003859Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w0_c49072aef3d0_20260522T010505Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w0_c49072aef3d0_20260522T152134Z","body":"[{\"start\": 0.0, \"end\": 150.5, \"confidence\": 0.98, \"reason\": \"Pre-roll ad block with Airtasker, Decisions Decisions, Care for the Culture, Nissan, and Shopify\", \"end_text\": \"Shopify.com slash B-E-N\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w10_456db188b45f_20260522T011154Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w11_e3d62ee88953_20260522T011229Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w12_c7080b0c6041_20260522T011237Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w13_e4e3f04ae079_20260522T011408Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w14_4133d0e21d31_20260522T011501Z","body":"[{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Airtasker, Decisions Decisions, OnDeck, and Public\", \"end_text\": \"for those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w15_71cd32e4d832_20260522T011514Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w16_26d28e2bfb8e_20260522T011631Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w17_84769fa1bd1a_20260522T011714Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w18_175a9a361101_20260522T011809Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w19_4935c2a538ef_20260522T011906Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w1_eb35eb9eb448_20260522T010537Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w1_eb35eb9eb448_20260522T152142Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w20_225731d4cac1_20260522T012021Z","body":"[{\"start\": 8724.9, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"Sponsor reads for AirTasker, OnDeck, Public, and cross-promo for Decisions Decisions podcast\", \"end_text\": \"those who take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w21_d8858eaccb14_20260522T012201Z","body":"[{\"start\": 8799.1, \"end\": 8831.4, \"confidence\": 0.98, \"reason\": \"OnDeck and Public sponsor reads\", \"end_text\": \"take it seriously.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w22_bbc15c61eb5a_20260522T012229Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w23_3818a2d406a7_20260522T012306Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w24_bcb5c4d1c066_20260522T012427Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w25_6a23ccb687eb_20260522T012528Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w26_f28022b5541b_20260522T012625Z","body":"[{\"start\": 11335.2, \"end\": 11365.6, \"confidence\": 0.98, \"reason\": \"Airtasker sponsor read with URL and tagline\", \"end_text\": \"Airtasker, get anything done.\"}, {\"start\": 11366.2, \"end\": 11424.6, \"confidence\": 0.98, \"reason\": \"Cross-promotion for Decisions Decisions podcast, sponsored by Gilead Sciences\", \"end_text\": \"from Gilead Sciences.\"}, {\"start\": 11425.3, \"end\": 11455.4, \"confidence\": 0.98, \"reason\": \"OnDeck small business credit ad with URL and legal disclaimer\", \"end_text\": \"subject to lender approval.\"}, {\"start\": 11513.7, \"end\": 11522.0, \"confidence\": 0.95, \"reason\": \"Public.com disclosure read (tail of ad), host resumes conversation mid-segment\", \"end_text\": \"public.com slash disclosures.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w27_8998ea9e3ee9_20260522T012832Z","body":"[\n  {\n    \"start\": 11335.2,\n    \"end\": 11365.6,\n    \"confidence\": 0.98,\n    \"reason\": \"Airtasker sponsor read\",\n    \"end_text\": \"Airtasker, get anything done.\"\n  },\n  {\n    \"start\": 11366.2,\n    \"end\": 11424.6,\n    \"confidence\": 0.95,\n    \"reason\": \"Decisions Decisions cross-promo + Gilead Sciences sponsor\",\n    \"end_text\": \"Care for the Culture from Gilead Sciences.\"\n  },\n  {\n    \"start\": 11425.3,\n    \"end\": 11455.4,\n    \"confidence\": 0.98,\n    \"reason\": \"OnDeck sponsor read\",\n    \"end_text\": \"subject to lender approval.\"\n  },\n  {\n    \"start\": 11513.7,\n    \"end\": 11516.0,\n    \"confidence\": 0.90,\n    \"reason\": \"Public.com ad disclosure (continues from previous)\",\n    \"end_text\": \"public.com slash disclosures.\"\n  },\n  {\n    \"start\": 11614.6,\n    \"end\": 11630.6,\n    \"confidence\": 0.85,\n    \"reason\": \"Sponsor list read (Athletic Greens, Audible, etc.)\",\n    \"end_text\": \"Manscaped, Stamps.com,\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w28_71121dc4479d_20260522T012932Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w29_cb9d95588107_20260522T013016Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w2_9e56492fb5cb_20260522T010547Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w30_beef7697bcb7_20260522T013021Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w31_f30912972b56_20260522T013054Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w32_0edbf4c398ee_20260522T013110Z","body":"[{\"start\": 13669.1, \"end\": 13854.6, \"confidence\": 0.98, \"reason\": \"Multiple sponsor reads (Airtasker, Decisions Decisions/Gilead, OnDeck, Public) and network promos\", \"end_text\": \"public.com slash disclosures.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w33_3db236e8641a_20260522T013224Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w34_f07617fb90fd_20260522T013314Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w35_1a1f44c03a9d_20260522T013345Z","body":"[{\"start\": 15261.8, \"end\": 15285.2, \"confidence\": 0.7, \"reason\": \"Repeated mention of promo/discount codes indicating sponsor read\", \"end_text\": \"discount code, discount code,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w36_df2c14e9334c_20260522T013836Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w36_df2c14e9334c_20260522T152319Z","body":"[{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.98, \"reason\": \"Post-roll ad block featuring Airtasker, CVS, Trashy, and Fencing promotions\", \"end_text\": \"iHeart Podcast. Guaranteed human.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w3_4f3f8cc79a7f_20260522T010603Z","body":"[{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.98, \"reason\": \"Consecutive sponsor reads for Airtasker, Decisions Decisions/Gilead, OnDeck, and BetMGM\", \"end_text\": \"Kansas Crossing Casino and Hotel.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w4_e72d32047ac4_20260522T010701Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w5_46b44b1b9a01_20260522T010710Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w6_e2f9958c2946_20260522T010733Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w7_4c5c5b85c6ac_20260522T010801Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w7_4c5c5b85c6ac_20260522T152201Z","body":"[{\"start\": 3478.9, \"end\": 3556.2, \"confidence\": 0.98, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions cross-promo\", \"end_text\": \"conversation about abstinence?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w8_b8b8e9320573_20260522T010905Z","body":"[{\"start\": 3478.9, \"end\": 3690.2, \"confidence\": 0.98, \"reason\": \"Mid-roll ad break featuring Airtasker, Decisions Decisions, OnDeck, Public, and CastingWords\", \"end_text\": \"public.com slash disclosures\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-drink-champs-30c9a2d49f13_t4_w9_b11a6873751b_20260522T010915Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w0_38379a0f6ace_20260522T014520Z","body":"[{\"start\": 539.2, \"end\": 600.0, \"confidence\": 0.98, \"reason\": \"In the Gray movie promo and Skechers sponsor read, continues past window\", \"end_text\": \"footwear, sandals, sneakers,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w10_e1e65547b64a_20260522T015859Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w11_2aee9110d372_20260522T015903Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w12_23156542e43e_20260522T020004Z","body":"[{\"start\": 5568.0, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"now playing, only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w13_eac55f744c4c_20260522T020034Z","body":"[{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w14_8c9b97279c1a_20260522T020035Z","body":"[{\"start\": 6339.6, \"end\": 6394.8, \"confidence\": 0.95, \"reason\": \"Perplexity AI sponsor integration, host explicitly identifies 'Perplexity, our AI sponsor' and demonstrates product capabilities\", \"end_text\": \"past, present, and potential future\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w15_8212498f4d85_20260522T020132Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w15_8212498f4d85_20260522T152321Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w16_150f02b5e494_20260522T020243Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w17_d9e3c86c0fd1_20260522T020251Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w18_66a7a306b801_20260522T020306Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w19_f690a7a42179_20260522T020310Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w1_d1c5bae37c16_20260522T015048Z","body":"[{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.98, \"reason\": \"Back-to-back sponsor reads for In the Gray movie and Skechers footwear\", \"end_text\": \"That's only at Skechers.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w20_7dc024b68941_20260522T020356Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w21_b89f78d09208_20260522T020409Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w22_84cfe2229677_20260522T020423Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w23_d4ea78cca3c9_20260522T020444Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w2_3dffda5bb32b_20260522T015136Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w3_7f3eca3ba78f_20260522T015306Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w4_1c4ec2948571_20260522T015417Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w5_4acaf6c9acd4_20260522T015523Z","body":"[\n  {\n    \"start\": 2208.3,\n    \"end\": 2237.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Blinds.com sponsor read with discount offer and URL\",\n    \"end_text\": \"free professional measure at Blinds.com.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w6_3a87c22a9efc_20260522T015631Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w7_f64003ffcb4a_20260522T015716Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w8_c686fabdce4a_20260522T015807Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t0_w9_9d7d486ff2cb_20260522T015819Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w0_38379a0f6ace_20260522T020527Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w10_e1e65547b64a_20260522T020859Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w11_2aee9110d372_20260522T020903Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w12_23156542e43e_20260522T020943Z","body":"[{\"start\": 5568.0, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"now playing, only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w13_eac55f744c4c_20260522T020958Z","body":"{\n  \"start\": 5546.3,\n  \"end\": 5596.3,\n  \"confidence\": 0.98,\n  \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\",\n  \"end_text\": \"only on Netflix. Yeah. Right.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w14_8c9b97279c1a_20260522T021006Z","body":"[{\"start\": 6339.6, \"end\": 6394.8, \"confidence\": 0.95, \"reason\": \"Perplexity sponsor integration and acknowledgment\", \"end_text\": \"past, present, and potential future.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w15_8212498f4d85_20260522T021053Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w16_150f02b5e494_20260522T021100Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w17_d9e3c86c0fd1_20260522T021135Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w18_66a7a306b801_20260522T021238Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w19_f690a7a42179_20260522T021253Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w1_d1c5bae37c16_20260522T020536Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w20_7dc024b68941_20260522T021331Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w21_b89f78d09208_20260522T021409Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w22_84cfe2229677_20260522T021441Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w23_d4ea78cca3c9_20260522T021443Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w2_3dffda5bb32b_20260522T020552Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w3_7f3eca3ba78f_20260522T020641Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w4_1c4ec2948571_20260522T020705Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read with discount offer and URL\", \"end_text\": \"professional measure at Blinds.com\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w5_4acaf6c9acd4_20260522T020716Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read with discount offer\", \"end_text\": \"measure at Blinds.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w6_3a87c22a9efc_20260522T020803Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w7_f64003ffcb4a_20260522T020807Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w8_c686fabdce4a_20260522T020835Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t1_w9_9d7d486ff2cb_20260522T020837Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w0_38379a0f6ace_20260522T021530Z","body":"[\n  {\n    \"start\": 1.4,\n    \"end\": 9.3,\n    \"confidence\": 0.9,\n    \"reason\": \"Joe Rogan Podcast pre-roll bumper\",\n    \"end_text\": \"Podcast by night, all day.\"\n  },\n  {\n    \"start\": 539.2,\n    \"end\": 600.0,\n    \"confidence\": 0.98,\n    \"reason\": \"In the Gray movie and Skechers sponsor reads, continues in next\",\n    \"end_text\": \"dress footwear, sandals, sneakers\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w10_e1e65547b64a_20260522T022037Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w11_2aee9110d372_20260522T022039Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w12_23156542e43e_20260522T022106Z","body":"[{\"start\": 5568.0, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"now playing, only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w13_eac55f744c4c_20260522T022114Z","body":"[{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"only on Netflix. Yeah. Right.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w14_8c9b97279c1a_20260522T022119Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w15_8212498f4d85_20260522T022149Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w16_150f02b5e494_20260522T022246Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w17_d9e3c86c0fd1_20260522T022258Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w18_66a7a306b801_20260522T022515Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w19_f690a7a42179_20260522T022650Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w1_d1c5bae37c16_20260522T021534Z","body":"{\n  \"start\": 539.2,\n  \"end\": 652.8,\n  \"confidence\": 0.98,\n  \"reason\": \"Sponsor reads for In the Gray movie and Skechers footwear\",\n  \"end_text\": \"That's only at Skechers.com.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w20_7dc024b68941_20260522T022848Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w21_b89f78d09208_20260522T022919Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w22_84cfe2229677_20260522T022954Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w23_d4ea78cca3c9_20260522T023026Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w2_3dffda5bb32b_20260522T021702Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w3_7f3eca3ba78f_20260522T021717Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w4_1c4ec2948571_20260522T021729Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read\", \"end_text\": \"at Blinds.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w5_4acaf6c9acd4_20260522T021748Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read\", \"end_text\": \"free professional measure at Blinds.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w6_3a87c22a9efc_20260522T021838Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w7_f64003ffcb4a_20260522T021851Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w8_c686fabdce4a_20260522T021919Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t2_w9_9d7d486ff2cb_20260522T021951Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w0_38379a0f6ace_20260522T023102Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w10_e1e65547b64a_20260522T024750Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w11_2aee9110d372_20260522T024908Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w12_23156542e43e_20260522T025128Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w13_eac55f744c4c_20260522T025407Z","body":"[{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"only on Netflix. Yeah. Right.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w14_8c9b97279c1a_20260522T025443Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w15_8212498f4d85_20260522T025552Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w16_150f02b5e494_20260522T025616Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w17_d9e3c86c0fd1_20260522T025649Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w18_66a7a306b801_20260522T025710Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w19_f690a7a42179_20260522T025743Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w1_d1c5bae37c16_20260522T023608Z","body":"[{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.98, \"reason\": \"Sponsor reads for In the Gray and Skechers\", \"end_text\": \"That's only at Skechers.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w20_7dc024b68941_20260522T025816Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w21_b89f78d09208_20260522T025857Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w22_84cfe2229677_20260522T025928Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w23_d4ea78cca3c9_20260522T025955Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w2_3dffda5bb32b_20260522T023638Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w3_7f3eca3ba78f_20260522T023710Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w4_1c4ec2948571_20260522T023845Z","body":"[{\"start\": 2208.3, \"end\": 2237.2, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read\", \"end_text\": \"rules and restrictions apply\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w5_4acaf6c9acd4_20260522T024005Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read\", \"end_text\": \"measure at Blinds.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w6_3a87c22a9efc_20260522T024223Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w7_f64003ffcb4a_20260522T024259Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w8_c686fabdce4a_20260522T024456Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t3_w9_9d7d486ff2cb_20260522T024714Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w0_38379a0f6ace_20260522T030039Z","body":"[{\"start\": 539.2, \"end\": 624.5, \"confidence\": 0.98, \"reason\": \"Host-read sponsor segments for movie 'In the Gray' and footwear brand 'Skechers'\", \"end_text\": \"dress footwear, sandals, sneakers,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w10_e1e65547b64a_20260522T030554Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w11_2aee9110d372_20260522T030602Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w12_23156542e43e_20260522T030628Z","body":"[{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w13_eac55f744c4c_20260522T030735Z","body":"[{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"only on Netflix. Yeah. Right.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w14_8c9b97279c1a_20260522T030738Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w15_8212498f4d85_20260522T030822Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w16_150f02b5e494_20260522T030916Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w17_d9e3c86c0fd1_20260522T031014Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w18_66a7a306b801_20260522T031020Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w19_f690a7a42179_20260522T031100Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w1_d1c5bae37c16_20260522T030052Z","body":"[{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.98, \"reason\": \"Sponsor reads for In the Gray and Skechers\", \"end_text\": \"That's only at Skechers.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w20_7dc024b68941_20260522T031140Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w21_b89f78d09208_20260522T031159Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w22_84cfe2229677_20260522T031221Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w23_d4ea78cca3c9_20260522T031252Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w2_3dffda5bb32b_20260522T030132Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w3_7f3eca3ba78f_20260522T030226Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w4_1c4ec2948571_20260522T030255Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w5_4acaf6c9acd4_20260522T030308Z","body":"[{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.98, \"reason\": \"Blinds.com sponsor read\", \"end_text\": \"free professional measure at Blinds.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w6_3a87c22a9efc_20260522T030450Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w7_f64003ffcb4a_20260522T030507Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w8_c686fabdce4a_20260522T030518Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-glt1412515089-373d5ba5007b_t4_w9_9d7d486ff2cb_20260522T030531Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t0_w0_88a882097c7a_20260522T031324Z","body":"[{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.98, \"reason\": \"Platform ad (Acast) and cross-promotions for other podcasts (Wrong Turns, Formative)\", \"end_text\": \"leaders of tomorrow.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t0_w1_1cbb13d51e58_20260522T031337Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t0_w2_280441b28e52_20260522T031411Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t0_w3_ebf772c71ab9_20260522T031443Z","body":"[{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.98, \"reason\": \"Xero sponsor read followed by Acast platform promotion and Wrong Turns podcast cross-promotion\", \"end_text\": \"monetize their podcasts everywhere. Acast.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t1_w0_88a882097c7a_20260522T031458Z","body":"[{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.98, \"reason\": \"Acast platform ad and cross-promotions for Wrong Turns and Formative podcasts\", \"end_text\": \"leaders of tomorrow.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t1_w1_1cbb13d51e58_20260522T031535Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t1_w2_280441b28e52_20260522T031549Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t1_w3_ebf772c71ab9_20260522T031624Z","body":"[{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.98, \"reason\": \"Xero sponsor read followed by Acast platform promotion and Wrong Turns podcast cross-promo\", \"end_text\": \"monetize their podcasts everywhere. Acast.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t2_w0_88a882097c7a_20260522T031627Z","body":"[{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.98, \"reason\": \"Platform pre-roll and cross-promotions (Acast, Wrong Turns, Formative)\", \"end_text\": \"leaders of tomorrow.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t2_w1_1cbb13d51e58_20260522T031644Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t2_w2_280441b28e52_20260522T031800Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t2_w3_ebf772c71ab9_20260522T031806Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t3_w0_88a882097c7a_20260522T031810Z","body":"[{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.98, \"reason\": \"Acast platform ad and cross-promotions for Wrong Turns and Formative podcasts\", \"end_text\": \"leaders of tomorrow.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t3_w1_1cbb13d51e58_20260522T031845Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t3_w2_280441b28e52_20260522T031854Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t3_w3_ebf772c71ab9_20260522T031927Z","body":"[{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.98, \"reason\": \"Xero sponsor read followed by Acast platform promotion and Wrong Turns podcast cross-promo\", \"end_text\": \"podcasts everywhere. Acast.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t4_w0_88a882097c7a_20260522T031938Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t4_w1_1cbb13d51e58_20260522T031955Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t4_w2_280441b28e52_20260522T032024Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-it-s-a-thing-e339179dfad6_t4_w3_ebf772c71ab9_20260522T032030Z","body":"[{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.98, \"reason\": \"Xero sponsor read followed by Acast platform promotion and Wrong Turns podcast cross-promotion\", \"end_text\": \"monetize their podcasts everywhere. Acast.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w0_41f1ecd7fa41_20260522T032119Z","body":"[{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.98, \"reason\": \"Pre-roll advertisements for HEX.ai and PickOCNY.com\", \"end_text\": \"state of mind at PickOCNY.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w1_42c13af37931_20260522T032152Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w2_4f57839979ee_20260522T032211Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w3_ae1750bb8eb9_20260522T032216Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w4_c0e2064a998c_20260522T032219Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w5_826d332eb656_20260522T032220Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.95, \"reason\": \"Sponsor read segment listing multiple brands including Athletic Greens and BetterHelp\", \"end_text\": \"Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w6_d29c7840b334_20260522T032310Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.85, \"reason\": \"Explicit 'sponsored by' text and list of known podcast sponsors interrupting show content.\", \"end_text\": \"Raycon, Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w7_5f5ffd5b1cdc_20260522T032318Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Network-inserted university ads (Arizona State University and University of Michigan)\", \"end_text\": \"See more solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w8_606e0aee9ab1_20260522T032333Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Post-roll university advertisements (Arizona State University and University of Michigan)\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w0_41f1ecd7fa41_20260522T032359Z","body":"[{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.98, \"reason\": \"Pre-roll ad block featuring HEX analytics platform and PickOCNY tourism promotion\", \"end_text\": \"state of mind at PickOCNY.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w1_42c13af37931_20260522T032445Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w2_4f57839979ee_20260522T032456Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w3_ae1750bb8eb9_20260522T032505Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w4_c0e2064a998c_20260522T032531Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w5_826d332eb656_20260522T032633Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w6_d29c7840b334_20260522T032635Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.85, \"reason\": \"Sponsor list bumper with explicit 'sponsored by' and brand names\", \"end_text\": \"Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w7_5f5ffd5b1cdc_20260522T032806Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w8_606e0aee9ab1_20260522T032941Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Network-inserted university ads (Arizona State University and University of Michigan)\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w0_41f1ecd7fa41_20260522T033032Z","body":"[{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.98, \"reason\": \"Back-to-back sponsor reads for HEX and PickOCNY tourism\", \"end_text\": \"mind at PickOCNY.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w1_42c13af37931_20260522T033153Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w2_4f57839979ee_20260522T033254Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w3_ae1750bb8eb9_20260522T034015Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w4_c0e2064a998c_20260522T034056Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w5_826d332eb656_20260522T034141Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.9, \"reason\": \"Explicit 'sponsored by' phrase and list of common podcast sponsors (Athletic Greens, BetterHelp, etc.) interrupting conversation\", \"end_text\": \"Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w6_d29c7840b334_20260522T034334Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w7_5f5ffd5b1cdc_20260522T034443Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w8_606e0aee9ab1_20260522T034513Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Network-inserted university ads (Arizona State University and University of Michigan)\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w0_41f1ecd7fa41_20260522T034551Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w1_42c13af37931_20260522T034556Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w2_4f57839979ee_20260522T034634Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w3_ae1750bb8eb9_20260522T034645Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w4_c0e2064a998c_20260522T034717Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w5_826d332eb656_20260522T034744Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.95, \"reason\": \"Sponsor read segment listing multiple brands (Athletic Greens, BetterHelp, etc.) with explicit 'sponsored by' language\", \"end_text\": \"Raycon, Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w6_d29c7840b334_20260522T034922Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.95, \"reason\": \"Mid-roll ad break containing sponsor list and 'sponsored by' text\", \"end_text\": \"Raycon, Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w7_5f5ffd5b1cdc_20260522T034958Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Post-roll sponsor reads for Arizona State University and University of Michigan\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w8_606e0aee9ab1_20260522T035034Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Network-inserted university ads (Arizona State University and University of Michigan)\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w0_41f1ecd7fa41_20260522T035110Z","body":"[{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.98, \"reason\": \"Sponsor reads for HEX analytics platform and PickOCNY tourism\", \"end_text\": \"state of mind at PickOCNY.com\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w1_42c13af37931_20260522T035217Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w2_4f57839979ee_20260522T035228Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w3_ae1750bb8eb9_20260522T035305Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w4_c0e2064a998c_20260522T035322Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w5_826d332eb656_20260522T035411Z","body":"[{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.95, \"reason\": \"Sponsor list read containing 'sponsored by' and multiple brand names\", \"end_text\": \"Manscaped, Stamps.com,\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w6_d29c7840b334_20260522T035421Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w7_5f5ffd5b1cdc_20260522T035519Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Post-roll ad block featuring Arizona State University and University of Michigan\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w8_606e0aee9ab1_20260522T035526Z","body":"[{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Post-roll network ads for Arizona State University and University of Michigan\", \"end_text\": \"solutions at umich.edu\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w0_f8b5560c7472_20260522T035935Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w10_16658f1cd63a_20260522T040503Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w11_3e3d5cb3e9aa_20260522T040534Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w12_c9a5d9b3c504_20260522T040622Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w1_daa83b161ed7_20260522T035939Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w2_33baae91ff89_20260522T040014Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w3_63f1a5dc507d_20260522T040051Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w4_55f3ccec227a_20260522T040116Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w5_a34e7d305455_20260522T040225Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w6_52d9f59e17e0_20260522T040259Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w7_6b5d276e559f_20260522T040303Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w8_967a8435f46b_20260522T040340Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t0_w9_6b61c47e8915_20260522T040410Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w0_f8b5560c7472_20260522T040641Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w10_16658f1cd63a_20260522T041054Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w11_3e3d5cb3e9aa_20260522T041104Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w12_c9a5d9b3c504_20260522T041129Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w1_daa83b161ed7_20260522T040722Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w2_33baae91ff89_20260522T040804Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w3_63f1a5dc507d_20260522T040856Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w4_55f3ccec227a_20260522T040904Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w5_a34e7d305455_20260522T040934Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w6_52d9f59e17e0_20260522T040938Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w7_6b5d276e559f_20260522T040942Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w8_967a8435f46b_20260522T041012Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t1_w9_6b61c47e8915_20260522T041046Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w0_f8b5560c7472_20260522T041135Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w10_16658f1cd63a_20260522T041430Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w11_3e3d5cb3e9aa_20260522T041449Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w12_c9a5d9b3c504_20260522T041454Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w1_daa83b161ed7_20260522T041158Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w2_33baae91ff89_20260522T041228Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w3_63f1a5dc507d_20260522T041253Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w4_55f3ccec227a_20260522T041304Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w5_a34e7d305455_20260522T041316Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w6_52d9f59e17e0_20260522T041324Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w7_6b5d276e559f_20260522T041346Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w8_967a8435f46b_20260522T041353Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t2_w9_6b61c47e8915_20260522T041417Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w0_f8b5560c7472_20260522T041510Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w10_16658f1cd63a_20260522T041711Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w11_3e3d5cb3e9aa_20260522T041734Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w12_c9a5d9b3c504_20260522T041743Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w1_daa83b161ed7_20260522T041537Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w2_33baae91ff89_20260522T041543Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w3_63f1a5dc507d_20260522T041552Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w4_55f3ccec227a_20260522T041556Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w5_a34e7d305455_20260522T041613Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w6_52d9f59e17e0_20260522T041629Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w7_6b5d276e559f_20260522T041644Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w8_967a8435f46b_20260522T041706Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t3_w9_6b61c47e8915_20260522T041706Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w0_f8b5560c7472_20260522T041758Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w10_16658f1cd63a_20260522T042010Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w11_3e3d5cb3e9aa_20260522T042019Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w12_c9a5d9b3c504_20260522T042047Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w1_daa83b161ed7_20260522T041759Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w2_33baae91ff89_20260522T041759Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w3_63f1a5dc507d_20260522T041831Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w4_55f3ccec227a_20260522T041832Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w5_a34e7d305455_20260522T041839Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w6_52d9f59e17e0_20260522T041906Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w7_6b5d276e559f_20260522T041909Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w8_967a8435f46b_20260522T041938Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-oxide-and-friends-ce789ff5b62e_t4_w9_6b61c47e8915_20260522T041947Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w0_20f5b04a5aa0_20260522T051323Z","body":"[{\"start\": 16.7, \"end\": 84.9, \"confidence\": 0.98, \"reason\": \"OutSystems sponsor read\", \"end_text\": \"This is Twit.\"}, {\"start\": 444.6, \"end\": 572.1, \"confidence\": 0.98, \"reason\": \"Zscaler sponsor read\", \"end_text\": \"Thank you, Leo.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w10_0a92d9a006e5_20260522T052957Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w11_e5c0b22d6e59_20260522T053010Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w12_2f816bb9a46c_20260522T053103Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w13_4396d041842b_20260522T053106Z","body":"[\n  {\n    \"start\": 6016.6,\n    \"end\": 6060.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Hoxhunt sponsor read with transition phrase, continues in next\",\n    \"end_text\": \"does all the heavy lifting\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w14_e0226bbd55e8_20260522T053141Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w15_eaf6d438e04e_20260522T053146Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w16_96f62890b678_20260522T053214Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w17_b2897096aae2_20260522T053232Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w18_e697ee3eaf75_20260522T053335Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w19_4dcfd63f53c8_20260522T053407Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w1_848dac30ed6d_20260522T051426Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w20_3d21b03937d9_20260522T053415Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w21_0e5fc3151009_20260522T053439Z","body":"[\n  {\n    \"start\": 9259.3,\n    \"end\": 9290.5,\n    \"confidence\": 0.95,\n    \"reason\": \"TWiT Network cross-promotion for This Week in Tech\",\n    \"end_text\": \"Network. Thank you.\"\n  },\n  {\n    \"start\": 9344.4,\n    \"end\": 9374.4,\n    \"confidence\": 0.99,\n    \"reason\": \"Mint Mobile sponsored ad read by Ryan Reynolds\",\n    \"end_text\": \"at mintmobile.com.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w22_f34190598f6b_20260522T053516Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w2_6d00159fa72c_20260522T051613Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w3_cb2b94edc226_20260522T051738Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w4_f64311ea64ef_20260522T051848Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w5_5f19970a70bc_20260522T052008Z","body":"[{\"start\": 2558.9, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor read with URL and call to action\", \"end_text\": \"all right now back to steve\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w6_1b1584e950e2_20260522T052651Z","body":"[{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor read with transition and call to action\", \"end_text\": \"all right now back to steve\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w7_7a9b5d4d7598_20260522T052738Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w8_54dd0bab8a60_20260522T052808Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t0_w9_f2c5bb41a365_20260522T052849Z","body":"[{\"start\": 4204.1, \"end\": 4396.1, \"confidence\": 0.98, \"reason\": \"Bitwarden sponsor read with transition and show bumper\", \"end_text\": \"unlocking devices at the OS level.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w0_20f5b04a5aa0_20260522T053540Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w10_0a92d9a006e5_20260522T054110Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w11_e5c0b22d6e59_20260522T054308Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w12_2f816bb9a46c_20260522T054344Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w13_4396d041842b_20260522T054403Z","body":"[{\"start\": 6016.6, \"end\": 6060.0, \"confidence\": 0.98, \"reason\": \"Hoxhunt sponsor read with transition phrase, continues in next window\", \"end_text\": \"just like the bad guys.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w14_e0226bbd55e8_20260522T054414Z","body":"[{\"start\": 6016.6, \"end\": 6162.3, \"confidence\": 0.98, \"reason\": \"Hoxhunt sponsor read with transition and URL\", \"end_text\": \"AI on Security Now, Steve.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w15_eaf6d438e04e_20260522T054440Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w16_96f62890b678_20260522T054507Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w17_b2897096aae2_20260522T054510Z","body":"[{\"start\": 7606.9, \"end\": 7740.0, \"confidence\": 0.98, \"reason\": \"Trusted Tech sponsor read, continues in next\", \"end_text\": \"You will be too.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w18_e697ee3eaf75_20260522T054512Z","body":"{\n  \"start\": 7606.9,\n  \"end\": 7797.4,\n  \"confidence\": 0.98,\n  \"reason\": \"Trusted Tech sponsor read with URL and call to action\",\n  \"end_text\": \"trustedtech.team securitynow365 Now, back to Steve.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w19_4dcfd63f53c8_20260522T054516Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w1_848dac30ed6d_20260522T053552Z","body":"[{\"start\": 417.2, \"end\": 572.1, \"confidence\": 0.98, \"reason\": \"Zscaler sponsor read with transition\", \"end_text\": \"Thank you, Leo.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w20_3d21b03937d9_20260522T054706Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w21_0e5fc3151009_20260522T054725Z","body":"[\n  {\n    \"start\": 9259.3,\n    \"end\": 9290.5,\n    \"confidence\": 0.95,\n    \"reason\": \"Network promo for This Week in Tech\",\n    \"end_text\": \"TWiT Network. Thank you.\"\n  },\n  {\n    \"start\": 9312.9,\n    \"end\": 9315.5,\n    \"confidence\": 0.85,\n    \"reason\": \"Citizens Bank brand tagline ad\",\n    \"end_text\": \"for citizens back.\"\n  },\n  {\n    \"start\": 9344.4,\n    \"end\": 9374.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Mint Mobile sponsor read\",\n    \"end_text\": \"terms at mintmobile.com.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w22_f34190598f6b_20260522T055000Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w2_6d00159fa72c_20260522T053658Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w3_cb2b94edc226_20260522T053720Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w4_f64311ea64ef_20260522T053817Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w5_5f19970a70bc_20260522T053827Z","body":"[{\"start\": 2558.9, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor read with transition phrase and call to action\", \"end_text\": \"meter.com slash security now\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w6_1b1584e950e2_20260522T053832Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w7_7a9b5d4d7598_20260522T053959Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w7_7a9b5d4d7598_20260522T152533Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w8_54dd0bab8a60_20260522T054037Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t1_w9_f2c5bb41a365_20260522T054041Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w0_20f5b04a5aa0_20260522T055203Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w10_0a92d9a006e5_20260522T060626Z","body":"[{\"start\": 4204.1, \"end\": 4465.7, \"confidence\": 0.98, \"reason\": \"Bitwarden sponsor read with show promo and transition\", \"end_text\": \"No more singing. Back to Steve.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w11_e5c0b22d6e59_20260522T060728Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w12_2f816bb9a46c_20260522T060953Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w13_4396d041842b_20260522T061027Z","body":"[{\"start\": 6016.6, \"end\": 6060.0, \"confidence\": 0.98, \"reason\": \"Hoxhunt sponsor read with transition phrase, continues in next\", \"end_text\": \"just like the bad guys\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w14_e0226bbd55e8_20260522T061110Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w15_eaf6d438e04e_20260522T061317Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w16_96f62890b678_20260522T061346Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w17_b2897096aae2_20260522T061446Z","body":"[{\"start\": 7606.9, \"end\": 7740.0, \"confidence\": 0.98, \"reason\": \"Trusted Tech sponsor read, continues in next\", \"end_text\": \"He was impressed. You will be too.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w18_e697ee3eaf75_20260522T061448Z","body":"{\n  \"start\": 7584.4,\n  \"end\": 7797.4,\n  \"confidence\": 0.98,\n  \"reason\": \"Trusted Tech sponsor read with transition phrase and return to show\",\n  \"end_text\": \"Now, back to Steve.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w19_4dcfd63f53c8_20260522T061617Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w1_848dac30ed6d_20260522T055431Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w20_3d21b03937d9_20260522T061724Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w21_0e5fc3151009_20260522T061823Z","body":"[\n  {\n    \"start\": 9259.3,\n    \"end\": 9290.5,\n    \"confidence\": 0.98,\n    \"reason\": \"Network promo for This Week in Tech (TWiT Network)\",\n    \"end_text\": \"TWiT Network. Thank you.\"\n  },\n  {\n    \"start\": 9344.4,\n    \"end\": 9374.4,\n    \"confidence\": 0.99,\n    \"reason\": \"Mint Mobile sponsor read with promo code and URL\",\n    \"end_text\": \"terms at mintmobile.com.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w22_f34190598f6b_20260522T063653Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w22_f34190598f6b_20260522T152637Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w2_6d00159fa72c_20260522T055650Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w2_6d00159fa72c_20260522T152548Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w3_cb2b94edc226_20260522T055903Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w4_f64311ea64ef_20260522T060126Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w5_5f19970a70bc_20260522T060131Z","body":"{\n  \"start\": 2558.9,\n  \"end\": 2693.0,\n  \"confidence\": 0.98,\n  \"reason\": \"Meter sponsor read with transition phrases\",\n  \"end_text\": \"all right now back to steve\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w6_1b1584e950e2_20260522T060242Z","body":"[{\"start\": 2558.9, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor read with transition phrase 'Okay, break time'\", \"end_text\": \"back to steve\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w7_7a9b5d4d7598_20260522T060311Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w8_54dd0bab8a60_20260522T060452Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t2_w9_f2c5bb41a365_20260522T060552Z","body":"[{\"start\": 4204.1, \"end\": 4380.0, \"confidence\": 0.98, \"reason\": \"Bitwarden sponsor read with transition and show bumper\", \"end_text\": \"because they're giving it away\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w0_20f5b04a5aa0_20260522T063854Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w0_20f5b04a5aa0_20260522T152713Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w10_0a92d9a006e5_20260522T064905Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w11_e5c0b22d6e59_20260522T064931Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w12_2f816bb9a46c_20260522T065037Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w13_4396d041842b_20260522T065113Z","body":"[{\"start\": 6016.6, \"end\": 6060.0, \"confidence\": 0.98, \"reason\": \"Hawkshunt sponsor read, continues in next\", \"end_text\": \"empowers your employees\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w14_e0226bbd55e8_20260522T065115Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w15_eaf6d438e04e_20260522T065132Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w16_96f62890b678_20260522T065247Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w17_b2897096aae2_20260522T065312Z","body":"[{\"start\": 7606.9, \"end\": 7740.0, \"confidence\": 0.98, \"reason\": \"Trusted Tech sponsor read, includes transition phrase, continues past window\", \"end_text\": \"End quote. He was impressed.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w18_e697ee3eaf75_20260522T065354Z","body":"{\n  \"start\": 7584.4,\n  \"end\": 7797.4,\n  \"confidence\": 0.98,\n  \"reason\": \"Trusted Tech sponsor read with transition and return phrase\",\n  \"end_text\": \"Now, back to Steve.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w19_4dcfd63f53c8_20260522T065409Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w1_848dac30ed6d_20260522T063920Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w20_3d21b03937d9_20260522T065538Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w21_0e5fc3151009_20260522T065539Z","body":"[\n  {\n    \"start\": 9259.3,\n    \"end\": 9290.5,\n    \"confidence\": 0.95,\n    \"reason\": \"Network promo for 'This Week in Tech' on the TWiT Network\",\n    \"end_text\": \"TWiT Network. Thank you.\"\n  },\n  {\n    \"start\": 9344.4,\n    \"end\": 9374.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Mint Mobile sponsor read with Ryan Reynolds, URL and legal disclaimer\",\n    \"end_text\": \"mintmobile.com.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w22_f34190598f6b_20260522T065551Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w2_6d00159fa72c_20260522T064103Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w3_cb2b94edc226_20260522T064223Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w4_f64311ea64ef_20260522T064322Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w5_5f19970a70bc_20260522T064417Z","body":"[{\"start\": 2558.9, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor read with transition phrases\", \"end_text\": \"all right now back to steve\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w6_1b1584e950e2_20260522T064606Z","body":"{\n  \"start\": 2532.3,\n  \"end\": 2693.0,\n  \"confidence\": 0.98,\n  \"reason\": \"Meter sponsor read with transition phrase and URL\",\n  \"end_text\": \"all right now back to steve\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w7_7a9b5d4d7598_20260522T064616Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w8_54dd0bab8a60_20260522T064738Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t3_w9_f2c5bb41a365_20260522T064756Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w0_20f5b04a5aa0_20260522T065618Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w10_0a92d9a006e5_20260522T070239Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w11_e5c0b22d6e59_20260522T070303Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w12_2f816bb9a46c_20260522T070428Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w13_4396d041842b_20260522T070450Z","body":"[{\"start\": 6016.6, \"end\": 6060.0, \"confidence\": 0.98, \"reason\": \"Hoxhunt sponsor read (transcribed as Hawks Hunt) with transition phrase, continues in next\", \"end_text\": \"just like the bad guys.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w14_e0226bbd55e8_20260522T070543Z","body":"[\n  {\n    \"start\": 6016.6,\n    \"end\": 6162.9,\n    \"confidence\": 0.98,\n    \"reason\": \"Hoxhunt sponsor read with transition and URL\",\n    \"end_text\": \"discussion of Chrome and\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w15_eaf6d438e04e_20260522T070554Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w16_96f62890b678_20260522T070652Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w17_b2897096aae2_20260522T070705Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w18_e697ee3eaf75_20260522T070720Z","body":"[{\"start\": 7606.9, \"end\": 7797.4, \"confidence\": 0.98, \"reason\": \"Trusted Tech sponsor read with URL trustedtech.team/securitynow365\", \"end_text\": \"trustedtech.team securitynow365 Now, back to Steve\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w19_4dcfd63f53c8_20260522T070728Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w1_848dac30ed6d_20260522T065746Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w20_3d21b03937d9_20260522T070754Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w21_0e5fc3151009_20260522T070817Z","body":"[{\"start\": 9259.3, \"end\": 9290.5, \"confidence\": 0.95, \"reason\": \"Network cross-promotion for 'This Week in Tech' hosted by Leo Laporte\", \"end_text\": \"This Week in Tech from the TWiT Network. Thank you.\"}, {\"start\": 9312.9, \"end\": 9315.5, \"confidence\": 0.85, \"reason\": \"Short brand tagline ad, likely network-inserted\", \"end_text\": \"for citizens back.\"}, {\"start\": 9344.4, \"end\": 9374.4, \"confidence\": 0.98, \"reason\": \"Mint Mobile sponsor read with promo URL and legal disclaimer\", \"end_text\": \"See full terms at mintmobile.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w22_f34190598f6b_20260522T070823Z","body":"[{\"start\": 9259.3, \"end\": 9290.5, \"confidence\": 0.95, \"reason\": \"Network promo for This Week in Tech\", \"end_text\": \"TWiT Network. Thank you.\"}, {\"start\": 9344.4, \"end\": 9374.4, \"confidence\": 0.95, \"reason\": \"Mint Mobile sponsor read (continues in next)\", \"end_text\": \"terms at mintmobile.com.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w2_6d00159fa72c_20260522T065752Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w3_cb2b94edc226_20260522T065817Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w4_f64311ea64ef_20260522T065833Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w5_5f19970a70bc_20260522T065959Z","body":"{\n"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w6_1b1584e950e2_20260522T070024Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w7_7a9b5d4d7598_20260522T070108Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w8_54dd0bab8a60_20260522T070147Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-security-now-audio-2850b24903b2_t4_w9_f2c5bb41a365_20260522T070219Z","body":"[\n  {\n    \"start\": 4204.1,\n    \"end\": 4396.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Bitwarden sponsor read with transition phrase\",\n    \"end_text\": \"devices at the OS level.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_2f0d04ad4087_20260522T070829Z","body":"[\n  {\n    \"start\": 0.5,\n    \"end\": 43.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Carvana sponsor read\",\n    \"end_text\": \"Pickup fees may apply.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w10_a79af84db1db_20260522T071336Z","body":"[\n  {\n    \"start\": 4296.0,\n    \"end\": 4361.4,\n    \"confidence\": 0.95,\n    \"reason\": \"Host-read promotional segment for Jess Hilarious book, tennis event, and AM Mornings show\",\n    \"end_text\": \"Let's listen to this moment.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w11_8778e3c30bd8_20260522T071455Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w12_5f75358471d4_20260522T071505Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w13_ce2ef6a4dde5_20260522T071545Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w14_314b831b2a64_20260522T071626Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w15_ddcfab55af39_20260522T071636Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w16_f710af7db24a_20260522T071647Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"now playing only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w17_1c370994c207_20260522T071746Z","body":"[{\"start\": 7135.4, \"end\": 7158.5, \"confidence\": 0.9, \"reason\": \"Cross-promotion for Lauren LaRosa podcast\", \"end_text\": \"trending, conversations.\"}, {\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w1_c5dc17ea9e0d_20260522T070843Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w2_ec65f227fa8e_20260522T070958Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w3_2179376cd3d9_20260522T071018Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w4_c4010fc6f0a9_20260522T071103Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w5_7663b9860f96_20260522T071112Z","body":"[\n  {\n    \"start\": 2324.6,\n    \"end\": 2450.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Host-read sponsor segments for BlueChew and ZipRecruiter with promo codes and URLs\",\n    \"end_text\": \"Meet your match on ZipRecruiter.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w6_f4054d76552e_20260522T071228Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_f29e96e1625b_20260522T071315Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_abd211911bfc_20260522T071323Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w9_fb53def60367_20260522T071334Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_2f0d04ad4087_20260522T071748Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w10_a79af84db1db_20260522T072417Z","body":"[{\"start\": 4296.0, \"end\": 4361.4, \"confidence\": 0.95, \"reason\": \"Host-read sponsor segments for Jess Hilarious book, All Love Racquet Club event, and AM Mornings show\", \"end_text\": \"Peace. Let's listen to this moment.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w11_8778e3c30bd8_20260522T072442Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w12_5f75358471d4_20260522T072551Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w13_ce2ef6a4dde5_20260522T072601Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w14_314b831b2a64_20260522T072603Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w15_ddcfab55af39_20260522T072657Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w16_f710af7db24a_20260522T072702Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"now playing only on Netflix\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w17_1c370994c207_20260522T072739Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"now playing only on Netflix\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w1_c5dc17ea9e0d_20260522T071756Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w2_ec65f227fa8e_20260522T071810Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w3_2179376cd3d9_20260522T071915Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w4_c4010fc6f0a9_20260522T071915Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w5_7663b9860f96_20260522T072105Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w6_f4054d76552e_20260522T072110Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_f29e96e1625b_20260522T072302Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_abd211911bfc_20260522T072313Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w9_fb53def60367_20260522T072412Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_2f0d04ad4087_20260522T072803Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w10_a79af84db1db_20260522T073212Z","body":"[{\"start\": 4296.0, \"end\": 4361.4, \"confidence\": 0.95, \"reason\": \"Host-read sponsor segment promoting Jess Hilarious book, tennis event, and AM Mornings show\", \"end_text\": \"Peace. Let's listen to this moment.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w11_8778e3c30bd8_20260522T073221Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w12_5f75358471d4_20260522T073327Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w13_ce2ef6a4dde5_20260522T073332Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w14_314b831b2a64_20260522T073357Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w15_ddcfab55af39_20260522T073422Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w16_f710af7db24a_20260522T073457Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for 'Remarkably Bright Creatures'\", \"end_text\": \"now playing only on Netflix\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w17_1c370994c207_20260522T073539Z","body":"[{\"start\": 7135.4, \"end\": 7158.5, \"confidence\": 0.95, \"reason\": \"Cross-promotion for Lauren LaRosa podcast\", \"end_text\": \"get into some things.\"}, {\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read\", \"end_text\": \"only on Netflix.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w1_c5dc17ea9e0d_20260522T072848Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w2_ec65f227fa8e_20260522T072906Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w3_2179376cd3d9_20260522T072944Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w4_c4010fc6f0a9_20260522T073015Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w5_7663b9860f96_20260522T073036Z","body":"[\n  {\n    \"start\": 2324.6,\n    \"end\": 2450.0,\n    \"confidence\": 0.98,\n    \"reason\": \"BlueChew and ZipRecruiter sponsor reads\",\n    \"end_text\": \"Meet your match on ZipRecruiter.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w6_f4054d76552e_20260522T073057Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_f29e96e1625b_20260522T073101Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_abd211911bfc_20260522T073135Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w9_fb53def60367_20260522T073205Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_2f0d04ad4087_20260522T073550Z","body":"[\n  {\n    \"start\": 0.5,\n    \"end\": 43.4,\n    \"confidence\": 0.98,\n    \"reason\": \"Carvana sponsor read (pre-roll/intro ad)\",\n    \"end_text\": \"Brilliant Idiots podcast.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w10_a79af84db1db_20260522T073952Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w11_8778e3c30bd8_20260522T074018Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w12_5f75358471d4_20260522T074131Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w13_ce2ef6a4dde5_20260522T074144Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w14_314b831b2a64_20260522T074211Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w15_ddcfab55af39_20260522T074225Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w16_f710af7db24a_20260522T074248Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read for Remarkably Bright Creatures\", \"end_text\": \"playing only on Netflix\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w17_1c370994c207_20260522T074301Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w1_c5dc17ea9e0d_20260522T073700Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w2_ec65f227fa8e_20260522T073709Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w3_2179376cd3d9_20260522T073715Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w4_c4010fc6f0a9_20260522T073753Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w5_7663b9860f96_20260522T073832Z","body":"[\n  {\n    \"start\": 2324.6,\n    \"end\": 2450.0,\n    \"confidence\": 0.98,\n    \"reason\": \"BlueChew and ZipRecruiter sponsor reads with promo codes and URLs\",\n    \"end_text\": \"Meet your match on ZipRecruiter.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w6_f4054d76552e_20260522T073852Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_f29e96e1625b_20260522T073857Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_abd211911bfc_20260522T073934Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w9_fb53def60367_20260522T073934Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_2f0d04ad4087_20260522T074352Z","body":"[{\"start\": 0.5, \"end\": 43.4, \"confidence\": 0.98, \"reason\": \"Carvana sponsor read\", \"end_text\": \"of the Brilliant Idiots podcast\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w10_a79af84db1db_20260522T074846Z","body":"[\n  {\n    \"start\": 4296.0,\n    \"end\": 4361.4,\n    \"confidence\": 0.95,\n    \"reason\": \"Host-read promotional block for Jess Hilarious book, tennis event, and AM Mornings show\",\n    \"end_text\": \"Let's listen to this moment.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w11_8778e3c30bd8_20260522T074920Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w12_5f75358471d4_20260522T075009Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w13_ce2ef6a4dde5_20260522T075054Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w14_314b831b2a64_20260522T075137Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w15_ddcfab55af39_20260522T075158Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w16_f710af7db24a_20260522T075238Z","body":"[{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix sponsor read\", \"end_text\": \"now playing only on Netflix\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w17_1c370994c207_20260522T075245Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w17_1c370994c207_20260522T152825Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w1_c5dc17ea9e0d_20260522T074422Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w2_ec65f227fa8e_20260522T074439Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w3_2179376cd3d9_20260522T074451Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w4_c4010fc6f0a9_20260522T074517Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w5_7663b9860f96_20260522T074550Z","body":"[{\"start\": 2324.6, \"end\": 2450.0, \"confidence\": 0.98, \"reason\": \"BlueChew and ZipRecruiter sponsor reads\", \"end_text\": \"Meet your match on ZipRecruiter.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w6_f4054d76552e_20260522T074555Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_f29e96e1625b_20260522T074624Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_abd211911bfc_20260522T074648Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w9_fb53def60367_20260522T074714Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w0_968350a245bb_20260522T075723Z","body":"[{\"start\": 0.0, \"end\": 27.7, \"confidence\": 0.98, \"reason\": \"Colgate pre-roll advertisement\", \"end_text\": \"your smile is your strength.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w10_8c6366a7182d_20260522T081848Z","body":"[{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\", \"end_text\": \"GarnierUSA.com slash NPF\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w11_1adcb2cd8ad2_20260522T081935Z","body":"[\n  {\n    \"start\": 4646.2,\n    \"end\": 4806.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\",\n    \"end_text\": \"parks at GarnierUSA.com slash NPF.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w1_850403ae2148_20260522T075811Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w2_ee257ada34d7_20260522T075915Z","body":"[{\"start\": 1439.2, \"end\": 1465.2, \"confidence\": 0.98, \"reason\": \"Mint Mobile sponsor read\", \"end_text\": \"largest 5G network.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w3_1aa75710f01c_20260522T080006Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w3_1aa75710f01c_20260522T152905Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w4_ad1f76053b77_20260522T080119Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w5_c129a6792024_20260522T080207Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w6_0b386723fe4f_20260522T080259Z","body":"[{\"start\": 3079.6, \"end\": 3120.0, \"confidence\": 0.98, \"reason\": \"Morgan & Morgan sponsor read, continues in next\", \"end_text\": \"slash Tim or dial Poundlaw\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w7_559aa9dd637a_20260522T081037Z","body":"[{\"start\": 3079.6, \"end\": 3270.1, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Morgan & Morgan, Stash, and NeuroGum\", \"end_text\": \"at CVS and Amazon.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w8_4723dd08ba7f_20260522T081705Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w9_b50124cdea63_20260522T081817Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w0_968350a245bb_20260522T081945Z","body":"[{\"start\": 0.0, \"end\": 27.7, \"confidence\": 0.98, \"reason\": \"Colgate pre-roll advertisement\", \"end_text\": \"your smile is your strength\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w10_8c6366a7182d_20260522T082600Z","body":"[{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\", \"end_text\": \"GarnierUSA.com slash NPF\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w11_1adcb2cd8ad2_20260522T082714Z","body":"[{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.98, \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\", \"end_text\": \"parks at GarnierUSA.com slash NPF.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w1_850403ae2148_20260522T082027Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w2_ee257ada34d7_20260522T082031Z","body":"[{\"start\": 1439.2, \"end\": 1465.2, \"confidence\": 0.98, \"reason\": \"Mint Mobile sponsor read\", \"end_text\": \"nation's largest 5G network.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w3_1aa75710f01c_20260522T082039Z","body":"[{\"start\": 1439.2, \"end\": 1668.7, \"confidence\": 0.98, \"reason\": \"Mint Mobile, Aura Frames, Colgate, and Skinny Pop sponsor reads and network ads\", \"end_text\": \"perfectly salted. Skinny Pop.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w4_ad1f76053b77_20260522T082113Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w5_c129a6792024_20260522T082151Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w6_0b386723fe4f_20260522T082210Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w7_559aa9dd637a_20260522T082223Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w7_559aa9dd637a_20260522T152925Z","body":"[{\"start\": 3079.6, \"end\": 3270.1, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Morgan & Morgan, Stash, and NeuroGum\", \"end_text\": \"Neuro at CVS and Amazon.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w8_4723dd08ba7f_20260522T082348Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w9_b50124cdea63_20260522T082420Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w0_968350a245bb_20260522T082811Z","body":"[{\"start\": 0.0, \"end\": 27.7, \"confidence\": 0.98, \"reason\": \"Colgate pre-roll advertisement\", \"end_text\": \"your smile is your strength.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w10_8c6366a7182d_20260522T083713Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w11_1adcb2cd8ad2_20260522T083714Z","body":"[\n  {\n    \"start\": 4646.2,\n    \"end\": 4806.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Network-inserted ad block containing Colgate, Skinny Pop, Viz, and Garnier promotions\",\n    \"end_text\": \"at GarnierUSA.com slash NPF.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w1_850403ae2148_20260522T082910Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w2_ee257ada34d7_20260522T083008Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w3_1aa75710f01c_20260522T083201Z","body":"[{\"start\": 1439.2, \"end\": 1665.9, \"confidence\": 0.98, \"reason\": \"Continuous ad block featuring Mint Mobile, Aura Frames, Colgate, and Skinny Pop\", \"end_text\": \"perfectly salted. Skinny Pop.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w4_ad1f76053b77_20260522T083303Z","body":"{}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w5_c129a6792024_20260522T083354Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w6_0b386723fe4f_20260522T083421Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w7_559aa9dd637a_20260522T083442Z","body":"[\n  {\n    \"start\": 3079.6,\n    \"end\": 3270.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Sponsor reads for Morgan & Morgan, Stash, and NeuroGum\",\n    \"end_text\": \"find Neuro at CVS and Amazon.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w8_4723dd08ba7f_20260522T083633Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w9_b50124cdea63_20260522T083637Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w0_968350a245bb_20260522T083725Z","body":"[{\"start\": 0.0, \"end\": 27.7, \"confidence\": 0.95, \"reason\": \"Colgate pre-roll advertisement with brand tagline\", \"end_text\": \"your smile is your strength\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w10_8c6366a7182d_20260522T084046Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w11_1adcb2cd8ad2_20260522T084111Z","body":"[\n  {\n    \"start\": 4646.2,\n    \"end\": 4806.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\",\n    \"end_text\": \"parks at GarnierUSA.com slash NPF.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w1_850403ae2148_20260522T083815Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w2_ee257ada34d7_20260522T083831Z","body":"[\n  {\n    \"start\": 1439.2,\n    \"end\": 1465.2,\n    \"confidence\": 0.98,\n    \"reason\": \"Mint Mobile sponsor read\",\n    \"end_text\": \"nation's largest 5G network.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w3_1aa75710f01c_20260522T083838Z","body":"{\n  \"start\": 1439.2,\n  \"end\": 1668.7,\n  \"confidence\": 0.98,\n  \"reason\": \"Host-read sponsor segments for Mint Mobile and Aura Frames followed by network-inserted ads for Colgate and Skinny Pop\",\n  \"end_text\": \"Skinny Pop.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w4_ad1f76053b77_20260522T083910Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w5_c129a6792024_20260522T083935Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w6_0b386723fe4f_20260522T083935Z","body":"[{\"start\": 3079.6, \"end\": 3120.0, \"confidence\": 0.98, \"reason\": \"Morgan & Morgan sponsor read, continues in next\", \"end_text\": \"This is a paid advertisement\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w7_559aa9dd637a_20260522T084011Z","body":"[{\"start\": 3079.6, \"end\": 3270.1, \"confidence\": 0.98, \"reason\": \"Morgan & Morgan, Stash, and NeuroGum sponsor reads with URLs and promo codes\", \"end_text\": \"Use code TIM for 20% off your first order\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w8_4723dd08ba7f_20260522T084033Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w9_b50124cdea63_20260522T084036Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w0_968350a245bb_20260522T084125Z","body":"{\n  \"start\": 0.0,\n  \"end\": 27.7,\n  \"confidence\": 0.98,\n  \"reason\": \"Colgate pre-roll advertisement promoting Women's Games\",\n  \"end_text\": \"your smile is your strength.\"\n}"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w10_8c6366a7182d_20260522T084852Z","body":"[\n  {\n    \"start\": 4646.2,\n    \"end\": 4806.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Continuous ad break featuring Colgate, Skinny Pop, Viz, and Garnier sponsor reads\",\n    \"end_text\": \"GarnierUSA.com slash NPF.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w11_1adcb2cd8ad2_20260522T084946Z","body":"[\n  {\n    \"start\": 4646.2,\n    \"end\": 4806.1,\n    \"confidence\": 0.98,\n    \"reason\": \"Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier\",\n    \"end_text\": \"parks at GarnierUSA.com slash NPF.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w1_850403ae2148_20260522T084219Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w2_ee257ada34d7_20260522T084256Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w3_1aa75710f01c_20260522T084302Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w4_ad1f76053b77_20260522T084338Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w5_c129a6792024_20260522T084450Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w6_0b386723fe4f_20260522T084456Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w7_559aa9dd637a_20260522T084631Z","body":"[{\"start\": 3079.6, \"end\": 3270.1, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Morgan & Morgan, Stash, and NeuroGum\", \"end_text\": \"CVS and Amazon.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w8_4723dd08ba7f_20260522T084727Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w9_b50124cdea63_20260522T084757Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w9_b50124cdea63_20260522T153029Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w0_84a32b284da4_20260522T084952Z","body":"[{\"start\": 0.0, \"end\": 22.1, \"confidence\": 0.98, \"reason\": \"Progressive Insurance sponsor read\", \"end_text\": \"Not available in all states.\"}, {\"start\": 29.8, \"end\": 58.1, \"confidence\": 0.98, \"reason\": \"Whole Foods Market sponsor read\", \"end_text\": \"Celebrate mom with Whole Foods Market.\"}, {\"start\": 537.5, \"end\": 567.0, \"confidence\": 0.98, \"reason\": \"Thrive Cosmetics sponsor read\", \"end_text\": \"Shine 26.\"}, {\"start\": 594.7, \"end\": 597.3, \"confidence\": 0.95, \"reason\": \"Mattress Warehouse network-inserted brand tagline ad\", \"end_text\": \"Only at Mattress Warehouse.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w1_690a0b0dda22_20260522T085053Z","body":"[\n  {\n    \"start\": 524.1,\n    \"end\": 567.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Thrive Cosmetics sponsor read with promo code\",\n    \"end_text\": \"Shine 26.\"\n  },\n  {\n    \"start\": 594.7,\n    \"end\": 597.3,\n    \"confidence\": 0.90,\n    \"reason\": \"Mattress Warehouse brand tagline ad\",\n    \"end_text\": \"at Mattress Warehouse.\"\n  },\n  {\n    \"start\": 617.2,\n    \"end\": 654.3,\n    \"confidence\": 0.98,\n    \"reason\": \"PC Richard & Son / Asima lease to own sponsor read\",\n    \"end_text\": \"Asima dot HTML for details.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w2_14c052b336ed_20260522T085110Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w3_c559862f3ea8_20260522T085126Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w4_80845fb4c5f8_20260522T085131Z","body":"[{\"start\": 1837.5, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Three consecutive ad reads: Mint Mobile (1837.5-1912.2s), Mattress Warehouse (1913.4-1942.4s), and PC Richard & Son (1943.2-1999.5s)\", \"end_text\": \"PCRichard.com slash Aseema dot HTML for details\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t0_w5_d48fb53a83e9_20260522T085135Z","body":"[{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.95, \"reason\": \"Stony Brook Medicine and PC Richard & Son sponsor reads\", \"end_text\": \"Asima dot HTML for details\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w0_84a32b284da4_20260522T085144Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w1_690a0b0dda22_20260522T085343Z","body":"[{\"start\": 537.5, \"end\": 567.0, \"confidence\": 0.98, \"reason\": \"Thrive Cosmetics sponsor read with URL and promo code\", \"end_text\": \"Thrive Cosmetics, C-A-U-S-E-M-E-T-I-C-S dot com slash shine26\"}, {\"start\": 594.7, \"end\": 654.3, \"confidence\": 0.97, \"reason\": \"PC Richard & Son / Asima lease-to-own ad with URL\", \"end_text\": \"PCRichard.com slash Asima dot HTML for details\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w2_14c052b336ed_20260522T085354Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w3_c559862f3ea8_20260522T085420Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w4_80845fb4c5f8_20260522T085520Z","body":"[{\"start\": 1837.5, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Combined sponsor reads and network ads (Mint Mobile, Mattress Warehouse, PC Richard & Son)\", \"end_text\": \"Aseema dot HTML for details\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t1_w5_d48fb53a83e9_20260522T085618Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w0_84a32b284da4_20260522T085845Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w1_690a0b0dda22_20260522T085959Z","body":"[\n  {\n    \"start\": 537.5,\n    \"end\": 567.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Thrive Cosmetics sponsor read with promo code\",\n    \"end_text\": \"dot com slash shine26.\"\n  },\n  {\n    \"start\": 594.7,\n    \"end\": 654.3,\n    \"confidence\": 0.98,\n    \"reason\": \"PC Richard & Son / Asima network ad\",\n    \"end_text\": \"Asima dot HTML for details.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w2_14c052b336ed_20260522T090713Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w3_c559862f3ea8_20260522T090738Z","body":"[{\"start\": 1836.9, \"end\": 1861.3, \"confidence\": 0.98, \"reason\": \"Mint Mobile sponsor read\", \"end_text\": \"fed up with crazy high bills?\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w4_80845fb4c5f8_20260522T091028Z","body":"[{\"start\": 1837.5, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Mint Mobile, Mattress Warehouse, and PC Richard & Son sponsor reads\", \"end_text\": \"Aseema dot HTML for details.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t2_w5_d48fb53a83e9_20260522T091259Z","body":"[{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.98, \"reason\": \"Sponsor reads for Stony Brook Medicine and PC Richard & Son\", \"end_text\": \"Asima dot HTML for details.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w0_84a32b284da4_20260522T091818Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w1_690a0b0dda22_20260522T091840Z","body":"[\n  {\n    \"start\": 524.1,\n    \"end\": 567.0,\n    \"confidence\": 0.98,\n    \"reason\": \"Thrive Cosmetics sponsor read with promo code and URL\",\n    \"end_text\": \"Shine 26.\"\n  },\n  {\n    \"start\": 594.7,\n    \"end\": 597.3,\n    \"confidence\": 0.90,\n    \"reason\": \"Mattress Warehouse network tagline ad\",\n    \"end_text\": \"at Mattress Warehouse.\"\n  },\n  {\n    \"start\": 617.2,\n    \"end\": 654.3,\n    \"confidence\": 0.98,\n    \"reason\": \"PC Richard & Son sponsor read with URL and legal disclaimer\",\n    \"end_text\": \"dot HTML for details.\"\n  }\n]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w2_14c052b336ed_20260522T092010Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w3_c559862f3ea8_20260522T092104Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w4_80845fb4c5f8_20260522T092329Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t3_w5_d48fb53a83e9_20260522T092543Z","body":""}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w0_84a32b284da4_20260522T092653Z","body":"[{\"start\": 0.0, \"end\": 22.1, \"confidence\": 0.98, \"reason\": \"Progressive Insurance sponsor read with URL and disclaimer\", \"end_text\": \"Not available in all states.\"}, {\"start\": 29.8, \"end\": 58.1, \"confidence\": 0.98, \"reason\": \"Whole Foods Market sponsor read with product pitch\", \"end_text\": \"Celebrate mom with Whole Foods Market.\"}, {\"start\": 537.5, \"end\": 567.0, \"confidence\": 0.98, \"reason\": \"Thrive Cosmetics sponsor read with promo code and URL\", \"end_text\": \"Shine 26.\"}, {\"start\": 594.7, \"end\": 597.3, \"confidence\": 0.95, \"reason\": \"Mattress Warehouse network-inserted brand tagline ad\", \"end_text\": \"Only at Mattress Warehouse.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w1_690a0b0dda22_20260522T092731Z","body":"[{\"start\": 537.5, \"end\": 567.0, \"confidence\": 0.98, \"reason\": \"Thrive Cosmetics sponsor read with URL and promo code\", \"end_text\": \"Thrive Cosmetics, C-A-U-S-E-M-E-T-I-C-S dot com slash shine26\"}, {\"start\": 594.7, \"end\": 654.3, \"confidence\": 0.97, \"reason\": \"PC Richard & Son / Asima lease-to-own ad with URL\", \"end_text\": \"PCRichard.com slash Asima dot HTML for details\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w2_14c052b336ed_20260522T092738Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w3_c559862f3ea8_20260522T092811Z","body":"[]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w4_80845fb4c5f8_20260522T092816Z","body":"[{\"start\": 1837.5, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Mint Mobile, Mattress Warehouse, and PC Richard & Son sponsor reads\", \"end_text\": \"Aseema dot HTML for details.\"}]"}
+{"call_id":"qwen_qwen3.5-27b_ep-tosh-show-5f6894439bb6_t4_w5_d48fb53a83e9_20260522T092818Z","body":"[{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.98, \"reason\": \"Stony Brook Medicine and PC Richard & Son sponsor reads\", \"end_text\": \"Asima dot HTML for details\"}]"}

@@ -1,1 +1,0 @@
-"displayed in JSON format as specified, with proper numeric values and structure."

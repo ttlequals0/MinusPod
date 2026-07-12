@@ -1,1 +1,0 @@
-{"start": 5241.2, "end": 5241.2, "confidence": 0.0, "reason": "No ad content found in this window. The transcript contains only show content (conversation about football stories).", "end_text": ""}

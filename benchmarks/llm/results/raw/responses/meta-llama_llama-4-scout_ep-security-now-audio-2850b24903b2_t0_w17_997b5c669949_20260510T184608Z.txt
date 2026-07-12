@@ -1,9 +1,0 @@
-ads": [ 
-  { 
-    "start": 7607.7, 
-    "end": 7716.8, 
-    "confidence": 0.98, 
-    "reason": "Trusted Tech sponsor read", 
-    "end_text": "You will be too"
-  }
-]}

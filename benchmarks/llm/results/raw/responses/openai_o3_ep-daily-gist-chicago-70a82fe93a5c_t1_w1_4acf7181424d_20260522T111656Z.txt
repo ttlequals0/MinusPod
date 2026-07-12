@@ -1,1 +1,0 @@
-{"error": "No advertisement language found in provided transcript window."}

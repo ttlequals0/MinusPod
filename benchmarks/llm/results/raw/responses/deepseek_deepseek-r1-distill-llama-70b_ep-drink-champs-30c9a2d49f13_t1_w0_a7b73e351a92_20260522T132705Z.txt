@@ -1,7 +1,0 @@
-{
-  "type": "function",
-  "name": "analyzePodcastTranscript",
-  "parameters": {
-    "transcript": "the provided transcript"
-  }
-}

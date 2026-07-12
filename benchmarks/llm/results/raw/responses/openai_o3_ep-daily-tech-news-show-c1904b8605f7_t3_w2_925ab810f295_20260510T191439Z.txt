@@ -1,1 +1,0 @@
-{"error":"need to output JSON array only"}

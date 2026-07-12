@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from benchmark import report
+from benchmark.report import charts
+from benchmark.report.aggregate import ModelStats
 from benchmark.storage import append_jsonl
 
 
@@ -141,6 +143,20 @@ def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_
     assert "2 calls" in text
 
 
+def test_aggregate_model_order_deterministic(make_episode, pricing_snapshot):
+    """Report tables must not inherit set iteration order: with hash
+    randomization the same data would render rows in a different order on
+    every run, making committed reports un-diffable."""
+    ep = make_episode(n_windows=1)
+    models = [f"model-{c}" for c in "zyxwvutsrqponmlkjihgfedcba"]
+    calls = [
+        {**CALL_RECORD_TEMPLATE, "call_id": f"c-{m}", "model": m, "parsed_ads": []}
+        for m in models
+    ]
+    by_model, _ = report._aggregate(calls, [ep], pricing_snapshot=pricing_snapshot)
+    assert list(by_model) == sorted(by_model)
+
+
 def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1, no_ad=True)
     calls = tmp_path / "calls.jsonl"
@@ -155,3 +171,15 @@ def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, prici
     text = out.read_text()
     assert "PASS" in text
     assert "no-ads" in text.lower() or "no-ad" in text.lower()
+
+
+def test_chart_svg_output_is_deterministic(tmp_path):
+    """Committed report assets must be byte-stable when data is unchanged:
+    matplotlib element ids and embedded dates would otherwise churn every
+    regen and destroy the audit diff."""
+    s = ModelStats(model="m1")
+    s.avg_f1 = 0.5
+    s.total_episode_cost = 0.01
+    charts._render_pareto({"m1": s}, tmp_path / "a.svg")
+    charts._render_pareto({"m1": s}, tmp_path / "b.svg")
+    assert (tmp_path / "a.svg").read_bytes() == (tmp_path / "b.svg").read_bytes()

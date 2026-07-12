@@ -3,17 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from benchmark import corpus
 from benchmark.corpus import (
     CorpusError,
-    EpisodeMetadata,
-    Window,
     compute_windows,
     hash_segments,
     list_episodes,
     load_episode,
-    write_metadata,
-    write_windows,
 )
 
 
@@ -25,33 +20,6 @@ SEGMENTS = [
 ]
 
 
-def write_corpus_episode(tmp_path, ep_id="ep-test-001", segments=None, truth_text=None):
-    segments = segments or SEGMENTS
-    ep_dir = tmp_path / ep_id
-    ep_dir.mkdir(parents=True)
-    seg_hash = hash_segments(segments)
-
-    metadata = EpisodeMetadata(
-        ep_id=ep_id,
-        podcast_slug="test-show",
-        podcast_name="Test Show",
-        episode_id="abc123",
-        title="Test Episode",
-        duration=segments[-1]["end"],
-        segments_hash=seg_hash,
-        description="A test episode.",
-    )
-    write_metadata(ep_dir, metadata)
-    (ep_dir / "segments.json").write_text(json.dumps(segments))
-    (ep_dir / "truth.txt").write_text(truth_text or """
-start: 0
-end: 30
-text: This episode is brought to you by BetterHelp BetterHelp is online therapy
-""")
-    write_windows(ep_dir, [Window(index=0, start=0.0, end=100.0, transcript_lines=["[0.0s - 5.0s] x"])])
-    return ep_dir
-
-
 def test_hash_is_stable_and_unique():
     h1 = hash_segments(SEGMENTS)
     h2 = hash_segments(SEGMENTS)
@@ -61,7 +29,7 @@ def test_hash_is_stable_and_unique():
     assert h1.startswith("sha256:")
 
 
-def test_load_episode_round_trip(tmp_path):
+def test_load_episode_round_trip(tmp_path, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path)
     ep = load_episode(ep_dir)
     assert ep.ep_id == "ep-test-001"
@@ -76,14 +44,14 @@ def test_load_episode_missing_directory(tmp_path):
         load_episode(tmp_path / "missing")
 
 
-def test_load_episode_segments_hash_mismatch(tmp_path):
+def test_load_episode_segments_hash_mismatch(tmp_path, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path)
     (ep_dir / "segments.json").write_text(json.dumps(SEGMENTS + [{"start": 999, "end": 1000, "text": "z"}]))
     with pytest.raises(CorpusError, match="hash mismatch"):
         load_episode(ep_dir)
 
 
-def test_load_episode_metadata_missing_field(tmp_path):
+def test_load_episode_metadata_missing_field(tmp_path, write_corpus_episode):
     ep_dir = write_corpus_episode(tmp_path)
     (ep_dir / "metadata.toml").write_text('ep_id = "x"\n')
     with pytest.raises(CorpusError, match="required field"):

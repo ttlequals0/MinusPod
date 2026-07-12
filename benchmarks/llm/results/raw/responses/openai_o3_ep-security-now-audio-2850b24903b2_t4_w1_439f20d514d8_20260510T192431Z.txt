@@ -1,1 +1,0 @@
-{"error": "Need transcript or ad segments? The output should be a JSON array; they gave analysis."}

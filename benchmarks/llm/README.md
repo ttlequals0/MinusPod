@@ -15,11 +15,13 @@ benchmarks/llm/
     candidates/              # gitignored work-in-progress captures
     pricing_snapshots/       # committed pricing history
   results/
-    raw/                     # calls.jsonl, episode_results.jsonl, responses/, prompts/
+    raw/                     # calls.jsonl, episode_results.jsonl, responses/<model>.jsonl shards
     report.md                # current report
     report_assets/           # SVG charts referenced by report.md
     archive/                 # explicit snapshots: results/archive/<date>/
 ```
+
+Raw response bodies live in one JSONL shard per model (`results/raw/responses/<model>.jsonl`, lines of `{call_id, body}`), so the file count stays flat as the corpus grows. Prompts are not stored at all: they reconstruct deterministically from the corpus, and `benchmark show-prompt <call_id>` proves fidelity by recomputing the `prompt_hash` recorded at call time. `benchmark show-response <call_id>` prints a single raw response body.
 
 ## Setup
 
@@ -113,6 +115,24 @@ benchmark archive
 
 Copies `results/report.md` + assets to `results/archive/<YYYY-MM-DD>/`.
 
+### Audit a stored call
+
+```sh
+benchmark show-response <call_id>          # raw response body from its per-model shard
+benchmark show-prompt <call_id>            # rebuild the user prompt from the corpus + verify prompt_hash
+benchmark show-prompt <call_id> --snapshot prompts/05-22-206.txt   # verify against a frozen system prompt
+```
+
+`show-prompt` exits 3 with a MISMATCH warning when the recomputed hash differs from the stored one (system prompt or `windows.json` changed since the call ran).
+
+### Migrate a v1 checkout
+
+```sh
+benchmark migrate-raw
+```
+
+One-time conversion of the old per-call `.txt` layout to per-model JSONL shards. Verifies every body byte-exact before deleting, backs up `calls.jsonl`, and keeps any prompt file that does not reconstruct from the corpus. Safe to re-run if interrupted.
+
 ## Concurrency
 
 `benchmark run` dispatches calls via `asyncio.gather` against the OpenAI / Anthropic SDKs. Two semaphores cap concurrency:
@@ -143,4 +163,7 @@ A full sweep across the recommended 32-model list and 7-episode corpus is roughl
 
 ## Schema versions
 
-Every record in `calls.jsonl` and `episode_results.jsonl` carries `schema_version`. v1 is the only version today. Schema changes require a coordinated writer/reader update + version bump.
+Every record in `calls.jsonl` and `episode_results.jsonl` carries `schema_version`. Schema changes require a coordinated writer/reader update + version bump.
+
+- v1: one `.txt` per call under `responses/`, one `.txt` per `prompt_hash` under `prompts/`; records carry `prompt_path`.
+- v2 (current): response bodies in per-model JSONL shards (`responses/<model>.jsonl`, keyed by `call_id`); prompts are not stored (reconstruct via `show-prompt`); `prompt_path` dropped and `response_path` points at the shard. Convert a v1 checkout with `benchmark migrate-raw`.

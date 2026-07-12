@@ -5,9 +5,13 @@ real provider APIs, which is out of scope for the offline unit suite.
 """
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from benchmark import runner
+from benchmark import corpus, runner
+from benchmark.llm import LLMResponse
+from benchmark.storage import read_jsonl
 
 
 def test_build_user_prompt_uses_minuspod_format(make_episode):
@@ -76,6 +80,62 @@ def test_call_id_is_deterministic_shape():
     assert "ep-001" in cid
     assert "_t0_w2" in cid
     assert "abcdef012345" in cid
+
+
+def test_run_writes_v2_records_and_response_shards(tmp_path, minimal_cfg, make_episode, pricing_snapshot, monkeypatch):
+    """The execute path writes schema v2: response bodies appended to a
+    per-model JSONL shard, response_path pointing at the shard, and no
+    prompt_path (prompts are reconstructed on demand)."""
+    async def fake_call(**kwargs):
+        return LLMResponse(
+            text='[{"start_time": 0.0, "end_time": 30.0}]',
+            input_tokens=100,
+            output_tokens=10,
+            json_format_used="native",
+            underlying_provider="openrouter",
+            stop_reason="stop",
+        )
+
+    monkeypatch.setattr(runner.llm, "call_with_retry", fake_call)
+    ep = make_episode(n_windows=1)
+    paths = runner.RunPaths.for_root(tmp_path)
+    stats = asyncio.run(runner.run(
+        minimal_cfg, [ep], paths=paths, pricing_snapshot=pricing_snapshot, system_prompt="S",
+    ))
+
+    assert stats.completed == 2  # 1 model x 1 window x 2 trials
+    records = list(read_jsonl(paths.calls_jsonl))
+    assert len(records) == 2
+    for rec in records:
+        assert rec["schema_version"] == 2
+        assert rec["response_path"] == "responses/m1.jsonl"
+        assert "prompt_path" not in rec
+
+    shard = paths.responses_dir / "m1.jsonl"
+    bodies = list(read_jsonl(shard))
+    assert {b["call_id"] for b in bodies} == {r["call_id"] for r in records}
+    assert all(b["body"] == '[{"start_time": 0.0, "end_time": 30.0}]' for b in bodies)
+    assert not paths.prompts_dir.exists()
+
+
+def test_reconstruct_user_prompt_matches_runtime_prompt(tmp_path, write_corpus_episode):
+    """show-prompt rebuilds the exact user prompt the runner sent, from the
+    committed corpus alone."""
+    ep_id = write_corpus_episode(tmp_path).name
+    rebuilt = runner.reconstruct_user_prompt(
+        {"episode_id": ep_id, "window_index": 0}, corpus_dir=tmp_path,
+    )
+    ep = corpus.load_episode(tmp_path / ep_id)
+    assert rebuilt == runner._build_user_prompt(ep, ep.windows[0], total_windows=1)
+    assert "BetterHelp" in rebuilt
+
+
+def test_reconstruct_user_prompt_rejects_stale_window_index(tmp_path, write_corpus_episode):
+    ep_id = write_corpus_episode(tmp_path).name
+    with pytest.raises(ValueError, match="window_index"):
+        runner.reconstruct_user_prompt(
+            {"episode_id": ep_id, "window_index": 5}, corpus_dir=tmp_path,
+        )
 
 
 def test_violations_dict_round_trip():

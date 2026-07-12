@@ -1,1 +1,0 @@
-{"start": 5580.1, "end": 5608.1, "confidence": 0.95, "reason": "Yubico security key promotion", "end_text": "software-based pass keys."}

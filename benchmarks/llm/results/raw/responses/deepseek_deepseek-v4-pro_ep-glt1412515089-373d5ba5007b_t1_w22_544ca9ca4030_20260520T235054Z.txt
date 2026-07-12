@@ -1,4 +1,0 @@
-{
-  "segments": [],
-  "reason": "No promotional content, sponsorships, or advertisements detected in transcript."
-}

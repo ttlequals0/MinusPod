@@ -9,19 +9,30 @@ from pathlib import Path
 from typing import Iterator
 
 
-SCHEMA_VERSION = 1
+# v2: response bodies live in per-model JSONL shards (responses/<model>.jsonl)
+# keyed by call_id; prompts are no longer stored (reconstructed from the corpus
+# and verified against prompt_hash). v1 stored one .txt per call/prompt.
+SCHEMA_VERSION = 2
 
 
 class StorageError(RuntimeError):
     pass
 
 
+def dump_line(record: dict) -> str:
+    """The one place that owns the on-disk JSONL line format."""
+    return json.dumps(record, separators=(",", ":")) + "\n"
+
+
 def append_jsonl(path: Path, record: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(record, separators=(",", ":")) + "\n"
+    data = dump_line(record).encode()
     fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
     try:
-        os.write(fd, line.encode())
+        # os.write may write fewer bytes than asked (ENOSPC, signals); loop so
+        # a short write cannot silently truncate a record.
+        while data:
+            data = data[os.write(fd, data):]
         os.fsync(fd)
     finally:
         os.close(fd)
@@ -30,7 +41,7 @@ def append_jsonl(path: Path, record: dict) -> None:
 def read_jsonl(path: Path) -> Iterator[dict]:
     if not path.is_file():
         return
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         for lineno, raw in enumerate(f, start=1):
             raw = raw.strip()
             if not raw:
@@ -41,34 +52,45 @@ def read_jsonl(path: Path) -> Iterator[dict]:
                 raise StorageError(f"{path}:{lineno}: invalid JSON: {e}") from e
 
 
-def write_response(responses_dir: Path, call_id: str, body: str) -> Path:
-    responses_dir.mkdir(parents=True, exist_ok=True)
-    path = responses_dir / f"{call_id}.txt"
-    tmp = path.with_suffix(".tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-    try:
-        os.write(fd, body.encode())
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, path)
+def safe_model_id(model_id: str) -> str:
+    return model_id.replace("/", "_").replace(":", "_")
+
+
+def response_shard(responses_dir: Path, model_id: str) -> Path:
+    return responses_dir / f"{safe_model_id(model_id)}.jsonl"
+
+
+def append_response(responses_dir: Path, model_id: str, call_id: str, body: str) -> Path:
+    path = response_shard(responses_dir, model_id)
+    append_jsonl(path, {"call_id": call_id, "body": body})
     return path
 
 
-def write_prompt(prompts_dir: Path, prompt_hash: str, body: str) -> Path:
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-    path = prompts_dir / f"{prompt_hash}.txt"
-    if path.exists():
-        return path
-    tmp = path.with_suffix(".tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-    try:
-        os.write(fd, body.encode())
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, path)
-    return path
+def find_call(path: Path, call_id: str) -> dict | None:
+    """Last matching record wins, matching the report's retry semantics.
+
+    Substring pre-filter before json.loads: these files reach tens of MB and
+    a single lookup should not pay a full-file JSON parse.
+    """
+    found: dict | None = None
+    if not path.is_file():
+        return None
+    with path.open(encoding="utf-8") as f:
+        for lineno, line in enumerate(f, start=1):
+            if call_id not in line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise StorageError(f"{path}:{lineno}: invalid JSON: {e}") from e
+            if rec.get("call_id") == call_id:
+                found = rec
+    return found
+
+
+def read_response(responses_dir: Path, model_id: str, call_id: str) -> str | None:
+    rec = find_call(response_shard(responses_dir, model_id), call_id)
+    return rec.get("body") if rec else None
 
 
 def hash_prompt(*, system_prompt: str, user_prompt: str, model: str, temperature: float) -> str:

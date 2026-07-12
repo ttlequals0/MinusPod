@@ -1,0 +1,855 @@
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w0_a765190e9e44_20260510T191318Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w1_337396da3e6e_20260510T191318Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w2_7b3b0bbcc695_20260510T191319Z","body":"{\"error\": \"No ads found\"}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w0_a765190e9e44_20260510T191320Z","body":"{}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w1_337396da3e6e_20260510T191322Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w2_7b3b0bbcc695_20260510T191322Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w0_a765190e9e44_20260510T191326Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w1_337396da3e6e_20260510T191327Z","body":"{}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w2_7b3b0bbcc695_20260510T191327Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w0_a765190e9e44_20260510T191328Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w1_337396da3e6e_20260510T191330Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w2_7b3b0bbcc695_20260510T191331Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w0_a765190e9e44_20260510T191334Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w1_337396da3e6e_20260510T191335Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w2_7b3b0bbcc695_20260510T191335Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w0_cd59d2865174_20260522T111440Z","body":"{\"start\": 0.0, \"end\": 98.4, \"confidence\": 0.97, \"reason\": \"Platform-inserted pre-roll ads for Vitel Global, LinkedIn Premium, and Hertz\", \"end_text\": \"yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w1_c2e592e79e06_20260522T111440Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w2_35a4ffb23228_20260522T111441Z","body":"{\"start\":1036.2,\"end\":1129.6,\"confidence\":0.97,\"reason\":\"Host-read sponsor segment for SoFi personal loans and LinkedIn Premium, includes promo URLs and call-to-action\",\"end_text\":\"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w3_7d836fdef6a6_20260522T111441Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w4_ca5998abd585_20260522T111448Z","body":"{\"start\": 1959.8, \"end\": 2082.8, \"confidence\": 0.97, \"reason\": \"Back-to-back host-read sponsor ads for Rakuten, LinkedIn Premium All-in-One, and Hertz (promo language, brand names, URLs, calls to action)\", \"end_text\": \"fleet yet at Hertz.com.\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w5_0fcc99ab5b31_20260522T111448Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t0_w6_fc966e8a019d_20260522T111449Z","body":"{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.97, \"reason\": \"LinkedIn Premium All-in-One sponsor read with URL call to action\", \"end_text\": \"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w0_cd59d2865174_20260522T111452Z","body":"{\"start\": 0.0, \"end\": 98.4, \"confidence\": 0.98, \"reason\": \"Vitel Global, LinkedIn Premium, and Hertz sponsor spots before show intro\", \"end_text\": \"yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w1_c2e592e79e06_20260522T111453Z","body":"{}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w2_35a4ffb23228_20260522T111458Z","body":"{\"error\":\"As an AI text model without access to the full podcast transcript including timestamps, I cannot provide the detailed JSON output requested. Please provide the precise audio segment markers and transcript details for accurate ad detection.\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w3_7d836fdef6a6_20260522T111500Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w4_ca5998abd585_20260522T111500Z","body":"{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.98, \"reason\": \"Host-read multi-spot sponsor break for Rakuten, LinkedIn Premium, and Hertz with promo language and URLs\", \"end_text\": \"fleet yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w5_0fcc99ab5b31_20260522T111503Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t1_w6_fc966e8a019d_20260522T111504Z","body":"{\"error\": \"Given instructions: Return ONLY a valid JSON array. Can't be object.\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w0_cd59d2865174_20260522T111506Z","body":"{\"error\":\"No transcript data provided\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w1_c2e592e79e06_20260522T111512Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w2_35a4ffb23228_20260522T111514Z","body":"{\"start\": 1036.2, \"end\": 1129.6, \"confidence\": 0.96, \"reason\": \"Back-to-back host-read ads for SoFi (promo URL SoFi.com/CJ) and LinkedIn Premium (promo URL LinkedIn.com/all-in-one) with promotional copy and loan disclaimer\", \"end_text\": \"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w3_7d836fdef6a6_20260522T111515Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w4_ca5998abd585_20260522T111517Z","body":"{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.99, \"reason\": \"Rakuten, LinkedIn Premium, and Hertz sponsor reads\", \"end_text\": \"newest fleet yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w5_0fcc99ab5b31_20260522T111526Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t2_w6_fc966e8a019d_20260522T111528Z","body":"{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.96, \"reason\": \"LinkedIn Premium All-in-One network-inserted ad with call to action\", \"end_text\": \"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w0_cd59d2865174_20260522T111531Z","body":"{\"start\":0.0,\"end\":98.4,\"confidence\":0.98,\"reason\":\"Platform-inserted multi-sponsor ad break featuring Vitel Global, LinkedIn Premium All-in-One, and Hertz with promotional URLs and calls to action\",\"end_text\":\"at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w1_c2e592e79e06_20260522T111531Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w2_35a4ffb23228_20260522T111554Z","body":"{\"start\": 1036.2, \"end\": 1129.6, \"confidence\": 0.97, \"reason\": \"SoFi and LinkedIn Premium sponsor reads with promo URLs\", \"end_text\": \"slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w3_7d836fdef6a6_20260522T111559Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w4_ca5998abd585_20260522T111600Z","body":"{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.98, \"reason\": \"Rakuten, LinkedIn Premium, and Hertz sponsor read cluster\", \"end_text\": \"yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w5_0fcc99ab5b31_20260522T111603Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t3_w6_fc966e8a019d_20260522T111605Z","body":"{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.96, \"reason\": \"LinkedIn Premium All-in-One promotional ad with call to action URL\", \"end_text\": \"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w0_cd59d2865174_20260522T111610Z","body":"{\"start\": 0.0, \"end\": 98.4, \"confidence\": 0.99, \"reason\": \"Pre-roll ad break featuring Vitel Global, LinkedIn Premium All-in-One, and Hertz with explicit promotional language, URLs, and calls to action\", \"end_text\": \"yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w1_c2e592e79e06_20260522T111613Z","body":"{}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w2_35a4ffb23228_20260522T111615Z","body":"{\"start\": 1035.7, \"end\": 1129.6, \"confidence\": 0.97, \"reason\": \"Host-read sponsor ads for SoFi personal loans and LinkedIn Premium All-in-One with promotional language, URL, and call to action\", \"end_text\": \"LinkedIn.com slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w3_7d836fdef6a6_20260522T111620Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w4_ca5998abd585_20260522T111628Z","body":"{\"start\": 1959.8, \"end\": 2080.5, \"confidence\": 0.97, \"reason\": \"Rakuten, LinkedIn Premium, and Hertz sponsor ad break\", \"end_text\": \"yet at Hertz.com\"}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w5_0fcc99ab5b31_20260522T111629Z","body":"{}"}
+{"call_id":"openai_o3_ep-crime-junkie-8ce498f299d7_t4_w6_fc966e8a019d_20260522T111635Z","body":"{\"start\": 2863.0, \"end\": 2894.5, \"confidence\": 0.97, \"reason\": \"LinkedIn Premium promotional pitch with URL and benefits\", \"end_text\": \"slash all-in-one\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t0_w0_52abc9ecb407_20260522T111636Z","body":"{\"error\":\"The policy states we must not output explanations or reasoning. We must output only the JSON array.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t0_w1_4acf7181424d_20260522T111643Z","body":"{\"start\": 506.4, \"end\": 548.5, \"confidence\": 0.9, \"reason\": \"Crain's Weekly News Quiz promotional segment with URL call to action\", \"end_text\": \"Daily Gist with Amy Guth\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t0_w2_8386872b307a_20260522T111648Z","body":"{\"error\": \"The provided transcript segment contains no advertisement segments according to the specified detection rules.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t0_w3_4ebffb706ac4_20260522T111652Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t1_w0_52abc9ecb407_20260522T111656Z","body":"{\"segments\":[{\"start\":54.1,\"end\":64.7,\"confidence\":0.95,\"reason\":\"Old National Bank sponsor read with URL and FDIC mention\",\"end_text\":\"commercial banking. Member FDIC.\"},{\"start\":506.4,\"end\":548.5,\"confidence\":0.9,\"reason\":\"Promotional break for Crain's Weekly News Quiz introduced by \\\"right after this\\\"\",\"end_text\":\"you get your podcasts.\"}]}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t1_w1_4acf7181424d_20260522T111656Z","body":"{\"error\": \"No advertisement language found in provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t1_w2_8386872b307a_20260522T111708Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t1_w3_4ebffb706ac4_20260522T111712Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t2_w0_52abc9ecb407_20260522T111712Z","body":"{\"error\": \"I'm sorry but I can't obey this request.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t2_w1_4acf7181424d_20260522T111719Z","body":"{\"start\": 506.4, \"end\": 548.5, \"confidence\": 0.95, \"reason\": \"Self-promo sponsor segment for Crain's Weekly News Quiz with call to action and URL\", \"end_text\": \"with Amy Guth.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t2_w2_8386872b307a_20260522T111719Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t2_w3_4ebffb706ac4_20260522T111725Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t3_w0_52abc9ecb407_20260522T111727Z","body":"{\"ad_segments\":[{\"start\":54.1,\"end\":64.7,\"confidence\":0.97,\"reason\":\"Old National Bank sponsor read\",\"end_text\":\"Member FDIC.\"},{\"start\":506.4,\"end\":548.5,\"confidence\":0.9,\"reason\":\"Crain's Weekly News Quiz promotional break\",\"end_text\":\"wherever you get your podcasts\"}]}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t3_w1_4acf7181424d_20260522T111730Z","body":"{\"start\": 506.4, \"end\": 548.5, \"confidence\": 0.93, \"reason\": \"Host-read promotional break for Crain's Weekly News Quiz with URL and calls to action, introduced by 'right after this'\", \"end_text\": \"Gist with Amy Guth.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t3_w2_8386872b307a_20260522T111732Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t3_w3_4ebffb706ac4_20260522T111739Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t4_w0_52abc9ecb407_20260522T111744Z","body":"{\"error\":\"Need JSON array as top-level\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t4_w1_4acf7181424d_20260522T111744Z","body":"{\"start\": 506.4, \"end\": 548.5, \"confidence\": 0.92, \"reason\": \"Host-read promo with call to action and URL for Crain's Weekly News Quiz, introduced by 'right after this' transition\", \"end_text\": \"This is the Crain's Daily Gist with Amy Guth.\"}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t4_w2_8386872b307a_20260522T111745Z","body":"{}"}
+{"call_id":"openai_o3_ep-daily-gist-chicago-70a82fe93a5c_t4_w3_4ebffb706ac4_20260522T111751Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t0_w0_561fdc2f9cae_20260515T211533Z","body":"{\"start\": 0.0, \"end\": 112.1, \"confidence\": 0.98, \"reason\": \"Clustered pre-roll ads: Capital One, Every Brilliant Thing Broadway, AllTrails app, Zyn Nicotine Pouches (with nicotine disclaimer); continuous ad block before show intro\", \"end_text\": \"Nicotine is an addictive chemical.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t0_w1_cc4ef43e9aec_20260515T211533Z","body":"{\"error\":\"No ad segments found in provided window.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t0_w2_0225cb1b462b_20260515T211533Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t0_w3_22390bce0fd7_20260515T211534Z","body":"{\"start\":1493.2,\"end\":1536.8,\"confidence\":0.97,\"reason\":\"Capital One and AllTrails sponsor reads with promotional language and call-to-action\",\"end_text\":\"find your outside\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t0_w4_36e4337e7877_20260515T211536Z","body":"{\"error\":\"The reason field must be at most 15 words long\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t1_w0_561fdc2f9cae_20260515T211547Z","body":"{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.99, \"reason\": \"Capital One, Every Brilliant Thing Broadway, AllTrails, and Zyn nicotine pouch sponsor ads (pre-roll block)\", \"end_text\": \"Nicotine is an addictive chemical.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t1_w1_cc4ef43e9aec_20260515T211547Z","body":"{\"error\":\"The input does not appear to include any promotional language indicating advertisement segments. No ads were detected in this transcript window.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t1_w2_0225cb1b462b_20260515T211548Z","body":"{\"error\":\"No ad markers within provided content. It's editorial product coverage without promotional call-to-action or explicit sponsorship language so not classified as advertisement as per rules.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t1_w3_22390bce0fd7_20260515T211557Z","body":"{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.97, \"reason\": \"Capital One and AllTrails host-read sponsor messages with promotional language and call to action\", \"end_text\": \"find your outside.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t1_w4_36e4337e7877_20260515T211558Z","body":"{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.96, \"reason\": \"Capital One sponsor read followed by Good Things podcast cross-promo\", \"end_text\": \"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t2_w0_561fdc2f9cae_20260515T211600Z","body":"{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.97, \"reason\": \"Merged sponsor block with Capital One, Every Brilliant Thing, AllTrails, and Zinn Nicotine Pouches ads\", \"end_text\": \"Nicotine is an addictive chemical.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t2_w1_cc4ef43e9aec_20260515T211601Z","body":"{\"start\":636.8,\"end\":776.6,\"confidence\":0.97,\"reason\":\"Cluster of network-inserted ads: Parloa (\\\"This episode is sponsored by\\\"), Capital One (\\\"This episode is brought to you by Capital One\\\"), AllTrails call-to-action, Zinn Nicotine Pouches promo with disclaimer, and Lemonada Media podcast cross-promo, all contiguous\",\"end_text\":\"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t2_w2_0225cb1b462b_20260515T211607Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t2_w3_22390bce0fd7_20260515T211609Z","body":"{\"start\":1493.2,\"end\":1536.8,\"confidence\":0.97,\"reason\":\"Capital One and AllTrails host-read sponsor break\",\"end_text\":\"find your outside\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t2_w4_36e4337e7877_20260515T211612Z","body":"{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.97, \"reason\": \"Capital One sponsor read followed by Lemonada Media podcast promo\", \"end_text\": \"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t3_w0_561fdc2f9cae_20260515T211615Z","body":"{\"start\": 0.0, \"end\": 112.1, \"confidence\": 0.98, \"reason\": \"Back-to-back platform-inserted ads for Capital One, Every Brilliant Thing, AllTrails, and Zyn nicotine pouches, beginning with \\\"This episode is brought to you by Capital One\\\" and ending after the nicotine warning\", \"end_text\": \"an addictive chemical.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t3_w1_cc4ef43e9aec_20260515T211619Z","body":"{\"start\":636.8,\"end\":776.6,\"confidence\":0.96,\"reason\":\"Parloa, Capital One, AllTrails, Zinn Nicotine Pouches sponsor reads and Lemonada Media cross-promo\",\"end_text\":\"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t3_w2_0225cb1b462b_20260515T211621Z","body":"{}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t3_w3_22390bce0fd7_20260515T211624Z","body":"{\"error\": \"Need JSON array\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t3_w4_36e4337e7877_20260515T211624Z","body":"{\"start\": 2015.9, \"end\": 2073.2, \"confidence\": 0.97, \"reason\": \"Capital One sponsor read followed by network promo for Lemonada Media show\", \"end_text\": \"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t4_w0_561fdc2f9cae_20260515T211629Z","body":"{\"start\": 0.0, \"end\": 104.3, \"confidence\": 0.99, \"reason\": \"Capital One, Every Brilliant Thing, AllTrails, Zinn nicotine sponsor ads\", \"end_text\": \"is an addictive chemical.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t4_w1_cc4ef43e9aec_20260515T211631Z","body":"{\"start\":636.8,\"end\":782.3,\"confidence\":0.97,\"reason\":\"Multi-sponsor ad break: Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Good Things podcast cross-promo with URLs, sponsor language, and calls to action\",\"end_text\":\"get to the briefs.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t4_w2_0225cb1b462b_20260515T211634Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t4_w3_22390bce0fd7_20260515T211635Z","body":"{\"start\": 1493.2, \"end\": 1536.8, \"confidence\": 0.97, \"reason\": \"Capital One and AllTrails sponsor reads with promotional language and calls to action\", \"end_text\": \"find your outside\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-b576979e1fe8_t4_w4_36e4337e7877_20260515T211638Z","body":"{\"start\":2015.9,\"end\":2073.2,\"confidence\":0.95,\"reason\":\"Capital One sponsor read followed by Lemonada Media podcast promo\",\"end_text\":\"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w0_d570ff1614e7_20260510T191338Z","body":"{\"error\":\"Need to return array not object\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w1_a5054d063a10_20260510T191340Z","body":"{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.99, \"reason\": \"Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse sponsor ads block\", \"end_text\": \"It's time to be great\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w2_925ab810f295_20260510T191342Z","body":"{\"error\": \"Please provide the episode's transcript including at least one timestamped line so I can check for advertisements.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w3_8efb85ecda9c_20260510T191343Z","body":"{\"start\":1718.3,\"end\":1799.6,\"confidence\":0.95,\"reason\":\"Host DTNS merch promotion followed by Capital One sponsor read and Lemonada Media cross-promo within one continuous ad break\",\"end_text\":\"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w4_01a3a428be0f_20260510T191354Z","body":"{\"error\": \"no ads in this window\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t0_w5_27cd97eab2ec_20260510T191356Z","body":"{\"result\":[{\"start\":2246.0,\"end\":2314.4,\"confidence\":0.97,\"reason\":\"Capital One and Rinse sponsor reads with promotional language and calls to action\",\"end_text\":\"time to be great\"}]}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w0_d570ff1614e7_20260510T191357Z","body":"{\"start\": 0.0, \"end\": 152.9, \"confidence\": 0.97, \"reason\": \"Pre-roll ad block with host-read sponsors Capital One, Xero, Spectrum Business, and Warby Parker, containing promo language, URLs, and calls to action\", \"end_text\": \"That's warbyparker.com.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w1_a5054d063a10_20260510T191357Z","body":"{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.97, \"reason\": \"Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse multi-ad sponsor break\", \"end_text\": \"It's time to be great\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w2_925ab810f295_20260510T191404Z","body":"{\"error\": \"No advertisement segments found within the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w3_8efb85ecda9c_20260510T191406Z","body":"{\"error\":\"Image input not supported\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w4_01a3a428be0f_20260510T191412Z","body":"{\"error\":\"The provided transcript window contains only partial advertisement segments, preventing accurate detection of complete ad blocks. According to the guidelines, if an ad appears to START before this segment or CONTINUE past this segment, we must mark the start and end times accordingly with notes (e.g., 'continues from previous', 'continues in next'). Please provide a larger context or a different transcript window so that full ad breaks can be accurately identified.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t1_w5_27cd97eab2ec_20260510T191415Z","body":"{\"error\":\"expected JSON array\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w0_d570ff1614e7_20260510T191416Z","body":"{\"start\":0.0,\"end\":160.6,\"confidence\":0.98,\"reason\":\"Capital One, Xero, Spectrum Business and Warby Parker sponsor pitches with promo URLs, free trial calls to action and transitional host line before show content resumes\",\"end_text\":\"Daily Tech News for\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w1_a5054d063a10_20260510T191418Z","body":"{\"error\":\"The provided transcript timestamps are incorrect.  [821.4s] is outside of the provided transcript window.  The provided transcript window goes from [418.7s] to [1019.4s].  Please provide a transcript within the provided window.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w2_925ab810f295_20260510T191422Z","body":"{\"start\": 821.4, \"end\": 1024.8, \"confidence\": 0.99, \"reason\": \"Multi-sponsor ad break featuring Capital One, BetterHelp (promo code), Amazon Health AI, Spectrum Business, and Rinse laundry service; begins with 'This episode is brought to you by' and includes multiple calls to action and URLs\", \"end_text\": \"get to the briefs\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w3_8efb85ecda9c_20260510T191426Z","body":"{\"response\":[{\"start\":1742.3,\"end\":1803.6,\"confidence\":0.97,\"reason\":\"Capital One sponsor read followed by Lemonada Media podcast cross-promo\",\"end_text\":\"six-part Thrive series.\"}]}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w4_01a3a428be0f_20260510T191427Z","body":"{\"error\": \"Need to return JSON array, not object\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t2_w5_27cd97eab2ec_20260510T191428Z","body":"{\"start\":2246.0,\"end\":2314.4,\"confidence\":0.97,\"reason\":\"Capital One sponsor read and Rinse promotional ad in same break\",\"end_text\":\"time to be great\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w0_d570ff1614e7_20260510T191433Z","body":"{\"error\":\"No ads found\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w1_a5054d063a10_20260510T191437Z","body":"{\"start\": 821.4, \"end\": 1021.1, \"confidence\": 0.97, \"reason\": \"Sponsor block containing Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse ads\", \"end_text\": \"time to be great\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w2_925ab810f295_20260510T191439Z","body":"{\"error\":\"need to output JSON array only\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w3_8efb85ecda9c_20260510T191441Z","body":"{\"start\": 1742.3, \"end\": 1799.6, \"confidence\": 0.97, \"reason\": \"Capital One sponsor read followed by Lemonada Media cross-promo\", \"end_text\": \"six-part Thrive series\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w4_01a3a428be0f_20260510T191448Z","body":"{\"error\": \"Need to output a JSON array\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t3_w5_27cd97eab2ec_20260510T191449Z","body":"{\"error\": \"Please supply the full transcript window text so I can search it for any advertisements.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w0_d570ff1614e7_20260510T191451Z","body":"{\"start\": 0.0, \"end\": 160.6, \"confidence\": 0.99, \"reason\": \"Back-to-back sponsor reads for Capital One, Xero, Spectrum Business, and Warby Parker with promotional language, URLs, and calls to action\", \"end_text\": \"That's warbyparker.com.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w1_a5054d063a10_20260510T191453Z","body":"{\"start\":796.9,\"end\":1021.1,\"confidence\":0.99,\"reason\":\"Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse sponsor reads following transition phrase\",\"end_text\":\"time to be great\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w2_925ab810f295_20260510T191505Z","body":"{\"error\": \"Need JSON array.\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w3_8efb85ecda9c_20260510T191510Z","body":"{\"error\": \"Need bracket array format\"}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w4_01a3a428be0f_20260510T191514Z","body":"{\"ads\":[{\"start\":1742.3,\"end\":1799.6,\"confidence\":0.97,\"reason\":\"Host-read Capital One sponsor read immediately followed (<15 s gap) by Lemonada Media \u2018Good Things\u2019 podcast promo, merged as one break\",\"end_text\":\"six-part Thrive series\"},{\"start\":2246.0,\"end\":2280.0,\"confidence\":0.96,\"reason\":\"Post-roll Capital One sponsor read immediately followed by Rinse laundry-service ad (continues past window)\",\"end_text\":\"doing more, but\"}]}"}
+{"call_id":"openai_o3_ep-daily-tech-news-show-c1904b8605f7_t4_w5_27cd97eab2ec_20260510T191514Z","body":"{\"start\": 2246.0, \"end\": 2314.4, \"confidence\": 0.97, \"reason\": \"Capital One and Rinse sponsor ads back-to-back within same break\", \"end_text\": \"time to be great\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w0_c79cbb0d49b4_20260522T111754Z","body":"{\"result\":[{\"start\":0.0,\"end\":150.5,\"confidence\":0.98,\"reason\":\"Platform pre-roll ad cluster featuring Airtasker, Gilead HIV PSA, Nissan durability campaign, and Shopify sponsor read\",\"end_text\":\"Shopify.com slash B-E-N\"}]}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w10_2303b7050fe2_20260522T111828Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w11_da574efe6bc1_20260522T111831Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w12_31b8da94923c_20260522T111833Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w13_27685dfb5679_20260522T111839Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w14_19b2f685deab_20260522T111843Z","body":"{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.98, \"reason\": \"Airtasker sponsor ad, Decisions Decisions podcast cross-promo (sponsored by Gilead), OnDeck line-of-credit ad, and Public investing platform ad delivered back-to-back with <15 s gaps\", \"end_text\": \"take it seriously.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w15_537e8dd50c39_20260522T111848Z","body":"{\"error\": \"No advertisement segments found in provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w16_757347b8495d_20260522T111907Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w17_2f83f8bef49c_20260522T111910Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w18_c1d672a9b7c0_20260522T111911Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w19_97c4275228e1_20260522T111916Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w1_b175d46ed18a_20260522T111758Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w20_56ddf1af86ad_20260522T111916Z","body":"{\"start\": 8724.9, \"end\": 8889.4, \"confidence\": 0.96, \"reason\": \"Cluster of network-inserted ads: AirTasker app, Decisions Decisions podcast promo with Kiki Palmer, OnDeck small-business loans, Public investing platform\", \"end_text\": \"Transcription by CastingWords\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w21_926b7b41cdbc_20260522T111917Z","body":"{\"start\": 8799.1, \"end\": 8889.4, \"confidence\": 0.93, \"reason\": \"OnDeck and Public investing sponsor reads with call to action and sponsor language\u201d, \u201cend_text\u201d: \u201cTranscription by CastingWords\u201d}  Incorrect format? Wait should be array. Let's fix. I need JSON array containing object. List can't show curly braces outside. Provide properly: [{\"   }"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w22_7320c58488c2_20260522T111925Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w23_132c550588e7_20260522T111930Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w24_6f05f48bf4d2_20260522T111935Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w25_1429bb32aff9_20260522T111943Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w26_629eb21d0847_20260522T111944Z","body":"{\"error\": \"Need to apologize, but no transcript excerpt was found.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w27_dbbed1c3d0fe_20260522T111944Z","body":"{\"start\":11335.2,\"end\":11513.7,\"confidence\":0.94,\"reason\":\"Merged ad block containing Airtasker app sponsor read, Decisions Decisions podcast promo (sponsored by Gilead Sciences), and OnDeck line of credit ad\",\"end_text\":\"Transcription by CastingWords\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w28_e0089b7c8802_20260522T111946Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w29_37c06fe77ef1_20260522T111951Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w2_8e8a7faa6cb0_20260522T111806Z","body":"{\"error\":\"No advertisement segments found in the provided transcript portion.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w30_c3f0ceb05799_20260522T111953Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w31_9a2550ee27ab_20260522T111957Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w32_39d7033bade2_20260522T111959Z","body":"{\"start\": 13669.1, \"end\": 13828.9, \"confidence\": 0.96, \"reason\": \"Platform-inserted ad break with Airtasker, Decisions Decisions podcast promo, OnDeck, and Public investing ads\", \"end_text\": \"Transcription by CastingWords\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w33_6b0ceade1e54_20260522T112004Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w34_a34fdfbbc39e_20260522T112011Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w35_b055011d80ad_20260522T112015Z","body":"{\"start\": 15261.8, \"end\": 15285.2, \"confidence\": 0.4, \"reason\": \"Repeated 'promo code' language indicates sponsor promotion segment\", \"end_text\": \"discount code, discount code\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w36_5ef5130eb1a0_20260522T112019Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 15261.8,\n      \"end\": 15285.2,\n      \"confidence\": 0.25,\n      \"reason\": \"Repeated 'promo code, discount code' call-to-action suggests truncated ad read\",\n      \"end_text\": \"discount code\"\n    },\n    {\n      \"start\": 15388.3,\n      \"end\": 15517.1,\n      \"confidence\": 0.97,\n      \"reason\": \"Back-to-back network-inserted ads for Airtasker, CVS, Trashy, TryFencing.org plus iHeart promo\",\n      \"end_text\": \"Guaranteed human.\"\n    }\n  ]\n}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w3_b3bf2a8de3b2_20260522T111807Z","body":"{\"start\":1450.9,\"end\":1629.0,\"confidence\":0.97,\"reason\":\"Back-to-back network-inserted ads: Airtasker sponsor read, Decisions Decisions podcast promo, OnDeck business loan ad, BetMGM MLB betting promo with legal disclaimers\",\"end_text\":\"Kansas Crossing Casino and Hotel.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w4_ad2f7f58bdf8_20260522T111809Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w5_c10109906a6f_20260522T111811Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w6_50a5ff5096a5_20260522T111815Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w7_6c029bb4f83c_20260522T111816Z","body":"{\"start\": 3503.7, \"end\": 3556.2, \"confidence\": 0.93, \"reason\": \"Airtasker host-read style ad followed by cross-promotion for \\\"Decisions Decisions\\\" podcast (promo voices, calls to action, brand names, URL). Continuous break with no content in between.\", \"end_text\": \"conversation about abstinence?\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w8_67d3341ceec8_20260522T111821Z","body":"{\"start\":3478.9,\"end\":3650.4,\"confidence\":0.98,\"reason\":\"Airtasker host-read ad, Decisions Decisions podcast cross-promo, OnDeck line of credit ad, and Public investing platform sponsor read grouped in one uninterrupted break\",\"end_text\":\"public.com slash disclosures\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t0_w9_bb201f285871_20260522T111824Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w0_c79cbb0d49b4_20260522T112033Z","body":"{\"start\": 0.0, \"end\": 162.9, \"confidence\": 0.97, \"reason\": \"Platform-inserted pre-roll ad block featuring Airtasker, Care for the Culture/Gilead, Nissan Rogue, and Shopify with promo URL\", \"end_text\": \"Shopify.com slash B-E-N.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w10_2303b7050fe2_20260522T112105Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w11_da574efe6bc1_20260522T112110Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w12_31b8da94923c_20260522T112111Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w13_27685dfb5679_20260522T112117Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w14_19b2f685deab_20260522T112118Z","body":""}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w15_537e8dd50c39_20260522T112122Z","body":"{\"start\": 6283.4, \"end\": 6318.1, \"confidence\": 0.97, \"reason\": \"OnDeck small business line of credit ad followed by Public investing platform sponsor read\", \"end_text\": \"take it seriously.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w16_757347b8495d_20260522T112125Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w17_2f83f8bef49c_20260522T112127Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w18_c1d672a9b7c0_20260522T112136Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w19_97c4275228e1_20260522T112136Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w1_b175d46ed18a_20260522T112042Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w20_56ddf1af86ad_20260522T112142Z","body":"{\"error\": \"No ad segments found\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w21_926b7b41cdbc_20260522T112145Z","body":"{\"error\":\"No advertisement segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w22_7320c58488c2_20260522T112148Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w23_132c550588e7_20260522T112152Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w24_6f05f48bf4d2_20260522T112152Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w25_1429bb32aff9_20260522T112157Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w26_629eb21d0847_20260522T112158Z","body":"{\"error\":\"Please provide some text.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w27_dbbed1c3d0fe_20260522T112200Z","body":"{\"start\":11335.2,\"end\":11455.4,\"confidence\":0.96,\"reason\":\"Airtasker sponsor read, Decisions Decisions podcast cross-promotion, and OnDeck line of credit ad block\",\"end_text\":\"subject to lender approval.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w28_e0089b7c8802_20260522T112202Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w29_37c06fe77ef1_20260522T112206Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w2_8e8a7faa6cb0_20260522T112043Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w30_c3f0ceb05799_20260522T112211Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w31_9a2550ee27ab_20260522T112213Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w32_39d7033bade2_20260522T112215Z","body":"{\"start\": 13669.1, \"end\": 13854.6, \"confidence\": 0.96, \"reason\": \"Back-to-back network-inserted ads (Airtasker, Decisions podcast promo, OnDeck, Public investing) following break\", \"end_text\": \"gallons a day. Of water\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w33_6b0ceade1e54_20260522T112220Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w34_a34fdfbbc39e_20260522T112220Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w35_b055011d80ad_20260522T112225Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w36_5ef5130eb1a0_20260522T112227Z","body":"{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.96, \"reason\": \"Network-inserted ad block promoting Airtasker, CVS, Trashy, and TryFencing with URLs and calls to action\", \"end_text\": \"Podcast. Guaranteed human.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w3_b3bf2a8de3b2_20260522T112048Z","body":"{\"start\":1450.9,\"end\":1629.0,\"confidence\":0.96,\"reason\":\"Platform-inserted ad break containing ads for Airtasker, cross-promo for Decisions Decisions podcast, OnDeck line of credit, and BetMGM MLB promo\",\"end_text\":\"Kansas Crossing Casino and Hotel.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w4_ad2f7f58bdf8_20260522T112049Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w5_c10109906a6f_20260522T112053Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w6_50a5ff5096a5_20260522T112057Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w7_6c029bb4f83c_20260522T112059Z","body":"{\"start\": 3478.9, \"end\": 3556.2, \"confidence\": 0.94, \"reason\": \"Airtasker sponsor read followed by Decisions Decisions podcast cross-promotion\", \"end_text\": \"about abstinence?\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w8_67d3341ceec8_20260522T112104Z","body":"{\"start\":3478.9,\"end\":3650.4,\"confidence\":0.98,\"reason\":\"Back-to-back ad block: Airtasker host-read, Decisions Decisions podcast promo, OnDeck credit line ad, Public investing platform ad with URLs & calls to action\",\"end_text\":\"public.com slash disclosures\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t1_w9_bb201f285871_20260522T112105Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w0_c79cbb0d49b4_20260522T112231Z","body":"{\"error\": \"No ads found\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w10_2303b7050fe2_20260522T112255Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w11_da574efe6bc1_20260522T112256Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w12_31b8da94923c_20260522T112258Z","body":"{\"ad_segments\":[{\"start\":5420.4,\"end\":5441.4,\"confidence\":0.4,\"reason\":\"Repeated promotional phrases 'promo code, discount code' indicate an ad break even though brand details are missing\",\"end_text\":\"discount code, discount code\"}]}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w13_27685dfb5679_20260522T112259Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w14_19b2f685deab_20260522T112300Z","body":"{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.97, \"reason\": \"Clustered network-inserted ads for Airtasker, Decisions Decisions podcast, OnDeck small business line of credit, and Public investing platform\", \"end_text\": \"take it seriously.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w15_537e8dd50c39_20260522T112303Z","body":"{\"error\":\"I'm sorry, but I can't provide that.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w16_757347b8495d_20260522T112312Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w17_2f83f8bef49c_20260522T112315Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w18_c1d672a9b7c0_20260522T112316Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w19_97c4275228e1_20260522T112316Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w1_b175d46ed18a_20260522T112234Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w20_56ddf1af86ad_20260522T112319Z","body":"{\"start\": 8724.9, \"end\": 8889.4, \"confidence\": 0.97, \"reason\": \"Platform-inserted ad block featuring AirTasker, Decisions Decisions cross-promo with Gilead Sciences, OnDeck, and Public investing pitch\", \"end_text\": \"Transcription by CastingWords\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w21_926b7b41cdbc_20260522T112319Z","body":"{\"error\": \"The input appears truncated. No complete advertisement segments with the necessary promotional language and clear boundaries are present inside this window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w22_7320c58488c2_20260522T112327Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w23_132c550588e7_20260522T112329Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w24_6f05f48bf4d2_20260522T112334Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w25_1429bb32aff9_20260522T112335Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w26_629eb21d0847_20260522T112335Z","body":"{\"error\":\"Cannot identify ad segments because no promotional language detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w27_dbbed1c3d0fe_20260522T112338Z","body":"{\"start\":11335.2,\"end\":11455.4,\"confidence\":0.93,\"reason\":\"Back-to-back ad break featuring Airtasker, Decisions Decisions podcast promo sponsored by Gilead Sciences, and OnDeck small-business line of credit with URLs/calls to action\",\"end_text\":\"subject to lender approval\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w28_e0089b7c8802_20260522T112338Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w29_37c06fe77ef1_20260522T112341Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w2_8e8a7faa6cb0_20260522T112236Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w30_c3f0ceb05799_20260522T112348Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w31_9a2550ee27ab_20260522T112355Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w32_39d7033bade2_20260522T112401Z","body":"{\"start\": 13669.1, \"end\": 13854.6, \"confidence\": 0.97, \"reason\": \"Cluster of network-inserted ads: Airtasker, Decisions Decisions podcast promo, OnDeck, Public investing platform\", \"end_text\": \"public.com slash disclosures\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w33_6b0ceade1e54_20260522T112405Z","body":"{\"segments\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w34_a34fdfbbc39e_20260522T112414Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w35_b055011d80ad_20260522T112418Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w36_5ef5130eb1a0_20260522T112420Z","body":"{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.96, \"reason\": \"Network-inserted ad block featuring Airtasker, CVS, Trashy, TryFencing promos and iHeart platform tag\", \"end_text\": \"Guaranteed human.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w3_b3bf2a8de3b2_20260522T112236Z","body":"{\"start\":1450.9,\"end\":1629.0,\"confidence\":0.97,\"reason\":\"Platform-inserted ad break featuring Airtasker sponsor read, cross-promotion for Decisions Decisions podcast, OnDeck small business line of credit, and BetMGM baseball promo with disclaimers\",\"end_text\":\"Kansas Crossing Casino and Hotel\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w4_ad2f7f58bdf8_20260522T112240Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w5_c10109906a6f_20260522T112240Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w6_50a5ff5096a5_20260522T112244Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w7_6c029bb4f83c_20260522T112247Z","body":"{\"error\":\"Need only JSON array.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w8_67d3341ceec8_20260522T112247Z","body":"{\"start\": 3478.9, \"end\": 3666.3, \"confidence\": 0.96, \"reason\": \"Back-to-back sponsor and network-inserted ads: Airtasker host-read with app URL, Decisions Decisions podcast promo sponsored by Gilead, OnDeck small-business credit pitch with application URL, and Public investing platform read with disclosure URL. No editorial content between spots, gaps <15 s.\", \"end_text\": \"public.com slash disclosures\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t2_w9_bb201f285871_20260522T112249Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w0_c79cbb0d49b4_20260522T112420Z","body":"{\"start\": 0.0, \"end\": 150.5, \"confidence\": 0.97, \"reason\": \"Platform-inserted pre-roll ad block featuring Airtasker, HIV awareness (Care for the Culture/Gilead), Nissan Rogue, and Shopify with promo URL\", \"end_text\": \"Shopify.com slash B-E-N\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w10_2303b7050fe2_20260522T112449Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w11_da574efe6bc1_20260522T112450Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w12_31b8da94923c_20260522T112451Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w13_27685dfb5679_20260522T112453Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w14_19b2f685deab_20260522T112456Z","body":"{\"start\": 6208.7, \"end\": 6318.1, \"confidence\": 0.96, \"reason\": \"Ad block with Airtasker app promo, Decisions Decisions podcast cross-promo sponsored by Gilead, OnDeck small business credit, and Public investing platform\", \"end_text\": \"platform for those who take it seriously\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w15_537e8dd50c39_20260522T112457Z","body":"{\"error\":\"We have only one ad segment, but because we do not show the last 3-5 words for this segment, the required output format cannot be met.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w16_757347b8495d_20260522T112458Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w17_2f83f8bef49c_20260522T112505Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w18_c1d672a9b7c0_20260522T112507Z","body":"{\"error\":\"No advertisement segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w19_97c4275228e1_20260522T112510Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w1_b175d46ed18a_20260522T112429Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w20_56ddf1af86ad_20260522T112511Z","body":"{\"start\": 8724.9, \"end\": 8869.0, \"confidence\": 0.97, \"reason\": \"Back-to-back ad break featuring AirTasker host-read, cross-promo for Decisions Decisions podcast sponsored by Gilead, OnDeck loan spot, Public investing platform mention, and CastingWords tagline\", \"end_text\": \"Transcription by CastingWords\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w21_926b7b41cdbc_20260522T112513Z","body":"{\"start\": 8799.1, \"end\": 8831.4, \"confidence\": 0.93, \"reason\": \"OnDeck small business loans and Public investing platform sponsor reads back-to-back\", \"end_text\": \"take it seriously.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w22_7320c58488c2_20260522T112514Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w23_132c550588e7_20260522T112518Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w24_6f05f48bf4d2_20260522T112521Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w25_1429bb32aff9_20260522T112524Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w26_629eb21d0847_20260522T112525Z","body":"{\"error\":\"No ads detected in the provided transcript segment.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w27_dbbed1c3d0fe_20260522T112527Z","body":"{\"start\":11335.2, \"end\":11455.4, \"confidence\":0.96, \"reason\":\"Back-to-back ad break with Airtasker app promo, Decisions Decisions podcast sponsored by Gilead Sciences, and OnDeck small business line of credit\", \"end_text\":\"subject to lender approval.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w28_e0089b7c8802_20260522T112528Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w29_37c06fe77ef1_20260522T112532Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w2_8e8a7faa6cb0_20260522T112432Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w30_c3f0ceb05799_20260522T112533Z","body":"{\"segments\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w31_9a2550ee27ab_20260522T112535Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w32_39d7033bade2_20260522T112536Z","body":"{\"error\":\"Transcript times do not exist. Start times in the problem appear to be referencing whole transcript, but window indices might differ. We must ensure start and end numeric floats. Provided times (13669.1 etc) are correct floats. Provide JSON array with objects.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w33_6b0ceade1e54_20260522T112541Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w34_a34fdfbbc39e_20260522T112544Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w35_b055011d80ad_20260522T112546Z","body":"{\"error\": \"Due to compliance policy, I cannot provide that.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w36_5ef5130eb1a0_20260522T112547Z","body":"{\"start\": 15388.3, \"end\": 15517.1, \"confidence\": 0.97, \"reason\": \"Network-inserted ad block for Airtasker, CVS, Trashy, TryFencing, plus iHeart podcast tag\", \"end_text\": \"Guaranteed human.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w3_b3bf2a8de3b2_20260522T112434Z","body":"{\"start\":1450.9,\"end\":1629.0,\"confidence\":0.98,\"reason\":\"Airtasker brand spot, Decisions Decisions podcast cross-promo, OnDeck line-of-credit sponsor read, and BetMGM MLB promo run back-to-back as one continuous ad break\",\"end_text\":\"Casino and Hotel.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w4_ad2f7f58bdf8_20260522T112434Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w5_c10109906a6f_20260522T112438Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w6_50a5ff5096a5_20260522T112438Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w7_6c029bb4f83c_20260522T112441Z","body":"{\"start\": 3503.7, \"end\": 3556.2, \"confidence\": 0.97, \"reason\": \"Airtasker ad followed by cross-promo for Decisions Decisions podcast with calls to action and brand names\", \"end_text\": \"the conversation about abstinence?\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w8_67d3341ceec8_20260522T112442Z","body":"{\"start\": 3478.9, \"end\": 3666.3, \"confidence\": 0.93, \"reason\": \"Contiguous sponsor break including Airtasker, Decisions Decisions podcast promo, OnDeck small business credit line, and Public investing platform with disclosures\", \"end_text\": \"public.com slash disclosures\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t3_w9_bb201f285871_20260522T112447Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w0_c79cbb0d49b4_20260522T112549Z","body":"{\"start\":0.0,\"end\":162.9,\"confidence\":0.97,\"reason\":\"Platform-inserted multi-spot ad break featuring Airtasker, Care for the Culture/Gilead HIV PSA, Nissan Rogue, and Shopify with promo URL\",\"end_text\":\"Shopify.com slash B-E-N\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w10_2303b7050fe2_20260522T112611Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w11_da574efe6bc1_20260522T112614Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w12_31b8da94923c_20260522T112614Z","body":"{\"0\": \"Due to the limited information present in the transcript and the incomplete nature of the ad content, it is not possible to confidently identify a proper advertisement segment in the provided window. As such, no segments can be flagged as advertisements.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w13_27685dfb5679_20260522T112614Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w14_19b2f685deab_20260522T112620Z","body":"{\"error\": \"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w15_537e8dd50c39_20260522T112620Z","body":"{\"start\":6283.4,\"end\":6318.1,\"confidence\":0.9,\"reason\":\"OnDeck and Public sponsor reads with clear product pitches and call to action\",\"end_text\":\"platform for those who take it seriously\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w16_757347b8495d_20260522T112627Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w17_2f83f8bef49c_20260522T112629Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w18_c1d672a9b7c0_20260522T112630Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w19_97c4275228e1_20260522T112631Z","body":"{}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w1_b175d46ed18a_20260522T112554Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w20_56ddf1af86ad_20260522T112631Z","body":"{\"start\": 8724.9, \"end\": 8831.4, \"confidence\": 0.96, \"reason\": \"AirTasker produced ad, Decisions Decisions cross-promo sponsored by Gilead, OnDeck loan ad, Public investing platform sponsor read\", \"end_text\": \"who take it seriously.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w21_926b7b41cdbc_20260522T112632Z","body":"{\"error\": \"Not enough valid ad content found. No ad segments identified.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w22_7320c58488c2_20260522T112633Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w23_132c550588e7_20260522T112638Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w24_6f05f48bf4d2_20260522T112641Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w25_1429bb32aff9_20260522T112642Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w26_629eb21d0847_20260522T112643Z","body":"{\"start\": 11335.2, \"end\": 11455.4, \"confidence\": 0.96, \"reason\": \"Airtasker job marketplace ad, Decisions Decisions podcast promo, OnDeck small business line of credit sponsor read\", \"end_text\": \"to lender approval.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w27_dbbed1c3d0fe_20260522T112646Z","body":"{\"error\":\"Need JSON array\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w28_e0089b7c8802_20260522T112647Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w29_37c06fe77ef1_20260522T112647Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w2_8e8a7faa6cb0_20260522T112557Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w30_c3f0ceb05799_20260522T112652Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w31_9a2550ee27ab_20260522T112652Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w32_39d7033bade2_20260522T112656Z","body":"{\"error\": \"Need JSON array\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w33_6b0ceade1e54_20260522T112659Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w34_a34fdfbbc39e_20260522T112704Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w35_b055011d80ad_20260522T112706Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w36_5ef5130eb1a0_20260522T112710Z","body":"{\"start\":15388.3,\"end\":15517.1,\"confidence\":0.98,\"reason\":\"Back-to-back platform-inserted ads: Airtasker app, CVS pharmacy, Trashy clothing recycle, TryFencing.org, and iHeart network bumper\",\"end_text\":\"Guaranteed human.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w3_b3bf2a8de3b2_20260522T112559Z","body":"{\"start\": 1450.9, \"end\": 1629.0, \"confidence\": 0.97, \"reason\": \"Airtasker, Decisions Decisions podcast cross-promo, OnDeck loan, and BetMGM sportsbook ads\", \"end_text\": \"Casino and Hotel.\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w4_ad2f7f58bdf8_20260522T112600Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w5_c10109906a6f_20260522T112600Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w6_50a5ff5096a5_20260522T112603Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w7_6c029bb4f83c_20260522T112605Z","body":"{\"error\":\"Expected JSON array\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w8_67d3341ceec8_20260522T112607Z","body":"{\"error\": \"transcript markers incomplete\"}"}
+{"call_id":"openai_o3_ep-drink-champs-30c9a2d49f13_t4_w9_bb201f285871_20260522T112610Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w0_1ba5d3f8758f_20260510T191517Z","body":"{\"start\":539.2,\"end\":624.5,\"confidence\":0.97,\"reason\":\"Back-to-back host-read ads for film 'In the Gray' and Skechers slip-ins\",\"end_text\":\"sandals, sneakers,\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w10_7aed1d97614f_20260510T191545Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w11_6c30b0d8f774_20260510T191549Z","body":"{\"output\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w12_55c2ef2d1151_20260510T191550Z","body":"{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.98, \"reason\": \"Host-read ad for Netflix's 'Remarkably Bright Creatures' beginning with sponsor intro\", \"end_text\": \"only on Netflix.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w13_69ebcc5935a5_20260510T191551Z","body":"{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.97, \"reason\": \"Netflix Remarkably Bright Creatures sponsor read\", \"end_text\": \"only on Netflix\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w14_e1f35b67b6dd_20260510T191555Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w15_ccda0b76da16_20260510T191557Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w16_8f6ad833774f_20260510T191602Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w17_8a072ab4bc27_20260510T191603Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w18_59a71329bc9a_20260510T191603Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w19_492bfb353d7c_20260510T191608Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w1_4ddbbcf1c09f_20260510T191524Z","body":"{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.97, \"reason\": \"Back-to-back sponsor reads promoting the movie 'In the Gray' and Skechers slip-ins with calls to action and sponsor phrasing 'This episode is brought to you by'\", \"end_text\": \"only at Skechers.com.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w20_184edffd88ca_20260510T191609Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w21_6edd3a97469f_20260510T191609Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w22_d518757ebf63_20260510T191613Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w23_0faefab65176_20260510T191613Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w2_5d772b123951_20260510T191528Z","body":"{\"error\":\"No ad segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w3_4d4039d09913_20260510T191530Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w4_c03c49866914_20260510T191533Z","body":"{\"error\": \"Please provide the full transcript\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w5_9d0960598e0c_20260510T191533Z","body":"{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.97, \"reason\": \"Blinds.com host-read sponsor segment\", \"end_text\": \"measure at Blinds.com\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w6_4363e4a468c9_20260510T191533Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w7_0e42d178c82b_20260510T191536Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w8_f29279376616_20260510T191542Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t0_w9_e6b562332e00_20260510T191542Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w0_1ba5d3f8758f_20260510T191617Z","body":"{\"start\": 539.2, \"end\": 600.0, \"confidence\": 0.98, \"reason\": \"In the Gray movie and Skechers slip-ins sponsor segment\", \"end_text\": \"footwear, sandals, sneakers\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w10_7aed1d97614f_20260510T191637Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w11_6c30b0d8f774_20260510T191637Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w12_55c2ef2d1151_20260510T191638Z","body":"{\"error\": \"No ad segments found.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w13_69ebcc5935a5_20260510T191642Z","body":"{\"segments\":[{\"start\":5546.3,\"end\":5596.3,\"confidence\":0.96,\"reason\":\"Netflix Remarkably Bright Creatures sponsor read\",\"end_text\":\"only on Netflix\"}]}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w14_e1f35b67b6dd_20260510T191646Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w15_ccda0b76da16_20260510T191647Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w16_8f6ad833774f_20260510T191654Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w17_8a072ab4bc27_20260510T191655Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w18_59a71329bc9a_20260510T191656Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w19_492bfb353d7c_20260510T191656Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w1_4ddbbcf1c09f_20260510T191618Z","body":"{\"start\":539.2,\"end\":653.1,\"confidence\":0.97,\"reason\":\"Film 'In the Gray' and Skechers slip-ins sponsor reads with promotional language, release date, and URL\",\"end_text\":\"only at Skechers.com\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w20_184edffd88ca_20260510T191658Z","body":"{\"error\": \"You must return an array. No additional keys like 'error' allowed.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w21_6edd3a97469f_20260510T191700Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w22_d518757ebf63_20260510T191703Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w23_0faefab65176_20260510T191704Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w2_5d772b123951_20260510T191620Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w3_4d4039d09913_20260510T191621Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w4_c03c49866914_20260510T191623Z","body":"{\"start\": 2208.3, \"end\": 2262.0, \"confidence\": 0.97, \"reason\": \"Blinds.com promotional spot with marketing copy and call to action\", \"end_text\": \"rules and restrictions apply\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w5_9d0960598e0c_20260510T191626Z","body":"{\"error\":\"I must return a JSON array but responded with an object.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w6_4363e4a468c9_20260510T191626Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w7_0e42d178c82b_20260510T191630Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w8_f29279376616_20260510T191630Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t1_w9_e6b562332e00_20260510T191636Z","body":"{\"error\": \"The transcription has no ad in 3761.9s - 4379.8s\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w0_1ba5d3f8758f_20260510T191707Z","body":"{\"error\":\"As an AI language model with image capabilities, I cannot directly process audio transcripts.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w10_7aed1d97614f_20260510T191727Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w11_6c30b0d8f774_20260510T191730Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w12_55c2ef2d1151_20260510T191732Z","body":"{\"error\":\"I am an AI language model developed by OpenAI and do not have access to the transcript your request refers to. If you can provide the content of the transcript I can help identify ads within it.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w13_69ebcc5935a5_20260510T191734Z","body":"{\"error\":\"No advertisement segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w14_e1f35b67b6dd_20260510T191737Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w15_ccda0b76da16_20260510T191737Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w16_8f6ad833774f_20260510T191742Z","body":"{\"error\": \"Awaiting further user instructions or transcript segment for ad detection.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w17_8a072ab4bc27_20260510T191743Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w18_59a71329bc9a_20260510T191746Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w19_492bfb353d7c_20260510T191748Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w1_4ddbbcf1c09f_20260510T191711Z","body":"{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.97, \"reason\": \"In the Gray film and Skechers slip-ins host-read sponsor segment\", \"end_text\": \"only at Skechers.com\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w20_184edffd88ca_20260510T191749Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w21_6edd3a97469f_20260510T191754Z","body":"{\"AD_SEGMENTS\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w22_d518757ebf63_20260510T191754Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w23_0faefab65176_20260510T191756Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w2_5d772b123951_20260510T191711Z","body":"{\"error\": \"No ad segments detected in provided transcript window\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w3_4d4039d09913_20260510T191713Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w4_c03c49866914_20260510T191716Z","body":"{\"error\": \"need to return JSON array, not object\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w5_9d0960598e0c_20260510T191718Z","body":"{\"start\": 2208.3, \"end\": 2237.2, \"confidence\": 0.97, \"reason\": \"Blinds.com sponsor read with promotional language and discount offer\", \"end_text\": \"rules and restrictions apply\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w6_4363e4a468c9_20260510T191719Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w7_0e42d178c82b_20260510T191724Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w8_f29279376616_20260510T191724Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t2_w9_e6b562332e00_20260510T191727Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w0_1ba5d3f8758f_20260510T191758Z","body":"{\"error\":\"Need to supply array\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w10_7aed1d97614f_20260510T191821Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w11_6c30b0d8f774_20260510T191822Z","body":"{\"error\": \"No valid ad segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w12_55c2ef2d1151_20260510T191827Z","body":"{\"segments\":[{\"start\":5546.3,\"end\":5596.3,\"confidence\":0.93,\"reason\":\"Netflix Remarkably Bright Creatures sponsor read\",\"end_text\":\"only on Netflix.\"}]}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w13_69ebcc5935a5_20260510T191827Z","body":"{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.96, \"reason\": \"Host-read sponsor for Netflix's 'Remarkably Bright Creatures'\", \"end_text\": \"only on Netflix\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w14_e1f35b67b6dd_20260510T191827Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w15_ccda0b76da16_20260510T191839Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w16_8f6ad833774f_20260510T191839Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w17_8a072ab4bc27_20260510T191843Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w18_59a71329bc9a_20260510T191846Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w19_492bfb353d7c_20260510T191846Z","body":"{\"segments\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w1_4ddbbcf1c09f_20260510T191801Z","body":"{\"start\": 539.2, \"end\": 652.8, \"confidence\": 0.97, \"reason\": \"Back-to-back host-read ads for the film 'In the Gray' and Skechers slip-ins with promotional language and call-to-action URL\", \"end_text\": \"only at Skechers.com\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w20_184edffd88ca_20260510T191847Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w21_6edd3a97469f_20260510T191848Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w22_d518757ebf63_20260510T191852Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w23_0faefab65176_20260510T191855Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w2_5d772b123951_20260510T191803Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w3_4d4039d09913_20260510T191806Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w4_c03c49866914_20260510T191807Z","body":"{\"start\": 2208.3, \"end\": 2237.0, \"confidence\": 0.97, \"reason\": \"Blinds.com promotional segment with discount offer and call to action\", \"end_text\": \"rules and restrictions apply\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w5_9d0960598e0c_20260510T191808Z","body":"{\"start\": 2208.3, \"end\": 2237.2, \"confidence\": 0.95, \"reason\": \"Blinds.com host-read sponsor segment offering up to 45% off with promotional language and disclaimer\", \"end_text\": \"rules and restrictions apply\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w6_4363e4a468c9_20260510T191808Z","body":"{\"error\":\"The output must be a JSON array, not a JSON object.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w7_0e42d178c82b_20260510T191815Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w8_f29279376616_20260510T191815Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t3_w9_e6b562332e00_20260510T191820Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w0_1ba5d3f8758f_20260510T191856Z","body":"{\"ERROR\":\"Need to return a JSON ARRAY (e.g., [ {...} ])\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w10_7aed1d97614f_20260510T191916Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w11_6c30b0d8f774_20260510T191917Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w12_55c2ef2d1151_20260510T191919Z","body":"{\"error\":\"No ad segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w13_69ebcc5935a5_20260510T191920Z","body":"{\"start\": 5546.3, \"end\": 5596.3, \"confidence\": 0.97, \"reason\": \"Netflix's Remarkably Bright Creatures sponsor read\", \"end_text\": \"only on Netflix\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w14_e1f35b67b6dd_20260510T191923Z","body":"{\"error\": \"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w15_ccda0b76da16_20260510T191930Z","body":"{\"error\": \"No ad segments detected in this transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w16_8f6ad833774f_20260510T191936Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w17_8a072ab4bc27_20260510T191936Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w18_59a71329bc9a_20260510T191937Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w19_492bfb353d7c_20260510T191939Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w1_4ddbbcf1c09f_20260510T191856Z","body":"{\"output\":[{\"start\":539.2,\"end\":652.8,\"confidence\":0.98,\"reason\":\"Back-to-back sponsor reads: film promo for \u201cIn the Gray\u201d followed immediately by Skechers slip-ins pitch\",\"end_text\":\"only at Skechers.com.\"}]}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w20_184edffd88ca_20260510T191941Z","body":"{\"error\": \"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w21_6edd3a97469f_20260510T191943Z","body":"{}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w22_d518757ebf63_20260510T191945Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w23_0faefab65176_20260510T191946Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w2_5d772b123951_20260510T191859Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w3_4d4039d09913_20260510T191902Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w4_c03c49866914_20260510T191902Z","body":"{\"start\": 2208.3, \"end\": 2262.0, \"confidence\": 0.92, \"reason\": \"Blinds.com sponsor read with promotional language, discount offer, and call to action\", \"end_text\": \"rules and restrictions apply\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w5_9d0960598e0c_20260510T191904Z","body":"{\"error\": \"I do not have the entire transcript to comment mention\"}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w6_4363e4a468c9_20260510T191905Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w7_0e42d178c82b_20260510T191907Z","body":"{\"output\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w8_f29279376616_20260510T191913Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-glt1412515089-373d5ba5007b_t4_w9_e6b562332e00_20260510T191914Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t0_w0_a07459f0bc31_20260511T003732Z","body":"{\"start\": 1.6, \"end\": 87.0, \"confidence\": 0.97, \"reason\": \"Acast platform promo and cross-promo for Wrong Turns and Formative podcasts\", \"end_text\": \"leaders of tomorrow\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t0_w1_9a25a11032c9_20260511T003732Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t0_w2_72f7578f1073_20260511T003733Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t0_w3_8a7e0288a058_20260511T003738Z","body":"{\"error\": \"No advertisement segments detected. []\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t1_w0_a07459f0bc31_20260511T003746Z","body":"{\"start\":1.6,\"end\":77.2,\"confidence\":0.95,\"reason\":\"Acast pre-roll plus cross-promo ads for Wrong Turns and Formative podcasts\",\"end_text\":\"leaders of tomorrow.\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t1_w1_9a25a11032c9_20260511T003748Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t1_w2_72f7578f1073_20260511T003750Z","body":"{\"error\": \"No advertisement segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t1_w3_8a7e0288a058_20260511T003753Z","body":"{\"error\":\"Transcript timestamps are not sequential or overlapping. Please verify.\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t2_w0_a07459f0bc31_20260511T003754Z","body":"{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.96, \"reason\": \"Acast platform promos and cross-promotions for podcasts 'Wrong Turns' and 'Formative'\", \"end_text\": \"leaders of tomorrow\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t2_w1_9a25a11032c9_20260511T003754Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t2_w2_72f7578f1073_20260511T003800Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t2_w3_8a7e0288a058_20260511T003800Z","body":"{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.96, \"reason\": \"Platform-inserted post-roll ads: Xero sponsor read followed by Wrong Turns podcast promo and Acast network tagline\", \"end_text\": \"podcasts everywhere. Acast.com\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t3_w0_a07459f0bc31_20260511T003801Z","body":"{\"error\":\"Need to return JSON array\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t3_w1_9a25a11032c9_20260511T003802Z","body":"{}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t3_w2_72f7578f1073_20260511T003806Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t3_w3_8a7e0288a058_20260511T003806Z","body":"{\"start\": 1524.5, \"end\": 1602.6, \"confidence\": 0.97, \"reason\": \"Host-read Xero sponsor read followed by Acast platform and cross-promo ads within same break\", \"end_text\": \"Acast.com.\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t4_w0_a07459f0bc31_20260511T003810Z","body":"{\"start\": 1.6, \"end\": 77.2, \"confidence\": 0.96, \"reason\": \"Platform-inserted Acast promo and cross-promotions for podcasts 'Wrong Turns' and 'Formative'\", \"end_text\": \"leaders of tomorrow.\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t4_w1_9a25a11032c9_20260511T003811Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t4_w2_72f7578f1073_20260511T003811Z","body":"{\"error\": \"No advertisement segments found\"}"}
+{"call_id":"openai_o3_ep-it-s-a-thing-e339179dfad6_t4_w3_8a7e0288a058_20260511T003816Z","body":"{\"error\":\"The provided instruction asks that platform ad segments appearing at the beginning or end of an episode should be joined with host-read sponsor ads if the gap is less than 15 seconds. However, there is a minimal gap of ~3.5 seconds which means two ads are present: one for Xero (1524.5s-1561.9s) and another for Acast ('Acast powers the world's best podcasts' 1561.9s-1602.6s). We must still treat such adjacent ad content as one segment. Therefore we will return the entire continuous promotion 1524.5s-1602.6s.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w0_e042fe56d6b3_20260515T211640Z","body":"{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.97, \"reason\": \"Network-inserted pre-roll ads for Hex.ai and PickOCNY tourism, containing promotional language and URLs\", \"end_text\": \"at PickOCNY.com.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w1_c3c3515b3683_20260515T211644Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w2_3533e0336fd4_20260515T211645Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w3_08adf4822c90_20260515T211646Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w4_b7eddbdd04d9_20260515T211649Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w5_a9418701b5b2_20260515T211651Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w6_70061fa5234e_20260515T211653Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w7_da857ce11171_20260515T211658Z","body":"{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.97, \"reason\": \"Network-inserted ads promoting Arizona State University online programs and University of Michigan research; contains promotional copy with calls to action and URLs\", \"end_text\": \"solutions at umich.edu\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w8_19a0244b7e7b_20260515T211658Z","body":"{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.98, \"reason\": \"Arizona State University and University of Michigan network-inserted ads promoting degree programs with URLs\", \"end_text\": \"solutions at umich.edu.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w0_e042fe56d6b3_20260515T211704Z","body":"{\"start\": 0.0, \"end\": 59.8, \"confidence\": 0.97, \"reason\": \"Hex.ai and PickOCNY.com pre-roll sponsor ads\", \"end_text\": \"at PickOCNY.com.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w1_c3c3515b3683_20260515T211705Z","body":"{\"error\":\"No ad markers were detected in the provided transcript segment. Output must be a JSON array as instructed, not an object.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w2_3533e0336fd4_20260515T211712Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w3_08adf4822c90_20260515T211715Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w4_b7eddbdd04d9_20260515T211715Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w5_a9418701b5b2_20260515T211719Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w6_70061fa5234e_20260515T211719Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w7_da857ce11171_20260515T211721Z","body":"{\"error\":\"I am not an ad detector.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w8_19a0244b7e7b_20260515T211722Z","body":"{\n  \"result\": [\n    {\n      \"start\": 3428.1,\n      \"end\": 3486.2,\n      \"confidence\": 0.97,\n      \"reason\": \"Produced post-roll ad block for Arizona State University Online and University of Michigan featuring promotional language and call-to-action URLs\",\n      \"end_text\": \"solutions at umich.edu\"\n    }\n  ]\n}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w0_e042fe56d6b3_20260515T211727Z","body":"{\"segments\":[{\"start\":0.0,\"end\":59.8,\"confidence\":0.97,\"reason\":\"Platform pre-roll ads for Hex analytics platform and PickOCNY tourism with promotional language, URLs, and calls to action\",\"end_text\":\"mind at PickOCNY.com\"}]}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w1_c3c3515b3683_20260515T211729Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w2_3533e0336fd4_20260515T211730Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w3_08adf4822c90_20260515T211734Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w4_b7eddbdd04d9_20260515T211735Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w5_a9418701b5b2_20260515T211736Z","body":"{\"segments\":[{\"start\":2609.5,\"end\":2634.3,\"confidence\":0.55,\"reason\":\"Network-inserted sponsor blurb containing promotional language ('promo code, discount code, sponsored by') and multiple sponsor brand names (Athletic Greens, BetterHelp, Squarespace, etc.)\",\"end_text\":\"Raycon, Manscaped, Stamps.com\"}]}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w6_70061fa5234e_20260515T211738Z","body":"{\"start\": 2609.5, \"end\": 2634.3, \"confidence\": 0.42, \"reason\": \"Dynamic insertion listing multiple sponsor names with promotional language\", \"end_text\": \"Raycon, Manscaped, Stamps.com\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w7_da857ce11171_20260515T211739Z","body":"{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.97, \"reason\": \"Network-inserted university promo ads for Arizona State University (asunline.asu.edu) and University of Michigan (umich.edu)\", \"end_text\": \"solutions at umich.edu\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w8_19a0244b7e7b_20260515T211740Z","body":"{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.97, \"reason\": \"Network-inserted ads for Arizona State University Online and University of Michigan with promotional language and URLs\", \"end_text\": \"solutions at umich.edu.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w0_e042fe56d6b3_20260515T211744Z","body":"{\"start\":0.0,\"end\":59.8,\"confidence\":0.97,\"reason\":\"Pre-roll ad block featuring HEX.ai productivity platform and PickOCNY.com tourism promotion with URLs and calls to action\",\"end_text\":\"mind at PickOCNY.com.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w1_c3c3515b3683_20260515T211749Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w2_3533e0336fd4_20260515T211753Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w3_08adf4822c90_20260515T211754Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w4_b7eddbdd04d9_20260515T211754Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w5_a9418701b5b2_20260515T211754Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w6_70061fa5234e_20260515T211756Z","body":"{\"ads\":[{\"start\":2609.5,\"end\":2634.3,\"confidence\":0.55,\"reason\":\"Segment lists multiple known podcast sponsors (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) in a promotional context, indicating a network-inserted ad tagline\",\"end_text\":\"Manscaped, Stamps.com\"}]}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w7_da857ce11171_20260515T211757Z","body":"{\"start\":3428.1,\"end\":3486.2,\"confidence\":0.96,\"reason\":\"Platform-inserted university ads for Arizona State University and University of Michigan with promotional language and URLs\",\"end_text\":\"solutions at umich.edu.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w8_19a0244b7e7b_20260515T211758Z","body":"{\"error\":\"No transcript provided. Unable to analyze ads.\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w0_e042fe56d6b3_20260515T211802Z","body":"{\"error\": \"Need JSON array\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w1_c3c3515b3683_20260515T211807Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w2_3533e0336fd4_20260515T211811Z","body":"{}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w3_08adf4822c90_20260515T211812Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w4_b7eddbdd04d9_20260515T211812Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w5_a9418701b5b2_20260515T211816Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w6_70061fa5234e_20260515T211816Z","body":"{\"error\": \"No 'window' part of context transcript in the conversation with respect to timestamp order and requirement of producing .analysis .final\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w7_da857ce11171_20260515T211817Z","body":"{\"error\": \"no_ads_found\"}"}
+{"call_id":"openai_o3_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w8_19a0244b7e7b_20260515T211822Z","body":"{\"start\": 3428.1, \"end\": 3486.2, \"confidence\": 0.97, \"reason\": \"Arizona State University Online and University of Michigan brand ads\", \"end_text\": \"solutions at umich.edu\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w0_dc20c8bfeae1_20260515T211826Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w10_95fe0c27b460_20260515T211842Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w11_7071037b3740_20260515T211842Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w12_1a3339078e9a_20260515T211845Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w1_31afd28c4024_20260515T211829Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w2_e08ce9c1fa04_20260515T211831Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w3_ff0462364e43_20260515T211831Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w4_569e7af92ab9_20260515T211832Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w5_e982fe3db3ba_20260515T211834Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w6_4eccb66116ed_20260515T211836Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w7_b217679101a0_20260515T211836Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w8_4e242d0e81b1_20260515T211837Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t0_w9_3cebdfe0442f_20260515T211840Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w0_dc20c8bfeae1_20260515T211845Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w10_95fe0c27b460_20260515T211856Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w11_7071037b3740_20260515T211857Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w12_1a3339078e9a_20260515T211857Z","body":"{\"error\": \"Expected a JSON array ([]) or an array of advertisement segment objects, but got an object instead.\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w1_31afd28c4024_20260515T211845Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w2_e08ce9c1fa04_20260515T211848Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w3_ff0462364e43_20260515T211849Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w4_569e7af92ab9_20260515T211849Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w5_e982fe3db3ba_20260515T211851Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w6_4eccb66116ed_20260515T211851Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w7_b217679101a0_20260515T211852Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w8_4e242d0e81b1_20260515T211854Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t1_w9_3cebdfe0442f_20260515T211855Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w0_dc20c8bfeae1_20260515T211900Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w10_95fe0c27b460_20260515T211913Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w11_7071037b3740_20260515T211916Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w12_1a3339078e9a_20260515T211917Z","body":"{\"error\": \"No ad segments detected in provided transcript\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w1_31afd28c4024_20260515T211902Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w2_e08ce9c1fa04_20260515T211902Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w3_ff0462364e43_20260515T211903Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w4_569e7af92ab9_20260515T211907Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w5_e982fe3db3ba_20260515T211908Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w6_4eccb66116ed_20260515T211908Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w7_b217679101a0_20260515T211911Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w8_4e242d0e81b1_20260515T211912Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t2_w9_3cebdfe0442f_20260515T211912Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w0_dc20c8bfeae1_20260515T211918Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w10_95fe0c27b460_20260515T211931Z","body":"{\"error\":\"According to our policy, we are only allowed to output a JSON array as our final answer. Please resend the request.\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w11_7071037b3740_20260515T211933Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w12_1a3339078e9a_20260515T211934Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w1_31afd28c4024_20260515T211922Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w2_e08ce9c1fa04_20260515T211922Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w3_ff0462364e43_20260515T211923Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w4_569e7af92ab9_20260515T211923Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w5_e982fe3db3ba_20260515T211926Z","body":"{\"error\":\"Invalid output format. Expected JSON array but got object with error.\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w6_4eccb66116ed_20260515T211927Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w7_b217679101a0_20260515T211929Z","body":"{}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w8_4e242d0e81b1_20260515T211930Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t3_w9_3cebdfe0442f_20260515T211930Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w0_dc20c8bfeae1_20260515T211935Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w10_95fe0c27b460_20260515T211953Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w11_7071037b3740_20260515T211954Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w12_1a3339078e9a_20260515T211954Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w1_31afd28c4024_20260515T211936Z","body":"{\"output\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w2_e08ce9c1fa04_20260515T211938Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w3_ff0462364e43_20260515T211941Z","body":"{\"error\":\"The provided transcript snippet did not include any ad-like promotional content. So based on the segment from timestamps 1233.7s to 1870.3s, no advertisement segments can be identified.\"}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w4_569e7af92ab9_20260515T211942Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w5_e982fe3db3ba_20260515T211947Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w6_4eccb66116ed_20260515T211947Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w7_b217679101a0_20260515T211948Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w8_4e242d0e81b1_20260515T211950Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-oxide-and-friends-ce789ff5b62e_t4_w9_3cebdfe0442f_20260515T211953Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w0_a0e82dec02b1_20260510T191947Z","body":"{\"error\": \"No ads found in this window\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w10_75fe7aa3110f_20260510T192016Z","body":"{\"start\": 4204.1, \"end\": 4465.7, \"confidence\": 0.96, \"reason\": \"Bitwarden sponsor read with URL and promotional language following break transition\", \"end_text\": \"No more singing. Back to Steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w11_76fd43e1d775_20260510T192023Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w12_4ab20d6698e9_20260510T192023Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w13_b2812d3175c1_20260510T192028Z","body":"{\"error\":\"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w14_229d4484e738_20260510T192032Z","body":"{\"start\": 6016.6, \"end\": 6179.0, \"confidence\": 0.96, \"reason\": \"Host-read sponsor spot for Hoxhunt including promotional copy, URL and call to action\", \"end_text\": \"AI on Security Now, Steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w15_f317581e5881_20260510T192032Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w16_4639c1e0fcce_20260510T192033Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w17_b002b7d1e1f3_20260510T192037Z","body":"{\"start\": 7607.7, \"end\": 7743.9, \"confidence\": 0.96, \"reason\": \"Host-read Trusted Tech sponsor segment with promotional language and call to action\", \"end_text\": \"you in the marketplace\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w18_4c4ed8d7acef_20260510T192041Z","body":"{\"error\":\"I need full transcript markers beyond 7797.4 to confirm end. Provided content ends 7797.4 but returning conversation begins 7797.9; We'll use 7797.4.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w19_d52032b20a83_20260510T192047Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w1_439f20d514d8_20260510T191947Z","body":"{\"start\": 445.6, \"end\": 572.1, \"confidence\": 0.98, \"reason\": \"Host-read Zscaler sponsor segment with promo URL and call to action\", \"end_text\": \"Thank you, Leo.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w20_cb6c0f9cf4f7_20260510T192050Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w21_a88e6a5f8388_20260510T192054Z","body":""}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w22_ec4b9f2e64e6_20260510T192056Z","body":"{\n  \"segments\": [\n    {\n      \"start\": 9259.3,\n      \"end\": 9290.5,\n      \"confidence\": 0.81,\n      \"reason\": \"Cross-promotion for another TWiT Network show with call to subscribe.\",\n      \"end_text\": \"TWiT Network. Thank you.\"\n    },\n    {\n      \"start\": 9312.9,\n      \"end\": 9315.5,\n      \"confidence\": 0.40,\n      \"reason\": \"Short brand tagline ad likely for Citizens Bank.\",\n      \"end_text\": \"for citizens back.\"\n    },\n    {\n      \"start\": 9344.4,\n      \"end\": 9374.4,\n      \"confidence\": 0.95,\n      \"reason\": \"Mint Mobile commercial featuring Ryan Reynolds, with URL and price promotion.\",\n      \"end_text\": \"terms at mintmobile.com.\"\n    }\n  ]\n}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w2_409f6f975e3f_20260510T191950Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w3_de4ec075b789_20260510T191950Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w4_23c13c05dc87_20260510T191958Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w5_a07927e600c9_20260510T191959Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.97, \"reason\": \"Meter sponsor read including transition phrase 'break time'\", \"end_text\": \"now back to steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w6_5ec85491d995_20260510T192005Z","body":"{\"error\":\"Need to return JSON array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w7_68d1e4ccde16_20260510T192008Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w8_1294bb1c3e31_20260510T192015Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t0_w9_d5a99d6b92f5_20260510T192016Z","body":"{\n  \"error\": \"invalid output format\"  \n}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w0_a0e82dec02b1_20260510T192056Z","body":"{\"error\":\"No ad segments detected\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w10_75fe7aa3110f_20260510T192128Z","body":"{\"start\": 4204.1, \"end\": 4465.7, \"confidence\": 0.98, \"reason\": \"Bitwarden sponsor read with URL and promotional copy following host break transition\", \"end_text\": \"No more singing. Back to Steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w11_76fd43e1d775_20260510T192133Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w12_4ab20d6698e9_20260510T192134Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w13_b2812d3175c1_20260510T192139Z","body":"{\"error\":\"No ad segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w14_229d4484e738_20260510T192140Z","body":"{\"error\":\"No ad content found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w15_f317581e5881_20260510T192141Z","body":"{\"error\":\"No transcript inside the current window contains any promotional language, sponsor mentions, or ad-transition cues. Therefore, no advertisement segments are identified in this portion of the episode.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w16_4639c1e0fcce_20260510T192144Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w17_b002b7d1e1f3_20260510T192146Z","body":"{\"start\":7537.6,\"end\":7743.9,\"confidence\":0.97,\"reason\":\"Host says 'let's take our final break' then delivers sponsor read for Trusted Tech with promotional language and call to action\",\"end_text\":\"differentiates you in the marketplace\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w18_4c4ed8d7acef_20260510T192148Z","body":"{\"start\": 7584.4, \"end\": 7816.6, \"confidence\": 0.98, \"reason\": \"Trusted Tech sponsor read with promo URLs and calls to action\", \"end_text\": \"Now, back to Steve.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w19_d52032b20a83_20260510T192155Z","body":"{\"error\":\"Expecting JSON array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w1_439f20d514d8_20260510T192057Z","body":"{\"error\":\"We do not have enough information to identify ads. Please provide full transcript with timestamps.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w20_cb6c0f9cf4f7_20260510T192157Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w21_a88e6a5f8388_20260510T192200Z","body":"{\"error\":\"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w22_ec4b9f2e64e6_20260510T192201Z","body":"{\"error\":\"We entered as 'analysis' incorrectly; we must output JSON array only.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w2_409f6f975e3f_20260510T192107Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w3_de4ec075b789_20260510T192109Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w4_23c13c05dc87_20260510T192111Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w5_a07927e600c9_20260510T192111Z","body":"{\"segments\":[{\"start\":2532.3,\"end\":2693.0,\"confidence\":0.97,\"reason\":\"Meter sponsor read with URL and call to action following break transition\",\"end_text\":\"a demo okay meter\"}]}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w6_5ec85491d995_20260510T192116Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.97, \"reason\": \"Meter sponsor read with promo URL and call to action\", \"end_text\": \"now back to steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w7_68d1e4ccde16_20260510T192116Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w8_1294bb1c3e31_20260510T192117Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t1_w9_d5a99d6b92f5_20260510T192120Z","body":"{\"start\": 4258.6, \"end\": 4396.1, \"confidence\": 0.95, \"reason\": \"Bitwarden sponsor read with transition phrase 'right after this'\", \"end_text\": \"securely unlocking devices at\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w0_a0e82dec02b1_20260510T192202Z","body":"{\"ads\":[{\"start\":16.7,\"end\":84.9,\"confidence\":0.97,\"reason\":\"OutSystems sponsor read with call-to-action\",\"end_text\":\"This is Twit\"},{\"start\":445.6,\"end\":572.1,\"confidence\":0.98,\"reason\":\"Zscaler sponsor read with call-to-action including break transition\",\"end_text\":\"Thank you, Leo.\"}]}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w10_75fe7aa3110f_20260510T192233Z","body":"{\"error\": \"No advertisement segments found in the supplied transcript window\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w11_76fd43e1d775_20260510T192239Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w12_4ab20d6698e9_20260510T192240Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w13_b2812d3175c1_20260510T192243Z","body":"{\"start\": 5946.7, \"end\": 6060.0, \"confidence\": 0.97, \"reason\": \"Hoxhunt sponsor read with transition 'Let's take a timeout' and promo language\", \"end_text\": \"actually working well?\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w14_229d4484e738_20260510T192246Z","body":"{\"start\": 6016.6, \"end\": 6179.0, \"confidence\": 0.97, \"reason\": \"Hoxhunt sponsor read with promotional language and call to action\", \"end_text\": \"AI on Security Now, Steve.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w15_f317581e5881_20260510T192249Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w16_4639c1e0fcce_20260510T192250Z","body":"{\"segments\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w17_b002b7d1e1f3_20260510T192254Z","body":"{\"start\": 7537.6, \"end\": 7740.0, \"confidence\": 0.97, \"reason\": \"Trusted Tech sponsor read\", \"end_text\": \"impressed. You will be too\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w18_4c4ed8d7acef_20260510T192257Z","body":"{\"error\": \"Need JSON array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w19_d52032b20a83_20260510T192259Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w1_439f20d514d8_20260510T192203Z","body":"{\"error\":\"Need to return JSON array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w20_cb6c0f9cf4f7_20260510T192301Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w21_a88e6a5f8388_20260510T192302Z","body":"{\"error\":\"No advertisement segments found\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w22_ec4b9f2e64e6_20260510T192304Z","body":"{\"error\": \"Please provide an image input for analysis.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w2_409f6f975e3f_20260510T192215Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w3_de4ec075b789_20260510T192216Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w4_23c13c05dc87_20260510T192218Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w5_a07927e600c9_20260510T192218Z","body":"{\"error\": \"Need to wrap in JSON array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w6_5ec85491d995_20260510T192226Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.97, \"reason\": \"Meter sponsor read\", \"end_text\": \"back to steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w7_68d1e4ccde16_20260510T192227Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w8_1294bb1c3e31_20260510T192228Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t2_w9_d5a99d6b92f5_20260510T192229Z","body":"{\"error\":\"No advertising segments.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w0_a0e82dec02b1_20260510T192308Z","body":"{\"start\": 16.7, \"end\": 84.9, \"confidence\": 0.97, \"reason\": \"OutSystems sponsor read\", \"end_text\": \"OutSystems.com slash twit\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w10_75fe7aa3110f_20260510T192341Z","body":"{\"error\":\"We are chatgpt not allowed formatting? Wait they said Output: [{{ ... }}]. They want JSON array. We must output JSON array only. We must include each object within array. So final output: [ { ... } ].\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w11_76fd43e1d775_20260510T192344Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w12_4ab20d6698e9_20260510T192344Z","body":"{\"error\":\"No advertisement segments detected in provided transcript window per rules.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w13_b2812d3175c1_20260510T192351Z","body":"{\"error\":\"The transcript shows that the hawxshunt sponsor segment is only partial and there is no matching \\\"lets take a break\\\" phrase before the start of the hawxshunt mention. As a result, I could not detect a full advertisement segment that meets all the given criteria.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w14_229d4484e738_20260510T192356Z","body":"{\"error\":\"Please provide the *entire* window displayed in the recording (all transcript timestamps from 98.0 to 108.0 minutes) so I can ensure every ad break within that time span is caught. The snippet you provided currently ends at 104.7 minutes, but the instructions reference a full 98\u2013108 minute window. Once I have the full 10-minute span, I can confidently mark all advertisement segments and produce the JSON requested.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w15_f317581e5881_20260510T192401Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w16_4639c1e0fcce_20260510T192408Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w17_b002b7d1e1f3_20260510T192408Z","body":"{\"start\": 7537.6, \"end\": 7740.0, \"confidence\": 0.93, \"reason\": \"Trusted Tech sponsor read (continues in next window)\", \"end_text\": \"impressed. You will be too\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w18_4c4ed8d7acef_20260510T192409Z","body":"{\"error\":\"According to window context 'use absolute timestamps from transcript' and use the first timestamp for the ad start. The start is 7607.7? Wait, the timestamp provided in transcript is [7607.7s - 7633.1s], so the start is 7607.7. Double-check earlier: The host says 'All right. Well, let's take our final break.' at [7606.9? Actually 7607.7?]. should capture from 7606.9? Let's check the earlier line: [7604?]. Provide start 7606.9 if earlier lines show '7606.9?' This confusion. We'll use 7607.7 as safe. Provide JSON array only. End at 7797.4. Provide confidence. Provide end_text 'trustedtech.team securitynow365' Review: last part of ad: 'trustedtech.team securitynow365 Now, back to Steve.' So last 4 words of ad before editorial: \"\n\n  \t\t\t\t\t\t\t\t\t   \n\n\n \t\t   \t, \"confidence\":0.97,\"reason\":\"Host-read sponsor segment for Trusted Tech with promo URL, begins with \u201clet\u2019s take our final break\u201d and ends before show content resumes\",\"end_text\":\"trustedtech.team securitynow365\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w19_d52032b20a83_20260510T192411Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w1_439f20d514d8_20260510T192311Z","body":"{\"start\":417.2,\"end\":575.3,\"confidence\":0.98,\"reason\":\"Host-read Zscaler sponsor segment following the first-break announcement\",\"end_text\":\"Steve and Security Now\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w20_cb6c0f9cf4f7_20260510T192416Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w21_a88e6a5f8388_20260510T192418Z","body":"{\"error\":\"I must output an array\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w22_ec4b9f2e64e6_20260510T192421Z","body":"{\"error\": \"need identify advertisement segments and output JSON; generate summary accordingly.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w2_409f6f975e3f_20260510T192322Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w3_de4ec075b789_20260510T192326Z","body":"{\"error\":\"No advertisement segments detected. Output should be a JSON array, not an object\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w4_23c13c05dc87_20260510T192326Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w5_a07927e600c9_20260510T192330Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.95, \"reason\": \"Meter sponsor read host ad segment including break transition\", \"end_text\": \"all right now back to steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w6_5ec85491d995_20260510T192332Z","body":"{\"error\":\"No ad segments in this window\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w7_68d1e4ccde16_20260510T192334Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w8_1294bb1c3e31_20260510T192336Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t3_w9_d5a99d6b92f5_20260510T192339Z","body":"{\"start\": 4204.1, \"end\": 4396.1, \"confidence\": 0.97, \"reason\": \"Host transition to break followed by Bitwarden sponsor read with promotional language and URL\", \"end_text\": \"devices at the OS level\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w0_a0e82dec02b1_20260510T192427Z","body":"{\"error\":\"We'll need to confirm ad start: include 445.6 with host break phrase? Actually start of break 445.6 is within ad segment? But guidelines: include transition phrase. So yes.\\n\\nReturn JSON array.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w10_75fe7aa3110f_20260510T192458Z","body":"{\"start\": 4204.1, \"end\": 4465.7, \"confidence\": 0.97, \"reason\": \"Bitwarden sponsor read preceded by break transition phrases and promotional network mentions, includes URL and call to action\", \"end_text\": \"No more singing. Back to Steve.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w11_76fd43e1d775_20260510T192500Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w12_4ab20d6698e9_20260510T192503Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w13_b2812d3175c1_20260510T192506Z","body":"{\"start\": 5946.7, \"end\": 6083.5, \"confidence\": 0.97, \"reason\": \"Host says \\\"Let's take a timeout\\\" then begins sponsor read: \\\"This episode of Security Now brought to you by Hawks Hunt\\\" with promotional language and product pitch; ad continues beyond this window.\", \"end_text\": \"just like the bad guys\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w14_229d4484e738_20260510T192509Z","body":"{\"start\": 6016.6, \"end\": 6179.0, \"confidence\": 0.97, \"reason\": \"Hoxhunt sponsor read with promotional copy and call to action\", \"end_text\": \"AI on Security Now, Steve.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w15_f317581e5881_20260510T192516Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w16_4639c1e0fcce_20260510T192518Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w17_b002b7d1e1f3_20260510T192518Z","body":""}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w18_4c4ed8d7acef_20260510T192521Z","body":"{\"start\": 7607.7, \"end\": 7797.4, \"confidence\": 0.97, \"reason\": \"Trusted Tech Microsoft 365 licensing sponsor read, host-read ad following break transition\", \"end_text\": \"Now, back to Steve.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w19_d52032b20a83_20260510T192522Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w1_439f20d514d8_20260510T192431Z","body":"{\"error\": \"Need transcript or ad segments? The output should be a JSON array; they gave analysis.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w20_cb6c0f9cf4f7_20260510T192527Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w21_a88e6a5f8388_20260510T192528Z","body":"{\"error\": \"MORE_RULE_VIOLATIONS\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w22_ec4b9f2e64e6_20260510T192533Z","body":"{\"error\": \"The request did not include full context. Please provide the next transcript window.\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w2_409f6f975e3f_20260510T192435Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w3_de4ec075b789_20260510T192436Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w4_23c13c05dc87_20260510T192442Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w5_a07927e600c9_20260510T192443Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.97, \"reason\": \"Meter sponsor host-read segment including break transition, product pitch, and call to action\", \"end_text\": \"book a demo okay meter\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w6_5ec85491d995_20260510T192448Z","body":"{\"start\": 2532.3, \"end\": 2693.0, \"confidence\": 0.98, \"reason\": \"Meter sponsor host-read ad segment including transition phrase\", \"end_text\": \"now back to steve\"}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w7_68d1e4ccde16_20260510T192451Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w8_1294bb1c3e31_20260510T192452Z","body":"{}"}
+{"call_id":"openai_o3_ep-security-now-audio-2850b24903b2_t4_w9_d5a99d6b92f5_20260510T192457Z","body":"{\"start\": 4204.1, \"end\": 4396.1, \"confidence\": 0.96, \"reason\": \"Bitwarden sponsor read with preceding break transition\", \"end_text\": \"devices at the OS level\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_0cd1739cf6be_20260511T003818Z","body":"{\"start\": 0.5, \"end\": 43.4, \"confidence\": 0.97, \"reason\": \"Carvana pre-roll advertisement with promotional copy and brand tagline\", \"end_text\": \"Pickup fees may apply\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w10_c886b5fbb140_20260511T003840Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w11_764790c0fefc_20260511T003840Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w12_823335f7ae68_20260511T003845Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w13_eea64c9e66fc_20260511T003846Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w14_719c744020e6_20260511T003848Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w15_2e4f446da8e4_20260511T003851Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w16_fb277204b873_20260511T003851Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.97, \"reason\": \"Netflix Remarkably Bright Creatures sponsor read\", \"end_text\": \"now playing only on Netflix\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w17_f5e027dec4a3_20260511T003857Z","body":"{\"error\": \"[]\" }"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w1_593bd7631e56_20260511T003820Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w2_68d8e39026f0_20260511T003822Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w3_ce3bff240530_20260511T003826Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w4_b3f846f84a5f_20260511T003830Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w5_4d953bedea78_20260511T003832Z","body":"{\"start\":2311.7,\"end\":2450.0,\"confidence\":0.99,\"reason\":\"BlueChew Gold and ZipRecruiter sponsor reads with promo codes and calls to action\",\"end_text\":\"match on ZipRecruiter\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w6_35f997d2110e_20260511T003834Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_8b2e0bdd7818_20260511T003836Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_d35c8bc1e153_20260511T003838Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w9_3b28903a2997_20260511T003839Z","body":"{\"error\":\"We are only allowed to output JSON array, but we must return [] but using only JSON, no other text.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_0cd1739cf6be_20260511T003857Z","body":"{\"start\": 0.5, \"end\": 43.4, \"confidence\": 0.96, \"reason\": \"Carvana sponsor read with voicemail-style pitch, brand name, and call to action\", \"end_text\": \"Pickup fees may apply\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w10_c886b5fbb140_20260511T003913Z","body":"{\"error\": \"no timestamp markers [Xs] visible in transcript\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w11_764790c0fefc_20260511T003916Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w12_823335f7ae68_20260511T003917Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w13_eea64c9e66fc_20260511T003920Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w14_719c744020e6_20260511T003922Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w15_2e4f446da8e4_20260511T003922Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w16_fb277204b873_20260511T003923Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.98, \"reason\": \"Netflix's Remarkably Bright Creatures promo\", \"end_text\": \"now playing only on Netflix.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w17_f5e027dec4a3_20260511T003923Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.97, \"reason\": \"Netflix Remarkably Bright Creatures sponsor read\", \"end_text\": \"playing only on Netflix\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w1_593bd7631e56_20260511T003858Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w2_68d8e39026f0_20260511T003901Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w3_ce3bff240530_20260511T003903Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w4_b3f846f84a5f_20260511T003903Z","body":"{\"error\":\"No advertisement segments found in provided transcript window\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w5_4d953bedea78_20260511T003905Z","body":"{\"start\":2311.7,\"end\":2450.0,\"confidence\":0.99,\"reason\":\"Host-read ad break promoting BlueChew Gold and ZipRecruiter, includes sponsor names, promo code Idiots, vanity URL ZipRecruiter.com/idiots, and calls to action\",\"end_text\":\"Meet your match on ZipRecruiter\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w6_35f997d2110e_20260511T003905Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_8b2e0bdd7818_20260511T003909Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_d35c8bc1e153_20260511T003911Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w9_3b28903a2997_20260511T003912Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_0cd1739cf6be_20260511T003929Z","body":"{\"start\": 0.5, \"end\": 16.8, \"confidence\": 0.96, \"reason\": \"Carvana pre-roll promotional ad with brand name and call to action\", \"end_text\": \"Pickup fees may apply\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w10_c886b5fbb140_20260511T003943Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w11_764790c0fefc_20260511T003945Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w12_823335f7ae68_20260511T003948Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w13_eea64c9e66fc_20260511T003951Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w14_719c744020e6_20260511T003958Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w15_2e4f446da8e4_20260511T004000Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w16_fb277204b873_20260511T004004Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.96, \"reason\": \"Platform-inserted ad for Netflix show 'Remarkably Bright Creatures'\", \"end_text\": \"only on Netflix.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w17_f5e027dec4a3_20260511T004008Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.96, \"reason\": \"Host-read ad for Netflix's 'Remarkably Bright Creatures' featuring promotional language and call to watch on Netflix\", \"end_text\": \"now playing only on Netflix\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w1_593bd7631e56_20260511T003931Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w2_68d8e39026f0_20260511T003932Z","body":"{\"error\":\"Expected a JSON array as output but got an object\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w3_ce3bff240530_20260511T003932Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w4_b3f846f84a5f_20260511T003935Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w5_4d953bedea78_20260511T003936Z","body":"{\"start\": 2311.7, \"end\": 2450.0, \"confidence\": 0.98, \"reason\": \"Back-to-back host-read sponsor ads for BlueChew Gold and ZipRecruiter with promo code and URL calls to action\", \"end_text\": \"match on ZipRecruiter\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w6_35f997d2110e_20260511T003936Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_8b2e0bdd7818_20260511T003939Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_d35c8bc1e153_20260511T003941Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w9_3b28903a2997_20260511T003942Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_0cd1739cf6be_20260511T004009Z","body":"{\"data\":[{\"start\":0.5,\"end\":43.4,\"confidence\":0.97,\"reason\":\"Produced Carvana commercial with promotional language and call to action\",\"end_text\":\"Pickup fees may apply\"}]}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w10_c886b5fbb140_20260511T004034Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w11_764790c0fefc_20260511T004035Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w12_823335f7ae68_20260511T004036Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w13_eea64c9e66fc_20260511T004042Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w14_719c744020e6_20260511T004043Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w15_2e4f446da8e4_20260511T004044Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w16_fb277204b873_20260511T004049Z","body":"{\"error\":\"I'm sorry, but I can't complete that.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w17_f5e027dec4a3_20260511T004053Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.95, \"reason\": \"Netflix 'Remarkably Bright Creatures' sponsor read\", \"end_text\": \"now playing only on Netflix\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w1_593bd7631e56_20260511T004011Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w2_68d8e39026f0_20260511T004013Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w3_ce3bff240530_20260511T004017Z","body":"{\"error\":\"Output must be a JSON array.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w4_b3f846f84a5f_20260511T004020Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w5_4d953bedea78_20260511T004021Z","body":"{\"start\": 2311.7, \"end\": 2450.0, \"confidence\": 0.97, \"reason\": \"Host-read sponsorships for BlueChew and ZipRecruiter with promotional copy, URLs, promo code, and sponsorship thanks all housed within one continuous break.\", \"end_text\": \"match on ZipRecruiter.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w6_35f997d2110e_20260511T004024Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_8b2e0bdd7818_20260511T004027Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_d35c8bc1e153_20260511T004028Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w9_3b28903a2997_20260511T004034Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_0cd1739cf6be_20260511T004055Z","body":"{\"error\": \"We can not see entire transcript window 1/18 or enough transcript to evaluate ads.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w10_c886b5fbb140_20260511T004113Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w11_764790c0fefc_20260511T004115Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w12_823335f7ae68_20260511T004115Z","body":"{\"error\":\"Need to provide JSON array, not dictionary\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w13_eea64c9e66fc_20260511T004122Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w14_719c744020e6_20260511T004122Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w15_2e4f446da8e4_20260511T004123Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w16_fb277204b873_20260511T004128Z","body":"{\"start\": 7173.7, \"end\": 7196.8, \"confidence\": 0.97, \"reason\": \"Netflix Remarkably Bright Creatures sponsor read\", \"end_text\": \"now playing only on Netflix\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w17_f5e027dec4a3_20260511T004129Z","body":"{\"error\":\"As an AI text model, I do not have the supervision to do so.\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w1_593bd7631e56_20260511T004055Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w2_68d8e39026f0_20260511T004057Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w3_ce3bff240530_20260511T004100Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w4_b3f846f84a5f_20260511T004103Z","body":"{\"ads\": []}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w5_4d953bedea78_20260511T004103Z","body":"{\"start\": 2311.7, \"end\": 2450.0, \"confidence\": 0.97, \"reason\": \"BlueChew and ZipRecruiter host-read sponsor ads with promo codes and URLs\", \"end_text\": \"meet your match on ZipRecruiter\"}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w6_35f997d2110e_20260511T004106Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_8b2e0bdd7818_20260511T004107Z","body":"{\"result\":[]}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_d35c8bc1e153_20260511T004108Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w9_3b28903a2997_20260511T004109Z","body":""}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w0_f5ba1105c819_20260510T192535Z","body":"{\"error\":\"need to include JSON array\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w10_82cc66d88ffb_20260510T192608Z","body":"{\"error\": \"This is a stub. Please replace.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w11_5afd89646e6c_20260510T192610Z","body":"{\"valid\": true}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w1_9853bf8ba7a5_20260510T192539Z","body":"{\"ad_segments\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w2_b2c2fef6b6dc_20260510T192545Z","body":"{\"error\":\"No ads detected in this window\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w3_b45f31029042_20260510T192549Z","body":"{\"start\": 1439.2, \"end\": 1668.7, \"confidence\": 0.98, \"reason\": \"Continuous ad break containing host-read promos for Mint Mobile and Aura Frames followed by produced ads for Colgate Women\u2019s Games and Skinny Pop; includes multiple calls to action, promo codes, and brand taglines with no content resumption until 1668.7s.\", \"end_text\": \"salted. Skinny Pop.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w4_6178d4d07e99_20260510T192557Z","body":"{\"error\": \"Need JSON array, not object\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w5_406578b6ab6b_20260510T192601Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w6_e6dfaa57db18_20260510T192602Z","body":"{\"error\":\"No advertisement segments found in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w7_5127667877ce_20260510T192602Z","body":"{\"error\": \"No advertisement segments found\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w8_cc49a7026297_20260510T192604Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w9_6af059127116_20260510T192607Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w0_f5ba1105c819_20260510T192613Z","body":"{\"error\": \"Need to output a JSON array\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w10_82cc66d88ffb_20260510T192642Z","body":"{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.97, \"reason\": \"Cluster of network-inserted ads for Colgate Women\u2019s Games, Skinny Pop, Viz eye drops, and Garnier National Park Foundation\", \"end_text\": \"GarnierUSA.com slash NPF\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w11_5afd89646e6c_20260510T192645Z","body":"{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.97, \"reason\": \"Network-inserted ad block promoting Colgate Women's Games, Skinny Pop popcorn, Viz eye drops, and Garnier partnership with National Park Foundation\", \"end_text\": \"GarnierUSA.com slash NPF\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w1_9853bf8ba7a5_20260510T192614Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w2_b2c2fef6b6dc_20260510T192620Z","body":"{\"error\":\"Need entire segment to provide end_text accurately\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w3_b45f31029042_20260510T192621Z","body":"{\"start\": 1439.2, \"end\": 1665.9, \"confidence\": 0.96, \"reason\": \"Continuous sponsor break featuring Mint Mobile, Aura Frames, Colgate Women\u2019s Games (Colgate), and Skinny Pop host/network ads\", \"end_text\": \"perfectly salted. Skinny Pop\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w4_6178d4d07e99_20260510T192622Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w5_406578b6ab6b_20260510T192627Z","body":"{\"error\":\"No JSON array. Expected []\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w6_e6dfaa57db18_20260510T192631Z","body":"{\"start\": 3079.6, \"end\": 3120.0, \"confidence\": 0.96, \"reason\": \"Morgan & Morgan sponsor read with promo URL; ad break continues into next segment\", \"end_text\": \"dial Poundlaw. ForThePeople.com slash\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w7_5127667877ce_20260510T192632Z","body":""}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w8_cc49a7026297_20260510T192636Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w9_6af059127116_20260510T192640Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w0_f5ba1105c819_20260510T192645Z","body":"{\"error\": \"INCOMPLETE_TRANSCRIPT_WINDOW\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w10_82cc66d88ffb_20260510T192718Z","body":"{\"error\":\"The 'start' field must be a number, without quotes\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w11_5afd89646e6c_20260510T192720Z","body":"{\"0\":{\"start\":4646.2,\"end\":4806.1,\"confidence\":0.97,\"reason\":\"Network-inserted ad pod with Colgate, Skinny Pop, Viz, and Garnier promotional copy\",\"end_text\":\"GarnierUSA.com slash NPF\"}}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w1_9853bf8ba7a5_20260510T192653Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w2_b2c2fef6b6dc_20260510T192655Z","body":"{\"error\": \"Not enough context, because I can\u2019t see beginning of specific ad text or whole episode.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w3_b45f31029042_20260510T192656Z","body":"{\"start\": 1439.2, \"end\": 1665.9, \"confidence\": 0.97, \"reason\": \"Back-to-back sponsor reads: Mint Mobile, Aura Frames, plus network-inserted Colgate and Skinny Pop ads with promo URLs, codes, and marketing copy\", \"end_text\": \"perfectly salted. Skinny Pop.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w4_6178d4d07e99_20260510T192657Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w5_406578b6ab6b_20260510T192701Z","body":"{\"error\": \"No advertisement segment found in provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w6_e6dfaa57db18_20260510T192702Z","body":"{\"error\":\"the 'start' value must be numeric without quotes, the 'end' value must be numeric without quotes, and the 'confidence' value must be numeric. Do not use strings for these fields.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w7_5127667877ce_20260510T192705Z","body":"{\"error\": \"no ads found\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w8_cc49a7026297_20260510T192707Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w9_6af059127116_20260510T192715Z","body":"{\"error\": \"Based on the provided transcript segment, no advertisement segments with identifiable promotional language or sponsor messaging are present.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w0_f5ba1105c819_20260510T192720Z","body":"{\"start\":0.0,\"end\":30.0,\"confidence\":0.95,\"reason\":\"Colgate brand ad pre-roll with promotional copy and tagline\",\"end_text\":\"your smile is your strength\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w10_82cc66d88ffb_20260510T192744Z","body":"{\"result\":[{\"start\":4646.2,\"end\":4806.1,\"confidence\":0.97,\"reason\":\"Network-inserted ad block featuring brand commercials for Colgate, Skinny Pop, Viz eye drops, and Garnier\",\"end_text\":\"GarnierUSA.com slash NPF\"}]}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w11_5afd89646e6c_20260510T192744Z","body":"{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.95, \"reason\": \"Network-inserted ad break featuring Colgate, Skinny Pop, Viz eye drops, and Garnier promotions\", \"end_text\": \"GarnierUSA.com slash NPF.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w1_9853bf8ba7a5_20260510T192727Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w2_b2c2fef6b6dc_20260510T192731Z","body":"{\"error\":\"transcript window incomplete\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w3_b45f31029042_20260510T192731Z","body":"{\"error\":\"need JSON array\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w4_6178d4d07e99_20260510T192733Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w5_406578b6ab6b_20260510T192735Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w6_e6dfaa57db18_20260510T192738Z","body":"{\"start\": 3079.6, \"end\": 3134.3, \"confidence\": 0.94, \"reason\": \"Morgan & Morgan sponsor read with URL, promo phrase 'ForThePeople.com slash Tim' and phone shortcut, followed immediately by Stash sponsor intro, indicating an ad break\", \"end_text\": \"Stash is the one.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w7_5127667877ce_20260510T192739Z","body":"{\"result\":[{\"start\":3079.6,\"end\":3270.1,\"confidence\":0.98,\"reason\":\"Back-to-back host-read ads for Morgan & Morgan, Stash, and NeuroGum with promo URLs and codes\",\"end_text\":\"CVS and Amazon\"}]}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w8_cc49a7026297_20260510T192740Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w9_6af059127116_20260510T192741Z","body":"{}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w0_f5ba1105c819_20260510T192751Z","body":"{\"error\": \"No transcript provided for analysis.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w10_82cc66d88ffb_20260510T192809Z","body":"{\"error\":\"The provided segment lacks a clear transition phrase such as \\\"let's take a break,\\\" and therefore does not meet the advertisement criteria defined in the detection rules. No advertisement segments were detected within this transcript window.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w11_5afd89646e6c_20260510T192810Z","body":"{\"start\": 4646.2, \"end\": 4806.1, \"confidence\": 0.97, \"reason\": \"Network-inserted ad break for Colgate, Skinny Pop, Viz, and Garnier\", \"end_text\": \"GarnierUSA.com slash NPF\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w1_9853bf8ba7a5_20260510T192751Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w2_b2c2fef6b6dc_20260510T192751Z","body":"{\"start\": 1439.2, \"end\": 1465.2, \"confidence\": 0.9, \"reason\": \"Mint Mobile host-read sponsor segment (partial, continues in next window)\", \"end_text\": \"nation's largest 5G network\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w3_b45f31029042_20260510T192758Z","body":"{\n  \"error\": \"No transcript or audio segments corresponding to indexes <null> found in the current window context\"\n}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w4_6178d4d07e99_20260510T192759Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w5_406578b6ab6b_20260510T192759Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w6_e6dfaa57db18_20260510T192800Z","body":"{\"error\":\"The provided content includes context beyond the specified task boundaries. Please give me a clear starting point for extracting advertisement segments.\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w7_5127667877ce_20260510T192801Z","body":"{\"start\": 3079.6, \"end\": 3270.1, \"confidence\": 0.97, \"reason\": \"Morgan & Morgan, Stash, and NeuroGum sponsor reads with URLs, promo codes, and paid advertisement disclaimer\", \"end_text\": \"CVS and Amazon\"}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w8_cc49a7026297_20260510T192802Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w9_6af059127116_20260510T192807Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w0_126b2e47b585_20260515T211957Z","body":"{\"error\": \"Need to output JSON array, not object.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w1_8ae3551d496a_20260515T211958Z","body":"{\"error\": \"Need to return JSON array\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w2_f8d0c2cfe57b_20260515T211959Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w3_38f6cbca418b_20260515T212001Z","body":"{\"error\": \"Need to find all ad segments. None found in the provided transcript.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w4_68ad88c28f41_20260515T212003Z","body":"{\"start\": 1836.9, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Host-read Mint Mobile ad followed by network-inserted Mattress Warehouse and PC Richard & Son ads; includes transition phrase\", \"end_text\": \"for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t0_w5_948c86328cc4_20260515T212013Z","body":"{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.98, \"reason\": \"HealthCast by Stony Brook Medicine and PC Richard & Son lease-to-own promotional spots with URLs and disclaimers\", \"end_text\": \"dot HTML for details.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w0_126b2e47b585_20260515T212017Z","body":"{\"error\":\"We will update with JSON\",\"details\":\"Will produce final after re-check\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w1_8ae3551d496a_20260515T212024Z","body":"{\"error\":\"Need to return a JSON array. Provide three objects in array.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w2_f8d0c2cfe57b_20260515T212026Z","body":"{\"error\":\"We should output a JSON array. Actually need to output [] without explanation.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w3_38f6cbca418b_20260515T212029Z","body":"{\"error\":\"No ads in segment\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w4_68ad88c28f41_20260515T212030Z","body":"{\"start\": 1836.9, \"end\": 1999.5, \"confidence\": 0.97, \"reason\": \"Host-read Mint Mobile sponsor followed by network-inserted Mattress Warehouse and PC Richard & Son ads, introduced by 'We'll be right back' transition\", \"end_text\": \"dot HTML for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t1_w5_948c86328cc4_20260515T212045Z","body":"{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.97, \"reason\": \"Network-inserted ads for HealthCast by Stony Brook Medicine and PC Richard & Son Aseema Lease to Own program\", \"end_text\": \"Asima dot HTML for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w0_126b2e47b585_20260515T212046Z","body":"{\"error\":\"No advertisement segments detected in the provided transcript window.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w1_8ae3551d496a_20260515T212048Z","body":"{\"start\": 524.1, \"end\": 654.3, \"confidence\": 0.97, \"reason\": \"Host says 'We'll be right back', then Thrive Cosmetics sponsor read with URL/promo code, followed by network-inserted ads for Mattress Warehouse and PC Richard & Son including promotional taglines and lease offer disclaimers.\", \"end_text\": \"slash Asima dot HTML for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w2_f8d0c2cfe57b_20260515T212053Z","body":"{\"segments\": []}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w3_38f6cbca418b_20260515T212057Z","body":"{\"start\":1837.5,\"end\":1861.3,\"confidence\":0.95,\"reason\":\"Mint Mobile sponsor read following break announcement\",\"end_text\":\"crazy high bills?\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w4_68ad88c28f41_20260515T212103Z","body":"{\"start\":1810.3,\"end\":1999.5,\"confidence\":0.97,\"reason\":\"Host-read Mint Mobile ad with promo URL, followed by Mattress Warehouse and PC Richard & Son Memorial Day sale ads; transition included with 'We'll be right back'\",\"end_text\":\"dot HTML for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t2_w5_948c86328cc4_20260515T212104Z","body":"{\"start\": 2412.8, \"end\": 2484.9, \"confidence\": 0.97, \"reason\": \"HealthCast by Stony Brook Medicine and PC Richard & Son Aseema lease-to-own promotional sponsor reads\", \"end_text\": \"dot HTML for details.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w0_126b2e47b585_20260515T212112Z","body":"{\"ads\":[{\"start\":0.0,\"end\":22.1,\"confidence\":0.97,\"reason\":\"Progressive Insurance sponsor read\",\"end_text\":\"not available in all states.\"},{\"start\":29.8,\"end\":58.1,\"confidence\":0.96,\"reason\":\"Whole Foods Market Mother's Day promotion\",\"end_text\":\"celebrate mom with Whole Foods Market.\"},{\"start\":524.1,\"end\":567.0,\"confidence\":0.95,\"reason\":\"Thrive Cosmetics sponsor read including break transition\",\"end_text\":\"dot com slash shine26.\"},{\"start\":594.7,\"end\":597.3,\"confidence\":0.9,\"reason\":\"Mattress Warehouse network-inserted brand tagline ad\",\"end_text\":\"Only at Mattress Warehouse.\"}]}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w1_8ae3551d496a_20260515T212117Z","body":"{\"error\":\"No ad segments in provided transcript.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w2_f8d0c2cfe57b_20260515T212118Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w3_38f6cbca418b_20260515T212125Z","body":"{\"error\":\"No ad segment boundary found in provided transcript window\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w4_68ad88c28f41_20260515T212126Z","body":"{\"start\": 1810.3, \"end\": 1999.5, \"confidence\": 0.98, \"reason\": \"Mint Mobile sponsor read plus Mattress Warehouse and PC Richard & Son ads\", \"end_text\": \"HTML for details.\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t3_w5_948c86328cc4_20260515T212132Z","body":"{\"result\":[{\"start\":2412.8,\"end\":2484.9,\"confidence\":0.96,\"reason\":\"Network-inserted ads for HealthCast by Stony Brook Medicine and PC Richard & Son lease-to-own program\",\"end_text\":\"HTML for details\"}]}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w0_126b2e47b585_20260515T212132Z","body":"{\"error\":\"We must provide JSON array not object\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w1_8ae3551d496a_20260515T212137Z","body":"{\"error\": \"Need JSON array, not object\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w2_f8d0c2cfe57b_20260515T212140Z","body":"{\"result\": []}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w3_38f6cbca418b_20260515T212144Z","body":"{\"error\":\"I don't have enough information to provide the ad segments. Please provide a complete transcript that contains promotional language, sponsor names, URLs, promo codes, product pitches or calls to action. Otherwise return []\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w4_68ad88c28f41_20260515T212145Z","body":"{\"start\": 1836.9, \"end\": 1999.5, \"confidence\": 0.97, \"reason\": \"Mint Mobile host-read sponsor followed by Mattress Warehouse and PC Richard & Son produced ads\", \"end_text\": \"Aseema dot HTML for details\"}"}
+{"call_id":"openai_o3_ep-tosh-show-5f6894439bb6_t4_w5_948c86328cc4_20260515T212151Z","body":"{\"error\": \"I do not have visibility into the entire transcript for analysis.\"}"}

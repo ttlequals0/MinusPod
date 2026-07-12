@@ -4,26 +4,25 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 from utils.time import utc_now_iso
 
 from . import llm, parsing, pricing
 from .config import BenchmarkConfig
-from .corpus import Episode
+from .corpus import Episode, load_episode
 from .metrics import compliance_score, schema_audit
 from .storage import (
     SCHEMA_VERSION,
     append_jsonl,
+    append_response,
     hash_prompt,
     read_jsonl,
+    safe_model_id,
     sanitize_error,
     scan_calls,
-    write_prompt,
-    write_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -134,6 +133,23 @@ def precompute_prompt_hashes(
     }
 
 
+def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
+    """Rebuild the exact user prompt for a calls.jsonl record from the corpus.
+
+    Deterministic as long as the episode's windows.json is unchanged since the
+    call ran; callers verify via prompt_hash.
+    """
+    episode = load_episode(corpus_dir / record["episode_id"])
+    window_index = int(record["window_index"])
+    if not 0 <= window_index < len(episode.windows):
+        raise ValueError(
+            f"window_index {window_index} out of range for {record['episode_id']} "
+            f"({len(episode.windows)} windows); windows.json may have been regenerated"
+        )
+    window = episode.windows[window_index]
+    return _build_user_prompt(episode, window, total_windows=len(episode.windows))
+
+
 def _build_user_prompt(episode: Episode, window, *, total_windows: int) -> str:
     description = (episode.metadata.description or "").strip()
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
@@ -231,8 +247,7 @@ async def run(
                     in_cost, out_cost, total_cost = pricing.cost_usd(
                         cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
                     )
-                response_path = write_response(paths.responses_dir, call_id, response_text)
-                write_prompt(paths.prompts_dir, ph, user_prompt)
+                response_path = append_response(paths.responses_dir, unit.model_id, call_id, response_text)
             except Exception as post_e:
                 if error_payload is None:
                     error_payload = sanitize_error(post_e)
@@ -271,7 +286,6 @@ async def run(
                 # under a tight max_tokens budget even when not truncated.
                 "over_1024_tokens": (output_tokens or 0) > 1024,
                 "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
-                "prompt_path": f"prompts/{ph}.txt",
                 "extraction_method": extraction_method,
                 "compliance_score": comp,
                 "parsed_ads": parsed_ads,
@@ -343,7 +357,7 @@ def _parse_response(text: str) -> tuple[list[dict], str | None]:
 
 
 def _call_id(unit: WorkUnit, prompt_hash: str) -> str:
-    safe_model = unit.model_id.replace("/", "_").replace(":", "_")
+    safe_model = safe_model_id(unit.model_id)
     short_hash = prompt_hash.split(":", 1)[-1][:12]
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"{safe_model}_{unit.episode_id}_t{unit.trial}_w{unit.window_index}_{short_hash}_{ts}"

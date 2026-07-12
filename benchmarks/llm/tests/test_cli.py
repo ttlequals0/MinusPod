@@ -41,6 +41,15 @@ def test_help_runs():
     assert "report" in result.stdout
 
 
+def test_help_lists_audit_commands():
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["--help"])
+    assert result.exit_code == 0
+    assert "show-prompt" in result.stdout
+    assert "show-response" in result.stdout
+    assert "migrate-raw" in result.stdout
+
+
 def test_validate_with_missing_config(tmp_path):
     runner = CliRunner()
     result = runner.invoke(cli.app, ["validate", "--config", str(tmp_path / "missing.toml")])

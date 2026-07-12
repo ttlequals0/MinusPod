@@ -1,4 +1,0 @@
-{
-"ad_segments": [],
-  "reason": "No ads detected in the provided transcript window."
-}
