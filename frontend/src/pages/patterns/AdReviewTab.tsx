@@ -52,7 +52,7 @@ const td = 'px-3 py-2 text-sm text-muted-foreground truncate';
 
 // Percentages for the fixed table layout; must sum to 100. Sponsor lives
 // under the episode title, matching the mobile card.
-const COL_WIDTHS = ['10%', '22%', '8%', '11%', '7%', '8%', '7%', '8%', '19%'];
+const COL_WIDTHS = ['9%', '20%', '9%', '11%', '7%', '9%', '7%', '10%', '18%'];
 
 const SORT_LABELS = Object.fromEntries(SORT_OPTIONS) as Record<DetectionSort, string>;
 
@@ -377,7 +377,7 @@ export default function AdReviewTab() {
       ) : (
         <>
           <div className="hidden md:block overflow-x-auto bg-card rounded-lg border border-border">
-            <table className="w-full min-w-[64rem] table-fixed divide-y divide-border">
+            <table className="w-full min-w-[68rem] table-fixed divide-y divide-border">
               <colgroup>
                 {COL_WIDTHS.map((width, i) => <col key={i} style={{ width }} />)}
               </colgroup>
