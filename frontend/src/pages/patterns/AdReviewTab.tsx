@@ -116,12 +116,14 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
   busy: boolean;
 }) {
   const isCard = variant === 'card';
-  // One line: play | Confirm ad | Not an ad | Edit. The decision buttons
-  // grow from their content width (never below it, so labels cannot wrap
-  // lopsidedly); Edit stays compact. flex-wrap is the escape hatch at
-  // extreme font zoom.
+  // One line everywhere: play | Confirm ad | Not an ad | Edit. The decision
+  // buttons grow from their content width (never below it, so labels cannot
+  // wrap lopsidedly); Edit stays compact. Below 370px the labels drop to
+  // text-xs with tighter padding so the row still fits a 320px screen;
+  // max-w-full + overflow-hidden keep a pathologically zoomed label from
+  // forcing page scroll.
   const btn = isCard
-    ? 'px-2.5 py-2.5 text-sm rounded touch-manipulation whitespace-nowrap text-center'
+    ? 'px-2 py-2.5 text-xs min-[370px]:px-2.5 min-[370px]:text-sm rounded touch-manipulation whitespace-nowrap text-center max-w-full overflow-hidden'
     : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
   const confirmBtn = (
     <button
@@ -148,7 +150,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
       type="button"
       onClick={onEdit}
       disabled={busy}
-      className={`${btn} border border-border hover:bg-accent disabled:opacity-50`}
+      className={`${btn} ${isCard ? 'ml-auto ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
     >
       Edit
     </button>
@@ -157,7 +159,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
     <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
   );
   return (
-    <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
+    <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {playBtn}
       {d.resolution === 'unresolved' && (
         <>

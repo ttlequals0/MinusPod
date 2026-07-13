@@ -9,11 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.51.3] - 2026-07-13
 
 ### Changed
-- Mobile Ad Review card actions are back on a single line: play,
-  Confirm ad, Not an ad, Edit. The decision buttons grow from their
-  label width (they can never shrink below it, so neither wraps into a
-  taller button), Edit stays compact, and the buttons are sized for
-  thumbs.
+- Mobile Ad Review card actions are back on a single line at every
+  phone width: play, Confirm ad, Not an ad, Edit. The decision buttons
+  grow from their label width (they can never shrink below it, so
+  neither wraps into a taller button), Edit stays compact, and the
+  buttons are sized for thumbs. Below 370px the labels drop a size so
+  the row still fits a 320px screen.
 
 ## [2.51.2] - 2026-07-13
 
