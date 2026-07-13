@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.51.1] - 2026-07-13
+
+### Fixed
+- Mobile Ad Review cards no longer render a lopsided action row: the
+  renamed "Confirm ad" label wrapped into a two-line button beside a
+  one-line "Not an ad". The two decision buttons now split a row of
+  their own (labels never wrap), play and Edit share a compact second
+  row, and the sponsor moved into the metadata line instead of
+  dangling as a bare word above the buttons.
+
 ## [2.51.0] - 2026-07-13
 
 ### Changed

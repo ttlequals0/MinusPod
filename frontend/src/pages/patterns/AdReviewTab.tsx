@@ -111,41 +111,70 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
 }) {
   const isCard = variant === 'card';
   const btn = isCard
-    ? 'flex-1 px-3 py-2 text-sm rounded touch-manipulation'
-    : 'px-1.5 py-1 text-xs rounded';
+    ? 'px-3 py-2 text-sm rounded touch-manipulation whitespace-nowrap'
+    : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
+  const confirmBtn = (
+    <button
+      type="button"
+      onClick={onApprove}
+      disabled={busy}
+      className={`${btn} bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
+    >
+      Confirm ad
+    </button>
+  );
+  const dismissBtn = (
+    <button
+      type="button"
+      onClick={onDismiss}
+      disabled={busy}
+      className={`${btn} bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
+    >
+      Not an ad
+    </button>
+  );
+  const editBtn = (
+    <button
+      type="button"
+      onClick={onEdit}
+      disabled={busy}
+      className={`${btn} ${isCard ? 'flex-1' : ''} border border-border hover:bg-accent disabled:opacity-50`}
+    >
+      Edit
+    </button>
+  );
+  if (isCard) {
+    // Decisions get a 50/50 row of their own so neither label ever wraps
+    // into a taller button; play + Edit share a compact second row.
+    return (
+      <div className="space-y-2 pt-1">
+        {d.resolution === 'unresolved' && (
+          <div className="grid grid-cols-2 gap-2">
+            {confirmBtn}
+            {dismissBtn}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {d.hasOriginalAudio && (
+            <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+          )}
+          {editBtn}
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
+    <div className="flex items-center gap-1.5">
       {d.hasOriginalAudio && (
         <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
       )}
       {d.resolution === 'unresolved' && (
         <>
-          <button
-            type="button"
-            onClick={onApprove}
-            disabled={busy}
-            className={`${btn} bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
-          >
-            Confirm ad
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            disabled={busy}
-            className={`${btn} bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
-          >
-            Not an ad
-          </button>
+          {confirmBtn}
+          {dismissBtn}
         </>
       )}
-      <button
-        type="button"
-        onClick={onEdit}
-        disabled={busy}
-        className={`${btn} border border-border hover:bg-accent disabled:opacity-50`}
-      >
-        Edit
-      </button>
+      {editBtn}
     </div>
   );
 }
@@ -440,8 +469,10 @@ export default function AdReviewTab() {
                   </Link>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <DetectionMeta d={d} />
+                    {d.sponsor && (
+                      <span className="min-w-0 max-w-48 truncate" title={d.sponsor}>{d.sponsor}</span>
+                    )}
                   </div>
-                  {d.sponsor && <div className="text-sm text-foreground">{d.sponsor}</div>}
                   <DetectionActions
                     d={d}
                     variant="card"
