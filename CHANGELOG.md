@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.52.0] - 2026-07-13
+## [2.51.0] - 2026-07-13
 
 ### Changed
 - The Ad Review tab no longer scrolls horizontally on desktop. The
@@ -28,10 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Detections Not Cut", its stray "Not Ad" badges read "Not an ad", and
   the held-ads panel shows "Confirm & Recut" / "Confirm ad" / "Not an
   ad" with the batch action reading "Apply N confirmed & recut".
-
-## [2.51.0] - 2026-07-13
-
-### Changed
 - Reviewing several held ads no longer costs one full recut per approval
   (#509). With more than one ad held for review, confirming records the
   decision only; an "Apply N confirmed & recut" action at the bottom of
