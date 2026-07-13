@@ -31,7 +31,7 @@ const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
-  ['confidence', 'Conf.'],
+  ['confidence', 'Confidence'],
   ['podcast', 'Podcast'],
 ];
 
@@ -65,6 +65,29 @@ function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] })
 function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resolution'] }) {
   const [label, cls] = RESOLUTION_BADGE[resolution];
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
+}
+
+function DetectionBadges({ d }: { d: ReviewDetection }) {
+  return (
+    <div className="flex gap-1.5 shrink-0">
+      <DetectionStatusBadge status={d.status} />
+      <ResolutionBadge resolution={d.resolution} />
+    </div>
+  );
+}
+
+// The date/time/confidence/stage run shared by the desktop row's second
+// line and the mobile card; feedTitle and sponsor placement differ per
+// variant, so those stay with the callers.
+function DetectionMeta({ d }: { d: ReviewDetection }) {
+  return (
+    <>
+      <span>{formatDate(d.publishDate)}</span>
+      <span>{timeLabel(d)}</span>
+      {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
+      {d.detectionStage && <StageBadge stage={d.detectionStage} />}
+    </>
+  );
 }
 
 // One set of row actions rendered in two densities: compact at the end of
@@ -236,7 +259,7 @@ export default function AdReviewTab() {
               <p className="font-medium text-foreground">{counts.pending}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Rejected</p>
+              <p className="text-muted-foreground">{STATUS_BADGE.rejected[0]}</p>
               <p className="font-medium text-foreground">{counts.rejected}</p>
             </div>
             <div>
@@ -248,7 +271,7 @@ export default function AdReviewTab() {
               <p className="font-medium text-foreground">{counts.confirmed}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Not an ad</p>
+              <p className="text-muted-foreground">{RESOLUTION_BADGE.dismissed[0]}</p>
               <p className="font-medium text-foreground">{counts.dismissed}</p>
             </div>
           </div>
@@ -361,11 +384,8 @@ export default function AdReviewTab() {
                     >
                       {d.episodeTitle}
                     </Link>
-                    <div className="flex gap-1.5 shrink-0">
-                      <DetectionStatusBadge status={d.status} />
-                      <ResolutionBadge resolution={d.resolution} />
-                    </div>
-                    <div className="shrink-0" data-testid="row-actions">
+                    <DetectionBadges d={d} />
+                    <div className="shrink-0">
                       <DetectionActions
                         d={d}
                         variant="row"
@@ -381,10 +401,7 @@ export default function AdReviewTab() {
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="min-w-0 max-w-56 truncate" title={d.feedTitle}>{d.feedTitle}</span>
-                    <span>{formatDate(d.publishDate)}</span>
-                    <span>{timeLabel(d)}</span>
-                    {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
-                    {d.detectionStage && <StageBadge stage={d.detectionStage} />}
+                    <DetectionMeta d={d} />
                     {d.sponsor && (
                       <span className="min-w-0 max-w-48 truncate" title={d.sponsor}>{d.sponsor}</span>
                     )}
@@ -400,10 +417,7 @@ export default function AdReviewTab() {
                 <div key={rowKey} className="bg-card rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs text-muted-foreground min-w-0 truncate">{d.feedTitle}</span>
-                    <div className="flex gap-1.5 shrink-0">
-                      <DetectionStatusBadge status={d.status} />
-                      <ResolutionBadge resolution={d.resolution} />
-                    </div>
+                    <DetectionBadges d={d} />
                   </div>
                   <Link
                     to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
@@ -412,10 +426,7 @@ export default function AdReviewTab() {
                     {d.episodeTitle}
                   </Link>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{formatDate(d.publishDate)}</span>
-                    <span>{timeLabel(d)}</span>
-                    {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
-                    {d.detectionStage && <StageBadge stage={d.detectionStage} />}
+                    <DetectionMeta d={d} />
                   </div>
                   {d.sponsor && <div className="text-sm text-foreground">{d.sponsor}</div>}
                   <DetectionActions

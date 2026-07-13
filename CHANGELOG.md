@@ -21,9 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is an ad, "Not an ad" records that it is not. The automatic "Rejected"
   status is now labeled "Auto-rejected" so a pipeline hold is not
   confused with a human dismissal, and the resolution badge and stats
-  card use "Not an ad" in place of "Dismissed". The held-ads panel on
-  the episode page follows suit: "Confirm & Recut" / "Confirm ad" /
-  "Not an ad", and the batch action reads "Apply N confirmed & recut".
+  card use "Not an ad" in place of "Dismissed". The ad editor modal's
+  "Reject" button (the same human decision) is now "Not an ad" too, and
+  the held-ads panel on the episode page follows suit: "Confirm &
+  Recut" / "Confirm ad" / "Not an ad", with the batch action reading
+  "Apply N confirmed & recut".
 
 ## [2.51.0] - 2026-07-13
 
