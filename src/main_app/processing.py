@@ -24,9 +24,11 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, reasoning_contradicts_cut,
     split_resurrection_pool,
 )
+from audio_processor import get_replacement_duration
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff
 from utils.time import ranges_overlap, utc_now_iso
+from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -1344,10 +1346,9 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
     if not verification_segments:
         return
     from roll_detector import detect_preroll, detect_postroll
-    from verification_pass import _build_timestamp_map, _map_to_original
-
     processed_dur = verification_segments[-1]['end'] if verification_segments else 0
     ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else None
+    beep = get_replacement_duration()
 
     preroll_v = detect_preroll(verification_segments, verification_ads_processed,
                               podcast_name=podcast_name, skip_patterns=skip_patterns)
@@ -1355,8 +1356,8 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
         verification_ads_processed.append(preroll_v)
         mapped = preroll_v.copy()
         if ts_map:
-            mapped['start'] = _map_to_original(preroll_v['start'], ts_map)
-            mapped['end'] = _map_to_original(preroll_v['end'], ts_map)
+            mapped['start'] = _map_to_original(preroll_v['start'], ts_map, beep)
+            mapped['end'] = _map_to_original(preroll_v['end'], ts_map, beep)
         verification_ads_original.append(mapped)
         audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic pre-roll: 0.0s-{preroll_v['end']:.1f}s")
 
@@ -1365,8 +1366,8 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
         verification_ads_processed.append(postroll_v)
         mapped = postroll_v.copy()
         if ts_map:
-            mapped['start'] = _map_to_original(postroll_v['start'], ts_map)
-            mapped['end'] = _map_to_original(postroll_v['end'], ts_map)
+            mapped['start'] = _map_to_original(postroll_v['start'], ts_map, beep)
+            mapped['end'] = _map_to_original(postroll_v['end'], ts_map, beep)
         verification_ads_original.append(mapped)
         audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic post-roll: {postroll_v['start']:.1f}s-{postroll_v['end']:.1f}s")
 
@@ -1398,13 +1399,13 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # Pass-1 cut user-rejections in original time; verification
     # operates on cut audio, so map them to processed coordinates
     # before the validator can use them to auto-reject overlaps.
-    from verification_pass import _build_timestamp_map, _map_correction_to_processed
     fp_corrections_orig = db.get_false_positive_corrections(episode_id) or []
     fp_corrections_processed = []
     if fp_corrections_orig:
         ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else []
+        beep = get_replacement_duration()
         for c in fp_corrections_orig:
-            proc = _map_correction_to_processed(c['start'], c['end'], ts_map)
+            proc = _map_correction_to_processed(c['start'], c['end'], ts_map, beep)
             if proc is not None:
                 fp_corrections_processed.append({'start': proc[0], 'end': proc[1]})
         if fp_corrections_processed:
@@ -1523,6 +1524,25 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     return v_ads_to_cut, v_ads_for_ui, v_ads_held
 
 
+def _pass2_cuts_in_original(recut_applied, pass1_cuts):
+    """Map the cuts the recut actually rendered back to original coordinates.
+
+    Asset timestamp math credits one replacement beep per span, so it must
+    see the rendered cut list (compute_applied_cuts output, one beep each),
+    not the pre-merge UI ad list -- gap-merged pass-2 ads received a single
+    beep in the audio.
+    """
+    if not recut_applied:
+        return []
+    ts_map = _build_timestamp_map(pass1_cuts)
+    beep = get_replacement_duration()
+    return [{
+        'start': _map_to_original(c['start'], ts_map, beep),
+        'end': _map_to_original(c['end'], ts_map, beep),
+        'detection_stage': 'verification',
+    } for c in recut_applied]
+
+
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor):
     """Re-cut the pass-1 processed audio with verification ads.
@@ -1603,7 +1623,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     held markers; a pass-2 cut overlapping one is diverted to held instead of
     cutting so the protected region survives.
 
-    Returns (verification_count, v_ads_for_ui, v_ads_held, processed_path,
+    Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path,
     verification_cue_count).
     """
     slug = ctx.slug
@@ -1614,6 +1634,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     podcast_description = ctx.podcast_description
     verification_count = 0
     v_ads_for_ui = []
+    v_cuts_for_assets = []
     v_ads_held = []
     verification_cue_count = 0
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
@@ -1712,6 +1733,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             verification_ads_original, pre_recut_duration,
                         )
                         verification_count = len(v_ads_to_cut)
+                        v_cuts_for_assets = _pass2_cuts_in_original(
+                            recut_applied, pass1_cuts)
                     else:
                         v_ads_for_ui = []
         else:
@@ -1720,7 +1743,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
 
-    return verification_count, v_ads_for_ui, v_ads_held, processed_path, verification_cue_count
+    return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count
 
 
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
@@ -1738,18 +1761,22 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
 
+        # Each cut is replaced by the beep, so post-cut timestamps shift by
+        # (cut - beep) per cut, not the full cut length.
+        replacement_duration = get_replacement_duration()
+
         # Persist final segments unconditionally; consumers (e.g. the offline
         # benchmark) need them even when VTT generation is disabled.
-        final_segments = transcript_gen.compute_final_segments(segments, all_cuts)
+        final_segments = transcript_gen.compute_final_segments(segments, all_cuts, replacement_duration)
         storage.save_final_segments(slug, episode_id, final_segments)
 
         if vtt_enabled is None or vtt_enabled.lower() == 'true':
-            vtt_content = transcript_gen.generate_vtt(segments, all_cuts)
+            vtt_content = transcript_gen.generate_vtt(segments, all_cuts, replacement_duration)
             if vtt_content and len(vtt_content) > 10:
                 storage.save_transcript_vtt(slug, episode_id, vtt_content)
                 audio_logger.info(f"[{slug}:{episode_id}] Generated VTT transcript")
 
-        processed_text = transcript_gen.generate_text(segments, all_cuts)
+        processed_text = transcript_gen.generate_text(segments, all_cuts, replacement_duration)
         if processed_text:
             db.save_episode_details(slug, episode_id, transcript_text=processed_text)
 
@@ -1766,6 +1793,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
                 episode_id=episode_id,
+                replacement_duration=replacement_duration,
             )
             if chapters and chapters.get('chapters'):
                 storage.save_chapters_json(slug, episode_id, chapters)
@@ -2568,7 +2596,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 (m['start'], m['end']) for m in all_ads_with_validation
                 if is_pending_review(m)
             ]
-            verification_count, v_ads_for_ui, v_ads_held, processed_path, verification_cue_count = _run_verification_pass(
+            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
@@ -2655,8 +2683,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
                 )
 
-            # Stage 7: Generate assets
-            all_cuts_for_assets = applied_cuts + v_ads_for_ui
+            # Stage 7: Generate assets. Uses the RENDERED cut lists (one
+            # replacement beep per span), not the UI ad list: gap-merged
+            # pass-2 ads share a single beep in the audio.
+            all_cuts_for_assets = applied_cuts + v_cuts_for_assets
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
                               episode_description, podcast_name, episode_title)
 

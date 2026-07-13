@@ -5,7 +5,7 @@ from typing import List, Dict, Optional, Tuple
 
 from config import DEFAULT_CHAPTERS_MODEL as _DEFAULT_CHAPTERS_MODEL
 from config import resolve_stage_tunables
-from utils.time import parse_timestamp, adjust_timestamp
+from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
@@ -468,6 +468,7 @@ Transcript:
         self,
         segments: List[Dict],
         ads_removed: List[Dict],
+        replacement_duration: float = 0.0,
     ) -> List[Dict]:
         """Project raw segments onto the post-ad-removal timeline.
 
@@ -483,12 +484,12 @@ Transcript:
         for seg in segments:
             start = seg.get('start', 0)
             end = seg.get('end', start)
-            if any(ad.get('start', 0) <= start and end <= ad.get('end', 0) for ad in sorted_ads):
+            if span_inside_any_cut(start, end, sorted_ads):
                 continue
             adjusted.append({
                 **seg,
-                'start': adjust_timestamp(start, sorted_ads),
-                'end': adjust_timestamp(end, sorted_ads),
+                'start': adjust_timestamp(start, sorted_ads, replacement_duration),
+                'end': adjust_timestamp(end, sorted_ads, replacement_duration),
             })
         return adjusted
 
@@ -500,6 +501,7 @@ Transcript:
         podcast_name: str = "Unknown",
         episode_title: str = "Unknown",
         episode_id: Optional[str] = None,
+        replacement_duration: float = 0.0,
     ) -> Dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -529,7 +531,7 @@ Transcript:
             return {'version': '1.2.0', 'chapters': []}
 
         if ads_removed:
-            segments = self._adjust_segments_for_ads(segments, ads_removed)
+            segments = self._adjust_segments_for_ads(segments, ads_removed, replacement_duration)
             if not segments:
                 return {'version': '1.2.0', 'chapters': []}
 

@@ -52,3 +52,39 @@ def test_map_correction_issue_183_case():
 def test_map_correction_empty_range():
     assert _map_correction_to_processed(100.0, 100.0, []) is None
     assert _map_correction_to_processed(150.0, 100.0, []) is None
+
+
+def test_map_to_original_accounts_for_replacement_audio():
+    from verification_pass import _map_to_original
+    cuts = [(50.0, 20.0)]  # cut 50-70s, replaced by a 2s beep
+    # Content originally at 100s sits at 100 - (20 - 2) = 82s in beeped audio.
+    assert _map_to_original(82.0, cuts, replacement_duration=2.0) == 100.0
+
+
+def test_map_to_original_inside_replacement_maps_into_cut():
+    from verification_pass import _map_to_original
+    cuts = [(50.0, 20.0)]
+    # 1s into the beep maps just inside the removed span, keeping the
+    # mapping monotonic.
+    assert _map_to_original(51.0, cuts, replacement_duration=2.0) == 51.0
+
+
+def test_map_to_original_zero_replacement_unchanged():
+    from verification_pass import _map_to_original
+    cuts = [(50.0, 20.0)]
+    assert _map_to_original(80.0, cuts) == 100.0
+
+
+def test_map_correction_accounts_for_replacement_audio():
+    cuts = [(50.0, 20.0)]
+    # Original 100-150s sits at 82-132s in beeped audio (18s shift, not 20s).
+    assert _map_correction_to_processed(
+        100.0, 150.0, cuts, replacement_duration=2.0) == (82.0, 132.0)
+
+
+def test_map_correction_start_in_cut_lands_after_beep():
+    cuts = [(50.0, 20.0)]
+    # Visible portion starts at the cut end (70s original), which sits right
+    # after the beep in processed audio: 70 - 18 = 52 = beep end.
+    proc = _map_correction_to_processed(60.0, 100.0, cuts, replacement_duration=2.0)
+    assert proc == (52.0, 82.0)

@@ -43,6 +43,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not change at upgrade.
 
 ## [Unreleased]
+## [2.49.0] - 2026-07-13
+
+### Fixed
+- Embedded ID3v2 chapters (CHAP/CTOC) are now remapped onto the post-cut
+  timeline instead of being copied through with stale timestamps. ffmpeg
+  copies the input's chapters by default, so a processed episode kept
+  chapter marks that pointed at the wrong content once ads were removed
+  (#500). remove_ads now probes the input's chapters, shifts each one by
+  the removed time (compensating for the inserted beep), drops chapters
+  that sat entirely inside a cut, and feeds the corrected list back into
+  the same ffmpeg invocation as an ffmetadata input. Chapterless files
+  are explicitly stripped of chapters as a guard. The remap composes
+  across the two-pass recut path because each render remaps its own
+  input's chapters with its own cuts.
+- Post-cut timestamps in VTT transcripts, plain-text transcripts, final
+  segments, and Podcasting 2.0 JSON chapters no longer drift early by
+  the length of the replacement beep per preceding cut (~1.0 s each).
+  `adjust_timestamp` gains a `replacement_duration` parameter: each cut
+  shifts later content by (cut length - beep length), matching what the
+  render actually does. The pass-2 verification maps got the same
+  correction in both directions: the reused-transcript path now projects
+  segments onto the beeped timeline exactly as a re-transcription would
+  see it, and `_map_to_original` / `_map_correction_to_processed` account
+  for the beep when converting pass-2 detections and user corrections
+  between the original and processed timelines.
+- The two-pass cut model counts beeps exactly. Asset generation now uses
+  the cuts each render actually applied (one beep per rendered cut,
+  pass-2 cuts mapped back to original coordinates) instead of the
+  pre-merge UI ad list, timestamp adjustment credits one replacement per
+  source span even when cuts from different passes merge in original
+  coordinates, and the beep length used for timestamp math is resolved
+  from the same frozen asset path the render uses.
+- A failed ffprobe chapter read no longer strips embedded chapters from
+  the output: probe failure falls back to ffmpeg's default chapter
+  passthrough (stale but recoverable) with a warning, and only a
+  definitively chapterless input is stripped explicitly. Chapter lists
+  stay contiguous when a sub-second sliver chapter is dropped.
 
 ### Changed
 - LLM benchmark raw storage moved to schema v2: response bodies now live

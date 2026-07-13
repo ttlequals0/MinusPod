@@ -158,3 +158,24 @@ class TestComputeFinalSegments:
         assert 'maintenance engineer Grainger' not in texts
         assert 'show open' in texts
         assert 'back to headlines' in texts
+
+
+class TestReplacementDurationCompensation:
+    """Each cut is replaced by a beep, so adjusted timestamps must account
+    for the inserted audio or every post-cut cue drifts early."""
+
+    def setup_method(self):
+        self.gen = TranscriptGenerator()
+
+    def test_compute_final_segments_compensates_for_beep(self):
+        segs = [_seg(0.0, 10.0, 'before'), _seg(40.0, 50.0, 'after')]
+        ads = [{'start': 10.0, 'end': 30.0}]
+        out = self.gen.compute_final_segments(segs, ads, replacement_duration=2.0)
+        assert out[1]['start'] == 22.0
+        assert out[1]['end'] == 32.0
+
+    def test_generate_vtt_compensates_for_beep(self):
+        segs = [_seg(40.0, 50.0, 'after')]
+        ads = [{'start': 10.0, 'end': 30.0}]
+        vtt = self.gen.generate_vtt(segs, ads, replacement_duration=2.0)
+        assert '00:00:22.000' in vtt
