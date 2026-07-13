@@ -148,7 +148,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
       type="button"
       onClick={onEdit}
       disabled={busy}
-      className={`${btn} ${isCard ? 'flex-1 ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
+      className={`${btn} ${isCard ? 'ml-auto ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
     >
       Edit
     </button>
@@ -167,6 +167,8 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
             {dismissBtn}
           </div>
         )}
+        {/* Play sits left, a compact Edit right; ml-auto keeps Edit right
+            when there is no play button. */}
         <div className="flex items-center gap-2">
           {playBtn}
           {editBtn}

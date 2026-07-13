@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.51.2] - 2026-07-13
+
+### Fixed
+- The Edit button on mobile Ad Review cards no longer stretches across
+  the full row; it is a compact control right-aligned opposite the play
+  button.
+- The Sponsors/Normalizations tab switcher no longer stretches to full
+  width on mobile with a long empty border trailing the tabs; it sizes
+  to its content.
+
 ## [2.51.1] - 2026-07-13
 
 ### Fixed
