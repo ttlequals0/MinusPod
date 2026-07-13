@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.51.0] - 2026-07-13
+
+### Changed
+- Reviewing several held ads no longer costs one full recut per approval
+  (#509). With more than one ad held for review, Approve records the
+  decision only; an "Apply N approved & recut" action at the bottom of
+  the Held for Review panel runs a single recut that applies every
+  confirmed hold at once (the recut already applied all stored
+  corrections in one pass). Approving a held ad now also annotates the
+  marker server-side (mirroring how Dismiss resolves one), so the
+  approved count survives reloads and uses the same tolerance matching
+  as the rest of the review flow. Approving the last unreviewed ad of a
+  set keeps the one-tap Approve & Recut finish, as does an episode with
+  a single held ad; approvals made without retained original audio
+  still apply on the next reprocess as before.
+
 ## [2.50.0] - 2026-07-13
 
 ### Changed

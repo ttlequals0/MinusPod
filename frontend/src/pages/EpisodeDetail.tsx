@@ -99,6 +99,12 @@ function EpisodeDetail() {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       setShowReprocessMenu(false);
     },
+    // A 409 (already processing) or transient failure must not vanish
+    // silently: refetch so status-driven guards reflect reality.
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      setSaveStatus('error');
+    },
   });
 
   const regenerateChaptersMutation = useMutation({
@@ -213,6 +219,21 @@ function EpisodeDetail() {
       c.original_bounds.end === end
     );
   };
+
+  // Batch approve (#509): with several held ads, Approve is decision-only
+  // and one Apply action recuts once for every confirmed hold. A confirm
+  // correction matching a held marker is the durable "approved, not yet
+  // applied" state (the card already shows it as the Confirmed badge).
+  const heldMarkers = episode?.pendingReviewMarkers ?? [];
+  // The marker flag is authoritative for 2.51+ approvals; the correction
+  // join is the fallback for confirms recorded before the flag existed.
+  const approvedHeldCount = heldMarkers.filter(
+    (m) => m.approved || getAdCorrection(m.start, m.end)?.correction_type === 'confirm'
+  ).length;
+  // One-tap Approve & Recut when this approval completes the review set:
+  // a single held ad, or the last unapproved one of several.
+  const oneTapRecut = !!episode?.hasOriginalAudio
+    && heldMarkers.length - approvedHeldCount === 1;
 
   // Windowed playback for Held for Review and Rejected Detections rows. Both
   // kinds of markers are never cut, and their times are in the original-audio
@@ -732,13 +753,13 @@ function EpisodeDetail() {
       {((episode.pendingReviewMarkers?.length ?? 0) > 0 ||
         (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
 
-      {episode.pendingReviewMarkers && episode.pendingReviewMarkers.length > 0 && (
+      {heldMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-amber-500/30 p-6 mb-6" data-testid="held-for-review-section">
           <h2 className="text-xl font-semibold text-foreground mb-4">
-            Held for Review ({episode.pendingReviewMarkers.length})
+            Held for Review ({heldMarkers.length})
           </h2>
           <div className="space-y-3">
-            {episode.pendingReviewMarkers.map((segment, index) => {
+            {heldMarkers.map((segment, index) => {
               const correction = getAdCorrection(segment.start, segment.end);
               const holdTitle = segment.hold_reason === 'max_duration'
                 ? "Exceeds the feed's max ad duration"
@@ -824,7 +845,7 @@ function EpisodeDetail() {
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">
                       <button
                         onClick={() => {
-                          if (episode.hasOriginalAudio) {
+                          if (oneTapRecut) {
                             pendingRecutRef.current = true;
                           }
                           handleCorrection({
@@ -841,7 +862,7 @@ function EpisodeDetail() {
                         data-testid={`approve-recut-${index}`}
                         className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                       >
-                        {btnLabel(rowStatus, episode.hasOriginalAudio ? 'Approve & Recut' : 'Approve')}
+                        {btnLabel(rowStatus, oneTapRecut ? 'Approve & Recut' : 'Approve')}
                       </button>
                       {!episode.hasOriginalAudio && rowStatus === 'success' && (
                         <span className="text-xs text-muted-foreground italic self-center">
@@ -870,6 +891,19 @@ function EpisodeDetail() {
               );
             })}
           </div>
+          {episode.hasOriginalAudio && approvedHeldCount > 0 && (
+            <div className="mt-4 pt-4 border-t border-amber-500/20 flex justify-end">
+              <button
+                onClick={() => reprocessMutation.mutate('recut')}
+                disabled={correctionMutation.isPending || reprocessMutation.isPending
+                  || episode.status === 'processing'}
+                data-testid="apply-approved-recut"
+                className="w-full sm:w-auto px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded bg-green-600 hover:bg-green-700 active:bg-green-800 text-white disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+              >
+                {`Apply ${approvedHeldCount} approved & recut`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

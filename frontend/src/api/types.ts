@@ -217,6 +217,9 @@ export interface AdSegment {
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
     | 'no_splice_evidence';
+  // Set when a confirm correction matched this held marker (issue #509);
+  // approved holds wait for a recut to apply.
+  approved?: boolean;
 }
 
 export interface SettingValue {

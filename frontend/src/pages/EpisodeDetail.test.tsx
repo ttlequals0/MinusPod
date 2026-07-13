@@ -571,3 +571,144 @@ describe('Failure reason display', () => {
     expect(screen.getByTitle('Key limit exceeded')).toBeDefined();
   });
 });
+
+// ---- Issue #509: batch approve-and-recut ----
+
+const secondHeldMarker = {
+  ...heldMarker,
+  start: 500,
+  end: 620,
+  reason: 'another sponsor read',
+};
+
+const confirmedHeldCorrection = {
+  id: 1,
+  correction_type: 'confirm' as const,
+  original_bounds: { start: heldMarker.start, end: heldMarker.end },
+  created_at: '2026-01-02T00:00:00Z',
+};
+
+describe('Held for Review: batch approve (multiple held ads)', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    mockReprocessEpisode.mockResolvedValue(undefined);
+  });
+
+  it('approving one of several held ads submits the correction without recutting', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [heldMarker, secondHeldMarker],
+    }));
+    await screen.findByTestId('held-for-review-section');
+
+    await user.click(screen.getByTestId('approve-recut-0'));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    expect(mockReprocessEpisode).not.toHaveBeenCalled();
+  });
+
+  it('multi-held approve button is labeled Approve, not Approve & Recut', async () => {
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [heldMarker, secondHeldMarker],
+    }));
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Approve');
+  });
+
+  it('apply bar shows the approved count and fires exactly one recut', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+
+    const applyBtn = await screen.findByTestId('apply-approved-recut');
+    expect(applyBtn.textContent).toBe('Apply 1 approved & recut');
+
+    await user.click(applyBtn);
+    await waitFor(() =>
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
+    expect(mockReprocessEpisode).toHaveBeenCalledTimes(1);
+  });
+
+  it('no apply bar without original audio', async () => {
+    renderDetail(makeEpisode({
+      hasOriginalAudio: false,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+    expect(screen.queryByTestId('apply-approved-recut')).toBeNull();
+  });
+
+  it('approving the last unreviewed held ad recuts in one tap', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+
+    // The approved card has no buttons; the remaining card offers the
+    // one-tap finish since its approval completes the set.
+    const btn = screen.getByTestId('approve-recut-1');
+    expect(btn.textContent).toBe('Approve & Recut');
+    await user.click(btn);
+    await waitFor(() =>
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
+  });
+
+  it('single held ad keeps the one-tap approve and recut', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [heldMarker],
+    }));
+    await screen.findByTestId('held-for-review-section');
+
+    await user.click(screen.getByTestId('approve-recut-0'));
+    await waitFor(() =>
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
+  });
+});
+
+
+describe('Held for Review: apply bar guards', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    mockReprocessEpisode.mockResolvedValue(undefined);
+  });
+
+  it('apply button is disabled while the episode is processing', async () => {
+    renderDetail(makeEpisode({
+      status: 'processing',
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, approved: true }, secondHeldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+    const applyBtn = screen.getByTestId('apply-approved-recut');
+    expect(applyBtn).toHaveProperty('disabled', true);
+  });
+
+  it('legacy confirmed hold without the approved flag still counts', async () => {
+    // Confirms recorded before 2.51.0 carry no marker flag; the correction
+    // join is the fallback so their apply action does not disappear.
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [heldMarker],
+      corrections: [confirmedHeldCorrection],
+    }));
+    await screen.findByTestId('held-for-review-section');
+    const applyBtn = await screen.findByTestId('apply-approved-recut');
+    expect(applyBtn.textContent).toBe('Apply 1 approved & recut');
+  });
+});
