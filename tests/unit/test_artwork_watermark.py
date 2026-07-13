@@ -128,6 +128,41 @@ def test_saving_new_artwork_invalidates_the_watermark_cache():
     assert not variant.exists()
 
 
+def test_badge_revision_bump_invalidates_cached_variant(monkeypatch):
+    # Mtimes alone miss a BADGE_REVISION bump (issue #514 shipped a new render
+    # of the same asset file): the salt sidecar must force a recomposite so the
+    # new-look badge is what the cache-busted URL serves.
+    slug = 'wm-revision'
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png(), 'image/png', 'https://example.com/art.png')
+    st.get_watermarked_artwork(slug)
+    podcast_dir = st.get_podcast_dir(slug)
+    variant = podcast_dir / 'artwork-minuspod.jpg'
+    assert not st._watermark_variant_stale(podcast_dir, variant)
+
+    import storage as storage_module
+    monkeypatch.setattr(storage_module, 'cover_badge_salt', lambda: '999:changed')
+    assert st._watermark_variant_stale(podcast_dir, variant)
+
+    st.get_watermarked_artwork(slug)  # recomposites, rewrites the sidecar
+    assert (podcast_dir / 'artwork-minuspod.salt').read_text() == '999:changed'
+    assert not st._watermark_variant_stale(podcast_dir, variant)
+
+
+def test_badge_halo_fades_within_layer():
+    # The glow must decay to ~nothing at the layer boundary or the paste edge
+    # shows as a square seam around the badge on every cover.
+    from PIL import Image as PILImage
+    mark = PILImage.new('RGBA', (64, 64), (255, 0, 0, 255))
+    for chip_side in (72, 18):
+        layer, _ = artwork_watermark._build_badge(chip_side, mark)
+        alpha = layer.getchannel('A')
+        w, h = alpha.size
+        ring = [alpha.getpixel((x, y)) for x in range(w) for y in (0, h - 1)]
+        ring += [alpha.getpixel((x, y)) for y in range(h) for x in (0, w - 1)]
+        assert max(ring) <= 8
+
+
 def test_clear_watermark_cache_forces_recomposite():
     # Regression for issue #420: refreshing artwork must replace an existing
     # badge even when the source cover is unchanged (download_artwork no-ops on a

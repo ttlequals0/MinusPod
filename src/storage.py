@@ -37,6 +37,11 @@ _ALLOWED_IMAGE_TYPES = frozenset({
 
 # Cached cover-art badge variant (issue #420), one per podcast dir.
 _WATERMARK_VARIANT = "artwork-minuspod.jpg"
+# Sidecar recording the cover_badge_salt the cached variant was rendered with.
+# Mtimes alone miss a BADGE_REVISION bump (same asset file, new rendering), so
+# without it an upgrade can keep serving the old badge at the new cache-busted
+# URL forever.
+_WATERMARK_SALT = "artwork-minuspod.salt"
 
 
 def _detect_image_mime(data: bytes) -> Optional[str]:
@@ -528,6 +533,7 @@ class Storage:
                 tmp.write(composited)
                 tmp_path = tmp.name
             os.replace(tmp_path, variant_path)
+            (podcast_dir / _WATERMARK_SALT).write_text(cover_badge_salt())
         except OSError as e:
             logger.warning(f"[{slug}] failed caching watermark: {e}")
 
@@ -562,6 +568,12 @@ class Storage:
         try:
             variant_mtime = variant_path.stat().st_mtime
         except OSError:
+            return True
+        try:
+            recorded_salt = (podcast_dir / _WATERMARK_SALT).read_text()
+        except OSError:
+            recorded_salt = None
+        if recorded_salt != cover_badge_salt():
             return True
         newest = 0.0
         inputs = [podcast_dir / f"artwork{ext}"

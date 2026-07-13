@@ -43,7 +43,9 @@ CHIP_RING = (*HULU_GREEN, 200)      # hairline ring for edge separation
 RADIUS_FRAC = 0.26                  # corner radius
 INNER_FRAC = 0.72                   # waveform size inside the chip
 RING_FRAC = 0.022                   # ring width
-HALO_MARGIN_FRAC = 0.16             # layer padding around the chip for the halo
+# Margin must swallow the halo's Gaussian tail (expand + ~3x blur) or the
+# glow hard-clips into a visible square seam at the layer edge.
+HALO_MARGIN_FRAC = 0.30             # layer padding around the chip for the halo
 HALO_EXPAND_FRAC = 0.08             # halo rect extends past the chip edge
 HALO_BLUR_FRAC = 0.09               # halo blur radius
 HALO_ALPHA = 220
@@ -109,7 +111,7 @@ def _build_badge(chip_side: int, waveform: Image.Image) -> Tuple[Image.Image, in
          chip_box[2] + expand, chip_box[3] + expand),
         radius=radius + expand, fill=(*HULU_GREEN, HALO_ALPHA))
     # The blurred halo is the base layer; the chip and mark composite on top.
-    layer = halo.filter(ImageFilter.GaussianBlur(int(chip_side * HALO_BLUR_FRAC)))
+    layer = halo.filter(ImageFilter.GaussianBlur(max(1, int(chip_side * HALO_BLUR_FRAC))))
 
     chip = Image.new('RGBA', (canvas, canvas), (0, 0, 0, 0))
     ImageDraw.Draw(chip).rounded_rectangle(
