@@ -376,9 +376,18 @@ function Settings() {
   // match (see fe-settings-history-1 / #234) or `hasChanges` never settles.
   const [formDirty, setFormDirty] = useState(false);
   const [settingsSnapshot, setSettingsSnapshot] = useState<typeof settings>(undefined);
+  // After a save or reset lands, the refetch it triggers must re-seed the
+  // form even though formDirty is still true from the pre-save edits.
+  // Without this, clearing a prompt box and saving leaves the box empty
+  // while the backend serves the restored default, so hasChanges (state ''
+  // vs default text) never settles and Save Changes never goes away; a
+  // prompts reset likewise needed a browser refresh to show the defaults
+  // again (#513). State (not a ref) so the render-phase read is legal.
+  const [rehydratePending, setRehydratePending] = useState(false);
   if (settings && settings !== settingsSnapshot) {
     setSettingsSnapshot(settings);
-    if (!formDirty) {
+    if (!formDirty || rehydratePending) {
+      if (rehydratePending) setRehydratePending(false);
       const d = settings.defaults;
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
@@ -593,6 +602,7 @@ function Settings() {
     // still re-hydrates the form from server truth instead of leaving stale
     // local state next to a write that did land.
     onSettled: () => {
+      setRehydratePending(true);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
       queryClient.invalidateQueries({ queryKey: ['reviewerSettings'] });
@@ -634,6 +644,7 @@ function Settings() {
   const resetMutation = useMutation({
     mutationFn: resetSettings,
     onSuccess: () => {
+      setRehydratePending(true);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
@@ -642,6 +653,7 @@ function Settings() {
   const resetPromptsMutation = useMutation({
     mutationFn: resetPrompts,
     onSuccess: () => {
+      setRehydratePending(true);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });

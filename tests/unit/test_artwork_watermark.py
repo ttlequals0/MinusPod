@@ -78,6 +78,20 @@ def test_composite_badge_has_solid_dark_backing():
     assert min(lum) < 40                         # the fill is genuinely dark
 
 
+def test_composite_badge_visible_on_black_cover():
+    # Issue #514: the near-black chip disappeared on black cover art. The
+    # hulu-green halo behind the chip keeps the badge visible there.
+    out = artwork_watermark.composite_watermark(_png(color=(0, 0, 0)))
+    assert out is not None
+    composed = Image.open(io.BytesIO(out)).convert('RGB')
+    badge = composed.crop((280, 280, 400, 400))  # badge corner incl. halo
+    px = list(badge.getdata())
+    green = sum(1 for r, g, b in px if g > 60 and g > r + 25 and g > b + 25)
+    assert green / len(px) > 0.05                # the halo reads as green
+    top_left = _region_mean(composed, (0, 0, 60, 60))
+    assert top_left < 10                         # black cover left untouched
+
+
 def test_composite_returns_none_when_badge_missing(monkeypatch):
     monkeypatch.setattr(artwork_watermark, 'badge_path', lambda: None)
     assert artwork_watermark.composite_watermark(_png()) is None

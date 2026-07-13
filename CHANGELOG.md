@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.51.0] - 2026-07-13
 
 ### Changed
+- The cover art badge now sits on a hulu-green halo with a matching
+  hairline ring (#514). The old black drop shadow disappeared on black
+  cover art, leaving the near-black chip invisible; the green glow
+  separates it on dark, light, and busy covers alike. The badge
+  revision bump changes the artwork cache-bust token so podcast apps
+  re-fetch the updated art.
+- The three settings reset actions ("Reset Prompts to Default", "Reset
+  Reviewer Prompts to Default", "Reset All Episodes") are styled as
+  outlined destructive buttons and all require a second click to
+  confirm within 3 seconds (#513). Reset All Episodes already had the
+  confirm step; the prompt resets fired immediately.
 - The Ad Review tab no longer scrolls horizontally on desktop. The
   fixed nine-column table (which forced a 68rem minimum width) is now a
   two-line row list that flexes to any viewport: episode title, badges,
@@ -40,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   set keeps the one-tap confirm-and-recut finish, as does an episode
   with a single held ad; confirmations made without retained original
   audio still apply on the next reprocess as before.
+
+### Fixed
+- Clearing a prompt box and saving no longer wedges the settings form
+  (#513). The backend treats an empty prompt as "use the default" and
+  serves the default text back, so the cleared local field never
+  matched the server value: Save changes stayed lit forever and a
+  prompts reset needed a browser refresh before the defaults showed.
+  After any save or reset the form now re-seeds itself from the
+  refetched server state.
 
 ## [2.50.0] - 2026-07-13
 
