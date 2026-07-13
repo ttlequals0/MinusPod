@@ -18,14 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existed only on mobile).
 - Review actions are named for what they mean instead of the ambiguous
   Approve/Dismiss pair: "Confirm ad" records that the detection really
-  is an ad, "Not an ad" records that it is not. The automatic "Rejected"
-  status is now labeled "Auto-rejected" so a pipeline hold is not
-  confused with a human dismissal, and the resolution badge and stats
+  is an ad, "Not an ad" records that it is not. The "Rejected" status
+  is now labeled "Not cut" (the bucket covers both validation rejects
+  and spans restored after a human "Not an ad"), so a pipeline outcome
+  is not confused with a human decision; the resolution badge and stats
   card use "Not an ad" in place of "Dismissed". The ad editor modal's
   "Reject" button (the same human decision) is now "Not an ad" too, and
-  the held-ads panel on the episode page follows suit: "Confirm &
-  Recut" / "Confirm ad" / "Not an ad", with the batch action reading
-  "Apply N confirmed & recut".
+  the episode page follows suit: the "Rejected Detections" panel is now
+  "Detections Not Cut", its stray "Not Ad" badges read "Not an ad", and
+  the held-ads panel shows "Confirm & Recut" / "Confirm ad" / "Not an
+  ad" with the batch action reading "Apply N confirmed & recut".
 
 ## [2.51.0] - 2026-07-13
 

@@ -235,7 +235,7 @@ function EpisodeDetail() {
   const oneTapRecut = !!episode?.hasOriginalAudio
     && heldMarkers.length - approvedHeldCount === 1;
 
-  // Windowed playback for Held for Review and Rejected Detections rows. Both
+  // Windowed playback for Held for Review and Detections Not Cut rows. Both
   // kinds of markers are never cut, and their times are in the original-audio
   // timeline, so the retained original is the correct source. No preload when
   // the original is gone -- the play buttons are hidden then and preload would
@@ -709,7 +709,7 @@ function EpisodeDetail() {
                             : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                         }`}>
                           {correction.correction_type === 'confirm' ? 'Confirmed'
-                           : correction.correction_type === 'false_positive' ? 'Not Ad'
+                           : correction.correction_type === 'false_positive' ? 'Not an ad'
                            : 'Adjusted'}
                         </span>
                       );
@@ -910,13 +910,15 @@ function EpisodeDetail() {
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
         <div className="mb-6">
           <CollapsibleSection
-            title={`Rejected Detections (${episode.rejectedAdMarkers.length})`}
-            subtitle="Flagged but kept in audio -- failed validation"
+            title={`Detections Not Cut (${episode.rejectedAdMarkers.length})`}
+            subtitle="Flagged but kept in audio"
             defaultOpen={false}
             storageKey="episode-rejected-detections"
           >
           <p className="text-sm text-muted-foreground mb-4">
-            These detections were flagged but not removed due to validation failures.
+            These detections were flagged but the audio was kept, either
+            because validation rejected them or because they were marked not
+            an ad.
           </p>
           <div className="space-y-3">
             {episode.rejectedAdMarkers.map((segment, index) => (
@@ -953,7 +955,7 @@ function EpisodeDetail() {
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
                           <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-600 dark:text-red-400">
-                            Rejected
+                            Not cut
                           </span>
                           {segment.reviewer_verdict === 'reject' && (
                             <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-700 dark:text-red-300" title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
@@ -971,7 +973,7 @@ function EpisodeDetail() {
                                 ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                                 : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                             }`}>
-                              {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not Ad'}
+                              {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
                             </span>
                           )}
                         </div>
@@ -1002,7 +1004,7 @@ function EpisodeDetail() {
                             disabled={correctionMutation.isPending}
                             className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                           >
-                            {btnLabel(rowStatus, 'Confirm as Ad')}
+                            {btnLabel(rowStatus, 'Confirm ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({
@@ -1017,7 +1019,7 @@ function EpisodeDetail() {
                             disabled={correctionMutation.isPending}
                             className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
                           >
-                            {btnLabel(rowStatus, 'Not an Ad')}
+                            {btnLabel(rowStatus, 'Not an ad')}
                           </button>
                         </div>
                       )}

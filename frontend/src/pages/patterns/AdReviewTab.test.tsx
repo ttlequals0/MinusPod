@@ -79,8 +79,13 @@ describe('AdReviewTab', () => {
     // Scope to the row: "Feed A" also appears as a filter <option> label.
     const row = link.closest('[data-testid="detection-row"]') as HTMLElement;
     expect(within(row).getByText('Feed A')).toBeTruthy();
-    expect(within(row).getByText('Auto-rejected')).toBeTruthy();
+    expect(within(row).getByText('Not cut')).toBeTruthy();
     expect(within(row).getByText('Unresolved')).toBeTruthy();
+    // The second meta line carries what the old table columns did.
+    expect(within(row).getByText(/2026/)).toBeTruthy();
+    expect(within(row).getByText(/\(30s\)/)).toBeTruthy();
+    expect(within(row).getByText('conf 0.40')).toBeTruthy();
+    expect(within(row).getByText('Acme')).toBeTruthy();
   });
 
   it('requests needs_review by default', async () => {
@@ -134,7 +139,7 @@ describe('AdReviewTab', () => {
     expect(labels).toEqual(['All podcasts', 'Feed A', 'Feed B']);
   });
 
-  it('renders a mobile card for each detection alongside the table', async () => {
+  it('renders a mobile card variant for each detection', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     const cards = screen.getByTestId('detections-cards');
@@ -143,11 +148,11 @@ describe('AdReviewTab', () => {
     expect(within(cards).getByText('Acme')).toBeTruthy();
   });
 
-  it('sorts from the mobile sort control and resets direction on column change', async () => {
+  it('sorts from the filter-bar sort control and resets direction on column change', async () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: 'Sort descending' }));
+    await user.click(screen.getByRole('button', { name: 'Switch to ascending order' }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
     });

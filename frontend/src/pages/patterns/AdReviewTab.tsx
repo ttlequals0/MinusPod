@@ -24,7 +24,7 @@ import { formatTimestamp, formatDate } from '../../utils/format';
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
   ['pending', 'Pending review'],
-  ['rejected', 'Auto-rejected'],
+  ['rejected', 'Not cut'],
   ['accepted', 'Accepted'],
   ['all', 'All'],
 ];
@@ -35,11 +35,12 @@ const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['podcast', 'Podcast'],
 ];
 
-// "Auto-rejected" = the pipeline held the detection below the cut threshold;
-// distinct from a human marking it "Not an ad".
+// "Not cut" = flagged but left in the audio; the bucket covers both
+// validation rejects and human "Not an ad" decisions once a recut restores
+// the span (marker_status in src/detection_review.py keys on was_cut).
 const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', 'bg-green-500/10 text-green-600 dark:text-green-400'],
-  rejected: ['Auto-rejected', 'bg-red-500/10 text-red-600 dark:text-red-400'],
+  rejected: ['Not cut', 'bg-red-500/10 text-red-600 dark:text-red-400'],
   pending: ['Pending', 'bg-amber-500/10 text-amber-600 dark:text-amber-400'],
 };
 
@@ -82,10 +83,16 @@ function DetectionBadges({ d }: { d: ReviewDetection }) {
 function DetectionMeta({ d }: { d: ReviewDetection }) {
   return (
     <>
-      <span>{formatDate(d.publishDate)}</span>
-      <span>{timeLabel(d)}</span>
-      {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
-      {d.detectionStage && <StageBadge stage={d.detectionStage} />}
+      <span>
+        <span className="sr-only">published </span>
+        {formatDate(d.publishDate)}
+      </span>
+      <span>
+        <span className="sr-only">ad at </span>
+        {timeLabel(d)}
+      </span>
+      <span>conf {d.confidence != null ? d.confidence.toFixed(2) : '-'}</span>
+      {d.detectionStage ? <StageBadge stage={d.detectionStage} /> : <span>stage -</span>}
     </>
   );
 }
@@ -337,7 +344,7 @@ export default function AdReviewTab() {
           <button
             type="button"
             onClick={() => { setOrder(order === 'desc' ? 'asc' : 'desc'); setPage(1); }}
-            aria-label={order === 'desc' ? 'Sort descending' : 'Sort ascending'}
+            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
             className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
           >
             {order === 'desc'
@@ -371,16 +378,22 @@ export default function AdReviewTab() {
           <div
             className="hidden md:block bg-card rounded-lg border border-border divide-y divide-border"
             data-testid="detections-rows"
+            role="list"
+            aria-label="Detections"
           >
             {data.detections.map((d, index) => {
               const rowKey = keyOf(d, index);
               return (
-                <div key={rowKey} data-testid="detection-row" className="px-4 py-3 hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center gap-3">
+                <div key={rowKey} data-testid="detection-row" role="listitem" className="px-4 py-3 hover:bg-accent/50 transition-colors">
+                  {/* flex-wrap + the title's min-width floor: when badges and
+                      actions cannot fit beside a legible title (font scaling
+                      near the md breakpoint), they wrap below instead of
+                      clipping past the card edge. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <Link
                       to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
                       title={d.episodeTitle}
-                      className="flex-1 min-w-0 truncate text-sm font-medium text-primary hover:underline"
+                      className="flex-1 min-w-40 truncate text-sm font-medium text-primary hover:underline"
                     >
                       {d.episodeTitle}
                     </Link>
@@ -410,11 +423,11 @@ export default function AdReviewTab() {
               );
             })}
           </div>
-          <div className="md:hidden space-y-3" data-testid="detections-cards">
+          <div className="md:hidden space-y-3" data-testid="detections-cards" role="list" aria-label="Detections">
             {data.detections.map((d, index) => {
               const rowKey = keyOf(d, index);
               return (
-                <div key={rowKey} className="bg-card rounded-lg border border-border p-4 space-y-2">
+                <div key={rowKey} role="listitem" className="bg-card rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs text-muted-foreground min-w-0 truncate">{d.feedTitle}</span>
                     <DetectionBadges d={d} />
