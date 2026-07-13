@@ -33,6 +33,27 @@ def generate_feed_key() -> str:
     return secrets.token_hex(32)
 
 
+def ensure_feed_auth_key(db) -> None:
+    """Mint the feed auth key when enforcement is enabled without one.
+
+    Enabled-with-no-key fails closed and locks out every client. The UI
+    enable path mints lazily, but the env seed (FEED_AUTH_ENABLED=true on a
+    fresh deploy) enables enforcement at boot without passing through it,
+    so the leader ensures the key on startup. Clears conditional-GET
+    validators for the same reason the UI path does: the refresher must not
+    304-skip re-rendering feeds with the new auth state.
+    """
+    if not db.get_setting_bool('feed_auth_enabled', False):
+        return
+    if db.get_setting('feed_auth_key'):
+        return
+    db.set_setting('feed_auth_key', generate_feed_key(), is_default=False)
+    db.clear_all_podcast_etags()
+    logger.info(
+        "Feed auth enabled without a key (env seed); generated one -- "
+        "retrieve it in Settings > Security")
+
+
 def feed_auth_enabled(db) -> bool:
     return db.get_setting_bool('feed_auth_enabled', False)
 

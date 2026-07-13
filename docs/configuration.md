@@ -51,9 +51,9 @@ Defaults match what the code used before this feature, so existing installs beha
 
 If the provider returns a 4xx because your tunables don't fit the model, the call is logged at WARNING and retried once with the built-in defaults. The fallback flag is keyed by `(episode_id, pass_name)`, so two episodes processing in parallel won't step on each other's flag. It clears at the start of the next pass, so your values get a fresh attempt there.
 
-#### Env-var overrides
+#### Env-var defaults
 
-Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`, etc.). When the env var is set, Settings renders the control read-only with a note pointing at the variable. Remove the env var to get the stored DB value back. Full list in `.env.example`.
+Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`, etc.). The env var supplies the default; a value saved in Settings wins over it, like every other env-backed setting. When the env var is set, the control shows a note naming the variable it inherits its default from. Full list in `.env.example`.
 
 #### Ollama context window
 

@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 
 interface AudioSectionProps {
@@ -8,6 +9,8 @@ interface AudioSectionProps {
   onAudioNormalizeEnabledChange: (enabled: boolean) => void;
   audioNormalizeIntensity: string;
   onAudioNormalizeIntensityChange: (intensity: string) => void;
+  maxAudioDownloadMb: number;
+  onMaxAudioDownloadMbChange: (mb: number) => void;
 }
 
 function AudioSection({
@@ -17,6 +20,8 @@ function AudioSection({
   onAudioNormalizeEnabledChange,
   audioNormalizeIntensity,
   onAudioNormalizeIntensityChange,
+  maxAudioDownloadMb,
+  onMaxAudioDownloadMbChange,
 }: AudioSectionProps) {
   return (
     <CollapsibleSection title="Audio">
@@ -80,6 +85,29 @@ function AudioSection({
             </p>
           </div>
         )}
+
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="maxAudioDownloadMb" className="block text-sm font-medium text-foreground mb-2">
+            Max episode download (MB)
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="maxAudioDownloadMb"
+              value={maxAudioDownloadMb}
+              min={1}
+              max={1048576}
+              fallback={500}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(mb) => {
+                if (mb !== maxAudioDownloadMb) onMaxAudioDownloadMbChange(mb);
+              }}
+            />
+            <span className="text-sm text-muted-foreground">MB (minimum 1)</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Episode downloads over this size fail the episode instead of processing. Default 500 MB.
+          </p>
+        </div>
       </div>
     </CollapsibleSection>
   );

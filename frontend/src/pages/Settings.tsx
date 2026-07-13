@@ -180,6 +180,9 @@ function Settings() {
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
+  const [maxArtworkBytes, setMaxArtworkBytes] = useState(26214400);
+  const [maxRssBytes, setMaxRssBytes] = useState(209715200);
+  const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersModel, setChaptersModel] = useState('');
@@ -405,6 +408,9 @@ function Settings() {
       setAudioNormalizeEnabled(settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled);
       setAudioNormalizeIntensity(settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity);
       setSkipFlacCompression(settings.skipFlacCompression?.value ?? d.skipFlacCompression);
+      setMaxArtworkBytes(settings.maxArtworkBytes?.value ?? d.maxArtworkBytes);
+      setMaxRssBytes(settings.maxRssBytes?.value ?? d.maxRssBytes);
+      setMaxAudioDownloadMb(settings.maxAudioDownloadMb?.value ?? d.maxAudioDownloadMb);
       setAudioCue({
         enabled: settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled,
         freqMinHz: settings.audioCueFreqMinHz?.value ?? d.audioCueFreqMinHz,
@@ -524,6 +530,9 @@ function Settings() {
     if (audioNormalizeEnabled !== (settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled)) payload.audioNormalizeEnabled = audioNormalizeEnabled;
     if (audioNormalizeIntensity !== (settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity)) payload.audioNormalizeIntensity = audioNormalizeIntensity;
     if (skipFlacCompression !== (settings.skipFlacCompression?.value ?? d.skipFlacCompression)) payload.skipFlacCompression = skipFlacCompression;
+    if (maxArtworkBytes !== (settings.maxArtworkBytes?.value ?? d.maxArtworkBytes)) payload.maxArtworkBytes = maxArtworkBytes;
+    if (maxRssBytes !== (settings.maxRssBytes?.value ?? d.maxRssBytes)) payload.maxRssBytes = maxRssBytes;
+    if (maxAudioDownloadMb !== (settings.maxAudioDownloadMb?.value ?? d.maxAudioDownloadMb)) payload.maxAudioDownloadMb = maxAudioDownloadMb;
 
     if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;
     if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault)) payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
@@ -551,7 +560,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, minContentBetweenAdsSeconds, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, maxArtworkBytes, maxRssBytes, maxAudioDownloadMb, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, minContentBetweenAdsSeconds, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -894,6 +903,8 @@ function Settings() {
         onAudioNormalizeEnabledChange={setAudioNormalizeEnabled}
         audioNormalizeIntensity={audioNormalizeIntensity}
         onAudioNormalizeIntensityChange={setAudioNormalizeIntensity}
+        maxAudioDownloadMb={maxAudioDownloadMb}
+        onMaxAudioDownloadMbChange={setMaxAudioDownloadMb}
       />
 
       <Podcasting20Section
@@ -906,6 +917,8 @@ function Settings() {
       <CoverArtSection
         artworkWatermarkEnabled={artworkWatermarkEnabled}
         onArtworkWatermarkEnabledChange={setArtworkWatermarkEnabled}
+        maxArtworkBytes={maxArtworkBytes}
+        onMaxArtworkBytesChange={setMaxArtworkBytes}
         onRefreshArtwork={() => refreshArtworkMutation.mutate()}
         refreshArtworkPending={refreshArtworkMutation.isPending}
       />
@@ -937,6 +950,8 @@ function Settings() {
         onResetEpisodes={() => cleanupMutation.mutate()}
         resetIsPending={cleanupMutation.isPending}
         resetData={cleanupMutation.data}
+        maxRssBytes={maxRssBytes}
+        onMaxRssBytesChange={setMaxRssBytes}
       />
 
       <OfflineQueueSection />

@@ -148,7 +148,6 @@ function DraftNumberInput({
   min,
   max,
   step,
-  disabled,
   placeholder,
   parse,
   onChange,
@@ -159,7 +158,6 @@ function DraftNumberInput({
   min: number;
   max: number;
   step: number;
-  disabled: boolean;
   placeholder?: string;
   parse: (raw: string) => number | null;
   onChange: (parsed: number | null) => void;
@@ -192,7 +190,6 @@ function DraftNumberInput({
       step={step}
       placeholder={placeholder}
       value={text}
-      disabled={disabled}
       onChange={(e) => {
         setText(e.target.value);
         onChange(parse(e.target.value));
@@ -263,7 +260,7 @@ function StageBlockEditor({
               Temperature
             </label>
             <ResetButton
-              disabled={!!tempEnv || tempDraft === null}
+              disabled={tempDraft === null}
               onClick={() => setField(block.temperatureKey, null)}
             />
           </div>
@@ -273,7 +270,6 @@ function StageBlockEditor({
             min={0}
             max={2}
             step={0.1}
-            disabled={!!tempEnv}
             parse={(raw) => {
               if (raw.trim() === '') return null;
               const v = parseFloat(raw);
@@ -284,7 +280,7 @@ function StageBlockEditor({
           />
           <p className="mt-1 text-xs text-muted-foreground">
             {tempEnv
-              ? `Set by ${tempEnv}; edit your environment to change.`
+              ? `Default from ${tempEnv}.`
               : '0.0 = deterministic. Higher = more variation.'}
           </p>
         </div>
@@ -295,7 +291,7 @@ function StageBlockEditor({
               Max tokens
             </label>
             <ResetButton
-              disabled={!!maxEnv || maxDraft === null}
+              disabled={maxDraft === null}
               onClick={() => setField(block.maxTokensKey, null)}
             />
           </div>
@@ -305,14 +301,13 @@ function StageBlockEditor({
             min={128}
             max={32768}
             step={128}
-            disabled={!!maxEnv}
             parse={parseIntField}
             onChange={(parsed) => setField(block.maxTokensKey, parsed)}
             className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             {maxEnv
-              ? `Set by ${maxEnv}; edit your environment to change.`
+              ? `Default from ${maxEnv}.`
               : 'Response cap. Too low cuts off mid-JSON.'}
           </p>
         </div>
@@ -326,7 +321,7 @@ function StageBlockEditor({
                 Reasoning budget (Anthropic)
               </label>
               <ResetButton
-                disabled={!!budgetEnv || budgetDraft === null}
+                disabled={budgetDraft === null}
                 onClick={() => setField(block.budgetKey, null)}
               />
             </div>
@@ -336,15 +331,14 @@ function StageBlockEditor({
               min={1024}
               max={65536}
               step={512}
-              disabled={!!budgetEnv}
-              placeholder="Leave blank to disable extended thinking"
+                placeholder="Leave blank to disable extended thinking"
               parse={parseIntField}
               onChange={(parsed) => setField(block.budgetKey, parsed)}
               className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               {budgetEnv
-                ? `Set by ${budgetEnv}; edit your environment to change.`
+                ? `Default from ${budgetEnv}.`
                 : 'Anthropic thinking budget (1024-65536). Blank = off.'}
             </p>
           </>
@@ -355,13 +349,12 @@ function StageBlockEditor({
                 Reasoning effort
               </label>
               <ResetButton
-                disabled={!!levelEnv || levelDraft === null}
+                disabled={levelDraft === null}
                 onClick={() => setField(block.levelKey, null)}
               />
             </div>
             <select
               value={levelDraft ?? ''}
-              disabled={!!levelEnv}
               onChange={(e) => {
                 const v = e.target.value;
                 setField(block.levelKey, v === '' ? null : (v as ReasoningLevel));
@@ -375,7 +368,7 @@ function StageBlockEditor({
             </select>
             <p className="mt-1 text-xs text-muted-foreground">
               {levelEnv
-                ? `Set by ${levelEnv}; edit your environment to change.`
+                ? `Default from ${levelEnv}.`
                 : 'How hard the model thinks. Higher = slower but better.'}
             </p>
           </>
@@ -420,7 +413,7 @@ function WindowConfigBlock({
               Window size (seconds)
             </label>
             <ResetButton
-              disabled={!!sizeEnv || sizeDraft === null}
+              disabled={sizeDraft === null}
               onClick={() => setField('windowSizeSeconds', null)}
             />
           </div>
@@ -430,14 +423,13 @@ function WindowConfigBlock({
             min={120}
             max={1800}
             step={30}
-            disabled={!!sizeEnv}
             parse={parseIntField}
             onChange={(parsed) => setField('windowSizeSeconds', parsed)}
             className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             {sizeEnv
-              ? `Set by ${sizeEnv}; edit your environment to change.`
+              ? `Default from ${sizeEnv}.`
               : '120 to 1800. Default 600 (10 min).'}
           </p>
         </div>
@@ -448,7 +440,7 @@ function WindowConfigBlock({
               Overlap (seconds)
             </label>
             <ResetButton
-              disabled={!!overlapEnv || overlapDraft === null}
+              disabled={overlapDraft === null}
               onClick={() => setField('windowOverlapSeconds', null)}
             />
           </div>
@@ -458,14 +450,13 @@ function WindowConfigBlock({
             min={0}
             max={1770}
             step={30}
-            disabled={!!overlapEnv}
             parse={parseIntField}
             onChange={(parsed) => setField('windowOverlapSeconds', parsed)}
             className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             {overlapEnv
-              ? `Set by ${overlapEnv}; edit your environment to change.`
+              ? `Default from ${overlapEnv}.`
               : 'Must be less than window size. Default 180 (3 min).'}
           </p>
         </div>
@@ -514,7 +505,6 @@ function ConcurrencyConfigBlock({
             min={1}
             max={32}
             step={1}
-            disabled={false}
             parse={(raw) => {
               if (raw.trim() === '') return defaultValue;
               const v = parseInt(raw, 10);

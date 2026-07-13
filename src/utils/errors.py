@@ -28,7 +28,7 @@ class AudioTooLargeError(Exception):
     appended hint keeps that remedy in every stored error message.
     """
 
-    _HINT = "; raise MAX_AUDIO_DOWNLOAD_MB to process it"
+    _HINT = "; raise the Max episode download cap in Settings (or the MAX_AUDIO_DOWNLOAD_MB env default) to process it"
 
     def __init__(self, message: str):
         # Idempotent so re-wrapping or copy/pickle reconstruction (which

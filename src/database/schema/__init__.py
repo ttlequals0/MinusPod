@@ -2190,12 +2190,22 @@ class SchemaMixin:
                     db_key, value, is_default, env_value, match,
                 )
 
-        # Step 2: one-shot corrective flag pass, gated.
-        gate = conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
-        ).fetchone()
-        if gate is None:
-            for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+        fallback_by_key = {k: fb for k, _e, fb, _v in ENV_BACKED_SETTINGS}
+
+        def _corrective_pass(keys, marker):
+            """One-shot: an is_default=1 row that diverges from BOTH the env
+            value and the registry fallback is evidence of a past
+            customization made before the flag discipline existed; flip the
+            flag, KEEP the value. A row still holding the fallback is a
+            schema-seeded default -- leaving it is_default=1 lets an env var
+            set at the upgrade boot apply via the resync. Never writes
+            value -- no data loss."""
+            gate = conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
+            ).fetchone()
+            if gate is not None:
+                return
+            for db_key in keys:
                 env_value = resolve_env_backed_default(db_key)
                 row = conn.execute(
                     "SELECT value, is_default FROM settings WHERE key = ?",
@@ -2205,7 +2215,7 @@ class SchemaMixin:
                     continue
                 value = row['value'] if isinstance(row, sqlite3.Row) else row[0]
                 is_default = row['is_default'] if isinstance(row, sqlite3.Row) else row[1]
-                if is_default and value != env_value:
+                if is_default and value != env_value and value != fallback_by_key.get(db_key):
                     conn.execute(
                         "UPDATE settings SET is_default = 0 WHERE key = ?",
                         (db_key,),
@@ -2215,8 +2225,49 @@ class SchemaMixin:
                         db_key, value, env_value,
                     )
             conn.execute(
-                "INSERT INTO schema_migrations (name) VALUES ('env_backed_settings_correct_flags')"
+                "INSERT INTO schema_migrations (name) VALUES (?)", (marker,)
             )
+
+        # Step 2: one-shot corrective flag passes, tracked PER KEY so a key
+        # registered in any future release automatically gets exactly-once
+        # protection -- no new group gate to remember. The legacy group
+        # markers (2.5.23 v1 and the #491-consolidation v2) mark their
+        # frozen key snapshots as already covered on upgraded DBs.
+        _V1_KEYS = ('llm_provider', 'audio_bitrate', 'skip_flac_compression',
+                    'ad_detection_parallel_windows', 'ad_reviewer_parallel_ads')
+        _V2_KEYS = ('max_artwork_bytes', 'max_rss_bytes', 'max_audio_download_mb',
+                    'auto_process_enabled', 'feed_auth_enabled',
+                    'artwork_watermark_enabled')
+        covered_v1 = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
+        ).fetchone() is not None
+        covered_v2 = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags_v2'"
+        ).fetchone() is not None
+        for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+            marker = f'env_backed_corrective:{db_key}'
+            if conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)
+            ).fetchone() is not None:
+                continue
+            already_covered = ((covered_v1 and db_key in _V1_KEYS)
+                               or (covered_v2 and db_key in _V2_KEYS))
+            if not already_covered:
+                _corrective_pass((db_key,), marker)
+            else:
+                conn.execute(
+                    "INSERT INTO schema_migrations (name) VALUES (?)", (marker,)
+                )
+        # Keep inserting the group markers on fresh DBs so a downgrade to an
+        # older build does not re-run its group pass.
+        for legacy_marker in ('env_backed_settings_correct_flags',
+                              'env_backed_settings_correct_flags_v2'):
+            if conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name = ?", (legacy_marker,)
+            ).fetchone() is None:
+                conn.execute(
+                    "INSERT INTO schema_migrations (name) VALUES (?)", (legacy_marker,)
+                )
 
         # Step 3: per-boot resync (also inserts missing rows for new keys).
         for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
@@ -2247,6 +2298,43 @@ class SchemaMixin:
                     "env-backed-settings resync: key=%s %s -> %s (is_default=1)",
                     db_key, value, env_value,
                 )
+
+        # One-shot for the stage-tunable precedence flip (env-wins ->
+        # DB-wins, issue #491): a row an env var was masking would otherwise
+        # silently take effect at upgrade. Adopt the env value that was
+        # winning so the effective tunable does not change; the operator can
+        # edit or reset it in Settings afterwards.
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'stage_tunables_adopt_env'"
+        ).fetchone()
+        if gate is None:
+            from config import STAGE_TUNABLE_DEFAULTS, STAGE_TUNABLE_ENV_VARS, STAGE_TUNABLE_ENV_ALIASES
+            for key in STAGE_TUNABLE_DEFAULTS:
+                env_val = os.environ.get(STAGE_TUNABLE_ENV_VARS[key])
+                if env_val is None:
+                    alias = STAGE_TUNABLE_ENV_ALIASES.get(key)
+                    if alias:
+                        env_val = os.environ.get(alias)
+                if env_val is None or env_val.strip() == "":
+                    continue
+                row = conn.execute(
+                    "SELECT value FROM settings WHERE key = ?", (key,)
+                ).fetchone()
+                if row is None:
+                    continue
+                value = row['value'] if isinstance(row, sqlite3.Row) else row[0]
+                if value is not None and str(value).strip() != "" and str(value) != env_val:
+                    conn.execute(
+                        "UPDATE settings SET value = ?, is_default = 0 WHERE key = ?",
+                        (env_val, key),
+                    )
+                    logger.info(
+                        "stage-tunable adopt-env: key=%s %s -> %s (env was winning pre-2.50.0)",
+                        key, value, env_val,
+                    )
+            conn.execute(
+                "INSERT INTO schema_migrations (name) VALUES ('stage_tunables_adopt_env')"
+            )
 
         conn.commit()
 

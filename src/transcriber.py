@@ -38,6 +38,7 @@ from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_WHISPER,
     coerce_bool_setting,
+    get_env_backed_int, MAX_AUDIO_DOWNLOAD_MB_MIN, MAX_AUDIO_DOWNLOAD_MB_ADVISORY,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -286,25 +287,18 @@ def _unlink_quiet(path):
 
 
 def _max_download_mb() -> int:
-    """Episode download cap in MB; MAX_AUDIO_DOWNLOAD_MB overrides the
-    500MB default (#493). Invalid or non-positive values fall back to 500."""
-    raw = os.environ.get('MAX_AUDIO_DOWNLOAD_MB')
-    if not raw:
-        return 500
-    try:
-        mb = int(raw)
-        if mb > 0:
-            if mb > 10240:
-                # Advisory only: the cap is the disk-fill guard, so a typo
-                # with extra zeros should at least leave a trace in the logs.
-                logger.warning(
-                    f"MAX_AUDIO_DOWNLOAD_MB={mb} is over 10GB; the download "
-                    f"cap is the disk-fill guard, check for a typo")
-            return mb
-    except ValueError:
-        pass
-    logger.warning(f"Invalid MAX_AUDIO_DOWNLOAD_MB={raw!r}; using default 500MB")
-    return 500
+    """Episode download cap in MB (#493). Env-backed: the UI value wins,
+    the env var MAX_AUDIO_DOWNLOAD_MB seeds the default at boot. No hard
+    ceiling -- deployments deliberately above 10 GB keep working -- but the
+    cap is the disk-fill guard, so oversized values leave a trace.
+    """
+    mb = get_env_backed_int('max_audio_download_mb',
+                            floor=MAX_AUDIO_DOWNLOAD_MB_MIN)
+    if mb > MAX_AUDIO_DOWNLOAD_MB_ADVISORY:
+        logger.warning(
+            f"max_audio_download_mb={mb} is over 10GB; the download cap is "
+            f"the disk-fill guard, check for a typo")
+    return mb
 
 
 def _get_whisper_settings() -> Dict[str, str]:

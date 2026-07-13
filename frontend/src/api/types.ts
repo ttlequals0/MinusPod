@@ -281,6 +281,9 @@ export interface Settings {
   audioNormalizeEnabled: SettingValueBoolean;
   audioNormalizeIntensity: SettingValue;
   skipFlacCompression: SettingValueBoolean;
+  maxArtworkBytes: SettingValueNumber;
+  maxRssBytes: SettingValueNumber;
+  maxAudioDownloadMb: SettingValueNumber;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
   transcribeMaxChunkSeconds: SettingValueNumber;
@@ -361,6 +364,9 @@ export interface Settings {
     audioNormalizeEnabled: boolean;
     audioNormalizeIntensity: string;
     skipFlacCompression: boolean;
+    maxArtworkBytes: number;
+    maxRssBytes: number;
+    maxAudioDownloadMb: number;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
     transcribeMaxChunkSeconds: number;
@@ -417,6 +423,9 @@ export interface UpdateSettingsPayload {
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;
   skipFlacCompression?: boolean;
+  maxArtworkBytes?: number;
+  maxRssBytes?: number;
+  maxAudioDownloadMb?: number;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;
   transcribeMaxChunkSeconds?: number;

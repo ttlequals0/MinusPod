@@ -56,9 +56,9 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 |----------|---------|-------------|
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
-| `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. |
-| `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. |
-| `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. |
+| `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed: seeds the default; editable at runtime in Settings, and a saved UI value wins over the env var. |
+| `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed: seeds the default; editable at runtime in Settings. |
+| `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed: seeds the default; editable at runtime in Settings. |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
 | `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
 | `APP_GID` | `1000` | GID counterpart to `APP_UID`. |

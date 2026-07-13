@@ -12,6 +12,14 @@ from storage import (
 
 
 @pytest.fixture(autouse=True)
+def _no_db_setting(monkeypatch):
+    # These tests exercise the env-seed path of the env-backed cap; a DB
+    # row from another test module's Database singleton must not leak in.
+    import config as _config_mod
+    monkeypatch.setattr(_config_mod, '_db_setting', lambda key: None)
+
+
+@pytest.fixture(autouse=True)
 def _reset_storage_singleton():
     # Storage is a singleton; reset around every test so each one-off
     # Storage(data_dir=str(tmp_path)) construction in this file gets a

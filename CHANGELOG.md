@@ -6,6 +6,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.50.0] - 2026-07-13
+
+### Changed
+- One precedence rule for every dual-natured setting (issue #491): the
+  env var seeds the default, and a value saved in the Settings UI wins
+  after the first edit. Stage tunables (temperatures, token budgets,
+  window geometry, `OLLAMA_NUM_CTX`) previously worked the other way
+  around -- a set env var beat the UI and rendered the control
+  read-only. They now follow the same env-seeds-default model as every
+  other env-backed setting; the UI control stays editable and shows the
+  env var as the source of its default.
+- `auto_process_enabled`, `feed_auth_enabled`, and
+  `artwork_watermark_enabled` gained env bootstrap seeds
+  (`AUTO_PROCESS_ENABLED`, `FEED_AUTH_ENABLED`,
+  `ARTWORK_WATERMARK_ENABLED`) so a fresh deploy is fully configurable
+  from compose. A one-shot corrective migration protects rows customized
+  before the is_default flag existed from being clobbered by the boot
+  resync -- customized values are never overwritten.
+
+### Added
+- The three size caps are now runtime settings with UI controls and API
+  fields, seeded by their existing env vars: episode download cap
+  (`MAX_AUDIO_DOWNLOAD_MB`, default 500 MB, floor 1 MB, no ceiling --
+  values over 10 GB keep working with an advisory warning), artwork cap
+  (`MINUSPOD_MAX_ARTWORK_BYTES`, default 25 MB, clamped 64 KiB to
+  50 MiB), and RSS body cap (`MINUSPOD_MAX_RSS_BYTES`, default 200 MB,
+  floor 1 MB, no ceiling). Existing env values keep working unchanged;
+  raising a cap no longer requires a container restart.
+- Setting `FEED_AUTH_ENABLED=true` from the environment mints the feed
+  auth key at boot when none exists (retrieve it in Settings), instead
+  of failing closed and locking out every feed client.
+- A one-shot migration accompanies the stage-tunable precedence flip:
+  where an env var was masking a stored UI value, the stored value
+  adopts the env value that was winning, so the effective tunable does
+  not change at upgrade.
+
 ## [Unreleased]
 
 ### Changed
