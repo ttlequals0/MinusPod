@@ -77,9 +77,9 @@ function DetectionBadges({ d }: { d: ReviewDetection }) {
   );
 }
 
-// The date/time/confidence/stage run shared by the desktop row's second
-// line and the mobile card; feedTitle and sponsor placement differ per
-// variant, so those stay with the callers.
+// The date/time/confidence/stage/sponsor run shared by the desktop row's
+// second line and the mobile card; feedTitle placement differs per variant,
+// so it stays with the callers.
 function DetectionMeta({ d }: { d: ReviewDetection }) {
   return (
     <>
@@ -93,6 +93,12 @@ function DetectionMeta({ d }: { d: ReviewDetection }) {
       </span>
       <span>conf {d.confidence != null ? d.confidence.toFixed(2) : '-'}</span>
       {d.detectionStage ? <StageBadge stage={d.detectionStage} /> : <span>stage -</span>}
+      {/* Truncation is desktop-only: the row must stay one line, while the
+          card's meta line wraps and touch has no hover tooltip to recover
+          text an ellipsis hides. */}
+      {d.sponsor && (
+        <span className="min-w-0 md:max-w-48 md:truncate" title={d.sponsor}>{d.sponsor}</span>
+      )}
     </>
   );
 }
@@ -110,8 +116,12 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
   busy: boolean;
 }) {
   const isCard = variant === 'card';
+  // Card buttons may wrap at extreme font zoom: the decision grid row
+  // stretches both to equal height, so wrapping stays symmetric instead of
+  // the lopsided one-tall-one-short row this layout replaced. nowrap would
+  // overflow the card edge instead.
   const btn = isCard
-    ? 'px-3 py-2 text-sm rounded touch-manipulation whitespace-nowrap'
+    ? 'px-3 py-2 text-sm rounded touch-manipulation'
     : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
   const confirmBtn = (
     <button
@@ -138,10 +148,13 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
       type="button"
       onClick={onEdit}
       disabled={busy}
-      className={`${btn} ${isCard ? 'flex-1' : ''} border border-border hover:bg-accent disabled:opacity-50`}
+      className={`${btn} ${isCard ? 'flex-1 ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
     >
       Edit
     </button>
+  );
+  const playBtn = d.hasOriginalAudio && (
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
   );
   if (isCard) {
     // Decisions get a 50/50 row of their own so neither label ever wraps
@@ -155,9 +168,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
           </div>
         )}
         <div className="flex items-center gap-2">
-          {d.hasOriginalAudio && (
-            <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
-          )}
+          {playBtn}
           {editBtn}
         </div>
       </div>
@@ -165,9 +176,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
   }
   return (
     <div className="flex items-center gap-1.5">
-      {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
-      )}
+      {playBtn}
       {d.resolution === 'unresolved' && (
         <>
           {confirmBtn}
@@ -444,9 +453,6 @@ export default function AdReviewTab() {
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="min-w-0 max-w-56 truncate" title={d.feedTitle}>{d.feedTitle}</span>
                     <DetectionMeta d={d} />
-                    {d.sponsor && (
-                      <span className="min-w-0 max-w-48 truncate" title={d.sponsor}>{d.sponsor}</span>
-                    )}
                   </div>
                 </div>
               );
@@ -469,9 +475,6 @@ export default function AdReviewTab() {
                   </Link>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <DetectionMeta d={d} />
-                    {d.sponsor && (
-                      <span className="min-w-0 max-w-48 truncate" title={d.sponsor}>{d.sponsor}</span>
-                    )}
                   </div>
                   <DetectionActions
                     d={d}

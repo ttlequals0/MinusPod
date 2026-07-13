@@ -144,8 +144,13 @@ describe('AdReviewTab', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
-    expect(within(cards).getByRole('button', { name: 'Confirm ad' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
+    // The decision buttons live in their own equal-width grid row (so the
+    // labels cannot wrap lopsidedly) with Edit in a separate second row.
+    const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
+    expect(confirm.parentElement?.className).toContain('grid-cols-2');
+    const edit = within(cards).getByRole('button', { name: 'Edit' });
+    expect(edit.parentElement).not.toBe(confirm.parentElement);
   });
 
   it('sorts from the filter-bar sort control and resets direction on column change', async () => {
@@ -222,6 +227,12 @@ describe('AdReviewTab row actions', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Not an ad' })).toBeNull();
+    // Edit (and the audition play button) must survive resolution -- both
+    // the desktop row and the card keep their non-decision controls.
+    const cards = screen.getByTestId('detections-cards');
+    expect(within(cards).getByRole('button', { name: 'Edit' })).toBeTruthy();
+    const rows = screen.getByTestId('detections-rows');
+    expect(within(rows).getByRole('button', { name: 'Edit' })).toBeTruthy();
   });
 
   it('hides the play button when original audio is gone', async () => {
