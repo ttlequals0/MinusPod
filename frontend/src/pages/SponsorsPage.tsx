@@ -64,8 +64,9 @@ function SponsorsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Sponsors</h1>
         {/* self-start: in the stacked mobile layout this is a flex item and
-            would otherwise stretch full width, trailing an empty border. */}
-        <div className="inline-flex self-start rounded-lg border border-border overflow-hidden text-sm">
+            would otherwise stretch full width, trailing an empty border.
+            Scoped to mobile so the sm: row keeps its items-center alignment. */}
+        <div className="inline-flex self-start sm:self-center rounded-lg border border-border overflow-hidden text-sm">
           <button
             type="button"
             onClick={() => setTab('sponsors')}
