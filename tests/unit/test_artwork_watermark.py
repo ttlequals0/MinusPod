@@ -86,8 +86,10 @@ def test_composite_badge_visible_on_black_cover():
     composed = Image.open(io.BytesIO(out)).convert('RGB')
     badge = composed.crop((280, 280, 400, 400))  # badge corner incl. halo
     px = list(badge.getdata())
-    green = sum(1 for r, g, b in px if g > 60 and g > r + 25 and g > b + 25)
-    assert green / len(px) > 0.05                # the halo reads as green
+    # Thresholds calibrated to the deliberately soft glow (HALO_ALPHA 150);
+    # the old black drop shadow scores 0 here.
+    green = sum(1 for r, g, b in px if g > 40 and g > r + 15 and g > b + 15)
+    assert green / len(px) > 0.03                # the halo reads as green
     top_left = _region_mean(composed, (0, 0, 60, 60))
     assert top_left < 10                         # black cover left untouched
 

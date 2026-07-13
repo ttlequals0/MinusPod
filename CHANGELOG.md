@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.51.0] - 2026-07-13
 
 ### Changed
-- The cover art badge now sits on a hulu-green halo with a matching
-  hairline ring (#514). The old black drop shadow disappeared on black
-  cover art, leaving the near-black chip invisible; the green glow
-  separates it on dark, light, and busy covers alike. The badge
-  revision bump changes the artwork cache-bust token so podcast apps
+- The cover art badge now has a solid hulu-green ring with a tight
+  neon glow, rendered supersampled for smooth edges (#514). The old
+  black drop shadow disappeared on black cover art, leaving the
+  near-black chip invisible; the green edge separates it on dark,
+  light, and busy covers without smearing gray across light ones. The
+  badge revision bump changes the artwork cache-bust token (and a new
+  salt sidecar invalidates the on-disk variant cache) so podcast apps
   re-fetch the updated art.
 - The settings reset actions ("Reset Prompts to Default", "Reset
   Reviewer Prompts to Default", "Reset All Episodes", and the save
