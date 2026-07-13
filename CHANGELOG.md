@@ -6,21 +6,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.52.0] - 2026-07-13
+
+### Changed
+- The Ad Review tab no longer scrolls horizontally on desktop. The
+  fixed nine-column table (which forced a 68rem minimum width) is now a
+  two-line row list that flexes to any viewport: episode title, badges,
+  and actions on the first line; podcast, date, time span, confidence,
+  stage, and sponsor on the second. Sorting moved from column headers
+  into the filter bar at every width (the control that previously
+  existed only on mobile).
+- Review actions are named for what they mean instead of the ambiguous
+  Approve/Dismiss pair: "Confirm ad" records that the detection really
+  is an ad, "Not an ad" records that it is not. The automatic "Rejected"
+  status is now labeled "Auto-rejected" so a pipeline hold is not
+  confused with a human dismissal, and the resolution badge and stats
+  card use "Not an ad" in place of "Dismissed". The held-ads panel on
+  the episode page follows suit: "Confirm & Recut" / "Confirm ad" /
+  "Not an ad", and the batch action reads "Apply N confirmed & recut".
+
 ## [2.51.0] - 2026-07-13
 
 ### Changed
 - Reviewing several held ads no longer costs one full recut per approval
-  (#509). With more than one ad held for review, Approve records the
-  decision only; an "Apply N approved & recut" action at the bottom of
+  (#509). With more than one ad held for review, confirming records the
+  decision only; an "Apply N confirmed & recut" action at the bottom of
   the Held for Review panel runs a single recut that applies every
   confirmed hold at once (the recut already applied all stored
-  corrections in one pass). Approving a held ad now also annotates the
-  marker server-side (mirroring how Dismiss resolves one), so the
+  corrections in one pass). Confirming a held ad now also annotates the
+  marker server-side (mirroring how a dismissal resolves one), so the
   approved count survives reloads and uses the same tolerance matching
-  as the rest of the review flow. Approving the last unreviewed ad of a
-  set keeps the one-tap Approve & Recut finish, as does an episode with
-  a single held ad; approvals made without retained original audio
-  still apply on the next reprocess as before.
+  as the rest of the review flow. Confirming the last unreviewed ad of a
+  set keeps the one-tap confirm-and-recut finish, as does an episode
+  with a single held ad; confirmations made without retained original
+  audio still apply on the next reprocess as before.
 
 ## [2.50.0] - 2026-07-13
 

@@ -615,7 +615,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
       pendingReviewMarkers: [heldMarker, secondHeldMarker],
     }));
     await screen.findByTestId('held-for-review-section');
-    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Approve');
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
   });
 
   it('apply bar shows the approved count and fires exactly one recut', async () => {
@@ -628,7 +628,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
     await screen.findByTestId('held-for-review-section');
 
     const applyBtn = await screen.findByTestId('apply-approved-recut');
-    expect(applyBtn.textContent).toBe('Apply 1 approved & recut');
+    expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
 
     await user.click(applyBtn);
     await waitFor(() =>
@@ -658,7 +658,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
     // The approved card has no buttons; the remaining card offers the
     // one-tap finish since its approval completes the set.
     const btn = screen.getByTestId('approve-recut-1');
-    expect(btn.textContent).toBe('Approve & Recut');
+    expect(btn.textContent).toBe('Confirm & Recut');
     await user.click(btn);
     await waitFor(() =>
       expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
@@ -709,6 +709,6 @@ describe('Held for Review: apply bar guards', () => {
     }));
     await screen.findByTestId('held-for-review-section');
     const applyBtn = await screen.findByTestId('apply-approved-recut');
-    expect(applyBtn.textContent).toBe('Apply 1 approved & recut');
+    expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
   });
 });

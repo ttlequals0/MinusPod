@@ -65,7 +65,7 @@ function EpisodeDetail() {
     'episode-original-transcript-requested',
     false,
   );
-  // When an "Approve & Recut" action fires, this flag signals the correctionMutation
+  // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -220,7 +220,7 @@ function EpisodeDetail() {
     );
   };
 
-  // Batch approve (#509): with several held ads, Approve is decision-only
+  // Batch approve (#509): with several held ads, Confirm ad is decision-only
   // and one Apply action recuts once for every confirmed hold. A confirm
   // correction matching a held marker is the durable "approved, not yet
   // applied" state (the card already shows it as the Confirmed badge).
@@ -230,7 +230,7 @@ function EpisodeDetail() {
   const approvedHeldCount = heldMarkers.filter(
     (m) => m.approved || getAdCorrection(m.start, m.end)?.correction_type === 'confirm'
   ).length;
-  // One-tap Approve & Recut when this approval completes the review set:
+  // One-tap Confirm & Recut when this approval completes the review set:
   // a single held ad, or the last unapproved one of several.
   const oneTapRecut = !!episode?.hasOriginalAudio
     && heldMarkers.length - approvedHeldCount === 1;
@@ -822,7 +822,7 @@ function EpisodeDetail() {
                             ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                             : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                         }`}>
-                          {correction.correction_type === 'confirm' ? 'Confirmed' : 'Dismissed'}
+                          {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
                         </span>
                       )}
                     </div>
@@ -862,7 +862,7 @@ function EpisodeDetail() {
                         data-testid={`approve-recut-${index}`}
                         className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                       >
-                        {btnLabel(rowStatus, oneTapRecut ? 'Approve & Recut' : 'Approve')}
+                        {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
                       {!episode.hasOriginalAudio && rowStatus === 'success' && (
                         <span className="text-xs text-muted-foreground italic self-center">
@@ -883,7 +883,7 @@ function EpisodeDetail() {
                         data-testid={`dismiss-${index}`}
                         className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
                       >
-                        {btnLabel(rowStatus, 'Dismiss')}
+                        {btnLabel(rowStatus, 'Not an ad')}
                       </button>
                     </div>
                   )}
@@ -900,7 +900,7 @@ function EpisodeDetail() {
                 data-testid="apply-approved-recut"
                 className="w-full sm:w-auto px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded bg-green-600 hover:bg-green-700 active:bg-green-800 text-white disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
               >
-                {`Apply ${approvedHeldCount} approved & recut`}
+                {`Apply ${approvedHeldCount} confirmed & recut`}
               </button>
             </div>
           )}
