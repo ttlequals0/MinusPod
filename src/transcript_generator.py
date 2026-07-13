@@ -86,7 +86,8 @@ class TranscriptGenerator:
     def compute_final_segments(
         self,
         segments: List[Dict],
-        ads_removed: List[Dict]
+        ads_removed: List[Dict],
+        replacement_duration: float = 0.0,
     ) -> List[Dict]:
         """Apply ad-removal filter + timestamp adjustment, return surviving segments.
 
@@ -108,8 +109,8 @@ class TranscriptGenerator:
             text = segment.get('text', '').strip()
             if not text:
                 continue
-            adjusted_start = adjust_timestamp(segment.get('start', 0), ads_removed)
-            adjusted_end = adjust_timestamp(segment.get('end', 0), ads_removed)
+            adjusted_start = adjust_timestamp(segment.get('start', 0), ads_removed, replacement_duration)
+            adjusted_end = adjust_timestamp(segment.get('end', 0), ads_removed, replacement_duration)
             if adjusted_end <= adjusted_start:
                 continue
             out.append({'start': adjusted_start, 'end': adjusted_end, 'text': text})
@@ -118,7 +119,8 @@ class TranscriptGenerator:
     def generate_vtt(
         self,
         segments: List[Dict],
-        ads_removed: List[Dict]
+        ads_removed: List[Dict],
+        replacement_duration: float = 0.0,
     ) -> str:
         """Generate VTT transcript with adjusted timestamps.
 
@@ -135,7 +137,7 @@ class TranscriptGenerator:
 
         lines = ["WEBVTT", ""]
 
-        final = self.compute_final_segments(segments, ads_removed)
+        final = self.compute_final_segments(segments, ads_removed, replacement_duration)
         for seg in final:
             start_ts = format_vtt_timestamp(seg['start'])
             end_ts = format_vtt_timestamp(seg['end'])
@@ -150,7 +152,8 @@ class TranscriptGenerator:
     def generate_text(
         self,
         segments: List[Dict],
-        ads_removed: List[Dict]
+        ads_removed: List[Dict],
+        replacement_duration: float = 0.0,
     ) -> str:
         """Generate plain text transcript with adjusted timestamps.
 
@@ -159,7 +162,7 @@ class TranscriptGenerator:
         if not segments:
             return ""
 
-        final = self.compute_final_segments(segments, ads_removed)
+        final = self.compute_final_segments(segments, ads_removed, replacement_duration)
         lines = [
             f"[{format_vtt_timestamp(seg['start'])} --> {format_vtt_timestamp(seg['end'])}] {seg['text']}"
             for seg in final

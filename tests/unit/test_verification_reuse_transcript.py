@@ -36,7 +36,11 @@ def _kwargs(**over):
     return base
 
 
-def test_llm_only_maps_transcript_without_re_transcribing():
+def test_llm_only_maps_transcript_without_re_transcribing(monkeypatch):
+    # The processed audio contains a beep where each cut was, so the mapped
+    # transcript must land on the beeped timeline or pass-2 coordinates
+    # drift against the audio it re-examines.
+    monkeypatch.setattr('verification_pass.get_replacement_duration', lambda: 2.0)
     v = _verifier()
     original = [
         _seg(0.0, 30.0, 'intro'),
@@ -49,12 +53,12 @@ def test_llm_only_maps_transcript_without_re_transcribing():
 
     # No Whisper pass.
     v.transcriber.transcribe_chunked.assert_not_called()
-    # Detector ran on the mapped, post-cut transcript: the cut segment is gone
-    # and a later segment shifts left by the 70s cut.
+    # Detector ran on the mapped, post-cut transcript: the cut segment is
+    # gone and a later segment shifts left by the 70s cut minus the 2s beep.
     passed = v.ad_detector.run_verification_detection.call_args[0][0]
     texts = [s['text'] for s in passed]
     assert 'sponsor read' not in texts
-    assert any(s['text'] == 'back to the show' and abs(s['start'] - 130.0) < 0.1
+    assert any(s['text'] == 'back to the show' and abs(s['start'] - 132.0) < 0.1
                for s in passed)
     assert result['status'] == 'clean'
 

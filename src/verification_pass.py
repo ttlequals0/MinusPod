@@ -13,9 +13,11 @@ coordinates for cutting.
 import logging
 from typing import Dict, List, Optional, Tuple
 
+from audio_processor import get_replacement_duration
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError
 from utils.language import get_feed_language_override
+from utils.time import adjust_timestamp
 
 logger = logging.getLogger('podcast.verification')
 
@@ -82,8 +84,11 @@ class VerificationPass:
             # LLM-only iteration transcription-free. The trade is that pass 2 can
             # only re-examine what the saved transcript already captured -- it
             # cannot surface an ad whose audio the transcript missed entirely.
+            # Map onto the beeped timeline: the processed audio this pass
+            # re-examines has a replacement beep where each cut was, exactly
+            # like a re-transcription would see it.
             verification_segments = TranscriptGenerator().compute_final_segments(
-                original_segments, pass1_cuts
+                original_segments, pass1_cuts, get_replacement_duration()
             )
             logger.info(
                 f"[{slug}:{episode_id}] Verification: mapped saved transcript "
@@ -159,10 +164,11 @@ class VerificationPass:
         original_ads = []
         if pass1_cuts:
             timestamp_map = _build_timestamp_map(pass1_cuts)
+            beep = get_replacement_duration()
             for ad in processed_ads:
                 mapped = ad.copy()
-                mapped['start'] = _map_to_original(ad['start'], timestamp_map)
-                mapped['end'] = _map_to_original(ad['end'], timestamp_map)
+                mapped['start'] = _map_to_original(ad['start'], timestamp_map, beep)
+                mapped['end'] = _map_to_original(ad['end'], timestamp_map, beep)
                 original_ads.append(mapped)
             logger.info(f"[{slug}:{episode_id}] Verification: mapped {len(original_ads)} ads "
                        f"to original timestamps using {len(pass1_cuts)} pass 1 cuts")
@@ -235,19 +241,25 @@ def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:
 
 
 def _map_to_original(processed_time: float,
-                     cuts: List[Tuple[float, float]]) -> float:
+                     cuts: List[Tuple[float, float]],
+                     replacement_duration: float = 0.0) -> float:
     """Map a processed-audio timestamp back to original-audio timestamp.
 
-    Walks through the sorted cuts, accumulating removed time. For each cut
-    that started before the current position in the original timeline,
-    the processed time shifts forward by the cut's duration.
+    Walks through the sorted cuts, accumulating removed time. Each cut is
+    replaced by `replacement_duration` of audio in the processed file, so a
+    cut shifts later content by (duration - replacement). A timestamp inside
+    a replacement maps just inside the removed span it stands in for,
+    keeping the mapping monotonic (the inverse of utils.time.adjust_timestamp).
     """
     offset = 0.0
     for cut_start, cut_duration in cuts:
-        # In original timeline, this cut starts at cut_start.
-        # In processed timeline, this cut would be at cut_start - offset.
-        if processed_time >= cut_start - offset:
-            offset += cut_duration
+        # In processed timeline, this cut's replacement starts at
+        # cut_start - offset and lasts replacement_duration.
+        replacement_start = cut_start - offset
+        if processed_time >= replacement_start + replacement_duration:
+            offset += cut_duration - replacement_duration
+        elif processed_time > replacement_start:
+            return cut_start + (processed_time - replacement_start)
         else:
             break
     return processed_time + offset
@@ -257,6 +269,7 @@ def _map_correction_to_processed(
     orig_start: float,
     orig_end: float,
     cuts: List[Tuple[float, float]],
+    replacement_duration: float = 0.0,
 ) -> Optional[Tuple[float, float]]:
     """Map a user-correction range from original time to processed-audio time.
 
@@ -285,10 +298,12 @@ def _map_correction_to_processed(
     if end <= start:
         return None
 
-    removed_before_start = sum(d for s, d in cuts if s + d <= start)
-    removed_before_end = sum(d for s, d in cuts if s + d <= end)
-    proc_start = start - removed_before_start
-    proc_end = end - removed_before_end
+    # After the snap loop the endpoints are never strictly inside a cut, so
+    # the forward shift is exactly adjust_timestamp's: one owner for the
+    # (duration - replacement) render model.
+    span_dicts = [{'start': s, 'end': s + d} for s, d in cuts]
+    proc_start = adjust_timestamp(start, span_dicts, replacement_duration)
+    proc_end = adjust_timestamp(end, span_dicts, replacement_duration)
     if proc_end <= proc_start:
         return None
     return (proc_start, proc_end)

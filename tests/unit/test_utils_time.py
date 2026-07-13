@@ -125,3 +125,70 @@ class TestAdjustTimestampOverlaps:
         assert adjust_timestamp(100.0, ads) == 80.0
         assert adjust_timestamp(55.0, ads) == 40.0   # snap inside 2nd ad
         assert adjust_timestamp(5.0, ads) == 5.0
+
+
+class TestAdjustTimestampReplacementDuration:
+    """Each applied cut is replaced by a beep, so post-cut content shifts by
+    (cut length - beep length), not the full cut length."""
+
+    def test_after_one_cut_adds_replacement_back(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 30.0}]
+        # 20s cut replaced by 2s beep: content at 40 now sits at 22.
+        assert adjust_timestamp(40.0, ads, replacement_duration=2.0) == 22.0
+
+    def test_inside_cut_snaps_to_beep_start(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 30.0}]
+        assert adjust_timestamp(20.0, ads, replacement_duration=2.0) == 10.0
+
+    def test_at_cut_end_lands_at_beep_end(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 30.0}]
+        assert adjust_timestamp(30.0, ads, replacement_duration=2.0) == 12.0
+
+    def test_multiple_cuts_accumulate_replacements(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 30.0}, {'start': 50.0, 'end': 60.0}]
+        # 70 - (20-2) - (10-2) = 44
+        assert adjust_timestamp(70.0, ads, replacement_duration=2.0) == 44.0
+
+    def test_default_zero_replacement_is_backward_compatible(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 30.0}]
+        assert adjust_timestamp(40.0, ads) == 20.0
+
+
+class TestAdjustTimestampMergedGroupSpanCounting:
+    """Cuts rendered in different passes can merge in original coordinates,
+    but each rendered cut inserted its own beep: credit one replacement per
+    source span, not per merged group."""
+
+    def test_touching_spans_credit_one_replacement_each(self):
+        from utils.time import adjust_timestamp
+        # Pass-1 cut [100,200] and a pass-2 rendered cut mapped to [200,249].
+        ads = [{'start': 100.0, 'end': 200.0}, {'start': 200.0, 'end': 249.0}]
+        # union 149s removed, 2 beeps inserted: 300 - (149 - 2) = 153
+        assert adjust_timestamp(300.0, ads, replacement_duration=1.0) == 153.0
+
+    def test_overlapping_spans_credit_one_replacement_each(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 100.0, 'end': 200.0}, {'start': 150.0, 'end': 249.0}]
+        assert adjust_timestamp(300.0, ads, replacement_duration=1.0) == 153.0
+
+    def test_zero_replacement_merge_behavior_unchanged(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 100.0, 'end': 150.0}, {'start': 140.0, 'end': 180.0}]
+        assert adjust_timestamp(200.0, ads) == 120.0
+
+
+class TestSpanInsideAnyCutUnion:
+    def test_span_inside_union_of_overlapping_cuts_is_dropped(self):
+        from utils.time import span_inside_any_cut
+        cuts = [{'start': 0.0, 'end': 10.0}, {'start': 8.0, 'end': 20.0}]
+        assert span_inside_any_cut(5.0, 15.0, cuts) is True
+
+    def test_span_crossing_union_boundary_is_kept(self):
+        from utils.time import span_inside_any_cut
+        cuts = [{'start': 0.0, 'end': 10.0}, {'start': 8.0, 'end': 20.0}]
+        assert span_inside_any_cut(5.0, 25.0, cuts) is False
