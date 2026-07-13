@@ -394,3 +394,15 @@ class TestChapterTunablesAreConfigDriven:
         )
         _clear_provider_cache()
         assert stub.calls[-1]['max_tokens'] == 512
+
+
+class TestAdjustSegmentsReplacementDuration:
+    def test_shift_compensates_for_beep_insertion(self):
+        gen = ChaptersGenerator(api_key='test')
+        segs = [
+            {'start': 0, 'end': 10, 'text': 'before'},
+            {'start': 40, 'end': 50, 'text': 'after'},
+        ]
+        ads = [{'start': 10, 'end': 30}]
+        out = gen._adjust_segments_for_ads(segs, ads, replacement_duration=2.0)
+        assert out[1]['start'] == 22 and out[1]['end'] == 32

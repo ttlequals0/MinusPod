@@ -18,6 +18,10 @@ def _run(monkeypatch, output_duration):
     monkeypatch.setattr(p, 'get_beep_duration', MagicMock(return_value=1.0))
     monkeypatch.setattr(audio_processor, 'tracked_run',
                         MagicMock(return_value=MagicMock(returncode=0)))
+    # The fake input path has no chapters to probe; keep the chapter branch
+    # out of these log assertions.
+    monkeypatch.setattr(audio_processor, 'probe_chapters',
+                        MagicMock(return_value=[]))
     applied = p.remove_ads('/nonexistent-in.mp3',
                            [{'start': 100.0, 'end': 160.0}],
                            '/nonexistent-out.mp3')

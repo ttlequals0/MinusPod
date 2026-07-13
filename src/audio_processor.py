@@ -8,7 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
-from utils.audio import get_audio_duration
+from utils.audio import AudioMetadata, get_audio_duration
+from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from config import (
     FFMPEG_LONG_TIMEOUT, SUBPROCESS_VERSION_PROBE,
@@ -56,6 +57,18 @@ def get_replace_audio_path() -> str:
 DEFAULT_REPLACE_AUDIO = get_replace_audio_path()
 
 
+def get_replacement_duration() -> float:
+    """Length of the replacement (beep) audio in seconds.
+
+    Asset generators need this to map original-timeline timestamps onto the
+    processed audio: each cut is replaced by this much audio, not removed
+    outright. Uses DEFAULT_REPLACE_AUDIO (frozen at import) so the value
+    always matches the beep default-constructed AudioProcessors render with.
+    AudioMetadata caches the probe process-wide.
+    """
+    return AudioMetadata.get_duration(DEFAULT_REPLACE_AUDIO) or 1.0
+
+
 # Loudness leveling presets (optional dynaudnorm second pass). Tuned via the
 # dynaudnorm knobs: smaller frame (f) reacts to shorter loud spikes (more
 # level-bouncing); larger frame is gentler. Higher peak target (p) is
@@ -78,7 +91,6 @@ class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
         self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
         self.bitrate = bitrate
-        self._beep_duration = None  # Cached beep duration
 
     def check_ffmpeg(self) -> bool:
         """Check if FFMPEG is available. Result is cached per process so the
@@ -93,10 +105,13 @@ class AudioProcessor:
         return get_audio_duration(audio_path)
 
     def get_beep_duration(self) -> float:
-        """Get duration of beep audio (cached)."""
-        if self._beep_duration is None:
-            self._beep_duration = self.get_audio_duration(self.replace_audio_path) or 1.0
-        return self._beep_duration
+        """Duration of this instance's replacement audio.
+
+        Shares get_replacement_duration's AudioMetadata cache and fallback so
+        the render and the asset-timestamp math cannot disagree for
+        default-constructed processors.
+        """
+        return AudioMetadata.get_duration(self.replace_audio_path) or 1.0
 
     def normalize_audio(self, input_path: str,
                         intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> Optional[str]:
@@ -281,6 +296,7 @@ class AudioProcessor:
             logger.error(f"Replace audio not found: {self.replace_audio_path}")
             return None
 
+        chapters_meta_path = None
         try:
             # Get total duration
             total_duration = self.get_audio_duration(input_path)
@@ -310,6 +326,10 @@ class AudioProcessor:
             fade_in_duration = 0.8   # Content fade-in after beep (longer ease back)
             beep_fade_duration = 0.5  # Beep fades stay short
             beep_duration = self.get_beep_duration()
+            # Render model: every applied cut is replaced by one beep. The
+            # chapter remap and the post-render drift check share this.
+            cut_total = sum(a['end'] - a['start'] for a in ads)
+            expected_duration = total_duration - cut_total + len(ads) * beep_duration
 
             # Split beep input into N copies (one per ad) - ffmpeg streams can only be used once
             num_ads = len(ads)
@@ -370,11 +390,37 @@ class AudioProcessor:
                 filter_str += ';'
             filter_str += ''.join(concat_parts) + f"concat=n={len(concat_parts)}:v=0:a=1[out]"
 
+            # Remap embedded chapters (ID3v2 CHAP) onto the cut timeline.
+            # ffmpeg copies the input's chapters by default, and their
+            # timestamps point at the wrong content once ads are removed
+            # (issue #500). Remapped chapters are injected as an ffmetadata
+            # input; a definitively chapterless input is stripped explicitly;
+            # a failed probe (None) keeps ffmpeg's default passthrough so a
+            # transient ffprobe failure cannot silently destroy chapters.
+            embedded = probe_chapters(input_path)
+            remapped = []
+            if embedded:
+                remapped = remap_chapters(
+                    embedded, ads,
+                    replacement_duration=beep_duration, new_duration=expected_duration,
+                )
+                logger.info(f"Remapping {len(embedded)} embedded chapters -> {len(remapped)}")
+            if remapped:
+                chapters_meta_path = f"{output_path}.chapters.ffmeta"
+                with open(chapters_meta_path, 'w', encoding='utf-8') as f:
+                    f.write(render_ffmetadata(remapped))
+
             # Run FFMPEG
             cmd = [
                 'ffmpeg', '-y',
                 '-i', input_path,
                 '-i', self.replace_audio_path,
+            ]
+            if chapters_meta_path:
+                cmd += ['-f', 'ffmetadata', '-i', chapters_meta_path, '-map_chapters', '2']
+            elif embedded is not None:
+                cmd += ['-map_chapters', '-1']
+            cmd += [
                 '-filter_complex', filter_str,
                 '-map', '[out]',
                 '-acodec', 'libmp3lame',
@@ -408,8 +454,6 @@ class AudioProcessor:
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 removed_time = total_duration - new_duration
-                cut_total = sum(a['end'] - a['start'] for a in ads)
-                expected_duration = total_duration - cut_total + len(ads) * beep_duration
                 drift = new_duration - expected_duration
                 logger.info(
                     f"FFMPEG processing complete: {total_duration:.1f}s -> "
@@ -432,6 +476,9 @@ class AudioProcessor:
         except Exception as e:
             logger.error(f"Audio processing failed: {e}")
             return None
+        finally:
+            if chapters_meta_path and os.path.exists(chapters_meta_path):
+                os.unlink(chapters_meta_path)
 
     def process_episode(self, input_path: str,
                         ad_segments: List[Dict]) -> Optional[Tuple[str, List[Dict]]]:

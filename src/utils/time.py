@@ -132,7 +132,42 @@ def format_vtt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
 
 
-def adjust_timestamp(original_time: float, ads_removed: List[Dict]) -> float:
+def merge_cut_spans(cuts: List[Dict]) -> List[List[float]]:
+    """Merge overlapping/touching cut spans into [start, end, n_spans] groups.
+
+    n_spans counts the source spans folded into each group. Rendered cut
+    lists carry one replacement (beep) per cut, so timestamp adjustment
+    credits one replacement per source span even when cuts from different
+    render passes merge in original coordinates.
+    """
+    sorted_cuts = sorted(cuts, key=lambda x: x.get('start', 0))
+    merged: List[List[float]] = []
+    for cut in sorted_cuts:
+        start = cut.get('start', 0)
+        end = cut.get('end', 0)
+        if end <= start:
+            continue
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+            merged[-1][2] += 1
+        else:
+            merged.append([start, end, 1])
+    return merged
+
+
+def span_inside_any_cut(start: float, end: float, cuts: List[Dict]) -> bool:
+    """True when [start, end] sits entirely inside the removed spans' union.
+
+    The counterpart of adjust_timestamp's snap-inside-cut behavior: a span
+    this predicate matches has no surviving content and should be dropped
+    rather than remapped. Cuts are merged first so a span covered by two
+    overlapping cuts is treated the same as one covered by a single cut.
+    """
+    return any(s <= start and end <= e for s, e, _ in merge_cut_spans(cuts))
+
+
+def adjust_timestamp(original_time: float, ads_removed: List[Dict],
+                     replacement_duration: float = 0.0) -> float:
     """Adjust a timestamp to account for removed ad segments.
 
     For each ad that ends before the original timestamp, subtracts the
@@ -142,6 +177,11 @@ def adjust_timestamp(original_time: float, ads_removed: List[Dict]) -> float:
     Args:
         original_time: Original timestamp in seconds
         ads_removed: List of {'start': float, 'end': float} for removed ads
+        replacement_duration: Seconds of audio inserted in place of each
+            removed span (the beep). The render replaces each merged cut with
+            this much audio, so post-cut content shifts by
+            (cut length - replacement) per cut, not the full cut length.
+            Assumes one replacement per merged span.
 
     Returns:
         Adjusted timestamp reflecting position in processed audio
@@ -150,27 +190,21 @@ def adjust_timestamp(original_time: float, ads_removed: List[Dict]) -> float:
         return original_time
 
     # Merge overlapping/touching spans first: the combined cut list can mix
-    # pass-1 applied cuts with pass-2 ads mapped back to original time, and
-    # an overlap would otherwise have its duration subtracted twice.
-    sorted_ads = sorted(ads_removed, key=lambda x: x.get('start', 0))
-    merged = []
-    for ad in sorted_ads:
-        ad_start = ad.get('start', 0)
-        ad_end = ad.get('end', 0)
-        if ad_end <= ad_start:
-            continue
-        if merged and ad_start <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], ad_end)
-        else:
-            merged.append([ad_start, ad_end])
+    # pass-1 applied cuts with pass-2 rendered cuts mapped back to original
+    # time, and an overlap would otherwise have its duration subtracted
+    # twice. Each source span still carries its own replacement beep.
+    merged = merge_cut_spans(ads_removed)
 
     adjustment = 0.0
-    for ad_start, ad_end in merged:
+    for ad_start, ad_end, n_spans in merged:
         if ad_end <= original_time:
-            # Entire ad was before our timestamp
-            adjustment += (ad_end - ad_start)
+            # Entire group was before our timestamp; its replacement audio
+            # (one beep per source cut) sits before us too, so it shifts us
+            # back by (removed length - inserted replacements).
+            adjustment += (ad_end - ad_start) - n_spans * replacement_duration
         elif ad_start < original_time < ad_end:
-            # Timestamp falls within an ad -- snap to ad boundary
+            # Timestamp falls within an ad -- snap to the replacement's start
+            # (this cut's own replacement plays at that position).
             adjustment += (original_time - ad_start)
             break
         else:
