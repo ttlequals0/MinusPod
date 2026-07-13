@@ -73,14 +73,19 @@ describe('AdReviewTab', () => {
   it('renders a detection row with episode link and status', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    const table = screen.getByRole('table');
-    const link = within(table).getByRole('link', { name: 'Episode One' });
+    const rows = screen.getByTestId('detections-rows');
+    const link = within(rows).getByRole('link', { name: 'Episode One' });
     expect(link.getAttribute('href')).toBe('/feeds/feed-a/episodes/ep-1');
     // Scope to the row: "Feed A" also appears as a filter <option> label.
-    const row = link.closest('tr')!;
+    const row = link.closest('[data-testid="detection-row"]') as HTMLElement;
     expect(within(row).getByText('Feed A')).toBeTruthy();
-    expect(within(row).getByText('Rejected')).toBeTruthy();
+    expect(within(row).getByText('Not cut')).toBeTruthy();
     expect(within(row).getByText('Unresolved')).toBeTruthy();
+    // The second meta line carries what the old table columns did.
+    expect(within(row).getByText(/2026/)).toBeTruthy();
+    expect(within(row).getByText(/\(30s\)/)).toBeTruthy();
+    expect(within(row).getByText('conf 0.40')).toBeTruthy();
+    expect(within(row).getByText('Acme')).toBeTruthy();
   });
 
   it('requests needs_review by default', async () => {
@@ -115,16 +120,13 @@ describe('AdReviewTab', () => {
     });
   });
 
-  it('toggles sort direction when the active sort column is clicked', async () => {
+  it('renders dynamic rows on desktop, not a fixed-width table', async () => {
     renderTab();
-    const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: /Published/ }));
-    await waitFor(() => {
-      expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({
-        sort: 'date', order: 'asc',
-      });
-    });
+    // The fixed 9-column table forced horizontal scroll below 68rem; the
+    // row layout flexes at any width.
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getByTestId('detections-rows')).toBeTruthy();
   });
 
   it('renders the stats card and sorts the podcast dropdown by title', async () => {
@@ -137,20 +139,28 @@ describe('AdReviewTab', () => {
     expect(labels).toEqual(['All podcasts', 'Feed A', 'Feed B']);
   });
 
-  it('renders a mobile card for each detection alongside the table', async () => {
+  it('renders a mobile card variant for each detection', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
-    expect(within(cards).getByRole('button', { name: 'Approve' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
+    // All actions share one line: play | Confirm ad | Not an ad | Edit.
+    // The decision buttons grow but never shrink below their nowrap labels,
+    // so neither can wrap into a taller button than its neighbor.
+    const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
+    const edit = within(cards).getByRole('button', { name: 'Edit' });
+    expect(edit.parentElement).toBe(confirm.parentElement);
+    expect(confirm.className).toContain('grow');
+    expect(confirm.className).toContain('whitespace-nowrap');
+    expect(edit.className).not.toContain('grow');
   });
 
-  it('sorts from the mobile sort control and resets direction on column change', async () => {
+  it('sorts from the filter-bar sort control and resets direction on column change', async () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getByRole('button', { name: 'Sort descending' }));
+    await user.click(screen.getByRole('button', { name: 'Switch to ascending order' }));
     await waitFor(() => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ order: 'asc' });
     });
@@ -176,7 +186,7 @@ describe('AdReviewTab row actions', () => {
   it('approve submits a confirm correction and triggers recut', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][0]).toBe('feed-a');
     expect(mockSubmitCorrection.mock.calls[0][1]).toBe('ep-1');
@@ -195,7 +205,7 @@ describe('AdReviewTab row actions', () => {
     });
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockReprocess).not.toHaveBeenCalled();
   });
@@ -203,7 +213,7 @@ describe('AdReviewTab row actions', () => {
   it('dismiss submits a reject correction with no recut', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Dismiss' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Not an ad' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
       type: 'reject',
@@ -218,8 +228,14 @@ describe('AdReviewTab row actions', () => {
     });
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Not an ad' })).toBeNull();
+    // Edit (and the audition play button) must survive resolution -- both
+    // the desktop row and the card keep their non-decision controls.
+    const cards = screen.getByTestId('detections-cards');
+    expect(within(cards).getByRole('button', { name: 'Edit' })).toBeTruthy();
+    const rows = screen.getByTestId('detections-rows');
+    expect(within(rows).getByRole('button', { name: 'Edit' })).toBeTruthy();
   });
 
   it('hides the play button when original audio is gone', async () => {
@@ -237,7 +253,7 @@ describe('AdReviewTab row actions', () => {
     mockSubmitCorrection.mockRejectedValueOnce(new Error('boom'));
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
     expect(await screen.findByText('Failed to save correction. Try again.')).toBeTruthy();
     expect(mockReprocess).not.toHaveBeenCalled();
     errSpy.mockRestore();
@@ -248,10 +264,10 @@ describe('AdReviewTab row actions', () => {
     mockReprocess.mockRejectedValueOnce(new Error('recut boom'));
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
     expect(
       await screen.findByText(
-        'Approved, but the recut did not start. The cut applies on the next reprocess.',
+        'Confirmed, but the recut did not start. The cut applies on the next reprocess.',
       ),
     ).toBeTruthy();
     errSpy.mockRestore();

@@ -6,6 +6,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.51.3] - 2026-07-13
+
+### Changed
+- Mobile Ad Review card actions are back on a single line at every
+  phone width: play, Confirm ad, Not an ad, Edit. The decision buttons
+  grow from their label width (they can never shrink below it, so
+  neither wraps into a taller button), Edit stays compact, and the
+  buttons are sized for thumbs. Below 370px the labels drop a size so
+  the row still fits a 320px screen.
+
+## [2.51.2] - 2026-07-13
+
+### Fixed
+- The Edit button on mobile Ad Review cards no longer stretches across
+  the full row; it is a compact control right-aligned opposite the play
+  button.
+- The Sponsors/Normalizations tab switcher no longer stretches to full
+  width on mobile with a long empty border trailing the tabs; it sizes
+  to its content.
+
+## [2.51.1] - 2026-07-13
+
+### Fixed
+- Mobile Ad Review cards no longer render a lopsided action row: the
+  renamed "Confirm ad" label wrapped into a two-line button beside a
+  one-line "Not an ad". The two decision buttons now split a row of
+  their own (labels never wrap), play and Edit share a compact second
+  row, and the sponsor moved into the metadata line instead of
+  dangling as a bare word above the buttons.
+
+## [2.51.0] - 2026-07-13
+
+### Changed
+- The cover art badge now has a solid hulu-green ring with a tight
+  neon glow, rendered supersampled for smooth edges (#514). The old
+  black drop shadow disappeared on black cover art, leaving the
+  near-black chip invisible; the green edge separates it on dark,
+  light, and busy covers without smearing gray across light ones. The
+  badge revision bump changes the artwork cache-bust token (and a new
+  salt sidecar invalidates the on-disk variant cache) so podcast apps
+  re-fetch the updated art.
+- The settings reset actions ("Reset Prompts to Default", "Reset
+  Reviewer Prompts to Default", "Reset All Episodes", and the save
+  bar's "Reset All") are styled as outlined destructive buttons and all
+  require a second click to confirm within 3 seconds (#513). Only
+  Reset All Episodes had the confirm step before; the others fired
+  immediately.
+- The Ad Review tab no longer scrolls horizontally on desktop. The
+  fixed nine-column table (which forced a 68rem minimum width) is now a
+  two-line row list that flexes to any viewport: episode title, badges,
+  and actions on the first line; podcast, date, time span, confidence,
+  stage, and sponsor on the second. Sorting moved from column headers
+  into the filter bar at every width (the control that previously
+  existed only on mobile).
+- Review actions are named for what they mean instead of the ambiguous
+  Approve/Dismiss pair: "Confirm ad" records that the detection really
+  is an ad, "Not an ad" records that it is not. The "Rejected" status
+  is now labeled "Not cut" (the bucket covers both validation rejects
+  and spans restored after a human "Not an ad"), so a pipeline outcome
+  is not confused with a human decision; the resolution badge and stats
+  card use "Not an ad" in place of "Dismissed". The ad editor modal's
+  "Reject" button (the same human decision) is now "Not an ad" too, and
+  the episode page follows suit: the "Rejected Detections" panel is now
+  "Detections Not Cut", its stray "Not Ad" badges read "Not an ad", and
+  the held-ads panel shows "Confirm & Recut" / "Confirm ad" / "Not an
+  ad" with the batch action reading "Apply N confirmed & recut".
+- Reviewing several held ads no longer costs one full recut per approval
+  (#509). With more than one ad held for review, confirming records the
+  decision only; an "Apply N confirmed & recut" action at the bottom of
+  the Held for Review panel runs a single recut that applies every
+  confirmed hold at once (the recut already applied all stored
+  corrections in one pass). Confirming a held ad now also annotates the
+  marker server-side (mirroring how a dismissal resolves one), so the
+  approved count survives reloads and uses the same tolerance matching
+  as the rest of the review flow. Confirming the last unreviewed ad of a
+  set keeps the one-tap confirm-and-recut finish, as does an episode
+  with a single held ad; confirmations made without retained original
+  audio still apply on the next reprocess as before.
+
+### Fixed
+- Clearing a prompt box and saving no longer wedges the settings form
+  (#513). The backend treats an empty prompt as "use the default" and
+  serves the default text back, so the cleared local field never
+  matched the server value: Save changes stayed lit forever and a
+  prompts reset needed a browser refresh before the defaults showed.
+  After any save or reset the form now re-seeds itself from the
+  refetched server state.
+
 ## [2.50.0] - 2026-07-13
 
 ### Changed

@@ -746,6 +746,8 @@ def _handle_confirm_correction(
         text_snippet=data.get('notes')
     )
 
+    _mark_held_marker_approved(db, slug, episode_id, original_start, original_end)
+
     return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
 
 
@@ -788,30 +790,66 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
     return json_response({'message': 'False positive recorded'})
 
 
+def _matches_held_marker(m, start, end, tol):
+    """Tolerance-matched range comparison against a pending-review marker;
+    shared by the reject and confirm review paths so both resolve the same
+    marker for the same reviewed range."""
+    m_start, m_end = m.get('start'), m.get('end')
+    return (is_pending_review(m)
+            and m_start is not None and m_end is not None
+            and abs(m_start - start) <= tol
+            and abs(m_end - end) <= tol)
+
+
+def _load_markers(db, slug, episode_id):
+    episode = db.get_episode(slug, episode_id) or {}
+    raw = episode.get('ad_markers_json')
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
     """When the rejected range matches a held marker, demote it to a plain
     rejected marker and recompute pending_review_count. Without this the amber
     review chip never clears by reviewing (the held state persists)."""
-    episode = db.get_episode(slug, episode_id) or {}
-    raw = episode.get('ad_markers_json')
-    if not raw:
-        return
-    try:
-        markers = json.loads(raw)
-    except (TypeError, ValueError):
+    markers = _load_markers(db, slug, episode_id)
+    if markers is None:
         return
 
     changed = False
     for m in markers:
-        m_start, m_end = m.get('start'), m.get('end')
-        if (is_pending_review(m)
-                and m_start is not None and m_end is not None
-                and abs(m_start - start) <= tol
-                and abs(m_end - end) <= tol):
+        if _matches_held_marker(m, start, end, tol):
             m['held_for_review'] = False
             m.pop('hold_reason', None)
+            m.pop('approved', None)
             m['was_cut'] = False
             m.setdefault('validation', {})['decision'] = 'REJECT'
+            changed = True
+
+    if not changed:
+        return
+
+    db.save_episode_details(slug, episode_id, ad_markers=markers,
+                            pending_review_count=count_pending_review(markers))
+
+
+def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5):
+    """Confirm-side mirror of the reject path (issue #509): annotate the
+    matching held marker approved=True so the UI can count approvals awaiting
+    a recut across reloads. The marker stays pending (held_for_review, not
+    was_cut) until a recut applies the stored correction."""
+    markers = _load_markers(db, slug, episode_id)
+    if markers is None:
+        return
+
+    changed = False
+    for m in markers:
+        if _matches_held_marker(m, start, end, tol):
+            m['approved'] = True
             changed = True
 
     if not changed:

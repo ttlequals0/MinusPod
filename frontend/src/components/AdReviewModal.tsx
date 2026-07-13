@@ -792,7 +792,7 @@ function AdReviewModal({
   // highlight on mouseover instead of looking washed out.
 
   // primaryBtn / ghostBtn come from the shared controlStyles so the transport,
-  // zoom, and action buttons all render from one source. destructiveBtn (Reject)
+  // zoom, and action buttons all render from one source. destructiveBtn (Not an ad)
   // is unique to this modal.
   const destructiveBtn =
     'bg-destructive text-destructive-foreground transition-all ' +
@@ -1287,7 +1287,7 @@ function AdReviewModal({
           <div className="mt-2 text-xs text-muted-foreground">
             Drag the <span className="text-emerald-500 font-semibold">START</span> /{' '}
             <span className="text-rose-500 font-semibold">END</span> pins above the waveform.{' '}
-            <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> reject • <kbd>S</kbd> skip
+            <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> not an ad • <kbd>S</kbd> skip
           </div>
         </div>
 
@@ -1415,8 +1415,8 @@ function AdReviewModal({
                   className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
                   title="Mark as not an ad (R)">
                   {isBusy ? '...' : (<>
-                    <span className="sm:hidden">Reject</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Reject & Next' : 'Reject'}</span>
+                    <span className="sm:hidden">Not an ad</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
                   </>)}
                 </button>
                 <button type="button" onClick={handleConfirm} disabled={isBusy || boundaryError !== null}

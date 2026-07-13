@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConfirmResetButton from './ConfirmResetButton';
 import PromptField from './PromptField';
 
 const OVERRIDE_HELP =
@@ -65,13 +66,11 @@ function PromptsSection({
           helpText={OVERRIDE_HELP}
         />
 
-        <button
-          onClick={onResetPrompts}
-          disabled={resetIsPending}
-          className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-        >
-          {resetIsPending ? 'Resetting...' : 'Reset Prompts to Default'}
-        </button>
+        <ConfirmResetButton
+          label="Reset Prompts to Default"
+          isPending={resetIsPending}
+          onConfirm={onResetPrompts}
+        />
       </div>
     </CollapsibleSection>
   );

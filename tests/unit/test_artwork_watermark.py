@@ -78,6 +78,22 @@ def test_composite_badge_has_solid_dark_backing():
     assert min(lum) < 40                         # the fill is genuinely dark
 
 
+def test_composite_badge_visible_on_black_cover():
+    # Issue #514: the near-black chip disappeared on black cover art. The
+    # hulu-green halo behind the chip keeps the badge visible there.
+    out = artwork_watermark.composite_watermark(_png(color=(0, 0, 0)))
+    assert out is not None
+    composed = Image.open(io.BytesIO(out)).convert('RGB')
+    badge = composed.crop((280, 280, 400, 400))  # badge corner incl. halo
+    px = list(badge.getdata())
+    # Thresholds calibrated to the deliberately soft glow (HALO_ALPHA 150);
+    # the old black drop shadow scores 0 here.
+    green = sum(1 for r, g, b in px if g > 40 and g > r + 15 and g > b + 15)
+    assert green / len(px) > 0.03                # the halo reads as green
+    top_left = _region_mean(composed, (0, 0, 60, 60))
+    assert top_left < 10                         # black cover left untouched
+
+
 def test_composite_returns_none_when_badge_missing(monkeypatch):
     monkeypatch.setattr(artwork_watermark, 'badge_path', lambda: None)
     assert artwork_watermark.composite_watermark(_png()) is None
@@ -112,6 +128,41 @@ def test_saving_new_artwork_invalidates_the_watermark_cache():
 
     st.save_artwork(slug, _png((0, 0, 0)), 'image/png', 'https://example.com/art2.png')
     assert not variant.exists()
+
+
+def test_badge_revision_bump_invalidates_cached_variant(monkeypatch):
+    # Mtimes alone miss a BADGE_REVISION bump (issue #514 shipped a new render
+    # of the same asset file): the salt sidecar must force a recomposite so the
+    # new-look badge is what the cache-busted URL serves.
+    slug = 'wm-revision'
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png(), 'image/png', 'https://example.com/art.png')
+    st.get_watermarked_artwork(slug)
+    podcast_dir = st.get_podcast_dir(slug)
+    variant = podcast_dir / 'artwork-minuspod.jpg'
+    assert not st._watermark_variant_stale(podcast_dir, variant)
+
+    import storage as storage_module
+    monkeypatch.setattr(storage_module, 'cover_badge_salt', lambda: '999:changed')
+    assert st._watermark_variant_stale(podcast_dir, variant)
+
+    st.get_watermarked_artwork(slug)  # recomposites, rewrites the sidecar
+    assert (podcast_dir / 'artwork-minuspod.salt').read_text() == '999:changed'
+    assert not st._watermark_variant_stale(podcast_dir, variant)
+
+
+def test_badge_halo_fades_within_layer():
+    # The glow must decay to ~nothing at the layer boundary or the paste edge
+    # shows as a square seam around the badge on every cover.
+    from PIL import Image as PILImage
+    mark = PILImage.new('RGBA', (64, 64), (255, 0, 0, 255))
+    for chip_side in (72, 18):
+        layer, _ = artwork_watermark._build_badge(chip_side, mark)
+        alpha = layer.getchannel('A')
+        w, h = alpha.size
+        ring = [alpha.getpixel((x, y)) for x in range(w) for y in (0, h - 1)]
+        ring += [alpha.getpixel((x, y)) for y in range(h) for x in (0, w - 1)]
+        assert max(ring) <= 8
 
 
 def test_clear_watermark_cache_forces_recomposite():

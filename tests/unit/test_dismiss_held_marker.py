@@ -78,3 +78,20 @@ def test_dismiss_non_held_marker_leaves_others(temp_db):
     pending, _rejected, _accepted, count = _split(temp_db, slug, eid)
     assert len(pending) == 1
     assert count == 1
+
+
+def test_dismiss_clears_approved_residue(temp_db):
+    """Rejecting a previously-approved marker must pop the approved flag or
+    the rejected bucket carries a marker labeled approved forever."""
+    from main_app import app
+    markers = [_held(100.0, 200.0)]
+    markers[0]['approved'] = True
+    slug, eid = _seed(temp_db, markers)
+
+    with app.test_request_context():
+        _handle_reject_correction(temp_db, slug, eid,
+                                  {'start': 100.0, 'end': 200.0})
+
+    pending, rejected, _accepted, _count = _split(temp_db, slug, eid)
+    assert len(rejected) == 1
+    assert 'approved' not in rejected[0]

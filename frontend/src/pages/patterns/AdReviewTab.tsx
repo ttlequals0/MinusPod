@@ -24,48 +24,39 @@ import { formatTimestamp, formatDate } from '../../utils/format';
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
   ['pending', 'Pending review'],
-  ['rejected', 'Rejected'],
+  ['rejected', 'Not cut'],
   ['accepted', 'Accepted'],
   ['all', 'All'],
 ];
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
-  ['confidence', 'Conf.'],
+  ['confidence', 'Confidence'],
   ['podcast', 'Podcast'],
 ];
 
+// "Not cut" = flagged but left in the audio; the bucket covers both
+// validation rejects and human "Not an ad" decisions once a recut restores
+// the span (marker_status in src/detection_review.py keys on was_cut).
 const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', 'bg-green-500/10 text-green-600 dark:text-green-400'],
-  rejected: ['Rejected', 'bg-red-500/10 text-red-600 dark:text-red-400'],
+  rejected: ['Not cut', 'bg-red-500/10 text-red-600 dark:text-red-400'],
   pending: ['Pending', 'bg-amber-500/10 text-amber-600 dark:text-amber-400'],
 };
 
 const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
   unresolved: ['Unresolved', 'bg-secondary text-muted-foreground'],
   confirmed: ['Confirmed', 'bg-green-500/10 text-green-600 dark:text-green-400'],
-  dismissed: ['Dismissed', 'bg-secondary text-muted-foreground'],
+  dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
 };
 
-const th = 'px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider truncate';
-const td = 'px-3 py-2 text-sm text-muted-foreground truncate';
-
-// Percentages for the fixed table layout; must sum to 100. Sponsor lives
-// under the episode title, matching the mobile card.
-const COL_WIDTHS = ['9%', '20%', '9%', '11%', '7%', '9%', '7%', '10%', '18%'];
-
-const SORT_LABELS = Object.fromEntries(SORT_OPTIONS) as Record<DetectionSort, string>;
-
-// Same audition key for the table row and its mobile card twin, so the
+// Same audition key for the desktop row and its mobile card twin, so the
 // playing state stays in sync across the responsive variants.
 const keyOf = (d: ReviewDetection, index: number) =>
   `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
 
 const timeLabel = (d: ReviewDetection) =>
   `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)} (${Math.round(d.end - d.start)}s)`;
-
-const spanLabel = (d: ReviewDetection) =>
-  `${formatTimestamp(d.start)} - ${formatTimestamp(d.end)}`;
 
 function DetectionStatusBadge({ status }: { status: ReviewDetection['status'] }) {
   const [label, cls] = STATUS_BADGE[status];
@@ -77,8 +68,43 @@ function ResolutionBadge({ resolution }: { resolution: ReviewDetection['resoluti
   return <span className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${cls}`}>{label}</span>;
 }
 
-// One set of row actions rendered in two densities: compact inside the
-// desktop table cell, touch-sized inside the mobile card footer.
+function DetectionBadges({ d }: { d: ReviewDetection }) {
+  return (
+    <div className="flex gap-1.5 shrink-0">
+      <DetectionStatusBadge status={d.status} />
+      <ResolutionBadge resolution={d.resolution} />
+    </div>
+  );
+}
+
+// The date/time/confidence/stage/sponsor run shared by the desktop row's
+// second line and the mobile card; feedTitle placement differs per variant,
+// so it stays with the callers.
+function DetectionMeta({ d }: { d: ReviewDetection }) {
+  return (
+    <>
+      <span>
+        <span className="sr-only">published </span>
+        {formatDate(d.publishDate)}
+      </span>
+      <span>
+        <span className="sr-only">ad at </span>
+        {timeLabel(d)}
+      </span>
+      <span>conf {d.confidence != null ? d.confidence.toFixed(2) : '-'}</span>
+      {d.detectionStage ? <StageBadge stage={d.detectionStage} /> : <span>stage -</span>}
+      {/* Truncation is desktop-only: the row must stay one line, while the
+          card's meta line wraps and touch has no hover tooltip to recover
+          text an ellipsis hides. */}
+      {d.sponsor && (
+        <span className="min-w-0 md:max-w-48 md:truncate" title={d.sponsor}>{d.sponsor}</span>
+      )}
+    </>
+  );
+}
+
+// One set of row actions rendered in two densities: compact at the end of
+// the desktop row, touch-sized inside the mobile card footer.
 function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDismiss, onEdit, busy }: {
   d: ReviewDetection;
   variant: 'row' | 'card';
@@ -90,42 +116,58 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
   busy: boolean;
 }) {
   const isCard = variant === 'card';
+  // One line everywhere: play | Confirm ad | Not an ad | Edit. The decision
+  // buttons grow from their content width (never below it, so labels cannot
+  // wrap lopsidedly); Edit stays compact. Below 370px the labels drop to
+  // text-xs with tighter padding so the row still fits a 320px screen;
+  // max-w-full + overflow-hidden keep a pathologically zoomed label from
+  // forcing page scroll.
   const btn = isCard
-    ? 'flex-1 px-3 py-2 text-sm rounded touch-manipulation'
-    : 'px-1.5 py-1 text-xs rounded';
+    ? 'px-2 py-2.5 text-xs min-[370px]:px-2.5 min-[370px]:text-sm rounded touch-manipulation whitespace-nowrap text-center max-w-full overflow-hidden'
+    : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
+  const confirmBtn = (
+    <button
+      type="button"
+      onClick={onApprove}
+      disabled={busy}
+      className={`${btn} ${isCard ? 'grow ' : ''}bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
+    >
+      Confirm ad
+    </button>
+  );
+  const dismissBtn = (
+    <button
+      type="button"
+      onClick={onDismiss}
+      disabled={busy}
+      className={`${btn} ${isCard ? 'grow ' : ''}bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
+    >
+      Not an ad
+    </button>
+  );
+  const editBtn = (
+    <button
+      type="button"
+      onClick={onEdit}
+      disabled={busy}
+      className={`${btn} ${isCard ? 'ml-auto ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
+    >
+      Edit
+    </button>
+  );
+  const playBtn = d.hasOriginalAudio && (
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+  );
   return (
-    <div className={isCard ? 'flex flex-wrap items-center gap-2 pt-1' : 'flex items-center gap-1.5'}>
-      {d.hasOriginalAudio && (
-        <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
-      )}
+    <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
+      {playBtn}
       {d.resolution === 'unresolved' && (
         <>
-          <button
-            type="button"
-            onClick={onApprove}
-            disabled={busy}
-            className={`${btn} bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
-          >
-            Approve
-          </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            disabled={busy}
-            className={`${btn} bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
-          >
-            Dismiss
-          </button>
+          {confirmBtn}
+          {dismissBtn}
         </>
       )}
-      <button
-        type="button"
-        onClick={onEdit}
-        disabled={busy}
-        className={`${btn} border border-border hover:bg-accent disabled:opacity-50`}
-      >
-        Edit
-      </button>
+      {editBtn}
     </div>
   );
 }
@@ -174,7 +216,7 @@ export default function AdReviewTab() {
         reprocessEpisode(vars.d.feedSlug, vars.d.episodeId, 'recut').catch(
           (error) => {
             console.error('Failed to trigger recut:', error);
-            setActionError('Approved, but the recut did not start. The cut applies on the next reprocess.');
+            setActionError('Confirmed, but the recut did not start. The cut applies on the next reprocess.');
           },
         );
       }
@@ -223,29 +265,6 @@ export default function AdReviewTab() {
     ? [...feeds].sort((a, b) => a.title.localeCompare(b.title))
     : undefined;
 
-  const sortHeader = (key: DetectionSort) => (
-    <button
-      type="button"
-      onClick={() => {
-        if (sort === key) {
-          setOrder(order === 'desc' ? 'asc' : 'desc');
-        } else {
-          setSort(key);
-          setOrder('desc');
-        }
-        setPage(1);
-      }}
-      className="flex items-center gap-1 font-medium hover:text-foreground"
-    >
-      {SORT_LABELS[key]}
-      {sort === key && (
-        order === 'desc'
-          ? <ChevronDown className="w-3.5 h-3.5" aria-hidden />
-          : <ChevronUp className="w-3.5 h-3.5" aria-hidden />
-      )}
-    </button>
-  );
-
   const counts = data?.counts;
 
   return (
@@ -269,7 +288,7 @@ export default function AdReviewTab() {
               <p className="font-medium text-foreground">{counts.pending}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Rejected</p>
+              <p className="text-muted-foreground">{STATUS_BADGE.rejected[0]}</p>
               <p className="font-medium text-foreground">{counts.rejected}</p>
             </div>
             <div>
@@ -281,7 +300,7 @@ export default function AdReviewTab() {
               <p className="font-medium text-foreground">{counts.confirmed}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Dismissed</p>
+              <p className="text-muted-foreground">{RESOLUTION_BADGE.dismissed[0]}</p>
               <p className="font-medium text-foreground">{counts.dismissed}</p>
             </div>
           </div>
@@ -326,9 +345,9 @@ export default function AdReviewTab() {
             className="w-full min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
           />
         </div>
-        {/* Cards have no sortable headers, so sorting gets its own control
-            below the md breakpoint. */}
-        <div className="flex items-center gap-2 w-full md:hidden">
+        {/* Neither the rows nor the cards have sortable headers, so sorting
+            lives in the filter bar at every width. */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <label htmlFor="ad-review-sort" className="text-sm text-muted-foreground shrink-0">Sort</label>
           <select
             id="ad-review-sort"
@@ -347,7 +366,7 @@ export default function AdReviewTab() {
           <button
             type="button"
             onClick={() => { setOrder(order === 'desc' ? 'asc' : 'desc'); setPage(1); }}
-            aria-label={order === 'desc' ? 'Sort descending' : 'Sort ascending'}
+            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
             className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
           >
             {order === 'desc'
@@ -376,49 +395,32 @@ export default function AdReviewTab() {
         </div>
       ) : (
         <>
-          <div className="hidden md:block overflow-x-auto bg-card rounded-lg border border-border">
-            <table className="w-full min-w-[68rem] table-fixed divide-y divide-border">
-              <colgroup>
-                {COL_WIDTHS.map((width, i) => <col key={i} style={{ width }} />)}
-              </colgroup>
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className={th}>{sortHeader('podcast')}</th>
-                  <th className={th}>Episode</th>
-                  <th className={th}>{sortHeader('date')}</th>
-                  <th className={th}>Time</th>
-                  <th className={th}>{sortHeader('confidence')}</th>
-                  <th className={th}>Stage</th>
-                  <th className={th}>Status</th>
-                  <th className={th}>Resolution</th>
-                  <th className={th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {data.detections.map((d, index) => {
-                  const rowKey = keyOf(d, index);
-                  return (
-                  <tr key={rowKey} className="hover:bg-accent/50 transition-colors">
-                    <td className={td} title={d.feedTitle}>{d.feedTitle}</td>
-                    <td className="px-3 py-2 text-sm">
-                      <Link
-                        to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
-                        title={d.episodeTitle}
-                        className="block truncate text-primary hover:underline"
-                      >
-                        {d.episodeTitle}
-                      </Link>
-                      {d.sponsor && (
-                        <div className="text-xs text-muted-foreground truncate" title={d.sponsor}>{d.sponsor}</div>
-                      )}
-                    </td>
-                    <td className={td}>{formatDate(d.publishDate)}</td>
-                    <td className={td} title={`${Math.round(d.end - d.start)}s`}>{spanLabel(d)}</td>
-                    <td className={td}>{d.confidence != null ? d.confidence.toFixed(2) : '-'}</td>
-                    <td className={td}>{d.detectionStage ? <StageBadge stage={d.detectionStage} /> : '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap"><DetectionStatusBadge status={d.status} /></td>
-                    <td className="px-3 py-2 whitespace-nowrap"><ResolutionBadge resolution={d.resolution} /></td>
-                    <td className="px-3 py-2 whitespace-nowrap" data-testid="row-actions">
+          {/* Two-line rows flex to any viewport; the old fixed 9-column
+              table forced horizontal scroll below its 68rem floor. */}
+          <div
+            className="hidden md:block bg-card rounded-lg border border-border divide-y divide-border"
+            data-testid="detections-rows"
+            role="list"
+            aria-label="Detections"
+          >
+            {data.detections.map((d, index) => {
+              const rowKey = keyOf(d, index);
+              return (
+                <div key={rowKey} data-testid="detection-row" role="listitem" className="px-4 py-3 hover:bg-accent/50 transition-colors">
+                  {/* flex-wrap + the title's min-width floor: when badges and
+                      actions cannot fit beside a legible title (font scaling
+                      near the md breakpoint), they wrap below instead of
+                      clipping past the card edge. */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <Link
+                      to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
+                      title={d.episodeTitle}
+                      className="flex-1 min-w-40 truncate text-sm font-medium text-primary hover:underline"
+                    >
+                      {d.episodeTitle}
+                    </Link>
+                    <DetectionBadges d={d} />
+                    <div className="shrink-0">
                       <DetectionActions
                         d={d}
                         variant="row"
@@ -430,24 +432,24 @@ export default function AdReviewTab() {
                         onEdit={() => setEditing(d)}
                         busy={correctionMutation.isPending}
                       />
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="min-w-0 max-w-56 truncate" title={d.feedTitle}>{d.feedTitle}</span>
+                    <DetectionMeta d={d} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="md:hidden space-y-3" data-testid="detections-cards">
+          <div className="md:hidden space-y-3" data-testid="detections-cards" role="list" aria-label="Detections">
             {data.detections.map((d, index) => {
               const rowKey = keyOf(d, index);
               return (
-                <div key={rowKey} className="bg-card rounded-lg border border-border p-4 space-y-2">
+                <div key={rowKey} role="listitem" className="bg-card rounded-lg border border-border p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-xs text-muted-foreground min-w-0 truncate">{d.feedTitle}</span>
-                    <div className="flex gap-1.5 shrink-0">
-                      <DetectionStatusBadge status={d.status} />
-                      <ResolutionBadge resolution={d.resolution} />
-                    </div>
+                    <DetectionBadges d={d} />
                   </div>
                   <Link
                     to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
@@ -456,12 +458,8 @@ export default function AdReviewTab() {
                     {d.episodeTitle}
                   </Link>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span>{formatDate(d.publishDate)}</span>
-                    <span>{timeLabel(d)}</span>
-                    {d.confidence != null && <span>conf {d.confidence.toFixed(2)}</span>}
-                    {d.detectionStage && <StageBadge stage={d.detectionStage} />}
+                    <DetectionMeta d={d} />
                   </div>
-                  {d.sponsor && <div className="text-sm text-foreground">{d.sponsor}</div>}
                   <DetectionActions
                     d={d}
                     variant="card"

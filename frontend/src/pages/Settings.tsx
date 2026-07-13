@@ -15,6 +15,7 @@ import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
+import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
 import LLMProviderSection from './settings/LLMProviderSection';
@@ -234,7 +235,11 @@ function Settings() {
   const [timeoutsError, setTimeoutsError] = useState<string | null>(null);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
 
-  const { data: settings, isLoading: settingsLoading } = useQuery({
+  const {
+    data: settings,
+    isLoading: settingsLoading,
+    dataUpdatedAt: settingsUpdatedAt,
+  } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
@@ -376,9 +381,27 @@ function Settings() {
   // match (see fe-settings-history-1 / #234) or `hasChanges` never settles.
   const [formDirty, setFormDirty] = useState(false);
   const [settingsSnapshot, setSettingsSnapshot] = useState<typeof settings>(undefined);
-  if (settings && settings !== settingsSnapshot) {
-    setSettingsSnapshot(settings);
-    if (!formDirty) {
+  // After a save or reset lands, the refetch it triggers must re-seed the
+  // form even though formDirty is still true from the pre-save edits.
+  // Without this, clearing a prompt box and saving leaves the box empty
+  // while the backend serves the restored default, so hasChanges (state ''
+  // vs default text) never settles and Save Changes never goes away; a
+  // prompts reset likewise needed a browser refresh to show the defaults
+  // again (#513). State (not a ref) so the render-phase read is legal.
+  //
+  // The flag is consumed on the next completed fetch (dataUpdatedAt), not on
+  // object identity: react-query's structural sharing returns the SAME object
+  // when a refetch is deep-equal (e.g. resetting prompts already at their
+  // defaults), and keying on identity alone would strand the flag as true,
+  // where a later unrelated refetch would clobber genuinely-unsaved edits.
+  const [rehydratePending, setRehydratePending] = useState(false);
+  const [seenSettingsUpdatedAt, setSeenSettingsUpdatedAt] = useState(0);
+  const settingsJustFetched = settingsUpdatedAt !== seenSettingsUpdatedAt;
+  if (settings && (settings !== settingsSnapshot || settingsJustFetched)) {
+    if (settings !== settingsSnapshot) setSettingsSnapshot(settings);
+    if (settingsJustFetched) setSeenSettingsUpdatedAt(settingsUpdatedAt);
+    if (!formDirty || (rehydratePending && settingsJustFetched)) {
+      if (rehydratePending && settingsJustFetched) setRehydratePending(false);
       const d = settings.defaults;
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
@@ -584,14 +607,25 @@ function Settings() {
         }));
       }
       await Promise.all(tasks);
+      return payload;
     },
-    onSuccess: () => {
+    onSuccess: (payload) => {
       setPodcastIndexApiKey('');
       setPodcastIndexApiSecret('');
+      // Force a re-seed only when the save actually needs one: a cleared
+      // ('') string field comes back from the server as the restored default
+      // text, so without the re-seed the box stays empty and hasChanges
+      // never settles (#513). Any other save round-trips its own values, and
+      // skipping the forced re-seed preserves edits typed while the PUT was
+      // in flight. onSuccess (not onSettled) so a failed save cannot revert
+      // what the user just typed while the error banner is showing.
+      if (Object.values(payload).some((v) => v === '')) {
+        setRehydratePending(true);
+      }
     },
     // onSettled (not onSuccess) so a partial failure across the two writes
-    // still re-hydrates the form from server truth instead of leaving stale
-    // local state next to a write that did land.
+    // still refetches server truth instead of leaving stale query data next
+    // to a write that did land.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
@@ -634,6 +668,7 @@ function Settings() {
   const resetMutation = useMutation({
     mutationFn: resetSettings,
     onSuccess: () => {
+      setRehydratePending(true);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
@@ -642,6 +677,7 @@ function Settings() {
   const resetPromptsMutation = useMutation({
     mutationFn: resetPrompts,
     onSuccess: () => {
+      setRehydratePending(true);
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
@@ -984,13 +1020,11 @@ function Settings() {
       {hasChanges && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-md">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
-            <button
-              onClick={() => resetMutation.mutate()}
-              disabled={resetMutation.isPending}
-              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm"
-            >
-              {resetMutation.isPending ? 'Resetting...' : 'Reset All'}
-            </button>
+            <ConfirmResetButton
+              label="Reset All"
+              isPending={resetMutation.isPending}
+              onConfirm={() => resetMutation.mutate()}
+            />
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}

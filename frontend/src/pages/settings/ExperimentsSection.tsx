@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConfirmResetButton from './ConfirmResetButton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
@@ -218,13 +219,11 @@ function ExperimentsSection({
             }
           />
 
-          <button
-            onClick={onResetPrompts}
-            disabled={resetIsPending}
-            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm"
-          >
-            {resetIsPending ? 'Resetting...' : 'Reset Reviewer Prompts to Default'}
-          </button>
+          <ConfirmResetButton
+            label="Reset Reviewer Prompts to Default"
+            isPending={resetIsPending}
+            onConfirm={onResetPrompts}
+          />
         </div>
       </div>
     </CollapsibleSection>

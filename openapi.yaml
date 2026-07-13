@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.50.0
+  version: 2.51.3
   contact:
     name: MinusPod
   license:
@@ -7247,6 +7247,11 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential]
           description: Which detection stage found this ad
           example: first_pass
+        approved:
+          type: boolean
+          description: >-
+            Set on a held-for-review marker once its confirm correction is
+            recorded; the approval is applied by the next recut.
         validation:
           type: object
           description: Validation results from post-detection validation layer

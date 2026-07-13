@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import DropdownMenu, { DropdownMenuItem } from '../../components/DropdownMenu';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConfirmResetButton from './ConfirmResetButton';
 import NumberInput from '../../components/NumberInput';
 import { exportOpml, getSettings, downloadBackup } from '../../api/settings';
 import { copyText } from '../../utils/clipboard';
@@ -29,7 +30,6 @@ function DataManagementSection({
   const [opmlError, setOpmlError] = useState('');
   const [backupStatus, setBackupStatus] = useState<ActionStatus>('idle');
   const [backupError, setBackupError] = useState('');
-  const [resetConfirm, setResetConfirm] = useState(false);
 
   // opmlModifiedUrl/opmlOriginalUrl are non-null only when feed auth is on;
   // Copy URL is hidden otherwise (the /opml route 404s without a key).
@@ -217,29 +217,11 @@ function DataManagementSection({
       </div>
 
       <div className="mt-4 pt-4 border-t border-border">
-        <button
-          onClick={() => {
-            if (resetConfirm) {
-              onResetEpisodes();
-              setResetConfirm(false);
-            } else {
-              setResetConfirm(true);
-              setTimeout(() => setResetConfirm(false), 3000);
-            }
-          }}
-          disabled={resetIsPending}
-          className={`px-4 py-2 rounded transition-colors disabled:opacity-50 ${
-            resetConfirm
-              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/80'
-              : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-          }`}
-        >
-          {resetIsPending
-            ? 'Resetting...'
-            : resetConfirm
-            ? 'Click again to confirm'
-            : 'Reset All Episodes'}
-        </button>
+        <ConfirmResetButton
+          label="Reset All Episodes"
+          isPending={resetIsPending}
+          onConfirm={onResetEpisodes}
+        />
         {resetData && (
           <span className="ml-3 text-sm text-muted-foreground">
             Reset {resetData.episodesRemoved} episodes, freed {formatStorage(resetData.spaceFreedMb ?? 0)}
