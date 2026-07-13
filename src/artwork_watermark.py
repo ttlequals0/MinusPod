@@ -143,7 +143,7 @@ def composite_watermark(base_bytes: bytes) -> Optional[bytes]:
         badge, margin = _build_badge(chip_side, waveform)
         pad = int(w * BADGE_PADDING)
         # Inset the visible chip by `pad`; the layer is larger by `margin` on
-        # every side (shadow room), so shift the paste out by that margin. Paste
+        # every side (halo room), so shift the paste out by that margin. Paste
         # using the badge's own alpha as the mask -- no RGBA round-trip on the
         # (opaque) cover, and the JPEG output needs RGB anyway.
         x = max(0, w - chip_side - pad - margin)

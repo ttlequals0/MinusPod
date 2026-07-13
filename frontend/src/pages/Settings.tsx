@@ -15,6 +15,7 @@ import NotificationsSection from './settings/NotificationsSection';
 import AuthenticatedFeedsSection from './settings/AuthenticatedFeedsSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
+import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
 import LLMProviderSection from './settings/LLMProviderSection';
@@ -996,13 +997,11 @@ function Settings() {
       {hasChanges && (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-md">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
-            <button
-              onClick={() => resetMutation.mutate()}
-              disabled={resetMutation.isPending}
-              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm"
-            >
-              {resetMutation.isPending ? 'Resetting...' : 'Reset All'}
-            </button>
+            <ConfirmResetButton
+              label="Reset All"
+              isPending={resetMutation.isPending}
+              onConfirm={() => resetMutation.mutate()}
+            />
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}

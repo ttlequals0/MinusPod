@@ -15,11 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   separates it on dark, light, and busy covers alike. The badge
   revision bump changes the artwork cache-bust token so podcast apps
   re-fetch the updated art.
-- The three settings reset actions ("Reset Prompts to Default", "Reset
-  Reviewer Prompts to Default", "Reset All Episodes") are styled as
-  outlined destructive buttons and all require a second click to
-  confirm within 3 seconds (#513). Reset All Episodes already had the
-  confirm step; the prompt resets fired immediately.
+- The settings reset actions ("Reset Prompts to Default", "Reset
+  Reviewer Prompts to Default", "Reset All Episodes", and the save
+  bar's "Reset All") are styled as outlined destructive buttons and all
+  require a second click to confirm within 3 seconds (#513). Only
+  Reset All Episodes had the confirm step before; the others fired
+  immediately.
 - The Ad Review tab no longer scrolls horizontally on desktop. The
   fixed nine-column table (which forced a 68rem minimum width) is now a
   two-line row list that flexes to any viewport: episode title, badges,
