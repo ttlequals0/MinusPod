@@ -145,12 +145,15 @@ describe('AdReviewTab', () => {
     const cards = screen.getByTestId('detections-cards');
     expect(within(cards).getByRole('link', { name: 'Episode One' })).toBeTruthy();
     expect(within(cards).getByText('Acme')).toBeTruthy();
-    // The decision buttons live in their own equal-width grid row (so the
-    // labels cannot wrap lopsidedly) with Edit in a separate second row.
+    // All actions share one line: play | Confirm ad | Not an ad | Edit.
+    // The decision buttons grow but never shrink below their nowrap labels,
+    // so neither can wrap into a taller button than its neighbor.
     const confirm = within(cards).getByRole('button', { name: 'Confirm ad' });
-    expect(confirm.parentElement?.className).toContain('grid-cols-2');
     const edit = within(cards).getByRole('button', { name: 'Edit' });
-    expect(edit.parentElement).not.toBe(confirm.parentElement);
+    expect(edit.parentElement).toBe(confirm.parentElement);
+    expect(confirm.className).toContain('grow');
+    expect(confirm.className).toContain('whitespace-nowrap');
+    expect(edit.className).not.toContain('grow');
   });
 
   it('sorts from the filter-bar sort control and resets direction on column change', async () => {
