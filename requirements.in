@@ -33,7 +33,7 @@ python-slugify==8.0.4
 # container Python at 3.12: numpy<2.0 ships no cp313+ wheels, which is why
 # the Dockerfiles pin python3.12 via deadsnakes.
 numpy<2.0
-huggingface_hub>=1.22.0
+huggingface_hub>=1.23.0
 
 # Cross-episode ad training (fingerprinting + text matching)
 pyacoustid>=1.2.0
