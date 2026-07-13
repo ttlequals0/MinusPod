@@ -685,6 +685,10 @@ def _startup():
         sponsor_service.seed_initial_data()
         logger.info("Sponsor service initialized (leader)")
 
+        # Env-seeded feed auth must never fail closed without a key.
+        from main_app.feed_auth import ensure_feed_auth_key
+        ensure_feed_auth_key(db)
+
         # Start background RSS refresh thread
         refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
         refresh_thread.start()

@@ -18,6 +18,14 @@ MB = 1024 * 1024
 
 
 @pytest.fixture(autouse=True)
+def _no_db_setting(monkeypatch):
+    # Exercise the env-seed path of the env-backed cap; a DB row from
+    # another test module's Database singleton must not leak in.
+    import config as _config_mod
+    monkeypatch.setattr(_config_mod, '_db_setting', lambda key: None)
+
+
+@pytest.fixture(autouse=True)
 def _clear_cap_env(monkeypatch):
     monkeypatch.delenv('MAX_AUDIO_DOWNLOAD_MB', raising=False)
 

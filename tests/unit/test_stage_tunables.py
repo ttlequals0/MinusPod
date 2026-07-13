@@ -215,3 +215,32 @@ class TestEnvOverrideDetection:
 
     def test_unknown_key_returns_none(self):
         assert config.stage_tunable_env_override("not_a_key") is None
+
+
+class TestDbWinsOverEnv:
+    """Issue #491 consolidation: stage tunables follow the env-seeds-default
+    model like every other env-backed setting. A user's UI value wins; the
+    env var only supplies the default when no DB value exists."""
+
+    def test_db_value_wins_over_env(self, monkeypatch):
+        from config import get_stage_tunable
+        monkeypatch.setenv('DETECTION_TEMPERATURE', '0.9')
+        settings = {'detection_temperature': {'value': '0.2', 'is_default': False}}
+        assert get_stage_tunable('detection_temperature', settings) == 0.2
+
+    def test_env_supplies_default_when_no_db_value(self, monkeypatch):
+        from config import get_stage_tunable
+        monkeypatch.setenv('DETECTION_TEMPERATURE', '0.9')
+        assert get_stage_tunable('detection_temperature', {}) == 0.9
+
+    def test_alias_supplies_default_when_no_db_value(self, monkeypatch):
+        from config import get_stage_tunable
+        monkeypatch.delenv('DETECTION_MAX_TOKENS', raising=False)
+        monkeypatch.setenv('AD_DETECTION_MAX_TOKENS', '3000')
+        assert get_stage_tunable('detection_max_tokens', {}) == 3000
+
+    def test_empty_db_value_falls_back_to_env(self, monkeypatch):
+        from config import get_stage_tunable
+        monkeypatch.setenv('DETECTION_TEMPERATURE', '0.9')
+        settings = {'detection_temperature': {'value': '', 'is_default': True}}
+        assert get_stage_tunable('detection_temperature', settings) == 0.9

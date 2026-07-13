@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import DropdownMenu, { DropdownMenuItem } from '../../components/DropdownMenu';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import NumberInput from '../../components/NumberInput';
 import { exportOpml, getSettings, downloadBackup } from '../../api/settings';
 import { copyText } from '../../utils/clipboard';
-import { formatStorage } from './settingsUtils';
+import { BYTES_PER_MB, formatStorage } from './settingsUtils';
+
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -12,12 +14,16 @@ interface DataManagementSectionProps {
   onResetEpisodes: () => void;
   resetIsPending: boolean;
   resetData: { episodesRemoved: number; spaceFreedMb: number } | undefined;
+  maxRssBytes: number;
+  onMaxRssBytesChange: (bytes: number) => void;
 }
 
 function DataManagementSection({
   onResetEpisodes,
   resetIsPending,
   resetData,
+  maxRssBytes,
+  onMaxRssBytesChange,
 }: DataManagementSectionProps) {
   const [opmlStatus, setOpmlStatus] = useState<ActionStatus>('idle');
   const [opmlError, setOpmlError] = useState('');
@@ -182,6 +188,32 @@ function DataManagementSection({
           </button>
           {renderStatusIndicator(backupStatus, backupError)}
         </div>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-border">
+        <label htmlFor="maxRssMb" className="block text-sm font-medium text-foreground mb-2">
+          Max RSS feed size (MB)
+        </label>
+        <div className="flex items-center gap-3">
+          <NumberInput
+            id="maxRssMb"
+            value={Math.round(maxRssBytes / BYTES_PER_MB)}
+            min={1}
+            max={1048576}
+            fallback={200}
+            parse={(s) => parseInt(s, 10)}
+            onCommit={(mb) => {
+              // No backend ceiling (deliberately) and commit only real
+              // edits: a focus/blur must not clamp or re-round an
+              // env-configured value the user never touched.
+              if (mb !== Math.round(maxRssBytes / BYTES_PER_MB)) onMaxRssBytesChange(mb * BYTES_PER_MB);
+            }}
+          />
+          <span className="text-sm text-muted-foreground">MB (minimum 1)</span>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Upstream RSS feeds over this size are rejected during refresh. Default 200 MB.
+        </p>
       </div>
 
       <div className="mt-4 pt-4 border-t border-border">

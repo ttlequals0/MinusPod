@@ -183,7 +183,6 @@ function OllamaNumCtxField({
         step={512}
         placeholder="Blank = model default"
         value={draft}
-        disabled={!!entry.envOverride}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -193,7 +192,7 @@ function OllamaNumCtxField({
       />
       <p className="mt-1 text-sm text-muted-foreground">
         {entry.envOverride
-          ? `Set by ${entry.envOverride}; edit your environment to change.`
+          ? `Default from ${entry.envOverride}.`
           : "Ollama default (often 2048) silently truncates long prompts. Set to your model's context limit (8192+)."}
       </p>
     </div>

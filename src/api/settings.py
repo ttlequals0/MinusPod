@@ -30,6 +30,9 @@ from config import (
     coerce_bool_setting,
     STAGE_TUNABLE_PAYLOAD_KEYS,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    get_env_backed_int,
+    MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
+    MAX_AUDIO_DOWNLOAD_MB_MIN,
 )
 from audio_processor import NORMALIZE_PRESETS
 from offline_queue import (
@@ -282,6 +285,15 @@ def get_settings():
         min(AD_REVIEWER_PARALLEL_ADS_MAX, reviewer_parallel),
     )
 
+    max_artwork_bytes = get_env_backed_int(
+        'max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
+        ceiling=MAX_ARTWORK_BYTES_MAX, settings=settings)
+    max_rss_bytes = get_env_backed_int(
+        'max_rss_bytes', floor=MAX_RSS_BYTES_MIN, settings=settings)
+    max_audio_download_mb = get_env_backed_int(
+        'max_audio_download_mb', floor=MAX_AUDIO_DOWNLOAD_MB_MIN,
+        settings=settings)
+
     def _db_int(key, default):
         try:
             return int(_setting_value(settings, key, default))
@@ -292,7 +304,7 @@ def get_settings():
     transcribe_concurrent_chunks = _db_int('transcribe_concurrent_chunks', 4)
     transcribe_chunk_overlap_seconds = _db_int('transcribe_chunk_overlap_seconds', 30)
 
-    # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
+    # Per-stage LLM tunables: resolved value (DB > env > default) and env-default provenance.
     from config import (
         get_stage_tunable, stage_tunable_env_override,
         STAGE_TUNABLE_DEFAULTS, STAGE_TUNABLE_PAYLOAD_KEYS,
@@ -463,6 +475,9 @@ def get_settings():
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
+        'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),
+        'maxRssBytes': _sv('max_rss_bytes', max_rss_bytes),
+        'maxAudioDownloadMb': _sv('max_audio_download_mb', max_audio_download_mb),
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
@@ -484,11 +499,11 @@ def get_settings():
             'claudeModel': DEFAULT_MODEL,
             'verificationModel': DEFAULT_MODEL,
             'whisperModel': default_whisper_model,
-            'autoProcessEnabled': True,
+            'autoProcessEnabled': coerce_bool_setting(resolve_env_backed_default('auto_process_enabled')),
             'maxFeedEpisodes': 300,
             'onlyExposeProcessedDefault': False,
-            'artworkWatermarkEnabled': False,
-            'feedAuthEnabled': False,
+            'artworkWatermarkEnabled': coerce_bool_setting(resolve_env_backed_default('artwork_watermark_enabled')),
+            'feedAuthEnabled': coerce_bool_setting(resolve_env_backed_default('feed_auth_enabled')),
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
             'chaptersModel': CHAPTERS_MODEL,
@@ -536,6 +551,13 @@ def get_settings():
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
             'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+            'maxArtworkBytes': get_env_backed_int(
+                'max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
+                ceiling=MAX_ARTWORK_BYTES_MAX, settings={}),
+            'maxRssBytes': get_env_backed_int(
+                'max_rss_bytes', floor=MAX_RSS_BYTES_MIN, settings={}),
+            'maxAudioDownloadMb': get_env_backed_int(
+                'max_audio_download_mb', floor=MAX_AUDIO_DOWNLOAD_MB_MIN, settings={}),
             'transcribeMaxChunkSeconds': 600,
             'transcribeConcurrentChunks': 4,
             'transcribeChunkOverlapSeconds': 30,
@@ -567,6 +589,7 @@ def update_ad_detection_settings():
         _apply_processing_flags,
         _apply_min_cut_confidence,
         _apply_audio_fields,
+        _apply_size_caps,
         _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
@@ -664,6 +687,34 @@ def _apply_model_fields(db, data):
         db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
         logger.info(f"Updated chapters model to: {data['chaptersModel']}")
     return
+
+
+def _apply_size_caps(db, data):
+    """Persist the download/artwork/RSS size caps (env-backed, issue #491).
+
+    Validates every field before writing any, so a 400 never leaves part of
+    the payload persisted.
+    """
+    caps = (
+        ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
+        ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
+        ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
+    )
+    writes = []
+    for payload_key, db_key, floor, ceiling in caps:
+        if payload_key not in data:
+            continue
+        try:
+            n = int(data[payload_key])
+        except (TypeError, ValueError):
+            return error_response(f'{payload_key} must be an integer', 400)
+        if n < floor or (ceiling is not None and n > ceiling):
+            bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
+            return error_response(f'{payload_key} must be {bound}', 400)
+        writes.append((db_key, n))
+    for db_key, n in writes:
+        db.set_setting(db_key, str(n), is_default=False)
+        logger.info(f"Updated {db_key} to: {n}")
 
 
 def _apply_processing_flags(db, data):
@@ -1332,6 +1383,9 @@ def reset_ad_detection_settings():
     db.reset_setting('transcribe_chunk_overlap_seconds')
     db.reset_setting('ad_detection_parallel_windows')
     db.reset_setting('ad_reviewer_parallel_ads')
+    db.reset_setting('max_artwork_bytes')
+    db.reset_setting('max_rss_bytes')
+    db.reset_setting('max_audio_download_mb')
 
     # Reset LLM provider settings back to env var defaults
     db.reset_setting('llm_provider')

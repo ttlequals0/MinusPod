@@ -12,6 +12,7 @@ import shutil
 from config import (
     BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH,
     count_pending_review,
+    get_env_backed_int, MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX,
 )
 from artwork_watermark import composite_watermark, cover_badge_salt, badge_path
 from utils.episode_paths import episode_filename
@@ -59,16 +60,13 @@ def _detect_image_mime(data: bytes) -> Optional[str]:
 def _max_artwork_bytes() -> int:
     """Artwork size cap, configurable so operators can host very high-res
     podcast covers without a code change. Default is 25 MB so animated GIF
-    covers (e.g. the Podcasting 2.0 reference feed ships a ~40 MB GIF that
-    falls back to the upstream URL above the cap) and 3000x3000 JPEGs are
-    cached comfortably. Clamped to a sensible floor/ceiling so a typo
-    cannot turn this into a memory DoS.
+    covers and 3000x3000 JPEGs are cached comfortably; clamped so a typo
+    cannot turn this into a memory DoS. Env-backed: the UI value wins, the
+    env var seeds the default at boot (config.ENV_BACKED_SETTINGS).
     """
-    try:
-        raw = int(os.environ.get('MINUSPOD_MAX_ARTWORK_BYTES', 25 * 1024 * 1024))
-    except ValueError:
-        raw = 25 * 1024 * 1024
-    return max(64 * 1024, min(raw, 50 * 1024 * 1024))
+    return get_env_backed_int('max_artwork_bytes',
+                              floor=MAX_ARTWORK_BYTES_MIN,
+                              ceiling=MAX_ARTWORK_BYTES_MAX)
 
 logger = logging.getLogger(__name__)
 

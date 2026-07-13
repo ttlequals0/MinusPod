@@ -1,3 +1,5 @@
+export const BYTES_PER_MB = 1048576;
+
 import type { ClaudeModel } from '../../api/types';
 import { formatTimestamp } from '../../utils/format';
 

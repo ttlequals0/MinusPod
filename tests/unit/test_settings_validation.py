@@ -608,3 +608,89 @@ class TestAudioCueCaptureIntroOutroValidation:
         assert data['audioCueCaptureMaxIntroSeconds']['isDefault'] is True
         assert data['audioCueCaptureMaxOutroSeconds']['value'] == 60.0
         assert data['audioCueCaptureMaxOutroSeconds']['isDefault'] is True
+
+
+class TestSizeCapSettings:
+    """Size caps (issue #491): env-backed with UI/API controls."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_size_caps_with_defaults(self, client):
+        data = self._get_settings(client)
+        assert data['maxArtworkBytes']['value'] == 25 * 1024 * 1024
+        assert data['maxRssBytes']['value'] == 200 * 1024 * 1024
+        assert data['maxAudioDownloadMb']['value'] == 500
+        assert data['defaults']['maxArtworkBytes'] == 25 * 1024 * 1024
+        assert data['defaults']['maxRssBytes'] == 200 * 1024 * 1024
+        assert data['defaults']['maxAudioDownloadMb'] == 500
+
+    def test_put_persists_size_caps(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'maxArtworkBytes': 10 * 1024 * 1024,
+                'maxRssBytes': 100 * 1024 * 1024,
+                'maxAudioDownloadMb': 750,
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+        data = self._get_settings(client)
+        assert data['maxArtworkBytes']['value'] == 10 * 1024 * 1024
+        assert data['maxArtworkBytes']['isDefault'] is False
+        assert data['maxRssBytes']['value'] == 100 * 1024 * 1024
+        assert data['maxAudioDownloadMb']['value'] == 750
+
+    def test_put_rejects_out_of_range_artwork_cap(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'maxArtworkBytes': 10}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'maxArtworkBytes' in json.loads(resp.data)['error']
+
+    def test_put_rejects_non_integer_download_cap(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'maxAudioDownloadMb': 'lots'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_reset_restores_size_cap_defaults(self, client):
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'maxAudioDownloadMb': 900}),
+            content_type='application/json',
+        )
+        resp = client.post('/api/v1/settings/ad-detection/reset')
+        assert resp.status_code == 200
+        data = self._get_settings(client)
+        assert data['maxAudioDownloadMb']['value'] == 500
+        assert data['maxAudioDownloadMb']['isDefault'] is True
+
+
+class TestSizeCapPutAtomicity:
+    def test_invalid_field_rejects_whole_payload(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'maxArtworkBytes': 200000, 'maxAudioDownloadMb': 0}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['maxArtworkBytes']['value'] == 25 * 1024 * 1024, \
+            "A 400 must not leave earlier caps in the payload persisted"
+
+    def test_defaults_blob_is_clamped(self, client):
+        import os
+        os.environ['MINUSPOD_MAX_ARTWORK_BYTES'] = '1000'
+        try:
+            data = json.loads(client.get('/api/v1/settings').data)
+            assert data['defaults']['maxArtworkBytes'] == 64 * 1024
+        finally:
+            del os.environ['MINUSPOD_MAX_ARTWORK_BYTES']

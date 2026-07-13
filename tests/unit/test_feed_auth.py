@@ -180,3 +180,37 @@ def test_decorator_logs_exact_line(flask_client, caplog):
                for r in caplog.records)
     # the key value itself never appears in logs
     assert all(KEY not in r.message for r in caplog.records)
+
+
+class TestEnsureFeedAuthKey:
+    """Env-seeded FEED_AUTH_ENABLED=true must not fail closed with no key:
+    boot mints one exactly like the UI enable path (and clears etags so the
+    refresher re-renders feeds with the new auth state)."""
+
+    def _db(self, enabled, key):
+        from unittest.mock import MagicMock
+        db = MagicMock()
+        db.get_setting_bool.return_value = enabled
+        db.get_setting.return_value = key
+        return db
+
+    def test_mints_key_when_enabled_without_one(self):
+        from main_app.feed_auth import ensure_feed_auth_key
+        db = self._db(True, None)
+        ensure_feed_auth_key(db)
+        args, kwargs = db.set_setting.call_args
+        assert args[0] == 'feed_auth_key' and args[1]
+        assert kwargs.get('is_default') is False
+        db.clear_all_podcast_etags.assert_called_once()
+
+    def test_noop_when_key_exists(self):
+        from main_app.feed_auth import ensure_feed_auth_key
+        db = self._db(True, 'existing-key')
+        ensure_feed_auth_key(db)
+        db.set_setting.assert_not_called()
+
+    def test_noop_when_disabled(self):
+        from main_app.feed_auth import ensure_feed_auth_key
+        db = self._db(False, None)
+        ensure_feed_auth_key(db)
+        db.set_setting.assert_not_called()

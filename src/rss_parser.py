@@ -11,7 +11,7 @@ import requests
 
 from urllib.parse import urlparse
 
-from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
+from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN, get_env_backed_int
 from defusedxml.common import DefusedXmlException
 from defusedxml.ElementTree import fromstring as defused_fromstring
 
@@ -35,14 +35,11 @@ _FEED_CONTENT_TYPES = frozenset({
 
 def _max_rss_bytes() -> int:
     """Cap the RSS body size the parser is willing to ingest. Default 200 MB
-    covers the largest legitimate feeds (3k+ episodes); operators with
-    pathological feeds can raise via ``MINUSPOD_MAX_RSS_BYTES``. Floor at
-    1 MB so a typo can't starve legitimate feeds."""
-    try:
-        raw = int(os.environ.get('MINUSPOD_MAX_RSS_BYTES', 200 * 1024 * 1024))
-    except ValueError:
-        raw = 200 * 1024 * 1024
-    return max(1 * 1024 * 1024, raw)
+    covers the largest legitimate feeds (3k+ episodes); floor at 1 MB so a
+    typo can't starve legitimate feeds. Env-backed: the UI value wins, the
+    env var MINUSPOD_MAX_RSS_BYTES seeds the default at boot.
+    """
+    return get_env_backed_int('max_rss_bytes', floor=MAX_RSS_BYTES_MIN)
 
 
 def _feed_trust() -> URLTrust:

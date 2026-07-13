@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.49.0
+  version: 2.50.0
   contact:
     name: MinusPod
   license:
@@ -3464,6 +3464,22 @@ paths:
                   description: |
                     Number of ads the reviewer asks the LLM about at the same time.
                   example: 4
+                maxArtworkBytes:
+                  type: integer
+                  minimum: 65536
+                  maximum: 52428800
+                  description: Cover art download size cap in bytes.
+                  example: 26214400
+                maxRssBytes:
+                  type: integer
+                  minimum: 1048576
+                  description: RSS response body size cap in bytes (no ceiling).
+                  example: 209715200
+                maxAudioDownloadMb:
+                  type: integer
+                  minimum: 1
+                  description: Per-episode audio download cap in MB (no ceiling).
+                  example: 500
                 llmProvider:
                   type: string
                   description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
@@ -7744,6 +7760,31 @@ components:
               maximum: 32
             isDefault:
               type: boolean
+        maxArtworkBytes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 65536
+              maximum: 52428800
+            isDefault:
+              type: boolean
+        maxRssBytes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1048576
+            isDefault:
+              type: boolean
+        maxAudioDownloadMb:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -7931,6 +7972,12 @@ components:
               type: integer
               minimum: 1
               maximum: 32
+            maxArtworkBytes:
+              type: integer
+            maxRssBytes:
+              type: integer
+            maxAudioDownloadMb:
+              type: integer
             autoProcessEnabled:
               type: boolean
             maxFeedEpisodes:

@@ -3,7 +3,7 @@ import os
 import logging
 from typing import Optional, Dict, Any, List
 
-from config import normalize_model_key
+from config import normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default
 from secrets_crypto import CryptoUnavailableError, decrypt, encrypt, is_ciphertext
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ class SettingsMixin:
             return True
 
         if key in STAGE_TUNABLE_DEFAULTS:
-            # Stage tunables resolve env > DB > default at read time. Clear the
+            # Stage tunables resolve DB > env > default at read time. Clear the
             # row (empty value, is_default=True) so that resolution takes over --
             # mirrors the clear path in api.settings._apply_stage_tunables and
             # avoids stringifying None for the reasoning budget/level defaults.
@@ -148,24 +148,16 @@ class SettingsMixin:
             'vtt_transcripts_enabled': 'true',
             'chapters_enabled': 'true',
             'chapters_model': chapters_default,
-            'llm_provider': os.environ.get('LLM_PROVIDER', 'anthropic'),
             'openai_base_url': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
             'pricing_source_mode': 'auto',
             'min_cut_confidence': '0.80',
-            'auto_process_enabled': 'true',
-            'artwork_watermark_enabled': 'false',
             # feed_auth_key is deliberately absent: reset must never wipe a
             # live key (rotation is an explicit action).
-            'feed_auth_enabled': 'false',
-            'audio_bitrate': '128k',
             'audio_normalize_enabled': 'false',
             'audio_normalize_intensity': 'normal',
             'transcribe_max_chunk_seconds': os.environ.get('TRANSCRIBE_MAX_CHUNK_SECONDS', '600'),
             'transcribe_concurrent_chunks': os.environ.get('TRANSCRIBE_CONCURRENT_CHUNKS', '4'),
             'transcribe_chunk_overlap_seconds': os.environ.get('TRANSCRIBE_CHUNK_OVERLAP_SECONDS', '30'),
-            'skip_flac_compression': os.environ.get('SKIP_FLAC_COMPRESSION', 'false'),
-            'ad_detection_parallel_windows': os.environ.get('AD_DETECTION_PARALLEL_WINDOWS', '4'),
-            'ad_reviewer_parallel_ads': os.environ.get('AD_REVIEWER_PARALLEL_ADS', '4'),
             'whisper_backend': os.environ.get('WHISPER_BACKEND', 'local'),
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
@@ -204,6 +196,13 @@ class SettingsMixin:
             'silence_snap_min_duration_seconds': str(SILENCE_SNAP_MIN_DURATION_SECONDS),
             'silence_snap_max_distance_seconds': str(SILENCE_SNAP_MAX_DISTANCE_SECONDS),
         }
+
+        env_backed_keys = {k for k, _, _, _ in ENV_BACKED_SETTINGS}
+        if key in env_backed_keys:
+            # Registry owns the default (env-validated); the literals dict
+            # must not restate env names and fallbacks.
+            self.set_setting(key, resolve_env_backed_default(key), is_default=True)
+            return True
 
         if key in defaults:
             self.set_setting(key, defaults[key], is_default=True)

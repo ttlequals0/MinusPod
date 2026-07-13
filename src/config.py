@@ -1132,10 +1132,14 @@ def _coerce_tunable(key: str, raw: Any, source_label: str) -> Optional[Any]:
 
 
 def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
-    """Resolve env > DB > default for a per-stage tunable.
+    """Resolve DB > env > default for a per-stage tunable.
 
-    Out-of-range or malformed values produce a WARNING and the default is
-    returned, never an exception, so a bad value in the DB never blocks
+    Same precedence as every other env-backed setting: a value saved in the
+    Settings UI wins, the env var supplies the default when no UI value
+    exists (issue #491 consolidation; env used to win here).
+
+    Out-of-range or malformed values produce a WARNING and the next source
+    is used, never an exception, so a bad value in the DB never blocks
     processing.
 
     Args:
@@ -1151,21 +1155,8 @@ def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
         raise KeyError(f"Unknown stage tunable: {key!r}")
     default = STAGE_TUNABLE_DEFAULTS[key]
 
-    env_name = STAGE_TUNABLE_ENV_VARS[key]
-    env_val = os.environ.get(env_name)
-    used_env = env_name
-    if env_val is None:
-        alias = STAGE_TUNABLE_ENV_ALIASES.get(key)
-        if alias:
-            env_val = os.environ.get(alias)
-            if env_val is not None:
-                used_env = alias
-    if env_val is not None and env_val.strip() != "":
-        coerced = _coerce_tunable(key, env_val, used_env)
-        return coerced if coerced is not None else default
-
-    # DB lookup. Caller-supplied dict takes precedence; otherwise use the
-    # shared TTL cache so stage code calling this on every window doesn't
+    # DB lookup first. Caller-supplied dict takes precedence; otherwise use
+    # the shared TTL cache so stage code calling this on every window doesn't
     # hammer SQLite. 5s TTL still propagates Settings UI changes promptly.
     db_val: Optional[str] = None
     if settings is not None:
@@ -1188,15 +1179,30 @@ def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
 
     if db_val is not None and str(db_val).strip() != "":
         coerced = _coerce_tunable(key, db_val, f"settings[{key}]")
+        if coerced is not None:
+            return coerced
+
+    env_name = STAGE_TUNABLE_ENV_VARS[key]
+    env_val = os.environ.get(env_name)
+    used_env = env_name
+    if env_val is None:
+        alias = STAGE_TUNABLE_ENV_ALIASES.get(key)
+        if alias:
+            env_val = os.environ.get(alias)
+            if env_val is not None:
+                used_env = alias
+    if env_val is not None and env_val.strip() != "":
+        coerced = _coerce_tunable(key, env_val, used_env)
         return coerced if coerced is not None else default
 
     return default
 
 
 def stage_tunable_env_override(key: str) -> Optional[str]:
-    """Return the active env-var name that's overriding this key, or None.
+    """Return the env-var name supplying this key's default, or None.
 
-    The Settings UI consults this to render env-overridden controls read-only.
+    Env no longer beats a UI-saved value (issue #491 consolidation); the
+    Settings UI shows this as informational provenance, not a lock.
     """
     if key not in STAGE_TUNABLE_DEFAULTS:
         return None
@@ -1320,6 +1326,76 @@ def _validate_reviewer_parallel(value: str) -> bool:
     return AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX
 
 
+def _validate_positive_int(value: str) -> bool:
+    """Loose boot-time gate for size caps; reads clamp to the MIN/MAX
+    constants below, so an oversized env value degrades to the clamp
+    rather than being discarded for the fallback default."""
+    try:
+        return int(value) > 0
+    except (ValueError, TypeError):
+        return False
+
+
+# Size-cap bounds (issue #491). Single owner shared by get_env_backed_int,
+# the settings API validation, and the runtime consumers.
+MAX_ARTWORK_BYTES_MIN = 64 * 1024
+MAX_ARTWORK_BYTES_MAX = 50 * 1024 * 1024
+MAX_RSS_BYTES_MIN = 1024 * 1024
+MAX_AUDIO_DOWNLOAD_MB_MIN = 1
+# Advisory threshold only -- the download cap is the disk-fill guard, so
+# values past 10 GB log a warning but are honored (no hard ceiling; a
+# clamp would regress deployments that deliberately run above it).
+MAX_AUDIO_DOWNLOAD_MB_ADVISORY = 10240
+
+
+def _db_setting(key: str):
+    """Settings point read for env-backed resolution; the late import dodges
+    the database/api import cycle (processing_timeouts pattern)."""
+    try:
+        from database import Database
+        return Database().get_setting(key)
+    except Exception as e:
+        # WARNING, not debug: a failed read here silently reverts a
+        # UI-customized value to its env/default for this call.
+        _tunable_logger.warning("Could not read setting %s from DB, using env/default: %s", key, e)
+        return None
+
+
+def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
+                       settings: dict = None) -> int:
+    """Resolve an env-backed integer setting: DB value > env seed > fallback.
+
+    The single read path for the ENV_BACKED_SETTINGS integer keys. A value
+    saved in the Settings UI wins; the env var seeds the default at boot.
+    Malformed stored values fall back to the validated registry default, and
+    the result is clamped to [floor, ceiling].
+
+    Args:
+        settings: Optional pre-loaded dict from db.get_all_settings() (the
+            Settings GET handler resolves everything off one query).
+    """
+    raw = None
+    if settings is not None:
+        entry = settings.get(key)
+        if isinstance(entry, dict):
+            raw = entry.get('value')
+        else:
+            raw = getattr(entry, 'value', entry)
+    else:
+        raw = _db_setting(key)
+    if raw is None or str(raw).strip() == '':
+        raw = resolve_env_backed_default(key)
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        n = int(resolve_env_backed_default(key))
+    if ceiling is not None:
+        n = min(ceiling, n)
+    if floor is not None:
+        n = max(floor, n)
+    return n
+
+
 # Registry of settings whose default is an environment variable.
 #
 # Each tuple: (db_key, env_var, fallback_default, optional_validator)
@@ -1350,6 +1426,18 @@ ENV_BACKED_SETTINGS = (
         str(AD_REVIEWER_PARALLEL_ADS_DEFAULT),
         _validate_reviewer_parallel,
     ),
+    # Size caps (issue #491 follow-up): previously env-only knobs. Units
+    # match the historical env vars (bytes for artwork/RSS, MB for audio
+    # download) so existing deployments keep working unchanged.
+    ('max_artwork_bytes', 'MINUSPOD_MAX_ARTWORK_BYTES', str(25 * 1024 * 1024), _validate_positive_int),
+    ('max_rss_bytes', 'MINUSPOD_MAX_RSS_BYTES', str(200 * 1024 * 1024), _validate_positive_int),
+    ('max_audio_download_mb', 'MAX_AUDIO_DOWNLOAD_MB', '500', _validate_positive_int),
+    # Deploy-posture booleans: env seeds the initial state so a fresh
+    # deploy is fully configurable from compose; the UI wins after the
+    # first edit like every other env-backed setting.
+    ('auto_process_enabled', 'AUTO_PROCESS_ENABLED', 'true', _validate_bool_string),
+    ('feed_auth_enabled', 'FEED_AUTH_ENABLED', 'false', _validate_bool_string),
+    ('artwork_watermark_enabled', 'ARTWORK_WATERMARK_ENABLED', 'false', _validate_bool_string),
 )
 
 
