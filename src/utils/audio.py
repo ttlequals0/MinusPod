@@ -14,6 +14,28 @@ from utils.subprocess_registry import tracked_run
 logger = logging.getLogger(__name__)
 
 
+def get_audio_codec(audio_path: str) -> Optional[str]:
+    """Codec name of the first audio stream via ffprobe (e.g. 'mp3',
+    'aac'), or None when it cannot be determined."""
+    cmd = [
+        'ffprobe', '-v', 'error',
+        '-select_streams', 'a:0',
+        '-show_entries', 'stream=codec_name',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        audio_path
+    ]
+    try:
+        result = tracked_run(cmd, capture_output=True, text=True,
+                             timeout=FFPROBE_TIMEOUT)
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip().lower()
+        logger.warning(f"ffprobe codec query failed for {audio_path}: "
+                       f"{result.stderr or 'no output'}")
+    except Exception as e:
+        logger.warning(f"Codec query failed for {audio_path}: {e}")
+    return None
+
+
 def get_audio_duration(audio_path: str) -> Optional[float]:
     """Get audio duration in seconds using ffprobe.
 

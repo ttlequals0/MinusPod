@@ -62,6 +62,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## P
 
+**Pass-through** - A per-feed toggle that turns processing off entirely: episodes are downloaded and served exactly as published, and the feed URL stays the same so processing can resume later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
+
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)

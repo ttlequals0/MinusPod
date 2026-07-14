@@ -113,6 +113,62 @@ class AudioProcessor:
         """
         return AudioMetadata.get_duration(self.replace_audio_path) or 1.0
 
+    def convert_to_mp3(self, input_path: str) -> Optional[str]:
+        """Transcode an episode to MP3 at this instance's bitrate, with no
+        other changes. Used by pass-through mode (#521) for non-MP3
+        enclosures: the serving stack names files .mp3 and declares
+        audio/mpeg, so other containers must be converted to stay playable.
+        Returns the new file's path, or None on failure."""
+        if not os.path.exists(input_path):
+            logger.error(f"Convert input not found: {input_path}")
+            return None
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.converted.mp3') as tmp:
+            output_path = tmp.name
+
+        success = False
+        try:
+            duration = self.get_audio_duration(input_path) or 0
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-vn',
+                '-acodec', 'libmp3lame',
+                '-ab', self.bitrate,
+                output_path,
+            ]
+            timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
+            logger.info("Running FFMPEG convert-to-mp3")
+            result = tracked_run(cmd, capture_output=True, timeout=timeout)
+
+            if result.returncode != 0:
+                try:
+                    stderr_text = result.stderr.decode('utf-8', errors='replace')
+                except Exception:
+                    stderr_text = str(result.stderr)[:500]
+                logger.error(f"FFMPEG convert failed: {stderr_text}")
+                return None
+
+            if not self.get_audio_duration(output_path):
+                logger.error("Convert output unreadable")
+                return None
+
+            success = True
+            return output_path
+
+        except subprocess.TimeoutExpired:
+            logger.error("FFMPEG convert timed out")
+            return None
+        except Exception as e:
+            logger.error(f"Convert failed: {e}")
+            return None
+        finally:
+            if not success and os.path.exists(output_path):
+                try:
+                    os.unlink(output_path)
+                except OSError:
+                    pass
+
     def normalize_audio(self, input_path: str,
                         intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> Optional[str]:
         """Run a second ffmpeg pass to even out loudness across an episode

@@ -64,6 +64,10 @@ export interface Feed {
   differentialFetchEffective?: boolean;
   // Server-side heuristic: enclosure URL chain passes through a known DAI prefix domain.
   daiLikely?: boolean;
+  // The show's website from the channel-level RSS <link>; feed detail only.
+  websiteUrl?: string | null;
+  // Pass-through (#521): episodes are downloaded and served untouched.
+  passthroughEnabled?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

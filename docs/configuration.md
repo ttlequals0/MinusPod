@@ -103,6 +103,12 @@ Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off 
 
 <img src="screenshots/cover-art-badge.png" width="200">
 
+### Pass-through mode
+
+Each feed's settings page has a **Pass-through** toggle. When it is on, MinusPod stops processing that feed's episodes entirely: each new episode is downloaded and served exactly as published, with no transcription, ad detection, or cutting. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
+
+The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and turning the toggle off resumes full processing for new episodes. Two caveats: enclosures that are not MP3 get converted to MP3 (the serving stack requires it), and the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the toggle is on, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
+
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.53.1
+  version: 2.54.0
   contact:
     name: MinusPod
   license:
@@ -630,7 +630,12 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-in for the cross-fetch differential. When on, each episode is fetched a second time with a different podcast-client User-Agent and the two files are diffed to find dynamically inserted audio. null and false both read as off.
+                  description: Per-feed cross-fetch differential setting. When on, each episode is fetched a second time with a different podcast-client User-Agent and the two files are diffed to find dynamically inserted audio. Null means auto, which runs the stage on feeds that look DAI-served; false always disables it.
+                passthroughEnabled:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: When true, episodes on this feed are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
                 maxEpisodes:
                   type:
                     - integer
@@ -6993,6 +6998,16 @@ components:
         differentialFetchEffective:
           type: boolean
           description: Whether the cross-fetch differential stage will run for this feed, resolved from the per-feed flag (null means auto) plus the DAI signals. Feed detail only.
+        websiteUrl:
+          type:
+            - string
+            - 'null'
+          description: The show's website from the channel-level RSS link element. Feed detail only; null when the feed does not declare one.
+        passthroughEnabled:
+          type:
+            - boolean
+            - 'null'
+          description: When true, episodes are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
         maxEpisodes:
           type:
             - integer

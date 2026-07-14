@@ -201,6 +201,16 @@ function FeedDetail() {
     );
   }
 
+  // Hover feedback only when the artwork is actually a link (#521).
+  const feedArtwork = (
+    <Artwork
+      src={feed.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
+      alt={feed.title}
+      className={`w-full h-full object-cover rounded-lg${
+        feed.websiteUrl ? ' hover:opacity-90 transition-opacity' : ''}`}
+    />
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -228,11 +238,17 @@ function FeedDetail() {
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
-            <Artwork
-              src={feed.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
-              alt={feed.title}
-              className="w-full h-full object-cover rounded-lg"
-            />
+            {feed.websiteUrl ? (
+              <a
+                href={feed.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open the ${feed.title} website`}
+                className="block w-full h-full rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                {feedArtwork}
+              </a>
+            ) : feedArtwork}
           </div>
           <div className="flex-1 min-w-0">
             {isEditingTitle ? (
