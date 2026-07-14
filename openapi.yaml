@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.51.3
+  version: 2.52.0
   contact:
     name: MinusPod
   license:
@@ -220,6 +220,12 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Feed'
+                  lastRefreshCompletedAt:
+                    type:
+                      - string
+                      - 'null'
+                    format: date-time
+                    description: When an all-feeds refresh pass last finished (15-minute scheduler or the manual Refresh All action). Null until the first pass completes.
     post:
       tags:
         - Feeds
@@ -4409,7 +4415,8 @@ paths:
                       - Auth Failure
                       - Limit Exceeded
                       - Rate Limit Structural
-                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap.
+                      - Feed Refresh Failed
+                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -6861,6 +6868,17 @@ components:
             - 'null'
           format: date-time
           description: Last RSS refresh timestamp
+        lastRefreshError:
+          type:
+            - string
+            - 'null'
+          description: Error from the current run of consecutive refresh failures. Only set once the run reaches the alert threshold (3 counted failures); null while the feed refreshes cleanly or during a short blip.
+        lastRefreshErrorAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the current run of refresh failures started. Cleared on the next successful refresh.
         createdAt:
           type: string
           format: date-time
@@ -8413,6 +8431,7 @@ components:
               - Auth Failure
               - Limit Exceeded
               - Rate Limit Structural
+              - Feed Refresh Failed
         smtpHost:
           type: string
         smtpPort:

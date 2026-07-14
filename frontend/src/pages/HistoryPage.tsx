@@ -8,8 +8,9 @@ import {
   downloadBlob,
   HistoryQueryParams,
 } from '../api/history';
-import { getFeeds } from '../api/feeds';
+import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
+import { formatDateTime } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
@@ -85,10 +86,7 @@ function HistoryPage() {
     queryFn: getProcessingHistoryStats,
   });
 
-  const { data: feeds } = useQuery({
-    queryKey: ['feeds'],
-    queryFn: getFeeds,
-  });
+  const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -111,11 +109,6 @@ function HistoryPage() {
     } finally {
       setExporting(null);
     }
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDuration = (seconds: number | null) => {
@@ -274,7 +267,7 @@ function HistoryPage() {
                 {entry.episodeTitle}
               </Link>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>{formatDate(entry.processedAt)}</span>
+                <span>{formatDateTime(entry.processedAt)}</span>
                 <span>{formatDuration(entry.processingDurationSeconds)}</span>
                 <span>Ads: {entry.adsDetected}</span>
                 {entry.llmCost != null && entry.llmCost > 0 && <span>${entry.llmCost.toFixed(2)}</span>}
@@ -336,7 +329,7 @@ function HistoryPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                      {formatDate(entry.processedAt)}
+                      {formatDateTime(entry.processedAt)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {formatDuration(entry.processingDurationSeconds)}

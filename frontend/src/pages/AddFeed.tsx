@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { addFeed, importOpml, OpmlImportResult, getFeeds } from '../api/feeds';
+import { addFeed, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -180,10 +180,7 @@ function AddFeed() {
   const podcastIndexConfigured = settings?.podcastIndexApiKeyConfigured ?? false;
 
   // Existing feeds for "already added" detection
-  const { data: feedsData } = useQuery({
-    queryKey: ['feeds'],
-    queryFn: getFeeds,
-  });
+  const { data: feedsData } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
   const subscribedUrls = useMemo(() => {
     if (!feedsData) return new Set<string>();
     return new Set(feedsData.map((f) => f.sourceUrl));

@@ -42,6 +42,14 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
               Updated {new Date(feed.lastRefreshed).toLocaleDateString()}
             </p>
           )}
+          {feed.lastRefreshError && (
+            <p
+              className="text-xs text-amber-600 dark:text-amber-400 mt-1"
+              title={feed.lastRefreshError}
+            >
+              Refresh failing
+            </p>
+          )}
           <FeedStatusSummary counts={feed.statusCounts} className="mt-2" />
         </div>
       </div>

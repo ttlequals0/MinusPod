@@ -30,6 +30,11 @@ export interface Feed {
   processedCount?: number;
   statusCounts?: EpisodeStatusCounts;
   lastRefreshed?: string;
+  // Set while the feed's origin RSS is failing to refresh; cleared on the
+  // next successful refresh. lastRefreshErrorAt is the start of the
+  // current failure run.
+  lastRefreshError?: string | null;
+  lastRefreshErrorAt?: string | null;
   createdAt?: string;
   lastEpisodeDate?: string;
   networkId?: string;

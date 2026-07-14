@@ -5,4 +5,5 @@ export const EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'Auth Failure', label: 'Auth Failure' },
   { value: 'Limit Exceeded', label: 'Limit Exceeded' },
   { value: 'Rate Limit Structural', label: 'Rate Limit Structural' },
+  { value: 'Feed Refresh Failed', label: 'Feed Refresh Failed' },
 ];

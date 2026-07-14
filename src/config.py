@@ -149,6 +149,15 @@ SETTINGS_CACHE_TTL = 60         # Seconds to cache settings
 # Background Processing (seconds)
 # ============================================================
 RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
+# Feed Refresh Failed alerting (#516). A failure only increments the
+# per-feed counter when the previous counted failure is at least the
+# interval old (on-demand refreshes triggered by client polls would
+# otherwise hit the threshold within minutes); the alert fires when the
+# count reaches the threshold, i.e. after 20+ minutes of continuous
+# failure (30-45 min at the 15-minute scheduler cadence). The API also
+# gates lastRefreshError on the threshold so the UI marker matches.
+FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
+FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 AUTO_PROCESS_INITIAL_BACKOFF = 30   # Initial backoff when queue busy
 AUTO_PROCESS_MAX_BACKOFF = 300      # Maximum backoff (5 min)
 GRACEFUL_SHUTDOWN_TIMEOUT = 300     # Seconds to wait for processing

@@ -8,7 +8,7 @@ import {
   type DetectionStatusFilter,
   type ReviewDetection,
 } from '../../api/detections';
-import { episodeOriginalUrl, getFeeds, reprocessEpisode } from '../../api/feeds';
+import { episodeOriginalUrl, feedsQueryOptions, reprocessEpisode } from '../../api/feeds';
 import { submitCorrection, type PatternCorrection } from '../../api/patterns';
 import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import AdReviewModal, {
@@ -260,7 +260,7 @@ export default function AdReviewTab() {
     }),
   });
 
-  const { data: feeds } = useQuery({ queryKey: ['feeds'], queryFn: getFeeds });
+  const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
   const sortedFeeds = feeds
     ? [...feeds].sort((a, b) => a.title.localeCompare(b.title))
     : undefined;

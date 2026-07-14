@@ -181,6 +181,8 @@ class PodcastMixin:
                 *self._DIFFERENTIAL_COLS,
                 'max_episodes', 'etag',
                 'last_modified_header', 'only_expose_processed_episodes',
+                'refresh_failure_count', 'last_refresh_error',
+                'last_refresh_error_at', 'last_refresh_failure_at',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)
@@ -200,6 +202,23 @@ class PodcastMixin:
         )
         conn.commit()
         return True
+
+    def clear_refresh_failure_state(self, slug: str):
+        """Reset the refresh-failure columns after a successful refresh.
+
+        The guard lives in the WHERE clause so a failure written by a
+        concurrent refresh attempt is cleared even when the caller's row
+        snapshot predates it, and clean feeds cost no write.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE podcasts
+               SET refresh_failure_count = 0, last_refresh_error = NULL,
+                   last_refresh_error_at = NULL, last_refresh_failure_at = NULL
+               WHERE slug = ? AND refresh_failure_count > 0""",
+            (slug,)
+        )
+        conn.commit()
 
     def get_podcast_tags(self, slug: str) -> Dict[str, List[str]]:
         """Return the source breakdown of a podcast's tags.

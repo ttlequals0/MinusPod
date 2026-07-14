@@ -1,13 +1,14 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
+import { formatDateTime } from '../utils/format';
 
 function Dashboard() {
   const queryClient = useQueryClient();
@@ -18,10 +19,9 @@ function Dashboard() {
   const [actionError, setActionError] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: feeds, isLoading, error } = useQuery({
-    queryKey: ['feeds'],
-    queryFn: getFeeds,
-  });
+  const { data, isLoading, error } = useQuery(feedsQueryOptions);
+  const feeds = data?.feeds;
+  const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
 
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
@@ -85,7 +85,17 @@ function Dashboard() {
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
-        <h1 className="text-2xl font-bold text-foreground w-full sm:w-auto">Feeds</h1>
+        <div className="w-full sm:w-auto flex flex-wrap items-baseline gap-x-3">
+          <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
+          {lastRefreshCompletedAt && (
+            <span
+              className="text-sm text-muted-foreground"
+              title="When the last check of all feeds finished"
+            >
+              Updated {formatDateTime(lastRefreshCompletedAt)}
+            </span>
+          )}
+        </div>
         <div className="flex gap-2 items-center shrink-0">
           <div className="flex gap-2 items-center overflow-x-auto no-scrollbar">
             <div className="flex border border-border rounded overflow-hidden">

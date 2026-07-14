@@ -150,10 +150,13 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
 
-        update_kwargs = db.update_podcast.call_args.kwargs
-        self.assertIn('etag', update_kwargs)
-        self.assertIsNone(update_kwargs['etag'])
-        self.assertIsNone(update_kwargs['last_modified_header'])
+        # Later calls may record refresh-failure state; assert on the
+        # metadata update that carries the validators.
+        etag_calls = [c.kwargs for c in db.update_podcast.call_args_list
+                      if 'etag' in c.kwargs]
+        self.assertTrue(etag_calls)
+        self.assertIsNone(etag_calls[-1]['etag'])
+        self.assertIsNone(etag_calls[-1]['last_modified_header'])
 
 
 if __name__ == '__main__':
