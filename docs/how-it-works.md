@@ -131,7 +131,7 @@ A global status bar shows real-time processing progress via Server-Sent Events. 
 
 ### Chapter Generation
 
-When enabled (Settings > Transcripts & Chapters > Generate Chapters, on by default), MinusPod writes Podcasting 2.0 chapters for each episode after the ads are cut. An LLM finds topic transitions in the transcript, anchors them to any timestamps the show lists in its description, and titles each chapter, keeping them at least three minutes apart. Chapters are served as a `podcast:chapters` JSON file and can be re-run from the episode page. The Chapters Model in Settings picks the model; a small model like Haiku works well.
+When enabled (Settings > Transcripts & Chapters > Generate Chapters, on by default), MinusPod writes Podcasting 2.0 chapters for each episode after the ads are cut. An LLM finds topic transitions in the transcript, anchors them to any timestamps the show lists in its description, and titles each chapter, keeping them at least three minutes apart. Chapters are served two ways: as a `podcast:chapters` JSON file, and embedded in the MP3 itself as ID3 frames for players like Castro that only read embedded chapters. Re-running chapters from the episode page updates both. The Chapters Model in Settings picks the model; a small model like Haiku works well.
 
 ### Reprocessing Modes
 

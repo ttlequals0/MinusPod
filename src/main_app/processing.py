@@ -47,6 +47,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
+from embedded_chapters import embed_chapters
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -1775,13 +1776,19 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
 
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
-                      podcast_name, episode_title, regenerate_chapters=True):
+                      podcast_name, episode_title, regenerate_chapters=True,
+                      audio_path=None, audio_duration=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
     detection is the one LLM call here. Recut uses it to stay AI-free; the
     existing chapters are left in place and can be refreshed with the manual
     Regenerate Chapters action.
+
+    audio_path, when given, is the final processed MP3; generated chapters
+    are also embedded into it as ID3v2 frames for players that ignore the
+    podcast:chapters JSON (issue #523). audio_duration is its duration in
+    seconds, saving the embed a re-probe when the caller already knows it.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -1826,6 +1833,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
             if chapters and chapters.get('chapters'):
                 storage.save_chapters_json(slug, episode_id, chapters)
                 audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
+                if audio_path:
+                    embed_chapters(str(audio_path), chapters['chapters'],
+                                   duration=audio_duration)
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
 
@@ -2846,7 +2856,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # pass-2 ads share a single beep in the audio.
             all_cuts_for_assets = applied_cuts + v_cuts_for_assets
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
-                              episode_description, podcast_name, episode_title)
+                              episode_description, podcast_name, episode_title,
+                              audio_path=final_path, audio_duration=new_duration)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still

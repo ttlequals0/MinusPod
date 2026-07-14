@@ -165,7 +165,7 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 
 - **Reprocess** (default) - uses the learned pattern database plus the LLM. Fastest option for routine re-detection.
 - **Full Analysis** - skips the pattern database for a fresh LLM-only pass.
-- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file.
+- **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, generated chapters are not refreshed: the rebuilt file carries the source feed's own chapters remapped to the new cut, and the podcast:chapters JSON keeps its old timestamps. Run Regenerate Chapters afterward if chapters matter for the episode.
 - **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped, and it is also offered for failed episodes that still have a transcript. Use it to iterate on detection settings or models without paying for transcription each time.
 
 ## Community Patterns (Optional)
