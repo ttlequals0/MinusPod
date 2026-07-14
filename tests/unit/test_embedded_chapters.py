@@ -1,4 +1,5 @@
-"""Remap embedded (ID3v2 CHAP) chapters onto the post-cut timeline (issue #500)."""
+"""Embedded (ID3v2 CHAP) chapter handling: remap onto the post-cut timeline
+(issue #500) and embed generated chapters into the served MP3 (issue #523)."""
 import os
 import shutil
 import subprocess
@@ -8,7 +9,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
+from embedded_chapters import (
+    chapters_to_spans, embed_chapters, probe_chapters, remap_chapters,
+    render_ffmetadata,
+)
 
 
 class TestRemapChapters:
@@ -201,3 +205,112 @@ class TestProbeFailureSemantics:
 
         monkeypatch.setattr(ec, 'tracked_run', lambda *a, **k: _Result())
         assert ec.probe_chapters('/some/file.mp3') is None
+
+
+class TestChaptersToSpans:
+    def test_chains_ends_and_caps_at_duration(self):
+        chapters = [
+            {'startTime': 0, 'title': 'Intro'},
+            {'startTime': 10.5, 'title': 'Main'},
+        ]
+        assert chapters_to_spans(chapters, 30.0) == [
+            {'start': 0.0, 'end': 10.5, 'title': 'Intro'},
+            {'start': 10.5, 'end': 30.0, 'title': 'Main'},
+        ]
+
+    def test_sorts_unordered_input(self):
+        chapters = [
+            {'startTime': 20, 'title': 'B'},
+            {'startTime': 5, 'title': 'A'},
+        ]
+        out = chapters_to_spans(chapters, 30.0)
+        assert [c['title'] for c in out] == ['A', 'B']
+        assert out[0]['end'] == 20.0
+
+    def test_drops_chapters_at_or_past_duration(self):
+        chapters = [
+            {'startTime': 0, 'title': 'Keep'},
+            {'startTime': 30, 'title': 'Drop'},
+        ]
+        out = chapters_to_spans(chapters, 30.0)
+        assert [c['title'] for c in out] == ['Keep']
+        assert out[0]['end'] == 30.0
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+                    reason="ffmpeg/ffprobe not available")
+class TestEmbedChapters:
+    """Generated chapters are written into the served MP3 (issue #523)."""
+
+    def _make_mp3(self, tmp_path, meta=None):
+        mp3 = tmp_path / "in.mp3"
+        cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=10"]
+        if meta:
+            cmd += ["-i", str(meta), "-map_metadata", "1", "-map_chapters", "1"]
+        cmd += ["-acodec", "libmp3lame", "-ab", "64k", str(mp3)]
+        subprocess.run(cmd, check=True, capture_output=True)
+        return mp3
+
+    def test_embeds_generated_chapters(self, tmp_path):
+        mp3 = self._make_mp3(tmp_path)
+        ok = embed_chapters(str(mp3), [
+            {'startTime': 0, 'title': 'Intro'},
+            {'startTime': 4, 'title': 'Main'},
+        ])
+        assert ok is True
+        chapters = probe_chapters(str(mp3))
+        assert [c['title'] for c in chapters] == ['Intro', 'Main']
+        assert chapters[1]['start'] == pytest.approx(4.0)
+        # No temp artifacts survive, and nothing left behind matches the
+        # episode-version glob that cleanup code enumerates.
+        leftovers = [p.name for p in tmp_path.iterdir() if p.name != "in.mp3"]
+        assert leftovers == []
+
+    def test_temp_file_left_on_crash_does_not_match_episode_glob(self, tmp_path, monkeypatch):
+        # If the process dies after ffmpeg writes the temp but before cleanup,
+        # the leftover must not match "{id}-v*.mp3" or cleanup treats it as an
+        # episode version (finding #523 review).
+        import embedded_chapters as ec
+        mp3 = tmp_path / "abc123def456-v1.mp3"
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=5",
+             "-acodec", "libmp3lame", "-ab", "64k", str(mp3)],
+            check=True, capture_output=True,
+        )
+
+        real_run = ec.tracked_run
+        seen = {}
+
+        def spy_run(cmd, *a, **k):
+            seen['out'] = cmd[-1]  # ffmpeg output path is the last arg
+            return real_run(cmd, *a, **k)
+
+        monkeypatch.setattr(ec, 'tracked_run', spy_run)
+        # Skip cleanup so the ffmpeg temp survives, mimicking a crash after
+        # ffmpeg wrote it but before os.replace/unlink ran.
+        monkeypatch.setattr(ec.os, 'replace', lambda *a: None)
+        monkeypatch.setattr(ec.os, 'unlink', lambda *a: None)
+        ec.embed_chapters(str(mp3), [{'startTime': 0, 'title': 'X'}])
+
+        import fnmatch
+        assert not fnmatch.fnmatch(os.path.basename(seen['out']), 'abc123def456-v*.mp3')
+
+    def test_replaces_existing_chapters(self, tmp_path):
+        meta = tmp_path / "old.ffmeta"
+        meta.write_text(
+            ";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=5000\ntitle=Old A\n"
+            "[CHAPTER]\nTIMEBASE=1/1000\nSTART=5000\nEND=10000\ntitle=Old B\n"
+        )
+        mp3 = self._make_mp3(tmp_path, meta=meta)
+        assert embed_chapters(str(mp3), [{'startTime': 0, 'title': 'New Only'}]) is True
+        assert [c['title'] for c in probe_chapters(str(mp3))] == ['New Only']
+
+    def test_failure_leaves_original_untouched(self, tmp_path):
+        mp3 = self._make_mp3(tmp_path)
+        before = mp3.read_bytes()
+        assert embed_chapters(str(mp3), []) is False
+        assert embed_chapters(str(mp3), [{'startTime': 60, 'title': 'Past end'}]) is False
+        assert mp3.read_bytes() == before
+
+    def test_unreadable_file_returns_false(self):
+        assert embed_chapters('/nonexistent/file.mp3', [{'startTime': 0, 'title': 'X'}]) is False

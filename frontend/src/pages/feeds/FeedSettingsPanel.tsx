@@ -32,11 +32,12 @@ interface CueOverrideRowProps {
   disabled: boolean;
   placeholder?: string;
   description?: string;
+  formatOverride?: (v: number) => string;
 }
 
 function CueOverrideRow({
   label, min, max, step, value, setValue, feedValue, hint, onBlur, disabled,
-  placeholder = 'global', description,
+  placeholder = 'global', description, formatOverride = String,
 }: CueOverrideRowProps) {
   const inputRow = (
     <div className="flex items-center gap-2 flex-wrap">
@@ -51,7 +52,7 @@ function CueOverrideRow({
       <span className="text-xs text-muted-foreground">{hint}</span>
       {feedValue != null && (
         <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-          Override: {feedValue}
+          Override: {formatOverride(feedValue)}
         </span>
       )}
     </div>
@@ -236,7 +237,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Feed settings"
-        subtitle="Network, DAI platform, auto-processing, language, feed cap, cue match threshold, and tags"
+        subtitle="Network, DAI platform, auto-processing, language, tags, and collapsed cue tuning and advanced controls"
         defaultOpen={false}
         storageKey={`feed-settings-${slug}`}
       >
@@ -463,38 +464,62 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Per-feed cue match threshold override */}
+          {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Cue threshold:</span>
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
             <div className="flex items-center gap-2 flex-wrap">
-              <input
-                type="number"
-                min={CUE_SCORE_MIN}
-                max={CUE_SCORE_MAX}
-                step={0.01}
-                value={cueScoreInput}
-                placeholder={
-                  settings?.audioCueTemplateScore?.value != null
-                    ? String(settings.audioCueTemplateScore.value)
-                    : '0.75'
-                }
-                onChange={(e) => setCueScoreInput(e.target.value)}
-                onBlur={() => commitFloat(
-                  cueScoreInput,
-                  feed.cueTemplateScoreOverride,
-                  'cueTemplateScoreOverride',
-                  CUE_SCORE_MIN, CUE_SCORE_MAX,
-                  () => setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : ''),
-                )}
+              <select
+                value={feed.languageOverride ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  updateMutation.mutate({ languageOverride: v === '' ? null : v });
+                }}
                 disabled={updateMutation.isPending}
-                className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
-              />
-              <span className="text-xs text-muted-foreground">Empty = use global</span>
-              {feed.cueTemplateScoreOverride != null && (
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+              >
+                <option value="">Global default</option>
+                <option value="auto">Auto-detect (multilingual)</option>
+                {WHISPER_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name} ({l.code})
+                  </option>
+                ))}
+              </select>
+              {feed.languageOverride && (
                 <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                  Override: {feed.cueTemplateScoreOverride.toFixed(2)}
+                  Override: {labelForLanguage(feed.languageOverride)}
                 </span>
               )}
+            </div>
+          </div>
+
+          {/* Hide unprocessed episodes from the served feed */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <TriStateSelect
+                value={feed.onlyExposeProcessedEpisodes}
+                onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
+                disabled={updateMutation.isPending}
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+              />
+              {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  feed.onlyExposeProcessedEpisodes
+                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                }`}>
+                  {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Feed tags (inline basic row; simple enough not to collapse) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>
+            <div className="flex-1 min-w-0">
+              <FeedTagsEditor slug={slug} />
             </div>
           </div>
 
@@ -502,8 +527,24 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           <CollapsibleSection
             title="Cue tuning overrides"
             defaultOpen={false}
+            storageKey={`feed-cue-tuning-${slug}`}
           >
             <div className="flex flex-col gap-3 pt-1">
+              {/* Cue match threshold */}
+              <CueOverrideRow label="Cue threshold" min={CUE_SCORE_MIN} max={CUE_SCORE_MAX} step={0.01}
+                value={cueScoreInput} setValue={setCueScoreInput}
+                field="cueTemplateScoreOverride" feedValue={feed.cueTemplateScoreOverride}
+                hint="Empty = use global" formatOverride={(v) => v.toFixed(2)}
+                placeholder={
+                  settings?.audioCueTemplateScore?.value != null
+                    ? String(settings.audioCueTemplateScore.value)
+                    : '0.75'
+                }
+                disabled={updateMutation.isPending}
+                onBlur={() => commitFloat(cueScoreInput, feed.cueTemplateScoreOverride,
+                  'cueTemplateScoreOverride', CUE_SCORE_MIN, CUE_SCORE_MAX,
+                  () => setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : ''))} />
+
               {/* create-from-pairs tri-state */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
@@ -574,201 +615,157 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </CollapsibleSection>
 
-          {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
-          {(
-            [
-              {
-                label: 'Silence snap:',
-                field: 'silenceSnapEnabled' as const,
-                ariaLabel: 'Snap cuts to silence',
-                toggleLabel: 'Snap cuts to silence',
-                warning: 'Moves cut edges to nearby silence; a bad match can clip speech.',
-              },
-              {
-                label: 'Transition snap:',
-                field: 'transitionSnapEnabled' as const,
-                ariaLabel: 'Snap to content transitions',
-                toggleLabel: 'Snap to content transitions',
-                warning: 'Snaps cut edges to transition cues; verify results on this feed first.',
-              },
-            ] satisfies Array<{
-              label: string;
-              field: keyof Pick<UpdateFeedPayload, 'silenceSnapEnabled' | 'transitionSnapEnabled'>;
-              ariaLabel: string;
-              toggleLabel: string;
-              warning: string;
-            }>
-          ).map(({ label, field, ariaLabel, toggleLabel, warning }) => (
-            <div key={field} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-              <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">{label}</span>
-              <div className="flex flex-col gap-1 flex-1 min-w-0">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <ToggleSwitch
-                    checked={feed[field] === true}
-                    onChange={(v) => updateMutation.mutate({ [field]: v })}
-                    disabled={updateMutation.isPending}
-                    ariaLabel={ariaLabel}
-                  />
-                  <span>{toggleLabel}</span>
-                </label>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  {warning}
-                </p>
+          {/* Advanced settings (collapsible; rarely-changed knobs) */}
+          <CollapsibleSection
+            title="Advanced"
+            subtitle="Cut snapping, ad review holds, pass-through, and cross-fetch"
+            defaultOpen={false}
+            storageKey={`feed-advanced-${slug}`}
+          >
+            <div className="flex flex-col gap-3 pt-1">
+              {/* Boundary-snap opt-ins (simple flags; off unless enabled here) */}
+              {(
+                [
+                  {
+                    label: 'Silence snap:',
+                    field: 'silenceSnapEnabled' as const,
+                    ariaLabel: 'Snap cuts to silence',
+                    toggleLabel: 'Snap cuts to silence',
+                    warning: 'Moves cut edges to nearby silence; a bad match can clip speech.',
+                  },
+                  {
+                    label: 'Transition snap:',
+                    field: 'transitionSnapEnabled' as const,
+                    ariaLabel: 'Snap to content transitions',
+                    toggleLabel: 'Snap to content transitions',
+                    warning: 'Snaps cut edges to transition cues; verify results on this feed first.',
+                  },
+                ] satisfies Array<{
+                  label: string;
+                  field: keyof Pick<UpdateFeedPayload, 'silenceSnapEnabled' | 'transitionSnapEnabled'>;
+                  ariaLabel: string;
+                  toggleLabel: string;
+                  warning: string;
+                }>
+              ).map(({ label, field, ariaLabel, toggleLabel, warning }) => (
+                <div key={field} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                  <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">{label}</span>
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <ToggleSwitch
+                        checked={feed[field] === true}
+                        onChange={(v) => updateMutation.mutate({ [field]: v })}
+                        disabled={updateMutation.isPending}
+                        ariaLabel={ariaLabel}
+                      />
+                      <span>{toggleLabel}</span>
+                    </label>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {warning}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Max ad duration override (Phase C held-for-review) */}
+              <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
+                value={maxAdDurInput} setValue={setMaxAdDurInput}
+                field="maxAdDurationOverride" feedValue={feed.maxAdDurationOverride}
+                hint="s, empty = no cap" placeholder="no cap"
+                disabled={updateMutation.isPending}
+                onBlur={() => commitFloat(maxAdDurInput, feed.maxAdDurationOverride,
+                  'maxAdDurationOverride', 1, 3600,
+                  () => setMaxAdDurInput(s(feed.maxAdDurationOverride)))}
+                description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
+
+              {/* Cue-gated approval (Phase C held-for-review) */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <ToggleSwitch
+                      checked={feed.cueGatedApproval === true}
+                      onChange={(v) => updateMutation.mutate({ cueGatedApproval: v })}
+                      disabled={updateMutation.isPending}
+                      ariaLabel="Only cue-backed ads auto-cut"
+                    />
+                    <span>Only cue-backed ads auto-cut</span>
+                  </label>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Only ads with audio cue evidence auto-cut; others are held for review. Enable cue templates first.
+                  </p>
+                </div>
+              </div>
+
+              {/* Pass-through (#521): the feed opts out of processing entirely */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Pass-through:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label className="flex items-center gap-2 cursor-pointer flex-wrap">
+                    <ToggleSwitch
+                      checked={feed.passthroughEnabled === true}
+                      onChange={(v) => updateMutation.mutate({ passthroughEnabled: v })}
+                      disabled={updateMutation.isPending}
+                      ariaLabel="Serve episodes untouched"
+                    />
+                    <span>Serve episodes untouched</span>
+                  </label>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Episodes are downloaded and served exactly as published: no transcription, ad detection, or cutting. The feed URL stays the same, so turning this off resumes processing for new episodes. Episodes served untouched keep their original audio until you reprocess them.
+                  </p>
+                </div>
+              </div>
+
+              {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,
+                  with explicit per-feed on/off overrides */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={feed.differentialFetchEnabled == null ? '' : String(feed.differentialFetchEnabled)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        updateMutation.mutate({
+                          differentialFetchEnabled: v === '' ? null : v === 'true',
+                        });
+                      }}
+                      disabled={updateMutation.isPending}
+                      className="px-2 py-1.5 text-sm bg-secondary border border-border rounded min-w-0 disabled:opacity-50"
+                      aria-label="Fetch each episode twice to find inserted ads"
+                    >
+                      <option value="">Auto (on for dynamic-ad feeds)</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        feed.differentialFetchEffective
+                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                          : 'bg-secondary text-muted-foreground'
+                      }`}
+                      title={feed.differentialFetchEffective
+                        ? 'Based on this feed\'s recent episodes, new episodes are fetched twice and compared. Each episode\'s own audio URL makes the final call.'
+                        : 'Based on this feed\'s recent episodes, new episodes are fetched once. Each episode\'s own audio URL makes the final call.'}
+                    >
+                      {feed.differentialFetchEffective ? 'Runs on this feed' : 'Not running'}
+                    </span>
+                    {feed.daiLikely && (
+                      <span
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                        title="This feed's audio URLs route through a known dynamic ad insertion service."
+                      >
+                        DAI likely
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats. Auto turns this on when the feed looks dynamically ad-served.
+                  </p>
+                </div>
               </div>
             </div>
-          ))}
-
-          {/* Max ad duration override (Phase C held-for-review) */}
-          <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
-            value={maxAdDurInput} setValue={setMaxAdDurInput}
-            field="maxAdDurationOverride" feedValue={feed.maxAdDurationOverride}
-            hint="s, empty = no cap" placeholder="no cap"
-            disabled={updateMutation.isPending}
-            onBlur={() => commitFloat(maxAdDurInput, feed.maxAdDurationOverride,
-              'maxAdDurationOverride', 1, 3600,
-              () => setMaxAdDurInput(s(feed.maxAdDurationOverride)))}
-            description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
-
-          {/* Cue-gated approval (Phase C held-for-review) */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <ToggleSwitch
-                  checked={feed.cueGatedApproval === true}
-                  onChange={(v) => updateMutation.mutate({ cueGatedApproval: v })}
-                  disabled={updateMutation.isPending}
-                  ariaLabel="Only cue-backed ads auto-cut"
-                />
-                <span>Only cue-backed ads auto-cut</span>
-              </label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Only ads with audio cue evidence auto-cut; others are held for review. Enable cue templates first.
-              </p>
-            </div>
-          </div>
-
-          {/* Pass-through (#521): the feed opts out of processing entirely */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Pass-through:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer flex-wrap">
-                <ToggleSwitch
-                  checked={feed.passthroughEnabled === true}
-                  onChange={(v) => updateMutation.mutate({ passthroughEnabled: v })}
-                  disabled={updateMutation.isPending}
-                  ariaLabel="Serve episodes untouched"
-                />
-                <span>Serve episodes untouched</span>
-              </label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Episodes are downloaded and served exactly as published: no transcription, ad detection, or cutting. The feed URL stays the same, so turning this off resumes processing for new episodes. Episodes served untouched keep their original audio until you reprocess them.
-              </p>
-            </div>
-          </div>
-
-          {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,
-              with explicit per-feed on/off overrides */}
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff:</span>
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  value={feed.differentialFetchEnabled == null ? '' : String(feed.differentialFetchEnabled)}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    updateMutation.mutate({
-                      differentialFetchEnabled: v === '' ? null : v === 'true',
-                    });
-                  }}
-                  disabled={updateMutation.isPending}
-                  className="px-2 py-1.5 text-sm bg-secondary border border-border rounded min-w-0 disabled:opacity-50"
-                  aria-label="Fetch each episode twice to find inserted ads"
-                >
-                  <option value="">Auto (on for dynamic-ad feeds)</option>
-                  <option value="true">On</option>
-                  <option value="false">Off</option>
-                </select>
-                <span
-                  className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    feed.differentialFetchEffective
-                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
-                      : 'bg-secondary text-muted-foreground'
-                  }`}
-                  title={feed.differentialFetchEffective
-                    ? 'Based on this feed\'s recent episodes, new episodes are fetched twice and compared. Each episode\'s own audio URL makes the final call.'
-                    : 'Based on this feed\'s recent episodes, new episodes are fetched once. Each episode\'s own audio URL makes the final call.'}
-                >
-                  {feed.differentialFetchEffective ? 'Runs on this feed' : 'Not running'}
-                </span>
-                {feed.daiLikely && (
-                  <span
-                    className="px-2 py-0.5 rounded text-xs font-medium bg-rose-500/20 text-rose-600 dark:text-rose-400"
-                    title="This feed's audio URLs route through a known dynamic ad insertion service."
-                  >
-                    DAI likely
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats. Auto turns this on when the feed looks dynamically ad-served.
-              </p>
-            </div>
-          </div>
-
-          {/* Per-feed transcription language override */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={feed.languageOverride ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  updateMutation.mutate({ languageOverride: v === '' ? null : v });
-                }}
-                disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
-              >
-                <option value="">Global default</option>
-                <option value="auto">Auto-detect (multilingual)</option>
-                {WHISPER_LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.name} ({l.code})
-                  </option>
-                ))}
-              </select>
-              {feed.languageOverride && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                  Override: {labelForLanguage(feed.languageOverride)}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Hide unprocessed episodes from the served feed */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <TriStateSelect
-                value={feed.onlyExposeProcessedEpisodes}
-                onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
-                disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-              />
-              {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  feed.onlyExposeProcessedEpisodes
-                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                    : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                }`}>
-                  {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Feed tags (nested sub-section, same pattern as cue tuning overrides) */}
-          <FeedTagsEditor slug={slug} />
+          </CollapsibleSection>
         </div>
       </CollapsibleSection>
     </div>

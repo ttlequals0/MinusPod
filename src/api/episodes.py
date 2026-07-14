@@ -13,6 +13,7 @@ from api import (
 from config import is_pending_review
 from audio_peaks import compute_peaks, PeaksError
 from chapters_generator import ChaptersGenerator
+from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
 from utils.constants import EpisodeStatus
@@ -733,11 +734,23 @@ def regenerate_chapters(slug, episode_id):
         if chapters and chapters.get('chapters'):
             storage.save_chapters_json(slug, episode_id, chapters)
             logger.info(f"[{slug}:{episode_id}] Regenerated {len(chapters['chapters'])} chapters from VTT")
+            # Also refresh the ID3 chapters in the served MP3 so players that
+            # ignore podcast:chapters see the new set (issue #523). Re-fetch
+            # the row: a reprocess finishing during the LLM call above may
+            # have bumped processed_version, and we must embed into the file
+            # that is actually served now, not the stale version read at entry.
+            embedded = False
+            current = db.get_episode(slug, episode_id) or episode
+            processed_path = storage.get_episode_path(
+                slug, episode_id, version=current.get('processed_version'))
+            if processed_path.exists():
+                embedded = embed_chapters(str(processed_path), chapters['chapters'])
             return json_response({
                 'message': 'Chapters regenerated',
                 'episodeId': episode_id,
                 'chapterCount': len(chapters['chapters']),
-                'chapters': chapters['chapters']
+                'chapters': chapters['chapters'],
+                'embedded': embedded
             })
         else:
             return error_response('Failed to generate chapters', 500)

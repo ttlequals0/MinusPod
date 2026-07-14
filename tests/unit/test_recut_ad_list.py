@@ -520,3 +520,40 @@ def test_generate_assets_generates_chapters_by_default(monkeypatch):
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
     processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
     assert counters.get('chapters', 0) == 1
+
+
+def test_generate_assets_embeds_chapters_into_audio(monkeypatch):
+    # Main pipeline passes the final MP3 path; generated chapters are also
+    # embedded as ID3 frames (issue #523).
+    counters = {}
+    _stub_assets_io(monkeypatch, counters)
+    import chapters_generator
+    monkeypatch.setattr(
+        chapters_generator.ChaptersGenerator, 'generate_chapters',
+        lambda self, *a, **k: {'chapters': [{'startTime': 0, 'title': 'Intro'}]})
+    embedded = {}
+    monkeypatch.setattr(processing, 'embed_chapters',
+                        lambda path, chapters, duration=None: embedded.update(
+                            path=path, chapters=chapters, duration=duration) or True)
+    segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
+    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
+                                audio_path='/data/slug/episodes/ep-v1.mp3',
+                                audio_duration=1800.0)
+    assert embedded == {'path': '/data/slug/episodes/ep-v1.mp3',
+                        'chapters': [{'startTime': 0, 'title': 'Intro'}],
+                        'duration': 1800.0}
+
+
+def test_generate_assets_skips_embed_without_audio_path(monkeypatch):
+    counters = {}
+    _stub_assets_io(monkeypatch, counters)
+    import chapters_generator
+    monkeypatch.setattr(
+        chapters_generator.ChaptersGenerator, 'generate_chapters',
+        lambda self, *a, **k: {'chapters': [{'startTime': 0, 'title': 'Intro'}]})
+    embedded = {}
+    monkeypatch.setattr(processing, 'embed_chapters',
+                        lambda path, chapters, duration=None: embedded.update(path=path) or True)
+    segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
+    processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title')
+    assert embedded == {}

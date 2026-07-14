@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.55.0] - 2026-07-14
+
+### Added
+- Generated chapters are now embedded into the processed MP3 as ID3
+  frames, in addition to the podcast:chapters JSON (#523). Players that
+  only read embedded chapters, like Castro, pick them up. The manual
+  Regenerate Chapters action rewrites the embedded set too.
+
+### Changed
+- Feed settings panel reorganized for consistency. Basic settings
+  (network, source feed, auto-process, detection, language, hide
+  unprocessed, tags) sit at the top; the cue threshold moved into the
+  Cue tuning overrides card; the remaining rarely-changed controls
+  (snap toggles, max ad duration, cue gating, pass-through, cross-fetch)
+  live in a new collapsed Advanced card. Tags is now a simple inline
+  row instead of its own collapsed card.
+
 ## [2.54.0] - 2026-07-14
 
 ### Added

@@ -16,7 +16,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## C
 
-**Chapters** - Podcasting 2.0 chapter markers MinusPod generates for the processed audio. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
+**Chapters** - Chapter markers MinusPod generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
 **Community patterns** - Opt-in sharing of learned ad patterns with other MinusPod users, and pulling theirs in return. [Configuration > Community Patterns](configuration.md#community-patterns-optional)
 

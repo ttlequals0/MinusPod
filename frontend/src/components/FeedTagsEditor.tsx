@@ -7,7 +7,6 @@ import {
   type FeedTagBreakdown,
 } from '../api/community';
 import { TagChips } from './TagChips';
-import CollapsibleSection from './CollapsibleSection';
 import LoadingSpinner from './LoadingSpinner';
 
 interface Props {
@@ -58,13 +57,9 @@ export function FeedTagsEditor({ slug }: Props) {
     save.mutate(tags.user.filter((t) => t !== tag));
   }
 
+  // Renders only the tags content; the parent supplies the label/row frame.
   return (
-    <CollapsibleSection
-      title="Tags"
-      subtitle="Filter community ad patterns. RSS and episode tags are automatic; edit your own below."
-      defaultOpen={false}
-      storageKey={`feed-tags-${slug}`}
-    >
+    <div className="flex flex-col gap-1 min-w-0">
         {isLoading || !tags ? (
           <LoadingSpinner className="py-4" />
         ) : (
@@ -169,8 +164,11 @@ export function FeedTagsEditor({ slug }: Props) {
                 </span>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Filter community ad patterns. RSS and episode tags are automatic; add your own here.
+            </p>
           </>
         )}
-    </CollapsibleSection>
+    </div>
   );
 }
