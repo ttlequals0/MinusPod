@@ -27,6 +27,7 @@ from ad_reviewer import (
 from audio_processor import get_replacement_duration
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
+from utils.audio import get_audio_codec
 from utils.time import ranges_overlap, utc_now_iso
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
@@ -333,6 +334,30 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
     return segments + tail_segments, True
 
 
+def _download_episode_audio(episode_url):
+    """Check CDN availability and download the enclosure. Returns the temp
+    audio path; raises on either failure."""
+    available, cdn_error = transcriber.check_audio_availability(episode_url)
+    if not available:
+        raise Exception(f"CDN not ready: {cdn_error}")
+    audio_path = transcriber.download_audio(episode_url)
+    if not audio_path:
+        raise Exception("Failed to download audio")
+    return audio_path
+
+
+def _next_processed_version(episode_data):
+    """Version for the output file. ``processed_at`` is cleared by the
+    reprocess reset before processing starts, so it can't signal "been
+    processed before"; ``processed_version`` is not reset and
+    ``reprocess_requested_at`` is set by the reprocess endpoints -- either
+    one means this run is a reprocess and the version bumps."""
+    previous_version = (episode_data or {}).get('processed_version') or 0
+    is_reprocess = (previous_version > 0
+                    or bool((episode_data or {}).get('reprocess_requested_at')))
+    return previous_version + 1 if is_reprocess else 0
+
+
 def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
     """Pipeline stage: Download audio and get/create transcript segments.
 
@@ -372,13 +397,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
             audio_path = _copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         else:
-            available, cdn_error = transcriber.check_audio_availability(episode_url)
-            if not available:
-                raise Exception(f"CDN not ready: {cdn_error}")
-
-            audio_path = transcriber.download_audio(episode_url)
-            if not audio_path:
-                raise Exception("Failed to download audio")
+            audio_path = _download_episode_audio(episode_url)
         language_override = get_feed_language_override(db, slug)
         segments, tail_added = _retranscribe_tail_no_vad(
             slug, episode_id, audio_path, segments, podcast_name,
@@ -391,14 +410,8 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
             storage.save_transcript(
                 slug, episode_id, transcriber.segments_to_text(segments))
     else:
-        available, cdn_error = transcriber.check_audio_availability(episode_url)
-        if not available:
-            raise Exception(f"CDN not ready: {cdn_error}")
-
         audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
-        audio_path = transcriber.download_audio(episode_url)
-        if not audio_path:
-            raise Exception("Failed to download audio")
+        audio_path = _download_episode_audio(episode_url)
 
         status_service.update_job_stage("pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
@@ -2164,6 +2177,104 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     return ads_to_remove, validation_result.ads
 
 
+def _passthrough_episode(slug, episode_id, episode_url, episode_title,
+                          podcast_name, episode_description,
+                          episode_artwork_url, episode_published_at,
+                          start_time, episode_data, cancel_event=None):
+    """Pass-through mode (#521): download the episode and serve it exactly
+    as published -- no transcription, detection, LLM, cutting, or assets.
+    MinusPod acts as an archive/relay for the feed while the served feed
+    URL stays stable, so turning processing back on later needs no change
+    in the podcast app."""
+    from audio_processor import AudioProcessor
+    audio_path = None
+    run_stats = {'mode': 'passthrough'}
+    try:
+        audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
+        status_service.start_job(slug, episode_id, episode_title, podcast_name)
+        status_service.update_job_stage("downloading", 10)
+
+        upsert_kwargs = dict(
+            original_url=episode_url, title=episode_title,
+            description=episode_description, artwork_url=episode_artwork_url,
+            status=EpisodeStatus.PROCESSING.value
+        )
+        if episode_published_at:
+            upsert_kwargs['published_at'] = episode_published_at
+        db.upsert_episode(slug, episode_id, **upsert_kwargs)
+
+        # Reuse the retained original when we have it (a previously processed
+        # episode being re-run under pass-through): the CDN URL may have
+        # expired, and the local copy IS the untouched audio.
+        original_path = storage.get_original_path(slug, episode_id)
+        if original_path and os.path.exists(original_path):
+            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass-through: reusing retained original")
+        else:
+            audio_path = _download_episode_audio(episode_url)
+        _check_cancel(cancel_event, slug, episode_id)
+
+        duration = audio_processor.get_audio_duration(audio_path)
+        if not duration:
+            # A CDN error page saved as audio would otherwise be served to
+            # every subscriber; fail loudly like the main pipeline does.
+            raise Exception("Downloaded file is not playable audio "
+                            "(ffprobe found no duration)")
+
+        # The serving stack names episode files .mp3 and declares
+        # audio/mpeg, so non-MP3 enclosures (m4a/aac) are converted --
+        # the one transformation pass-through performs.
+        codec = get_audio_codec(audio_path)
+        if codec and codec != 'mp3':
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass-through: converting {codec} to mp3")
+            settings = db.get_all_settings()
+            bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
+            converted = AudioProcessor(bitrate=bitrate).convert_to_mp3(audio_path)
+            if not converted:
+                raise Exception(f"Failed to convert {codec} enclosure to mp3")
+            os.unlink(audio_path)
+            audio_path = converted
+
+        # Any assets left by an earlier interrupted processing run (VTT,
+        # chapters, ad markers) describe cut audio; the served RSS must not
+        # reference them next to the untouched file. Transcript inputs are
+        # kept so re-enabling processing skips re-transcription.
+        db.clear_episode_ad_data(slug, episode_id)
+
+        new_version = _next_processed_version(episode_data)
+        final_path = storage.get_episode_path(slug, episode_id, version=new_version)
+        shutil.move(audio_path, final_path)
+        audio_path = None
+
+        run_stats['downloaded_duration'] = round(duration, 2)
+        _finalize_episode(slug, episode_id, episode_title, podcast_name,
+                           pass1_cut_count=0, verification_count=0,
+                           first_pass_count=0,
+                           original_duration=duration, new_duration=duration,
+                           start_time=start_time,
+                           processed_version=new_version,
+                           audio_cue_detections=0,
+                           run_stats=run_stats)
+        status_service.complete_job()
+        return True
+
+    except ProcessingCancelled:
+        raise
+    except Exception as e:
+        _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
+                                    episode_data, e, start_time,
+                                    run_stats=run_stats)
+        return False
+    finally:
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.unlink(audio_path)
+            except OSError:
+                pass
+
+
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None):
     """Recut mode (issue #422): re-cut the retained original audio from the
@@ -2421,6 +2532,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = podcast_settings.get('description') if podcast_settings else None
+
+    # Pass-through (#521): the feed opted out of processing entirely.
+    # Full and AI reprocesses also land here while the toggle is on; the
+    # per-episode Recut action branches earlier and still works on
+    # episodes that have retained originals and markers.
+    if podcast_settings and podcast_settings.get('passthrough_enabled'):
+        return _passthrough_episode(slug, episode_id, episode_url,
+                                     episode_title, podcast_name,
+                                     episode_description, episode_artwork_url,
+                                     episode_published_at, start_time,
+                                     episode_data, cancel_event=cancel_event)
 
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try
@@ -2701,16 +2823,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             new_duration = local_audio_processor.get_audio_duration(processed_path)
 
             existing_episode = db.get_episode(slug, episode_id) or {}
-            # ``processed_at`` is cleared by the reprocess reset before we get
-            # here, so it can't signal "been processed before". ``processed_version``
-            # is not reset and ``reprocess_requested_at`` is set by the reprocess
-            # endpoints - either one means we bump.
-            previous_version = existing_episode.get('processed_version') or 0
-            is_reprocess = (
-                previous_version > 0
-                or bool(existing_episode.get('reprocess_requested_at'))
-            )
-            new_version = previous_version + 1 if is_reprocess else 0
+            new_version = _next_processed_version(existing_episode)
 
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)

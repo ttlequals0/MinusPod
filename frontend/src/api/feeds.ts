@@ -222,6 +222,7 @@ export interface UpdateFeedPayload {
   maxAdDurationOverride?: number | null;
   cueGatedApproval?: boolean | null;
   differentialFetchEnabled?: boolean | null;
+  passthroughEnabled?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

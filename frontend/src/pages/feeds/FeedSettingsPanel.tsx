@@ -648,6 +648,25 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Pass-through (#521): the feed opts out of processing entirely */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Pass-through:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <label className="flex items-center gap-2 cursor-pointer flex-wrap">
+                <ToggleSwitch
+                  checked={feed.passthroughEnabled === true}
+                  onChange={(v) => updateMutation.mutate({ passthroughEnabled: v })}
+                  disabled={updateMutation.isPending}
+                  ariaLabel="Serve episodes untouched"
+                />
+                <span>Serve episodes untouched</span>
+              </label>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Episodes are downloaded and served exactly as published: no transcription, ad detection, or cutting. The feed URL stays the same, so turning this off resumes processing for new episodes. Episodes served untouched keep their original audio until you reprocess them.
+              </p>
+            </div>
+          </div>
+
           {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,
               with explicit per-feed on/off overrides */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">

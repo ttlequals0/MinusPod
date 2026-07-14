@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS podcasts (
     description TEXT,
     artwork_url TEXT,
     artwork_cached INTEGER DEFAULT 0,
+    -- Channel-level RSS <link>: the show's website, refreshed with metadata (#521)
+    website_url TEXT,
+    -- Pass-through (#521): 1 = serve episodes untouched, no processing
+    passthrough_enabled INTEGER,
     last_checked_at TEXT,
     -- Consecutive refresh-failure tracking (#516); cleared on success.
     -- last_refresh_error_at is the first failure of the current run,

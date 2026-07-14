@@ -57,18 +57,25 @@ def _processed_url(slug: str, episode_id: str, version: int,
     return episode_public_url("", slug, episode_id, version, key=key)
 
 
+def _latest_completed_run(runs):
+    """Most recent completed run from a processingRuns list, or None. The
+    run that produced the currently served audio."""
+    return next((r for r in reversed(runs) if r.get('status') == 'completed'),
+                None)
+
+
 def _episode_token_fields(runs) -> dict:
     """API token fields from the most recent completed run (or empty dict).
     Derived from the processingRuns list already queried for the response,
     replacing a second (unindexed) processing_history lookup."""
-    for run in reversed(runs):
-        if run['status'] == 'completed':
-            return {
-                'inputTokens': run['inputTokens'],
-                'outputTokens': run['outputTokens'],
-                'llmCost': run['llmCost'],
-            }
-    return {}
+    run = _latest_completed_run(runs)
+    if not run:
+        return {}
+    return {
+        'inputTokens': run['inputTokens'],
+        'outputTokens': run['outputTokens'],
+        'llmCost': run['llmCost'],
+    }
 
 
 # ========== Episode Endpoints ==========
@@ -209,9 +216,20 @@ _LOW_YIELD_MIN_SAMPLES = 3
 _LOW_YIELD_FRACTION = 0.35
 
 
-def _low_ad_yield(db, episode):
+def _low_ad_yield(db, episode, runs):
     """Compare this episode's removed ad time against the feed's recent
-    average (#519). Returns the comparison dict when far below it."""
+    average (#519). Returns the comparison dict when far below it.
+
+    Pass-through runs (#521) remove nothing by design, so they never get
+    the badge. The check keys on the run that produced the served audio
+    (the latest completed one), not merely the newest history row, so a
+    failed later attempt cannot un-suppress it. Pass-through siblings in
+    the baseline only drag the feed average down, which makes the badge
+    less likely to fire, not more.
+    """
+    latest_completed = _latest_completed_run(runs) if runs else None
+    if latest_completed and (latest_completed.get('stats') or {}).get('mode') == 'passthrough':
+        return None
     original = episode.get('original_duration')
     new = episode.get('new_duration')
     if not original or new is None:
@@ -356,7 +374,7 @@ def get_episode(slug, episode_id):
         'artworkUrl': episode.get('artwork_url'),
         'rssDuration': episode.get('rss_duration'),
         'processingRuns': processing_runs,
-        'lowAdYield': _low_ad_yield(db, episode),
+        'lowAdYield': _low_ad_yield(db, episode, processing_runs),
         'navigation': db.get_episode_neighbors(slug, episode_id),
         **_episode_token_fields(processing_runs),
     })

@@ -62,6 +62,33 @@ function renderPanel(feed: Feed) {
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
 
+describe('FeedSettingsPanel pass-through toggle (#521)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders off when passthroughEnabled is unset', () => {
+    renderPanel(makeFeed());
+    const toggle = screen.getByRole('switch', { name: 'Serve episodes untouched' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('enabling fires updateFeed with passthroughEnabled true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('switch', { name: 'Serve episodes untouched' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { passthroughEnabled: true });
+  });
+
+  it('disabling fires passthroughEnabled false', async () => {
+    renderPanel(makeFeed({ passthroughEnabled: true }));
+    const toggle = screen.getByRole('switch', { name: 'Serve episodes untouched' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(toggle);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { passthroughEnabled: false });
+  });
+});
+
 describe('FeedSettingsPanel cross-fetch differential control', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -183,6 +183,7 @@ class PodcastMixin:
                 'last_modified_header', 'only_expose_processed_episodes',
                 'refresh_failure_count', 'last_refresh_error',
                 'last_refresh_error_at', 'last_refresh_failure_at',
+                'website_url', 'passthrough_enabled',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

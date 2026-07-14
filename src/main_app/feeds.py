@@ -236,11 +236,18 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             # channel image with the last per-episode itunes:image it sees).
             artwork_url = rss_parser.extract_podcast_artwork_url(feed_content)
 
+            # Channel-level <link> is the show's website (#521); only keep
+            # real http(s) URLs. Refreshed with the rest of the metadata.
+            website_url = (parsed_feed.feed.get('link') or '').strip()
+            if not website_url.startswith(('http://', 'https://')):
+                website_url = None
+
             # Update podcast metadata (and ETag if available) in a single DB call
             update_kwargs = dict(
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
+                website_url=website_url,
                 last_checked_at=utc_now_iso()
             )
             # On force=True, always overwrite the stored ETag/Last-Modified --

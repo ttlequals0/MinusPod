@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.54.0] - 2026-07-14
+
+### Added
+- The feed page artwork now links to the show's website in a new tab
+  (#521). The URL comes from the feed's channel-level RSS link element,
+  captured on every refresh; no link, no anchor.
+- Pass-through mode (#521). A per-feed toggle that serves episodes
+  exactly as published: downloaded and hosted by MinusPod with no
+  transcription, ad detection, or cutting. The served feed URL stays
+  the same, so processing can be paused and resumed per feed without
+  touching your podcast app. Good for archiving originals. Pass-through
+  runs show up in Processing stats with their downloaded duration.
+
 ## [2.53.1] - 2026-07-14
 
 ### Added

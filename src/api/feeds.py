@@ -194,6 +194,7 @@ _SNAP_FLAG_FIELDS = [
     ('transitionSnapEnabled',    'transition_snap_enabled'),
     ('cueGatedApproval',         'cue_gated_approval'),
     ('differentialFetchEnabled', 'differential_fetch_enabled'),
+    ('passthroughEnabled', 'passthrough_enabled'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -652,6 +653,7 @@ def get_feed(slug):
         'networkId': podcast.get('network_id'),
         'daiPlatform': podcast.get('dai_platform'),
         'daiLikely': dai_likely,
+        'websiteUrl': podcast.get('website_url'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
         'languageOverride': podcast.get('language_override'),

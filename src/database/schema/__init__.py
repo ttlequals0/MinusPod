@@ -459,6 +459,9 @@ class SchemaMixin:
             ('last_refresh_error', 'TEXT'),
             ('last_refresh_error_at', 'TEXT'),
             ('last_refresh_failure_at', 'TEXT'),
+            # Website link + pass-through mode (#521)
+            ('website_url', 'TEXT'),
+            ('passthrough_enabled', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
