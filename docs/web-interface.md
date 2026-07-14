@@ -137,6 +137,14 @@ When a feed has a max ad duration cap or cue-gated approval on, ads that cannot 
 
 The episode list shows an amber "N held" chip for any episode with pending held ads. See [Held for Review](how-it-works.md#held-for-review) for what triggers a hold.
 
+### Processing stats
+
+Every processing run records what it actually worked with, and the episode page shows it in a "Processing stats" section at the bottom, collapsed by default. One row per run: when it ran, the length of the downloaded copy, how many detection windows the LLM answered, hits per detection stage, the final cut / held / kept split, ad time removed, the second-scan result, and token cost. Runs from before 2.53.0 and recuts only carry the basic columns.
+
+Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download -- the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
+
+Completed episodes also state the verification result under the header: whether the second scan of the output audio found anything left to cut.
+
 ### Screenshots
 
 #### Dashboard

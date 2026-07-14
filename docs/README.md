@@ -17,6 +17,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [API & Webhooks](api-and-webhooks.md) - REST endpoints, webhook events, payload templates, signing
 - [Security, Storage & Custom Assets](security-and-storage.md) - remote access, login lockout, backups, custom ad markers
 - [Podcasting 2.0](podcasting-2.0.md) - what MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why
+- [Glossary](glossary.md) - every term the app uses, defined and linked to the docs that cover it
 - [Deployment Runbook](DEPLOYMENT.md) - operational runbook
 
 [< Project README](../README.md)

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.53.1] - 2026-07-14
 
+### Added
+- Docs: a glossary defining every term the app uses, with each entry
+  linked to the doc section that covers it. Also documents the
+  cross-fetch differential (previously undocumented) and the new
+  Processing stats section.
+
 ### Fixed
 - The Transcript, Original Transcript, and Processing stats sections at
   the bottom of the episode page now carry the same spacing as the
