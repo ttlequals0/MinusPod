@@ -648,18 +648,40 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Cross-fetch differential opt-in (Layer 3) */}
+          {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,
+              with explicit per-feed on/off overrides */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff:</span>
             <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <label className="flex items-center gap-2 cursor-pointer flex-wrap">
-                <ToggleSwitch
-                  checked={feed.differentialFetchEnabled === true}
-                  onChange={(v) => updateMutation.mutate({ differentialFetchEnabled: v })}
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={feed.differentialFetchEnabled == null ? '' : String(feed.differentialFetchEnabled)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateMutation.mutate({
+                      differentialFetchEnabled: v === '' ? null : v === 'true',
+                    });
+                  }}
                   disabled={updateMutation.isPending}
-                  ariaLabel="Fetch each episode twice to find inserted ads"
-                />
-                <span>Fetch each episode twice to find inserted ads</span>
+                  className="px-2 py-1.5 text-sm bg-secondary border border-border rounded min-w-0 disabled:opacity-50"
+                  aria-label="Fetch each episode twice to find inserted ads"
+                >
+                  <option value="">Auto (on for dynamic-ad feeds)</option>
+                  <option value="true">On</option>
+                  <option value="false">Off</option>
+                </select>
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    feed.differentialFetchEffective
+                      ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                      : 'bg-secondary text-muted-foreground'
+                  }`}
+                  title={feed.differentialFetchEffective
+                    ? 'Based on this feed\'s recent episodes, new episodes are fetched twice and compared. Each episode\'s own audio URL makes the final call.'
+                    : 'Based on this feed\'s recent episodes, new episodes are fetched once. Each episode\'s own audio URL makes the final call.'}
+                >
+                  {feed.differentialFetchEffective ? 'Runs on this feed' : 'Not running'}
+                </span>
                 {feed.daiLikely && (
                   <span
                     className="px-2 py-0.5 rounded text-xs font-medium bg-rose-500/20 text-rose-600 dark:text-rose-400"
@@ -668,15 +690,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     DAI likely
                   </span>
                 )}
-              </label>
+              </div>
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats.
+                Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats. Auto turns this on when the feed looks dynamically ad-served.
               </p>
-              {feed.daiLikely && feed.differentialFetchEnabled !== true && (
-                <p className="text-xs text-muted-foreground">
-                  Looks like this feed uses dynamic ad insertion. Cross-fetch diff can help confirm it.
-                </p>
-              )}
             </div>
           </div>
 

@@ -671,6 +671,22 @@ class EpisodeMixin:
         ).fetchone()
         return row is not None
 
+    def get_recent_ad_yields(self, podcast_id: int, exclude_episode_id: str,
+                             limit: int = 5) -> List[float]:
+        """Seconds of ad time removed from the feed's most recently processed
+        episodes, excluding the given one. Baseline for the low-ad-yield
+        comparison (#519)."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT original_duration - new_duration AS removed
+               FROM episodes
+               WHERE podcast_id = ? AND episode_id != ? AND status = 'processed'
+                 AND original_duration IS NOT NULL AND new_duration IS NOT NULL
+               ORDER BY processed_at DESC LIMIT ?""",
+            (podcast_id, exclude_episode_id, limit)
+        ).fetchall()
+        return [row['removed'] for row in rows if row['removed'] is not None]
+
     def get_detection_rows(self) -> List[Dict]:
         """All episodes that have ad markers, with feed metadata, for the
         cross-episode ad review endpoint."""
@@ -908,11 +924,13 @@ class EpisodeMixin:
                 cursor = conn.execute(
                     """INSERT INTO episodes
                        (podcast_id, episode_id, original_url, title, description,
-                        artwork_url, episode_number, published_at, tags, status)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                        artwork_url, episode_number, published_at, rss_duration,
+                        tags, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                        ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                         episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                         published_at = COALESCE(excluded.published_at, episodes.published_at),
+                        rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
                         original_url = COALESCE(episodes.original_url, excluded.original_url),
                         title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                         description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
@@ -927,6 +945,7 @@ class EpisodeMixin:
                         ep.get('artwork_url'),
                         ep.get('episode_number'),
                         iso_published,
+                        ep.get('rss_duration'),
                         tags_json,
                     )
                 )

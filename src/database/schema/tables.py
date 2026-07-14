@@ -80,6 +80,9 @@ CREATE TABLE IF NOT EXISTS episodes (
     processed_version INTEGER DEFAULT 0,
     original_duration REAL,
     new_duration REAL,
+    -- Duration declared by the feed (itunes:duration), captured at discovery.
+    -- Compared against the downloaded copy to expose DAI fill variance (#519).
+    rss_duration REAL,
     ads_removed INTEGER DEFAULT 0,
     ads_removed_firstpass INTEGER DEFAULT 0,
     ads_removed_secondpass INTEGER DEFAULT 0,
@@ -240,6 +243,9 @@ CREATE TABLE IF NOT EXISTS processing_history (
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     llm_cost REAL DEFAULT 0.0,
+    -- Per-run pipeline stats (#519): JSON blob assembled by process_episode
+    -- (downloaded duration, windows, stage hits, marker buckets, verification).
+    processing_stats_json TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 );

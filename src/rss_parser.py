@@ -18,7 +18,7 @@ from defusedxml.ElementTree import fromstring as defused_fromstring
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
 from utils.feed_guid import compute_feed_guid
-from utils.time import parse_iso_datetime
+from utils.time import parse_iso_datetime, parse_timestamp
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
 from utils.safe_http import ResponseTooLargeError, URLTrust, read_response_capped, safe_get
@@ -1278,6 +1278,19 @@ class RSSParser:
 
         return deduplicated
 
+    @staticmethod
+    def _parse_itunes_duration(raw) -> Optional[float]:
+        """itunes:duration in seconds (plain seconds, MM:SS, or HH:MM:SS
+        via utils.time.parse_timestamp); None for missing, zero, or
+        malformed values."""
+        if raw is None or raw == '':
+            return None
+        try:
+            seconds = parse_timestamp(raw)
+        except ValueError:
+            return None
+        return seconds if seconds > 0 else None
+
     def extract_episodes(self, feed_content: str, parsed_feed=None) -> List[Dict]:
         """Extract episode information from feed.
 
@@ -1315,6 +1328,11 @@ class RSSParser:
                     except (ValueError, TypeError):
                         pass
 
+                # Feed-declared duration (itunes:duration), for comparing
+                # against the downloaded copy's real length (#519).
+                rss_duration = self._parse_itunes_duration(
+                    entry.get('itunes_duration'))
+
                 # Map per-episode iTunes categories to vocabulary tags.
                 ep_tags: List[str] = []
                 try:
@@ -1337,6 +1355,7 @@ class RSSParser:
                     'description': self._get_episode_description(entry),
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
+                    'rss_duration': rss_duration,
                     'tags': ep_tags,
                 })
 

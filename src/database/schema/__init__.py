@@ -239,6 +239,7 @@ class SchemaMixin:
                 input_tokens INTEGER DEFAULT 0,
                 output_tokens INTEGER DEFAULT 0,
                 llm_cost REAL DEFAULT 0.0,
+                processing_stats_json TEXT,
                 created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
             )
@@ -387,6 +388,8 @@ class SchemaMixin:
             # Offline queue (#482)
             ('deferred_at', 'TEXT'),
             ('deferred_service', 'TEXT'),
+            # RSS-declared duration for DAI fill comparison (#519)
+            ('rss_duration', 'REAL'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -1210,6 +1213,8 @@ class SchemaMixin:
             ('output_tokens', 'INTEGER DEFAULT 0'),
             ('llm_cost', 'REAL DEFAULT 0.0'),
             ('audio_cues_detected', 'INTEGER DEFAULT 0'),
+            # Per-run pipeline stats (#519)
+            ('processing_stats_json', 'TEXT'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 

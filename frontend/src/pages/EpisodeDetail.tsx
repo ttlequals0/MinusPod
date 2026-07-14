@@ -22,6 +22,7 @@ import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { StageBadge } from '../components/StageBadge';
+import ProcessingRunsTable from '../components/ProcessingRunsTable';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -262,6 +263,22 @@ function EpisodeDetail() {
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
+  // Verification verdict (#519): the pipeline's second scan of the output
+  // audio. Read from the latest run's stats blob, which records the count
+  // only when the scan completed -- adsRemovedVerification defaults to 0,
+  // so recuts, crashed scans, and pre-feature episodes would otherwise
+  // falsely read as clean.
+  const latestRun = episode.processingRuns?.length
+    ? episode.processingRuns[episode.processingRuns.length - 1]
+    : null;
+  const verificationAdsCut = latestRun?.stats?.verificationAdsCut;
+  const verificationVerdict =
+    episode.status === 'completed' && verificationAdsCut != null
+      ? verificationAdsCut === 0
+        ? 'Verified: a second scan of the output audio found no remaining ads.'
+        : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
+      : null;
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -313,6 +330,14 @@ function EpisodeDetail() {
               >
                 {episode.status}
               </span>
+              {episode.lowAdYield && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400 cursor-help"
+                  title={`This run removed ${formatDuration(episode.lowAdYield.removedSeconds)} of ads; this feed's recent episodes average ${formatDuration(episode.lowAdYield.feedAverageSeconds)}. The downloaded copy may have arrived with unfilled ad slots, or ads were missed.`}
+                >
+                  Low ad yield
+                </span>
+              )}
               {episode.transcriptVttAvailable && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
                   VTT
@@ -419,6 +444,10 @@ function EpisodeDetail() {
             </div>
           </div>
         </div>
+
+        {verificationVerdict && (
+          <p className="mt-2 text-xs text-muted-foreground">{verificationVerdict}</p>
+        )}
 
         {failureReason && (
           <div className="mt-4 pt-4 border-t border-border">
@@ -1075,6 +1104,17 @@ function EpisodeDetail() {
               ? <p className="text-destructive">Failed to load original transcript</p>
               : <LoadingSpinner className="py-4" />
           }
+        </CollapsibleSection>
+      )}
+
+      {episode.processingRuns && episode.processingRuns.length > 0 && (
+        <CollapsibleSection
+          title="Processing stats"
+          subtitle="What each run downloaded, detected, and cut"
+          defaultOpen={false}
+          storageKey="episode-processing-stats"
+        >
+          <ProcessingRunsTable runs={episode.processingRuns} rssDuration={episode.rssDuration} />
         </CollapsibleSection>
       )}
 

@@ -26,7 +26,7 @@ from ad_reviewer import (
 )
 from audio_processor import get_replacement_duration
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
-from differential_fetcher import fetch_and_diff
+from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.time import ranges_overlap, utc_now_iso
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
@@ -41,7 +41,8 @@ from config import (
     resolve_tail_retranscribe_tunables,
     resolve_max_ad_duration_override,
     resolve_cue_gated_approval,
-    resolve_differential_fetch_enabled,
+    differential_fetch_effective,
+    resolve_differential_fetch_setting,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
@@ -488,19 +489,30 @@ def _make_validator_audio_analysis(audio_analysis_result, dai_differential):
     return None
 
 
-def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id):
-    """Pipeline stage: cross-fetch differential (Layer 3, per-feed opt-in).
+def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
+                            dai_platform=None):
+    """Pipeline stage: cross-fetch differential (Layer 3).
 
-    Returns the fetch_and_diff result dict, or None when the feed is not
-    opted in or an unexpected failure occurs. Never raises (except
+    Runs when the per-feed flag is on, or -- when the flag is unset -- when
+    the feed looks DAI-served (a detected platform or a DAI-prefix enclosure
+    URL), so inserted ads are caught on the first processing without manual
+    opt-in (#519). An explicit per-feed 0 still disables it.
+
+    Returns the fetch_and_diff result dict, or None when the stage is
+    skipped or an unexpected failure occurs. Never raises (except
     ProcessingCancelled): the flag read, status update, fetch, and store are
     all guarded so nothing here can fail the episode. The pipeline continues.
     """
     try:
-        if not resolve_differential_fetch_enabled(db, podcast_id):
+        explicit = resolve_differential_fetch_setting(db, podcast_id)
+        if not differential_fetch_effective(
+                explicit, dai_platform=dai_platform,
+                dai_likely=is_likely_dai_feed([episode_url])):
             return None
         status_service.update_job_stage("pass1:differential", 22)
-        audio_logger.info(f"[{slug}:{episode_id}] Differential fetch: starting")
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Differential fetch: starting"
+            f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
         try:
             result = fetch_and_diff(episode_url, audio_path, work_dir)
@@ -1740,10 +1752,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         else:
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
+        verification_ok = True
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
+        # The pass did not complete; callers must not report a clean scan.
+        verification_ok = False
 
-    return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count
+    return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok
 
 
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
@@ -1905,7 +1920,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count,
                                original_duration, new_duration,
                                processing_time, token_totals, db,
-                               audio_cue_detections=0):
+                               audio_cue_detections=0, run_stats=None):
     """Record processing history row and fire the episode-processed webhook.
 
     The webhook fires whenever the episode pipeline completed, including
@@ -1929,6 +1944,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                 output_tokens=token_totals['output_tokens'],
                 llm_cost=token_totals['cost'],
                 audio_cues_detected=audio_cue_detections,
+                processing_stats=run_stats,
             )
         else:
             audio_logger.warning(
@@ -1960,7 +1976,8 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
 def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        pass1_cut_count, verification_count, first_pass_count,
                        original_duration, new_duration, start_time,
-                       processed_version=0, audio_cue_detections=0):
+                       processed_version=0, audio_cue_detections=0,
+                       run_stats=None):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
@@ -1984,6 +2001,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         original_duration, new_duration,
         processing_time, token_totals, db,
         audio_cue_detections=audio_cue_detections,
+        run_stats=run_stats,
     )
 
 
@@ -2257,7 +2275,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
 
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
-                                episode_data, error, start_time):
+                                episode_data, error, start_time, run_stats=None):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
     processing_time = time.time() - start_time
     audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
@@ -2344,6 +2362,8 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                 input_tokens=token_totals['input_tokens'],
                 output_tokens=token_totals['output_tokens'],
                 llm_cost=token_totals['cost'],
+                # Partial stats: whatever the run gathered before failing.
+                processing_stats=run_stats,
             )
     except Exception as hist_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
@@ -2402,6 +2422,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = podcast_settings.get('description') if podcast_settings else None
 
+    # Per-run pipeline stats (#519), recorded as JSON with the history row
+    # and renamed to API casing in api/episodes.py. Defined before the try
+    # so the failure handler can persist whatever was gathered up to the
+    # point of failure.
+    run_stats = {'mode': reprocess_mode or 'auto'}
+
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
         mem_info = get_available_memory_gb()
@@ -2432,7 +2458,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # fetches; results are ready before first-pass detection. Non-fatal.
         dai_differential = _run_differential_fetch(
             slug, episode_id, episode_url, audio_path,
-            podcast_settings.get('id') if podcast_settings else None)
+            podcast_settings.get('id') if podcast_settings else None,
+            dai_platform=(podcast_settings.get('dai_platform')
+                          if podcast_settings else None))
         _check_cancel(cancel_event, slug, episode_id)
 
         try:
@@ -2484,6 +2512,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if not episode_duration:
                 episode_duration = segments[-1]['end'] if segments else 0
 
+            run_stats['downloaded_duration'] = round(episode_duration, 2)
+            run_stats['transcript_segments'] = len(segments)
+
             # Learned positional prior (issue #360 experiment, off by default)
             positional_prior = load_positional_prior(db, slug, episode_id,
                                                      episode_duration)
@@ -2499,6 +2530,20 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 dai_differential=dai_differential,
             )
             _check_cancel(cancel_event, slug, episode_id)
+
+            _detection_stats = (ad_result or {}).get('detection_stats') or {}
+            if 'windows_total' in _detection_stats:
+                run_stats['windows'] = {
+                    'total': _detection_stats['windows_total'],
+                    'failed': _detection_stats.get('windows_failed', 0),
+                }
+            run_stats['stage_hits'] = {
+                'fingerprint': _detection_stats.get('fingerprint_matches', 0),
+                'text_pattern': _detection_stats.get('text_pattern_matches', 0),
+                'differential': _detection_stats.get('dai_differential_matches', 0),
+                'llm': _detection_stats.get('claude_matches', 0),
+            }
+            run_stats['detected'] = first_pass_count
 
             all_ads = first_pass_ads.copy()
 
@@ -2596,7 +2641,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 (m['start'], m['end']) for m in all_ads_with_validation
                 if is_pending_review(m)
             ]
-            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count = _run_verification_pass(
+            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
@@ -2697,11 +2742,27 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 1 for ad in ads_to_remove
                 if _covered_by_cuts(ad, applied_cuts, original_duration)
             )
+            # Final marker buckets: what actually got cut, what is waiting on
+            # a human, and what stayed in the audio.
+            held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
+            cut_count = sum(1 for m in all_ads_with_validation if m.get('was_cut'))
+            run_stats['markers'] = {
+                'cut': cut_count,
+                'held': held_count,
+                'not_cut': len(all_ads_with_validation) - cut_count - held_count,
+            }
+            # Recorded only when the pass completed: a crashed scan must not
+            # read as a clean one (0 would be indistinguishable).
+            if verification_ok:
+                run_stats['verification_ads_cut'] = verification_count
+            if new_duration:
+                run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,
                                original_duration, new_duration, start_time,
                                processed_version=new_version,
-                               audio_cue_detections=audio_cue_count)
+                               audio_cue_detections=audio_cue_count,
+                               run_stats=run_stats)
 
             status_service.complete_job()
             return True
@@ -2714,5 +2775,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         raise
     except Exception as e:
         _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
-                                    episode_data, e, start_time)
+                                    episode_data, e, start_time,
+                                    run_stats=run_stats)
         return False

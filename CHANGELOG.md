@@ -6,6 +6,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.53.0] - 2026-07-14
+
+### Added
+- Per-run processing stats (#519). Each run now records what it actually
+  worked with: downloaded audio duration, transcript segments, detection
+  windows answered, hits per stage (audio fingerprint, text patterns,
+  cross-fetch differential, LLM), final marker buckets (cut / held /
+  kept), the verification scan result, and seconds removed. The episode
+  page shows it all in a "Processing stats" section at the bottom,
+  collapsed by default, and the History page gains an Audio column with
+  each run's downloaded length. Two runs of the same episode that got
+  different ad loads from the publisher now explain themselves.
+- Low ad yield badge (#519). When an episode removes far less ad time
+  than the feed's recent average, the episode page flags it with the
+  numbers, so a lightly-filled download does not read as a silent
+  detection failure.
+- Verification verdict on the episode page (#519). Completed episodes
+  state the result of the second scan of the output audio, which
+  previously existed only in logs.
+- The feed's declared episode duration (itunes:duration) is captured at
+  discovery and compared against the downloaded copy, surfacing dynamic
+  ad insertion variance per download.
+- The cross-fetch differential stage now runs automatically on feeds
+  that look DAI-served (a detected platform or a DAI-prefix enclosure
+  URL), so inserted ads are caught on the first processing without
+  turning the per-feed setting on. The feed setting is now a three-way
+  choice (Auto / On / Off) and shows whether the stage actually runs on
+  the feed; an explicit Off still opts out.
+
 ## [2.52.0] - 2026-07-14
 
 ### Added

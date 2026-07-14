@@ -84,7 +84,7 @@ _EXPORT_CSV_FIELDS = [
     'id', 'podcast_slug', 'podcast_title', 'episode_id',
     'episode_title', 'processed_at', 'processing_duration_seconds',
     'status', 'ads_detected', 'error_message', 'reprocess_number',
-    'input_tokens', 'output_tokens', 'llm_cost',
+    'input_tokens', 'output_tokens', 'llm_cost', 'downloaded_duration',
 ]
 
 
@@ -104,6 +104,8 @@ def _row_to_json_entry(entry: dict) -> dict:
         'inputTokens': entry.get('input_tokens', 0) or 0,
         'outputTokens': entry.get('output_tokens', 0) or 0,
         'llmCost': round(entry.get('llm_cost', 0.0) or 0.0, 6),
+        # Extracted by SQLite from the per-run stats blob (#519).
+        'downloadedDuration': entry.get('downloaded_duration'),
     }
 
 

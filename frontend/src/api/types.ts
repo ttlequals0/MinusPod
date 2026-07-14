@@ -56,8 +56,12 @@ export interface Feed {
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
   cueGatedApproval?: boolean | null;
-  // Layer 3 cross-fetch differential (nullable bool: NULL/false read as off).
+  // Layer 3 cross-fetch differential. Null means auto: the stage runs when
+  // the feed looks DAI-served; an explicit true/false overrides that.
   differentialFetchEnabled?: boolean | null;
+  // What the pipeline will actually do for this feed, resolved server-side
+  // from the flag above plus the DAI signals. Feed detail only.
+  differentialFetchEffective?: boolean;
   // Server-side heuristic: enclosure URL chain passes through a known DAI prefix domain.
   daiLikely?: boolean;
   maxEpisodes?: number | null;
@@ -148,9 +152,54 @@ export interface EpisodeDetail extends Episode {
   outputTokens?: number;
   llmCost?: number;
   daiDifferential?: DaiDifferential;
+  // Feed-declared duration (itunes:duration) in seconds; null when the feed
+  // does not declare one or the episode was discovered before 2.53.0.
+  rssDuration?: number | null;
+  // One entry per processing run, oldest first (#519).
+  processingRuns?: EpisodeProcessingRun[];
+  // Set when this episode removed far less ad time than the feed's recent
+  // average -- a lightly-filled DAI copy or a detection miss worth a look.
+  lowAdYield?: {
+    removedSeconds: number;
+    feedAverageSeconds: number;
+    sampleSize: number;
+  } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };
+}
+
+// Per-run pipeline stats blob (#519). Null-heavy by design: runs recorded
+// before 2.53.0 and recut runs have no blob at all, and a failed run keeps
+// whatever was gathered before the failure.
+export interface ProcessingRunStats {
+  mode?: string;
+  downloadedDuration?: number | null;
+  transcriptSegments?: number;
+  windows?: { total: number; failed: number } | null;
+  stageHits?: {
+    fingerprint: number;
+    textPattern: number;
+    differential: number;
+    llm: number;
+  } | null;
+  detected?: number;
+  markers?: { cut: number; held: number; notCut: number } | null;
+  verificationAdsCut?: number | null;
+  secondsRemoved?: number | null;
+}
+
+export interface EpisodeProcessingRun {
+  runNumber: number;
+  processedAt: string;
+  status: 'completed' | 'failed';
+  adsDetected: number;
+  processingDurationSeconds: number | null;
+  errorMessage: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  llmCost: number;
+  stats: ProcessingRunStats | null;
 }
 
 // Per-cue detection telemetry (#350 follow-up). One row per template cue the
@@ -627,6 +676,9 @@ export interface ProcessingHistoryEntry {
   inputTokens?: number;
   outputTokens?: number;
   llmCost?: number;
+  // Duration of the downloaded copy this run processed; null for runs
+  // recorded before 2.53.0 (#519).
+  downloadedDuration?: number | null;
 }
 
 export interface ProcessingHistoryResponse {
