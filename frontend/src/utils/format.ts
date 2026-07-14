@@ -18,6 +18,17 @@ export function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+// Locale date plus short time (e.g. "7/12/2026, 3:26 PM"), `-` for a
+// missing value. Used where the freshness of a timestamp matters (feed
+// refresh times).
+export function formatDateTime(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString([], {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
 // Compact stats duration: `Ns` under a minute, `N.Nm` under an hour, else
 // `N.Nh`. Distinct from formatTimestamp (clock-style) and
 // settingsUtils.formatDuration (episode lengths).

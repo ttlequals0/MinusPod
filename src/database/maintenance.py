@@ -80,7 +80,7 @@ class MaintenanceMixin:
         # processed_cutoff keeps us from double-handling rows the main
         # pass is about to fully reset.
         rows = conn.execute(
-            """SELECT e.episode_id, p.slug
+            """SELECT e.id, e.episode_id, p.slug
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
                WHERE e.processed_file IS NOT NULL
@@ -90,13 +90,37 @@ class MaintenanceMixin:
             (original_cutoff, processed_cutoff),
         ).fetchall()
 
+        # NOTE: no original_file IS NOT NULL predicate -- episodes processed
+        # before that column existed can have an original on disk with a
+        # NULL column, and they still need sweeping.
         dropped = 0
         freed_bytes = 0
+        cleared_ids = []
         for row in rows:
             ok, size = storage.delete_original_only(row['slug'], row['episode_id'])
             if ok:
                 dropped += 1
                 freed_bytes += size
+            # Clear the column when we deleted the file OR it was already
+            # gone (rows left stale by pre-2.52.0 sweeps); keep it only
+            # when the file still exists (unlink failed, retry next run).
+            if ok or not storage.get_original_path(
+                    row['slug'], row['episode_id']).exists():
+                cleared_ids.append(row['id'])
+
+        if cleared_ids:
+            # Keep the column truthful: the Ad Review play button and the
+            # original.mp3 route both key on original_file, so leaving it
+            # set after deleting the file yields dead play buttons (#517).
+            # Chunked: SQLite caps bound variables per statement.
+            for i in range(0, len(cleared_ids), 500):
+                chunk = cleared_ids[i:i + 500]
+                placeholders = ','.join('?' * len(chunk))
+                conn.execute(
+                    f"UPDATE episodes SET original_file = NULL WHERE id IN ({placeholders})",
+                    chunk,
+                )
+            conn.commit()
 
         if dropped:
             freed_mb = freed_bytes / (1024 * 1024)

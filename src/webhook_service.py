@@ -27,12 +27,14 @@ EVENT_EPISODE_FAILED = 'Episode Failed'
 EVENT_AUTH_FAILURE = 'Auth Failure'
 EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
 EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
+EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
     EVENT_AUTH_FAILURE,
     EVENT_RATE_LIMIT_STRUCTURAL,
     EVENT_LIMIT_EXCEEDED,
+    EVENT_FEED_REFRESH_FAILED,
 }
 
 _sandbox_env = SandboxedEnvironment()
@@ -283,17 +285,32 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
 _alert_lock = threading.Lock()
 _last_alert_time = {}
 _ALERT_DEDUP_SECS = 300  # 5 minutes
+_ALERT_BURST_SECS = 60   # Cross-key cap when dedup_key is used
 
 
-def _fire_alert_event(event, context, log_detail):
-    """Dispatch an operator alert to webhooks and email with a per-event
-    5-minute dedup. Email is not gated on any webhook existing: the thread
-    always runs so email-only setups still get alerts."""
+def _fire_alert_event(event, context, log_detail, dedup_key=None):
+    """Dispatch an operator alert to webhooks and email with a 5-minute
+    dedup, keyed per event (or per `dedup_key` when alerts for the same
+    event must not suppress each other, e.g. per-feed failures). Keyed
+    alerts additionally share a short per-event burst cap so a systemic
+    outage tripping every feed at once sends one alert, not one per feed.
+    Email is not gated on any webhook existing: the thread always runs so
+    email-only setups still get alerts.
+
+    Returns True when the alert was dispatched, False when suppressed --
+    callers that alert on a one-shot state transition use this to retry
+    later instead of losing the alert."""
+    key = dedup_key or event
     now = time.time()
     with _alert_lock:
-        if now - _last_alert_time.get(event, 0.0) < _ALERT_DEDUP_SECS:
+        if now - _last_alert_time.get(key, 0.0) < _ALERT_DEDUP_SECS:
             logger.debug("%s alert suppressed (dedup window)", event)
-            return
+            return False
+        if dedup_key is not None and \
+                now - _last_alert_time.get(event, 0.0) < _ALERT_BURST_SECS:
+            logger.debug("%s alert suppressed (burst cap)", event)
+            return False
+        _last_alert_time[key] = now
         _last_alert_time[event] = now
 
     matching = [w for w in load_webhooks()
@@ -313,6 +330,7 @@ def _fire_alert_event(event, context, log_detail):
 
     thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()
+    return True
 
 
 def fire_auth_failure_event(provider, model, error_message, status_code):
@@ -339,6 +357,26 @@ def fire_limit_exceeded_event(provider, model, error_message, status_code):
         'error_message': str(error_message),
         'status_code': status_code,
     }, f"provider={provider}, status={status_code}")
+
+
+def fire_feed_refresh_failed_event(slug, podcast_name, feed_url, error_message,
+                                   failure_count):
+    """Fire a feed-refresh-failure webhook.
+
+    Signals that a podcast's origin RSS feed has failed several consecutive
+    refresh attempts (moved/removed feed, wrong URL, or the publisher's
+    server being down). Deduped per feed so one broken feed does not
+    suppress alerts for another. Returns True when dispatched, False when
+    suppressed by the dedup or burst caps.
+    """
+    return _fire_alert_event(EVENT_FEED_REFRESH_FAILED, {
+        'slug': slug,
+        'podcast_name': podcast_name,
+        'feed_url': feed_url,
+        'error_message': str(error_message),
+        'failure_count': failure_count,
+    }, f"slug={slug}, failures={failure_count}",
+        dedup_key=f"{EVENT_FEED_REFRESH_FAILED}:{slug}")
 
 
 def fire_structural_rate_limit_event(provider, model, limit, used, requested, error_message):

@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats } from '../api/stats';
 import { getCueAggregateStats } from '../api/cueDetections';
-import { getFeeds } from '../api/feeds';
+import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
 import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
@@ -79,10 +79,7 @@ export default function StatsPage() {
     labelStyle: { color: theme.foreground || '#fff' },
   }), [theme.card, theme.border, theme.foreground]);
 
-  const { data: feeds } = useQuery({
-    queryKey: ['feeds'],
-    queryFn: getFeeds,
-  });
+  const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
 
   const { data: dashboard, isLoading: dashLoading } = useQuery({
     queryKey: ['stats-dashboard', podcastFilter],

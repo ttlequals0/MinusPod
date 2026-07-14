@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS podcasts (
     artwork_url TEXT,
     artwork_cached INTEGER DEFAULT 0,
     last_checked_at TEXT,
+    -- Consecutive refresh-failure tracking (#516); cleared on success.
+    -- last_refresh_error_at is the first failure of the current run,
+    -- last_refresh_failure_at the most recent counted failure.
+    refresh_failure_count INTEGER DEFAULT 0,
+    last_refresh_error TEXT,
+    last_refresh_error_at TEXT,
+    last_refresh_failure_at TEXT,
     network_id TEXT,
     dai_platform TEXT,
     network_id_override TEXT,

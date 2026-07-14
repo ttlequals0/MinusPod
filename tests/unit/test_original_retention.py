@@ -24,7 +24,7 @@ def _iso(dt):
     return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def _seed_processed_episode(db, slug, ep_id, processed_at):
+def _seed_processed_episode(db, slug, ep_id, processed_at, original_file=None):
     """Insert a podcast + episode marked processed with a processed_file path."""
     if not db.get_podcast_by_slug(slug):
         db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
@@ -36,9 +36,9 @@ def _seed_processed_episode(db, slug, ep_id, processed_at):
     )
     conn = db.get_connection()
     conn.execute(
-        "UPDATE episodes SET processed_file = ?, processed_at = ?, status = 'processed' "
-        "WHERE episode_id = ?",
-        (f'{ep_id}.mp3', processed_at, ep_id),
+        "UPDATE episodes SET processed_file = ?, original_file = ?, "
+        "processed_at = ?, status = 'processed' WHERE episode_id = ?",
+        (f'{ep_id}.mp3', original_file, processed_at, ep_id),
     )
     conn.commit()
 
@@ -204,6 +204,73 @@ def test_pre_pass_handles_storage_failure_gracefully(db):
     storage.delete_original_only.assert_called_once()
     assert reset_count == 0  # main pass did not own this row
     assert freed_mb == 0.0
+
+
+def test_pre_pass_clears_original_file_column(db):
+    """Regression (#517): the original-only sweep must clear original_file
+    when it deletes the file, or Ad Review keeps rendering play buttons
+    whose original.mp3 URL 404s."""
+    db.set_setting('retention_days', '30', is_default=False)
+    db.set_setting('original_retention_days', '7', is_default=False)
+    db.set_setting('keep_original_audio', 'true', is_default=False)
+    _seed_processed_episode(
+        db, 'show-h', 'ep-swept',
+        _iso(datetime.now(timezone.utc) - timedelta(days=10)),
+        original_file='episodes/ep-swept-original.mp3',
+    )
+
+    storage = MagicMock()
+    storage.delete_original_only.return_value = (True, 1_000_000)
+
+    db.cleanup_old_episodes(storage=storage)
+
+    ep = db.get_episode('show-h', 'ep-swept')
+    assert ep['original_file'] is None
+    assert ep['status'] == 'processed'
+
+
+def test_pre_pass_keeps_column_when_deletion_failed(db):
+    """If delete_original_only failed but the file still exists (unlink
+    error), the column must stay set for a retry on the next sweep."""
+    db.set_setting('retention_days', '30', is_default=False)
+    db.set_setting('original_retention_days', '7', is_default=False)
+    db.set_setting('keep_original_audio', 'true', is_default=False)
+    _seed_processed_episode(
+        db, 'show-i', 'ep-locked',
+        _iso(datetime.now(timezone.utc) - timedelta(days=10)),
+        original_file='episodes/ep-locked-original.mp3',
+    )
+
+    storage = MagicMock()
+    storage.delete_original_only.return_value = (False, 0)
+    storage.get_original_path.return_value.exists.return_value = True
+
+    db.cleanup_old_episodes(storage=storage)
+
+    ep = db.get_episode('show-i', 'ep-locked')
+    assert ep['original_file'] == 'episodes/ep-locked-original.mp3'
+
+
+def test_pre_pass_heals_stale_column_when_file_already_gone(db):
+    """Rows left inconsistent by pre-2.52.0 sweeps (file deleted, column
+    still set) must be healed: nothing to delete, but the column clears."""
+    db.set_setting('retention_days', '30', is_default=False)
+    db.set_setting('original_retention_days', '7', is_default=False)
+    db.set_setting('keep_original_audio', 'true', is_default=False)
+    _seed_processed_episode(
+        db, 'show-j', 'ep-stale',
+        _iso(datetime.now(timezone.utc) - timedelta(days=10)),
+        original_file='episodes/ep-stale-original.mp3',
+    )
+
+    storage = MagicMock()
+    storage.delete_original_only.return_value = (False, 0)
+    storage.get_original_path.return_value.exists.return_value = False
+
+    db.cleanup_old_episodes(storage=storage)
+
+    ep = db.get_episode('show-j', 'ep-stale')
+    assert ep['original_file'] is None
 
 
 def _seed_null_processed_at(db, slug, ep_id, updated_at):

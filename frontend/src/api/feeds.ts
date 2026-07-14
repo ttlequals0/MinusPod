@@ -79,9 +79,26 @@ export async function getOriginalSegments(
   );
 }
 
+export interface FeedsResponse {
+  feeds: Feed[];
+  // Stamped whenever an all-feeds refresh pass finishes (15-minute
+  // scheduler or Refresh All); null until the first pass completes.
+  lastRefreshCompletedAt: string | null;
+}
+
+export async function getFeedsResponse(): Promise<FeedsResponse> {
+  return apiRequest<FeedsResponse>('/feeds');
+}
+
+// Shared options so every consumer of the ['feeds'] cache stores the same
+// FeedsResponse shape; spread and add `select` to derive a view.
+export const feedsQueryOptions = {
+  queryKey: ['feeds'],
+  queryFn: getFeedsResponse,
+} as const;
+
 export async function getFeeds(): Promise<Feed[]> {
-  const response = await apiRequest<{ feeds: Feed[] }>('/feeds');
-  return response.feeds;
+  return (await getFeedsResponse()).feeds;
 }
 
 export async function getFeed(slug: string): Promise<Feed> {

@@ -1,12 +1,18 @@
 """Feed management: get_feed_map, invalidate_feed_cache, refresh_rss_feed, refresh_all_feeds."""
 import logging
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
+from config import (
+    FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
+    FEED_REFRESH_FAILURE_COUNT_INTERVAL,
+)
+
 from database.episodes import normalize_published_at
 from utils.http import safe_url_for_log
-from utils.time import utc_now_iso
+from utils.time import parse_iso_utc, utc_now_iso
 
 from slugify import slugify
 
@@ -19,6 +25,8 @@ from main_app.cache import TTLCache
 # tuple-reorder footgun the audit flagged.
 from main_app import db, rss_parser, storage, status_service, pattern_service
 from main_app.feed_auth import active_feed_key
+
+import webhook_service
 
 refresh_logger = logging.getLogger('podcast.refresh')
 feed_logger = logging.getLogger('podcast.feed')
@@ -34,6 +42,70 @@ _feed_cache = TTLCache(ttl_seconds=30)
 # reprocess, API force-refresh) bypasses the skip but still stamps so
 # subsequent non-force calls within the window coalesce.
 _refresh_coalesce = TTLCache(ttl_seconds=30)
+
+
+def _scrub_query_strings(text: str) -> str:
+    """Drop query strings from any URL embedded in an error message --
+    private-feed tokens live there, and this text is persisted, shown in
+    the UI, and sent to webhooks/email."""
+    return re.sub(r'(https?://[^\s?]*)\?\S+', r'\1?<redacted>', text)
+
+
+def _record_refresh_failure(slug: str, error_message: str, podcast=None):
+    """Persist per-feed failure state and alert once per outage.
+
+    Only failures spaced at least FEED_REFRESH_FAILURE_COUNT_INTERVAL apart
+    are counted, so client-poll-driven retries during a brief blip cannot
+    reach the alert threshold in minutes; the notification fires only on
+    the exact transition to the threshold, so a feed that stays broken does
+    not re-alert. Callers that already hold the podcast row pass it to skip
+    the re-read.
+    """
+    try:
+        if podcast is None:
+            podcast = db.get_podcast_by_slug(slug)
+        if not podcast:
+            return
+        now = datetime.now(timezone.utc)
+        last_counted = parse_iso_utc(podcast.get('last_refresh_failure_at'))
+        if last_counted and (now - last_counted).total_seconds() < FEED_REFRESH_FAILURE_COUNT_INTERVAL:
+            return
+        count = (podcast.get('refresh_failure_count') or 0) + 1
+        scrubbed_error = _scrub_query_strings(str(error_message))
+        db.update_podcast(
+            slug,
+            refresh_failure_count=count,
+            last_refresh_error=scrubbed_error[:500],
+            # Stamp only the first failure of a run so the UI shows how
+            # long the feed has been broken, not the latest attempt.
+            last_refresh_error_at=(podcast.get('last_refresh_error_at')
+                                   or utc_now_iso()),
+            last_refresh_failure_at=utc_now_iso(),
+        )
+        if count == FEED_REFRESH_FAILURE_ALERT_THRESHOLD:
+            sent = webhook_service.fire_feed_refresh_failed_event(
+                slug=slug,
+                podcast_name=podcast.get('title') or slug,
+                feed_url=safe_url_for_log(podcast.get('source_url') or '',
+                                          keep_path=True),
+                error_message=scrubbed_error,
+                failure_count=count,
+            )
+            if not sent:
+                # Suppressed by the dedup/burst caps. Step the count back
+                # so the next counted failure re-crosses the threshold and
+                # retries -- otherwise this outage's one alert is lost.
+                db.update_podcast(slug, refresh_failure_count=count - 1)
+    except Exception:
+        refresh_logger.exception(f"[{slug}] Failed to record refresh failure")
+
+
+def _record_refresh_success(slug: str):
+    """Clear failure state after a successful refresh (no-op when clean)."""
+    try:
+        db.clear_refresh_failure_state(slug)
+    except Exception:
+        refresh_logger.exception(f"[{slug}] Failed to clear refresh failure state")
 
 
 def get_feed_map():
@@ -121,6 +193,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     else:
                         refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
                         db.update_podcast(slug, last_checked_at=utc_now_iso())
+                        _record_refresh_success(slug)
                         status_service.complete_feed_refresh(slug, 0)
                         return True
             else:
@@ -134,11 +207,27 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
         if not feed_content:
             refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
+            _record_refresh_failure(
+                slug, 'Failed to fetch RSS feed (unreachable, invalid '
+                      'response, or blocked)', podcast=podcast)
             status_service.complete_feed_refresh(slug, 0)
             return False
 
-        # Parse feed to extract metadata
+        # Parse feed to extract metadata. A body that yields neither channel
+        # metadata nor entries AND tripped the parser (bozo) is an origin
+        # failure (error page served with an RSS content type), not a
+        # success -- treating it as success would reset the failure counter
+        # mid-outage. A clean parse of an empty placeholder feed still
+        # counts as success.
         parsed_feed = rss_parser.parse_feed(feed_content)
+        if not parsed_feed or (not parsed_feed.feed and not parsed_feed.entries
+                               and getattr(parsed_feed, 'bozo', False)):
+            refresh_logger.error(f"[{slug}] Fetched feed could not be parsed as RSS")
+            _record_refresh_failure(
+                slug, 'Fetched feed could not be parsed as RSS (the URL may '
+                      'be returning an error page)', podcast=podcast)
+            status_service.complete_feed_refresh(slug, 0)
+            return False
         if parsed_feed and parsed_feed.feed:
             title = parsed_feed.feed.get('title')
             description = parsed_feed.feed.get('description', '')[:500]
@@ -265,9 +354,14 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
 
         refresh_logger.debug(f"[{slug}] RSS refresh complete")
+        _record_refresh_success(slug)
         status_service.complete_feed_refresh(slug, 0)
         return True
     except Exception as e:
+        # Deliberately NOT recorded as a feed failure: exceptions here are
+        # internal faults (DB locked, disk full, downstream bugs), and the
+        # Feed Refresh Failed alert blames the publisher's feed. Origin
+        # failures are recorded at the fetch/parse boundaries above.
         refresh_logger.error(f"[{slug}] RSS refresh failed: {e}")
         status_service.remove_feed_refresh(slug)
         return False
@@ -301,6 +395,9 @@ def refresh_all_feeds(force: bool = False):
                     refresh_logger.error(f"[{slug}] Feed refresh failed: {e}")
 
         refresh_logger.info(f"RSS refresh complete for {len(feed_map)} feeds")
+        # Stamp when the all-feeds pass finished; the dashboard shows this
+        # as the global "Updated" time.
+        db.set_setting('feeds_last_refresh_completed_at', utc_now_iso())
         return True
     except Exception as e:
         refresh_logger.error(f"RSS refresh failed: {e}")

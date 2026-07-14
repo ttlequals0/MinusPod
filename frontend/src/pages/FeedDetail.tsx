@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Pencil } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getFeeds, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
+import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
@@ -18,6 +18,7 @@ import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
+import { formatDateTime } from '../utils/format';
 import { stripHtml } from '../utils/stripHtml';
 
 function reprocessModeLabel(mode: string): string {
@@ -67,7 +68,7 @@ function FeedDetail() {
 
   // Prev/next nav across feeds (issue #417 follow-up). Reuse the dashboard's
   // cached list and its sort so adjacency matches the list the user clicked from.
-  const { data: feeds } = useQuery({ queryKey: ['feeds'], queryFn: getFeeds });
+  const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
   const [feedSortBy] = useLocalStorageState<FeedSortBy>(DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT);
   const { prevFeed, nextFeed } = useMemo(() => {
     if (!feeds || !slug) return { prevFeed: null, nextFeed: null };
@@ -295,7 +296,15 @@ function FeedDetail() {
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>
               {feed.lastRefreshed && (
-                <span>Updated {new Date(feed.lastRefreshed).toLocaleDateString()}</span>
+                <span>Updated {formatDateTime(feed.lastRefreshed)}</span>
+              )}
+              {feed.lastRefreshError && (
+                <span
+                  className="text-amber-600 dark:text-amber-400"
+                  title={feed.lastRefreshError}
+                >
+                  Refresh failing since {formatDateTime(feed.lastRefreshErrorAt ?? null)}
+                </span>
               )}
             </div>
           </div>

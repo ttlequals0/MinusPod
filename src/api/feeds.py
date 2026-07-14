@@ -17,6 +17,7 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
+from config import FEED_REFRESH_FAILURE_ALERT_THRESHOLD
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
@@ -222,6 +223,21 @@ def _status_counts(podcast) -> dict:
     return counts
 
 
+def _refresh_error_fields(podcast) -> dict:
+    """Refresh-failure fields for a feed response (#516).
+
+    Exposed only once the consecutive-failure count reaches the alert
+    threshold, so the UI's "Refresh failing" marker matches the webhook/
+    email alert semantics instead of flagging a single transient blip.
+    """
+    failing = (podcast.get('refresh_failure_count') or 0) \
+        >= FEED_REFRESH_FAILURE_ALERT_THRESHOLD
+    return {
+        'lastRefreshError': podcast.get('last_refresh_error') if failing else None,
+        'lastRefreshErrorAt': podcast.get('last_refresh_error_at') if failing else None,
+    }
+
+
 def _slug_from_url_path(source_url: str) -> Optional[str]:
     # Final-resort slug derivation when neither an upstream OPML title nor
     # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
@@ -275,6 +291,7 @@ def list_feeds():
             'processedCount': podcast.get('processed_count', 0),
             'statusCounts': _status_counts(podcast),
             'lastRefreshed': podcast.get('last_checked_at'),
+            **_refresh_error_fields(podcast),
             'createdAt': podcast.get('created_at'),
             'lastEpisodeDate': podcast.get('last_episode_date'),
             'networkId': podcast.get('network_id'),
@@ -283,7 +300,13 @@ def list_feeds():
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
         })
 
-    return json_response({'feeds': feeds})
+    return json_response({
+        'feeds': feeds,
+        # Stamped whenever an all-feeds refresh pass finishes (15-minute
+        # scheduler or the manual Refresh All action); null until the
+        # first pass completes.
+        'lastRefreshCompletedAt': db.get_setting('feeds_last_refresh_completed_at'),
+    })
 
 
 @api.route('/feeds', methods=['POST'])
@@ -621,6 +644,7 @@ def get_feed(slug):
         'processedCount': podcast.get('processed_count', 0),
         'statusCounts': _status_counts(podcast),
         'lastRefreshed': podcast.get('last_checked_at'),
+        **_refresh_error_fields(podcast),
         'createdAt': podcast.get('created_at'),
         'networkId': podcast.get('network_id'),
         'daiPlatform': podcast.get('dai_platform'),

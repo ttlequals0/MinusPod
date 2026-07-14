@@ -41,6 +41,14 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
               Updated {new Date(feed.lastRefreshed).toLocaleDateString()}
             </span>
           )}
+          {feed.lastRefreshError && (
+            <span
+              className="ml-2 text-amber-600 dark:text-amber-400"
+              title={feed.lastRefreshError}
+            >
+              Refresh failing
+            </span>
+          )}
         </p>
         <FeedStatusSummary counts={feed.statusCounts} className="mt-1" />
       </div>

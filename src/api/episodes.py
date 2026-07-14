@@ -352,6 +352,10 @@ def serve_original_audio(slug, episode_id):
         return error_response('Original audio not retained for this episode', 404)
     path = storage.get_original_path(slug, episode_id)
     if not path.exists():
+        # Self-heal rows where the file vanished without the column being
+        # cleared (original-only retention sweeps before 2.52.0 did this),
+        # so Ad Review stops offering a play button that can only 404.
+        db.upsert_episode(slug, episode_id, original_file=None)
         return error_response('Original audio file missing', 404)
     response = send_file(path, mimetype='audio/mpeg', conditional=True)
     # Advertise byte-range support so the wavesurfer-based AdEditor can seek
@@ -383,6 +387,8 @@ def get_episode_peaks(slug, episode_id):
         return error_response('Original audio not retained for this episode', 404)
     path = storage.get_original_path(slug, episode_id)
     if not path.exists():
+        # Same self-heal as serve_original_audio: the column is stale.
+        db.upsert_episode(slug, episode_id, original_file=None)
         return error_response('Original audio file missing', 404)
 
     def _f(name, default=None):

@@ -31,6 +31,7 @@ SMTP_TIMEOUT_SECONDS = 10
 VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
+    'Feed Refresh Failed',
 ]
 # Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
@@ -177,12 +178,29 @@ def _fmt_rate_limit_structural(ctx):
                            'or move to a higher provider tier.')
 
 
+def _fmt_feed_refresh_failed(ctx):
+    subject = f"[MinusPod] Feed Refresh Failed: {ctx.get('podcast_name', 'unknown')}"
+    rows = [
+        ('Podcast', f"{_value(ctx.get('podcast_name'))} ({_value(ctx.get('slug'))})"),
+        ('Feed URL', _value(ctx.get('feed_url'))),
+        ('Consecutive failures', _value(ctx.get('failure_count'))),
+        ('Error', _value(ctx.get('error_message'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, ('Check the podcast feed URL in the feed settings. '
+                           'The publisher may have moved the feed, or their '
+                           'server may be temporarily down. If the URL loads '
+                           'fine, check the MinusPod logs for the error '
+                           'detail.')
+
+
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
     'Episode Failed': _fmt_episode_failed,
     'Auth Failure': _fmt_auth_failure,
     'Limit Exceeded': _fmt_limit_exceeded,
     'Rate Limit Structural': _fmt_rate_limit_structural,
+    'Feed Refresh Failed': _fmt_feed_refresh_failed,
 }
 
 

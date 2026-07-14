@@ -6,6 +6,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.52.0] - 2026-07-14
+
+### Added
+- Feed refresh times now show the time of day, not just the date (#516).
+  The feed page's "Updated" line includes the clock time, and the
+  dashboard header shows when the last check of all feeds finished
+  (stamped by the 15-minute background pass and the Refresh All action).
+- New "Feed Refresh Failed" webhook/email event (#516). Fires once a
+  podcast's origin RSS feed has failed three checks in a row spaced at
+  least ten minutes apart (roughly half an hour of continuous failure;
+  rapid retries from podcast-app polls don't inflate the count). One
+  alert per outage, and a burst cap keeps a network-wide outage from
+  sending one email per feed. Past that threshold the feed's dashboard
+  card shows an amber "Refresh failing" marker and the feed page shows
+  "Refresh failing since <time>", so you can see how long it has been
+  broken. Everything clears on the next successful refresh. Only fetch
+  and parse failures count: internal errors never blame the publisher's
+  feed.
+
+### Fixed
+- Ad Review play buttons no longer die silently after the original-only
+  retention sweep (#517). When `originalRetentionDays` is shorter than
+  `retentionDays`, the sweep deleted the retained original audio from
+  disk but left the episode's `original_file` column set, so Ad Review
+  kept offering play buttons whose audio URL returned 404. The sweep now
+  clears the column with the file, and the original.mp3/peaks routes
+  self-heal rows left stale by older versions, so the play button
+  disappears instead of failing.
+
 ## [2.51.3] - 2026-07-13
 
 ### Changed

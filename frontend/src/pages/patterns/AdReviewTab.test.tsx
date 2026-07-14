@@ -8,10 +8,13 @@ import type { ReviewDetection } from '../../api/detections';
 
 const mockGetDetections = vi.fn();
 // Deliberately unsorted: the dropdown must sort by title.
-const mockGetFeeds = vi.fn().mockResolvedValue([
-  { slug: 'feed-b', title: 'Feed B' },
-  { slug: 'feed-a', title: 'Feed A' },
-]);
+const mockGetFeedsResponse = vi.fn().mockResolvedValue({
+  feeds: [
+    { slug: 'feed-b', title: 'Feed B' },
+    { slug: 'feed-a', title: 'Feed A' },
+  ],
+  lastRefreshCompletedAt: null,
+});
 const COUNTS = {
   total: 1, needsReview: 1, pending: 0, rejected: 1,
   accepted: 0, confirmed: 0, dismissed: 0,
@@ -24,7 +27,13 @@ vi.mock('../../api/detections', () => ({
 }));
 vi.mock('../../api/feeds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/feeds')>()),
-  getFeeds: (...a: unknown[]) => mockGetFeeds(...a),
+  getFeedsResponse: (...a: unknown[]) => mockGetFeedsResponse(...a),
+  // The real feedsQueryOptions captured the unmocked getFeedsResponse at
+  // module load; rebuild it against the mock.
+  feedsQueryOptions: {
+    queryKey: ['feeds'],
+    queryFn: (...a: unknown[]) => mockGetFeedsResponse(...a),
+  },
   reprocessEpisode: (...a: unknown[]) => mockReprocess(...a),
 }));
 vi.mock('../../api/patterns', async (importOriginal) => ({
