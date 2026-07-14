@@ -17,7 +17,10 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
-from config import FEED_REFRESH_FAILURE_ALERT_THRESHOLD
+from config import (
+    FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
+    differential_fetch_effective,
+)
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
@@ -655,6 +658,14 @@ def get_feed(slug):
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
         **_cue_override_fields(podcast),
+        # Same rule as the differential stage gate, applied to the feed's
+        # recent episodes (#519). The pipeline evaluates each new episode's
+        # own enclosure URL, so this is a prediction, not a guarantee.
+        'differentialFetchEffective': differential_fetch_effective(
+            _deserialize_nullable_bool(podcast.get('differential_fetch_enabled')),
+            dai_platform=podcast.get('dai_platform'),
+            dai_likely=dai_likely,
+        ),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })

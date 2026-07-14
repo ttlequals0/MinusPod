@@ -60,42 +60,54 @@ function renderPanel(feed: Feed) {
   );
 }
 
-const TOGGLE_NAME = 'Fetch each episode twice to find inserted ads';
+const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
 
-describe('FeedSettingsPanel cross-fetch differential toggle', () => {
+describe('FeedSettingsPanel cross-fetch differential control', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders unchecked when differentialFetchEnabled is unset', () => {
+  it('renders Auto when differentialFetchEnabled is unset', () => {
     renderPanel(makeFeed());
-    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    const select = screen.getByRole('combobox', { name: SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('');
   });
 
-  it('enabling fires updateFeed with differentialFetchEnabled true', async () => {
+  it('selecting On fires updateFeed with differentialFetchEnabled true', async () => {
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), 'true');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: true });
   });
 
-  it('disabling an enabled feed fires differentialFetchEnabled false', async () => {
+  it('selecting Off fires updateFeed with differentialFetchEnabled false', async () => {
     renderPanel(makeFeed({ differentialFetchEnabled: true }));
-    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    await userEvent.click(toggle);
+    const select = screen.getByRole('combobox', { name: SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('true');
+    await userEvent.selectOptions(select, 'false');
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: false });
   });
 
-  it('shows the DAI-likely badge and hint only when daiLikely is true', () => {
+  it('selecting Auto restores null so DAI feeds auto-enable again', async () => {
+    renderPanel(makeFeed({ differentialFetchEnabled: false }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: SELECT_NAME }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { differentialFetchEnabled: null });
+  });
+
+  it('shows the effective state resolved by the server', () => {
+    const { unmount } = renderPanel(makeFeed({ differentialFetchEffective: true }));
+    expect(screen.getByText('Runs on this feed')).toBeDefined();
+    unmount();
+    renderPanel(makeFeed({ differentialFetchEffective: false }));
+    expect(screen.getByText('Not running')).toBeDefined();
+  });
+
+  it('shows the DAI-likely badge only when daiLikely is true', () => {
     const { unmount } = renderPanel(makeFeed({ daiLikely: true }));
     expect(screen.getByText('DAI likely')).toBeDefined();
-    expect(screen.getByText(/looks like this feed uses dynamic ad insertion/i)).toBeDefined();
     unmount();
     renderPanel(makeFeed());
     expect(screen.queryByText('DAI likely')).toBeNull();
-    expect(screen.queryByText(/looks like this feed uses dynamic ad insertion/i)).toBeNull();
   });
 });
 

@@ -99,13 +99,15 @@ def test_dai_hint_false_for_plain_cdn(app_client, seeded_feed, _auth):
     assert r.get_json()['daiLikely'] is False
 
 
-def test_resolver_reads_column(seeded_feed):
-    from config import resolve_differential_fetch_enabled
+def test_resolver_reads_column_tristate(seeded_feed):
+    """NULL means unset (auto), 1/0 are explicit -- the pipeline gate needs
+    all three states (#519)."""
+    from config import resolve_differential_fetch_setting
     db = seeded_feed['db']
     slug = seeded_feed['slug']
     podcast_id = db.get_podcast_by_slug(slug)['id']
-    assert resolve_differential_fetch_enabled(db, podcast_id) is False
+    assert resolve_differential_fetch_setting(db, podcast_id) is None
     db.update_podcast(slug, differential_fetch_enabled=1)
-    assert resolve_differential_fetch_enabled(db, podcast_id) is True
+    assert resolve_differential_fetch_setting(db, podcast_id) is True
     db.update_podcast(slug, differential_fetch_enabled=0)
-    assert resolve_differential_fetch_enabled(db, podcast_id) is False
+    assert resolve_differential_fetch_setting(db, podcast_id) is False

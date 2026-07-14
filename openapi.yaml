@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.52.0
+  version: 2.53.1
   contact:
     name: MinusPod
   license:
@@ -6990,6 +6990,9 @@ components:
         daiLikely:
           type: boolean
           description: Hint that this feed likely uses dynamic ad insertion, based on recent enclosure URLs matching known DAI or prefix domains. Returned on the feed detail response.
+        differentialFetchEffective:
+          type: boolean
+          description: Whether the cross-fetch differential stage will run for this feed, resolved from the per-feed flag (null means auto) plus the DAI signals. Feed detail only.
         maxEpisodes:
           type:
             - integer
@@ -7144,6 +7147,115 @@ components:
             llmCost:
               type: number
               description: Estimated LLM cost in USD for processing this episode
+            rssDuration:
+              type:
+                - number
+                - 'null'
+              description: Duration the feed declares for this episode (itunes:duration), in seconds. Null when the feed omits it or the episode was discovered before 2.53.0.
+            processingRuns:
+              type: array
+              description: One entry per processing run, oldest first.
+              items:
+                $ref: '#/components/schemas/EpisodeProcessingRun'
+            lowAdYield:
+              type:
+                - object
+                - 'null'
+              description: Set when this episode removed far less ad time than the feed's recent average. Either the downloaded copy arrived with unfilled ad slots, or ads were missed.
+              properties:
+                removedSeconds:
+                  type: number
+                feedAverageSeconds:
+                  type: number
+                sampleSize:
+                  type: integer
+
+    EpisodeProcessingRun:
+      type: object
+      description: One processing run of an episode, with its pipeline stats.
+      properties:
+        runNumber:
+          type: integer
+        processedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [completed, failed]
+        adsDetected:
+          type: integer
+        processingDurationSeconds:
+          type:
+            - number
+            - 'null'
+        errorMessage:
+          type:
+            - string
+            - 'null'
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        llmCost:
+          type: number
+        stats:
+          type:
+            - object
+            - 'null'
+          description: Per-run pipeline stats. Null for runs recorded before 2.53.0 and for recuts; a failed run keeps whatever was gathered before the failure.
+          properties:
+            mode:
+              type: string
+              description: auto, reprocess, full, or llm
+            downloadedDuration:
+              type: number
+              description: ffprobe duration of the downloaded copy, in seconds
+            transcriptSegments:
+              type: integer
+            windows:
+              type:
+                - object
+                - 'null'
+              description: Null when the run failed before detection or the detection mode does not report window counts
+              properties:
+                total:
+                  type: integer
+                failed:
+                  type: integer
+            stageHits:
+              type:
+                - object
+                - 'null'
+              description: Detections per stage before validation. Null when the run failed before detection.
+              properties:
+                fingerprint:
+                  type: integer
+                textPattern:
+                  type: integer
+                differential:
+                  type: integer
+                llm:
+                  type: integer
+            detected:
+              type: integer
+              description: First-pass detections after dedup
+            markers:
+              type:
+                - object
+                - 'null'
+              description: Final marker buckets after validation and review. Null when the run failed before validation.
+              properties:
+                cut:
+                  type: integer
+                held:
+                  type: integer
+                notCut:
+                  type: integer
+            verificationAdsCut:
+              type: integer
+              description: Ads the second scan of the output audio found and cut; 0 means the scan came back clean
+            secondsRemoved:
+              type: number
 
     CueDetection:
       type: object
@@ -8294,6 +8406,11 @@ components:
         llmCost:
           type: number
           description: Estimated LLM cost in USD for this processing run
+        downloadedDuration:
+          type:
+            - number
+            - 'null'
+          description: Duration of the downloaded copy this run processed, in seconds. Null for runs recorded before 2.53.0.
 
     Sponsor:
       type: object

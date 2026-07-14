@@ -234,6 +234,9 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
         "connectivity": is_connectivity_error(last_error) if last_error else False,
         "last_error_type": last_err_type,
         "last_error_status": last_err_status,
+        # Per-run stats (#519): "0/N answered" is the failure signal.
+        "windows_total": num_windows,
+        "windows_failed": num_windows,
     }
 
 
@@ -886,7 +889,9 @@ class AdDetector:
                 "status": "success",
                 "raw_response": "\n\n".join(all_raw_responses),
                 "prompt": f"Processed {len(windows)} windows",
-                "model": model
+                "model": model,
+                "windows_total": len(windows),
+                "windows_failed": failed_windows,
             }
 
         except Exception as e:
@@ -1235,6 +1240,13 @@ class AdDetector:
 
         if result is None:
             result = {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}
+
+        # LLM window accounting for the per-run stats report (#519). Absent
+        # for keep-content runs, whose window count is not surfaced; the
+        # stats table shows those as unknown rather than a fabricated 0/0.
+        if 'windows_total' in result:
+            detection_stats['windows_total'] = result['windows_total']
+            detection_stats['windows_failed'] = result.get('windows_failed', 0)
 
         # Merge Claude detections with pattern matches
         claude_ads = result.get('ads', [])

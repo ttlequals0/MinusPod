@@ -1,4 +1,5 @@
 """Statistics and token usage mixin for MinusPod database."""
+import json
 import logging
 from typing import Dict, List, Optional, Tuple
 
@@ -263,8 +264,12 @@ class StatsMixin:
                                    input_tokens: int = 0,
                                    output_tokens: int = 0,
                                    llm_cost: float = 0.0,
-                                   audio_cues_detected: int = 0) -> int:
-        """Record a processing attempt in history. Returns history entry ID."""
+                                   audio_cues_detected: int = 0,
+                                   processing_stats: dict = None) -> int:
+        """Record a processing attempt in history. Returns history entry ID.
+
+        ``processing_stats`` is the pipeline's per-run stats dict (#519),
+        serialized here so callers never handle the JSON encoding."""
         conn = self.get_connection()
 
         # Calculate reprocess number (count existing entries + 1)
@@ -281,12 +286,13 @@ class StatsMixin:
                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
                 processed_at, processing_duration_seconds, status, ads_detected,
                 error_message, reprocess_number, input_tokens, output_tokens, llm_cost,
-                audio_cues_detected)
-               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                audio_cues_detected, processing_stats_json)
+               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
              processing_duration_seconds, status, ads_detected, error_message,
              reprocess_number, input_tokens, output_tokens, llm_cost,
-             audio_cues_detected)
+             audio_cues_detected,
+             json.dumps(processing_stats) if processing_stats else None)
         )
         conn.commit()
         # Logger errors must not propagate: callers (e.g. _record_history_and_event)
@@ -297,6 +303,20 @@ class StatsMixin:
         except Exception:
             pass
         return cursor.lastrowid
+
+    def get_episode_processing_runs(self, podcast_id: int, episode_id: str) -> list:
+        """All processing-history rows for one episode, oldest first.
+
+        Feeds the episode page's per-run Processing stats section (#519).
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT * FROM processing_history
+               WHERE podcast_id = ? AND episode_id = ?
+               ORDER BY processed_at ASC, id ASC""",
+            (podcast_id, episode_id)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def increment_episode_token_usage(self, episode_id: str,
                                        input_tokens: int,
@@ -412,8 +432,13 @@ class StatsMixin:
 
         # Get paginated results
         query_params = params + [limit, offset]
+        # downloaded_duration is extracted from the per-run stats blob in
+        # SQL so the API layer stays a flat column map (#519).
         cursor = conn.execute(
-            f"""SELECT * FROM processing_history
+            f"""SELECT *, CASE WHEN json_valid(processing_stats_json)
+                            THEN json_extract(processing_stats_json, '$.downloaded_duration')
+                       END AS downloaded_duration
+                FROM processing_history
                 WHERE {where_sql}
                 ORDER BY {sort_by} {sort_dir}
                 LIMIT ? OFFSET ?""",
@@ -457,26 +482,6 @@ class StatsMixin:
             'total_llm_cost': round(row['total_llm_cost'], 6),
         }
 
-    def get_episode_token_usage(self, episode_id: str) -> Optional[Dict]:
-        """Get token usage for the most recent completed processing of an episode.
-        Returns {input_tokens, output_tokens, llm_cost} or None."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT input_tokens, output_tokens, llm_cost
-               FROM processing_history
-               WHERE episode_id = ? AND status = 'completed'
-               ORDER BY processed_at DESC LIMIT 1""",
-            (episode_id,)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return None
-        return {
-            'input_tokens': row['input_tokens'] or 0,
-            'output_tokens': row['output_tokens'] or 0,
-            'llm_cost': row['llm_cost'] or 0.0,
-        }
-
     def iter_processing_history_rows(self, status_filter: str = None,
                                      podcast_slug: str = None):
         """Generator that yields per-row dicts without materialising the
@@ -497,7 +502,10 @@ class StatsMixin:
             params.append(podcast_slug)
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         cursor = conn.execute(
-            f"""SELECT * FROM processing_history
+            f"""SELECT *, CASE WHEN json_valid(processing_stats_json)
+                            THEN json_extract(processing_stats_json, '$.downloaded_duration')
+                       END AS downloaded_duration
+                FROM processing_history
                 WHERE {where_sql}
                 ORDER BY processed_at DESC""",
             params

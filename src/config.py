@@ -565,9 +565,35 @@ def resolve_transition_snap_enabled(db, podcast_id):
     return _resolve_snap_flag(db, podcast_id, 'transition_snap_enabled')
 
 
-def resolve_differential_fetch_enabled(db, podcast_id):
-    """Per-feed cross-fetch differential opt-in (Layer 3). Default False."""
-    return _resolve_snap_flag(db, podcast_id, 'differential_fetch_enabled')
+def resolve_differential_fetch_setting(db, podcast_id):
+    """Raw tri-state differential opt-in: True/False when the per-feed flag
+    is set, None when unset. The None case lets the pipeline auto-enable
+    the stage for DAI-likely feeds while an explicit 0 still opts out.
+
+    Fails CLOSED to False when the flag cannot be read -- returning None
+    there would let a transient DB error auto-enable the double-fetch
+    against an explicit opt-out."""
+    try:
+        if db and podcast_id is not None:
+            raw = db.get_podcast_cue_settings_overrides(podcast_id).get(
+                'differential_fetch_enabled')
+            return None if raw is None else bool(raw)
+    except Exception:
+        _tunable_logger.warning(
+            'differential_fetch_enabled: read failed; differential stage off')
+    return False
+
+
+def differential_fetch_effective(explicit, dai_platform=None, dai_likely=False):
+    """One rule for whether the cross-fetch differential stage runs (#519):
+    an explicit per-feed True/False wins; unset auto-enables on feeds that
+    look DAI-served (a detected platform or DAI-prefix enclosure URLs).
+    Shared by the pipeline gate (which passes the episode's own URL signal)
+    and the feeds API (which passes the recent-episodes heuristic, so its
+    answer is a prediction of what the pipeline will do)."""
+    if explicit is not None:
+        return bool(explicit)
+    return bool(dai_platform or dai_likely)
 
 
 def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:

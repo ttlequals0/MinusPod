@@ -269,6 +269,11 @@ function HistoryPage() {
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{formatDateTime(entry.processedAt)}</span>
                 <span>{formatDuration(entry.processingDurationSeconds)}</span>
+                {entry.downloadedDuration != null && (
+                  <span title="Length of the downloaded copy this run processed">
+                    Audio: {formatDuration(entry.downloadedDuration)}
+                  </span>
+                )}
                 <span>Ads: {entry.adsDetected}</span>
                 {entry.llmCost != null && entry.llmCost > 0 && <span>${entry.llmCost.toFixed(2)}</span>}
                 {entry.reprocessNumber > 1 && <span>#{entry.reprocessNumber}</span>}
@@ -292,6 +297,12 @@ function HistoryPage() {
                 </th>
                 <SortHeader field="processedAt" label="Processed" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="processingDurationSeconds" label="Duration" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th
+                  className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell"
+                  title="Length of the downloaded copy each run processed"
+                >
+                  Audio
+                </th>
                 <SortHeader field="adsDetected" label="Ads" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="llmCost" label="Cost" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
@@ -303,7 +314,7 @@ function HistoryPage() {
             <tbody className="divide-y divide-border">
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     No processing history found
                   </td>
                 </tr>
@@ -333,6 +344,11 @@ function HistoryPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {formatDuration(entry.processingDurationSeconds)}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                      {entry.downloadedDuration != null
+                        ? formatDuration(entry.downloadedDuration)
+                        : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">
                       {entry.adsDetected}

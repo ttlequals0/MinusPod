@@ -57,16 +57,18 @@ def _processed_url(slug: str, episode_id: str, version: int,
     return episode_public_url("", slug, episode_id, version, key=key)
 
 
-def _get_episode_token_fields(db, episode_id: str) -> dict:
-    """Look up per-episode token usage and return API fields (or empty dict)."""
-    usage = db.get_episode_token_usage(episode_id)
-    if not usage:
-        return {}
-    return {
-        'inputTokens': usage['input_tokens'],
-        'outputTokens': usage['output_tokens'],
-        'llmCost': round(usage['llm_cost'], 6),
-    }
+def _episode_token_fields(runs) -> dict:
+    """API token fields from the most recent completed run (or empty dict).
+    Derived from the processingRuns list already queried for the response,
+    replacing a second (unindexed) processing_history lookup."""
+    for run in reversed(runs):
+        if run['status'] == 'completed':
+            return {
+                'inputTokens': run['inputTokens'],
+                'outputTokens': run['outputTokens'],
+                'llmCost': run['llmCost'],
+            }
+    return {}
 
 
 # ========== Episode Endpoints ==========
@@ -140,6 +142,93 @@ def list_episodes(slug):
         'limit': limit,
         'offset': offset
     })
+
+
+def _run_stats_to_api(stats):
+    """Rename the pipeline's snake_case stats blob to API casing (or None)."""
+    if not stats:
+        return None
+    stage_hits = stats.get('stage_hits')
+    markers = stats.get('markers')
+    return {
+        'mode': stats.get('mode'),
+        'downloadedDuration': stats.get('downloaded_duration'),
+        'transcriptSegments': stats.get('transcript_segments'),
+        'windows': stats.get('windows'),
+        'stageHits': {
+            'fingerprint': stage_hits.get('fingerprint', 0),
+            'textPattern': stage_hits.get('text_pattern', 0),
+            'differential': stage_hits.get('differential', 0),
+            'llm': stage_hits.get('llm', 0),
+        } if stage_hits else None,
+        'detected': stats.get('detected'),
+        'markers': {
+            'cut': markers.get('cut', 0),
+            'held': markers.get('held', 0),
+            'notCut': markers.get('not_cut', 0),
+        } if markers else None,
+        'verificationAdsCut': stats.get('verification_ads_cut'),
+        'secondsRemoved': stats.get('seconds_removed'),
+    }
+
+
+def _processing_runs(db, episode):
+    """Per-run history rows for the episode page's Processing stats section
+    (#519). ``stats`` is the pipeline's per-run JSON blob; null for runs
+    recorded before 2.53.0 and for recuts."""
+    runs = []
+    for row in db.get_episode_processing_runs(episode['podcast_id'],
+                                              episode['episode_id']):
+        stats = None
+        if row.get('processing_stats_json'):
+            try:
+                stats = json.loads(row['processing_stats_json'])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        runs.append({
+            'runNumber': row.get('reprocess_number'),
+            'processedAt': row.get('processed_at'),
+            'status': row.get('status'),
+            'adsDetected': row.get('ads_detected'),
+            'processingDurationSeconds': row.get('processing_duration_seconds'),
+            'errorMessage': row.get('error_message'),
+            'inputTokens': row.get('input_tokens') or 0,
+            'outputTokens': row.get('output_tokens') or 0,
+            'llmCost': round(row.get('llm_cost') or 0.0, 6),
+            'stats': _run_stats_to_api(stats),
+        })
+    return runs
+
+
+# A run is flagged only when the feed has an established ad load (average
+# of at least 2 minutes over 3+ recent episodes) and this episode removed
+# under 35% of it. DAI copies served with unfilled slots trip this; so
+# would a real detection miss.
+_LOW_YIELD_MIN_AVG_SECONDS = 120
+_LOW_YIELD_MIN_SAMPLES = 3
+_LOW_YIELD_FRACTION = 0.35
+
+
+def _low_ad_yield(db, episode):
+    """Compare this episode's removed ad time against the feed's recent
+    average (#519). Returns the comparison dict when far below it."""
+    original = episode.get('original_duration')
+    new = episode.get('new_duration')
+    if not original or new is None:
+        return None
+    removed = original - new
+    yields = db.get_recent_ad_yields(episode['podcast_id'],
+                                     episode['episode_id'])
+    if len(yields) < _LOW_YIELD_MIN_SAMPLES:
+        return None
+    average = sum(yields) / len(yields)
+    if average < _LOW_YIELD_MIN_AVG_SECONDS or removed >= average * _LOW_YIELD_FRACTION:
+        return None
+    return {
+        'removedSeconds': round(removed, 1),
+        'feedAverageSeconds': round(average, 1),
+        'sampleSize': len(yields),
+    }
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>', methods=['GET'])
@@ -217,6 +306,8 @@ def get_episode(slug, episode_id):
     cue_detections = db.list_cue_detections_for_episode(
         episode['podcast_id'], episode_id)
 
+    processing_runs = _processing_runs(db, episode)
+
     return json_response({
         'id': episode['episode_id'],
         'episodeId': episode['episode_id'],
@@ -263,8 +354,11 @@ def get_episode(slug, episode_id):
         'verificationPrompt': episode.get('second_pass_prompt'),
         'verificationResponse': episode.get('second_pass_response'),
         'artworkUrl': episode.get('artwork_url'),
+        'rssDuration': episode.get('rss_duration'),
+        'processingRuns': processing_runs,
+        'lowAdYield': _low_ad_yield(db, episode),
         'navigation': db.get_episode_neighbors(slug, episode_id),
-        **_get_episode_token_fields(db, episode_id),
+        **_episode_token_fields(processing_runs),
     })
 
 

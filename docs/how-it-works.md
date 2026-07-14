@@ -154,6 +154,14 @@ The gap is measured in speech content from the transcript, not wall-clock time. 
 
 A 5-minute safety cap prevents merging when the resulting span would exceed it, regardless of how little speech is in the gap. A merge is also skipped when either ad or the merged span overlaps a user false-positive correction, so a marked "not an ad" range keeps its say in the validator. Audio-cue evidence on the merged ads is carried onto the combined span.
 
+### Cross-Fetch Differential
+
+Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads -- or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
+
+The per-feed setting (Feed page > Settings > Cross-fetch diff) has three positions. **Auto** (the default since 2.53.0) runs the stage when the feed looks DAI-served -- a detected ad platform, or an episode audio URL that routes through a known DAI prefix domain. **On** always runs it; **Off** never does. The settings panel shows whether the stage currently runs on the feed. The trade-off is bandwidth: every new episode is downloaded twice, which also doubles the feed's download count in the publisher's stats.
+
+Each detection found this way is tagged with the cross-fetch stage in the ad list, and the episode header shows a "Cross-fetch: N inserted" badge when the comparison found differing regions.
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)
