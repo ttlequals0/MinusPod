@@ -1085,37 +1085,43 @@ function EpisodeDetail() {
       )}
 
       {episode.transcript && (
-        <CollapsibleSection title="Transcript" defaultOpen={false} storageKey="episode-transcript">
-          <TranscriptBlock text={episode.transcript} />
-        </CollapsibleSection>
+        <div className="mb-6">
+          <CollapsibleSection title="Transcript" defaultOpen={false} storageKey="episode-transcript">
+            <TranscriptBlock text={episode.transcript} />
+          </CollapsibleSection>
+        </div>
       )}
 
       {episode.originalTranscriptAvailable && (
-        <CollapsibleSection
-          title="Original Transcript"
-          subtitle="Raw transcript before ads were removed"
-          defaultOpen={false}
-          storageKey="episode-original-transcript"
-          onToggle={(open) => { if (open) setOriginalTranscriptRequested(true); }}
-        >
-          {originalTranscript
-            ? <TranscriptBlock text={originalTranscript} />
-            : originalTranscriptError
-              ? <p className="text-destructive">Failed to load original transcript</p>
-              : <LoadingSpinner className="py-4" />
-          }
-        </CollapsibleSection>
+        <div className="mb-6">
+          <CollapsibleSection
+            title="Original Transcript"
+            subtitle="Raw transcript before ads were removed"
+            defaultOpen={false}
+            storageKey="episode-original-transcript"
+            onToggle={(open) => { if (open) setOriginalTranscriptRequested(true); }}
+          >
+            {originalTranscript
+              ? <TranscriptBlock text={originalTranscript} />
+              : originalTranscriptError
+                ? <p className="text-destructive">Failed to load original transcript</p>
+                : <LoadingSpinner className="py-4" />
+            }
+          </CollapsibleSection>
+        </div>
       )}
 
       {episode.processingRuns && episode.processingRuns.length > 0 && (
-        <CollapsibleSection
-          title="Processing stats"
-          subtitle="What each run downloaded, detected, and cut"
-          defaultOpen={false}
-          storageKey="episode-processing-stats"
-        >
-          <ProcessingRunsTable runs={episode.processingRuns} rssDuration={episode.rssDuration} />
-        </CollapsibleSection>
+        <div className="mb-6">
+          <CollapsibleSection
+            title="Processing stats"
+            subtitle="What each run downloaded, detected, and cut"
+            defaultOpen={false}
+            storageKey="episode-processing-stats"
+          >
+            <ProcessingRunsTable runs={episode.processingRuns} rssDuration={episode.rssDuration} />
+          </CollapsibleSection>
+        </div>
       )}
 
     </div>
