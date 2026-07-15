@@ -32,8 +32,10 @@
     --card-foreground: 0 0% 100%;
     --primary: 194 66% 61%;
     --primary-foreground: 213 10% 17%;
-    --secondary: 210 8% 25%;
-    --secondary-foreground: 0 0% 67%;
+    /* Distinct from --card (25%) so secondary buttons stay visible on cards in
+       dark mode; equals --muted, mirroring their light-mode equality (#526). */
+    --secondary: 210 6% 34%;
+    --secondary-foreground: 0 0% 80%;
     --muted: 210 6% 34%;
     --muted-foreground: 0 0% 60%;
     --accent: 210 8% 30%;

@@ -19,6 +19,12 @@ type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost';
 type SortDirection = 'asc' | 'desc';
 
+// Shared shell for the clickable Completed/Failed filter cards. Background is set
+// per-state below (bg-card / bg-primary/5) so only one bg utility ever applies.
+const FILTER_CARD_CLASS =
+  'border rounded-lg p-4 text-left cursor-pointer transition-colors ' +
+  'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
 function SortHeader({
   field,
   label,
@@ -168,14 +174,26 @@ function HistoryPage() {
             <div className="text-2xl font-bold text-foreground">{stats.totalProcessed}</div>
             <div className="text-sm text-muted-foreground">Total Processed</div>
           </div>
-          <div className="bg-card border border-border rounded-lg p-4">
+          <button
+            type="button"
+            onClick={() => { setStatusFilter((f) => (f === 'completed' ? 'all' : 'completed')); setPage(1); }}
+            aria-pressed={statusFilter === 'completed'}
+            title="Filter the list below by completed runs"
+            className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+          >
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completedCount}</div>
             <div className="text-sm text-muted-foreground">Completed</div>
-          </div>
-          <div className="bg-card border border-border rounded-lg p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => { setStatusFilter((f) => (f === 'failed' ? 'all' : 'failed')); setPage(1); }}
+            aria-pressed={statusFilter === 'failed'}
+            title="Filter the list below by failed runs"
+            className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+          >
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.failedCount}</div>
             <div className="text-sm text-muted-foreground">Failed</div>
-          </div>
+          </button>
           <div className="bg-card border border-border rounded-lg p-4">
             <div className="text-2xl font-bold text-foreground">{stats.totalAdsDetected}</div>
             <div className="text-sm text-muted-foreground">Total Ads Detected</div>
@@ -224,7 +242,7 @@ function HistoryPage() {
         </div>
         {stats && (
           <div className="text-sm text-muted-foreground self-center">
-            Avg processing time: {formatDuration(stats.avgProcessingTime)}
+            Avg processing time: {formatDuration(stats.avgProcessingTimeSeconds)}
           </div>
         )}
       </div>

@@ -724,7 +724,7 @@ export interface ProcessingHistoryStats {
   completedCount: number;
   failedCount: number;
   totalAdsDetected: number;
-  avgProcessingTime: number;
+  avgProcessingTimeSeconds: number;
   totalProcessingTime: number;
   totalInputTokens?: number;
   totalOutputTokens?: number;
