@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.56.0] - 2026-07-15
+
+### Added
+- Logout button in the top navigation bar, next to the search and theme-toggle
+  icons, so logging out no longer requires opening Settings > Security. Shown only
+  when a password is set (#526).
+
+### Fixed
+- Canceling an episode no longer breaks when its feed was deleted mid-processing.
+  Deleting a feed now cancels any in-flight or queued job for that feed and frees the
+  processing lock, and the cancel endpoint tears down an orphaned job instead of
+  returning 404 when the episode record is already gone (#525).
+- Settings > Notifications > Email no longer intermittently sticks on "Loading email
+  settings..." until a manual refresh. Fixed a cached-first-render race in the
+  query-to-form sync hook so form state seeds correctly on a remount (#527).
+
 ## [2.55.0] - 2026-07-14
 
 ### Added

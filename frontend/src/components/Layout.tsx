@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -42,8 +43,14 @@ function isPathActive(pathname: string, to: string): boolean {
 
 function Layout() {
   const { theme, toggleTheme } = useTheme();
+  const { logout, isPasswordSet } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    window.location.href = '/ui/login';
+  };
   // Reset the mobile menu when the route changes. React's docs explicitly
   // recommend the render-phase "adjust state on prop change" idiom over a
   // setState-in-useEffect, which the new react-compiler lint rule rejects.
@@ -114,6 +121,23 @@ function Layout() {
                   </svg>
                 )}
               </button>
+              {isPasswordSet && (
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  aria-label="Log out"
+                  title="Log out"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"
+                    />
+                  </svg>
+                </button>
+              )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="sm:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

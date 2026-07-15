@@ -299,6 +299,21 @@ class StatusService:
         self._notify_subscribers()
         return True
 
+    def remove_feed_from_queue(self, slug: str) -> int:
+        """Drop all queued episodes for a feed. Returns count removed."""
+        with self._status_lock:
+            status = self._read_status_file()
+            queued = status.get('queued_episodes', [])
+            remaining = [e for e in queued if e['slug'] != slug]
+            removed = len(queued) - len(remaining)
+            if removed:
+                status['queued_episodes'] = remaining
+                status['last_updated'] = time.time()
+                self._write_status_file(status)
+        if removed:
+            self._notify_subscribers()
+        return removed
+
     def get_queue_position(self, slug: str, episode_id: str) -> int:
         """Get queue position for an episode (1-based, 0 if not queued)."""
         with self._status_lock:

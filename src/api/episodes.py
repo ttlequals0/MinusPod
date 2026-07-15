@@ -1177,7 +1177,21 @@ def cancel_episode_processing(slug, episode_id):
 
     episode = db.get_episode(slug, episode_id)
     if not episode:
-        return error_response('Episode not found', 404)
+        # Episode row gone (e.g. feed deleted mid-processing, issue #525). Still
+        # tear down any orphaned job instead of 404-ing so the cancel button works.
+        thread_signalled = cancel_processing(slug, episode_id)
+        ProcessingQueue().release_if_processing(slug, episode_id)
+        status_service.remove_queued_episode(slug, episode_id)
+        status_service.clear_if_matches(slug, episode_id)
+        logger.info(
+            f"Canceled orphaned job (episode row missing): {slug}:{episode_id} "
+            f"(thread_signalled={thread_signalled})"
+        )
+        return json_response({
+            'message': 'Processing canceled',
+            'episodeId': episode_id,
+            'slug': slug
+        })
 
     if episode['status'] != EpisodeStatus.PROCESSING:
         # Queued (waiting on the lock): close the DB queue row first so the
@@ -1214,12 +1228,7 @@ def cancel_episode_processing(slug, episode_id):
         )
         conn.commit()
 
-        try:
-            queue = ProcessingQueue()
-            if queue.is_processing(slug, episode_id):
-                queue.release()
-        except Exception as e:
-            logger.warning(f"Could not release processing queue: {e}")
+        ProcessingQueue().release_if_processing(slug, episode_id)
     # else: thread will handle DB reset, file cleanup, and queue release
 
     # Belt-and-suspenders: clear any stale display-queue / auto_process_queue
