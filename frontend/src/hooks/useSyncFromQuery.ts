@@ -7,11 +7,18 @@ import { useState } from 'react';
 // and the seed runs synchronously during render so form inputs reflect
 // the new value on the same render cycle that data arrived.
 //
+// The snapshot seeds to `undefined`, NOT `data`. Seeding to `data` meant a
+// cached-first render (React Query already holding the payload at mount, e.g.
+// a remount within gcTime) had `data === snapshot` on the first render, so
+// onSync never fired and any consumer gating render on the synced value stuck
+// forever (issue #527 - EmailSettingsForm "Loading email settings..."). With
+// `undefined`, a cached first render is `undefined !== data` and syncs too.
+//
 // Use this instead of useEffect+setState for query->form sync; useEffect
 // would seed AFTER commit (one frame of stale UI) and was the exact
 // anti-pattern fixed in Settings.tsx on May 4 2026.
 export function useSyncFromQuery<T>(data: T | undefined, onSync: (d: T) => void): void {
-  const [snapshot, setSnapshot] = useState<T | undefined>(data);
+  const [snapshot, setSnapshot] = useState<T | undefined>(undefined);
   if (data !== snapshot) {
     setSnapshot(data);
     if (data !== undefined) {

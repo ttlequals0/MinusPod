@@ -12,11 +12,13 @@ from flask import request, Response
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, get_feed_auth_key,
+    get_database, get_storage, get_feed_auth_key, get_status_service,
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
 )
+from cancel import cancel_processing
+from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     differential_fetch_effective,
@@ -838,6 +840,27 @@ def delete_feed(slug):
         return error_response('Feed not found', 404)
 
     try:
+        # Cancel/clean any in-flight or queued processing for this feed before
+        # deleting, so we don't orphan the queue lock, cancel-event registry, or
+        # in-memory status display (issue #525). The auto_process_queue DB rows
+        # cascade-delete with the podcast, but the shared queue lock and the
+        # in-memory display state must be cleared explicitly.
+        status_service = get_status_service()
+        queue = ProcessingQueue()
+        current = queue.get_current()
+        if current and current[0] == slug:
+            # Signal the running thread to abort. If it was signalled it owns
+            # the fcntl lock and clears the shared state itself on exit; only
+            # force-release as a fallback when no local thread was found, to
+            # avoid zeroing the state file while a live worker still holds the
+            # lock (which would report false-idle). Mirrors cancel_episode_processing.
+            signalled = cancel_processing(slug, current[1])
+            if not signalled:
+                queue.release_if_processing(slug, current[1])
+            status_service.clear_if_matches(slug, current[1])
+        status_service.remove_feed_from_queue(slug)      # drop queued display entries for this feed
+        status_service.remove_feed_refresh(slug)         # drop any in-progress refresh badge
+
         # Delete from database (cascade deletes episodes)
         db.delete_podcast(slug)
 

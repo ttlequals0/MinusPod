@@ -273,6 +273,21 @@ class ProcessingQueue:
             # Clear state file
             self._write_state(None, None, None)
 
+    def release_if_processing(self, slug: str, episode_id: str) -> bool:
+        """Release the lock only if this episode currently holds it.
+
+        Best-effort cleanup helper for cancel / feed-delete paths: swallows
+        errors so a failed release never breaks the caller. Returns True if a
+        release was attempted.
+        """
+        try:
+            if self.is_processing(slug, episode_id):
+                self.release()
+                return True
+        except Exception as e:
+            logger.warning(f"Could not release processing queue: {e}")
+        return False
+
     def get_current(self) -> Optional[Tuple[str, str]]:
         """Get currently processing episode (slug, episode_id) or None.
 
