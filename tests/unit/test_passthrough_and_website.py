@@ -19,13 +19,17 @@ import main_app.processing as processing
 
 
 def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
-                     codec='mp3', retained=False):
+                     codec='mp3', codec_seq=None, retained=False):
+    # codec_seq lets a test return a different codec on each probe call (the
+    # pass-through path retries once when the first probe yields None); a plain
+    # codec value is returned on every call.
+    codec_effect = list(codec_seq) if codec_seq is not None else (lambda *a, **k: codec)
     with patch.object(processing, 'db') as db, \
          patch.object(processing, 'transcriber') as transcriber, \
          patch.object(processing, 'audio_processor') as audio_processor, \
          patch.object(processing, 'storage') as storage, \
          patch.object(processing, 'status_service'), \
-         patch.object(processing, 'get_audio_codec', return_value=codec), \
+         patch.object(processing, 'get_audio_codec', side_effect=codec_effect), \
          patch.object(processing, '_finalize_episode') as finalize, \
          patch.object(processing, '_copy_retained_original_to_temp',
                       return_value='/tmp/retained.mp3') as copy_retained, \
@@ -73,7 +77,7 @@ class TestPassthroughEpisode:
                                      '/data/pt/episodes/ep1.mp3')
 
     def test_non_mp3_enclosure_is_converted(self):
-        with patch('audio_processor.AudioProcessor') as ap_cls:
+        with patch.object(processing, 'AudioProcessor') as ap_cls:
             ap_cls.return_value.convert_to_mp3.return_value = '/tmp/pt.converted.mp3'
             result, _, finalize, move, _, _ = _run_passthrough(codec='aac')
 
@@ -81,6 +85,29 @@ class TestPassthroughEpisode:
         ap_cls.return_value.convert_to_mp3.assert_called_once_with('/tmp/pt.mp3')
         move.assert_called_once_with('/tmp/pt.converted.mp3',
                                      '/data/pt/episodes/ep1.mp3')
+
+    def test_none_codec_is_converted(self):
+        # ffprobe could not determine the codec (returns None). The output path
+        # is forced to .mp3, so the bytes must be converted rather than moved
+        # through raw -- otherwise a non-mp3 enclosure is served as audio/mpeg.
+        with patch.object(processing, 'AudioProcessor') as ap_cls:
+            ap_cls.return_value.convert_to_mp3.return_value = '/tmp/pt.converted.mp3'
+            result, _, _, move, _, _ = _run_passthrough(codec=None)
+
+        assert result is True
+        ap_cls.return_value.convert_to_mp3.assert_called_once_with('/tmp/pt.mp3')
+        move.assert_called_once_with('/tmp/pt.converted.mp3',
+                                     '/data/pt/episodes/ep1.mp3')
+
+    def test_transient_codec_miss_passes_through_untouched(self):
+        # First probe returns None (transient ffprobe miss), retry sees 'mp3'.
+        # The file must be served untouched, not re-encoded.
+        with patch.object(processing, 'AudioProcessor') as ap_cls:
+            result, _, _, move, _, _ = _run_passthrough(codec_seq=[None, 'mp3'])
+
+        assert result is True
+        ap_cls.return_value.convert_to_mp3.assert_not_called()
+        move.assert_called_once_with('/tmp/pt.mp3', '/data/pt/episodes/ep1.mp3')
 
     def test_unplayable_download_fails_loudly(self):
         with patch.object(processing, '_handle_processing_failure') as fail:
