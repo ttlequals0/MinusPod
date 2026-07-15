@@ -61,9 +61,15 @@ function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-10">
-      {/* pt-10 accounts for GlobalStatusBar which is fixed at top */}
-      <header className="border-b border-border bg-card">
+    <div className="min-h-screen bg-background">
+      {/* GlobalStatusBar is fixed at top-0 (z-50) and only rendered while
+          processing is active. This opaque spacer reserves its 2.5rem strip and,
+          being sticky, also covers that strip so page content never shows through
+          above the pinned header while scrolling. */}
+      <div className="sticky top-0 z-30 h-10 bg-background" aria-hidden="true" />
+      {/* sticky top-10 pins the banner just below that strip on scroll;
+          z-30 sits above page content (z-10/20) and below modals + status bar (z-50) */}
+      <header className="sticky top-10 z-30 border-b border-border bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">

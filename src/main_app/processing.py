@@ -24,7 +24,7 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, reasoning_contradicts_cut,
     split_resurrection_pool,
 )
-from audio_processor import get_replacement_duration
+from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec
@@ -2196,7 +2196,6 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     MinusPod acts as an archive/relay for the feed while the served feed
     URL stays stable, so turning processing back on later needs no change
     in the podcast app."""
-    from audio_processor import AudioProcessor
     audio_path = None
     run_stats = {'mode': 'passthrough'}
     try:
@@ -2233,17 +2232,24 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                             "(ffprobe found no duration)")
 
         # The serving stack names episode files .mp3 and declares
-        # audio/mpeg, so non-MP3 enclosures (m4a/aac) are converted --
-        # the one transformation pass-through performs.
+        # audio/mpeg, so non-MP3 enclosures (m4a/aac) are converted -- the one
+        # transformation pass-through performs. Convert whenever the codec is
+        # not confidently 'mp3', including when ffprobe can't determine it
+        # (get_audio_codec returns None): the output is unconditionally .mp3,
+        # so moving unverified bytes through would serve a mislabeled file.
         codec = get_audio_codec(audio_path)
-        if codec and codec != 'mp3':
+        if codec is None:
+            # A transient ffprobe miss on a genuine MP3 would otherwise force a
+            # needless re-encode and break pass-through's untouched-relay
+            # promise; retry once before treating the codec as unknown.
+            codec = get_audio_codec(audio_path)
+        if codec != 'mp3':
             audio_logger.info(
-                f"[{slug}:{episode_id}] Pass-through: converting {codec} to mp3")
-            settings = db.get_all_settings()
-            bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
+                f"[{slug}:{episode_id}] Pass-through: converting {codec or 'unknown'} to mp3")
+            bitrate = db.get_setting('audio_bitrate') or '128k'
             converted = AudioProcessor(bitrate=bitrate).convert_to_mp3(audio_path)
             if not converted:
-                raise Exception(f"Failed to convert {codec} enclosure to mp3")
+                raise Exception(f"Failed to convert {codec or 'unknown'} enclosure to mp3")
             os.unlink(audio_path)
             audio_path = converted
 
@@ -2291,7 +2297,6 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
     (retained original, saved segments, ad markers) are enforced by the API."""
-    from audio_processor import AudioProcessor
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -2520,7 +2525,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     7. Generate Podcasting 2.0 assets (VTT transcript, chapters)
     8. Finalize (update DB, record history, refresh RSS)
     """
-    from audio_processor import AudioProcessor
     start_time = time.time()
     start_episode_token_tracking()
 

@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.57.0] - 2026-07-15
+
+### Changed
+- The top navigation bar now stays pinned to the top of the page while scrolling,
+  on both desktop and mobile, so switching sections no longer means scrolling back
+  up (#526).
+
+### Fixed
+- Pass-through feeds no longer serve a non-MP3 enclosure under an .mp3 name when the
+  codec cannot be probed. If the codec is not confidently MP3 (including when ffprobe
+  returns nothing), the audio is converted to MP3 before it is served, and a file that
+  cannot be converted fails instead of being served mislabeled.
+
 ## [2.56.0] - 2026-07-15
 
 ### Added
