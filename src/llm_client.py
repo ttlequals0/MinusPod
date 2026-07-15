@@ -59,6 +59,7 @@ from llm_capabilities import (
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
+    model_omits_temperature,
     set_fallback,
     translate_reasoning_effort,
 )
@@ -375,8 +376,9 @@ class LLMClient(ABC):
                 logger.warning(f"Token usage recording failed: {e}")
 
     def _log_messages(self, provider_label: str, system: str, messages: List[Dict],
-                       model: str, temperature: float, max_tokens: int):
-        """Log request details for debugging. Shared by all client implementations."""
+                       model: str, temperature: Optional[float], max_tokens: int):
+        """Log request details for debugging. Shared by all client implementations.
+        temperature is None when it is omitted from the request (no-sampling models)."""
         _log_content(f"{provider_label} system prompt", system)
         for i, msg in enumerate(messages):
             content_val = msg.get('content', '')
@@ -388,7 +390,8 @@ class LLMClient(ABC):
             else:
                 content_str = str(content_val)
             _log_content(f"{provider_label} message[{i}] role={msg.get('role')}", content_str)
-        io_logger.debug(f"{provider_label} request: model={model} temperature={temperature} max_tokens={max_tokens}")
+        temp_label = 'omitted' if temperature is None else temperature
+        io_logger.debug(f"{provider_label} request: model={model} temperature={temp_label} max_tokens={max_tokens}")
 
     def _send_with_fallback(
         self,
@@ -537,17 +540,21 @@ class AnthropicClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        self._log_messages("Anthropic", effective_system, messages, model, eff_temp, eff_max)
+        omit_temperature = model_omits_temperature(model)
+        self._log_messages("Anthropic", effective_system, messages, model,
+                           None if omit_temperature else eff_temp, eff_max)
 
         def _send(tok, tmp, reasoning):
             kw = dict(
                 model=model,
                 max_tokens=tok,
-                temperature=tmp,
                 system=effective_system,
                 messages=messages,
                 timeout=timeout,
             )
+            # Anthropic's adaptive-thinking models reject temperature with a 400.
+            if not omit_temperature:
+                kw["temperature"] = tmp
             kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
             # 429 is throttling, not a provider failure; 4xx tunable rejections
             # also skip the breaker because the _send_with_fallback wrapper is
@@ -700,7 +707,9 @@ class OpenAICompatibleClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        self._log_messages("OpenAI", system, messages, model, eff_temp, eff_max)
+        omit_temperature = model_omits_temperature(model)
+        self._log_messages("OpenAI", system, messages, model,
+                           None if omit_temperature else eff_temp, eff_max)
 
         # Newer OpenAI models require max_completion_tokens instead of max_tokens.
         # Try cached param first, fallback on error.
@@ -715,10 +724,13 @@ class OpenAICompatibleClient(LLMClient):
             kw = {
                 "model": model,
                 token_param: tok,
-                "temperature": tmp,
                 "messages": all_messages,
                 "timeout": timeout,
             }
+            # Anthropic's adaptive-thinking models (e.g. via OpenRouter) reject
+            # temperature with a 400; omit it rather than let the request fail.
+            if not omit_temperature:
+                kw["temperature"] = tmp
             if response_format:
                 if self._get_json_format_supported() is False:
                     if response_format.get('type') == 'json_object' and '<output_format>' not in system:
@@ -888,18 +900,21 @@ class OpenAICompatibleClient(LLMClient):
 
         from openai import BadRequestError
         token_param = self._token_param_cache.get(model, "max_completion_tokens")
+        probe_kwargs = {
+            "model": model,
+            token_param: 10,
+            "messages": [
+                {"role": "system", "content": "Respond with JSON."},
+                {"role": "user", "content": '{"test": true}'},
+            ],
+            "response_format": {"type": "json_object"},
+            "timeout": HTTP_TIMEOUT_API,
+        }
+        # No-sampling Anthropic models (e.g. via OpenRouter) reject temperature.
+        if not model_omits_temperature(model):
+            probe_kwargs["temperature"] = 0.0
         try:
-            self._client.chat.completions.create(
-                model=model,
-                **{token_param: 10},
-                temperature=0.0,
-                messages=[
-                    {"role": "system", "content": "Respond with JSON."},
-                    {"role": "user", "content": '{"test": true}'},
-                ],
-                response_format={"type": "json_object"},
-                timeout=HTTP_TIMEOUT_API,
-            )
+            self._client.chat.completions.create(**probe_kwargs)
             self._json_format_supported = True
             logger.info(f"Endpoint supports response_format json_object ({safe_url_for_log(self.base_url, keep_path=True)})")
         except BadRequestError as e:

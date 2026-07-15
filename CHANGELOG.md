@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.58.0] - 2026-07-15
+
+### Fixed
+- Ad detection and chapter generation no longer fail with an HTTP 400 when using
+  newer Anthropic models (Sonnet 5, Fable 5, Opus 4.7/4.8), which reject the
+  temperature parameter. The parameter is now omitted for those models, on both
+  the Anthropic API and OpenRouter paths, including the JSON-format capability
+  probe (#530).
+
 ## [2.57.0] - 2026-07-15
 
 ### Changed

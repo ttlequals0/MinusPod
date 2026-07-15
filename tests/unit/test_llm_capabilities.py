@@ -161,3 +161,38 @@ class TestErrorClassifier:
         assert is_fallback_eligible_error(_ResponseError(400)) is True
         assert is_fallback_eligible_error(_ResponseError(429)) is False
         assert is_fallback_eligible_error(_ResponseError(503)) is False
+
+
+class TestModelOmitsTemperature:
+    """Anthropic's adaptive-thinking models reject the temperature parameter (#530)."""
+
+    @pytest.mark.parametrize("model", [
+        "claude-sonnet-5",
+        "claude-fable-5",
+        "claude-mythos-5",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "anthropic/claude-sonnet-5",
+        "claude-opus-4-8-20260101",
+    ])
+    def test_new_models_omit_temperature(self, model):
+        assert llm_capabilities.model_omits_temperature(model) is True
+
+    @pytest.mark.parametrize("model", [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+        "claude-opus-4-5",
+        "gpt-4o",
+        "openai/gpt-5",
+        # A token must not match as a prefix of a longer version number.
+        "claude-opus-4-70",
+        "claude-sonnet-50",
+    ])
+    def test_older_and_other_models_keep_temperature(self, model):
+        assert llm_capabilities.model_omits_temperature(model) is False
+
+    @pytest.mark.parametrize("model", [None, ""])
+    def test_empty_model_keeps_temperature(self, model):
+        assert llm_capabilities.model_omits_temperature(model) is False

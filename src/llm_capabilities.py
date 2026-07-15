@@ -12,6 +12,7 @@ Two responsibilities, intentionally split out of llm_client.py:
    each provider SDK expects.
 """
 import logging
+import re
 import threading
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple, Union
@@ -108,6 +109,35 @@ def translate_reasoning_effort(
     if provider == PROVIDER_OLLAMA:
         return {"extra_body": {"options": {"think": normalized != "none"}}}
     return {}
+
+
+# Anthropic's adaptive-thinking generation removed the sampling parameters
+# (temperature/top_p/top_k); sending any of them returns a 400. Older models
+# still accept them. Extend this tuple when Anthropic ships a new model that
+# drops sampling (same manual maintenance as DEFAULT_MODEL_PRICING). Matched as
+# substrings so bare IDs ("claude-sonnet-5"), provider-prefixed IDs
+# ("anthropic/claude-sonnet-5"), and dated variants all resolve.
+_ANTHROPIC_NO_SAMPLING_MODELS = (
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "claude-fable-5",
+    "claude-mythos-5",
+)
+
+
+def model_omits_temperature(model: Optional[str]) -> bool:
+    """True when the model rejects the temperature parameter (Anthropic's
+    adaptive-thinking generation). Callers must omit temperature from the
+    request for these models."""
+    if not model:
+        return False
+    m = model.lower()
+    # Trailing (?!\d) guards against a token being a prefix of a longer version,
+    # e.g. "claude-opus-4-7" must not match a hypothetical "claude-opus-4-70",
+    # and "claude-sonnet-5" must not match "claude-sonnet-50".
+    return any(re.search(re.escape(token) + r'(?!\d)', m)
+               for token in _ANTHROPIC_NO_SAMPLING_MODELS)
 
 
 def is_fallback_eligible_error(error: Exception) -> bool:
