@@ -309,3 +309,43 @@ class TestOpenAIFallback:
 
         kwargs = mock_sdk.chat.completions.create.call_args.kwargs
         assert kwargs["extra_body"] == {"options": {"think": False}}
+
+
+class TestAnthropicTemperatureOmission:
+    """Newer Anthropic models reject temperature with a 400 (#530)."""
+
+    def test_omits_temperature_for_new_model(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = _make_anthropic_response()
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-sonnet-5",
+            max_tokens=4096,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.0,
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert "temperature" not in kwargs
+
+    def test_keeps_temperature_for_older_model(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = _make_anthropic_response()
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-opus-4-6",
+            max_tokens=4096,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.2,
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert kwargs["temperature"] == 0.2
