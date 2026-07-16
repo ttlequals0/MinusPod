@@ -278,6 +278,10 @@ export interface AdSegment {
   // Set when a confirm correction matched this held marker (issue #509);
   // approved holds wait for a recut to apply.
   approved?: boolean;
+  // Reviewer's proposed trim on a contradiction-held marker: the sub-span it
+  // identified as the actual ad. Enables approving the trimmed span.
+  reviewer_proposed_start?: number;
+  reviewer_proposed_end?: number;
 }
 
 export interface SettingValue {

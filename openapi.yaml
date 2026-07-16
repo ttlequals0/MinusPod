@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.59.0
+  version: 2.60.0
   contact:
     name: MinusPod
   license:
@@ -8325,7 +8325,11 @@ components:
           type: string
           enum: [confirm, reject, adjust]
           description: |
-            - confirm: Mark detection as correct (creates/updates pattern)
+            - confirm: Mark detection as correct (creates/updates pattern).
+              Optionally pass adjustedStart/adjustedEnd to approve a trimmed
+              sub-span of a held marker (e.g. the reviewer's proposed trim);
+              the marker's boundaries move to the trimmed span before approval
+              and only the ad portion is cut on recut.
             - reject: Mark as false positive (stores text for cross-episode exclusion)
             - adjust: Correct boundaries (also creates pattern from adjusted segment)
         sponsor:
@@ -8333,10 +8337,16 @@ components:
           description: Sponsor name to associate (for confirm/adjust actions)
         adjustedStart:
           type: number
-          description: Corrected start time in seconds (required for adjust action)
+          description: >-
+            Corrected start time in seconds (required for adjust; optional for
+            confirm as a trimmed approval, must lie within the original span
+            and both bounds must be supplied together)
         adjustedEnd:
           type: number
-          description: Corrected end time in seconds (required for adjust action)
+          description: >-
+            Corrected end time in seconds (required for adjust; optional for
+            confirm as a trimmed approval, must lie within the original span
+            and both bounds must be supplied together)
 
     ProcessingStatus:
       type: object

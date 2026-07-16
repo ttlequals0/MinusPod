@@ -257,6 +257,25 @@ class AdValidator:
         """Check if a time range overlaps with any user-confirmed correction."""
         return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
 
+    def _matching_confirmed(self, start: float, end: float,
+                            overlap_threshold: float = 0.5) -> Optional[Dict]:
+        """Return a user-confirmed correction covering >= threshold of the
+        range, or None. Mirrors _overlaps_confirmed but yields the match so
+        the caller can honor a trimmed approval's confirmed_span. A trimmed
+        approval wins over a plain confirm covering the same range -- it is
+        the more specific user intent and must not be shadowed."""
+        segment_duration = end - start
+        if segment_duration < 0.001:
+            return None
+        plain = None
+        for corr in self.confirmed_corrections:
+            if overlap_ratio(corr['start'], corr['end'], start, end) >= overlap_threshold:
+                if corr.get('confirmed_span'):
+                    return corr
+                if plain is None:
+                    plain = corr
+        return plain
+
     def validate(self, ads: List[Dict],
                  audio_analysis: Optional[Dict] = None) -> ValidationResult:
         """Validate all ads and return results.
@@ -362,20 +381,48 @@ class AdValidator:
             return ad
 
         # Check for user-confirmed corrections (second priority)
-        if self._overlaps_confirmed(ad['start'], ad['end']):
-            flags.append("INFO: User confirmed as ad")
-            logger.info(
-                f"Auto-accepting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
-                f"overlaps with user-confirmed correction"
-            )
-            ad['validation'] = {
-                'decision': Decision.ACCEPT.value,
-                'adjusted_confidence': 1.0,
-                'original_confidence': ad.get('confidence', 1.0),
-                'flags': flags,
-                'corrections': corrections
-            }
-            return ad
+        confirmed = self._matching_confirmed(ad['start'], ad['end'])
+        if confirmed is not None:
+            # A trimmed approval confirmed only a sub-span as ad. Pull a
+            # boundary inward only when it falls in a trimmed-out zone (inside
+            # the reviewed original bounds but outside the approved span) so
+            # the content the user explicitly kept is never re-cut; parts of
+            # the detection beyond the reviewed bounds are new territory and
+            # are left alone.
+            span = confirmed.get('confirmed_span')
+            auto_accept = True
+            if span:
+                new_start, new_end = ad['start'], ad['end']
+                if confirmed['start'] <= new_start < span['start']:
+                    new_start = span['start']
+                if span['end'] < new_end <= confirmed['end']:
+                    new_end = span['end']
+                if new_end <= new_start:
+                    # The detection lies entirely inside user-kept content;
+                    # do not auto-accept -- let normal validation judge it.
+                    auto_accept = False
+                elif (new_start, new_end) != (ad['start'], ad['end']):
+                    logger.info(
+                        f"Clamping confirmed segment {ad['start']:.1f}s-{ad['end']:.1f}s "
+                        f"to user-approved span {new_start:.1f}s-{new_end:.1f}s"
+                    )
+                    flags.append("INFO: Clamped to user-approved span")
+                    ad['start'] = new_start
+                    ad['end'] = new_end
+            if auto_accept:
+                flags.append("INFO: User confirmed as ad")
+                logger.info(
+                    f"Auto-accepting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
+                    f"overlaps with user-confirmed correction"
+                )
+                ad['validation'] = {
+                    'decision': Decision.ACCEPT.value,
+                    'adjusted_confidence': 1.0,
+                    'original_confidence': ad.get('confidence', 1.0),
+                    'flags': flags,
+                    'corrections': corrections
+                }
+                return ad
 
         # Duration checks
         if duration < MIN_AD_DURATION:

@@ -81,3 +81,111 @@ def test_confirm_without_held_match_changes_nothing(temp_db):
     saved, count = _markers(temp_db, slug, eid)
     assert 'approved' not in saved[0]
     assert count == 1
+
+
+def _confirm_trimmed(temp_db, slug, eid, start, end, adj_start, adj_end):
+    from main_app import app
+    with app.test_request_context():
+        _handle_confirm_correction(
+            temp_db, MagicMock(), slug, eid,
+            {'start': start, 'end': end},
+            {'adjusted_start': adj_start, 'adjusted_end': adj_end},
+        )
+
+
+def test_confirm_trimmed_moves_marker_bounds_and_approves(temp_db):
+    # Approving the reviewer's proposed trim: marker bounds move to the
+    # trimmed span (recut then cuts only the ad portion), original bounds
+    # kept for audit, marker approved but still pending until recut.
+    markers = [_held(100.0, 200.0)]
+    slug, eid = _seed(temp_db, markers)
+
+    _confirm_trimmed(temp_db, slug, eid, 100.0, 200.0, 130.0, 200.0)
+
+    saved, count = _markers(temp_db, slug, eid)
+    m = saved[0]
+    assert m['approved'] is True
+    assert m['start'] == 130.0 and m['end'] == 200.0
+    assert m['reviewer_original_start'] == 100.0
+    assert m['reviewer_original_end'] == 200.0
+    assert m['held_for_review'] is True
+    assert m['was_cut'] is False
+    assert count == 1
+
+    # The stored correction row carries the trimmed bounds for audit.
+    row = temp_db.get_connection().execute(
+        "SELECT corrected_bounds FROM pattern_corrections WHERE episode_id = ?",
+        (eid,),
+    ).fetchone()
+    cb = json.loads(row['corrected_bounds'])
+    assert cb == {'start': 130.0, 'end': 200.0}
+
+    # And the validator-facing accessor exposes it as confirmed_span so a
+    # later reprocess clamps a re-detected wider span to the approved trim.
+    corrections = temp_db.get_confirmed_corrections(eid)
+    assert corrections[0]['start'] == 100.0 and corrections[0]['end'] == 200.0
+    assert corrections[0]['confirmed_span'] == {'start': 130.0, 'end': 200.0}
+
+
+def test_confirm_without_trim_keeps_marker_bounds(temp_db):
+    markers = [_held(100.0, 200.0)]
+    slug, eid = _seed(temp_db, markers)
+
+    _confirm(temp_db, slug, eid, 100.0, 200.0)
+
+    saved, _ = _markers(temp_db, slug, eid)
+    m = saved[0]
+    assert m['approved'] is True
+    assert m['start'] == 100.0 and m['end'] == 200.0
+    assert 'reviewer_original_start' not in m
+
+
+def _confirm_raw(temp_db, slug, eid, original, data):
+    from main_app import app
+    with app.test_request_context():
+        return _handle_confirm_correction(
+            temp_db, MagicMock(), slug, eid, original, data,
+        )
+
+
+def _status(resp):
+    # _handle_confirm_correction returns a Flask response (or (resp, code)).
+    if isinstance(resp, tuple):
+        return resp[1]
+    return resp.status_code
+
+
+class TestTrimmedConfirmValidation:
+    def test_one_sided_trim_is_rejected(self, temp_db):
+        markers = [_held(100.0, 200.0)]
+        slug, eid = _seed(temp_db, markers)
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 200.0},
+                            {'adjusted_start': 130.0})
+        assert _status(resp) == 400
+        saved, _ = _markers(temp_db, slug, eid)
+        assert 'approved' not in saved[0]
+
+    def test_inverted_trim_is_rejected(self, temp_db):
+        markers = [_held(100.0, 200.0)]
+        slug, eid = _seed(temp_db, markers)
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 200.0},
+                            {'adjusted_start': 200.0, 'adjusted_end': 130.0})
+        assert _status(resp) == 400
+
+    def test_non_numeric_trim_is_rejected(self, temp_db):
+        markers = [_held(100.0, 200.0)]
+        slug, eid = _seed(temp_db, markers)
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 200.0},
+                            {'adjusted_start': 'abc', 'adjusted_end': 200.0})
+        assert _status(resp) == 400
+
+    def test_out_of_span_trim_is_rejected(self, temp_db):
+        markers = [_held(100.0, 200.0)]
+        slug, eid = _seed(temp_db, markers)
+        resp = _confirm_raw(temp_db, slug, eid,
+                            {'start': 100.0, 'end': 200.0},
+                            {'adjusted_start': 50.0, 'adjusted_end': 200.0})
+        assert _status(resp) == 400

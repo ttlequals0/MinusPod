@@ -532,6 +532,16 @@ class AdReviewer:
                 held["reviewer_model"] = verdict.model_used
                 held["source"] = "reviewer"
                 held["reviewer_contradiction"] = True
+                # Preserve the reviewer's proposed trim so the review UI can
+                # offer approving the trimmed span instead of all-or-nothing.
+                # The persisted marker (held via _apply_reviewer_verdict_to_ad
+                # in processing.py) keeps pass-1 boundaries; these fields are
+                # mirrored here so both hold sites carry the same shape.
+                if (verdict.verdict == "adjust"
+                        and verdict.adjusted_start is not None
+                        and verdict.adjusted_end is not None):
+                    held["reviewer_proposed_start"] = verdict.adjusted_start
+                    held["reviewer_proposed_end"] = verdict.adjusted_end
                 logger.warning(
                     f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
                     f"Reviewer contradiction hold @ "
