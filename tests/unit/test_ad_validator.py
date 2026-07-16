@@ -455,6 +455,105 @@ class TestConfirmedCorrections:
         assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
 
+    def test_trimmed_confirm_clamps_wider_redetection(self):
+        """A trimmed approval (confirmed_span) clamps a re-detected wider span
+        so the trimmed-out content is never cut by a later reprocess."""
+        confirmed = [
+            {'start': 100.0, 'end': 200.0,
+             'confirmed_span': {'start': 130.0, 'end': 200.0}}
+        ]
+
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=confirmed
+        )
+
+        # Reprocess re-detects the full span including the show outro.
+        ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.95, 'reason': 'ad'}
+
+        result = validator.validate([ad])
+
+        assert result.accepted == 1
+        out = result.ads[0]
+        assert out['start'] == 130.0
+        assert out['end'] == 200.0
+        assert 'INFO: Clamped to user-approved span' in out['validation']['flags']
+
+    def test_plain_confirm_does_not_clamp(self):
+        """A confirm without confirmed_span accepts the ad at its own bounds."""
+        confirmed = [{'start': 100.0, 'end': 200.0}]
+
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=confirmed
+        )
+
+        ad = {'start': 98.0, 'end': 202.0, 'confidence': 0.95, 'reason': 'ad'}
+        result = validator.validate([ad])
+
+        assert result.accepted == 1
+        assert result.ads[0]['start'] == 98.0
+        assert result.ads[0]['end'] == 202.0
+
+    def test_no_intersection_with_confirmed_span_is_not_auto_accepted(self):
+        """A re-detection entirely inside user-kept content must not be
+        auto-accepted at confidence 1.0; it falls through to normal validation."""
+        confirmed = [
+            {'start': 100.0, 'end': 200.0,
+             'confirmed_span': {'start': 130.0, 'end': 200.0}}
+        ]
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=confirmed
+        )
+        # Lies wholly in the trimmed-out (kept) zone 100-130.
+        ad = {'start': 100.0, 'end': 128.0, 'confidence': 0.95, 'reason': 'ad'}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        # Judged on its own merits, not blessed by the correction.
+        assert 'INFO: User confirmed as ad' not in out['validation']['flags']
+        assert 'INFO: Clamped to user-approved span' not in out['validation']['flags']
+        assert out['start'] == 100.0 and out['end'] == 128.0  # bounds untouched
+
+    def test_clamp_keeps_extension_beyond_reviewed_bounds(self):
+        """A merged detection extending past the reviewed original bounds keeps
+        the extension (new ad territory); only the trimmed-out zone is pulled."""
+        confirmed = [
+            {'start': 100.0, 'end': 200.0,
+             'confirmed_span': {'start': 130.0, 'end': 200.0}}
+        ]
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=confirmed
+        )
+        # Merged with an adjacent new ad reaching 240s.
+        ad = {'start': 100.0, 'end': 240.0, 'confidence': 0.95, 'reason': 'ad'}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        assert out['start'] == 130.0
+        assert out['end'] == 240.0
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+
+    def test_trimmed_confirm_preferred_over_plain(self):
+        """A trimmed approval is not shadowed by a plain confirm row that
+        covers the same range."""
+        confirmed = [
+            {'start': 100.0, 'end': 200.0},  # plain (older row, first)
+            {'start': 100.0, 'end': 200.0,
+             'confirmed_span': {'start': 130.0, 'end': 200.0}},
+        ]
+        validator = AdValidator(
+            episode_duration=600.0, segments=[],
+            confirmed_corrections=confirmed
+        )
+        ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.95, 'reason': 'ad'}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        assert out['start'] == 130.0
+        assert 'INFO: Clamped to user-approved span' in out['validation']['flags']
+
     def test_false_positive_wins_over_confirmed(self):
         """Segment with both corrections gets REJECT (false_positive priority)."""
         false_positives = [

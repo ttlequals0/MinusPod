@@ -715,19 +715,56 @@ def _resolve_or_create_pattern_from_text(
 def _handle_confirm_correction(
     db, pattern_service, slug, episode_id, original_ad, data
 ):
-    """Handle correction_type='confirm'."""
+    """Handle correction_type='confirm'.
+
+    Optional adjusted_start/adjusted_end approve a trimmed span instead of the
+    full detected one (e.g. the reviewer's proposed trim on a
+    contradiction-held marker): the held marker's boundaries move to the
+    trimmed values before approval, so the recut cuts only the ad portion.
+    """
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
     pattern_id = original_ad.get('pattern_id')
+    adjusted_start = data.get('adjusted_start')
+    adjusted_end = data.get('adjusted_end')
+    if (adjusted_start is None) != (adjusted_end is None):
+        return error_response(
+            'Both adjusted_start and adjusted_end are required for a trimmed confirm', 400)
+    has_trim = adjusted_start is not None
+    if has_trim:
+        try:
+            adjusted_start, adjusted_end = float(adjusted_start), float(adjusted_end)
+        except (TypeError, ValueError):
+            return error_response('adjusted_start and adjusted_end must be numbers', 400)
+        if adjusted_end <= adjusted_start:
+            return error_response('adjusted_end must be greater than adjusted_start', 400)
+        # A trim narrows the reviewed span; bounds outside it are not a trim.
+        if adjusted_start < original_start - 0.5 or adjusted_end > original_end + 0.5:
+            return error_response('Adjusted bounds must lie within the original span', 400)
+    # The span actually confirmed as ad content.
+    eff_start = adjusted_start if has_trim else original_start
+    eff_end = adjusted_end if has_trim else original_end
 
-    logger.info(f"CORRECTION: type=confirm, episode={slug}/{episode_id}, pattern_id={pattern_id}, start={original_start}, end={original_end}")
+    logger.info(
+        f"CORRECTION: type=confirm, episode={slug}/{episode_id}, "
+        f"pattern_id={pattern_id}, start={original_start}, end={original_end}"
+        + (f", trimmed to {eff_start}-{eff_end}" if has_trim else "")
+    )
 
     if pattern_id:
         pattern_service.record_pattern_match(pattern_id, episode_id)
+        if has_trim:
+            # A human-approved trim is at least as strong a signal as a
+            # reviewer adjustment; narrow the pattern the same way.
+            transcript = db.get_transcript_for_timestamps(slug, episode_id)
+            _maybe_rewrite_pattern_from_adjustment(
+                db, pattern_service, pattern_id, transcript,
+                original_start, original_end, adjusted_start, adjusted_end,
+            )
     else:
         transcript = db.get_transcript_for_timestamps(slug, episode_id)
         if transcript:
-            ad_text = extract_transcript_segment(transcript, original_start, original_end)
+            ad_text = extract_transcript_segment(transcript, eff_start, eff_end)
             if ad_text and len(ad_text) >= 50:
                 pattern_id = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
@@ -743,10 +780,16 @@ def _handle_confirm_correction(
         pattern_id=pattern_id,
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
+        corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
         text_snippet=data.get('notes')
     )
 
-    _mark_held_marker_approved(db, slug, episode_id, original_start, original_end)
+    # adjusted_* are None exactly when there is no trim; the helper only
+    # moves bounds when both are present.
+    _mark_held_marker_approved(
+        db, slug, episode_id, original_start, original_end,
+        new_start=adjusted_start, new_end=adjusted_end,
+    )
 
     return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
 
@@ -837,18 +880,30 @@ def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
                             pending_review_count=count_pending_review(markers))
 
 
-def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5):
+def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
+                               new_start=None, new_end=None):
     """Confirm-side mirror of the reject path (issue #509): annotate the
     matching held marker approved=True so the UI can count approvals awaiting
     a recut across reloads. The marker stays pending (held_for_review, not
-    was_cut) until a recut applies the stored correction."""
+    was_cut) until a recut applies the stored correction.
+
+    When new_start/new_end are given (approve-trimmed), the marker's
+    boundaries move to the trimmed span before approval -- mirroring the
+    reviewer adjust path's bookkeeping -- so the recut cuts only the ad
+    portion instead of the full pass-1 span."""
     markers = _load_markers(db, slug, episode_id)
     if markers is None:
         return
 
+    has_trim = new_start is not None and new_end is not None
     changed = False
     for m in markers:
         if _matches_held_marker(m, start, end, tol):
+            if has_trim:
+                m['reviewer_original_start'] = m.get('start')
+                m['reviewer_original_end'] = m.get('end')
+                m['start'] = new_start
+                m['end'] = new_end
             m['approved'] = True
             changed = True
 

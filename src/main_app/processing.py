@@ -1152,6 +1152,13 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['hold_reason'] = HOLD_REASON_REVIEWER_CONTRADICTION
         ad['source'] = 'reviewer'
         ad['reviewer_contradiction'] = True
+        # Preserve the reviewer's proposed trim so the review UI can offer
+        # approving the trimmed span instead of all-or-nothing.
+        if (v.verdict == 'adjust'
+                and v.adjusted_start is not None
+                and v.adjusted_end is not None):
+            ad['reviewer_proposed_start'] = v.adjusted_start
+            ad['reviewer_proposed_end'] = v.adjusted_end
         return
     if v.verdict == 'adjust':
         ad['reviewer_original_start'] = v.original_start

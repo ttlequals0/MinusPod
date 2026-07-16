@@ -199,3 +199,34 @@ def test_apply_reviewer_verdict_contradicted_adjust_keeps_boundaries():
     assert ad['start'] == 120.0
     assert ad['end'] == 180.0
     assert ad.get('reviewer_contradiction') is True
+
+
+def test_contradicted_adjust_preserves_proposed_bounds():
+    # The hold keeps pass-1 boundaries but must carry the reviewer's proposed
+    # trim so the review UI can offer approving just the ad portion.
+    ad = {'start': 120.0, 'end': 180.0, 'was_cut': True}
+    v = ReviewVerdict(
+        pool='accepted', pass_num=1, verdict='adjust',
+        original_start=120.0, original_end=180.0,
+        adjusted_start=150.0, adjusted_end=180.0,
+        reasoning='the first 30s is not an ad, it is the show outro',
+        model_used='m',
+    )
+    processing._apply_reviewer_verdict_to_ad(ad, v)
+    assert ad['held_for_review'] is True
+    assert ad['start'] == 120.0 and ad['end'] == 180.0  # unchanged
+    assert ad['reviewer_proposed_start'] == 150.0
+    assert ad['reviewer_proposed_end'] == 180.0
+
+
+def test_contradicted_confirmed_has_no_proposed_bounds():
+    ad = {'start': 120.0, 'end': 180.0, 'was_cut': True}
+    v = ReviewVerdict(
+        pool='accepted', pass_num=1, verdict='confirmed',
+        original_start=120.0, original_end=180.0,
+        reasoning='window has no ad content', model_used='m',
+    )
+    processing._apply_reviewer_verdict_to_ad(ad, v)
+    assert ad['held_for_review'] is True
+    assert 'reviewer_proposed_start' not in ad
+    assert 'reviewer_proposed_end' not in ad

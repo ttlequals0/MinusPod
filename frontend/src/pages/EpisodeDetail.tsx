@@ -812,6 +812,12 @@ function EpisodeDetail() {
                   : 'idle';
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
+              const originalAd = {
+                start: segment.start,
+                end: segment.end,
+                confidence: segment.confidence,
+                reason: segment.reason || '',
+              };
               return (
                 <div
                   key={index}
@@ -845,13 +851,13 @@ function EpisodeDetail() {
                       >
                         Held
                       </span>
-                      {correction && (
+                      {(correction || segment.approved) && (
                         <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
-                          correction.correction_type === 'confirm'
+                          segment.approved || correction?.correction_type === 'confirm'
                             ? 'bg-green-500/20 text-green-600 dark:text-green-400'
                             : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                         }`}>
-                          {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
+                          {segment.approved || correction?.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
                         </span>
                       )}
                     </div>
@@ -870,22 +876,20 @@ function EpisodeDetail() {
                       {segment.reason}
                     </p>
                   )}
-                  {!correction && (
+                  {segment.hold_reason === 'reviewer_contradiction' && segment.reviewer_reasoning && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-medium">Reviewer:</span>{' '}
+                      {segment.reviewer_reasoning}
+                    </p>
+                  )}
+                  {!correction && !segment.approved && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">
                       <button
                         onClick={() => {
                           if (oneTapRecut) {
                             pendingRecutRef.current = true;
                           }
-                          handleCorrection({
-                            type: 'confirm',
-                            originalAd: {
-                              start: segment.start,
-                              end: segment.end,
-                              confidence: segment.confidence,
-                              reason: segment.reason || '',
-                            },
-                          });
+                          handleCorrection({ type: 'confirm', originalAd });
                         }}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`approve-recut-${index}`}
@@ -893,21 +897,35 @@ function EpisodeDetail() {
                       >
                         {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
+                      {segment.reviewer_proposed_start != null && segment.reviewer_proposed_end != null && (
+                        <button
+                          onClick={() => {
+                            if (oneTapRecut) {
+                              pendingRecutRef.current = true;
+                            }
+                            handleCorrection({
+                              type: 'confirm',
+                              originalAd,
+                              adjustedStart: segment.reviewer_proposed_start,
+                              adjustedEnd: segment.reviewer_proposed_end,
+                            });
+                          }}
+                          disabled={correctionMutation.isPending || reprocessMutation.isPending}
+                          data-testid={`approve-trimmed-${index}`}
+                          title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
+                          className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white')}`}
+                        >
+                          {btnLabel(rowStatus,
+                            `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
+                        </button>
+                      )}
                       {!episode.hasOriginalAudio && rowStatus === 'success' && (
                         <span className="text-xs text-muted-foreground italic self-center">
                           Saved - applies on next reprocess
                         </span>
                       )}
                       <button
-                        onClick={() => handleCorrection({
-                          type: 'reject',
-                          originalAd: {
-                            start: segment.start,
-                            end: segment.end,
-                            confidence: segment.confidence,
-                            reason: segment.reason || '',
-                          },
-                        })}
+                        onClick={() => handleCorrection({ type: 'reject', originalAd })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
                         className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}

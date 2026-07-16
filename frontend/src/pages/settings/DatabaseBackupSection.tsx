@@ -81,7 +81,7 @@ function DatabaseBackupSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-lg border border-border hover:bg-accent text-sm"
+            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
           >
             Retry
           </button>
@@ -204,7 +204,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => runNow.mutate()}
               disabled={runNow.isPending}
-              className="px-4 py-2 rounded-lg border border-border hover:bg-accent disabled:opacity-50 text-sm"
+              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 text-sm"
             >
               {runNow.isPending ? 'Backing up...' : 'Back up now'}
             </button>

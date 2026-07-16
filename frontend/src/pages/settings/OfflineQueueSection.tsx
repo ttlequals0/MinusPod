@@ -53,7 +53,7 @@ function OfflineQueueSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-lg border border-border hover:bg-accent text-sm"
+            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
           >
             Retry
           </button>

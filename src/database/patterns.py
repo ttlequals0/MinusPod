@@ -524,11 +524,14 @@ class PatternMixin:
     def get_confirmed_corrections(self, episode_id: str) -> List[Dict]:
         """Get confirmed corrections for an episode with parsed bounds.
 
-        Returns list of dicts with 'start' and 'end' keys for easy overlap checking.
+        Returns list of dicts with 'start' and 'end' keys for easy overlap
+        checking. A trimmed approval (confirm with corrected_bounds) also
+        carries a 'confirmed_span' dict -- the sub-span the user actually
+        confirmed as ad -- so the validator can clamp a re-detected span to it.
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT original_bounds FROM pattern_corrections
+            """SELECT original_bounds, corrected_bounds FROM pattern_corrections
                WHERE episode_id = ? AND correction_type = 'confirm'""",
             (episode_id,)
         )
@@ -536,6 +539,9 @@ class PatternMixin:
         for row in cursor.fetchall():
             bounds = _parse_bounds(row['original_bounds'])
             if bounds:
+                confirmed_span = _parse_bounds(row['corrected_bounds'])
+                if confirmed_span:
+                    bounds['confirmed_span'] = confirmed_span
                 results.append(bounds)
         return results
 
@@ -543,9 +549,10 @@ class PatternMixin:
                                           episode_ids: List[str]) -> List[Dict]:
         """Get correction bounds for positional prior learning.
 
-        Returns dicts with episode_id, correction_type, start, end. create and
-        boundary_adjustment corrections use corrected_bounds; false_positive
-        and confirm use original_bounds. boundary_adjustment rows also carry
+        Returns dicts with episode_id, correction_type, start, end. create,
+        boundary_adjustment, and trimmed-confirm corrections use
+        corrected_bounds; false_positive and plain confirm use
+        original_bounds. boundary_adjustment rows also carry
         orig_start/orig_end (the bounds of the marker the user adjusted) so
         the learner can match the adjustment to its marker. Rows without
         valid bounds are skipped. Only corrections for episode_ids are
@@ -569,7 +576,9 @@ class PatternMixin:
 
         results = []
         for row in cursor.fetchall():
-            if row['correction_type'] in ('create', 'boundary_adjustment'):
+            if row['correction_type'] in ('create', 'boundary_adjustment', 'confirm'):
+                # confirm rows carry corrected_bounds only for trimmed
+                # approvals, where the trimmed span is the actual ad evidence.
                 raw = row['corrected_bounds'] or row['original_bounds']
             else:
                 raw = row['original_bounds']

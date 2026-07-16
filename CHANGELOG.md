@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.60.0] - 2026-07-16
+
+### Added
+- Held-for-review ads now keep the reviewer's proposed boundary trim. When the
+  reviewer holds an ad because part of the detected span is show content (for
+  example an outro merged into a post-roll ad break), the episode page shows the
+  reviewer's reasoning and offers a "Confirm trimmed" button that approves only
+  the ad portion; the rest stays in the episode. Previously approval was
+  all-or-nothing at the full detected span, and the reviewer's trim was
+  discarded. A trimmed approval also survives later reprocesses: a re-detected
+  wider span is clamped to the approved trim instead of re-cutting the content
+  the user kept.
+
+### Fixed
+- Back up now, Sync now, and the other outline-style settings buttons were
+  nearly invisible in dark mode (the border color is darker than the card they
+  sit on). They now use the standard button style, which is clearly visible in
+  both themes (#534).
+
 ## [2.59.0] - 2026-07-15
 
 ### Fixed
