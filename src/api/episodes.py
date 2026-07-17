@@ -160,6 +160,7 @@ def _run_stats_to_api(stats):
     markers = stats.get('markers')
     return {
         'mode': stats.get('mode'),
+        'detectionSkipped': stats.get('detection_skipped'),
         'downloadedDuration': stats.get('downloaded_duration'),
         'transcriptSegments': stats.get('transcript_segments'),
         'windows': stats.get('windows'),
@@ -221,15 +222,16 @@ def _low_ad_yield(db, episode, runs):
     """Compare this episode's removed ad time against the feed's recent
     average (#519). Returns the comparison dict when far below it.
 
-    Pass-through runs (#521) remove nothing by design, so they never get
-    the badge. The check keys on the run that produced the served audio
-    (the latest completed one), not merely the newest history row, so a
-    failed later attempt cannot un-suppress it. Pass-through siblings in
-    the baseline only drag the feed average down, which makes the badge
-    less likely to fire, not more.
+    Pass-through runs (#521) and skip-detection runs (#538) remove nothing
+    by design, so they never get the badge. The check keys on the run that
+    produced the served audio (the latest completed one), not merely the
+    newest history row, so a failed later attempt cannot un-suppress it.
+    Suppressed siblings in the baseline only drag the feed average down,
+    which makes the badge less likely to fire, not more.
     """
     latest_completed = _latest_completed_run(runs) if runs else None
-    if latest_completed and (latest_completed.get('stats') or {}).get('mode') == 'passthrough':
+    latest_stats = ((latest_completed or {}).get('stats')) or {}
+    if latest_stats.get('mode') == 'passthrough' or latest_stats.get('detectionSkipped'):
         return None
     original = episode.get('original_duration')
     new = episode.get('new_duration')

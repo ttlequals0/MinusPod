@@ -66,6 +66,9 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                     {s?.mode && s.mode !== 'auto' && (
                       <span className="text-muted-foreground"> ({s.mode})</span>
                     )}
+                    {s?.detectionSkipped && (
+                      <span className="text-muted-foreground"> (no ad detection)</span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">{formatDateTime(run.processedAt)}</td>
                   <td className="py-2 pr-4 whitespace-nowrap">

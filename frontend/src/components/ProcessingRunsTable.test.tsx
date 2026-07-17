@@ -39,6 +39,26 @@ const legacyRun: EpisodeProcessingRun = {
   stats: null,
 };
 
+const skipDetectionRun: EpisodeProcessingRun = {
+  runNumber: 3,
+  processedAt: '2026-07-17T10:00:00Z',
+  status: 'completed',
+  adsDetected: 0,
+  processingDurationSeconds: 120,
+  errorMessage: null,
+  inputTokens: 0,
+  outputTokens: 0,
+  llmCost: 0,
+  stats: {
+    mode: 'auto',
+    detectionSkipped: true,
+    downloadedDuration: 3305.7,
+    transcriptSegments: 132,
+    markers: { cut: 0, held: 0, notCut: 0 },
+    secondsRemoved: 0,
+  },
+};
+
 describe('ProcessingRunsTable', () => {
   it('renders full stats for a run with a blob', () => {
     render(<ProcessingRunsTable runs={[statsRun]} />);
@@ -56,6 +76,15 @@ describe('ProcessingRunsTable', () => {
     expect(screen.getByText('1 cut')).toBeTruthy();
     // Downloaded, Windows, Stage hits, Removed, Second scan all dash out.
     expect(screen.getAllByText('-')).toHaveLength(5);
+  });
+
+  it('marks a skip-detection run instead of showing zero stage hits', () => {
+    render(<ProcessingRunsTable runs={[skipDetectionRun]} />);
+    expect(screen.getByText('(no ad detection)')).toBeTruthy();
+    expect(screen.getByText('0 cut / 0 held / 0 kept')).toBeTruthy();
+    // Windows, Stage hits, Second scan dash out: those stages never ran.
+    expect(screen.queryByText(/fingerprint/)).toBeNull();
+    expect(screen.queryByText('clean')).toBeNull();
   });
 
   it('notes a large gap between downloaded and declared duration', () => {

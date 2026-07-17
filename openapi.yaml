@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.60.0
+  version: 2.61.0
   contact:
     name: MinusPod
   license:
@@ -636,6 +636,11 @@ paths:
                     - boolean
                     - 'null'
                   description: When true, episodes on this feed are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
+                skipAdDetection:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: When true, episodes on this feed are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. For ad-free shows. Null and false both mean normal processing.
                 maxEpisodes:
                   type:
                     - integer
@@ -7013,6 +7018,11 @@ components:
             - boolean
             - 'null'
           description: When true, episodes are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
+        skipAdDetection:
+          type:
+            - boolean
+            - 'null'
+          description: When true, episodes are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. Null and false both mean normal processing.
         maxEpisodes:
           type:
             - integer
@@ -7227,6 +7237,11 @@ components:
             mode:
               type: string
               description: auto, reprocess, full, or llm
+            detectionSkipped:
+              type:
+                - boolean
+                - 'null'
+              description: True when the run skipped ad detection because the feed has skipAdDetection set
             downloadedDuration:
               type: number
               description: ffprobe duration of the downloaded copy, in seconds

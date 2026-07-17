@@ -453,7 +453,20 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="blacklist">Remove ads (default)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
               </select>
-              {feed.detectionMode === 'keep_content' && (
+              {feed.skipAdDetection === true && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Ad detection is skipped for this feed (Advanced section), so this
+                  setting has no effect.
+                </p>
+              )}
+              {feed.skipAdDetection !== true && feed.detectionMode !== 'keep_content' && (
+                <p className="text-xs text-muted-foreground">
+                  Keep content only asks the model to mark what is show content and
+                  removes the rest. Episodes fall back to normal ad removal when the
+                  labeling fails safety checks.
+                </p>
+              )}
+              {feed.skipAdDetection !== true && feed.detectionMode === 'keep_content' && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   Removes everything the model does not mark as show content. For feeds with
                   unrecognizable inserted ads. Safety checks revert to normal removal when the
@@ -618,7 +631,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {/* Advanced settings (collapsible; rarely-changed knobs) */}
           <CollapsibleSection
             title="Advanced"
-            subtitle="Cut snapping, ad review holds, pass-through, and cross-fetch"
+            subtitle="Cut snapping, ad review holds, skip detection, pass-through, and cross-fetch"
             defaultOpen={false}
             storageKey={`feed-advanced-${slug}`}
           >
@@ -693,6 +706,28 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </label>
                   <p className="text-xs text-amber-600 dark:text-amber-400">
                     Only ads with audio cue evidence auto-cut; others are held for review. Enable cue templates first.
+                  </p>
+                </div>
+              </div>
+
+              {/* Skip ad detection (#538): transcripts and chapters only */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Ad detection:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <ToggleSwitch
+                      checked={feed.skipAdDetection === true}
+                      onChange={(v) => updateMutation.mutate({ skipAdDetection: v })}
+                      disabled={updateMutation.isPending}
+                      ariaLabel="Skip ad detection"
+                    />
+                    <span>Skip ad detection</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Episodes are still transcribed and get chapters and a transcript, but
+                    nothing is scanned for ads and nothing is cut. For ad-free shows;
+                    skips the ad detection cost. Pass-through, when on, takes precedence
+                    and skips processing entirely.
                   </p>
                 </div>
               </div>
