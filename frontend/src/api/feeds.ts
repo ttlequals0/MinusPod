@@ -223,6 +223,7 @@ export interface UpdateFeedPayload {
   cueGatedApproval?: boolean | null;
   differentialFetchEnabled?: boolean | null;
   passthroughEnabled?: boolean | null;
+  skipAdDetection?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

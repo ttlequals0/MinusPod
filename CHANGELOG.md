@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.61.0] - 2026-07-17
+
+### Added
+- Per-feed "Skip ad detection" toggle in Feed Settings > Advanced (#538). Episodes
+  on the feed are still transcribed and get chapters and a transcript, but the
+  detection stages are skipped entirely: no first-pass detection, no verification
+  pass, no audio-cue analysis, and no cross-fetch second download. Nothing is cut,
+  so the served audio matches the original. For ad-free shows; saves the detection
+  LLM cost. Skip-detection runs are marked in the per-run stats and never get the
+  low-ad-yield badge.
+
+### Documentation
+- The "Keep content only" detection mode is now documented (#537): a new section in
+  docs/how-it-works.md explains the inverted detection, its safety gates, and the
+  per-episode fallback to normal removal; the feed settings panel shows a short
+  description of the mode before it is selected instead of only after.
+
 ## [2.60.0] - 2026-07-16
 
 ### Added

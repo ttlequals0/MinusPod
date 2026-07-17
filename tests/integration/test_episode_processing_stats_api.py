@@ -28,6 +28,7 @@ STATS_DB = {
 
 STATS_API = {
     'mode': 'auto',
+    'detectionSkipped': None,
     'downloadedDuration': 3305.7,
     'transcriptSegments': 132,
     'windows': {'total': 7, 'failed': 0},
@@ -116,6 +117,22 @@ def test_low_ad_yield_needs_enough_samples(app_client, seeded):
 
     _authed(app_client)
     resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/ddd000000001')
+    assert resp.get_json()['lowAdYield'] is None
+
+
+def test_low_ad_yield_suppressed_for_skip_detection_run(app_client, seeded):
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    for i in range(3):
+        seeded['seed'](f'aaa00000000{i}', original=3300, new=2700)
+    seeded['seed']('fff000000001', original=2784, new=2784)
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='fff000000001', episode_title='Skip', status='completed',
+        ads_detected=0,
+        processing_stats={'mode': 'auto', 'detection_skipped': True})
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/fff000000001')
     assert resp.get_json()['lowAdYield'] is None
 
 

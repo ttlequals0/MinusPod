@@ -197,6 +197,7 @@ _SNAP_FLAG_FIELDS = [
     ('cueGatedApproval',         'cue_gated_approval'),
     ('differentialFetchEnabled', 'differential_fetch_enabled'),
     ('passthroughEnabled', 'passthrough_enabled'),
+    ('skipAdDetection', 'skip_ad_detection'),
 ]
 
 def _cue_override_fields(podcast) -> dict:

@@ -68,6 +68,8 @@ export interface Feed {
   websiteUrl?: string | null;
   // Pass-through (#521): episodes are downloaded and served untouched.
   passthroughEnabled?: boolean | null;
+  // Skip ad detection (#538): transcripts and chapters only, no ads cut.
+  skipAdDetection?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }
@@ -178,6 +180,9 @@ export interface EpisodeDetail extends Episode {
 // whatever was gathered before the failure.
 export interface ProcessingRunStats {
   mode?: string;
+  // Skip ad detection (#538): the run made no detection LLM calls and cut
+  // nothing; stageHits/detected/verificationAdsCut are absent by design.
+  detectionSkipped?: boolean | null;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   windows?: { total: number; failed: number } | null;

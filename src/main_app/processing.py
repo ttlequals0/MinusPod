@@ -1645,7 +1645,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             local_audio_processor, progress_callback,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
-                            pass1_held_spans=None):
+                            pass1_held_spans=None, skip_detection=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -1656,9 +1656,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     held markers; a pass-2 cut overlapping one is diverted to held instead of
     cutting so the protected region survives.
 
-    Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path,
-    verification_cue_count).
+    ``skip_detection`` (#538) reports the pass as cleanly done with nothing
+    found; pass 2 is a second LLM scan, so skipping pass 1 alone would still
+    pay for it.
+
+    Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held,
+    processed_path, verification_cue_count, verification_ok).
     """
+    if skip_detection:
+        return 0, [], [], [], processed_path, 0, True
     slug = ctx.slug
     episode_id = ctx.episode_id
     podcast_name = ctx.podcast_name
@@ -2565,11 +2571,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                      episode_published_at, start_time,
                                      episode_data, cancel_event=cancel_event)
 
+    # Skip ad detection (#538): episodes still get transcription, chapters,
+    # and a transcript, but the detection stages and the cut are skipped.
+    skip_detection = bool(podcast_settings and podcast_settings.get('skip_ad_detection'))
+
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try
     # so the failure handler can persist whatever was gathered up to the
     # point of failure.
     run_stats = {'mode': reprocess_mode or 'auto'}
+    if skip_detection:
+        run_stats['detection_skipped'] = True
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
@@ -2599,16 +2611,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
         # Runs after transcription so the natural delay separates the two
         # fetches; results are ready before first-pass detection. Non-fatal.
-        dai_differential = _run_differential_fetch(
-            slug, episode_id, episode_url, audio_path,
-            podcast_settings.get('id') if podcast_settings else None,
-            dai_platform=(podcast_settings.get('dai_platform')
-                          if podcast_settings else None))
+        # Its only consumer is ad detection, so a skip-detection feed also
+        # skips the second fetch.
+        dai_differential = None
+        if not skip_detection:
+            dai_differential = _run_differential_fetch(
+                slug, episode_id, episode_url, audio_path,
+                podcast_settings.get('id') if podcast_settings else None,
+                dai_platform=(podcast_settings.get('dai_platform')
+                              if podcast_settings else None))
         _check_cancel(cancel_event, slug, episode_id)
 
         try:
-            # Stage 2: Audio analysis
-            audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
+            # Stage 2: Audio analysis (ad-cue detection; nothing to feed when
+            # detection is skipped)
+            audio_analysis_result = None
+            if not skip_detection:
+                audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
             if audio_analysis_result is not None and dai_differential is not None:
                 # Ride along on the analysis result so the detector prompt and
                 # the validator's audio_analysis dict see the differential.
@@ -2658,52 +2677,70 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             run_stats['downloaded_duration'] = round(episode_duration, 2)
             run_stats['transcript_segments'] = len(segments)
 
-            # Learned positional prior (issue #360 experiment, off by default)
-            positional_prior = load_positional_prior(db, slug, episode_id,
-                                                     episode_duration)
-
-            # Stage 3: First-pass detection
-            first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
-                ctx, segments, audio_path,
-                skip_patterns, audio_analysis_result,
-                detection_progress_callback,
-                cancel_event=cancel_event,
-                positional_prior_hint=format_prior_hint(positional_prior,
-                                                        episode_duration),
-                dai_differential=dai_differential,
-            )
-            _check_cancel(cancel_event, slug, episode_id)
-
-            _detection_stats = (ad_result or {}).get('detection_stats') or {}
-            if 'windows_total' in _detection_stats:
-                run_stats['windows'] = {
-                    'total': _detection_stats['windows_total'],
-                    'failed': _detection_stats.get('windows_failed', 0),
-                }
-            run_stats['stage_hits'] = {
-                'fingerprint': _detection_stats.get('fingerprint_matches', 0),
-                'text_pattern': _detection_stats.get('text_pattern_matches', 0),
-                'differential': _detection_stats.get('dai_differential_matches', 0),
-                'llm': _detection_stats.get('claude_matches', 0),
-            }
-            run_stats['detected'] = first_pass_count
-
-            all_ads = first_pass_ads.copy()
-
-            # Resolve per-feed hold settings once for the full pipeline.
             podcast_id = ctx.podcast_id
-            max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
-            cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
+            if skip_detection:
+                # Stages 3-4 skipped: no prior, no detection, no validation.
+                # Stage 4 in particular must not run on the empty list because
+                # _apply_heuristic_rolls inside it adds pre/post-roll and
+                # VAD-gap cuts even then, breaking this mode's nothing-is-cut
+                # contract. Detection stats (stage_hits, detected) are not
+                # recorded for stages that never ran.
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Ad detection skipped (per-feed setting)")
+                # Markers and assets left by an earlier detection run describe
+                # cut audio; clear them like pass-through does. Transcript
+                # inputs survive, so nothing is re-transcribed.
+                db.clear_episode_ad_data(slug, episode_id)
+                first_pass_count = 0
+                max_ad_duration_override, cue_gate_enabled = None, False
+                ads_to_remove, all_ads_with_validation = [], []
+            else:
+                # Learned positional prior (issue #360 experiment, off by
+                # default); consumed by detection and validation only.
+                positional_prior = load_positional_prior(db, slug, episode_id,
+                                                         episode_duration)
 
-            # Stage 4: Refine and validate
-            ads_to_remove, all_ads_with_validation = _refine_and_validate(
-                slug, episode_id, all_ads, segments, audio_path,
-                episode_description, episode_duration, min_cut_confidence, podcast_name,
-                skip_patterns=skip_patterns, positional_prior=positional_prior,
-                max_ad_duration_override=max_ad_duration_override,
-                cue_gate_enabled=cue_gate_enabled,
-                audio_analysis=_val_audio_analysis,
-            )
+                # Stage 3: First-pass detection
+                first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
+                    ctx, segments, audio_path,
+                    skip_patterns, audio_analysis_result,
+                    detection_progress_callback,
+                    cancel_event=cancel_event,
+                    positional_prior_hint=format_prior_hint(positional_prior,
+                                                            episode_duration),
+                    dai_differential=dai_differential,
+                )
+                _check_cancel(cancel_event, slug, episode_id)
+
+                _detection_stats = (ad_result or {}).get('detection_stats') or {}
+                if 'windows_total' in _detection_stats:
+                    run_stats['windows'] = {
+                        'total': _detection_stats['windows_total'],
+                        'failed': _detection_stats.get('windows_failed', 0),
+                    }
+                run_stats['stage_hits'] = {
+                    'fingerprint': _detection_stats.get('fingerprint_matches', 0),
+                    'text_pattern': _detection_stats.get('text_pattern_matches', 0),
+                    'differential': _detection_stats.get('dai_differential_matches', 0),
+                    'llm': _detection_stats.get('claude_matches', 0),
+                }
+                run_stats['detected'] = first_pass_count
+
+                all_ads = first_pass_ads.copy()
+
+                # Resolve per-feed hold settings once for the full pipeline.
+                max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
+                cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
+
+                # Stage 4: Refine and validate
+                ads_to_remove, all_ads_with_validation = _refine_and_validate(
+                    slug, episode_id, all_ads, segments, audio_path,
+                    episode_description, episode_duration, min_cut_confidence, podcast_name,
+                    skip_patterns=skip_patterns, positional_prior=positional_prior,
+                    max_ad_duration_override=max_ad_duration_override,
+                    cue_gate_enabled=cue_gate_enabled,
+                    audio_analysis=_val_audio_analysis,
+                )
             _check_cancel(cancel_event, slug, episode_id)
 
             # No-op when enable_ad_review is off (the default).
@@ -2795,6 +2832,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 max_ad_duration_override=max_ad_duration_override,
                 cue_gate_enabled=cue_gate_enabled,
                 pass1_held_spans=pass1_held_spans,
+                skip_detection=skip_detection,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
@@ -2886,9 +2924,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 'held': held_count,
                 'not_cut': len(all_ads_with_validation) - cut_count - held_count,
             }
-            # Recorded only when the pass completed: a crashed scan must not
-            # read as a clean one (0 would be indistinguishable).
-            if verification_ok:
+            # Recorded only when the pass actually completed: a crashed or
+            # skipped scan must not read as a clean one (0 would be
+            # indistinguishable).
+            if verification_ok and not skip_detection:
                 run_stats['verification_ads_cut'] = verification_count
             if new_duration:
                 run_stats['seconds_removed'] = round(original_duration - new_duration, 2)

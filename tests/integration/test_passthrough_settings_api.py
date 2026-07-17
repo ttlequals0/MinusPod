@@ -61,3 +61,21 @@ def test_patch_passthrough_round_trip(app_client, seeded_feed):
                             json={'passthroughEnabled': False}, headers=headers)
     assert resp.status_code == 200
     assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['passthroughEnabled'] is False
+
+
+def test_patch_skip_ad_detection_round_trip(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipAdDetection'] is None
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipAdDetection': True}, headers=headers)
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipAdDetection'] is True
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipAdDetection': None}, headers=headers)
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipAdDetection'] is None
