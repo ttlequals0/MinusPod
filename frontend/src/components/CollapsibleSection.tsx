@@ -1,6 +1,22 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
+
+// Mirror of a CollapsibleSection's persisted open state, for hosts that need
+// to know whether their section is open (e.g. to gate a query on visibility)
+// without owning it. Seeds from the same localStorage key the section writes,
+// then tracks toggles: pass `storageKey` and wire the setter to `onToggle`.
+// Lives here so knowledge of the storage-key contract stays next to the
+// component that owns it.
+export function useCollapsibleOpen(
+  storageKey: string,
+  defaultOpen = false,
+): [boolean, (isOpen: boolean) => void] {
+  const [open, setOpen] = useState(
+    () => readStoredValue<boolean>(storageKey, defaultOpen) === true,
+  );
+  return [open, setOpen];
+}
 
 interface CollapsibleSectionProps {
   title: string;

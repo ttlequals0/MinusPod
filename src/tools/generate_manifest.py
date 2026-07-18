@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -36,6 +35,7 @@ from utils.community_tags import (  # noqa: E402, F401
     content_hash_for_bytes,
     iter_bundle_patterns,
 )
+from utils.time import utc_now_iso  # noqa: E402
 
 
 def _community_dir() -> Path:
@@ -97,7 +97,7 @@ def build_manifest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     the manifest stays small regardless of catalog size."""
     return {
         'manifest_version': MANIFEST_VERSION,
-        'published_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'published_at': utc_now_iso(),
         'vocabulary_version': VOCABULARY_VERSION,
         'patterns': entries,
     }

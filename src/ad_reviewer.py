@@ -1,6 +1,7 @@
 """Opt-in LLM ad reviewer."""
 import logging
 import math
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ from config import (
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
     is_template_cue,
+    MIN_AD_DURATION_FOR_REMOVAL,
 )
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
@@ -25,8 +27,8 @@ from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     StructuralRateLimitError,
 )
-from utils.llm_call import call_llm_for_window
-from utils.llm_response import extract_json_ads_array
+from utils.llm_call import call_llm, call_llm_for_window
+from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import get_transcript_text_for_range
 
@@ -54,14 +56,59 @@ def _review_failure_reason(error: Exception) -> str:
 # Verdict/reasoning contradiction guard (spec 1.4). Verdicts are derived
 # from boundary arithmetic, so a model that returns the ad unchanged while
 # its reason text says the span is not an ad ships as "confirmed". Reasoning
-# matching one of these substrings (case-insensitive) gets held for human
+# matching one of these patterns (case-insensitive regex) gets held for human
 # review instead of auto-cut. Never auto-reject: the reasoning could be the
-# wrong half of the contradiction.
+# wrong half of the contradiction. Regexes, not literal substrings: prod
+# reasonings vary verb number and noun form ("contain no advertising
+# content", "is not advertising"), which the original four literals missed
+# while the span was cut anyway. Patterns are anchored to assertion shapes
+# ("is not advertising", "contains no advertising") rather than bare noun
+# phrases: a reasoning that AFFIRMS the cut can mention the same nouns
+# ("not a false positive", "ensures no advertising remains after the cut",
+# "transition from organic conversation into the ad read") and must not be
+# held -- a false hold ships the confirmed ad uncut until a human approves.
 REVIEWER_CONTRADICTION_PATTERNS = (
-    'no advertisement',
-    'not an ad',
-    'no ad content',
-    'contains no ad',
+    r'\bcontains?\s+no\s+advertis',            # "contain(s) no advertising content"
+    r'\bis\s+not\s+(?:an?\s+)?(?:paid\s+)?advertis',  # "is not advertising"
+    r'\bnot\s+an\s+ad\b',
+    r'\bno\s+ad\s+content\b',
+    r'\bcontains?\s+no\s+ad\b',
+    r'\bis\s+a\s+false\s+positive\b',
+    r'\bcontains?\s+only\s+the\s+(?:phrase|fragment|words?)\b',
+    r'\btranscription\s+artifact\b',
+    r'\b(?:is\s+|entirely\s+)organic\s+conversation\b',
+)
+
+_CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
+
+# Trim-language precheck for the contradiction-hold bounds recovery call.
+# Only spend the follow-up LLM call when the reasoning plausibly describes a
+# sub-span trim ("the ad content ends at roughly 65.8s ... must be trimmed
+# off the end"). A plain "this is not an ad" reasoning identifies nothing to
+# recover, so it skips the call.
+_TRIM_LANGUAGE_RE = re.compile(
+    r'\btrim'
+    r'|\bends?\s+at\b'
+    r'|\bstarts?\s+at\b'
+    r'|\bbegins?\s+at\b'
+    r'|\b(?:must|should)\s+be\s+removed\b'
+    r'|\bremoved?\s+from\b',
+    re.IGNORECASE,
+)
+
+# In-range slack for recovered trim bounds. A recovered edge may sit up to
+# this far outside the original span (float noise from the model re-reading
+# timestamps) and is clamped back in; anything further out is rejected.
+_TRIM_RANGE_EPSILON_S = 0.5
+
+_TRIM_RECOVERY_SYSTEM_PROMPT = (
+    "A podcast ad reviewer returned a candidate ad span with unchanged "
+    "boundaries while its reasoning says part of the span is not ad content. "
+    "Read the reasoning and identify the sub-span that IS the ad.\n\n"
+    "Return ONLY strict JSON, no explanation, no markdown:\n"
+    '{"ad_start": FLOAT_SECONDS, "ad_end": FLOAT_SECONDS}\n'
+    "Both values must be numeric seconds inside the original span. If the "
+    "reasoning does not identify a specific ad sub-span, return null instead."
 )
 
 
@@ -70,7 +117,7 @@ def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
     if not reasoning:
         return False
     lowered = reasoning.lower()
-    return any(p in lowered for p in REVIEWER_CONTRADICTION_PATTERNS)
+    return any(r.search(lowered) for r in _CONTRADICTION_RES)
 
 
 def _resolve_reviewer_parallel_ads() -> int:
@@ -534,11 +581,26 @@ class AdReviewer:
                 held["reviewer_contradiction"] = True
                 # Preserve the reviewer's proposed trim so the review UI can
                 # offer approving the trimmed span instead of all-or-nothing.
-                # The persisted marker (held via _apply_reviewer_verdict_to_ad
-                # in processing.py) keeps pass-1 boundaries; these fields are
-                # mirrored here so both hold sites carry the same shape.
-                if (verdict.verdict == "adjust"
-                        and verdict.adjusted_start is not None
+                # An adjust verdict already carries adjusted_*; a confirmed
+                # verdict came back with unchanged boundaries, so recover
+                # machine bounds from the reasoning prose with one follow-up
+                # call (on any failure the hold ships without bounds, exactly
+                # as before; the verdict stays 'confirmed' and the ad stays
+                # out of the cut list either way). The persisted marker (held
+                # via _apply_reviewer_verdict_to_ad in processing.py) keeps
+                # pass-1 boundaries; these fields are mirrored here so both
+                # hold sites carry the same shape.
+                if verdict.verdict == "confirmed":
+                    recovered = self._recover_contradiction_trim(
+                        verdict,
+                        model=model,
+                        pass_num=pass_num,
+                        slug=episode_meta.get('slug'),
+                        episode_id=episode_meta.get('episode_id'),
+                    )
+                    if recovered is not None:
+                        verdict.adjusted_start, verdict.adjusted_end = recovered
+                if (verdict.adjusted_start is not None
                         and verdict.adjusted_end is not None):
                     held["reviewer_proposed_start"] = verdict.adjusted_start
                     held["reviewer_proposed_end"] = verdict.adjusted_end
@@ -841,6 +903,112 @@ class AdReviewer:
             ),
             ad,
         )
+
+    def _recover_contradiction_trim(
+        self,
+        verdict: "ReviewVerdict",
+        *,
+        model: str,
+        pass_num: int,
+        slug: Optional[str],
+        episode_id: Optional[str],
+    ) -> Optional[Tuple[float, float]]:
+        """Recover machine-readable trim bounds from a prose-only trim.
+
+        Fired only on a contradiction hold whose verdict derived as
+        'confirmed': the model returned the span unchanged while its
+        reasoning described a trim in prose (the-brilliant-idiots
+        79eedd7bf2a7 shipped "the ad content ends at roughly 65.8s ... must
+        be trimmed off the end" with boundaries 0.0-87.8s intact, so the
+        hold carried no proposed bounds the UI could one-tap approve).
+
+        One small follow-up call through the shared call_llm seam turns the
+        reasoning back into {"ad_start": float, "ad_end": float}. Returns
+        (start, end) strictly inside the original span, or None on any
+        failure -- never raises into the pipeline, and the result only
+        enriches the held marker; it cannot flip the hold into a cut.
+        """
+        reasoning = verdict.reasoning or ""
+        if not _TRIM_LANGUAGE_RE.search(reasoning):
+            return None
+        o_start, o_end = verdict.original_start, verdict.original_end
+        user_prompt = (
+            f"Original candidate span: {o_start:.2f}s - {o_end:.2f}s\n"
+            f"Reviewer reasoning:\n{reasoning}\n"
+        )
+        pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
+        call_label = f"reviewer-pass{pass_num}-trim-recovery"
+        try:
+            response, error = call_llm(
+                llm_client=self._llm_client,
+                model=model,
+                system_prompt=_TRIM_RECOVERY_SYSTEM_PROMPT,
+                prompt=user_prompt,
+                llm_timeout=get_llm_timeout(),
+                max_retries=0,
+                max_tokens=300,
+                slug=slug,
+                episode_id=episode_id,
+                call_label=call_label,
+                pass_name=pass_name,
+            )
+        except Exception as e:
+            # call_llm never raises by contract; belt-and-braces so a bug
+            # there can never break the hold path.
+            logger.warning(f"[{slug}:{episode_id}] {call_label} raised: {e}")
+            return None
+        if response is None:
+            logger.warning(
+                f"[{slug}:{episode_id}] {call_label} failed: {error}. "
+                f"Holding without proposed bounds."
+            )
+            return None
+        obj, _method = extract_json_object(
+            self._extract_response_text(response),
+            slug=slug, episode_id=episode_id,
+        )
+        if not obj:
+            # Explicit null (no sub-span identified) or unparseable response.
+            return None
+        start = _first_num(obj, ("ad_start",), math.nan)
+        end = _first_num(obj, ("ad_end",), math.nan)
+        if math.isnan(start) or math.isnan(end):
+            return None
+        if (start < o_start - _TRIM_RANGE_EPSILON_S
+                or end > o_end + _TRIM_RANGE_EPSILON_S):
+            logger.warning(
+                f"[{slug}:{episode_id}] {call_label} out of range: "
+                f"{start:.1f}-{end:.1f}s vs span {o_start:.1f}-{o_end:.1f}s. "
+                f"Rejecting."
+            )
+            return None
+        start = max(start, o_start)
+        end = min(end, o_end)
+        if end <= start:
+            return None
+        # Must be a strict sub-span: a result that shrinks the span by less
+        # than the confirmed-boundary tolerance is indistinguishable from
+        # the full span and offers no trim worth surfacing.
+        if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
+            return None
+        # Sanity floor: a recovered ad portion shorter than the minimum we would
+        # ever remove from audio is more likely a hallucinated sub-span than a
+        # real trim of a span the model itself flagged as an ad. Fall back to
+        # holding without bounds (today's behavior) rather than pre-fill the
+        # review UI with a bad one-tap trim.
+        if end - start < MIN_AD_DURATION_FOR_REMOVAL:
+            logger.info(
+                f"[{slug}:{episode_id}] {call_label} recovered trim "
+                f"{start:.1f}-{end:.1f}s is {end - start:.1f}s, under the "
+                f"{MIN_AD_DURATION_FOR_REMOVAL:.0f}s floor for span "
+                f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
+            )
+            return None
+        logger.info(
+            f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
+            f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
+        )
+        return start, end
 
     @staticmethod
     def _clamp_to_cap(proposed: float, original: float, cap: int) -> float:

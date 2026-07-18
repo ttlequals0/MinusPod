@@ -4,24 +4,14 @@ Key-gated on the public feed domain: 200 with a valid key when feed auth is
 on, 401 without, 404 when feed auth is off or the mode is bad. Also covers the
 settings API exposing the copyable URLs.
 """
-import os
-import sys
-import tempfile
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='opmlurl_test_')
-os.environ.setdefault('SECRET_KEY', 'opmlurl-test-secret')
-os.environ.setdefault('DATA_DIR', _test_data_dir)
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('opmlurl_test_', secret_key='opmlurl-test-secret')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app, db as app_db
 from utils.validation import is_valid_slug
 

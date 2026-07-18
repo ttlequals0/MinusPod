@@ -13,16 +13,17 @@ import { stripHtml } from '../utils/stripHtml';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
-import CollapsibleSection from '../components/CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen } from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage, formatDuration } from './settings/settingsUtils';
-import { formatTimestamp } from '../utils/format';
+import { formatDate, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
+import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -62,10 +63,12 @@ function EpisodeDetail() {
     'ad-editor-review-mode',
     'processed',
   );
-  const [originalTranscriptRequested, setOriginalTranscriptRequested] = useLocalStorageState<boolean>(
-    'episode-original-transcript-requested',
-    false,
-  );
+  // Tracks the Original Transcript section's open state (mirrors the
+  // CollapsibleSection's persisted flag, same storage key) so the full
+  // transcript is only fetched while the section is actually open -- not on
+  // every episode page forever after one use.
+  const [originalTranscriptOpen, setOriginalTranscriptOpen] =
+    useCollapsibleOpen('episode-original-transcript');
   // When a "Confirm & Recut" action fires, this flag signals the correctionMutation
   // onSuccess to chain a recut immediately after the correction is stored.
   const pendingRecutRef = useRef(false);
@@ -91,7 +94,7 @@ function EpisodeDetail() {
   const { data: originalTranscript, isError: originalTranscriptError } = useQuery({
     queryKey: ['originalTranscript', slug, episodeId],
     queryFn: () => getOriginalTranscript(slug!, episodeId!),
-    enabled: originalTranscriptRequested && !!slug && !!episodeId && !!episode?.originalTranscriptAvailable,
+    enabled: originalTranscriptOpen && !!slug && !!episodeId && !!episode?.originalTranscriptAvailable,
   });
 
   const reprocessMutation = useMutation({
@@ -172,6 +175,21 @@ function EpisodeDetail() {
   // Handle ad corrections from AdEditor
   const handleCorrection = (correction: AdCorrection) => {
     correctionMutation.mutate(correction);
+  };
+
+  // Per-row save status for the Held-for-Review and Detections-Not-Cut rows.
+  // Match on the full identity, not just start/end, so two markers that
+  // happen to share boundaries don't both light up when only one is saving.
+  const rowSaveStatus = (segment: {
+    start: number; end: number; confidence: number; reason?: string;
+  }): SaveStatus => {
+    const mutAd = correctionMutation.variables?.originalAd;
+    return mutAd?.start === segment.start &&
+      mutAd?.end === segment.end &&
+      mutAd?.confidence === segment.confidence &&
+      mutAd?.reason === (segment.reason || '')
+      ? saveStatus
+      : 'idle';
   };
 
   // Jump to a specific ad in the editor. Sets the selected index so the modal
@@ -263,6 +281,13 @@ function EpisodeDetail() {
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
+  // Detected-Ads header row 2: pass counts and time saved.
+  const showPassCounts = episode.adsRemovedFirstPass !== undefined
+    && episode.adsRemovedVerification !== undefined
+    && episode.adsRemovedVerification > 0;
+  const showTimeSaved = !!(episode.timeSaved && episode.timeSaved > 0);
+  const hasPass2 = !!(episode.adsRemovedVerification && episode.adsRemovedVerification > 0);
+
   // Verification verdict (#519): the pipeline's second scan of the output
   // audio. Read from the latest run's stats blob, which records the count
   // only when the scan completed -- adsRemovedVerification defaults to 0,
@@ -315,7 +340,7 @@ function EpisodeDetail() {
           <div className="flex flex-col gap-2 min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">{episode.title}</h1>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
-              <span>{new Date(episode.published).toLocaleDateString()}</span>
+              <span>{formatDate(episode.published)}</span>
               {episode.status === 'completed' && episode.newDuration ? (
                 <span>{formatDuration(episode.newDuration)}</span>
               ) : episode.duration ? (
@@ -332,7 +357,7 @@ function EpisodeDetail() {
               </span>
               {episode.lowAdYield && (
                 <span
-                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400 cursor-help"
+                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-warning cursor-help"
                   title={`This run removed ${formatDuration(episode.lowAdYield.removedSeconds)} of ads; this feed's recent episodes average ${formatDuration(episode.lowAdYield.feedAverageSeconds)}. The downloaded copy may have arrived with unfilled ad slots, or ads were missed.`}
                 >
                   Low ad yield
@@ -379,7 +404,7 @@ function EpisodeDetail() {
                 <button
                   onClick={() => setShowReprocessMenu(!showReprocessMenu)}
                   disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                  className="px-2 py-0.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
                 >
                   {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -542,7 +567,7 @@ function EpisodeDetail() {
                 }}
                 aria-label="Add new ad"
                 title="Add new ad"
-                className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
+                className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${btnPrimary} transition-colors whitespace-nowrap`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -574,7 +599,7 @@ function EpisodeDetail() {
                     }}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors whitespace-nowrap"
+                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnSecondary} rounded-md transition-colors whitespace-nowrap`}
                   >
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -590,7 +615,7 @@ function EpisodeDetail() {
                     }}
                     aria-label="Add new ad"
                     title="Add new ad"
-                    className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
+                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnPrimary} rounded-md transition-colors whitespace-nowrap`}
                   >
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -601,14 +626,14 @@ function EpisodeDetail() {
               )}
             </div>
             {/* Row 2: Detection stage info + time saved */}
-            {((episode.adsRemovedFirstPass !== undefined && episode.adsRemovedVerification !== undefined && episode.adsRemovedVerification > 0) || (episode.timeSaved && episode.timeSaved > 0)) && (
+            {(showPassCounts || showTimeSaved) && (
               <div className="mt-1 text-sm text-muted-foreground">
-                {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedVerification !== undefined && episode.adsRemovedVerification > 0) && (
+                {showPassCounts && (
                   <span>{episode.adsRemovedFirstPass} pass 1, {episode.adsRemovedVerification} pass 2</span>
                 )}
-                {episode.timeSaved && episode.timeSaved > 0 && (
-                  <span className={episode.adsRemovedVerification && episode.adsRemovedVerification > 0 ? 'ml-2' : ''}>
-                    {episode.adsRemovedVerification && episode.adsRemovedVerification > 0 ? '- ' : ''}{formatDuration(episode.timeSaved)} time saved
+                {showTimeSaved && (
+                  <span className={hasPass2 ? 'ml-2' : ''}>
+                    {hasPass2 ? '- ' : ''}{formatDuration(episode.timeSaved!)} time saved
                   </span>
                 )}
               </div>
@@ -698,7 +723,7 @@ function EpisodeDetail() {
                     </span>
                   )}
                   {segment.reviewer_verdict === 'confirmed' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-green-500/20 text-green-600 dark:text-green-400" title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-green-500/20 text-success" title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
                       Reviewer: confirmed
                     </span>
                   )}
@@ -708,7 +733,7 @@ function EpisodeDetail() {
                     </span>
                   )}
                   {segment.reviewer_verdict === 'resurrect' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400" title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning" title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
                       Reviewer: resurrected
                     </span>
                   )}
@@ -732,7 +757,7 @@ function EpisodeDetail() {
                       return (
                         <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                           correction.correction_type === 'confirm'
-                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            ? 'bg-green-500/20 text-success'
                             : correction.correction_type === 'false_positive'
                             ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                             : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
@@ -801,15 +826,7 @@ function EpisodeDetail() {
                 : segment.hold_reason === 'no_splice_evidence'
                 ? 'No splice artifact found at either edge'
                 : 'Held for manual review';
-              // Track which row's mutation is in flight to show per-row status.
-              const mutAd = correctionMutation.variables?.originalAd;
-              const rowStatus: SaveStatus =
-                mutAd?.start === segment.start &&
-                mutAd?.end === segment.end &&
-                mutAd?.confidence === segment.confidence &&
-                mutAd?.reason === (segment.reason || '')
-                  ? saveStatus
-                  : 'idle';
+              const rowStatus = rowSaveStatus(segment);
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
               const originalAd = {
@@ -846,7 +863,7 @@ function EpisodeDetail() {
                         </span>
                       )}
                       <span
-                        className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                        className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning"
                         title={holdTitle}
                       >
                         Held
@@ -854,7 +871,7 @@ function EpisodeDetail() {
                       {(correction || segment.approved) && (
                         <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                           segment.approved || correction?.correction_type === 'confirm'
-                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            ? 'bg-green-500/20 text-success'
                             : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                         }`}>
                           {segment.approved || correction?.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
@@ -928,7 +945,7 @@ function EpisodeDetail() {
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)}`}
                       >
                         {btnLabel(rowStatus, 'Not an ad')}
                       </button>
@@ -975,18 +992,14 @@ function EpisodeDetail() {
               >
                 {(() => {
                   const correction = getAdCorrection(segment.start, segment.end);
-                  // Match on the full identity, not just start/end, so two
-                  // rejected markers that happen to share boundaries don't both
-                  // light up when only one is being saved.
-                  const mutAd = correctionMutation.variables?.originalAd;
-                  const rowStatus: SaveStatus =
-                    mutAd?.start === segment.start &&
-                    mutAd?.end === segment.end &&
-                    mutAd?.confidence === segment.confidence &&
-                    mutAd?.reason === (segment.reason || '')
-                      ? saveStatus
-                      : 'idle';
+                  const rowStatus = rowSaveStatus(segment);
                   const rejectedKey = `rejected-${segment.start}-${segment.end}`;
+                  const originalAd = {
+                    start: segment.start,
+                    end: segment.end,
+                    confidence: segment.confidence,
+                    reason: segment.reason || '',
+                  };
                   const rejectedPlaying = markerAudition.playingKey === rejectedKey;
                   return (
                     <>
@@ -1017,7 +1030,7 @@ function EpisodeDetail() {
                           {correction && (
                             <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                               correction.correction_type === 'confirm'
-                                ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                ? 'bg-green-500/20 text-success'
                                 : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                             }`}>
                               {correction.correction_type === 'confirm' ? 'Confirmed' : 'Not an ad'}
@@ -1039,32 +1052,16 @@ function EpisodeDetail() {
                       {!correction && (
                         <div className="flex flex-col sm:flex-row gap-2 mt-3">
                           <button
-                            onClick={() => handleCorrection({
-                              type: 'confirm',
-                              originalAd: {
-                                start: segment.start,
-                                end: segment.end,
-                                confidence: segment.confidence,
-                                reason: segment.reason || '',
-                              },
-                            })}
+                            onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}
                             className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white')}`}
                           >
                             {btnLabel(rowStatus, 'Confirm ad')}
                           </button>
                           <button
-                            onClick={() => handleCorrection({
-                              type: 'reject',
-                              originalAd: {
-                                start: segment.start,
-                                end: segment.end,
-                                confidence: segment.confidence,
-                                reason: segment.reason || '',
-                              },
-                            })}
+                            onClick={() => handleCorrection({ type: 'reject', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, 'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground')}`}
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)}`}
                           >
                             {btnLabel(rowStatus, 'Not an ad')}
                           </button>
@@ -1117,7 +1114,7 @@ function EpisodeDetail() {
             subtitle="Raw transcript before ads were removed"
             defaultOpen={false}
             storageKey="episode-original-transcript"
-            onToggle={(open) => { if (open) setOriginalTranscriptRequested(true); }}
+            onToggle={setOriginalTranscriptOpen}
           >
             {originalTranscript
               ? <TranscriptBlock text={originalTranscript} />

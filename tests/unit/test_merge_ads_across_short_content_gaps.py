@@ -11,7 +11,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.boundaries import merge_ads_across_short_content_gaps
-import main_app.processing as _proc  # noqa: import at top so env vars are set
+import main_app.processing as _proc  # noqa: E402  # after env setup above
 
 
 # Helpers

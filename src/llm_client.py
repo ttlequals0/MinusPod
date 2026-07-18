@@ -101,18 +101,12 @@ def _log_content(label: str, content: str, max_length: int = 2000):
         )
 
 
-# Re-export error classes for backward compatibility
-# These will be imported from here instead of directly from anthropic
+# Probe anthropic SDK error importability once; _anthropic_exc() keys off it.
 try:
-    from anthropic import APIError, APIConnectionError, RateLimitError, InternalServerError
+    from anthropic import APIError as _anthropic_api_error  # noqa: F401
     ANTHROPIC_ERRORS_AVAILABLE = True
 except ImportError:
     ANTHROPIC_ERRORS_AVAILABLE = False
-    # Create dummy classes if anthropic not installed
-    class APIError(Exception): pass
-    class APIConnectionError(Exception): pass
-    class RateLimitError(Exception): pass
-    class InternalServerError(Exception): pass
 
 
 @dataclass
@@ -121,7 +115,6 @@ class LLMResponse:
     content: str
     model: str
     usage: Optional[Dict[str, int]] = None
-    raw_response: Any = None  # Original response object for advanced use
 
 
 @dataclass
@@ -189,8 +182,7 @@ def _get_cached_secret(key: str) -> Optional[str]:
 
 def _clear_provider_cache():
     """Flush the provider settings cache (called on force_new)."""
-    with _provider_cache_lock:
-        _provider_cache.clear()
+    invalidate_provider_cache()
 
 
 def _get_cached_model_list(provider_key: str) -> Optional[List['LLMModel']]:
@@ -584,7 +576,6 @@ class AnthropicClient(LLMClient):
                 'input_tokens': response.usage.input_tokens,
                 'output_tokens': response.usage.output_tokens
             } if response.usage else None,
-            raw_response=response
         )
 
         # Log response
@@ -778,7 +769,6 @@ class OpenAICompatibleClient(LLMClient):
                 'input_tokens': response.usage.prompt_tokens,
                 'output_tokens': response.usage.completion_tokens
             } if response.usage else None,
-            raw_response=response
         )
 
         # Log response

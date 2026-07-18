@@ -13,6 +13,7 @@ import logging
 from typing import List, Dict, Optional
 
 from utils.text import get_transcript_text_for_range
+from utils.time import overlap_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +74,7 @@ def _region_covered(start: float, end: float, ads: List[Dict],
 
     covered = 0.0
     for ad in ads:
-        overlap_start = max(start, ad['start'])
-        overlap_end = min(end, ad['end'])
-        if overlap_end > overlap_start:
-            covered += overlap_end - overlap_start
+        covered += overlap_seconds(start, end, ad['start'], ad['end'])
 
     return (covered / region_duration) > overlap_threshold
 

@@ -1,3 +1,4 @@
+import { btnSecondary } from './buttonStyles';
 export function Pagination({
   page, totalPages, total, onPage,
 }: {
@@ -24,7 +25,7 @@ export function Pagination({
         <button
           onClick={() => onPage(Math.max(1, page - 1))}
           disabled={page === 1}
-          className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
         >
           Previous
         </button>
@@ -38,7 +39,7 @@ export function Pagination({
               className={`px-3 py-1.5 text-sm rounded transition-colors ${
                 p === page
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                  : btnSecondary
               }`}
             >
               {p}
@@ -48,7 +49,7 @@ export function Pagination({
         <button
           onClick={() => onPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
         >
           Next
         </button>

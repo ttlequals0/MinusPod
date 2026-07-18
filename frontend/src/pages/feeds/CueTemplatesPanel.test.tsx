@@ -40,9 +40,13 @@ vi.mock('react-router-dom', () => ({
 }));
 
 // ---- Heavy component stubs ----
-vi.mock('../../components/CollapsibleSection', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/CollapsibleSection')>();
+  return {
+    useCollapsibleOpen: actual.useCollapsibleOpen,
+    default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  };
+});
 vi.mock('../../components/LoadingSpinner', () => ({
   default: ({ inline }: { inline?: boolean }) => (
     <span data-testid={inline ? 'spinner-inline' : 'spinner'} />
@@ -145,6 +149,10 @@ function makeEpisode(id: string, title: string, hasOriginalAudio = true): Episod
 // ---- Setup ----
 beforeEach(() => {
   vi.clearAllMocks();
+
+  // The panel's queries only run while the section is open; seed the
+  // persisted open flag so they fire (the CollapsibleSection is stubbed).
+  localStorage.setItem('feed-cue-templates-test-feed', 'true');
 
   mockListCueTemplates.mockResolvedValue([]);
   mockGetFeed.mockResolvedValue({ slug: 'test-feed', title: 'Test Feed' });

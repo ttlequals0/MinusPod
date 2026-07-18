@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
+import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import Checkbox from './Checkbox';
 
@@ -112,13 +113,13 @@ function EpisodeRow({
             </p>
           )}
           <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
-            <span className="whitespace-nowrap">{new Date(episode.published).toLocaleDateString()}</span>
+            <span className="whitespace-nowrap">{formatDate(episode.published)}</span>
             {episode.duration && <span className="whitespace-nowrap">{formatDuration(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
-              <span className="px-2 py-0.5 text-xs rounded-full whitespace-nowrap bg-amber-500/20 text-amber-600 dark:text-amber-400">
+              <span className="px-2 py-0.5 text-xs rounded-full whitespace-nowrap bg-amber-500/20 text-warning">
                 {episode.pendingReviewCount} held
               </span>
             )}

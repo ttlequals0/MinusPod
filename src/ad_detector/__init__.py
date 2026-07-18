@@ -11,6 +11,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, NamedTuple
 
+from audio_enforcer import AudioEnforcer
 from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
@@ -132,7 +133,7 @@ logger = logging.getLogger('podcast.claude')
 
 
 class WindowResult(NamedTuple):
-    """Per-window output from _process_single_window.
+    """Per-window output from a _run_windows worker.
 
     ``window_idx`` is the position in the original windows list. The detect
     loops collect WindowResults and use this to merge ads back in transcript
@@ -521,10 +522,6 @@ class AdDetector:
             logger.warning(f"Could not fetch sponsor history for {podcast_slug}: {e}")
         return ""
 
-    def get_user_prompt_template(self) -> str:
-        """Get user prompt template (hardcoded, not configurable)."""
-        return USER_PROMPT_TEMPLATE
-
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label, pass_name):
         """Thin wrapper over utils.llm_call.call_llm_for_window with per-stage tunables.
@@ -676,17 +673,31 @@ class AdDetector:
         )
 
     def _run_windows(self, windows, *, max_workers, progress_callback,
-                     progress_base, progress_range, **kwargs):
+                     progress_base, progress_range, worker=None,
+                     fail_fast=False, **kwargs):
         """Execute one of the window loops sequentially or via thread pool.
 
         Returns the list of WindowResults in window-position order regardless
         of completion order.
+
+        ``worker`` is the per-window callable (defaults to
+        ``_process_single_window``); it receives ``window_idx``, ``window``,
+        ``total_windows`` plus ``**kwargs`` and must return a WindowResult.
 
         ``progress_callback(stage, percent)`` is invoked once per completed
         window. Percent steps from ``progress_base`` through
         ``progress_base + progress_range`` over the run. A lock prevents
         re-entrant calls from parallel workers from corrupting the displayed
         count.
+
+        ``fail_fast=True`` (keep-content path): on the first failed
+        WindowResult, cancel not-yet-started windows and return early with
+        the failure recorded -- the caller aborts the whole run on any
+        failure, so dispatching the rest only burns tokens (up to
+        concurrency-x during an outage). In-flight windows may complete but
+        are not waited on; positions never run or collected stay None in the
+        returned list. Default False keeps detection/verification behavior
+        unchanged.
         """
         total = len(windows)
         if total == 0:
@@ -701,14 +712,17 @@ class AdDetector:
             with progress_lock:
                 completed[0] += 1
                 done = completed[0]
-            percent = progress_base + int((done / max(total, 1)) * progress_range)
+            percent = progress_base + int((done / total) * progress_range)
             try:
                 progress_callback(f"detecting:{done}/{total}", percent)
             except Exception as e:
                 logger.warning(f"progress_callback raised: {e}")
 
+        if worker is None:
+            worker = self._process_single_window
+
         def _run_one(idx):
-            return self._process_single_window(
+            return worker(
                 window_idx=idx, window=windows[idx], total_windows=total, **kwargs
             )
 
@@ -718,8 +732,11 @@ class AdDetector:
         if max_workers <= 1:
             results = []
             for i in range(total):
-                results.append(_run_one(i))
+                res = _run_one(i)
+                results.append(res)
                 _report_progress()
+                if fail_fast and res.failed:
+                    break
             return results
 
         ordered = [None] * total
@@ -730,7 +747,98 @@ class AdDetector:
                 i = futures[fut]
                 ordered[i] = fut.result()
                 _report_progress()
+                if fail_fast and ordered[i].failed:
+                    # Queued windows must not dispatch; in-flight ones finish
+                    # on executor exit but are not collected.
+                    for pending in futures:
+                        pending.cancel()
+                    break
         return ordered
+
+    def _run_detection_pass(self, windows, *, pass_label, model, system_prompt,
+                            description_section, podcast_name, episode_title,
+                            audio_analysis, progress_callback,
+                            progress_base, progress_range, slug, episode_id,
+                            pass_name, window_label_prefix, validate_timestamps):
+        """Shared window orchestration for the detection and verification passes.
+
+        Runs every window through ``_run_windows``, merges results in window
+        order (futures may complete out of order under parallel execution;
+        window_idx restores transcript-time order), and deduplicates across
+        windows.
+
+        ``pass_label`` is 'Detection' or 'Verification'; its lowercase form is
+        used in the failure log and the all-windows-failed envelope.
+
+        Returns ``(final_ads, all_raw_responses, failed_windows,
+        failure_response)`` where ``failure_response`` is the
+        all-windows-failed envelope the caller must return as-is, or None.
+        """
+        all_raw_responses = []
+        all_window_ads = []
+        failed_windows = 0
+        last_error = None
+        llm_timeout = get_llm_timeout()
+        max_retries = get_llm_max_retries()
+
+        # Instantiate audio signal formatter if audio analysis available
+        audio_enforcer = None
+        if audio_analysis:
+            audio_enforcer = AudioEnforcer()
+
+        # Process windows (sequential when concurrency=1; otherwise
+        # via ThreadPoolExecutor up to AD_DETECTION_PARALLEL_WINDOWS_MAX).
+        parallel_windows = _resolve_parallel_windows()
+        if parallel_windows > 1:
+            logger.info(
+                f"[{slug}:{episode_id}] {pass_label} running {len(windows)} windows "
+                f"with concurrency={parallel_windows}"
+            )
+
+        window_results = self._run_windows(
+            windows,
+            max_workers=parallel_windows,
+            progress_callback=progress_callback,
+            progress_base=progress_base,
+            progress_range=progress_range,
+            model=model,
+            system_prompt=system_prompt,
+            description_section=description_section,
+            podcast_name=podcast_name,
+            episode_title=episode_title,
+            audio_enforcer=audio_enforcer,
+            audio_analysis=audio_analysis,
+            llm_timeout=llm_timeout,
+            max_retries=max_retries,
+            slug=slug,
+            episode_id=episode_id,
+            pass_name=pass_name,
+            window_label_prefix=window_label_prefix,
+            validate_timestamps=validate_timestamps,
+        )
+
+        for result in window_results:
+            if result.failed:
+                failed_windows += 1
+                last_error = result.last_error
+                continue
+            if result.raw_response:
+                all_raw_responses.append(result.raw_response)
+            all_window_ads.extend(result.ads)
+
+        if failed_windows > 0:
+            logger.warning(
+                f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
+                f"failed during {pass_label.lower()}"
+            )
+        if failed_windows >= len(windows):
+            failure = _all_windows_failed_response(
+                pass_label.lower(), len(windows), last_error, model)
+            return [], all_raw_responses, failed_windows, failure
+
+        # Deduplicate ads across windows
+        final_ads = deduplicate_window_ads(all_window_ads)
+        return final_ads, all_raw_responses, failed_windows, None
 
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
@@ -770,7 +878,7 @@ class AdDetector:
 
             # Create overlapping windows from transcript
             windows = create_windows(segments)
-            total_duration = segments[-1]['end'] if segments else 0
+            total_duration = segments[-1]['end']
 
             win_size = get_stage_tunable('window_size_seconds')
             win_overlap = get_stage_tunable('window_overlap_seconds')
@@ -806,71 +914,26 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
                             f"{positional_prior_hint.splitlines()[0]}")
 
-            all_window_ads = []
-            all_raw_responses = []
-            failed_windows = 0
-            last_error = None
-            llm_timeout = get_llm_timeout()
-            max_retries = get_llm_max_retries()
-
-            # Instantiate audio signal formatter if audio analysis available
-            audio_enforcer = None
-            if audio_analysis:
-                from audio_enforcer import AudioEnforcer
-                audio_enforcer = AudioEnforcer()
-
-            # Process windows (sequential when concurrency=1; otherwise
-            # via ThreadPoolExecutor up to AD_DETECTION_PARALLEL_WINDOWS_MAX).
-            parallel_windows = _resolve_parallel_windows()
-            if parallel_windows > 1:
-                logger.info(
-                    f"[{slug}:{episode_id}] Detection running {len(windows)} windows "
-                    f"with concurrency={parallel_windows}"
-                )
-
-            window_results = self._run_windows(
+            final_ads, all_raw_responses, failed_windows, failure = self._run_detection_pass(
                 windows,
-                max_workers=parallel_windows,
-                progress_callback=progress_callback,
-                progress_base=50,
-                progress_range=30,
+                pass_label='Detection',
                 model=model,
                 system_prompt=system_prompt,
                 description_section=description_section,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
-                audio_enforcer=audio_enforcer,
                 audio_analysis=audio_analysis,
-                llm_timeout=llm_timeout,
-                max_retries=max_retries,
+                progress_callback=progress_callback,
+                progress_base=50,
+                progress_range=30,
                 slug=slug,
                 episode_id=episode_id,
                 pass_name=PASS_AD_DETECTION_1,
                 window_label_prefix='Window',
                 validate_timestamps=True,
             )
-
-            # Merge in window order (futures may complete out of order under
-            # parallel execution; window_idx restores transcript-time order).
-            for result in window_results:
-                if result.failed:
-                    failed_windows += 1
-                    last_error = result.last_error
-                    continue
-                if result.raw_response:
-                    all_raw_responses.append(result.raw_response)
-                all_window_ads.extend(result.ads)
-
-            if failed_windows > 0:
-                logger.warning(
-                    f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
-                    f"failed during detection"
-                )
-            if failed_windows >= len(windows):
-                return _all_windows_failed_response("detection", len(windows), last_error, model)
-
-            # Deduplicate ads across windows
-            final_ads = deduplicate_window_ads(all_window_ads)
+            if failure is not None:
+                return failure
 
             # Merge in foreign language ads (auto-detected non-English segments)
             if foreign_language_ads:
@@ -898,6 +961,65 @@ class AdDetector:
             logger.error(f"[{slug}:{episode_id}] Ad detection failed: {e}")
             return {"ads": [], "status": "failed", "error": str(e), "retryable": is_retryable_error(e)}
 
+    def _process_keep_content_window(self, *, window_idx, window, total_windows,
+                                     model, podcast_name, episode_title,
+                                     description_section, llm_timeout,
+                                     max_retries, slug, episode_id):
+        """Run one keep-content window: prompt + LLM call + content-span parse.
+
+        Returns a WindowResult whose ``ads`` holds the window-clamped content
+        spans. Thread-safe: writes nothing to shared instance state.
+        """
+        transcript_lines = [
+            f"[{s['start']:.1f}s - {s['end']:.1f}s] {s['text']}"
+            for s in window['segments']
+        ]
+        prompt = format_window_prompt(
+            podcast_name=podcast_name, episode_title=episode_title,
+            description_section=description_section,
+            transcript_lines=transcript_lines,
+            window_index=window_idx, total_windows=total_windows,
+            window_start=window['start'], window_end=window['end'],
+            audio_context="",
+        )
+        response, last_error = self._call_llm_for_window(
+            model=model, system_prompt=CONTENT_SYSTEM_PROMPT, prompt=prompt,
+            llm_timeout=llm_timeout, max_retries=max_retries,
+            slug=slug, episode_id=episode_id,
+            window_label=f"Content {window_idx + 1}", pass_name=PASS_AD_DETECTION_1,
+        )
+        win_start, win_end = window['start'], window['end']
+        if not response:
+            return WindowResult(
+                window_idx=window_idx, window_start=win_start,
+                window_end=win_end, ads=[], raw_response=None,
+                failed=True, last_error=last_error,
+            )
+        items, _method = extract_json_ads_array(response.content, slug, episode_id)
+        spans = []
+        for item in items or []:
+            try:
+                s, e = float(item.get('start')), float(item.get('end'))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            # Clamp to THIS window's bounds and drop spans that fall outside
+            # it -- a window-relative timestamp from a later window would
+            # otherwise land in the episode head, masking that the window's
+            # real content went unlabeled.
+            s = max(win_start, s)
+            e = min(win_end, e)
+            if e > s:
+                spans.append({'start': s, 'end': e})
+        # Per-window content count surfaces which window under-labeled when
+        # the gates later reject the inversion.
+        logger.info(
+            f"[{slug}:{episode_id}] keep-content window {window_idx + 1}/{total_windows} "
+            f"({win_start / 60:.1f}-{win_end / 60:.1f}min): {len(spans)} content span(s)")
+        return WindowResult(
+            window_idx=window_idx, window_start=win_start, window_end=win_end,
+            ads=spans, raw_response=None, failed=False, last_error=None,
+        )
+
     def _detect_keep_content_ads(self, segments, *, model, slug, episode_id,
                                  podcast_name, episode_title, description_section,
                                  llm_timeout, max_retries):
@@ -909,57 +1031,48 @@ class AdDetector:
         """
         windows = create_windows(segments)
         total_duration = segments[-1]['end'] if segments else 0
+
+        # Same parallel window runner as the blacklist detection pass;
+        # concurrency=1 preserves the original sequential semantics.
+        parallel_windows = _resolve_parallel_windows()
+        if parallel_windows > 1:
+            logger.info(
+                f"[{slug}:{episode_id}] keep-content running {len(windows)} windows "
+                f"with concurrency={parallel_windows}")
+        # fail_fast: one failed window already aborts the whole inversion
+        # below, so dispatching the remaining windows would only burn tokens.
+        window_results = self._run_windows(
+            windows,
+            max_workers=parallel_windows,
+            progress_callback=None,
+            progress_base=0,
+            progress_range=0,
+            fail_fast=True,
+            worker=self._process_keep_content_window,
+            model=model,
+            podcast_name=podcast_name,
+            episode_title=episode_title,
+            description_section=description_section,
+            llm_timeout=llm_timeout,
+            max_retries=max_retries,
+            slug=slug,
+            episode_id=episode_id,
+        )
+
         content_spans = []
-        for idx, window in enumerate(windows):
-            transcript_lines = [
-                f"[{s['start']:.1f}s - {s['end']:.1f}s] {s['text']}"
-                for s in window['segments']
-            ]
-            prompt = format_window_prompt(
-                podcast_name=podcast_name, episode_title=episode_title,
-                description_section=description_section,
-                transcript_lines=transcript_lines,
-                window_index=idx, total_windows=len(windows),
-                window_start=window['start'], window_end=window['end'],
-                audio_context="",
-            )
-            response, _err = self._call_llm_for_window(
-                model=model, system_prompt=CONTENT_SYSTEM_PROMPT, prompt=prompt,
-                llm_timeout=llm_timeout, max_retries=max_retries,
-                slug=slug, episode_id=episode_id,
-                window_label=f"Content {idx + 1}", pass_name=PASS_AD_DETECTION_1,
-            )
+        for idx, result in enumerate(window_results):
             # A failed window means we do NOT know what is content there; cutting
             # its complement would risk deleting real show audio that the
             # aggregate coverage gate (which sees the OTHER windows) would not
             # catch. Abort the whole inversion -> fall back to blacklist.
-            if not response:
+            # None = window cancelled/uncollected by fail_fast after another
+            # window failed; same abort.
+            if result is None or result.failed:
                 logger.warning(
-                    f"[{slug}:{episode_id}] keep-content window {idx + 1} returned "
-                    f"no response; aborting to blacklist")
+                    f"[{slug}:{episode_id}] keep-content window {idx + 1} "
+                    f"returned no response; aborting to blacklist")
                 return None
-            items, _method = extract_json_ads_array(response.content, slug, episode_id)
-            win_start, win_end = window['start'], window['end']
-            win_span_count = 0
-            for item in items or []:
-                try:
-                    s, e = float(item.get('start')), float(item.get('end'))
-                except (TypeError, ValueError, AttributeError):
-                    continue
-                # Clamp to THIS window's bounds and drop spans that fall outside
-                # it -- a window-relative timestamp from a later window would
-                # otherwise land in the episode head, masking that the window's
-                # real content went unlabeled.
-                s = max(win_start, s)
-                e = min(win_end, e)
-                if e > s:
-                    content_spans.append({'start': s, 'end': e})
-                    win_span_count += 1
-            # Per-window content count surfaces which window under-labeled when
-            # the gates later reject the inversion.
-            logger.info(
-                f"[{slug}:{episode_id}] keep-content window {idx + 1}/{len(windows)} "
-                f"({win_start / 60:.1f}-{win_end / 60:.1f}min): {win_span_count} content span(s)")
+            content_spans.extend(result.ads)
 
         ads, info = invert_content_to_ads(
             content_spans, total_duration,
@@ -998,7 +1111,8 @@ class AdDetector:
                           cancel_event=None,
                           *,
                           ctx=None,
-                          positional_prior_hint: str = "") -> Dict:
+                          positional_prior_hint: str = "",
+                          keep_content: Optional[bool] = None) -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1022,6 +1136,10 @@ class AdDetector:
             ctx: Optional EpisodeContext supplying the immutable per-episode
                  fields (slug, episode_id, podcast_name, etc.). When provided,
                  its fields override the matching positional/keyword args.
+            keep_content: Orchestrator-resolved keep-content flag (from
+                 resolve_feed_processing_mode). None resolves the per-feed
+                 detection mode from the DB, preserving the behavior for
+                 callers that do not run inside the pipeline.
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -1071,6 +1189,10 @@ class AdDetector:
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Failed to get cross-episode false positives: {e}")
 
+        # (start, end) pairs of the same-episode false-positive regions; the
+        # region list never changes after the fetch above.
+        fp_pairs = [(fp['start'], fp['end']) for fp in false_positive_regions]
+
         # Stage 1: Audio Fingerprint Matching (skip if skip_patterns=True)
         if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
             try:
@@ -1080,36 +1202,15 @@ class AdDetector:
                 fp_added = 0
                 for match in fp_matches:
                     # Skip if this region was previously marked as false positive
-                    if self._is_region_covered(match.start, match.end, [(fp['start'], fp['end']) for fp in false_positive_regions]):
+                    if self._is_region_covered(match.start, match.end, fp_pairs):
                         logger.debug(f"[{slug}:{episode_id}] Skipping fingerprint match {match.start:.1f}s-{match.end:.1f}s (false positive)")
                         continue
 
-                    # Build reason with pattern reference
-                    if match.sponsor:
-                        reason = f"{match.sponsor} (pattern #{match.pattern_id})"
-                    else:
-                        reason = f"Pattern #{match.pattern_id} (fingerprint)"
-
-                    ad = {
-                        'start': match.start,
-                        'end': match.end,
-                        'confidence': match.confidence,
-                        'reason': reason,
-                        'sponsor': match.sponsor,
-                        'detection_stage': 'fingerprint',
-                        'pattern_id': match.pattern_id
-                    }
-                    all_ads.append(ad)
-                    pattern_matched_regions.append({
-                        'start': match.start,
-                        'end': match.end,
-                        'pattern_id': match.pattern_id
-                    })
+                    self._add_pattern_match(
+                        match, 'fingerprint', 'fingerprint',
+                        all_ads, pattern_matched_regions, episode_id,
+                    )
                     fp_added += 1
-
-                    # Record pattern match for metrics and promotion
-                    if self.pattern_service and match.pattern_id:
-                        self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
 
                 detection_stats['fingerprint_matches'] = fp_added
                 if fp_matches:
@@ -1138,36 +1239,15 @@ class AdDetector:
                         continue
 
                     # Skip if this region was previously marked as false positive
-                    if self._is_region_covered(match.start, match.end, [(fp['start'], fp['end']) for fp in false_positive_regions]):
+                    if self._is_region_covered(match.start, match.end, fp_pairs):
                         logger.debug(f"[{slug}:{episode_id}] Skipping text pattern match {match.start:.1f}s-{match.end:.1f}s (false positive)")
                         continue
 
-                    # Build reason with pattern reference
-                    if match.sponsor:
-                        reason = f"{match.sponsor} (pattern #{match.pattern_id})"
-                    else:
-                        reason = f"Pattern #{match.pattern_id} ({match.match_type})"
-
-                    ad = {
-                        'start': match.start,
-                        'end': match.end,
-                        'confidence': match.confidence,
-                        'reason': reason,
-                        'sponsor': match.sponsor,
-                        'detection_stage': 'text_pattern',
-                        'pattern_id': match.pattern_id
-                    }
-                    all_ads.append(ad)
-                    pattern_matched_regions.append({
-                        'start': match.start,
-                        'end': match.end,
-                        'pattern_id': match.pattern_id
-                    })
+                    self._add_pattern_match(
+                        match, 'text_pattern', match.match_type,
+                        all_ads, pattern_matched_regions, episode_id,
+                    )
                     tp_added += 1
-
-                    # Record pattern match for metrics and promotion
-                    if self.pattern_service and match.pattern_id:
-                        self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
 
                 detection_stats['text_pattern_matches'] = tp_added
                 if text_matches:
@@ -1179,9 +1259,7 @@ class AdDetector:
         # to pattern_matched_regions: overlapping Claude detections keep their
         # sponsor/reason and _merge_detection_results folds the spans.
         if dai_differential:
-            dd_ads = dai_differential_ads(
-                dai_differential,
-                [(fp['start'], fp['end']) for fp in false_positive_regions])
+            dd_ads = dai_differential_ads(dai_differential, fp_pairs)
             all_ads.extend(dd_ads)
             detection_stats['dai_differential_matches'] = len(dd_ads)
             if dd_ads:
@@ -1198,13 +1276,17 @@ class AdDetector:
         # nothing or trips the safety gates, fall through to normal blacklist
         # detection so we never silently delete real show audio.
         result = None
-        # Ensure self.db is built before resolving the per-feed mode -- on the
-        # first run after a worker restart it is still None, which would
-        # silently resolve every feed to blacklist. _ensure_deps is idempotent
-        # and preserves test stubs.
-        self._ensure_deps()
-        detection_mode = resolve_detection_mode(self.db, slug)
-        if detection_mode == DETECTION_MODE_KEEP_CONTENT:
+        if keep_content is None:
+            # Backward-compatible default for callers that don't pass the
+            # orchestrator-resolved mode (e.g. the retry-detection API):
+            # resolve per-feed from the DB as before. Ensure self.db is built
+            # first -- on the first run after a worker restart it is still
+            # None, which would silently resolve every feed to blacklist.
+            # _ensure_deps is idempotent and preserves test stubs.
+            self._ensure_deps()
+            keep_content = (resolve_detection_mode(self.db, slug)
+                            == DETECTION_MODE_KEEP_CONTENT)
+        if keep_content:
             logger.info(f"[{slug}:{episode_id}] Stage 3: keep-content (whitelist) mode")
             try:
                 self.initialize_client()
@@ -1251,7 +1333,6 @@ class AdDetector:
         # Merge Claude detections with pattern matches
         claude_ads = result.get('ads', [])
         cross_episode_skipped = 0
-        fp_pairs = [(fp['start'], fp['end']) for fp in false_positive_regions]
 
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
         updated_patterns = set()
@@ -1292,7 +1373,7 @@ class AdDetector:
             for portion in uncovered_portions:
                 # Mirrors the same-episode false-positive region check that
                 # stages 1 and 2 already apply.
-                if fp_pairs and self._is_region_covered(
+                if self._is_region_covered(
                     portion['start'], portion['end'], fp_pairs,
                 ):
                     logger.debug(
@@ -1350,6 +1431,33 @@ class AdDetector:
         result['ads'] = all_ads
         result['detection_stats'] = detection_stats
         return result
+
+    def _add_pattern_match(self, match, detection_stage, reason_suffix,
+                           all_ads, pattern_matched_regions, episode_id):
+        """Append a stage-1/2 pattern match to the ad and matched-region lists
+        and record it for metrics and promotion. ``reason_suffix`` names the
+        match kind in the no-sponsor fallback reason."""
+        if match.sponsor:
+            reason = f"{match.sponsor} (pattern #{match.pattern_id})"
+        else:
+            reason = f"Pattern #{match.pattern_id} ({reason_suffix})"
+
+        all_ads.append({
+            'start': match.start,
+            'end': match.end,
+            'confidence': match.confidence,
+            'reason': reason,
+            'sponsor': match.sponsor,
+            'detection_stage': detection_stage,
+            'pattern_id': match.pattern_id
+        })
+        pattern_matched_regions.append({
+            'start': match.start,
+            'end': match.end,
+            'pattern_id': match.pattern_id
+        })
+        if self.pattern_service and match.pattern_id:
+            self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
 
     def _is_region_covered(self, start: float, end: float,
                            covered_regions: list) -> bool:
@@ -1626,6 +1734,21 @@ class AdDetector:
         current_ad_start = None
         current_ad_end = None
 
+        def _close_region():
+            """Append the open region as an ad if it is at least 5 seconds.
+            Returns True when an ad was appended."""
+            if current_ad_end - current_ad_start < 5.0:
+                return False
+            foreign_ads.append({
+                'start': current_ad_start,
+                'end': current_ad_end,
+                'confidence': 0.95,  # High confidence for language detection
+                'reason': 'Non-English language segment (likely DAI ad)',
+                'detection_stage': 'language',
+                'end_text': '[Foreign language content]'
+            })
+            return True
+
         for seg in segments:
             if seg.get('is_foreign_language'):
                 if current_ad_start is None:
@@ -1636,36 +1759,18 @@ class AdDetector:
             else:
                 # Not foreign language - close any open region
                 if current_ad_start is not None:
-                    duration = current_ad_end - current_ad_start
-                    # Only flag regions longer than 5 seconds
-                    if duration >= 5.0:
-                        foreign_ads.append({
-                            'start': current_ad_start,
-                            'end': current_ad_end,
-                            'confidence': 0.95,  # High confidence for language detection
-                            'reason': 'Non-English language segment (likely DAI ad)',
-                            'detection_stage': 'language',
-                            'end_text': '[Foreign language content]'
-                        })
+                    if _close_region():
                         logger.info(
                             f"[{slug}:{episode_id}] Foreign language ad: "
-                            f"{current_ad_start:.1f}s-{current_ad_end:.1f}s ({duration:.1f}s)"
+                            f"{current_ad_start:.1f}s-{current_ad_end:.1f}s "
+                            f"({current_ad_end - current_ad_start:.1f}s)"
                         )
                     current_ad_start = None
                     current_ad_end = None
 
         # Close final region if needed
         if current_ad_start is not None:
-            duration = current_ad_end - current_ad_start
-            if duration >= 5.0:
-                foreign_ads.append({
-                    'start': current_ad_start,
-                    'end': current_ad_end,
-                    'confidence': 0.95,
-                    'reason': 'Non-English language segment (likely DAI ad)',
-                    'detection_stage': 'language',
-                    'end_text': '[Foreign language content]'
-                })
+            _close_region()
 
         return foreign_ads
 
@@ -1779,71 +1884,31 @@ class AdDetector:
             if sponsor_history:
                 description_section += sponsor_history
 
-            all_window_ads = []
-            all_raw_responses = []
-            failed_windows = 0
-            last_error = None
-            llm_timeout = get_llm_timeout()
-            max_retries = get_llm_max_retries()
-
-            # Instantiate audio signal formatter if audio analysis available
-            audio_enforcer = None
-            if audio_analysis:
-                from audio_enforcer import AudioEnforcer
-                audio_enforcer = AudioEnforcer()
-
-            parallel_windows = _resolve_parallel_windows()
-            if parallel_windows > 1:
-                logger.info(
-                    f"[{slug}:{episode_id}] Verification running {len(windows)} windows "
-                    f"with concurrency={parallel_windows}"
-                )
-
-            window_results = self._run_windows(
+            # Verification stamps every surviving ad so the merge downstream
+            # can distinguish first-pass from verification.
+            final_ads, all_raw_responses, _failed_windows, failure = self._run_detection_pass(
                 windows,
-                max_workers=parallel_windows,
-                progress_callback=progress_callback,
-                progress_base=85,
-                progress_range=10,
+                pass_label='Verification',
                 model=model,
                 system_prompt=system_prompt,
                 description_section=description_section,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
-                audio_enforcer=audio_enforcer,
                 audio_analysis=audio_analysis,
-                llm_timeout=llm_timeout,
-                max_retries=max_retries,
+                progress_callback=progress_callback,
+                progress_base=85,
+                progress_range=10,
                 slug=slug,
                 episode_id=episode_id,
                 pass_name=PASS_AD_DETECTION_2,
                 window_label_prefix='Verification Window',
                 validate_timestamps=False,
             )
+            if failure is not None:
+                return failure
 
-            for result in window_results:
-                if result.failed:
-                    failed_windows += 1
-                    last_error = result.last_error
-                    continue
-                if result.raw_response:
-                    all_raw_responses.append(result.raw_response)
-                # Verification pass stamps every surviving ad so the merge
-                # downstream can distinguish first-pass from verification.
-                for ad in result.ads:
-                    ad['detection_stage'] = 'verification'
-                all_window_ads.extend(result.ads)
-
-            if failed_windows > 0:
-                logger.warning(
-                    f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
-                    f"failed during verification"
-                )
-            if failed_windows >= len(windows):
-                return _all_windows_failed_response("verification", len(windows), last_error, model)
-
-            final_ads = deduplicate_window_ads(all_window_ads)
-
+            # Single stamping point: dedup returns copies, so stamping the
+            # final list covers every surviving ad.
             for ad in final_ads:
                 ad['detection_stage'] = 'verification'
 

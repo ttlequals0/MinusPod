@@ -8,14 +8,17 @@ import requests as requests_lib
 
 from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
-    calculate_optimal_chunk_duration, check_whisper_connectivity,
+    check_whisper_connectivity,
     _whisper_api_rejects_word_timestamps,
+    extract_audio_chunk,
+    PREPROCESS_AUDIO_FILTERS,
 )
 from utils.errors import ServiceUnavailableError
 from config import (
-    API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
+    FFMPEG_CHUNK_TIMEOUT,
+    FFMPEG_LONG_TIMEOUT,
 )
 
 
@@ -79,25 +82,6 @@ class TestGetWhisperSettings:
         assert settings['api_base_url'] == 'http://example.com/v1'
         assert settings['api_key'] == 'key123'
         assert settings['api_model'] == 'model-x'
-
-
-class TestApiChunkDuration:
-    """Tests for calculate_optimal_chunk_duration with API backend."""
-
-    def test_returns_api_chunk_duration(self):
-        duration, reason = calculate_optimal_chunk_duration(
-            'small', 'cuda', whisper_backend=WHISPER_BACKEND_API
-        )
-        assert duration == API_CHUNK_DURATION_SECONDS
-        assert 'API backend' in reason
-
-    @patch('transcriber.get_available_memory_gb', return_value=(8.0, 'GPU'))
-    def test_returns_memory_based_for_local(self, mock_mem):
-        duration, reason = calculate_optimal_chunk_duration(
-            'small', 'cuda', whisper_backend=WHISPER_BACKEND_LOCAL
-        )
-        assert duration != API_CHUNK_DURATION_SECONDS
-        assert 'GPU' in reason
 
 
 class TestTranscribeViaApi:
@@ -741,3 +725,182 @@ class TestCheckWhisperConnectivity:
              patch('transcriber.safe_get',
                    side_effect=requests_lib.exceptions.ConnectionError('refused')):
             assert check_whisper_connectivity() is False
+
+
+class TestExtractAudioChunkSinglePass:
+    """extract_audio_chunk folds the preprocess filter chain (and optional
+    FLAC encode) into the single extraction ffmpeg pass."""
+
+    def _run_extract(self, **kwargs):
+        captured = {}
+
+        def fake_run(cmd, **run_kwargs):
+            captured['cmd'] = cmd
+            captured['timeout'] = run_kwargs.get('timeout')
+            result = MagicMock()
+            result.returncode = 0
+            return result
+
+        with patch('transcriber.tracked_run', side_effect=fake_run):
+            path = extract_audio_chunk('/tmp/in.mp3', 10.0, 40.0, **kwargs)
+        if path:
+            os.unlink(path)
+        return path, captured
+
+    def test_default_extraction_has_no_filter_chain(self):
+        path, captured = self._run_extract()
+        cmd = captured['cmd']
+        assert '-af' not in cmd
+        assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
+        assert path.endswith('.wav')
+        assert captured['timeout'] == FFMPEG_CHUNK_TIMEOUT
+
+    def test_preprocess_folds_filter_chain(self):
+        path, captured = self._run_extract(preprocess=True)
+        cmd = captured['cmd']
+        assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
+        assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
+        assert path.endswith('.wav')
+        # Filtering gets the standalone preprocess pass's larger budget
+        assert captured['timeout'] == FFMPEG_LONG_TIMEOUT
+
+    def test_flac_output_for_api_upload(self):
+        path, captured = self._run_extract(preprocess=True, flac=True)
+        cmd = captured['cmd']
+        assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
+        assert cmd[cmd.index('-c:a') + 1] == 'flac'
+        assert path.endswith('.flac')
+
+
+class TestChunkedSinglePass:
+    """Chunked paths run exactly one ffmpeg pass per chunk: extraction with
+    the preprocess filter chain folded in, no second preprocess pass, and
+    (API path) no separate FLAC encode pass."""
+
+    def _make_settings(self, **overrides):
+        settings = {
+            'backend': WHISPER_BACKEND_API,
+            'api_base_url': 'http://localhost:8765/v1',
+            'api_key': '',
+            'api_model': 'whisper-1',
+            'skip_flac_compression': False,
+        }
+        settings.update(overrides)
+        return settings
+
+    def _fake_run_factory(self, ffmpeg_cmds):
+        def fake_run(cmd, **kwargs):
+            ffmpeg_cmds.append(cmd)
+            # Simulate ffmpeg writing enough output to pass the
+            # tiny-upload guard in _transcribe_via_api.
+            with open(cmd[-1], 'wb') as f:
+                f.write(b'\x00' * 2048)
+            result = MagicMock()
+            result.returncode = 0
+            return result
+        return fake_run
+
+    def _mock_api_response(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'text': 'hi',
+            'segments': [{'start': 0.0, 'end': 5.0, 'text': ' hi', 'words': []}],
+        }
+        return mock_response
+
+    _CHUNK_SETTINGS = {
+        'max_chunk_seconds': 30,
+        'chunk_overlap_seconds': 5,
+        'concurrent_chunks': 1,
+    }
+
+    def test_api_chunks_one_ffmpeg_pass_each_with_filters(self):
+        ffmpeg_cmds = []
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+
+        with patch('transcriber.tracked_run',
+                   side_effect=self._fake_run_factory(ffmpeg_cmds)), \
+             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
+            result = transcriber._transcribe_chunked_parallel_api(
+                '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+            )
+
+        assert result is not None
+        # 50s audio at 30s chunks = 2 chunks; one ffmpeg call per chunk,
+        # no separate preprocess or FLAC-encode calls.
+        assert len(ffmpeg_cmds) == 2
+        for cmd in ffmpeg_cmds:
+            assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
+            assert cmd[cmd.index('-c:a') + 1] == 'flac'
+        transcriber.preprocess_audio.assert_not_called()
+
+    def test_api_chunks_respect_skip_flac(self):
+        ffmpeg_cmds = []
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+
+        with patch('transcriber.tracked_run',
+                   side_effect=self._fake_run_factory(ffmpeg_cmds)), \
+             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
+            result = transcriber._transcribe_chunked_parallel_api(
+                '/tmp/full.mp3', 'TestPodcast', 50.0,
+                self._make_settings(skip_flac_compression=True)
+            )
+
+        assert result is not None
+        assert len(ffmpeg_cmds) == 2
+        for cmd in ffmpeg_cmds:
+            assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
+            assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
+        transcriber.preprocess_audio.assert_not_called()
+
+    def test_transcribe_via_api_preprocessed_flac_runs_no_ffmpeg(self):
+        """A preprocessed FLAC chunk uploads as-is: no preprocess pass, no
+        FLAC encode pass."""
+        with tempfile.NamedTemporaryFile(suffix='.flac', delete=False) as f:
+            f.write(b'\x00' * 2048)
+            temp_path = f.name
+        try:
+            transcriber = Transcriber()
+            transcriber.preprocess_audio = MagicMock(return_value=None)
+            with patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+                 patch('transcriber.tracked_run') as mock_run:
+                result = transcriber._transcribe_via_api(
+                    temp_path, 'TestPodcast', self._make_settings(),
+                    preprocessed=True,
+                )
+            assert result is not None
+            transcriber.preprocess_audio.assert_not_called()
+            mock_run.assert_not_called()
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    @patch('transcriber._get_whisper_settings', return_value={
+        'backend': WHISPER_BACKEND_LOCAL,
+        'api_base_url': '', 'api_key': '', 'api_model': 'whisper-1',
+    })
+    def test_local_transcribe_preprocessed_skips_preprocess(self, mock_settings):
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+        transcriber.get_audio_duration = MagicMock(return_value=60.0)
+
+        info = MagicMock()
+        info.language = 'en'
+        info.language_probability = 0.99
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = (iter([]), info)
+
+        with patch('transcriber.WhisperModelSingleton') as mock_singleton:
+            mock_singleton.get_batched_pipeline.return_value = mock_model
+            mock_singleton.get_current_model_name.return_value = 'small'
+            result = transcriber.transcribe('/tmp/chunk.wav', preprocessed=True)
+
+        assert result == []
+        transcriber.preprocess_audio.assert_not_called()
+        # The already-preprocessed chunk goes straight to the model
+        assert mock_model.transcribe.call_args.args[0] == '/tmp/chunk.wav'

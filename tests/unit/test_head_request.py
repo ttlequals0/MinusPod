@@ -3,9 +3,6 @@
 HEAD requests on unprocessed episodes should NOT trigger JIT processing.
 They should proxy upstream audio headers instead.
 """
-import os
-import sys
-import tempfile
 import shutil
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
@@ -13,21 +10,9 @@ from unittest.mock import patch, MagicMock
 import pytest
 import requests.exceptions
 
-# Create temp data dir and set env before any imports that touch /app/data
-_test_data_dir = tempfile.mkdtemp(prefix='head_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-# Patch Database and Storage defaults before importing main_app
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('head_test_')
 from main_app import app
 from main_app.routes import _head_upstream, _lookup_episode
 

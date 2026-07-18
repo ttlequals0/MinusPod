@@ -1,19 +1,15 @@
-import { useEffect } from 'react';
+import { btnOutline, btnPrimary } from './buttonStyles';
+
+// The modal backdrop/panel recipes and the Escape hook now live in the
+// shared Modal module; re-exported here for the cue feature's existing
+// recipe-based consumers.
+export { modalBackdrop, modalPanel, useEscape } from './Modal';
 
 // Design-system recipes shared by CueTemplatesPanel and its extracted scan
 // modals/panels (match the app's confirm/edit modals and form controls;
 // theme-aware in dark mode).
-export const ghostBtn = 'border border-border hover:bg-accent transition-colors';
-export const primaryBtn = 'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors';
+// ghostBtn used the pre-2.60.0 `border border-border hover:bg-accent` recipe,
+// which was nearly invisible in dark mode (#534); it now renders as btnOutline.
+export const ghostBtn = `${btnOutline} transition-colors`;
+export const primaryBtn = `${btnPrimary} transition-colors`;
 export const fieldCls = 'rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
-export const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4';
-export const modalPanel = 'bg-card text-foreground rounded-lg border border-border shadow-xl';
-
-// Close-on-Escape for the lightweight cue modals.
-export function useEscape(onClose: () => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-}

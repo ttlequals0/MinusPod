@@ -5,24 +5,12 @@ episode within a feed, by the same newest-first order the feed list uses
 (COALESCE(published_at, created_at), id). The episode page renders these as
 prev/next controls.
 """
-import atexit
-import os
-import shutil
-import sys
-import tempfile
 
-_test_data_dir = tempfile.mkdtemp(prefix='neighbors_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('neighbors_test_')
 
 import database
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
 db = database.Database()
 

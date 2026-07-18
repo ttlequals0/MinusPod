@@ -3,6 +3,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { BYTES_PER_MB } from './settingsUtils';
+import { btnSecondary } from '../../components/buttonStyles';
 
 
 interface CoverArtSectionProps {
@@ -73,7 +74,7 @@ function CoverArtSection({
             type="button"
             onClick={onRefreshArtwork}
             disabled={refreshArtworkPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
           >
             <RefreshCw className={`w-4 h-4 ${refreshArtworkPending ? 'animate-spin' : ''}`} />
             {refreshArtworkPending ? 'Refreshing artwork...' : 'Refresh all artwork'}

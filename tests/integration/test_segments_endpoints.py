@@ -22,7 +22,7 @@ def seeded_episode(app_client):
 
     db = get_database()
     slug = 'segments-test-feed'
-    episode_id = 'segtest001'
+    episode_id = 'ae5e01a2b3c4'
 
     db.create_podcast(slug, 'https://example.com/feed.xml', 'Segments Test Feed')
     db.upsert_episode(slug, episode_id,
@@ -62,7 +62,7 @@ class TestOriginalSegmentsEndpoint:
         assert data['segments'] == SEGMENTS
 
     def test_returns_404_for_unknown_feed(self, app_client):
-        response = app_client.get('/api/v1/feeds/no-such-feed/episodes/abc123/original-segments')
+        response = app_client.get('/api/v1/feeds/no-such-feed/episodes/abc123abc123/original-segments')
 
         assert response.status_code == 404
 
@@ -91,6 +91,6 @@ class TestFinalSegmentsEndpoint:
         assert data['segments'] == SEGMENTS
 
     def test_returns_404_for_unknown_feed(self, app_client):
-        response = app_client.get('/api/v1/feeds/no-such-feed/episodes/abc123/final-segments')
+        response = app_client.get('/api/v1/feeds/no-such-feed/episodes/abc123abc123/final-segments')
 
         assert response.status_code == 404

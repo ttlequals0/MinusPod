@@ -7,6 +7,8 @@ import type {
 } from '../../api/types';
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { btnPrimary } from '../../components/buttonStyles';
+import SavedBadge from './SavedBadge';
 
 interface StageTunablesSectionProps {
   tunables: StageTunables;
@@ -604,13 +606,11 @@ function StageTunablesSection({
             type="button"
             onClick={() => onSave(buildPayload(draft, serverBaseline))}
             disabled={!dirty || saveIsPending || !!crossFieldError}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
           >
             {saveIsPending ? 'Saving...' : 'Save LLM Tunables'}
           </button>
-          {saveIsSuccess && !dirty && !saveError && (
-            <span className="ml-3 text-sm text-green-600 dark:text-green-400">Saved</span>
-          )}
+          {saveIsSuccess && !dirty && !saveError && <SavedBadge className="ml-3" />}
           {saveError && (
             <span className="ml-3 text-sm text-destructive">{saveError}</span>
           )}

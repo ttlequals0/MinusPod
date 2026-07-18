@@ -15,37 +15,12 @@ verification re-cut count.
 Also covers the matching log-line bug in ``_log_completion_summary``
 where the "Complete: N ads removed" message used the same wrong value.
 """
-import atexit
 import logging
-import os
-import shutil
-import sys
-import tempfile
 from unittest.mock import MagicMock, patch
 
-# Boot pattern from test_feed_304_refresh: create a temp DATA_DIR and
-# bind it to Database/Storage defaults before importing main_app, which
-# otherwise tries to mkdir /app/data at module-load.
-_test_data_dir = tempfile.mkdtemp(prefix='history_ad_count_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-
-# Mutating __defaults__ on shared classes leaks across the pytest session,
-# but every other test file that uses this pattern leaks the same way and
-# none restore -- per-file snapshot-and-restore would only paper over the
-# symptom. Suite-wide cleanup belongs in conftest.py if/when it matters.
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
-
+_test_data_dir = bootstrap('history_ad_count_test_')
 from main_app.processing import _record_history_and_event, _log_completion_summary
 
 

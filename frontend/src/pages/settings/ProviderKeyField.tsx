@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { ProviderName, ProviderStatus } from '../../api/providers';
+import { getErrorMessage } from '../../api/client';
+import { useTransientState } from '../../hooks/useTransientState';
 
 interface ProviderKeyFieldProps {
   provider: ProviderName;
@@ -14,8 +16,8 @@ interface ProviderKeyFieldProps {
 }
 
 const CHIP = {
-  db:   { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', dot: 'bg-green-500', text: 'Stored encrypted' },
-  env:  { bg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', dot: 'bg-amber-500', text: 'Using env fallback' },
+  db:   { bg: 'bg-green-500/10 text-success', dot: 'bg-green-500', text: 'Stored encrypted' },
+  env:  { bg: 'bg-amber-500/10 text-warning', dot: 'bg-amber-500', text: 'Using env fallback' },
   none: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/60', text: 'Not set' },
 } as const;
 
@@ -36,7 +38,7 @@ function ProviderKeyField({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState<'save' | 'test' | 'clear' | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [savedNotice, setSavedNotice] = useTransientState(false, 4000);
   const [error, setError] = useState<string | null>(null);
 
   const showActions = status.source === 'db' || draft.length > 0;
@@ -56,9 +58,8 @@ function ProviderKeyField({
       // key is now encrypted in the DB and we don't echo secrets back. Without
       // this notice, users misread the blank input as "save erased my key".
       setSavedNotice(true);
-      setTimeout(() => setSavedNotice(false), 4000);
     }
-    catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
+    catch (e) { setError(getErrorMessage(e, 'Save failed')); }
     finally { setBusy(null); }
   }
 
@@ -66,7 +67,7 @@ function ProviderKeyField({
     if (!window.confirm(`Remove stored ${provider} key? The environment variable (if any) will be used instead.`)) return;
     setBusy('clear'); setError(null); setTestResult(null);
     try { await onClear(provider); setDraft(''); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Clear failed'); }
+    catch (e) { setError(getErrorMessage(e, 'Clear failed')); }
     finally { setBusy(null); }
   }
 
@@ -76,7 +77,7 @@ function ProviderKeyField({
       const r = await onTest(provider);
       setTestResult({ ok: r.ok, msg: r.ok ? 'OK' : (r.error || 'failed') });
     } catch (e) {
-      setTestResult({ ok: false, msg: e instanceof Error ? e.message : 'failed' });
+      setTestResult({ ok: false, msg: getErrorMessage(e, 'failed') });
     } finally { setBusy(null); }
   }
 
@@ -141,12 +142,12 @@ function ProviderKeyField({
             </button>
           )}
           {testResult && (
-            <span className={`text-sm ${testResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+            <span className={`text-sm ${testResult.ok ? 'text-success' : 'text-destructive'}`}>
               {testResult.msg}
             </span>
           )}
           {savedNotice && (
-            <span className="text-sm text-green-600 dark:text-green-400">
+            <span className="text-sm text-success">
               Saved -- input cleared because keys are stored encrypted
             </span>
           )}

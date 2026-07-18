@@ -6,6 +6,7 @@ import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
+import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -417,14 +418,14 @@ function AddFeed() {
               <button
                 type="submit"
                 disabled={mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
-                className="flex-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className={`flex-1 px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors`}
               >
                 {mutation.isPending ? 'Adding Feed...' : 'Add Feed'}
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors`}
               >
                 Cancel
               </button>
@@ -561,7 +562,7 @@ function AddFeed() {
           <div className="p-4 rounded-lg border border-border bg-card">
             <h3 className="font-medium text-foreground mb-2">Import Results</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="text-green-600 dark:text-green-400">
+              <div className="text-success">
                 <span className="font-semibold">{opmlResult.imported}</span> feeds imported
               </div>
               {opmlResult.failed > 0 && (

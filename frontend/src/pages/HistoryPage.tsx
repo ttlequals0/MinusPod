@@ -14,10 +14,11 @@ import { formatDateTime } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
+import { SortHeader, useSortState } from '../components/SortHeader';
+import { btnSecondary } from '../components/buttonStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost';
-type SortDirection = 'asc' | 'desc';
 
 // Shared shell for the clickable Completed/Failed filter cards. Background is set
 // per-state below (bg-card / bg-primary/5) so only one bg utility ever applies.
@@ -25,42 +26,12 @@ const FILTER_CARD_CLASS =
   'border rounded-lg p-4 text-left cursor-pointer transition-colors ' +
   'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-function SortHeader({
-  field,
-  label,
-  className = '',
-  sortField,
-  sortDirection,
-  onSort,
-}: {
-  field: SortField;
-  label: string;
-  className?: string;
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
-}) {
-  return (
-    <th
-      className={`px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
-      onClick={() => onSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field && (
-          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
-        )}
-      </div>
-    </th>
-  );
-}
-
 function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [podcastFilter, setPodcastFilter] = useState<string>('');
   const [page, setPage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('processedAt');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const { sortField, sortDirection, handleSort } =
+    useSortState<SortField>('processedAt', 'desc', () => setPage(1));
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null);
   const limit = 20;
 
@@ -93,16 +64,6 @@ function HistoryPage() {
   });
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-    setPage(1);
-  };
 
   const handleExport = async (format: 'csv' | 'json') => {
     setExporting(format);
@@ -153,14 +114,14 @@ function HistoryPage() {
           <button
             onClick={() => handleExport('csv')}
             disabled={exporting !== null}
-            className="px-3 py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
           >
             {exporting === 'csv' ? 'Exporting...' : 'Export CSV'}
           </button>
           <button
             onClick={() => handleExport('json')}
             disabled={exporting !== null}
-            className="px-3 py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
           >
             {exporting === 'json' ? 'Exporting...' : 'Export JSON'}
           </button>
@@ -181,7 +142,7 @@ function HistoryPage() {
             title="Filter the list below by completed runs"
             className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
           >
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completedCount}</div>
+            <div className="text-2xl font-bold text-success">{stats.completedCount}</div>
             <div className="text-sm text-muted-foreground">Completed</div>
           </button>
           <button
@@ -265,7 +226,7 @@ function HistoryPage() {
                   {entry.podcastTitle}
                 </Link>
                 {entry.status === 'completed' ? (
-                  <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-600 dark:text-green-400">
+                  <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-success">
                     Completed
                   </span>
                 ) : (
@@ -314,7 +275,7 @@ function HistoryPage() {
                   Episode
                 </th>
                 <SortHeader field="processedAt" label="Processed" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="processingDurationSeconds" label="Duration" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="processingDurationSeconds" label="Duration" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th
                   className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell"
                   title="Length of the downloaded copy each run processed"
@@ -322,8 +283,8 @@ function HistoryPage() {
                   Audio
                 </th>
                 <SortHeader field="adsDetected" label="Ads" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="llmCost" label="Cost" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="llmCost" label="Cost" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="reprocessNumber" label="Reprocess #" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
@@ -379,7 +340,7 @@ function HistoryPage() {
                     </td>
                     <td className="px-4 py-3">
                       {entry.status === 'completed' ? (
-                        <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-600 dark:text-green-400">
+                        <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-success">
                           Completed
                         </span>
                       ) : (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
@@ -14,12 +15,14 @@ import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { ghostBtn, primaryBtn } from './ad-editor/controlStyles';
 import {
-  parseTimeInput,
   formatTime,
+  commitTimeInput,
+  timeInputKeyDown,
   getThemeWaveformColors,
   loadPlayWhileDragging,
   savePlayWhileDragging,
 } from '../utils/adReviewHelpers';
+import { btnGhost, btnPrimary } from './buttonStyles';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -158,10 +161,8 @@ function AdReviewModal({
   // Whole-episode duration the windowed waveform spans. Falls back to the
   // default cap when the episode length is unknown so the window math has a
   // finite total to slice against.
-  const totalDuration = useMemo(() => {
-    const d = Math.max(0, episodeDuration ?? 0);
-    return d > 0 ? d : DEFAULT_MAX_WINDOW_SECONDS;
-  }, [episodeDuration]);
+  const rawDuration = Math.max(0, episodeDuration ?? 0);
+  const totalDuration = rawDuration > 0 ? rawDuration : DEFAULT_MAX_WINDOW_SECONDS;
 
   const ZOOM_MIN = 1;
   // Review mode opens zoomed onto the ad and the user can zoom deep into
@@ -221,23 +222,15 @@ function AdReviewModal({
   const positionBeforePinDragRef = useRef<number | null>(null);
   const [sponsorInput, setSponsorInput] = useState(item.sponsor ?? '');
   const [showSponsorPrompt, setShowSponsorPrompt] = useState(!item.sponsor);
-  // Sponsor catalog, fetched once on mount, used by the SponsorInput
-  // combobox in create mode.
-  const [sponsorOptions, setSponsorOptions] = useState<SponsorOption[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    getSponsors()
-      .then((list) => {
-        if (cancelled) return;
-        setSponsorOptions(
-          list.map((s: { id: number; name: string }) => ({ id: s.id, name: s.name }))
-        );
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Sponsor catalog for the SponsorInput combobox in create mode. Cached
+  // under the same ['sponsors'] key PatternDetailModal uses, so remounting
+  // the modal (every ad step) reuses the cached list instead of refetching.
+  const sponsorsQuery = useQuery({ queryKey: ['sponsors'], queryFn: () => getSponsors() });
+  const sponsorsData = sponsorsQuery.data;
+  const sponsorOptions: SponsorOption[] = useMemo(
+    () => (sponsorsData ?? []).map((s) => ({ id: s.id, name: s.name })),
+    [sponsorsData],
+  );
   // Create-mode only: a text template the user can edit before submit.
   // Left empty here so the host can wire a transcript-span fetch into it.
   const [textTemplateInput, setTextTemplateInput] = useState('');
@@ -664,7 +657,6 @@ function AdReviewModal({
   // ------------------------------------------------------------------
   // Submission -- the host owns the actual API call (so it can also
   // refresh the surrounding episode view, navigate, etc.); we just emit.
-  const [isBusy, setIsBusy] = useState(false);
 
   // Mirror adStart/adEnd into the input strings whenever the boundaries
   // change from a source OTHER than user typing (pin drag, reset,
@@ -683,35 +675,14 @@ function AdReviewModal({
     }
   }, [adEnd]);
 
-  const commitStartInput = () => {
-    const parsed = parseTimeInput(startInput);
-    if (parsed === null) {
-      setStartInput(formatTime(adStart));
-      return;
-    }
-    // Clamp only to absolute episode bounds. Cross-field validation (Start <
-    // End) is enforced at Save time so the user can edit both fields without
-    // each blur stomping the other.
-    const maxAllowed = episodeDuration ?? Number.POSITIVE_INFINITY;
-    const clamped = Math.max(0, Math.min(parsed, maxAllowed));
-    setAdStart(clamped);
-    setStartInput(formatTime(clamped));
-    // Recenter so the just-committed pin stays visible when zoomed.
-    setWindowCenter(clamped);
-  };
-  const commitEndInput = () => {
-    const parsed = parseTimeInput(endInput);
-    if (parsed === null) {
-      setEndInput(formatTime(adEnd));
-      return;
-    }
-    const maxAllowed = episodeDuration ?? Number.POSITIVE_INFINITY;
-    const clamped = Math.max(0, Math.min(parsed, maxAllowed));
-    setAdEnd(clamped);
-    setEndInput(formatTime(clamped));
-    // Recenter so the just-committed pin stays visible when zoomed.
-    setWindowCenter(clamped);
-  };
+  // setWindowCenter recenters so the just-committed pin stays visible when
+  // zoomed; cross-field validation (Start < End) is enforced at Save time.
+  const commitStartInput = () =>
+    commitTimeInput(startInput, adStart, episodeDuration ?? Number.POSITIVE_INFINITY,
+      setAdStart, setStartInput, setWindowCenter);
+  const commitEndInput = () =>
+    commitTimeInput(endInput, adEnd, episodeDuration ?? Number.POSITIVE_INFINITY,
+      setAdEnd, setEndInput, setWindowCenter);
 
   const boundariesMoved =
     Math.abs(adStart - item.start) > 0.05 || Math.abs(adEnd - item.end) > 0.05;
@@ -729,33 +700,21 @@ function AdReviewModal({
           : null;
   const inputBorderClass = boundaryError ? 'border-rose-500' : 'border-border';
 
-  const handleConfirm = async () => {
-    if (isBusy) return;
-    setIsBusy(true);
-    try {
-      onSubmit(
-        boundariesMoved
-          ? {
-              kind: 'adjust',
-              adjustedStart: adStart,
-              adjustedEnd: adEnd,
-              sponsor: sponsorInput.trim() || undefined,
-            }
-          : { kind: 'confirm', sponsor: sponsorInput.trim() || undefined }
-      );
-    } finally {
-      setIsBusy(false);
-    }
+  const handleConfirm = () => {
+    onSubmit(
+      boundariesMoved
+        ? {
+            kind: 'adjust',
+            adjustedStart: adStart,
+            adjustedEnd: adEnd,
+            sponsor: sponsorInput.trim() || undefined,
+          }
+        : { kind: 'confirm', sponsor: sponsorInput.trim() || undefined }
+    );
   };
 
-  const handleReject = async () => {
-    if (isBusy) return;
-    setIsBusy(true);
-    try {
-      onSubmit({ kind: 'reject' });
-    } finally {
-      setIsBusy(false);
-    }
+  const handleReject = () => {
+    onSubmit({ kind: 'reject' });
   };
 
   // ------------------------------------------------------------------
@@ -771,9 +730,9 @@ function AdReviewModal({
       if (e.key === ' ')      { e.preventDefault(); togglePlay(); return; }
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
-      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!isBusy && !boundaryError) handleConfirm(); return; }
-      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (!isBusy) handleReject(); return; }
-      if (e.key === 's' || e.key === 'S') { e.preventDefault(); if (!isBusy) onSkip(); return; }
+      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!boundaryError) handleConfirm(); return; }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); handleReject(); return; }
+      if (e.key === 's' || e.key === 'S') { e.preventDefault(); onSkip(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const audio = audioRef.current;
         if (!audio) return;
@@ -785,7 +744,7 @@ function AdReviewModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isBusy, onClose, sponsorInput, adStart, adEnd, item.start, item.end]);
+  }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end]);
 
   // ------------------------------------------------------------------
   // Style helpers -- explicit hover treatments so buttons clearly
@@ -868,7 +827,7 @@ function AdReviewModal({
                   onClick={onAddNew}
                   aria-label="Add new ad"
                   title="Add new ad"
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${btnPrimary} transition-colors`}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -878,7 +837,7 @@ function AdReviewModal({
               )}
               <button
                 onClick={onClose}
-                className="p-1 rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                className={`p-1 rounded ${btnGhost} transition-colors`}
                 aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1207,16 +1166,7 @@ function AdReviewModal({
               aria-invalid={boundaryError !== null}
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={commitStartInput}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  (e.target as HTMLInputElement).blur();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setStartInput(formatTime(adStart));
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
+              onKeyDown={timeInputKeyDown(adStart, setStartInput)}
               className={`w-20 px-1.5 py-0.5 rounded border bg-background text-emerald-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
             />
             <span>-</span>
@@ -1229,16 +1179,7 @@ function AdReviewModal({
               aria-invalid={boundaryError !== null}
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={commitEndInput}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  (e.target as HTMLInputElement).blur();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setEndInput(formatTime(adEnd));
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
+              onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
               className={`w-20 px-1.5 py-0.5 rounded border bg-background text-rose-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
             />
             <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
@@ -1365,14 +1306,13 @@ function AdReviewModal({
                 Save creates a new ad pattern tagged as `created_by=user`.
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={onClose} disabled={isBusy}
+                <button type="button" onClick={onClose}
                   className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}>
                   Cancel
                 </button>
                 <button
                   type="button"
                   disabled={
-                    isBusy ||
                     !sponsorInput.trim() ||
                     textTemplateInput.trim().length < 50 ||
                     boundaryError !== null
@@ -1390,7 +1330,7 @@ function AdReviewModal({
                     });
                   }}
                   className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}>
-                  {isBusy ? 'Saving...' : 'Save'}
+                  Save
                 </button>
               </div>
             </>
@@ -1405,27 +1345,23 @@ function AdReviewModal({
                   on mobile (so 3 fit on a 320-360px viewport), full
                   "& Next" labels on sm: where there's room. */}
               <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
-                <button type="button" onClick={onSkip} disabled={isBusy}
+                <button type="button" onClick={onSkip}
                   className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap`}
                   title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
                   <span className="sm:hidden">Skip</span>
                   <span className="hidden sm:inline">{hasNext ? 'Skip & Next' : 'Skip'}</span>
                 </button>
-                <button type="button" onClick={handleReject} disabled={isBusy}
+                <button type="button" onClick={handleReject}
                   className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
                   title="Mark as not an ad (R)">
-                  {isBusy ? '...' : (<>
-                    <span className="sm:hidden">Not an ad</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
-                  </>)}
+                  <span className="sm:hidden">Not an ad</span>
+                  <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
                 </button>
-                <button type="button" onClick={handleConfirm} disabled={isBusy || boundaryError !== null}
+                <button type="button" onClick={handleConfirm} disabled={boundaryError !== null}
                   className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
                   title={boundaryError ?? "Save changes (C)"}>
-                  {isBusy ? '...' : (<>
-                    <span className="sm:hidden">Save</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
-                  </>)}
+                  <span className="sm:hidden">Save</span>
+                  <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
                 </button>
               </div>
             </>

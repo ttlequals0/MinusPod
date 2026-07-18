@@ -8,9 +8,11 @@ it by getting routed to a second worker).
 """
 from __future__ import annotations
 
-import datetime
 import logging
+from datetime import timedelta
 from typing import Optional
+
+from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +22,16 @@ LOCKOUT_DURATION_MINUTES = 15
 
 
 def _now_iso() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Kept as a named wrapper: tests patch database.auth_lockout._now_iso.
+    return utc_now_iso()
 
 
 def _future_iso(minutes: int) -> str:
-    future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=minutes)
-    return future.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (utc_now() + timedelta(minutes=minutes)).strftime(ISO_FORMAT)
+
+
+def _window_start_iso() -> str:
+    return (utc_now() - timedelta(minutes=LOCKOUT_WINDOW_MINUTES)).strftime(ISO_FORMAT)
 
 
 class AuthLockoutMixin:
@@ -60,10 +66,7 @@ class AuthLockoutMixin:
         if not ip:
             return None
         now = _now_iso()
-        window_start = (
-            datetime.datetime.now(datetime.timezone.utc)
-            - datetime.timedelta(minutes=LOCKOUT_WINDOW_MINUTES)
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        window_start = _window_start_iso()
         conn = self.get_connection()
         row = conn.execute(
             """INSERT INTO auth_failures (ip, failed_count, first_failed_at, last_failed_at, locked_until)
@@ -110,10 +113,7 @@ class AuthLockoutMixin:
         Returns the count of deleted rows for telemetry.
         """
         now = _now_iso()
-        window_start = (
-            datetime.datetime.now(datetime.timezone.utc)
-            - datetime.timedelta(minutes=LOCKOUT_WINDOW_MINUTES)
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        window_start = _window_start_iso()
         conn = self.get_connection()
         cursor = conn.execute(
             """DELETE FROM auth_failures

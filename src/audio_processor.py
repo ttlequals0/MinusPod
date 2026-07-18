@@ -4,7 +4,6 @@ import subprocess
 import tempfile
 import os
 import shutil
-from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
@@ -12,28 +11,13 @@ from utils.audio import AudioMetadata, get_audio_duration
 from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
 from utils.subprocess_registry import tracked_run
 from config import (
-    FFMPEG_LONG_TIMEOUT, SUBPROCESS_VERSION_PROBE,
+    FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
     SHORT_CUT_KEEP_CONFIDENCE, RENDER_DRIFT_WARN_SECONDS,
 )
 
 logger = logging.getLogger(__name__)
 
-
-@lru_cache(maxsize=1)
-def _check_ffmpeg_once() -> bool:
-    """Verify ffmpeg is on PATH. Cached so at most one subprocess fork runs
-    per worker lifetime regardless of how many AudioProcessor instances the
-    caller spins up."""
-    try:
-        subprocess.run(
-            ['ffmpeg', '-version'],
-            capture_output=True, check=True, timeout=SUBPROCESS_VERSION_PROBE,
-        )
-        return True
-    except (subprocess.SubprocessError, FileNotFoundError):
-        logger.error("FFMPEG not found or not working")
-        return False
 
 # Get the assets directory - check primary location first, fall back to builtin
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
@@ -91,11 +75,6 @@ class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
         self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
         self.bitrate = bitrate
-
-    def check_ffmpeg(self) -> bool:
-        """Check if FFMPEG is available. Result is cached per process so the
-        subprocess fork only runs once per worker lifetime."""
-        return _check_ffmpeg_once()
 
     def get_audio_duration(self, audio_path: str) -> Optional[float]:
         """Get duration of audio file in seconds.

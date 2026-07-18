@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { btnGhost } from './buttonStyles';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -28,7 +29,7 @@ function NavLink({ to, label, active, onClick }: NavLinkProps) {
       className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
         active
           ? 'bg-primary text-primary-foreground'
-          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          : btnGhost
       }`}
     >
       {label}
@@ -94,7 +95,7 @@ function Layout() {
             <div className="flex items-center gap-2">
               <Link
                 to="/search"
-                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className={`p-2 rounded-md ${btnGhost} transition-colors`}
                 aria-label="Search"
                 title="Search"
               >
@@ -104,7 +105,7 @@ function Layout() {
               </Link>
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className={`p-2 rounded-md ${btnGhost} transition-colors`}
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -130,7 +131,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  className={`p-2 rounded-md ${btnGhost} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -146,7 +147,7 @@ function Layout() {
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="sm:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className={`sm:hidden p-2 rounded-md ${btnGhost} transition-colors`}
                 aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (

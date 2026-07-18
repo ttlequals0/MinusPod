@@ -4,33 +4,15 @@ and re-drive.
 Uses the main_app boot pattern from test_history_ad_count: bind a temp
 DATA_DIR before importing main_app so singletons initialize against it.
 """
-import atexit
-import os
-import shutil
 import socket
-import sys
-import tempfile
 from unittest.mock import patch
 
 import pytest
 import requests
 
-_test_data_dir = tempfile.mkdtemp(prefix='offline_queue_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
-
+_test_data_dir = bootstrap('offline_queue_test_')
 from llm_client import is_connectivity_error, LimitExceededError, StructuralRateLimitError
 from main_app import db
 from main_app.processing import _handle_processing_failure, is_transient_error

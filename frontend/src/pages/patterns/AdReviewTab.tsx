@@ -20,6 +20,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
 import { StageBadge } from '../../components/StageBadge';
 import { formatTimestamp, formatDate } from '../../utils/format';
+import { btnDestructive, btnOutline } from '../../components/buttonStyles';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
@@ -39,14 +40,14 @@ const SORT_OPTIONS: Array<[DetectionSort, string]> = [
 // validation rejects and human "Not an ad" decisions once a recut restores
 // the span (marker_status in src/detection_review.py keys on was_cut).
 const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
-  accepted: ['Accepted', 'bg-green-500/10 text-green-600 dark:text-green-400'],
+  accepted: ['Accepted', 'bg-green-500/10 text-success'],
   rejected: ['Not cut', 'bg-red-500/10 text-red-600 dark:text-red-400'],
-  pending: ['Pending', 'bg-amber-500/10 text-amber-600 dark:text-amber-400'],
+  pending: ['Pending', 'bg-amber-500/10 text-warning'],
 };
 
 const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
   unresolved: ['Unresolved', 'bg-secondary text-muted-foreground'],
-  confirmed: ['Confirmed', 'bg-green-500/10 text-green-600 dark:text-green-400'],
+  confirmed: ['Confirmed', 'bg-green-500/10 text-success'],
   dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
 };
 
@@ -140,7 +141,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
       type="button"
       onClick={onDismiss}
       disabled={busy}
-      className={`${btn} ${isCard ? 'grow ' : ''}bg-destructive hover:bg-destructive/90 text-destructive-foreground disabled:opacity-50`}
+      className={`${btn} ${isCard ? 'grow ' : ''}${btnDestructive} disabled:opacity-50`}
     >
       Not an ad
     </button>
@@ -150,7 +151,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, onApprove, onDism
       type="button"
       onClick={onEdit}
       disabled={busy}
-      className={`${btn} ${isCard ? 'ml-auto ' : ''}border border-border hover:bg-accent disabled:opacity-50`}
+      className={`${btn} ${isCard ? 'ml-auto ' : ''}${btnOutline} disabled:opacity-50`}
     >
       Edit
     </button>
@@ -279,7 +280,7 @@ export default function AdReviewTab() {
             </div>
             <div>
               <p className="text-muted-foreground">Needs Review</p>
-              <p className={`font-medium ${counts.needsReview > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}>
+              <p className={`font-medium ${counts.needsReview > 0 ? 'text-warning' : 'text-foreground'}`}>
                 {counts.needsReview}
               </p>
             </div>
@@ -293,7 +294,7 @@ export default function AdReviewTab() {
             </div>
             <div>
               <p className="text-muted-foreground">Accepted</p>
-              <p className="font-medium text-green-600 dark:text-green-400">{counts.accepted}</p>
+              <p className="font-medium text-success">{counts.accepted}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Confirmed</p>

@@ -3,27 +3,17 @@ feed surface, admin/API exemption, serve_rss self-heal, and the settings/
 feeds API lifecycle (enable, key exposure, rotation, keyed URLs, OPML).
 """
 import io
-import os
 import re
-import sys
-import tempfile
 from unittest.mock import patch
 
 import pytest
 from PIL import Image
 
-_test_data_dir = tempfile.mkdtemp(prefix='feedauth_test_')
-os.environ.setdefault('SECRET_KEY', 'feedauth-test-secret')
-os.environ.setdefault('DATA_DIR', _test_data_dir)
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('feedauth_test_', secret_key='feedauth-test-secret')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app, db as app_db
 import main_app.feeds as feeds_mod
 import main_app.routes as routes_mod

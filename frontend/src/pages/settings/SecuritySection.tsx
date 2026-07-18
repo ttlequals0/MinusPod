@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { rotateMasterPassphrase } from '../../api/providers';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
+import { getErrorMessage } from '../../api/client';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -53,7 +55,7 @@ function SecuritySection({
       setRotateSuccess(`Re-encrypted ${r.rotated} stored key${r.rotated === 1 ? '' : 's'}. Update the env var now.`);
       setOldPassphrase(''); setNewPassphrase(''); setConfirmPassphrase('');
     } catch (err) {
-      setRotateError(err instanceof Error ? err.message : 'Rotation failed');
+      setRotateError(getErrorMessage(err, 'Rotation failed'));
     } finally {
       setIsRotating(false);
     }
@@ -115,7 +117,7 @@ function SecuritySection({
         {isPasswordSet && (
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            className={`px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors`}
           >
             Logout
           </button>
@@ -186,7 +188,7 @@ function SecuritySection({
         )}
 
         {passwordSuccess && (
-          <div className="p-3 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 text-sm">
+          <div className="p-3 rounded-lg bg-green-500/10 text-success text-sm">
             {passwordSuccess}
           </div>
         )}
@@ -194,7 +196,7 @@ function SecuritySection({
         <button
           type="submit"
           disabled={isChangingPassword || (!isPasswordSet && !newPassword)}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors`}
         >
           {isChangingPassword
             ? 'Saving...'
@@ -279,7 +281,7 @@ function SecuritySection({
             </div>
 
             {rotateError && <p className="text-sm text-destructive">{rotateError}</p>}
-            {rotateSuccess && <p className="text-sm text-green-600 dark:text-green-400">{rotateSuccess}</p>}
+            {rotateSuccess && <p className="text-sm text-success">{rotateSuccess}</p>}
 
             <button
               type="submit"

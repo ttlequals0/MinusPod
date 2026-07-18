@@ -14,10 +14,11 @@ show that uses the exact same sound, so a global stinger has no meaning.
 """
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Dict, List, Optional
 
 from config import audio_cue_type_label
+from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +294,7 @@ class CueTemplateMixin:
         ``has_podcast=False`` to drop the podcast_id column entirely.
         """
         conn = self.get_connection()
-        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=stale_seconds)) \
-            .strftime('%Y-%m-%dT%H:%M:%SZ')
+        cutoff = (utc_now() - timedelta(seconds=stale_seconds)).strftime(ISO_FORMAT)
         cols = ('podcast_id, ' if has_podcast else '') + key_col
         vals = (':pid, ' if has_podcast else '') + ':eid'
         conflict = ('podcast_id, ' if has_podcast else '') + key_col
@@ -438,12 +438,6 @@ class CueTemplateMixin:
         return self._claim_scan(
             'cue_threshold_scans', 'result_json', podcast_id, episode_id,
             stale_seconds, force)
-
-    def get_cue_threshold_scan_claim_epoch(
-        self, podcast_id: int, episode_id: str,
-    ) -> Optional[int]:
-        return self._get_scan_claim_epoch(
-            'cue_threshold_scans', podcast_id, episode_id)
 
     def save_cue_threshold_scan_result(
         self, podcast_id: int, episode_id: str, result: Dict,

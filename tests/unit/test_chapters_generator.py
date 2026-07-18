@@ -2,10 +2,21 @@
 import os
 import sys
 from dataclasses import dataclass
+from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from chapters_generator import ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_sleep(monkeypatch):
+    """Chapter LLM calls go through utils.llm_call, which sleeps between
+    retries. Stubs returning empty content are treated as retryable failures
+    there, so neutralize the sleeps to keep these tests fast."""
+    monkeypatch.setattr('utils.llm_call.time.sleep', lambda _s: None)
 
 
 @dataclass
@@ -406,3 +417,82 @@ class TestAdjustSegmentsReplacementDuration:
         ads = [{'start': 10, 'end': 30}]
         out = gen._adjust_segments_for_ads(segs, ads, replacement_duration=2.0)
         assert out[1]['start'] == 22 and out[1]['end'] == 32
+
+
+class _FailingClient:
+    """Stub client whose messages_create always raises, counting attempts."""
+
+    def __init__(self, error: Exception):
+        self.error = error
+        self.calls = 0
+
+    def messages_create(self, **kwargs):
+        self.calls += 1
+        raise self.error
+
+
+class TestSharedLLMCallPath:
+    """Chapter LLM calls must go through utils.llm_call (retries + error
+    classification) and degrade gracefully when every retry fails."""
+
+    def _failing_generator(self):
+        gen = ChaptersGenerator(api_key='test')
+        client = _FailingClient(RuntimeError('transient 500'))
+        gen._llm_client = client
+        return gen, client
+
+    def test_boundary_failure_retries_then_returns_no_boundaries(self):
+        gen, client = self._failing_generator()
+        with patch('utils.llm_call.is_retryable_error', return_value=True), \
+             patch('utils.llm_call.calculate_backoff', return_value=0.0), \
+             patch('chapters_generator.get_llm_max_retries', return_value=2):
+            chapters = gen._detect_topic_boundaries(
+                transcript='[00:00] x',
+                start_time=0.0,
+                end_time=1800.0,
+                num_splits=3,
+            )
+        assert chapters == []
+        # 3 primary attempts (max_retries=2) + 2 secondary fallback retries.
+        assert client.calls == 5
+
+    def test_title_failure_retries_then_degrades_to_generic_titles(self):
+        gen, client = self._failing_generator()
+        chapters = [
+            {'startTime': 0, 'title': None, 'source': 'auto', 'needs_title': True},
+            {'startTime': 300, 'title': None, 'source': 'ai', 'needs_title': True},
+        ]
+        segments = [{'start': 0, 'end': 600, 'text': 'hello world'}]
+        with patch('utils.llm_call.is_retryable_error', return_value=True), \
+             patch('utils.llm_call.calculate_backoff', return_value=0.0), \
+             patch('chapters_generator.get_llm_max_retries', return_value=2):
+            out = gen.generate_chapter_titles(chapters, segments, 'Show', 'Ep')
+        assert client.calls == 5
+        assert out[0]['title'] == 'Introduction'
+        assert out[1]['title'] == 'Part 1'
+        assert not any(ch['needs_title'] for ch in out)
+
+    def test_non_retryable_failure_fails_once_and_degrades(self):
+        gen, client = self._failing_generator()
+        with patch('utils.llm_call.is_retryable_error', return_value=False), \
+             patch('chapters_generator.get_llm_max_retries', return_value=2):
+            chapters = gen._detect_topic_boundaries(
+                transcript='[00:00] x',
+                start_time=0.0,
+                end_time=1800.0,
+                num_splits=3,
+            )
+        assert chapters == []
+        assert client.calls == 1
+
+    def test_chapter_calls_do_not_force_json_response_format(self):
+        # Chapter prompts expect line-based text; the JSON-object response
+        # format is a detection-window concern (call_llm_for_window only).
+        gen, stub = _make_generator_with_stub(canned_text='05:30 Topic A\n')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x',
+            start_time=0.0,
+            end_time=1800.0,
+            num_splits=1,
+        )
+        assert stub.calls[-1].get('response_format') is None

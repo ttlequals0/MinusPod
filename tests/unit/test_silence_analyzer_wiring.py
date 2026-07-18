@@ -92,28 +92,25 @@ def _make_analyzer(silence_enabled):
     return AudioAnalyzer(db=_FakeDB(silence_enabled=silence_enabled))
 
 
-def _patch_analyze_deps(audio_path='/fake/ep.mp3', duration=600.0):
-    """Patch os.path.exists, get_audio_duration, and volume analyzer so
-    analyze() runs without real files."""
-    exists = patch('os.path.exists', return_value=True)
-    dur = patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=duration)
-    vol = patch.object(
-        AudioAnalyzer, '_run_component_with_timeout',
-        side_effect=_fake_run_component,
-    )
-    return exists, dur, vol
-
-
 _FAKE_SPANS = [{'start': 10.0, 'end': 12.0, 'duration': 2.0}]
 
 
-def _fake_run_component(name, func, timeout):
-    """Stub that executes the callable so lambda captures are exercised."""
-    if name == 'silence':
-        return _FAKE_SPANS, None
-    if name == 'volume':
-        return ([], None, []), None
-    return None, None
+def _analyze(analyzer, feed_id, silence_detect=None):
+    """Run analyze() with the raw component callables stubbed.
+
+    Components are submitted to the shared pool directly (no
+    _run_component_with_timeout wrapper anymore), so the seams are the
+    detector methods themselves. SilenceDetector is instantiated inside
+    _load_silence_config, hence the class-level patch.
+    """
+    silence_kwargs = ({'side_effect': silence_detect} if callable(silence_detect)
+                      else {'return_value': _FAKE_SPANS})
+    with patch('os.path.exists', return_value=True), \
+         patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
+         patch.object(analyzer.volume_analyzer, 'analyze', return_value=([], None, [])), \
+         patch.object(analyzer.splice_detector, 'detect', return_value=None), \
+         patch.object(SilenceDetector, 'detect', **silence_kwargs):
+        return analyzer.analyze('/fake/ep.mp3', feed_id=feed_id)
 
 
 def test_analyze_skips_detector_when_flag_off():
@@ -129,10 +126,7 @@ def test_analyze_skips_detector_when_flag_off():
 
     analyzer._load_silence_config = spy_load
 
-    with patch('os.path.exists', return_value=True), \
-         patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
-         patch.object(analyzer, '_run_component_with_timeout', side_effect=_fake_run_component):
-        result = analyzer.analyze('/fake/ep.mp3', feed_id=42)
+    result = _analyze(analyzer, feed_id=42)
 
     # spy was called but returned None (flag off)
     assert detect_calls == [None]
@@ -141,23 +135,13 @@ def test_analyze_skips_detector_when_flag_off():
 
 def test_analyze_runs_detector_when_flag_on():
     analyzer = _make_analyzer(silence_enabled=True)
-
-    with patch('os.path.exists', return_value=True), \
-         patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
-         patch.object(analyzer, '_run_component_with_timeout', side_effect=_fake_run_component):
-        result = analyzer.analyze('/fake/ep.mp3', feed_id=42)
-
+    result = _analyze(analyzer, feed_id=42)
     assert result.silence_spans == _FAKE_SPANS
 
 
 def test_analyze_spans_land_on_result():
     analyzer = _make_analyzer(silence_enabled=True)
-
-    with patch('os.path.exists', return_value=True), \
-         patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
-         patch.object(analyzer, '_run_component_with_timeout', side_effect=_fake_run_component):
-        result = analyzer.analyze('/fake/ep.mp3', feed_id=1)
-
+    result = _analyze(analyzer, feed_id=1)
     assert len(result.silence_spans) == 1
     assert result.silence_spans[0]['start'] == 10.0
 
@@ -188,18 +172,10 @@ def test_detector_exception_adds_error_and_continues():
     """If the silence detector raises, analysis still returns a result."""
     analyzer = _make_analyzer(silence_enabled=True)
 
-    def raising_run_component(name, func, timeout):
-        if name == 'silence':
-            # Simulate the ThreadPoolExecutor surface -- exception goes into errors.
-            return None, 'silence analysis failed: RuntimeError: boom'
-        if name == 'volume':
-            return ([], None, []), None
-        return None, None
+    def boom(*_a, **_k):
+        raise RuntimeError('boom')
 
-    with patch('os.path.exists', return_value=True), \
-         patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
-         patch.object(analyzer, '_run_component_with_timeout', side_effect=raising_run_component):
-        result = analyzer.analyze('/fake/ep.mp3', feed_id=1)
+    result = _analyze(analyzer, feed_id=1, silence_detect=boom)
 
     assert result.silence_spans == []
     assert any('silence' in e for e in result.errors)

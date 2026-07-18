@@ -8,7 +8,7 @@ audio signals for ad detection.
 import logging
 import time
 import os
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Dict, List, Optional, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from .base import AudioAnalysisResult
@@ -222,41 +222,24 @@ class AudioAnalyzer:
             logger.warning('Failed to read splice_evidence_enabled: %s', exc)
             return False
 
-    def is_enabled(self) -> bool:
-        """Audio analysis is always enabled (volume-only is lightweight, uses ffmpeg)."""
-        return True
+    @staticmethod
+    def _collect_component(name: str, future, timeout: int) -> Tuple[Any, Optional[str]]:
+        """Collect a pooled component future with timeout protection.
 
-    def get_availability(self) -> Dict[str, bool]:
-        """Get availability status of each analyzer."""
-        return {
-            'volume': True,
-        }
-
-    def _run_component_with_timeout(
-        self,
-        name: str,
-        func: Callable,
-        timeout: int
-    ) -> Tuple[Any, Optional[str]]:
+        Returns (result, error); result is None if timeout/error occurred.
+        The degradation strings match what the old per-component wrapper
+        (_run_component_with_timeout) produced.
         """
-        Run an analysis component with timeout protection.
-
-        Uses ThreadPoolExecutor for cross-platform timeout support.
-        Returns (result, error) tuple - result is None if timeout/error occurred.
-        """
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(func)
-            try:
-                result = future.result(timeout=timeout)
-                return result, None
-            except FuturesTimeoutError:
-                error_msg = f"{name} analysis exceeded {timeout}s timeout"
-                logger.warning(error_msg)
-                return None, error_msg
-            except Exception as e:
-                error_msg = f"{name} analysis failed: {type(e).__name__}: {e}"
-                logger.warning(error_msg)
-                return None, error_msg
+        try:
+            return future.result(timeout=timeout), None
+        except FuturesTimeoutError:
+            error_msg = f"{name} analysis exceeded {timeout}s timeout"
+            logger.warning(error_msg)
+            return None, error_msg
+        except Exception as e:
+            error_msg = f"{name} analysis failed: {type(e).__name__}: {e}"
+            logger.warning(error_msg)
+            return None, error_msg
 
     def analyze(
         self,
@@ -305,101 +288,147 @@ class AudioAnalyzer:
         baseline = None
         frames = []
 
-        # Volume analysis
-        if status_callback:
-            status_callback("analyzing: volume", 30)
-
-        vol_result, error = self._run_component_with_timeout(
-            'volume',
-            lambda: self.volume_analyzer.analyze(audio_path),
-            timeouts['volume']
-        )
-
-        if error:
-            errors.append(error)
-            logger.warning(f"Volume analysis skipped: {error}")
-        elif vol_result:
-            vol_signals, vol_baseline, vol_frames = vol_result
-            signals.extend(vol_signals)
-            baseline = vol_baseline
-            frames = vol_frames
-            logger.info(f"Volume analysis complete: {len(vol_signals)} signals, {len(vol_frames)} frames")
-
-        # Transition detection (runs on volume frames, no extra I/O)
-        if frames and self.transition_detector:
-            if status_callback:
-                status_callback("analyzing: transitions", 35)
-            try:
-                transition_signals = self.transition_detector.detect_and_pair(frames)
-                signals.extend(transition_signals)
-                if transition_signals:
-                    logger.info(f"Transition detection: {len(transition_signals)} DAI transition pairs")
-            except Exception as e:
-                error_msg = f"Transition detection failed: {e}"
-                logger.warning(error_msg)
-                errors.append(error_msg)
-
-        # Audio cue detection (issue #350) -- opt-in. Settings are read per run
-        # so the toggle takes effect without a restart. Runs its own band-passed
-        # ffmpeg pass, so only when the experiment is enabled.
+        # Resolve per-run component config up front so independent components
+        # can be scheduled together. These are DB reads only -- no audio I/O.
         cue_enabled, cue_detector = self._load_cue_config(feed_id=feed_id)
-        cue_near_misses: List[Dict[str, Any]] = []
-        if cue_enabled and cue_detector:
-            if status_callback:
-                status_callback("analyzing: audio cues", 40)
-            # Matcher path surfaces near-misses via detect_with_debug; spectral uses detect().
-            is_matcher = isinstance(cue_detector, AudioCueTemplateMatcher)
-            cue_result, cue_error = self._run_component_with_timeout(
-                'audio_cue',
-                (lambda: cue_detector.detect_with_debug(audio_path)) if is_matcher
-                else (lambda: cue_detector.detect(audio_path)),
-                timeouts.get('cue', timeouts['volume']),
-            )
-            if cue_error:
-                errors.append(cue_error)
-            elif is_matcher:
-                cue_signals, cue_debug = cue_result
-                signals.extend(cue_signals)
-                cue_near_misses = cue_debug.get('near_misses', [])
-            else:
-                # The detector logs its own summary line (frames, baseline,
-                # peak vs threshold, cue count) including the zero-cue case,
-                # so no extra log here.
-                signals.extend(cue_result)
-
-        # Silence detection (Phase B) -- per-feed opt-in via silence_snap_enabled.
-        # Runs its own ffmpeg silencedetect pass; skipped when flag is off (default).
-        silence_spans: List[Dict[str, Any]] = []
         silence_detector = self._load_silence_config(feed_id=feed_id)
-        if silence_detector:
-            if status_callback:
-                status_callback("analyzing: silence", 45)
-            silence_result, silence_error = self._run_component_with_timeout(
-                'silence',
-                lambda: silence_detector.detect(audio_path),
-                timeouts.get('silence', timeouts['volume']),
-            )
-            if silence_error:
-                errors.append(silence_error)
-            else:
-                silence_spans = silence_result or []
+        splice_enabled = self._splice_enabled()
 
-        # Splice-evidence detection (spec 2.1): deep silences plus loudness
-        # and spectral steps at those silences. Reuses the ebur128 frames
-        # from the volume pass; runs its own 8kHz mono decode.
+        # Each enabled component runs a full-file ffmpeg decode. Volume, cue,
+        # and silence are mutually independent, so they run concurrently on a
+        # shared pool sized to that peak. The RAW callables are submitted (no
+        # per-component inner executor: that doubled the thread count, and on
+        # timeout its shutdown(wait=True) exit pinned the pool worker until
+        # the hung decode ended). Timeouts are enforced at the ordered
+        # collection points via future.result(timeout); status callbacks fire
+        # there too, so progress stays monotonic (30/35/40/45/50) instead of
+        # regressing when later stages were announced at submission. Splice
+        # needs the volume frames, so it is submitted only after volume
+        # resolves and reuses volume's freed worker -- peak concurrency stays
+        # at 1 + cue + silence.
+        n_components = (1 + (1 if (cue_enabled and cue_detector) else 0)
+                        + (1 if silence_detector else 0))
+        # The per-component timeouts were sized for sequential execution; up
+        # to n_components full-file decodes now contend for CPU at once, so on
+        # low-core hosts a component that fits its solo budget can blow past
+        # it. Scale every concurrent component's budget (volume/cue/silence,
+        # and splice which overlaps cue/silence) by the number of
+        # simultaneously-running full-decode components.
+        timeout_factor = n_components
+
+        cue_near_misses: List[Dict[str, Any]] = []
+        silence_spans: List[Dict[str, Any]] = []
         splice_evidence = None
-        if self._splice_enabled():
+
+        pool = ThreadPoolExecutor(max_workers=n_components)
+        try:
+            vol_future = pool.submit(self.volume_analyzer.analyze, audio_path)
+
+            # Audio cue detection (issue #350) -- opt-in. Settings are read per
+            # run so the toggle takes effect without a restart. Runs its own
+            # band-passed ffmpeg pass, so only when the experiment is enabled.
+            cue_future = None
+            is_matcher = False
+            if cue_enabled and cue_detector:
+                # Matcher path surfaces near-misses via detect_with_debug; spectral uses detect().
+                is_matcher = isinstance(cue_detector, AudioCueTemplateMatcher)
+                cue_future = pool.submit(
+                    cue_detector.detect_with_debug if is_matcher
+                    else cue_detector.detect,
+                    audio_path,
+                )
+
+            # Silence detection (Phase B) -- per-feed opt-in via silence_snap_enabled.
+            # Runs its own ffmpeg silencedetect pass; skipped when flag is off (default).
+            silence_future = None
+            if silence_detector:
+                silence_future = pool.submit(silence_detector.detect, audio_path)
+
             if status_callback:
-                status_callback("analyzing: splice evidence", 50)
-            splice_result, splice_error = self._run_component_with_timeout(
-                'splice',
-                lambda: self.splice_detector.detect(audio_path, duration, frames),
-                timeouts.get('splice', timeouts['volume']),
-            )
-            if splice_error:
-                errors.append(splice_error)
-            else:
-                splice_evidence = splice_result
+                status_callback("analyzing: volume", 30)
+            vol_result, error = self._collect_component(
+                'volume', vol_future, timeouts['volume'] * timeout_factor)
+            if error:
+                errors.append(error)
+                logger.warning(f"Volume analysis skipped: {error}")
+            elif vol_result:
+                vol_signals, vol_baseline, vol_frames = vol_result
+                signals.extend(vol_signals)
+                baseline = vol_baseline
+                frames = vol_frames
+                logger.info(f"Volume analysis complete: {len(vol_signals)} signals, {len(vol_frames)} frames")
+
+            # Splice-evidence detection (spec 2.1): deep silences plus loudness
+            # and spectral steps at those silences. Consumes the ebur128 frames
+            # from the volume pass (so it is submitted only after volume
+            # resolves; a timed-out or failed volume leaves frames=[] and
+            # splice degrades to no loudness steps, exactly as before); its
+            # own 8kHz mono decode then overlaps with any cue/silence work
+            # still running.
+            splice_future = None
+            if splice_enabled:
+                splice_future = pool.submit(
+                    self.splice_detector.detect, audio_path, duration, frames)
+
+            # Transition detection (runs on volume frames, no extra I/O)
+            if frames and self.transition_detector:
+                if status_callback:
+                    status_callback("analyzing: transitions", 35)
+                try:
+                    transition_signals = self.transition_detector.detect_and_pair(frames)
+                    signals.extend(transition_signals)
+                    if transition_signals:
+                        logger.info(f"Transition detection: {len(transition_signals)} DAI transition pairs")
+                except Exception as e:
+                    error_msg = f"Transition detection failed: {e}"
+                    logger.warning(error_msg)
+                    errors.append(error_msg)
+
+            if cue_future is not None:
+                if status_callback:
+                    status_callback("analyzing: audio cues", 40)
+                cue_result, cue_error = self._collect_component(
+                    'audio_cue', cue_future,
+                    timeouts.get('cue', timeouts['volume']) * timeout_factor)
+                if cue_error:
+                    errors.append(cue_error)
+                elif is_matcher:
+                    cue_signals, cue_debug = cue_result
+                    signals.extend(cue_signals)
+                    cue_near_misses = cue_debug.get('near_misses', [])
+                else:
+                    # The detector logs its own summary line (frames, baseline,
+                    # peak vs threshold, cue count) including the zero-cue case,
+                    # so no extra log here.
+                    signals.extend(cue_result)
+
+            if silence_future is not None:
+                if status_callback:
+                    status_callback("analyzing: silence", 45)
+                silence_result, silence_error = self._collect_component(
+                    'silence', silence_future,
+                    timeouts.get('silence', timeouts['volume']) * timeout_factor)
+                if silence_error:
+                    errors.append(silence_error)
+                else:
+                    silence_spans = silence_result or []
+
+            if splice_future is not None:
+                if status_callback:
+                    status_callback("analyzing: splice evidence", 50)
+                splice_result, splice_error = self._collect_component(
+                    'splice', splice_future,
+                    timeouts.get('splice', timeouts['volume']) * timeout_factor)
+                if splice_error:
+                    errors.append(splice_error)
+                else:
+                    splice_evidence = splice_result
+        finally:
+            # wait=False: a hung decode must not block the return of the
+            # already-degraded result; the worker ends when the component's
+            # own ffmpeg timeout fires. cancel_futures drops queued work that
+            # was already collected as timed out.
+            pool.shutdown(wait=False, cancel_futures=True)
 
         result.signals = signals
         result.cue_near_misses = cue_near_misses

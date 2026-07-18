@@ -983,7 +983,16 @@ class AudioFingerprinter:
         """Fast fingerprint matching using pre-computed full-file fingerprint.
 
         Slides through the raw int array comparing slices against decoded
-        known fingerprints. No subprocess calls -- pure Python array operations.
+        known fingerprints. No subprocess calls -- pure numpy array operations.
+
+        When the greedy walk starts a run (at 0.0, and again after each
+        match jump), all step positions from there to the scan end are
+        batched: per pattern, one 2D gather + popcount + cumsum yields the
+        bit-error count at every position at once, instead of a scalar
+        per-int Python loop per (position, pattern) pair. The integer diff
+        counts and the final matching_bits/total_bits division are the same
+        as _calculate_similarity, so the similarity values, threshold
+        decisions, and resulting match list are identical.
         """
         matches = []
         # fpcalc default sample rate produces ~8 ints/sec; compute actual from data
@@ -991,8 +1000,69 @@ class AudioFingerprinter:
         scan_start_time = time.time()
         last_log_time = scan_start_time
         position = 0.0
+        scan_limit = total_duration - MIN_SEGMENT_DURATION
 
-        while position < total_duration - MIN_SEGMENT_DURATION:
+        # Via int64 so signed fpcalc ints wrap into uint32, matching the
+        # `& 0xFFFFFFFF` masking in _calculate_similarity.
+        raw_arr = np.asarray(raw_ints, dtype=np.int64).astype(np.uint32)
+        pattern_arrs = [np.asarray(known_ints, dtype=np.int64).astype(np.uint32)
+                        for _, known_ints, _, _ in decoded_known]
+        n_ints = len(raw_arr)
+
+        # Positions per batch: large enough to amortize the numpy call
+        # overhead, small enough that a match jump (which invalidates the
+        # rest of the batch) wastes little precomputed work.
+        batch_positions = 512
+
+        def _batch_run(pos0):
+            """Similarities for the next step positions starting at ``pos0``.
+
+            Returns (starts, ends, sims) where sims[p][j] is bit-identical to
+            _calculate_similarity(raw_ints, pattern_p, fp1_start=starts[j],
+            fp1_end=ends[j]). Positions are enumerated with the same repeated
+            float addition as the walk so index truncation cannot drift.
+            """
+            positions = []
+            p = pos0
+            while p < scan_limit and len(positions) < batch_positions:
+                positions.append(p)
+                p += SLIDING_STEP_SIZE
+            starts = np.array([int(q * ints_per_second) for q in positions],
+                              dtype=np.int64)
+            ends = np.minimum(
+                np.array([int((q + FINGERPRINT_CHUNK_SIZE) * ints_per_second)
+                          for q in positions], dtype=np.int64),
+                n_ints)
+            j_count = len(positions)
+            rows = np.arange(j_count)
+            sims = []
+            for pat in pattern_arrs:
+                # Per-position comparison length, exactly as the scalar
+                # min(fp1_end - fp1_start, len(fp2)); <= 0 means sim 0.0.
+                lengths = np.minimum(ends - starts, len(pat))
+                lmax = int(lengths.max()) if j_count else 0
+                if lmax <= 0:
+                    sims.append(np.zeros(j_count))
+                    continue
+                # (j_count, lmax) gather of episode ints per position. Columns
+                # past a row's own length are clipped in-bounds and ignored:
+                # the cumsum lookup below only reads the first ``lengths[j]``.
+                idx = np.minimum(starts[:, None] + np.arange(lmax), n_ints - 1)
+                diff = _popcount32(raw_arr[idx] ^ pat[:lmax][None, :])
+                csum = diff.cumsum(axis=1, dtype=np.int64)
+                lclip = np.maximum(lengths, 1)
+                total_bits = lclip * 32
+                sim = (total_bits - csum[rows, lclip - 1]) / total_bits
+                sim[lengths <= 0] = 0.0
+                sims.append(sim)
+            return starts, ends, sims
+
+        run_starts = None
+        run_ends = None
+        run_sims = None
+        run_j = 0
+
+        while position < scan_limit:
             action, last_log_time = self._scan_preamble(
                 scan_start_time, last_log_time, position, total_duration,
                 timeout, len(matches), cancel_event
@@ -1000,20 +1070,22 @@ class AudioFingerprinter:
             if action != "continue":
                 break
 
-            # Compute indices into raw_ints for current window (avoid list copy)
-            start_idx = int(position * ints_per_second)
-            end_idx = int((position + FINGERPRINT_CHUNK_SIZE) * ints_per_second)
-            end_idx = min(end_idx, len(raw_ints))
+            if run_starts is None or run_j >= len(run_starts):
+                run_starts, run_ends, run_sims = _batch_run(position)
+                run_j = 0
+
+            start_idx = int(run_starts[run_j])
+            end_idx = int(run_ends[run_j])
 
             if end_idx - start_idx < 4:
                 position += SLIDING_STEP_SIZE
+                run_j += 1
                 continue
 
             matched = False
-            for pattern_id, known_ints, known_duration, sponsor in decoded_known:
-                similarity = self._calculate_similarity(
-                    raw_ints, known_ints, fp1_start=start_idx, fp1_end=end_idx
-                )
+            for pattern_pos, (pattern_id, _known_ints, known_duration,
+                              sponsor) in enumerate(decoded_known):
+                similarity = float(run_sims[pattern_pos][run_j])
 
                 if similarity >= MATCH_THRESHOLD:
                     match = FingerprintMatch(
@@ -1030,10 +1102,14 @@ class AudioFingerprinter:
                     )
                     position += known_duration
                     matched = True
+                    # The jump leaves the batched step grid; rebatch from the
+                    # new position on the next iteration.
+                    run_starts = None
                     break
 
             if not matched:
                 position += SLIDING_STEP_SIZE
+                run_j += 1
 
         matches = self._merge_overlapping_matches(matches)
 

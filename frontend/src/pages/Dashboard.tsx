@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
+import { btnPrimary, btnSecondary } from '../components/buttonStyles';
 
 function Dashboard() {
   const queryClient = useQueryClient();
@@ -104,7 +105,7 @@ function Dashboard() {
                 className={`p-2 transition-colors ${
                   viewMode === 'grid'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    : btnSecondary
                 }`}
                 aria-label="Grid view"
                 title="Grid view"
@@ -118,7 +119,7 @@ function Dashboard() {
                 className={`p-2 transition-colors ${
                   viewMode === 'list'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    : btnSecondary
                 }`}
                 aria-label="List view"
                 title="List view"
@@ -134,7 +135,7 @@ function Dashboard() {
                 className={`p-2 transition-colors ${
                   sortBy === 'recent'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    : btnSecondary
                 }`}
                 aria-label="Sort by recent"
                 title="Sort by most recent episode"
@@ -148,7 +149,7 @@ function Dashboard() {
                 className={`p-2 transition-colors ${
                   sortBy === 'title'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    : btnSecondary
                 }`}
                 aria-label="Sort by title"
                 title="Sort alphabetically"
@@ -168,7 +169,7 @@ function Dashboard() {
                 <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
               </>
             }
-            triggerClassName="p-2 sm:px-4 sm:py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+            triggerClassName={`p-2 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             items={[
@@ -186,7 +187,7 @@ function Dashboard() {
           />
           <Link
             to="/add"
-            className="p-2 sm:px-4 sm:py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className={`p-2 sm:px-4 sm:py-2 rounded ${btnPrimary} transition-colors`}
             title="Add Feed"
           >
             <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -202,7 +203,7 @@ function Dashboard() {
           <p className="text-muted-foreground mb-4">No feeds added yet</p>
           <Link
             to="/add"
-            className="inline-block px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className={`inline-block px-4 py-2 rounded ${btnPrimary} transition-colors`}
           >
             Add Your First Feed
           </Link>

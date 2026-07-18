@@ -3,12 +3,11 @@ import sqlite3
 import threading
 import logging
 from pathlib import Path
-from typing import Optional
 
 from database.schema import SchemaMixin
 from database.podcasts import PodcastMixin
 from database.episodes import EpisodeMixin
-from database.settings import SettingsMixin, DEFAULT_MODEL_PRICING
+from database.settings import SettingsMixin
 from database.patterns import PatternMixin
 from database.sponsors import SponsorMixin
 from database.stats import StatsMixin
@@ -143,6 +142,8 @@ KEEP THE AD (return one segment): The candidate is a real-world advertisement th
 - Start should land at or just before the first promotional word or transition phrase ("let's take a break", "and now a word from", "this episode is brought to you by")
 - End should land at or just after the last call to action (final URL, promo code, sign-off), not in the middle of show content that follows
 - Adjusted boundaries must stay within {max_boundary_shift_seconds} seconds of the original boundaries in either direction
+
+PARTIAL SPAN: if any part of the candidate span is not ad content (show content before the ad starts or after it ends), you MUST return adjusted start and end timestamps covering only the ad portion. Never return the original boundaries and describe the trim only in the "reason" text: the reason is prose for a human, and only the start and end numbers control the cut.
 
 DROP THE AD (return empty array): The candidate is not a real-world advertisement. Reject cases:
 - A guest discussing their own work, book, or project in the context of the interview

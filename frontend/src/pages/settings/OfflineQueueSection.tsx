@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { getErrorMessage } from '../../api/client';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getOfflineQueueSettings,
   updateOfflineQueueSettings,
 } from '../../api/settings';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import SavedBadge from './SavedBadge';
 
 interface Draft {
   enabled?: boolean;
@@ -32,8 +35,7 @@ function OfflineQueueSection() {
       setDraft({});
       qc.invalidateQueries({ queryKey: ['offlineQueue'] });
     },
-    onError: (e: unknown) =>
-      setSaveError(e instanceof Error ? e.message : 'Save failed'),
+    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
   });
 
   return (
@@ -53,7 +55,7 @@ function OfflineQueueSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
+            className={`px-4 py-2 rounded-lg ${btnSecondary} text-sm`}
           >
             Retry
           </button>
@@ -121,13 +123,11 @@ function OfflineQueueSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-sm"
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
-            {save.isSuccess && (
-              <span className="ml-1 text-sm text-green-600 dark:text-green-400">Saved</span>
-            )}
+            {save.isSuccess && <SavedBadge className="ml-1" />}
           </div>
         </div>
       )}

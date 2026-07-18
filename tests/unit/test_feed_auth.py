@@ -4,30 +4,12 @@ require_feed_key route decorator (2.33.0).
 The decorator reads the real main_app.db singleton (lazy import), so this file
 uses the standard test-data-dir bootstrap and drives the setting rows directly.
 """
-import atexit
-import os
-import shutil
-import sys
-import tempfile
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='feed_auth_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage._instance = None
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
-
+_test_data_dir = bootstrap('feed_auth_test_', reset_storage=True)
 from flask import Flask
 
 from main_app import db

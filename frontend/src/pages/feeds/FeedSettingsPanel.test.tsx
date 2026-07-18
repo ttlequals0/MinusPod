@@ -16,9 +16,13 @@ import FeedSettingsPanel from './FeedSettingsPanel';
 import type { Feed } from '../../api/types';
 
 // CollapsibleSection defaults closed; render children unconditionally.
-vi.mock('../../components/CollapsibleSection', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/CollapsibleSection')>();
+  return {
+    useCollapsibleOpen: actual.useCollapsibleOpen,
+    default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  };
+});
 
 const mockUpdateFeed = vi.fn();
 

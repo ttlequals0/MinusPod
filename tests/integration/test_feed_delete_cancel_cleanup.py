@@ -49,7 +49,9 @@ def test_cancel_missing_episode_returns_200_not_404(app_client):
     """Cancelling an episode whose row is gone tears down the job (200)."""
     from processing_queue import ProcessingQueue
 
-    slug, ep = 'gone-feed', 'gone-ep'
+    # episode_id must be 12-char hex: the API now 400s malformed ids at the
+    # URL layer (is_valid_episode_id) before the route body runs.
+    slug, ep = 'gone-feed', 'abcdef012345'
     ProcessingQueue().acquire(slug, ep)
     event = _register_event(slug, ep)
 

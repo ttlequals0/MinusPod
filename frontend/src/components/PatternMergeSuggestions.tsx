@@ -5,6 +5,8 @@ import {
   mergePatterns,
   type MergeSuggestion,
 } from '../api/patterns';
+import { btnPrimary } from './buttonStyles';
+import { getErrorMessage } from '../api/client';
 
 // Same-sponsor near-duplicate clusters the backend precomputes (#399). The
 // frontend only renders them and triggers the fold; it never computes
@@ -53,7 +55,7 @@ function SuggestionCard({
       await queryClient.invalidateQueries({ queryKey: ['merge-suggestions'] });
       onMerged();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Merge failed');
+      setError(getErrorMessage(e, 'Merge failed'));
     } finally {
       setBusy(false);
     }
@@ -68,7 +70,7 @@ function SuggestionCard({
         <button
           onClick={doMerge}
           disabled={busy || mergeIds.length === 0}
-          className="px-3 py-1.5 text-sm rounded-lg font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className={`px-3 py-1.5 text-sm rounded-lg font-medium ${btnPrimary} disabled:opacity-50`}
         >
           {busy
             ? 'Merging...'

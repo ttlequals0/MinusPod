@@ -1,24 +1,14 @@
 """Integration tests for the response-shape security improvements:
 health liveness probe, X-Request-ID round-trip, baseline security headers.
 """
-import os
-import sys
-import tempfile
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='sechdr_test_')
-os.environ.setdefault('SECRET_KEY', 'sechdr-test-secret')
-os.environ.setdefault('DATA_DIR', _test_data_dir)
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('sechdr_test_', secret_key='sechdr-test-secret')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app
 
 

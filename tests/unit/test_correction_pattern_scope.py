@@ -8,31 +8,18 @@ already pass the slug; this test pins the two correction paths
 can't regress to writing the numeric id.
 """
 import json
-import os
-import sys
-import tempfile
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='corr_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('corr_test_')
 from main_app import app
 
 
 SLUG = 'my-test-podcast'
-EPISODE_ID = 'ep-001'
+EPISODE_ID = 'abc123def001'  # 12-hex: blueprint guard 400s malformed episode ids
 NUMERIC_PODCAST_ID = 42
 TRANSCRIPT_TEXT = (
     "[00:00:00.000 --> 00:01:00.000] This episode is brought to you by "

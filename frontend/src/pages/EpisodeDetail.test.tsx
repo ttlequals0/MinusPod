@@ -30,14 +30,18 @@ vi.mock('../components/AdEditor', () => ({
 vi.mock('../components/PatternLink', () => ({
   default: ({ reason }: { reason: string }) => <span>{reason}</span>,
 }));
-vi.mock('../components/CollapsibleSection', () => ({
-  default: ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div>
-      <div>{title}</div>
-      {children}
-    </div>
-  ),
-}));
+vi.mock('../components/CollapsibleSection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../components/CollapsibleSection')>();
+  return {
+    useCollapsibleOpen: actual.useCollapsibleOpen,
+    default: ({ title, children }: { title: string; children: React.ReactNode }) => (
+      <div>
+        <div>{title}</div>
+        {children}
+      </div>
+    ),
+  };
+});
 vi.mock('../components/CueDetectionsSection', () => ({
   default: () => <div data-testid="cue-detections" />,
 }));
@@ -56,6 +60,7 @@ vi.mock('../components/Artwork', () => ({
 
 vi.mock('../hooks/useLocalStorageState', () => ({
   useLocalStorageState: (_key: string, initial: unknown) => [initial, vi.fn()],
+  readStoredValue: (_key: string, fallback: unknown) => fallback,
 }));
 
 vi.mock('../utils/confidence', () => ({

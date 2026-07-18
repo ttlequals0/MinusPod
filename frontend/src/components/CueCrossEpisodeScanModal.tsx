@@ -12,7 +12,7 @@ import {
 } from '../api/cueTemplates';
 import { episodeOriginalUrl, getEpisode, getEpisodes } from '../api/feeds';
 import type { Episode } from '../api/types';
-import { formatTimestamp } from '../utils/format';
+import { formatDate, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 
 const PICKER_PAGE_SIZE = 50;
@@ -218,7 +218,7 @@ export default function CueCrossEpisodeScanModal({
                             )}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {ep.published ? new Date(ep.published).toLocaleDateString() : 'unknown date'}
+                            {ep.published ? formatDate(ep.published) : 'unknown date'}
                             {typeof ep.duration === 'number' && ep.duration > 0
                               ? ` - ${Math.round(ep.duration / 60)} min` : ''}
                           </p>

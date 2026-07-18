@@ -1,27 +1,15 @@
 """Unit tests for settings API validation (OpenRouter key format)."""
 import os
-import sys
-import tempfile
 import json
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-# Create temp data dir and set env before any imports that touch /app/data
-_test_data_dir = tempfile.mkdtemp(prefix='settings_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
-os.environ['MINUSPOD_MASTER_PASSPHRASE'] = 'settings-validation-test-passphrase'
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('settings_test_', passphrase='settings-validation-test-passphrase')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app
 
 
@@ -687,7 +675,6 @@ class TestSizeCapPutAtomicity:
             "A 400 must not leave earlier caps in the payload persisted"
 
     def test_defaults_blob_is_clamped(self, client):
-        import os
         os.environ['MINUSPOD_MAX_ARTWORK_BYTES'] = '1000'
         try:
             data = json.loads(client.get('/api/v1/settings').data)

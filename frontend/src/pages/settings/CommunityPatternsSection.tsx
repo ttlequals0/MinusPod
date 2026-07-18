@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { getErrorMessage } from '../../api/client';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getCommunitySyncSettings,
@@ -8,6 +9,8 @@ import {
   triggerCommunitySync,
   purgeAllCommunityPatterns,
 } from '../../api/community';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import SavedBadge from './SavedBadge';
 
 interface Draft {
   enabled?: boolean;
@@ -36,8 +39,7 @@ function CommunityPatternsSection() {
       setDraft({});
       qc.invalidateQueries({ queryKey: ['communitySync'] });
     },
-    onError: (e: unknown) =>
-      setCronError(e instanceof Error ? e.message : 'Save failed'),
+    onError: (e: unknown) => setCronError(getErrorMessage(e, 'Save failed')),
   });
 
   const syncNow = useMutation({
@@ -124,7 +126,7 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-sm"
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -132,13 +134,11 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => syncNow.mutate()}
               disabled={syncNow.isPending || !data?.enabled}
-              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 text-sm"
+              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
             >
               {syncNow.isPending ? 'Syncing...' : 'Sync now'}
             </button>
-            {save.isSuccess && (
-              <span className="ml-1 text-sm text-green-600 dark:text-green-400">Saved</span>
-            )}
+            {save.isSuccess && <SavedBadge className="ml-1" />}
             {syncNow.isError && (
               <span className="ml-1 text-sm text-red-600 dark:text-red-400">
                 {(syncNow.error as Error)?.message || 'Sync failed'}
@@ -193,7 +193,7 @@ function CommunityPatternsSection() {
                   type="button"
                   onClick={() => setConfirmPurge(false)}
                   disabled={purge.isPending}
-                  className="px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 text-sm"
+                  className={`px-3 py-1.5 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
                 >
                   Cancel
                 </button>
@@ -208,7 +208,7 @@ function CommunityPatternsSection() {
               </button>
             )}
             {purgeResult && (
-              <p className={`text-sm ${purgeResult.startsWith('Purge failed') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+              <p className={`text-sm ${purgeResult.startsWith('Purge failed') ? 'text-destructive' : 'text-success'}`}>
                 {purgeResult}
               </p>
             )}

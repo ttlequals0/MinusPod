@@ -65,7 +65,7 @@ def _fire_limit_exceeded_webhook(error, model):
         logger.exception("Failed to fire limit-exceeded webhook")
 
 
-def call_llm_for_window(
+def call_llm(
     *,
     llm_client,
     model: str,
@@ -76,12 +76,17 @@ def call_llm_for_window(
     max_tokens: int,
     slug: Optional[str],
     episode_id: Optional[str],
-    window_label: str,
+    call_label: str,
     temperature: float = 0.0,
     reasoning_effort: Optional[Union[int, str]] = None,
     pass_name: Optional[str] = None,
+    response_format: Optional[dict] = None,
 ) -> Tuple[Optional[object], Optional[Exception]]:
-    """Call LLM with primary retry + per-window fallback retry.
+    """Call LLM with primary retry + secondary fallback retry.
+
+    Generic seam shared by ad detection/review (via ``call_llm_for_window``)
+    and chapters generation. Never raises: all failures come back as the
+    second tuple element so callers can degrade gracefully.
 
     Returns:
         Tuple of (response, last_error). response is None if all retries failed.
@@ -93,7 +98,7 @@ def call_llm_for_window(
         system=system_prompt,
         messages=[{"role": "user", "content": prompt}],
         timeout=llm_timeout,
-        response_format={"type": "json_object"},
+        response_format=response_format,
         reasoning_effort=reasoning_effort,
         episode_id=episode_id,
         pass_name=pass_name,
@@ -117,7 +122,7 @@ def call_llm_for_window(
                     + " exhausted; retry tomorrow, raise the tier, or switch provider."
                 )
                 logger.warning(
-                    f"[{slug}:{episode_id}] {window_label} daily quota exhausted: {actionable}"
+                    f"[{slug}:{episode_id}] {call_label} daily quota exhausted: {actionable}"
                 )
                 # Cannot recover within this run; excluded from the retry paths.
                 last_error = StructuralRateLimitError(actionable)
@@ -135,7 +140,7 @@ def call_llm_for_window(
                     f"or change provider/tier."
                 )
                 logger.warning(
-                    f"[{slug}:{episode_id}] {window_label} structural rate limit: {actionable}"
+                    f"[{slug}:{episode_id}] {call_label} structural rate limit: {actionable}"
                 )
                 # StructuralRateLimitError is excluded from is_retryable_error so
                 # the post-loop secondary retry path skips it.
@@ -150,7 +155,7 @@ def call_llm_for_window(
                 break
             if is_limit_exceeded_error(e):
                 logger.warning(
-                    f"[{slug}:{episode_id}] {window_label} provider limit exceeded: {e}"
+                    f"[{slug}:{episode_id}] {call_label} provider limit exceeded: {e}"
                 )
                 _fire_limit_exceeded_webhook(e, model)
                 # is_retryable_error excludes limit-exceeded errors, so the
@@ -166,18 +171,18 @@ def call_llm_for_window(
                         delay = calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)
                         source = "backoff"
                     logger.warning(
-                        f"[{slug}:{episode_id}] {window_label} rate limit ({source}), "
+                        f"[{slug}:{episode_id}] {call_label} rate limit ({source}), "
                         f"waiting {delay:.1f}s"
                     )
                 else:
                     delay = calculate_backoff(attempt)
                     logger.warning(
-                        f"[{slug}:{episode_id}] {window_label} API error: {e}. "
+                        f"[{slug}:{episode_id}] {call_label} API error: {e}. "
                         f"Retrying in {delay:.1f}s"
                     )
                 time.sleep(delay)
                 continue
-            logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
+            logger.warning(f"[{slug}:{episode_id}] {call_label} failed: {e}")
             if is_auth_error(e):
                 from webhook_service import fire_auth_failure_event
                 provider = get_effective_provider()
@@ -190,20 +195,20 @@ def call_llm_for_window(
     if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, delay in enumerate([2, 5], 1):
             logger.warning(
-                f"[{slug}:{episode_id}] {window_label} per-window retry "
+                f"[{slug}:{episode_id}] {call_label} per-window retry "
                 f"{retry_num}/2 after {delay}s backoff"
             )
             time.sleep(delay)
             try:
                 response = _call_once(llm_client, llm_kwargs, model)
                 logger.info(
-                    f"[{slug}:{episode_id}] {window_label} succeeded on retry {retry_num}"
+                    f"[{slug}:{episode_id}] {call_label} succeeded on retry {retry_num}"
                 )
                 return response, None
             except Exception as e:
                 last_error = e
                 logger.warning(
-                    f"[{slug}:{episode_id}] {window_label} retry {retry_num} failed: {e}"
+                    f"[{slug}:{episode_id}] {call_label} retry {retry_num} failed: {e}"
                 )
                 # A limit can trip mid-retry (the main loop only saw the
                 # transient error); alert and stop the pointless second try.
@@ -212,3 +217,14 @@ def call_llm_for_window(
                     break
 
     return None, last_error
+
+
+def call_llm_for_window(
+    *, window_label: str, **kwargs
+) -> Tuple[Optional[object], Optional[Exception]]:
+    """Detection-window flavor of ``call_llm``: JSON-object response format."""
+    return call_llm(
+        call_label=window_label,
+        response_format={"type": "json_object"},
+        **kwargs,
+    )

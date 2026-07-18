@@ -6,8 +6,10 @@ import {
   testWebhook, validateTemplate,
 } from '../../api/settings';
 import type { Webhook, WebhookPayload } from '../../api/settings';
+import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -43,7 +45,10 @@ function WebhooksBlock() {
   const [form, setForm] = useState<WebhookFormData>({ ...emptyForm });
   const [showSecret, setShowSecret] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
+  // One transient result at a time; auto-clears 4s after the last test.
+  const [testResult, setTestResult] = useTransientState<
+    { id: string; success: boolean; message: string } | null
+  >(null, 4000);
   const [templatePreview, setTemplatePreview] = useState<{ valid: boolean; preview: string; error: string | null } | null>(null);
   const [validating, setValidating] = useState(false);
 
@@ -77,26 +82,8 @@ function WebhooksBlock() {
 
   const testMutation = useMutation({
     mutationFn: (id: string) => testWebhook(id),
-    onSuccess: (data, id) => {
-      setTestResults((prev) => ({ ...prev, [id]: data }));
-      setTimeout(() => {
-        setTestResults((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-      }, 4000);
-    },
-    onError: (_err, id) => {
-      setTestResults((prev) => ({ ...prev, [id]: { success: false, message: 'Request failed' } }));
-      setTimeout(() => {
-        setTestResults((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-      }, 4000);
-    },
+    onSuccess: (data, id) => setTestResult({ id, ...data }),
+    onError: (_err, id) => setTestResult({ id, success: false, message: 'Request failed' }),
   });
 
   function resetForm() {
@@ -206,7 +193,7 @@ function WebhooksBlock() {
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded ${
                       wh.enabled
-                        ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                        ? 'bg-green-500/10 text-success'
                         : 'bg-muted text-muted-foreground'
                     }`}
                   >
@@ -226,13 +213,13 @@ function WebhooksBlock() {
                     );
                   })}
                 </div>
-                {testResults[wh.id] && (
+                {testResult?.id === wh.id && (
                   <p
                     className={`text-xs mt-1 ${
-                      testResults[wh.id].success ? 'text-green-500' : 'text-destructive'
+                      testResult.success ? 'text-green-500' : 'text-destructive'
                     }`}
                   >
-                    {testResults[wh.id].message}
+                    {testResult.message}
                   </p>
                 )}
               </div>
@@ -241,13 +228,13 @@ function WebhooksBlock() {
                 <button
                   onClick={() => testMutation.mutate(wh.id)}
                   disabled={testMutation.isPending}
-                  className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
                 >
                   Test
                 </button>
                 <button
                   onClick={() => startEdit(wh)}
-                  className="px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors`}
                 >
                   Edit
                 </button>
@@ -273,7 +260,7 @@ function WebhooksBlock() {
             setShowForm(true);
             setTemplatePreview(null);
           }}
-          className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm"
+          className={`px-4 py-2 rounded ${btnPrimary} transition-colors text-sm`}
         >
           Add Webhook
         </button>
@@ -344,7 +331,7 @@ function WebhooksBlock() {
                 type="button"
                 onClick={handleValidateTemplate}
                 disabled={validating || !form.payloadTemplate.trim()}
-                className="px-3 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                className={`px-3 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
               >
                 {validating ? 'Validating...' : 'Validate & Preview'}
               </button>
@@ -353,7 +340,7 @@ function WebhooksBlock() {
               <div
                 className={`mt-2 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap ${
                   templatePreview.valid
-                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    ? 'bg-green-500/10 text-success'
                     : 'bg-destructive/10 text-destructive'
                 }`}
               >
@@ -424,14 +411,14 @@ function WebhooksBlock() {
             <button
               type="submit"
               disabled={isSaving || form.events.length === 0}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
             >
               {isSaving ? 'Saving...' : editingId ? 'Update Webhook' : 'Create Webhook'}
             </button>
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm"
+              className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors text-sm`}
             >
               Cancel
             </button>

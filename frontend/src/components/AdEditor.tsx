@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 import type { PatternScope } from '../api/patterns';
+import { btnGhost, btnPrimary } from './buttonStyles';
 
 export interface DetectedAd {
   start: number;
@@ -51,9 +52,9 @@ interface AdEditorProps {
 export type { AdReviewItem };
 
 const ADD_BUTTON_BTN =
-  'px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm transition-colors hover:bg-primary/90';
+  `px-3 py-1.5 rounded-lg ${btnPrimary} text-sm transition-colors`;
 const GHOST_BTN =
-  'text-muted-foreground transition-colors hover:text-foreground hover:bg-accent';
+  `${btnGhost} transition-colors`;
 
 export function AdEditor({
   detectedAds,

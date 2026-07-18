@@ -7,6 +7,7 @@ from itertools import combinations
 from config import count_pending_review, is_pending_review
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
+from pattern_service import PatternService
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
@@ -953,7 +954,7 @@ def _maybe_rewrite_pattern_from_adjustment(
         logger.warning(f"Reviewer-trim auto-update failed for pattern {pattern_id}: {e}")
 
 
-def _handle_adjust_correction(db, slug, episode_id, original_ad, data):
+def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad, data):
     """Handle correction_type='adjust' (stored as 'boundary_adjustment')."""
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -973,8 +974,6 @@ def _handle_adjust_correction(db, slug, episode_id, original_ad, data):
         adjusted_text = extract_transcript_segment(transcript, adjusted_start, adjusted_end)
 
     if pattern_id:
-        from pattern_service import PatternService
-        pattern_service = PatternService(db)
         pattern_service.record_pattern_match(pattern_id, episode_id)
         logger.info(f"Recorded adjustment as confirmation for pattern {pattern_id}")
 
@@ -983,8 +982,6 @@ def _handle_adjust_correction(db, slug, episode_id, original_ad, data):
             original_start, original_end, adjusted_start, adjusted_end,
         )
     elif adjusted_text and len(adjusted_text) >= 50:
-        from pattern_service import PatternService
-        pattern_service = PatternService(db)
         pattern_id = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
@@ -1024,7 +1021,6 @@ def submit_correction(slug, episode_id):
         return error_response('Invalid correction type', 400)
 
     # Get pattern service for recording corrections
-    from pattern_service import PatternService
     pattern_service = PatternService(db)
 
     # 'create' marks a brand-new ad on an episode the LLM missed. Boundaries
@@ -1047,7 +1043,9 @@ def submit_correction(slug, episode_id):
     elif correction_type == 'reject':
         return _handle_reject_correction(db, slug, episode_id, original_ad)
     elif correction_type == 'adjust':
-        return _handle_adjust_correction(db, slug, episode_id, original_ad, data)
+        return _handle_adjust_correction(
+            db, pattern_service, slug, episode_id, original_ad, data
+        )
 
     # Exhaustive above: the earlier correction_type guard restricts values to
     # create/confirm/reject/adjust. Kept as a defensive backstop so a future

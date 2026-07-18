@@ -1,21 +1,18 @@
 """REST API for MinusPod web UI."""
-import json
 import logging
 import os
 import re
 import time
-from datetime import datetime, timezone
 from typing import Optional
-from flask import Blueprint, abort, jsonify, request, Response, session
+from flask import Blueprint, abort, jsonify, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 
 from config import normalize_model_key
-from utils.time import parse_timestamp
+from utils.http import client_ip
 from utils.text import extract_text_in_range
 from sponsor_service import SponsorService
-from cancel import cancel_processing
 
 logger = logging.getLogger('podcast.api')
 
@@ -171,18 +168,30 @@ def get_feed_auth_key(db):
 
 @api.url_value_preprocessor
 def _guard_slug_param(_endpoint, values):
-    """Reject dangerous slugs on every /api/v1/* route that takes one.
+    """Reject dangerous slugs and malformed episode ids on every /api/v1/*
+    route that takes them.
 
-    Reads use :func:`is_dangerous_slug` (accepts legacy uppercase /
+    Slug reads use :func:`is_dangerous_slug` (accepts legacy uppercase /
     underscore subscription URLs while still blocking traversal).
-    Writes use :func:`is_valid_slug` (strict canonical regex) so a
+    Slug writes use :func:`is_valid_slug` (strict canonical regex) so a
     typo'd slug fails at 400 instead of making it to storage. Public
     ``/<slug>`` RSS and ``/episodes/<slug>/...`` routes are registered
     at the app level and handled by the storage-layer slug guard instead.
+
+    ``episode_id`` path params are checked with :func:`is_valid_episode_id`
+    (12-char MD5 hex): a strict check is needed because ``.isalnum()``
+    accepts Unicode lookalikes. Centralized here so no per-route check can
+    be forgotten; episode ids arriving in JSON bodies are still validated
+    at the route level.
     """
-    if not values or 'slug' not in values:
+    if not values:
         return
-    from utils.validation import is_valid_slug, is_dangerous_slug
+    from utils.validation import (is_valid_slug, is_dangerous_slug,
+                                  is_valid_episode_id)
+    if 'episode_id' in values and not is_valid_episode_id(values['episode_id']):
+        abort(400, description='invalid episode id')
+    if 'slug' not in values:
+        return
     slug = values['slug']
     method = request.method
     if method in ('GET', 'HEAD', 'OPTIONS'):
@@ -198,18 +207,18 @@ def log_request(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         start_time = time.time()
-        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        ip = client_ip()
         user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
 
         try:
             result = f(*args, **kwargs)
             elapsed = (time.time() - start_time) * 1000  # ms
             status = result.status_code if hasattr(result, 'status_code') else 200
-            logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{client_ip}] [{user_agent}]")
+            logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
             return result
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
+            logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
             raise
     return decorated
 
@@ -247,6 +256,29 @@ def error_response(message, status=400, details=None):
         else:
             data['details'] = details
     return json_response(data, status)
+
+
+def _resolve_original_audio(db, storage, slug, episode_id, self_heal=False):
+    """Resolve an episode's retained original audio path.
+
+    Returns ``(audio_path, None)`` on success or ``(None, error_response)`` when
+    the episode is unknown, has no retained original, or the file is missing.
+    Shared by the original-audio/peaks routes and the cue-template routes, which
+    all require the original (un-cut) audio. With ``self_heal=True``, a missing
+    file also clears the stale ``original_file`` column (original-only retention
+    sweeps before 2.52.0 could leave it set) so the UI stops offering actions
+    that can only 404. Cue-template routes leave self-heal off: a transiently
+    unreadable file must not permanently NULL the column.
+    """
+    episode = db.get_episode(slug, episode_id)
+    if not episode or not episode.get('original_file'):
+        return None, error_response('Original audio not retained for this episode', 404)
+    audio_path = storage.get_original_path(slug, episode_id)
+    if not audio_path.exists():
+        if self_heal:
+            db.upsert_episode(slug, episode_id, original_file=None)
+        return None, error_response('Original audio file missing', 404)
+    return audio_path, None
 
 
 # Alias for backward compatibility

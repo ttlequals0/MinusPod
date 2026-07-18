@@ -4,7 +4,9 @@ import LanguageCombobox from '../../components/LanguageCombobox';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ProviderKeyField from './ProviderKeyField';
+import SavedBadge from './SavedBadge';
 import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
+import { btnPrimary } from '../../components/buttonStyles';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -325,13 +327,11 @@ function TranscriptionSection({
             <button
               onClick={onTimeoutsSave}
               disabled={timeoutsSaveIsPending}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
             >
               {timeoutsSaveIsPending ? 'Saving...' : 'Save Timeouts'}
             </button>
-            {timeoutsSaveIsSuccess && !timeoutsError && (
-              <span className="text-sm text-green-600 dark:text-green-400">Saved</span>
-            )}
+            {timeoutsSaveIsSuccess && !timeoutsError && <SavedBadge />}
             {timeoutsError && (
               <span className="text-sm text-red-600 dark:text-red-400">{timeoutsError}</span>
             )}

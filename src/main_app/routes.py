@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import secrets
+import threading
 import time
 from datetime import datetime, timezone
 from functools import wraps
@@ -50,27 +51,56 @@ from utils.opml import build_opml_xml
 STATIC_DIR = None
 ROOT_DIR = None
 
+# Stale-while-revalidate guard: at most one in-flight background refresh
+# thread per slug. refresh_rss_feed's 30 s coalesce window in feeds.py
+# additionally dedupes the upstream fetch against the scheduler.
+_bg_refresh_inflight = set()
+_bg_refresh_lock = threading.Lock()
+
+
+def _kick_background_refresh(slug, feed_url):
+    """Run refresh_rss_feed on a daemon thread so serve_rss can return
+    cached bytes immediately instead of blocking on the upstream fetch."""
+    with _bg_refresh_lock:
+        if slug in _bg_refresh_inflight:
+            return
+        _bg_refresh_inflight.add(slug)
+
+    def _run():
+        try:
+            # Import at call time so tests patching main_app.feeds see it
+            from main_app.feeds import refresh_rss_feed
+            refresh_rss_feed(slug, feed_url)
+        except Exception:
+            refresh_logger.exception(f"[{slug}] Background RSS refresh failed")
+        finally:
+            with _bg_refresh_lock:
+                _bg_refresh_inflight.discard(slug)
+
+    threading.Thread(target=_run, name=f"rss-bg-refresh-{slug}",
+                     daemon=True).start()
+
 
 def log_request_detailed(f):
     """Decorator to log requests with detailed info (IP, user-agent, response time)."""
     @wraps(f)
     def decorated(*args, **kwargs):
         start_time = time.time()
-        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        ip = client_ip()
         user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
 
         try:
             result = f(*args, **kwargs)
             elapsed = (time.time() - start_time) * 1000  # ms
             status = result.status_code if hasattr(result, 'status_code') else 200
-            feed_logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{client_ip}] [{user_agent}]")
+            feed_logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{ip}] [{user_agent}]")
             return result
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             if isinstance(e, NotFound):
-                feed_logger.warning(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{client_ip}] - {e}")
+                feed_logger.warning(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{ip}] - {e}")
             else:
-                feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
+                feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
             raise
     return decorated
 
@@ -284,8 +314,19 @@ def register_routes(app):
                 should_refresh = True
 
         if should_refresh:
-            refresh_rss_feed(slug, feed_map[slug]['in'], force=force_refresh)
-            cached_rss = storage.get_rss(slug)
+            if force_refresh or not cached_rss:
+                # No serveable cache (missing, BASE_URL mismatch, or feed-key
+                # mismatch): the client must wait for the synchronous refresh.
+                refresh_rss_feed(slug, feed_map[slug]['in'], force=force_refresh)
+                cached_rss = storage.get_rss(slug)
+            else:
+                # Stale-while-revalidate: valid cached RSS exists, only the
+                # 15-min freshness window lapsed. Serve the cached bytes now
+                # and refresh in the background instead of blocking the
+                # subscriber on the upstream fetch + rebuild.
+                feed_logger.info(
+                    f"[{slug}] Serving cached RSS, refresh kicked to background")
+                _kick_background_refresh(slug, feed_map[slug]['in'])
 
         if cached_rss:
             feed_logger.info(f"[{slug}] Serving RSS feed")
