@@ -6,7 +6,6 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('cue_advisory_api_test_', passphrase='cue-advisory-api-test-passphrase')
 
-import database
 from main_app import app
 
 from database import Database

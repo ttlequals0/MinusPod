@@ -8,7 +8,6 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('cue_dismiss_api_test_', passphrase='cue-dismiss-api-test-passphrase')
 
-import database
 from main_app import app
 
 from database import Database

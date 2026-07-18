@@ -675,7 +675,6 @@ class TestSizeCapPutAtomicity:
             "A 400 must not leave earlier caps in the payload persisted"
 
     def test_defaults_blob_is_clamped(self, client):
-        import os
         os.environ['MINUSPOD_MAX_ARTWORK_BYTES'] = '1000'
         try:
             data = json.loads(client.get('/api/v1/settings').data)
