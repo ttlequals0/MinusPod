@@ -14,6 +14,7 @@ from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_NO_SPLICE, VETO_MIN_CUT_SECONDS,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     is_cue_backed,
 )
@@ -738,6 +739,16 @@ class AdValidator:
                     self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
                     return Decision.REVIEW
 
+        # Rule 5: uncorroborated cross-fetch differential (#541) -> held for
+        # review, never solo-cut. Ordered before the cue gate so the hold
+        # carries its specific reason. Corroborated regions had the flag
+        # cleared in _merge_detection_results and cut normally.
+        if (decision != Decision.REJECT
+                and ad.get('detection_stage') == 'dai_differential'
+                and ad.get('differential_uncorroborated')):
+            self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
+            return Decision.REVIEW
+
         # Rule 2: cue-gated approval. Only applies to ACCEPT after rule 1.
         # is_cue_backed treats manual markers as exempt (human decision).
         if self.cue_gate_enabled and decision == Decision.ACCEPT:
@@ -882,6 +893,13 @@ class AdValidator:
         for current in sorted_ads[1:]:
             last = merged[-1]
             gap = current['start'] - last['end']
+
+            # #541: never merge across the held-differential boundary --
+            # the fold would hold the real ad or cut the held span.
+            if (bool(last.get('differential_uncorroborated'))
+                    != bool(current.get('differential_uncorroborated'))):
+                merged.append(current.copy())
+                continue
 
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)

@@ -126,6 +126,27 @@ def test_gate_on_fetches_and_persists():
     assert saved == _RESULT
 
 
+def test_unreliable_reencode_status_persists_with_zero_regions():
+    # FIX 1 (#541): align_and_diff can discard a whole-file re-encode by
+    # returning status 'unreliable_reencode' with no regions. The pipeline must
+    # record it and treat it as "no differential" (diff_count 0) without error.
+    unreliable = {'status': 'unreliable_reencode', 'regions': [],
+                  'refetch_meta': {'ua': 'Overcast/3.0'}, 'error': None}
+    mock_fetch = MagicMock(return_value=unreliable)
+    with patch('main_app.processing.resolve_differential_fetch_setting',
+               return_value=True), \
+         patch('main_app.processing.fetch_and_diff', mock_fetch), \
+         patch.object(processing.status_service, 'update_job_stage'), \
+         patch.object(processing.db, 'save_episode_dai_differential') as mock_save:
+        result = processing._run_differential_fetch(
+            'feed', 'ep1', 'https://example.com/e.mp3', '/tmp/a.mp3', 7)
+    assert result['status'] == 'unreliable_reencode'
+    assert result['regions'] == []
+    saved = json.loads(mock_save.call_args.args[2])
+    assert saved['status'] == 'unreliable_reencode'
+    assert saved['regions'] == []
+
+
 def test_unexpected_error_recorded_not_raised():
     with patch('main_app.processing.resolve_differential_fetch_setting',
                return_value=True), \

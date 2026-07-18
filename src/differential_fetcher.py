@@ -89,6 +89,14 @@ XCORR_SEARCH_S = 2.0
 XCORR_MIN_CORR = 0.75
 # Differential regions shorter than this are alignment noise, not fills.
 MIN_REGION_S = 1.0
+# Whole-file re-encode guard (#541): a CDN re-encode on the refetch stops
+# identical content from correlating, so nearly the whole run falls to the
+# differential complement. Discard only when BOTH >70% reads as differing
+# (a real show is almost never >70% ads) AND identical coverage is <15%
+# (the aligner never locked on) -- requiring both keeps a genuinely
+# ad-heavy but correctly-aligned episode's discrete ads.
+DIFFERENTIAL_MAX_FRACTION = 0.7
+IDENTICAL_MIN_FRACTION = 0.15
 # ffmpeg decode guard.
 DECODE_TIMEOUT_S = 600
 
@@ -210,11 +218,14 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
     """Align two fetches of one episode and diff them.
 
     Pure over file paths (ffmpeg + numpy, no network). Returns
-    {'status': 'ok' | 'no_differential', 'regions': [...]} with regions in
-    RUN-file coordinates. kind 'identical' means the audio matches across
-    fetches (content or baked-in ad); 'differential' means it differs
-    (dynamically inserted). no_differential means "no differential found",
-    NOT "no DAI" -- same-fill re-rolls are a known false negative.
+    {'status': 'ok' | 'no_differential' | 'unreliable_reencode',
+    'regions': [...]} with regions in RUN-file coordinates. kind 'identical'
+    means the audio matches across fetches (content or baked-in ad);
+    'differential' means it differs (dynamically inserted). no_differential
+    means "no differential found", NOT "no DAI" -- same-fill re-rolls are a
+    known false negative. unreliable_reencode means alignment failed wholesale
+    (e.g. the CDN re-encoded the whole file on refetch); regions is empty so
+    downstream treats it as no differential (#541).
     """
     run_pcm = _decode_pcm(run_file, work_dir, 'run')
     ref_pcm = _decode_pcm(refetch_file, work_dir, 'refetch')
@@ -269,6 +280,24 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
                         'end_s': round(run_dur, 2),
                         'kind': 'differential', 'corr': 0.0})
     regions.sort(key=lambda r: r['start_s'])
+
+    # Re-encode guard (#541): see the constants above for the rationale.
+    run_dur_safe = run_dur if run_dur > 0 else 1.0
+    differential_dur = sum(r['end_s'] - r['start_s']
+                           for r in regions if r['kind'] == 'differential')
+    identical_dur = sum(r['end_s'] - r['start_s']
+                        for r in regions if r['kind'] == 'identical')
+    differential_fraction = differential_dur / run_dur_safe
+    identical_fraction = identical_dur / run_dur_safe
+    if (differential_fraction > DIFFERENTIAL_MAX_FRACTION
+            and identical_fraction < IDENTICAL_MIN_FRACTION):
+        logger.warning(
+            'Differential alignment unreliable for %s: differential_fraction'
+            '=%.2f (max %.2f), identical_fraction=%.2f (min %.2f); discarding '
+            'regions as likely whole-file re-encode',
+            os.path.basename(run_file), differential_fraction,
+            DIFFERENTIAL_MAX_FRACTION, identical_fraction, IDENTICAL_MIN_FRACTION)
+        return {'status': 'unreliable_reencode', 'regions': []}
 
     has_diff = any(r['kind'] == 'differential' for r in regions)
     return {'status': 'ok' if has_diff else 'no_differential',

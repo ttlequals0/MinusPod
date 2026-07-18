@@ -53,20 +53,11 @@ def _review_failure_reason(error: Exception) -> str:
     return "Review unavailable: LLM call failed"
 
 
-# Verdict/reasoning contradiction guard (spec 1.4). Verdicts are derived
-# from boundary arithmetic, so a model that returns the ad unchanged while
-# its reason text says the span is not an ad ships as "confirmed". Reasoning
-# matching one of these patterns (case-insensitive regex) gets held for human
-# review instead of auto-cut. Never auto-reject: the reasoning could be the
-# wrong half of the contradiction. Regexes, not literal substrings: prod
-# reasonings vary verb number and noun form ("contain no advertising
-# content", "is not advertising"), which the original four literals missed
-# while the span was cut anyway. Patterns are anchored to assertion shapes
-# ("is not advertising", "contains no advertising") rather than bare noun
-# phrases: a reasoning that AFFIRMS the cut can mention the same nouns
-# ("not a false positive", "ensures no advertising remains after the cut",
-# "transition from organic conversation into the ad read") and must not be
-# held -- a false hold ships the confirmed ad uncut until a human approves.
+# Verdict/reasoning contradiction guard (spec 1.4). Verdicts come from
+# boundary arithmetic, so an unchanged span with not-an-ad reasoning ships
+# as "confirmed" -- hold those for review, never auto-reject. Patterns are
+# assertion-shaped regexes ("is not advertising"), not bare nouns: an
+# affirming reasoning ("not a false positive") must not trigger a hold.
 REVIEWER_CONTRADICTION_PATTERNS = (
     r'\bcontains?\s+no\s+advertis',            # "contain(s) no advertising content"
     r'\bis\s+not\s+(?:an?\s+)?(?:paid\s+)?advertis',  # "is not advertising"
@@ -81,11 +72,8 @@ REVIEWER_CONTRADICTION_PATTERNS = (
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
 
-# Trim-language precheck for the contradiction-hold bounds recovery call.
-# Only spend the follow-up LLM call when the reasoning plausibly describes a
-# sub-span trim ("the ad content ends at roughly 65.8s ... must be trimmed
-# off the end"). A plain "this is not an ad" reasoning identifies nothing to
-# recover, so it skips the call.
+# Trim-language precheck: only spend the recovery LLM call when the
+# reasoning describes a sub-span trim; plain "not an ad" skips it.
 _TRIM_LANGUAGE_RE = re.compile(
     r'\btrim'
     r'|\bends?\s+at\b'

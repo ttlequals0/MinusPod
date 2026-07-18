@@ -29,23 +29,13 @@ logger = logging.getLogger(__name__)
 
 _GAP_ADJACENCY_BUFFER = 1.0  # seconds; how close a gap must be to an ad to count as adjacent
 
-# DAI seam check (the-brilliant-idiots/79eedd7bf2a7 incident): dynamic ad
-# insertion can duplicate a few seconds of show audio around the splice. One
-# copy lands inside the detected ad span near the gap, the other right after
-# the gap where the show resumes. Extending the ad across the gap then swallows
-# real content. If the transcript just beyond the proposed extended boundary
-# verbatim-duplicates transcript inside the span near the seam, skip the
-# extension.
-#
-# 50 normalized chars is roughly 10 consecutive words. A contiguous verbatim
-# run that long is far more likely duplicated SHOW audio (the DAI splice
-# copies a real sentence of content around the seam) than shared ad
-# boilerplate: stock CTAs like "this episode is brought to you by" (~33 chars)
-# and transitions like "welcome back" normalize well under this, so two
-# back-to-back sponsor reads sharing that boilerplate across the gap do not
-# falsely block the extension (which would leave the gap of ad residue uncut).
-# The incident line normalized to ~66 chars. A false positive only skips an
-# optional extension, keeping the LLM-detected boundary.
+# DAI seam check: dynamic insertion can duplicate a few seconds of show
+# audio around the splice, so extending an ad across the gap swallows real
+# content. Skip the extension when transcript just beyond the boundary
+# verbatim-duplicates transcript inside the span. 50 normalized chars
+# (~10 words) sits above stock ad boilerplate ("this episode is brought to
+# you by" ~33) and below the incident line (~66); a false positive only
+# skips an optional extension.
 _SEAM_MIN_DUP_CHARS = 50
 # Duplicated splice audio sits within seconds of the seam, so compare narrow
 # windows: up to 30s of span text before/after the boundary vs 15s beyond it.

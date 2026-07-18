@@ -44,6 +44,7 @@ HOLD_REASON_NO_CUE = 'no_cue_evidence'
 HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
+HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 
 
 def is_cue_backed(ad) -> bool:
