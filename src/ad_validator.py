@@ -739,16 +739,10 @@ class AdValidator:
                     self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
                     return Decision.REVIEW
 
-        # Rule 5 (ordered before the cue gate so a differential-only hold
-        # carries its specific reason, not a generic no-cue label):
-        # uncorroborated cross-fetch differential (#541). A differential
-        # region with no overlapping marker from another stage is flagged by the
-        # detector with differential_uncorroborated (a field the top-of-method
-        # pop leaves intact). Re-derive the hold here so it survives validation:
-        # a real transcript-less DAI ad surfaces for review instead of being
-        # silently cut, and a spurious whole-file re-encode differential never
-        # solo-cuts. Corroboration (an overlapping marker) clears the flag in
-        # _merge_detection_results before this runs, so those cut normally.
+        # Rule 5: uncorroborated cross-fetch differential (#541) -> held for
+        # review, never solo-cut. Ordered before the cue gate so the hold
+        # carries its specific reason. Corroborated regions had the flag
+        # cleared in _merge_detection_results and cut normally.
         if (decision != Decision.REJECT
                 and ad.get('detection_stage') == 'dai_differential'
                 and ad.get('differential_uncorroborated')):
@@ -900,12 +894,8 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # Never merge across the uncorroborated-differential boundary
-            # (#541): folding a confident cut ad into a held differential
-            # would hold the real ad forever (Rule 5 keys on the surviving
-            # flag), and folding the held span into a cut ad would silently
-            # cut it. They stay separate: the ad cuts, the differential
-            # stays held for review.
+            # #541: never merge across the held-differential boundary --
+            # the fold would hold the real ad or cut the held span.
             if (bool(last.get('differential_uncorroborated'))
                     != bool(current.get('differential_uncorroborated'))):
                 merged.append(current.copy())

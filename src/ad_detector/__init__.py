@@ -243,12 +243,9 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
     }
 
 
-# Minimum fraction of a held differential span that must carry transcript
-# before a claude overlap may upgrade the hold to a cut (#541). Claude sees
-# the differential region as a prompt hint, so with little or no transcript
-# in the span its flag cannot be independent verification. 0.2 tolerates
-# edge bleed from neighboring segments while an actually transcribed ad read
-# covers far more of its span.
+# Min transcript fraction of a held differential span before a claude
+# overlap may upgrade it to a cut (#541): tolerates segment edge bleed,
+# while a transcribed ad read covers far more of its span.
 DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 
 
@@ -267,34 +264,15 @@ def _span_transcript_coverage(segments, start, end):
 def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
     """Detection candidates from cross-fetch differential regions (Layer 3).
 
-    A region proven to differ across fetches is handled by its corroboration
-    (#541). A genuine DAI ad is often dynamically served and never transcribed,
-    so it may carry no ad-language text at all -- gating a cut on transcript
-    ad-language would drop those real ads. The whole-file re-encode false
-    positive ALSO differs with no ad-language, so text cannot separate them.
-    The only reliable discriminator downstream is the differential FRACTION
-    (handled in the aligner's re-encode guard); here each surviving region is
-    handled by whether another signal overlaps it:
+    #541: a region overlapping ``corroborating_spans`` (markers from other
+    stages) cuts at 0.95; an uncorroborated region is emitted held-for-review
+    (never auto-cut, never dropped) -- real transcript-less DAI ads surface
+    for approval, spurious re-encode differentials never silently cut. The
+    validator re-derives the hold from ``differential_uncorroborated`` and
+    ``_merge_detection_results`` clears it on genuine overlap.
 
-    - Overlaps a marker from another stage (``corroborating_spans``:
-      fingerprint/text_pattern/cue already found, or a Claude marker folded in
-      later by ``_merge_detection_results``) -> emit as a corroborated cut at
-      0.95, the same precedent as the fingerprint stage.
-    - No overlap (uncorroborated, differential-only) -> DO NOT auto-cut and DO
-      NOT drop. Emit a HELD-FOR-REVIEW marker (held_for_review=True,
-      was_cut=False, hold_reason=HOLD_REASON_DIFFERENTIAL_UNCORROBORATED) so a
-      real transcript-less DAI ad surfaces for one-tap approval while a spurious
-      re-encode differential never silently cuts. The validator re-derives this
-      hold from the surviving ``differential_uncorroborated`` flag after it pops
-      stale hold state, and ``_merge_detection_results`` clears that flag when a
-      real marker overlaps (corroboration upgrades the hold to a cut).
-
-    The stored differential region still strengthens a nearby LLM/pattern marker
-    via the validator's _audio_corroboration_source (that path reads the regions
-    directly and is unchanged).
-
-    fp_pairs is a list of (start, end) false-positive spans to exclude.
-    corroborating_spans is a list of (start, end) ad spans from other stages.
+    fp_pairs: (start, end) false-positive spans to exclude.
+    corroborating_spans: (start, end) ad spans from other stages.
     """
     ads = []
     corroborating_spans = corroborating_spans or []
@@ -1872,12 +1850,8 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
-                # Adjacency is not corroboration (#541): a held uncorroborated
-                # differential that is merely NEAR (touching/gapped, no true
-                # overlap with) a non-differential marker must not fold into
-                # it -- merging would either silently cut the held span or
-                # hold the real ad. Keep them separate; only a true overlap
-                # proceeds into the merge and the upgrade logic below.
+                # Adjacency is not corroboration (#541): a held differential
+                # only merges with a non-differential marker on true overlap.
                 if (bool(last.get('differential_uncorroborated'))
                         != bool(current.get('differential_uncorroborated'))
                         and current['start'] >= last['end']):
@@ -1920,16 +1894,11 @@ class AdDetector:
                     last['reason'] = cur_reason
                     last['sponsor'] = current.get('sponsor')
 
-                # A differential region held as uncorroborated (#541) upgrades
-                # to a cut when an INDEPENDENT stage (fingerprint, text
-                # pattern, cue-backed) overlaps it: that overlap is genuine
-                # corroboration. A claude overlap only counts when the
-                # differential span has real transcript coverage: claude was
-                # shown the differential region as a prompt hint, so on an
-                # untranscribed span (music bed) its flag can only echo the
-                # hint, not verify it -- the merged marker then STAYS held for
-                # human review. Handles the flag on either side of the merge
-                # (the fold otherwise drops current's hold fields silently).
+                # #541 hold upgrade: independent-stage overlap always
+                # corroborates; a claude overlap only counts with real
+                # transcript coverage (claude saw the region as a prompt
+                # hint, so on an untranscribed span it can only echo it).
+                # Handles the flag on either side of the fold.
                 diff_is_last = bool(last.get('differential_uncorroborated'))
                 diff_is_cur = bool(current.get('differential_uncorroborated'))
                 if diff_is_last != diff_is_cur:

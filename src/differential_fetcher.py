@@ -89,18 +89,12 @@ XCORR_SEARCH_S = 2.0
 XCORR_MIN_CORR = 0.75
 # Differential regions shorter than this are alignment noise, not fills.
 MIN_REGION_S = 1.0
-# Whole-file re-encode / unreliable-alignment guard (#541). A real DAI show --
-# even an ad-heavy one -- inserts discrete breaks the aligner still locks onto,
-# so it keeps meaningful confirmed-identical coverage. The failure case is the
-# CDN re-encoding the WHOLE file on the refetch: identical content no longer
-# cross-correlates, the aligner locks onto almost nothing, and nearly the whole
-# run falls to the differential complement. Discard the differential only when
-# BOTH hold: (a) more than DIFFERENTIAL_MAX_FRACTION of the run reads as
-# differing -- a real show is almost never >70% ads; and (b) confirmed-identical
-# coverage is below IDENTICAL_MIN_FRACTION -- the aligner essentially never
-# locked on. Requiring both avoids nuking a short or genuinely ad-heavy but
-# correctly-aligned episode (high differential but decent identical coverage,
-# which keeps its discrete ads).
+# Whole-file re-encode guard (#541): a CDN re-encode on the refetch stops
+# identical content from correlating, so nearly the whole run falls to the
+# differential complement. Discard only when BOTH >70% reads as differing
+# (a real show is almost never >70% ads) AND identical coverage is <15%
+# (the aligner never locked on) -- requiring both keeps a genuinely
+# ad-heavy but correctly-aligned episode's discrete ads.
 DIFFERENTIAL_MAX_FRACTION = 0.7
 IDENTICAL_MIN_FRACTION = 0.15
 # ffmpeg decode guard.
@@ -287,14 +281,7 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
                         'kind': 'differential', 'corr': 0.0})
     regions.sort(key=lambda r: r['start_s'])
 
-    # Whole-file re-encode / unreliable-alignment guard (#541). Compute how much
-    # of the run reads as differing versus confirmed-identical. Discard the
-    # differential only when the run is BOTH mostly differential AND barely
-    # locked on -- the wholesale-misalignment signature of a CDN re-encode where
-    # real content no longer correlates. A discrete-ad episode, even an ad-heavy
-    # one, keeps decent identical coverage and so is never discarded here; the
-    # AND is what stops this guard from nuking a legitimately ad-heavy but
-    # correctly-aligned episode.
+    # Re-encode guard (#541): see the constants above for the rationale.
     run_dur_safe = run_dur if run_dur > 0 else 1.0
     differential_dur = sum(r['end_s'] - r['start_s']
                            for r in regions if r['kind'] == 'differential')
