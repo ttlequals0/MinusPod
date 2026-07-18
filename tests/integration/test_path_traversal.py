@@ -5,25 +5,15 @@ exercise the HTTP routes to confirm a traversal payload cannot leak
 through to the filesystem via a request.
 """
 import io
-import os
-import sys
-import tempfile
 
 import pytest
 from PIL import Image
 
-_test_data_dir = tempfile.mkdtemp(prefix='pathtrav_test_')
-os.environ.setdefault('SECRET_KEY', 'pathtrav-test-secret')
-os.environ.setdefault('DATA_DIR', _test_data_dir)
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('pathtrav_test_', secret_key='pathtrav-test-secret')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app
 import main_app.routes as routes_mod
 
@@ -105,6 +95,39 @@ def test_episode_id_unicode_rejected(client, bad_id):
     ):
         response = client.get(path)
         assert response.status_code == 404, f"{path} returned {response.status_code}"
+
+
+# The api blueprint's url_value_preprocessor validates every episode_id
+# path param centrally, so routes that previously fell through to a DB 404
+# now 400 before the handler runs.
+# Dot-segment payloads ("../x") are excluded here: URL normalization
+# rewrites the path before routing, so they never reach the preprocessor
+# (covered by the non-2xx traversal tests above).
+@pytest.mark.parametrize("bad_id", [
+    "short",
+    "ZZZZZZZZZZZZ",           # correct length, wrong alphabet
+    "0123456789abc",          # one char too long
+    "abcdef\u0435f123",       # Cyrillic e (U+0435)
+])
+def test_api_blueprint_episode_id_param_rejected(client, bad_id):
+    paths_get = (
+        f"/api/v1/feeds/some-slug/episodes/{bad_id}",
+        f"/api/v1/feeds/some-slug/episodes/{bad_id}/transcript",
+        f"/api/v1/feeds/some-slug/episodes/{bad_id}/original-segments",
+    )
+    for path in paths_get:
+        response = client.get(path)
+        assert response.status_code == 400, f"{path} returned {response.status_code}"
+    response = client.post(f"/api/v1/episodes/some-slug/{bad_id}/reprocess",
+                           json={'mode': 'reprocess'})
+    assert response.status_code == 400
+
+
+def test_api_blueprint_valid_episode_id_reaches_handler(client):
+    """A well-formed id passes the guard and gets the handler's 404 for an
+    unknown episode, not the preprocessor's 400."""
+    response = client.get("/api/v1/feeds/some-slug/episodes/abc123def456")
+    assert response.status_code == 404
 
 
 @pytest.mark.parametrize("slug", [

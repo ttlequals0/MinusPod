@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import DropdownMenu, { DropdownMenuItem } from '../../components/DropdownMenu';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConfirmResetButton from './ConfirmResetButton';
 import NumberInput from '../../components/NumberInput';
 import { exportOpml, getSettings, downloadBackup } from '../../api/settings';
+import { getErrorMessage } from '../../api/client';
+import { useTransientState } from '../../hooks/useTransientState';
 import { copyText } from '../../utils/clipboard';
 import { BYTES_PER_MB, formatStorage } from './settingsUtils';
+import { btnSecondary } from '../../components/buttonStyles';
 
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -26,51 +29,43 @@ function DataManagementSection({
   maxRssBytes,
   onMaxRssBytesChange,
 }: DataManagementSectionProps) {
-  const [opmlStatus, setOpmlStatus] = useState<ActionStatus>('idle');
+  // 'loading' is set with ms=null (persists until the request settles);
+  // 'success' auto-resets after the 3s default, 'error' after 5s.
+  const [opmlStatus, setOpmlStatus] = useTransientState<ActionStatus>('idle', 3000);
   const [opmlError, setOpmlError] = useState('');
-  const [backupStatus, setBackupStatus] = useState<ActionStatus>('idle');
+  const [backupStatus, setBackupStatus] = useTransientState<ActionStatus>('idle', 3000);
   const [backupError, setBackupError] = useState('');
 
   // opmlModifiedUrl/opmlOriginalUrl are non-null only when feed auth is on;
   // Copy URL is hidden otherwise (the /opml route 404s without a key).
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
-  const [opmlCopied, setOpmlCopied] = useState<'modified' | 'original' | null>(null);
+  const [opmlCopied, setOpmlCopied] = useTransientState<'modified' | 'original' | null>(null, 2000);
 
   const handleCopyOpmlUrl = async (mode: 'modified' | 'original', url: string) => {
     if (await copyText(url)) setOpmlCopied(mode);
   };
 
-  useEffect(() => {
-    if (!opmlCopied) return;
-    const timer = setTimeout(() => setOpmlCopied(null), 2000);
-    return () => clearTimeout(timer);
-  }, [opmlCopied]);
-
   const handleExportOpml = async (mode: 'original' | 'modified' = 'original') => {
-    setOpmlStatus('loading');
+    setOpmlStatus('loading', null);
     setOpmlError('');
     try {
       await exportOpml(mode);
       setOpmlStatus('success');
-      setTimeout(() => setOpmlStatus('idle'), 3000);
     } catch (err) {
-      setOpmlStatus('error');
-      setOpmlError(err instanceof Error ? err.message : 'Export failed');
-      setTimeout(() => setOpmlStatus('idle'), 5000);
+      setOpmlStatus('error', 5000);
+      setOpmlError(getErrorMessage(err, 'Export failed'));
     }
   };
 
   const handleDownloadBackup = async () => {
-    setBackupStatus('loading');
+    setBackupStatus('loading', null);
     setBackupError('');
     try {
       await downloadBackup();
       setBackupStatus('success');
-      setTimeout(() => setBackupStatus('idle'), 3000);
     } catch (err) {
-      setBackupStatus('error');
-      setBackupError(err instanceof Error ? err.message : 'Backup failed');
-      setTimeout(() => setBackupStatus('idle'), 5000);
+      setBackupStatus('error', 5000);
+      setBackupError(getErrorMessage(err, 'Backup failed'));
     }
   };
 
@@ -149,7 +144,7 @@ function DataManagementSection({
                 <div key={mode} className="flex-1">
                   <DropdownMenu
                     triggerLabel={mode === 'modified' ? 'Modified Feeds' : 'Original Feeds'}
-                    triggerClassName="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm font-medium"
+                    triggerClassName={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
                     disabled={opmlStatus === 'loading'}
                     title={mode === 'modified' ? 'Export modified feeds' : 'Export original feeds'}
                     align={mode === 'modified' ? 'left' : 'right'}
@@ -182,7 +177,7 @@ function DataManagementSection({
           <button
             onClick={handleDownloadBackup}
             disabled={backupStatus === 'loading'}
-            className="mt-auto w-full px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm font-medium"
+            className={`mt-auto w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
           >
             {backupStatus === 'loading' ? 'Preparing...' : 'Download Backup'}
           </button>

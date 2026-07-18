@@ -9,7 +9,7 @@ import re
 from typing import List, Dict, Optional
 
 from utils.text import get_transcript_text_for_range
-from utils.time import ranges_overlap
+from utils.time import overlap_seconds, ranges_overlap
 from sponsor_service import SponsorService
 from utils.constants import NON_BRAND_WORDS
 
@@ -993,10 +993,7 @@ def _content_duration_in_range(segments: List[Dict], range_start: float, range_e
         if not text:
             # Untranscribed gap (music/silence) -- contributes 0.
             continue
-        overlap_start = max(seg_start, range_start)
-        overlap_end = min(seg_end, range_end)
-        if overlap_end > overlap_start:
-            total += overlap_end - overlap_start
+        total += overlap_seconds(seg_start, seg_end, range_start, range_end)
     return total
 
 

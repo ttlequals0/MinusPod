@@ -303,7 +303,3 @@ class ProcessingQueue:
         """Check if specific episode is currently being processed."""
         current = self.get_current()  # already calls _clear_stale_state
         return current is not None and current == (slug, episode_id)
-
-    def is_busy(self) -> bool:
-        """Check if any episode is currently being processed."""
-        return self.get_current() is not None  # already calls _clear_stale_state

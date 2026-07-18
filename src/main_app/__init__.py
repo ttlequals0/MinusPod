@@ -699,12 +699,11 @@ def _startup():
         queue_thread.start()
         logger.info("Started auto-process queue processor thread")
 
-        # Initial RSS refresh (leader only to avoid SQLite contention)
-        logger.info("Performing initial RSS refresh")
-        feed_map = get_feed_map()
-        for slug, feed_info in feed_map.items():
-            refresh_rss_feed(slug, feed_info['in'])
-            logger.debug(f"Feed: {base_url}/{slug}")
+        # No inline initial RSS refresh here: background_rss_refresh (started
+        # above) calls refresh_all_feeds() immediately on its first loop
+        # iteration with a 5-worker pool, covering every feed in get_feed_map.
+        # A second sequential pass would mostly hit the 30s per-feed refresh
+        # coalesce window and only blocked leader boot for feeds x fetch time.
 
         logger.info(f"Web UI available at: {base_url}/ui/")
     else:

@@ -3,10 +3,12 @@ import { RefreshCw, Trash2 } from 'lucide-react';
 
 import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
+import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import { btnDestructive, btnPrimary } from './buttonStyles';
 
 interface FeedListItemProps {
   feed: Feed;
@@ -38,12 +40,12 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           {feed.episodeCount} episodes
           {feed.lastRefreshed && (
             <span className="ml-2">
-              Updated {new Date(feed.lastRefreshed).toLocaleDateString()}
+              Updated {formatDate(feed.lastRefreshed)}
             </span>
           )}
           {feed.lastRefreshError && (
             <span
-              className="ml-2 text-amber-600 dark:text-amber-400"
+              className="ml-2 text-warning"
               title={feed.lastRefreshError}
             >
               Refresh failing
@@ -57,7 +59,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         <button
           onClick={() => onRefresh(feed.slug)}
           disabled={isRefreshing}
-          className="sm:hidden inline-flex items-center justify-center h-8 w-8 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
           title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
           aria-label={isRefreshing ? 'Refreshing' : 'Refresh feed'}
         >
@@ -71,7 +73,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
                 <span className="text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
               </>
             }
-            triggerClassName="inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            triggerClassName={`inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
             disabled={isRefreshing}
             title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
             chevronClassName="w-3 h-3"
@@ -91,7 +93,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         </div>
         <button
           onClick={() => onDelete(feed.slug)}
-          className="inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+          className={`inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded ${btnDestructive} transition-colors`}
           title="Delete feed"
           aria-label="Delete feed"
         >

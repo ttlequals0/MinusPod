@@ -1,26 +1,13 @@
 """Integration tests for double-submit CSRF protection."""
 import json
-import os
-import sys
-import tempfile
 
 import pytest
 
-# Mirror the module-level DATA_DIR setup that other integration tests do,
-# so importing main_app does not try to create /app/data. Done once at
-# module import because main_app's Storage() runs at import time.
-_test_data_dir = tempfile.mkdtemp(prefix='csrf_test_')
-os.environ.setdefault('SECRET_KEY', 'csrf-test-secret')
-os.environ.setdefault('DATA_DIR', _test_data_dir)
-os.environ.setdefault('MINUSPOD_MASTER_PASSPHRASE', 'csrf-test-passphrase')
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('csrf_test_', secret_key='csrf-test-secret', passphrase='csrf-test-passphrase')
 
 import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 
 @pytest.fixture

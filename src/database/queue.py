@@ -1,7 +1,9 @@
 """Auto-process queue mixin for MinusPod database."""
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import List, Optional, Dict, Set, Tuple
+
+from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +238,7 @@ class QueueMixin:
     def clear_completed_queue_items(self, older_than_hours: int = 24) -> int:
         """Clear completed queue items older than specified hours. Returns count deleted."""
         conn = self.get_connection()
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        cutoff = (utc_now() - timedelta(hours=older_than_hours)).strftime(ISO_FORMAT)
         cursor = conn.execute(
             """DELETE FROM auto_process_queue
                WHERE status = 'completed' AND updated_at < ?""",

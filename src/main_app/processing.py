@@ -36,7 +36,10 @@ from config import (
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    PROCESSING_MODE_PASSTHROUGH,
+    PROCESSING_MODE_SKIP_DETECTION,
     is_cue_backed, is_pending_review,
+    resolve_feed_processing_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_tail_retranscribe_tunables,
@@ -436,7 +439,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
                 f"{corrected_segments} segment(s)"
             )
 
-        duration_min = segments[-1]['end'] / 60 if segments else 0
+        duration_min = segments[-1]['end'] / 60
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
         segments, _tail_added = _retranscribe_tail_no_vad(
@@ -514,8 +517,13 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
 
     Returns the fetch_and_diff result dict, or None when the stage is
     skipped or an unexpected failure occurs. Never raises (except
-    ProcessingCancelled): the flag read, status update, fetch, and store are
-    all guarded so nothing here can fail the episode. The pipeline continues.
+    ProcessingCancelled): the flag read, fetch, and store are all guarded so
+    nothing here can fail the episode. The pipeline continues.
+
+    Runs on a worker thread; it must never stamp job status. The caller
+    stamps pass1:differential from the main thread before starting the
+    worker, so an abandoned worker (episode failed meanwhile) can never
+    stamp a different job.
     """
     try:
         explicit = resolve_differential_fetch_setting(db, podcast_id)
@@ -523,7 +531,6 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
                 explicit, dai_platform=dai_platform,
                 dai_likely=is_likely_dai_feed([episode_url])):
             return None
-        status_service.update_job_stage("pass1:differential", 22)
         audio_logger.info(
             f"[{slug}:{episode_id}] Differential fetch: starting"
             f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
@@ -557,8 +564,14 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
 def _detect_ads_first_pass(ctx, segments, audio_path,
                             skip_patterns, audio_analysis_result,
                             progress_callback, cancel_event=None,
-                            positional_prior_hint="", dai_differential=None):
+                            positional_prior_hint="", dai_differential=None,
+                            keep_content=None):
     """Pipeline stage: Run first-pass Claude ad detection.
+
+    ``keep_content``: None lets the detector resolve the per-feed mode from
+    the DB at detection time (the pipeline passes None so a detection_mode
+    toggle during the minutes-long download/transcription window is
+    honored); True/False forces the mode without a DB read.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -577,6 +590,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         cancel_event=cancel_event,
         ctx=ctx,
         positional_prior_hint=positional_prior_hint,
+        keep_content=keep_content,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -606,7 +620,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         audio_logger.info(f"[{slug}:{episode_id}] First pass: No ads detected")
 
     # Resolve per-feed cue knobs (one DB read; falls back to global then default).
-    podcast_id = getattr(ctx, 'podcast_id', None)
+    podcast_id = ctx.podcast_id
     cue_settings = resolve_feed_cue_settings(db, podcast_id)
     snap_confidence = cue_settings['snap_confidence']
     snap_lead = cue_settings['snap_lead']
@@ -860,6 +874,41 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
     return ads_to_remove, low_confidence_count
 
 
+def _build_validator(episode_duration, segments, episode_description, *,
+                     false_positive_corrections, min_cut_confidence,
+                     max_ad_duration_override, cue_gate_enabled,
+                     confirmed_corrections=None, positional_prior=None,
+                     splice_veto=True):
+    """Single construction point for AdValidator; owns the splice-veto
+    settings reads. Per-site differences are stated by the callers:
+
+    - pass 1 passes positional_prior (original-timeline zones);
+    - pass 2 sets splice_veto=False because there is no audio analysis in
+      pass 2, so the veto could never corroborate a splice, and omits
+      positional_prior/confirmed_corrections (processed-audio coordinates);
+    - recut passes everything except positional_prior.
+    """
+    from ad_validator import AdValidator
+    splice_kwargs = {}
+    if splice_veto:
+        splice_kwargs = {
+            'splice_veto_enabled': db.get_setting_bool('splice_veto_enabled',
+                                                       default=True),
+            'veto_min_cut_seconds': db.get_setting_float('veto_min_cut_seconds',
+                                                         VETO_MIN_CUT_SECONDS),
+        }
+    return AdValidator(
+        episode_duration, segments, episode_description,
+        false_positive_corrections=false_positive_corrections,
+        confirmed_corrections=confirmed_corrections,
+        min_cut_confidence=min_cut_confidence,
+        positional_prior=positional_prior,
+        max_ad_duration_override=max_ad_duration_override,
+        cue_gate_enabled=cue_gate_enabled,
+        **splice_kwargs,
+    )
+
+
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
@@ -869,8 +918,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     Returns (ads_to_remove, all_ads_with_validation).
     """
-    from ad_validator import AdValidator
-
     # Load corrections first: the filler-gap merge needs the FP ranges so it
     # does not collapse a span the user rejected.
     false_positive_corrections, confirmed_corrections = _load_user_corrections(
@@ -889,7 +936,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     if not all_ads:
         return [], []
 
-    validator = AdValidator(
+    validator = _build_validator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
         confirmed_corrections=confirmed_corrections,
@@ -897,9 +944,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         positional_prior=positional_prior,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
-        splice_veto_enabled=db.get_setting_bool('splice_veto_enabled', default=True),
-        veto_min_cut_seconds=db.get_setting_float('veto_min_cut_seconds',
-                                                  VETO_MIN_CUT_SECONDS),
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
@@ -966,6 +1010,29 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
     }
 
 
+def _log_reviewer_verdicts(slug, episode_id, pass_num, verdicts):
+    """Log the per-verdict counts for a reviewer pass."""
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass {pass_num} verdicts: "
+        f"{sum(1 for v in verdicts if v.verdict == 'confirmed')} confirmed, "
+        f"{sum(1 for v in verdicts if v.verdict == 'adjust')} adjusted, "
+        f"{sum(1 for v in verdicts if v.verdict == 'reject')} rejected, "
+        f"{sum(1 for v in verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in verdicts if v.verdict == 'failure')} failed"
+    )
+
+
+def _stamp_reviewer_fields(ad, v):
+    """Copy the reviewer verdict fields onto an ad dict, in place."""
+    ad['reviewer_verdict'] = v.verdict
+    if v.reasoning is not None:
+        ad['reviewer_reasoning'] = v.reasoning
+    if v.confidence is not None:
+        ad['reviewer_confidence'] = v.confidence
+    if v.model_used:
+        ad['reviewer_model'] = v.model_used
+
+
 def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
@@ -1007,8 +1074,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
 
     status_service.update_job_stage("pass2:reviewing", 90)
 
-    podcast_row = db.get_podcast_by_slug(slug)
-    podcast_id = podcast_row.get('id') if podcast_row else None
+    podcast_id = ctx.podcast_id
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Reviewer pass 2: "
@@ -1038,15 +1104,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
     ui_by_key = {(a.get('start'), a.get('end')): a for a in v_ads_for_ui}
     original_by_key = {(a.get('start'), a.get('end')): a for a in verification_ads_original}
 
-    def _stamp(ad, v):
-        ad['reviewer_verdict'] = v.verdict
-        if v.reasoning is not None:
-            ad['reviewer_reasoning'] = v.reasoning
-        if v.confidence is not None:
-            ad['reviewer_confidence'] = v.confidence
-        if v.model_used:
-            ad['reviewer_model'] = v.model_used
-
     for v in result.verdicts:
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
@@ -1067,16 +1124,16 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
                 success=v.success,
             )
             if proc_ad is not None:
-                _stamp(proc_ad, coerced)
+                _stamp_reviewer_fields(proc_ad, coerced)
             if ui_ad is not None:
-                _stamp(ui_ad, coerced)
+                _stamp_reviewer_fields(ui_ad, coerced)
             continue
 
         if v.verdict == 'reject':
             if proc_ad in v_ads_to_cut:
                 v_ads_to_cut.remove(proc_ad)
             if ui_ad is not None:
-                _stamp(ui_ad, v)
+                _stamp_reviewer_fields(ui_ad, v)
                 ui_ad['was_cut'] = False
                 ui_ad['source'] = 'reviewer'
                 v_ads_for_ui.remove(ui_ad)
@@ -1096,32 +1153,25 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
                 proc_ad['was_cut'] = True
                 proc_ad['detection_stage'] = 'verification'
                 proc_ad['source'] = 'reviewer'
-                _stamp(proc_ad, v)
+                _stamp_reviewer_fields(proc_ad, v)
                 v_ads_to_cut.append(proc_ad)
             orig_ad = original_by_key.get(key)
             if orig_ad is not None:
                 orig_ad['was_cut'] = True
                 orig_ad['detection_stage'] = 'verification'
                 orig_ad['source'] = 'reviewer'
-                _stamp(orig_ad, v)
+                _stamp_reviewer_fields(orig_ad, v)
                 if orig_ad not in v_ads_for_ui:
                     v_ads_for_ui.append(orig_ad)
             continue
 
         # confirmed or failure: stamp reviewer fields without mutating cuts.
         if proc_ad is not None:
-            _stamp(proc_ad, v)
+            _stamp_reviewer_fields(proc_ad, v)
         if ui_ad is not None:
-            _stamp(ui_ad, v)
+            _stamp_reviewer_fields(ui_ad, v)
 
-    audio_logger.info(
-        f"[{slug}:{episode_id}] Reviewer pass 2 verdicts: "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'confirmed')} confirmed, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'adjust')} adjusted, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'reject')} rejected, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
-    )
+    _log_reviewer_verdicts(slug, episode_id, 2, result.verdicts)
 
 
 def _ad_review_enabled(db) -> bool:
@@ -1135,13 +1185,7 @@ def _ad_review_enabled(db) -> bool:
 
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
-    ad['reviewer_verdict'] = v.verdict
-    if v.reasoning is not None:
-        ad['reviewer_reasoning'] = v.reasoning
-    if v.confidence is not None:
-        ad['reviewer_confidence'] = v.confidence
-    if v.model_used:
-        ad['reviewer_model'] = v.model_used
+    _stamp_reviewer_fields(ad, v)
     if (v.verdict in ('confirmed', 'adjust')
             and reasoning_contradicts_cut(v.reasoning)):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
@@ -1250,14 +1294,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     # verdict loop is O(V), not O(V*N).
     _merge_reviewer_result(result, all_ads_with_validation)
 
-    audio_logger.info(
-        f"[{slug}:{episode_id}] Reviewer pass {pass_num} verdicts: "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'confirmed')} confirmed, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'adjust')} adjusted, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'reject')} rejected, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
-        f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
-    )
+    _log_reviewer_verdicts(slug, episode_id, pass_num, result.verdicts)
 
     # Persist the reviewer's mutations. The downstream save in process_episode
     # is gated on v_ads_for_ui being non-empty, so a pass-2 reviewer that
@@ -1265,6 +1302,17 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
     return new_ads_to_remove, all_ads_with_validation
+
+
+def _find_master(all_ads, ad):
+    """Return ``ad``'s entry in the master list, matched by identity or by
+    (start, end) span (reviewer adjustments rebuild dicts, so identity alone
+    is not enough). None when nothing matches."""
+    for master in all_ads:
+        if master is ad or (master.get('start') == ad.get('start')
+                            and master.get('end') == ad.get('end')):
+            return master
+    return None
 
 
 def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validation,
@@ -1296,12 +1344,10 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
             f"{old['start']:.1f}s -> {new['start']:.1f}s "
             f"(-{old['start'] - new['start']:.1f}s)"
         )
-        for master in all_ads_with_validation:
-            if master is old or (master.get('start') == old['start']
-                                 and master.get('end') == old['end']):
-                master['start'] = new['start']
-                master['terminal_snap'] = new['terminal_snap']
-                break
+        master = _find_master(all_ads_with_validation, old)
+        if master is not None:
+            master['start'] = new['start']
+            master['terminal_snap'] = new['terminal_snap']
     if not changed:
         return ads_to_remove
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
@@ -1352,12 +1398,10 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
             f"{old['end']:.1f}s -> {new['end']:.1f}s "
             f"(+{new['end'] - old['end']:.1f}s, {new.get('sponsor', 'unknown')})"
         )
-        for master in all_ads_with_validation:
-            if master is old or (master.get('start') == old['start']
-                                 and master.get('end') == old['end']):
-                master['end'] = new['end']
-                master['tail_completed'] = True
-                break
+        master = _find_master(all_ads_with_validation, old)
+        if master is not None:
+            master['end'] = new['end']
+            master['tail_completed'] = True
         else:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Tail completion: no master ad matched "
@@ -1383,26 +1427,25 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
     ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else None
     beep = get_replacement_duration()
 
-    preroll_v = detect_preroll(verification_segments, verification_ads_processed,
-                              podcast_name=podcast_name, skip_patterns=skip_patterns)
-    if preroll_v:
-        verification_ads_processed.append(preroll_v)
-        mapped = preroll_v.copy()
+    # Sequential by design: the post-roll detector must see any pre-roll
+    # already appended to verification_ads_processed.
+    for label in ('pre-roll', 'post-roll'):
+        if label == 'pre-roll':
+            roll = detect_preroll(verification_segments, verification_ads_processed,
+                                  podcast_name=podcast_name, skip_patterns=skip_patterns)
+        else:
+            roll = detect_postroll(verification_segments, verification_ads_processed,
+                                   episode_duration=processed_dur, skip_patterns=skip_patterns)
+        if not roll:
+            continue
+        verification_ads_processed.append(roll)
+        mapped = roll.copy()
         if ts_map:
-            mapped['start'] = _map_to_original(preroll_v['start'], ts_map, beep)
-            mapped['end'] = _map_to_original(preroll_v['end'], ts_map, beep)
+            mapped['start'] = _map_to_original(roll['start'], ts_map, beep)
+            mapped['end'] = _map_to_original(roll['end'], ts_map, beep)
         verification_ads_original.append(mapped)
-        audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic pre-roll: 0.0s-{preroll_v['end']:.1f}s")
-
-    postroll_v = detect_postroll(verification_segments, verification_ads_processed, episode_duration=processed_dur, skip_patterns=skip_patterns)
-    if postroll_v:
-        verification_ads_processed.append(postroll_v)
-        mapped = postroll_v.copy()
-        if ts_map:
-            mapped['start'] = _map_to_original(postroll_v['start'], ts_map, beep)
-            mapped['end'] = _map_to_original(postroll_v['end'], ts_map, beep)
-        verification_ads_original.append(mapped)
-        audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic post-roll: {postroll_v['start']:.1f}s-{postroll_v['end']:.1f}s")
+        shown_start = 0.0 if label == 'pre-roll' else roll['start']
+        audio_logger.info(f"[{slug}:{episode_id}] Pass 2 heuristic {label}: {shown_start:.1f}s-{roll['end']:.1f}s")
 
 
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
@@ -1428,7 +1471,6 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
     Returns (verification_ads_processed, verification_ads_original).
     """
-    from ad_validator import AdValidator
     # Pass-1 cut user-rejections in original time; verification
     # operates on cut audio, so map them to processed coordinates
     # before the validator can use them to auto-reject overlaps.
@@ -1453,13 +1495,16 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         processed_duration = verification_segments[-1]['end']
     # No positional_prior here: pass 2 runs in processed-audio coordinates
     # (post-cut timeline), so zones learned on original durations do not map.
-    v_validator = AdValidator(
+    # splice_veto=False: pass 2 has no audio analysis, so the splice veto
+    # could never corroborate and its settings reads are skipped.
+    v_validator = _build_validator(
         processed_duration, verification_segments,
         episode_description,
         false_positive_corrections=fp_corrections_processed,
         min_cut_confidence=min_cut_confidence,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
+        splice_veto=False,
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -1523,8 +1568,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     v_ads_to_cut = []
     v_ads_for_ui = []
     v_ads_held = []
-    for i, ad in enumerate(verification_ads_processed):
-        orig_ad = verification_ads_original[i]
+    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
         if ad.get('held_for_review'):
             orig_ad['was_cut'] = False
@@ -1855,7 +1899,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version, db, storage):
+                            processed_version):
     """Upsert the processed episode row and update related DB state."""
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
@@ -1952,6 +1996,30 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
     return token_totals
 
 
+def _record_history_row(db, slug, episode_id, episode_title, podcast_name, status,
+                        processing_time, ads_detected, token_totals,
+                        error_message=None, audio_cues_detected=0,
+                        run_stats=None):
+    """Write one processing-history row for this episode. Returns False when
+    the podcast row is missing (nothing written); raises on DB write failure."""
+    podcast_data = db.get_podcast_by_slug(slug)
+    if not podcast_data:
+        return False
+    db.record_processing_history(
+        podcast_id=podcast_data['id'], podcast_slug=slug,
+        podcast_title=podcast_data.get('title') or podcast_name,
+        episode_id=episode_id, episode_title=episode_title,
+        status=status, processing_duration_seconds=processing_time,
+        ads_detected=ads_detected, error_message=error_message,
+        input_tokens=token_totals['input_tokens'],
+        output_tokens=token_totals['output_tokens'],
+        llm_cost=token_totals['cost'],
+        audio_cues_detected=audio_cues_detected,
+        processing_stats=run_stats,
+    )
+    return True
+
+
 def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count,
                                original_duration, new_duration,
@@ -1968,21 +2036,11 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
     ads_removed_total = pass1_cut_count + verification_count
     history_write_raised = False
     try:
-        podcast_data = db.get_podcast_by_slug(slug)
-        if podcast_data:
-            db.record_processing_history(
-                podcast_id=podcast_data['id'], podcast_slug=slug,
-                podcast_title=podcast_data.get('title') or podcast_name,
-                episode_id=episode_id, episode_title=episode_title,
-                status='completed', processing_duration_seconds=processing_time,
-                ads_detected=ads_removed_total,
-                input_tokens=token_totals['input_tokens'],
-                output_tokens=token_totals['output_tokens'],
-                llm_cost=token_totals['cost'],
-                audio_cues_detected=audio_cue_detections,
-                processing_stats=run_stats,
-            )
-        else:
+        if not _record_history_row(
+                db, slug, episode_id, episode_title, podcast_name,
+                status='completed', processing_time=processing_time,
+                ads_detected=ads_removed_total, token_totals=token_totals,
+                audio_cues_detected=audio_cue_detections, run_stats=run_stats):
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Skipping history record: podcast row not found"
             )
@@ -2017,7 +2075,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version, db, storage)
+                            processed_version)
     _refresh_rss_for_slug(slug, episode_id)
 
     processing_time = time.time() - start_time
@@ -2107,7 +2165,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     boundary adjustments are applied here; rejects/confirms and confidence
     gating run through the same AdValidator path a full reprocess uses. Returns
     (ads_to_remove, all_ads_with_validation)."""
-    from ad_validator import AdValidator, Decision
+    from ad_validator import Decision
 
     episode = db.get_episode(slug, episode_id) or {}
     raw = episode.get('ad_markers_json')
@@ -2165,16 +2223,13 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         # AttributeError: db is None or method absent on older db
         pass
 
-    validator = AdValidator(
+    validator = _build_validator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
         confirmed_corrections=confirmed_corrections,
         min_cut_confidence=min_cut_confidence,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
-        splice_veto_enabled=db.get_setting_bool('splice_veto_enabled', default=True),
-        veto_min_cut_seconds=db.get_setting_float('veto_min_cut_seconds',
-                                                  VETO_MIN_CUT_SECONDS),
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
@@ -2361,11 +2416,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                      if not _covered_by_cuts(ad, applied_cuts, original_duration)]
         for ad in uncovered:
             ad['was_cut'] = False
-            for master in all_ads_with_validation:
-                if master is ad or (master.get('start') == ad.get('start')
-                                    and master.get('end') == ad.get('end')):
-                    master['was_cut'] = False
-                    break
+            master = _find_master(all_ads_with_validation, ad)
+            if master is not None:
+                master['was_cut'] = False
         storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
         new_duration = local_audio_processor.get_audio_duration(processed_path)
@@ -2490,20 +2543,12 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
 
     try:
-        podcast_data = db.get_podcast_by_slug(slug)
-        if podcast_data:
-            db.record_processing_history(
-                podcast_id=podcast_data['id'], podcast_slug=slug,
-                podcast_title=podcast_data.get('title') or podcast_name,
-                episode_id=episode_id, episode_title=episode_title,
-                status='failed', processing_duration_seconds=processing_time,
-                ads_detected=0, error_message=str(error),
-                input_tokens=token_totals['input_tokens'],
-                output_tokens=token_totals['output_tokens'],
-                llm_cost=token_totals['cost'],
-                # Partial stats: whatever the run gathered before failing.
-                processing_stats=run_stats,
-            )
+        # Partial stats: whatever the run gathered before failing.
+        _record_history_row(
+            db, slug, episode_id, episode_title, podcast_name,
+            status='failed', processing_time=processing_time,
+            ads_detected=0, token_totals=token_totals,
+            error_message=str(error), run_stats=run_stats)
     except Exception as hist_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
 
@@ -2560,11 +2605,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = podcast_settings.get('description') if podcast_settings else None
 
+    # Effective per-feed mode, resolved once from the row above. The
+    # precedence (passthrough > skip-detection > keep-content > standard)
+    # lives in resolve_feed_processing_mode; the branches below check the
+    # resolved mode, never the raw columns.
+    processing_mode = resolve_feed_processing_mode(podcast_settings)
+
     # Pass-through (#521): the feed opted out of processing entirely.
     # Full and AI reprocesses also land here while the toggle is on; the
     # per-episode Recut action branches earlier and still works on
     # episodes that have retained originals and markers.
-    if podcast_settings and podcast_settings.get('passthrough_enabled'):
+    if processing_mode == PROCESSING_MODE_PASSTHROUGH:
         return _passthrough_episode(slug, episode_id, episode_url,
                                      episode_title, podcast_name,
                                      episode_description, episode_artwork_url,
@@ -2573,7 +2624,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     # Skip ad detection (#538): episodes still get transcription, chapters,
     # and a transcript, but the detection stages and the cut are skipped.
-    skip_detection = bool(podcast_settings and podcast_settings.get('skip_ad_detection'))
+    skip_detection = processing_mode == PROCESSING_MODE_SKIP_DETECTION
 
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try
@@ -2609,17 +2660,42 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
-        # Runs after transcription so the natural delay separates the two
-        # fetches; results are ready before first-pass detection. Non-fatal.
+        # Started after transcription so the natural delay separates the two
+        # fetches, but run on a worker thread so audio analysis (stage 2)
+        # proceeds concurrently: the result is only consumed by first-pass
+        # detection (stage 3), so the join happens after stage 2. Non-fatal.
         # Its only consumer is ad detection, so a skip-detection feed also
-        # skips the second fetch.
+        # skips the second fetch. Thread-safe: the fetch reads audio_path and
+        # uses only thread-local db connections plus the lock-guarded
+        # status_service; audio analysis shares no mutable state with it.
         dai_differential = None
+        diff_thread = None
+        diff_outcome = {}
         if not skip_detection:
-            dai_differential = _run_differential_fetch(
-                slug, episode_id, episode_url, audio_path,
-                podcast_settings.get('id') if podcast_settings else None,
-                dai_platform=(podcast_settings.get('dai_platform')
-                              if podcast_settings else None))
+            # Stamp from the main thread BEFORE the worker starts: all status
+            # stamps stay on the main thread, so the pass1 ordering 22 -> 25
+            # is monotonic and an abandoned worker never stamps another job.
+            status_service.update_job_stage("pass1:differential", 22)
+
+            def _diff_worker():
+                try:
+                    diff_outcome['result'] = _run_differential_fetch(
+                        slug, episode_id, episode_url, audio_path,
+                        podcast_settings.get('id') if podcast_settings else None,
+                        dai_platform=(podcast_settings.get('dai_platform')
+                                      if podcast_settings else None))
+                except BaseException as e:
+                    diff_outcome['error'] = e
+
+            # daemon + abandonment is deliberate: if the episode fails before
+            # the join, the in-flight fetch finishes in the background (at
+            # worst persisting a soon-overwritten error differential) and a
+            # daemon thread never blocks interpreter/SIGTERM shutdown the way
+            # concurrent.futures' atexit join of non-daemon workers would.
+            diff_thread = threading.Thread(
+                target=_diff_worker, daemon=True,
+                name=f"dai-diff-{slug}-{episode_id}")
+            diff_thread.start()
         _check_cancel(cancel_event, slug, episode_id)
 
         try:
@@ -2628,6 +2704,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             audio_analysis_result = None
             if not skip_detection:
                 audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
+            # Block on the differential fetch before its result is consumed.
+            # No timeout: the serial call blocked until fetch_and_diff's own
+            # internal timeouts resolved, and the join preserves that. An
+            # exception from the fetch (it is documented never to raise, but
+            # reproduce the old call-site semantics anyway) re-raises here.
+            if diff_thread is not None:
+                diff_thread.join()
+                if 'error' in diff_outcome:
+                    raise diff_outcome['error']
+                dai_differential = diff_outcome.get('result')
             if audio_analysis_result is not None and dai_differential is not None:
                 # Ride along on the analysis result so the detector prompt and
                 # the validator's audio_analysis dict see the differential.
@@ -2649,7 +2735,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Build the per-episode immutable context once. Podcast tags drive
             # the matcher's community-pattern eligibility check; podcast_id is
-            # the integer DB PK used by the reviewer's episode_meta.
+            # the integer DB PK used by the reviewer's episode_meta. Re-fetch
+            # the row here: download+transcription can take minutes, and tag
+            # edits made meanwhile must be visible to pattern eligibility.
             podcast_row_for_ctx = db.get_podcast_by_slug(slug)
             podcast_tags_for_ctx = None
             if podcast_row_for_ctx and podcast_row_for_ctx.get('tags'):
@@ -2709,6 +2797,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     positional_prior_hint=format_prior_hint(positional_prior,
                                                             episode_duration),
                     dai_differential=dai_differential,
+                    # None = resolve fresh from the DB at detection time, so a
+                    # detection_mode toggle during download/transcription is honored.
+                    keep_content=None,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -2798,11 +2889,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if uncovered:
                 for ad in uncovered:
                     ad['was_cut'] = False
-                    for master in all_ads_with_validation:
-                        if master is ad or (master.get('start') == ad['start']
-                                            and master.get('end') == ad['end']):
-                            master['was_cut'] = False
-                            break
+                    master = _find_master(all_ads_with_validation, ad)
+                    if master is not None:
+                        master['was_cut'] = False
                     audio_logger.info(
                         f"[{slug}:{episode_id}] Pass 1 ad {ad['start']:.1f}s-"
                         f"{ad['end']:.1f}s was filtered out of the applied "
@@ -2942,6 +3031,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             return True
 
         finally:
+            # The differential worker is a daemon thread and is deliberately
+            # abandoned on failure paths (see its start site); nothing to
+            # shut down here.
             if os.path.exists(audio_path):
                 os.unlink(audio_path)
 

@@ -25,6 +25,7 @@ from utils.safe_http import (
     read_response_capped,
     safe_get,
 )
+from utils.ttl_cache import TTLCache
 
 
 _ALLOWED_IMAGE_TYPES = frozenset({
@@ -34,6 +35,10 @@ _ALLOWED_IMAGE_TYPES = frozenset({
     'image/gif',
     'image/webp',
 })
+
+# TTL for get_storage_stats(); disk usage does not change second-to-second
+# and the walk is thousands of stat() calls.
+STORAGE_STATS_TTL_SECONDS = 45
 
 # Cached cover-art badge variant (issue #420), one per podcast dir.
 _WATERMARK_VARIANT = "artwork-minuspod.jpg"
@@ -138,6 +143,14 @@ class Storage:
         # Initialize database
         from database import Database
         self.db = Database(str(self.data_dir))
+
+        # get_storage_stats() result cache (single 'storage' key). TTLCache
+        # is documented lock-free, and this singleton is shared across Flask
+        # request threads: the lock guards the check-walk-store sequence so
+        # concurrent status calls serialize on the walk instead of
+        # duplicating it.
+        self._storage_stats_cache = TTLCache(STORAGE_STATS_TTL_SECONDS)
+        self._storage_stats_lock = threading.Lock()
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -751,19 +764,31 @@ class Storage:
         return True
 
     def get_storage_stats(self) -> Dict[str, Any]:
-        """Get storage statistics."""
-        total_size = 0
-        file_count = 0
+        """Get storage statistics.
 
-        for podcast_dir in self.podcasts_dir.iterdir():
-            if podcast_dir.is_dir():
-                for f in podcast_dir.rglob('*'):
-                    if f.is_file():
-                        total_size += f.stat().st_size
-                        file_count += 1
+        The full-tree walk stat()s every file under every podcast dir, so
+        the result is cached for STORAGE_STATS_TTL_SECONDS. The lock
+        serializes the check-walk-store sequence across request threads.
+        """
+        with self._storage_stats_lock:
+            cached = self._storage_stats_cache.get('storage')
+            if cached is not None:
+                return cached
 
-        return {
-            'total_size_bytes': total_size,
-            'total_size_mb': total_size / (1024 * 1024),
-            'file_count': file_count
-        }
+            total_size = 0
+            file_count = 0
+
+            for podcast_dir in self.podcasts_dir.iterdir():
+                if podcast_dir.is_dir():
+                    for f in podcast_dir.rglob('*'):
+                        if f.is_file():
+                            total_size += f.stat().st_size
+                            file_count += 1
+
+            stats = {
+                'total_size_bytes': total_size,
+                'total_size_mb': total_size / (1024 * 1024),
+                'file_count': file_count
+            }
+            self._storage_stats_cache.set('storage', stats)
+            return stats

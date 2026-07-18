@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
+import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import { btnDestructive, btnPrimary } from './buttonStyles';
 
 interface FeedCardProps {
   feed: Feed;
@@ -39,12 +41,12 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           </p>
           {feed.lastRefreshed && (
             <p className="text-xs text-muted-foreground mt-1">
-              Updated {new Date(feed.lastRefreshed).toLocaleDateString()}
+              Updated {formatDate(feed.lastRefreshed)}
             </p>
           )}
           {feed.lastRefreshError && (
             <p
-              className="text-xs text-amber-600 dark:text-amber-400 mt-1"
+              className="text-xs text-warning mt-1"
               title={feed.lastRefreshError}
             >
               Refresh failing
@@ -58,7 +60,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
         <div className="flex gap-2">
           <DropdownMenu
             triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-            triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+            triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
             disabled={isRefreshing}
             title="Refresh feed"
             items={[
@@ -76,7 +78,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           />
           <button
             onClick={() => onDelete(feed.slug)}
-            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+            className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} transition-colors`}
             title="Delete feed"
             aria-label="Delete feed"
           >

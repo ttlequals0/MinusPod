@@ -178,6 +178,70 @@ class TestRunWindowsOrdering:
         assert [r.ads[0]['sponsor'] for r in results] == [f'sponsor-{i}' for i in range(5)]
 
 
+class TestRunWindowsFailFast:
+    """fail_fast=True (keep-content path) stops dispatching windows after the
+    first failure instead of burning tokens on a run the caller will abort."""
+
+    def _stub(self, fail_idx, calls, slow=0.0):
+        def stub(*, window_idx, window, total_windows, **_kwargs):
+            calls.append(window_idx)
+            if window_idx != fail_idx:
+                time.sleep(slow)
+            return WindowResult(
+                window_idx=window_idx,
+                window_start=window['start'],
+                window_end=window['end'],
+                ads=[],
+                raw_response=None,
+                failed=(window_idx == fail_idx),
+                last_error='boom' if window_idx == fail_idx else None,
+            )
+        return stub
+
+    def _run(self, detector, windows, max_workers, fail_fast, stub):
+        with patch.object(detector, '_process_single_window', side_effect=stub):
+            return detector._run_windows(
+                windows, max_workers=max_workers, progress_callback=None,
+                progress_base=0, progress_range=100, fail_fast=fail_fast,
+                model='x', system_prompt='x', description_section='x',
+                podcast_name='p', episode_title='e',
+                audio_enforcer=None, audio_analysis=None,
+                llm_timeout=30, max_retries=1,
+                slug='s', episode_id='1',
+                pass_name='ad_detection_1',
+                window_label_prefix='Window',
+                validate_timestamps=False,
+            )
+
+    def test_sequential_stops_after_first_failure(self, detector):
+        calls = []
+        results = self._run(detector, _make_windows(5), 1, True,
+                            self._stub(fail_idx=1, calls=calls))
+        assert calls == [0, 1]
+        assert len(results) == 2
+        assert results[-1].failed is True
+
+    def test_parallel_does_not_dispatch_queued_windows_after_failure(self, detector):
+        # Concurrency 2 over 6 windows; window 0 fails instantly while the
+        # others sleep, keeping both workers busy long enough for the main
+        # thread to collect the failure and cancel the queued tail. The
+        # in-flight windows (<= max_workers) may still run, but the queued
+        # tail must never dispatch.
+        calls = []
+        results = self._run(detector, _make_windows(6), 2, True,
+                            self._stub(fail_idx=0, calls=calls, slow=0.25))
+        assert len(calls) <= 3
+        failed = [r for r in results if r is not None and r.failed]
+        assert len(failed) == 1 and failed[0].window_idx == 0
+
+    def test_default_false_runs_every_window(self, detector):
+        calls = []
+        results = self._run(detector, _make_windows(5), 1, False,
+                            self._stub(fail_idx=1, calls=calls))
+        assert calls == [0, 1, 2, 3, 4]
+        assert len(results) == 5
+
+
 class TestRunWindowsProgressCallback:
     """Progress callbacks fire once per completed window and are serialized
     via a lock so parallel completion doesn't corrupt the displayed count."""

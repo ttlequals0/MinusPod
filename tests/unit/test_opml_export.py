@@ -1,27 +1,14 @@
 """Unit tests for OPML export endpoint (mode=original and mode=modified)."""
 import json
 import os
-import sys
-import tempfile
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
 import pytest
 
-# Create temp data dir and set env before any imports that touch /app/data
-_test_data_dir = tempfile.mkdtemp(prefix='opml_export_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('opml_export_test_')
 from main_app import app
 
 

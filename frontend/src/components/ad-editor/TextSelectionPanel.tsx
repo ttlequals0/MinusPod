@@ -6,6 +6,7 @@ import {
   type TranscriptWord,
 } from '../../api/feeds';
 import { formatTime } from '../../utils/adReviewHelpers';
+import { btnGhost } from '../buttonStyles';
 
 interface Props {
   slug: string;
@@ -296,7 +297,7 @@ function TextSelectionPanel({
               onClick={() =>
                 setCurrentMatch((m) => (m - 1 + matchIndices.length) % matchIndices.length)
               }
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent"
+              className={`p-1 rounded ${btnGhost}`}
               aria-label="Previous match"
             >
               <ChevronUp className="w-4 h-4" />
@@ -304,7 +305,7 @@ function TextSelectionPanel({
             <button
               type="button"
               onClick={() => setCurrentMatch((m) => (m + 1) % matchIndices.length)}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent"
+              className={`p-1 rounded ${btnGhost}`}
               aria-label="Next match"
             >
               <ChevronDown className="w-4 h-4" />
@@ -374,7 +375,7 @@ function TextSelectionPanel({
           type="button"
           onClick={() => snapTo(adStart)}
           disabled={!hasSelection}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
           aria-label="Snap to selection start"
           title="Snap to selection start"
         >
@@ -384,7 +385,7 @@ function TextSelectionPanel({
           type="button"
           onClick={togglePlay}
           disabled={!hasSelection}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
           aria-label={isPlaying ? 'Pause' : 'Play selection'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -393,7 +394,7 @@ function TextSelectionPanel({
           type="button"
           onClick={() => snapTo(adEnd)}
           disabled={!hasSelection}
-          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
           aria-label="Snap to selection end"
           title="Snap to selection end"
         >

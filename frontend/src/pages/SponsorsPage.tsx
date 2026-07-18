@@ -8,50 +8,28 @@ import { getTagVocabulary } from '../api/community';
 import { Sponsor, SponsorNormalization } from '../api/types';
 import SponsorEditModal from '../components/SponsorEditModal';
 import NormalizationEditModal from '../components/NormalizationEditModal';
-import DeleteConfirmModal from '../components/DeleteConfirmModal';
+import { ConfirmModal } from '../components/Modal';
 import { TagChips } from '../components/TagChips';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
+import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
+import { btnOutline, btnPrimary } from '../components/buttonStyles';
 
 type Tab = 'sponsors' | 'normalizations';
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
-type SortDirection = 'asc' | 'desc';
 
 function StatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`px-2 py-0.5 text-xs rounded ${
         active
-          ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+          ? 'bg-green-500/20 text-success'
           : 'bg-red-500/20 text-red-600 dark:text-red-400'
       }`}
     >
       {active ? 'Active' : 'Inactive'}
     </span>
-  );
-}
-
-function SortHeader({
-  field, label, className, sortField, sortDirection, onSort,
-}: {
-  field: SortField;
-  label: string;
-  className?: string;
-  sortField: SortField;
-  sortDirection: SortDirection;
-  onSort: (f: SortField) => void;
-}) {
-  return (
-    <th
-      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className || 'px-4'}`}
-      onClick={() => onSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field && <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>}
-      </div>
-    </th>
   );
 }
 
@@ -103,9 +81,9 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
   const [tagFilter, setTagFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [page, setPage] = useState(1);
+  const { sortField, sortDirection, handleSort } =
+    useSortState<SortField>('name', 'asc', () => setPage(1));
   const [editing, setEditing] = useState<Sponsor | null | undefined>(undefined); // undefined = closed, null = new
   const [deleteTarget, setDeleteTarget] = useState<Sponsor | null>(null);
   const limit = 20;
@@ -124,12 +102,6 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
       setDeleteTarget(null);
     },
   });
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    else { setSortField(field); setSortDirection('asc'); }
-    setPage(1);
-  };
 
   const filtered = sponsors?.filter((s) => {
     if (tagFilter !== 'all' && !s.tags.includes(tagFilter)) return false;
@@ -196,7 +168,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
           <button
             type="button"
             onClick={() => setEditing(null)}
-            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors`}
           >
             + Add Sponsor
           </button>
@@ -222,7 +194,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
               <span>matched {formatDate(s.last_matched_at)}</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(s)} className="px-2 py-1 text-xs rounded border border-border hover:bg-accent">Edit</button>
+              <button onClick={() => setEditing(s)} className={`px-2 py-1 text-xs rounded ${btnOutline}`}>Edit</button>
               <button onClick={() => setDeleteTarget(s)} className="px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
             </div>
           </div>
@@ -277,7 +249,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.last_matched_at)}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
-                      <button onClick={() => setEditing(s)} className="px-2 py-1 rounded border border-border hover:bg-accent">Edit</button>
+                      <button onClick={() => setEditing(s)} className={`px-2 py-1 rounded ${btnOutline}`}>Edit</button>
                       <button onClick={() => setDeleteTarget(s)} className="px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
                     </div>
                   </td>
@@ -302,7 +274,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
       )}
 
       {deleteTarget && (
-        <DeleteConfirmModal
+        <ConfirmModal
           title={`Delete ${deleteTarget.name}?`}
           pending={del.isPending}
           onCancel={() => setDeleteTarget(null)}
@@ -318,7 +290,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
           <p className="text-xs text-muted-foreground">
             Note: if this name is detected again, or it is part of the seeded list, it can reappear.
           </p>
-        </DeleteConfirmModal>
+        </ConfirmModal>
       )}
     </div>
   );
@@ -352,7 +324,7 @@ function NormalizationsSection() {
         <button
           type="button"
           onClick={() => setEditing(null)}
-          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors`}
         >
           + Add Normalization
         </button>
@@ -370,7 +342,7 @@ function NormalizationsSection() {
               <span className="text-muted-foreground">→ </span>{n.canonical}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(n)} className="px-2 py-1 text-xs rounded border border-border hover:bg-accent">Edit</button>
+              <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline}`}>Edit</button>
               <button onClick={() => setDeleteId(n.id)} className="px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
             </div>
           </div>
@@ -408,7 +380,7 @@ function NormalizationsSection() {
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
-                      <button onClick={() => setEditing(n)} className="px-2 py-1 rounded border border-border hover:bg-accent">Edit</button>
+                      <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline}`}>Edit</button>
                       <button onClick={() => setDeleteId(n.id)} className="px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
                     </div>
                   </td>
@@ -431,14 +403,14 @@ function NormalizationsSection() {
       )}
 
       {deleteId !== null && (
-        <DeleteConfirmModal
+        <ConfirmModal
           title="Delete normalization?"
           pending={del.isPending}
           onCancel={() => setDeleteId(null)}
           onConfirm={() => del.mutate(deleteId)}
         >
           <p className="text-muted-foreground">This permanently removes the rule.</p>
-        </DeleteConfirmModal>
+        </ConfirmModal>
       )}
     </div>
   );

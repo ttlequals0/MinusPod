@@ -1,6 +1,7 @@
 """Opt-in LLM ad reviewer."""
 import logging
 import math
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -54,15 +55,30 @@ def _review_failure_reason(error: Exception) -> str:
 # Verdict/reasoning contradiction guard (spec 1.4). Verdicts are derived
 # from boundary arithmetic, so a model that returns the ad unchanged while
 # its reason text says the span is not an ad ships as "confirmed". Reasoning
-# matching one of these substrings (case-insensitive) gets held for human
+# matching one of these patterns (case-insensitive regex) gets held for human
 # review instead of auto-cut. Never auto-reject: the reasoning could be the
-# wrong half of the contradiction.
+# wrong half of the contradiction. Regexes, not literal substrings: prod
+# reasonings vary verb number and noun form ("contain no advertising
+# content", "is not advertising"), which the original four literals missed
+# while the span was cut anyway. Patterns are anchored to assertion shapes
+# ("is not advertising", "contains no advertising") rather than bare noun
+# phrases: a reasoning that AFFIRMS the cut can mention the same nouns
+# ("not a false positive", "ensures no advertising remains after the cut",
+# "transition from organic conversation into the ad read") and must not be
+# held -- a false hold ships the confirmed ad uncut until a human approves.
 REVIEWER_CONTRADICTION_PATTERNS = (
-    'no advertisement',
-    'not an ad',
-    'no ad content',
-    'contains no ad',
+    r'\bcontains?\s+no\s+advertis',            # "contain(s) no advertising content"
+    r'\bis\s+not\s+(?:an?\s+)?(?:paid\s+)?advertis',  # "is not advertising"
+    r'\bnot\s+an\s+ad\b',
+    r'\bno\s+ad\s+content\b',
+    r'\bcontains?\s+no\s+ad\b',
+    r'\bis\s+a\s+false\s+positive\b',
+    r'\bcontains?\s+only\s+the\s+(?:phrase|fragment|words?)\b',
+    r'\btranscription\s+artifact\b',
+    r'\b(?:is\s+|entirely\s+)organic\s+conversation\b',
 )
+
+_CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
 
 
 def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
@@ -70,7 +86,7 @@ def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
     if not reasoning:
         return False
     lowered = reasoning.lower()
-    return any(p in lowered for p in REVIEWER_CONTRADICTION_PATTERNS)
+    return any(r.search(lowered) for r in _CONTRADICTION_RES)
 
 
 def _resolve_reviewer_parallel_ads() -> int:

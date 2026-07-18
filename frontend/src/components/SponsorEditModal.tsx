@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { addSponsor, updateSponsor } from '../api/sponsors';
 import { getTagVocabulary, updateSponsorTags } from '../api/community';
 import { Sponsor } from '../api/types';
+import { getErrorMessage } from '../api/client';
+import { btnOutline, btnPrimary } from './buttonStyles';
+import { Modal } from './Modal';
 
 interface Props {
   // null = create a new sponsor
@@ -54,121 +57,118 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
       queryClient.invalidateQueries({ queryKey: ['sponsors'] });
       onSaved();
     },
-    onError: (e: unknown) =>
-      setError(e instanceof Error ? e.message : 'Failed to save sponsor'),
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Failed to save sponsor')),
   });
 
   const toggleTag = (tag: string) =>
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-card border border-border rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">
-            {isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`}
-          </h2>
-          <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
-              placeholder="Sponsor name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Aliases <span className="text-muted-foreground font-normal">(comma-separated)</span>
-            </label>
-            <input
-              type="text"
-              value={aliasesText}
-              onChange={(e) => setAliasesText(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
-              placeholder="alt name, abbreviation"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Category</label>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
-              placeholder="e.g. technology"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Tags</label>
-            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
-              {(vocab?.all_tags ?? []).map((tag) => {
-                const on = tags.includes(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
-                    className={`px-2 py-0.5 text-xs rounded border transition-colors ${
-                      on
-                        ? 'bg-primary/20 text-primary border-primary/40'
-                        : 'bg-secondary text-muted-foreground border-border hover:bg-accent'
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {!isNew && (
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded"
-              />
-              <span className="text-sm text-foreground">Active</span>
-              <span className="text-xs text-muted-foreground">
-                (inactive sponsors are excluded from detection)
-              </span>
-            </label>
-          )}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm rounded border border-border hover:bg-accent transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {save.isPending ? 'Saving...' : isNew ? 'Add Sponsor' : 'Save'}
-          </button>
-        </div>
+    <Modal onClose={onClose} panelClassName="max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="flex items-center justify-between p-4 border-b border-border">
+        <h2 className="text-lg font-semibold text-foreground">
+          {isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`}
+        </h2>
+        <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
-    </div>
+
+      <div className="p-4 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            placeholder="Sponsor name"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Aliases <span className="text-muted-foreground font-normal">(comma-separated)</span>
+          </label>
+          <input
+            type="text"
+            value={aliasesText}
+            onChange={(e) => setAliasesText(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            placeholder="alt name, abbreviation"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Category</label>
+          <input
+            type="text"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            placeholder="e.g. technology"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">Tags</label>
+          <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+            {(vocab?.all_tags ?? []).map((tag) => {
+              const on = tags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                    on
+                      ? 'bg-primary/20 text-primary border-primary/40'
+                      : 'bg-secondary text-muted-foreground border-border hover:bg-accent'
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {!isNew && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-sm text-foreground">Active</span>
+            <span className="text-xs text-muted-foreground">
+              (inactive sponsors are excluded from detection)
+            </span>
+          </label>
+        )}
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+
+      <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <button
+          onClick={onClose}
+          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors`}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
+        >
+          {save.isPending ? 'Saving...' : isNew ? 'Add Sponsor' : 'Save'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

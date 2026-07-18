@@ -18,6 +18,12 @@
     --accent-foreground: 213 10% 17%;
     --destructive: 1 82% 55%;
     --destructive-foreground: 0 0% 100%;
+    /* Match Tailwind green-600/amber-600 (light) and green-400/amber-400
+       (dark) so default rendering is unchanged after the token migration. */
+    --success: 142.3 100% 32.6%;
+    --success-foreground: 0 0% 100%;
+    --warning: 30.1 100% 44.2%;
+    --warning-foreground: 0 0% 100%;
     --border: 210 15% 85%;
     --input: 210 15% 85%;
     --ring: 194 66% 45%;
@@ -42,6 +48,10 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 1 82% 65%;
     --destructive-foreground: 0 0% 100%;
+    --success: 150.1 95.6% 44.8%;
+    --success-foreground: 0 0% 100%;
+    --warning: 43.6 100% 50%;
+    --warning-foreground: 0 0% 100%;
     --border: 210 8% 22%;
     --input: 210 8% 22%;
     --ring: 194 66% 61%;

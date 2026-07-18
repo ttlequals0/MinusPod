@@ -1,26 +1,13 @@
 """Unit tests for podcast search endpoint."""
 import json
 import os
-import sys
-import tempfile
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-# Create temp data dir and set env before any imports that touch /app/data
-_test_data_dir = tempfile.mkdtemp(prefix='podcast_search_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('podcast_search_test_')
 from main_app import app
 
 

@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { getErrorMessage } from '../api/client';
 
 // Shared claim/poll config for the background cue scans (cross-episode body
 // scan and window optimizer). Both endpoints are POST-only and return a
@@ -6,8 +7,10 @@ import { useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 // 3s until status leaves 'scanning'. rescan() force-refetches via the same
 // fetchQuery idiom both panels used.
 
+// status is optional (older servers omit it on some endpoints) and typed as
+// string so envelopes with extra states (e.g. cue candidates' 'idle') fit.
 interface ScanEnvelope {
-  status: 'scanning' | 'ready' | 'error';
+  status?: string;
   error?: string;
 }
 
@@ -54,7 +57,7 @@ export function useScanQuery<T extends ScanEnvelope>({
     ? (data.error || savedErrorFallback)
     : query.error
       ? (thrownError === 'message'
-        ? (query.error instanceof Error ? query.error.message : savedErrorFallback)
+        ? getErrorMessage(query.error, savedErrorFallback)
         : thrownError)
       : null;
 

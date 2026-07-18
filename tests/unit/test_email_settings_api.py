@@ -4,28 +4,14 @@ Uses the main_app boot pattern from test_settings_validation: bind a temp
 DATA_DIR and a master passphrase before importing main_app so the secrets
 store works.
 """
-import os
-import sys
-import tempfile
 import json
 from unittest.mock import patch
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='email_settings_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
-os.environ.setdefault('MINUSPOD_MASTER_PASSPHRASE', 'email-settings-test-passphrase')
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('email_settings_test_', passphrase='email-settings-test-passphrase')
 from main_app import app
 
 BASE = '/api/v1/settings/notifications/email'

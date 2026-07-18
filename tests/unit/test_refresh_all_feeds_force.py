@@ -5,25 +5,12 @@ flag down to refresh_rss_feed so the per-feed 30-second coalesce window is
 bypassed. Without this, clicking "Force Refresh All" in the UI is a silent
 no-op for any feed refreshed in the last 30s.
 """
-import os
-import sys
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-_test_data_dir = tempfile.mkdtemp(prefix='refresh_all_force_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('refresh_all_force_test_')
 from main_app.feeds import refresh_all_feeds
 import main_app.feeds as _feeds_module
 

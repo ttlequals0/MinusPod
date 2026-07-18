@@ -1,4 +1,4 @@
-import { apiRequest, csrfHeaders, extractErrorMessage } from './client';
+import { apiRequest } from './client';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
@@ -151,18 +151,12 @@ export function cueTemplateAudioUrl(templateId: number): string {
 export async function importCueTemplate(slug: string, file: File): Promise<CueTemplate> {
   const formData = new FormData();
   formData.append('file', file);
-  // Raw fetch: apiRequest would JSON.stringify the FormData. CSRF header still
-  // required for the server-side double-submit check.
-  const response = await fetch(`/api/v1/feeds/${slug}/cue-templates/import`, {
-    method: 'POST',
-    body: formData,
-    headers: csrfHeaders('POST'),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({ error: 'Import failed' }));
-    throw new Error(extractErrorMessage(data, response.status));
-  }
-  const res = (await response.json()) as { template: CueTemplate };
+  // skipRetry: the import is non-idempotent; a retry after a timed-out first
+  // attempt could create the template twice.
+  const res = await apiRequest<{ template: CueTemplate }>(
+    `/feeds/${slug}/cue-templates/import`,
+    { method: 'POST', body: formData, skipRetry: true },
+  );
   return res.template;
 }
 

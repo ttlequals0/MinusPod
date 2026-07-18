@@ -1,12 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
+import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload } from '../api/types';
+import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -46,6 +47,7 @@ import OfflineQueueSection from './settings/OfflineQueueSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
 import { formatModelLabel } from './settings/settingsUtils';
+import { btnPrimary } from '../components/buttonStyles';
 
 function SettingsGroupHeader({ title }: { title: string }) {
   // During an active settings search the group labels are noise (sections are
@@ -58,6 +60,43 @@ function SettingsGroupHeader({ title }: { title: string }) {
       </h3>
     </div>
   );
+}
+
+type SettingScalar = string | number | boolean;
+
+// One registry row per Save-bar field. Hydration, the changed-field diff,
+// and dirty detection all resolve the server-side value through
+// fieldBaseline(), so the fallback chains can no longer drift apart --
+// the drift class behind #234, #513 and fe-settings-history-1 (hydration
+// and diff MUST use identical fallbacks) is structurally closed.
+interface FieldSpec {
+  // Key into settings, settings.defaults, and the PUT payload (all match).
+  key: keyof UpdateSettingsPayload;
+  // 'str': empty string falls back to the default ( || ); 'val': only
+  // null/undefined falls back ( ?? ) so false and 0 are meaningful values.
+  kind: 'str' | 'val';
+  // Current form value for this field.
+  value: SettingScalar;
+  // Look up settings.defaults[key] ahead of the literal.
+  useDefault?: boolean;
+  // Trailing fallback when the default is absent; str-kind rows without a
+  // default fall back to ''.
+  literal?: SettingScalar;
+  // Hydration target: a flat state setter ((v: never) so any concrete
+  // Dispatch<SetStateAction<...>> is assignable)...
+  set?: (v: never) => void;
+  // ...or a property patch collected into one of the nested state objects.
+  obj?: 'reviewer' | 'audioCue' | 'whisperApi';
+  prop?: string;
+}
+
+function fieldBaseline(settings: SettingsShape, f: FieldSpec): SettingScalar | undefined {
+  const sv = (settings as unknown as Record<string, { value?: SettingScalar } | undefined>)[f.key]?.value;
+  const dv = f.useDefault
+    ? (settings.defaults as unknown as Record<string, SettingScalar | undefined>)[f.key]
+    : undefined;
+  const dflt = dv ?? f.literal ?? (f.kind === 'str' ? '' : undefined);
+  return f.kind === 'str' ? (sv || dflt) : (sv ?? dflt);
 }
 
 function Settings() {
@@ -208,7 +247,7 @@ function Settings() {
   const reloadProviders = () =>
     listProviders()
       .then((r) => { setProvidersState(r); setProvidersError(null); })
-      .catch((e) => setProvidersError(e instanceof Error ? e.message : 'Failed to load providers'));
+      .catch((e) => setProvidersError(getErrorMessage(e, 'Failed to load providers')));
 
   useEffect(() => { reloadProviders(); }, []);
 
@@ -368,6 +407,87 @@ function Settings() {
     onError: (err: Error) => setTimeoutsError(err.message || 'Failed to save'),
   });
 
+  // The field registry. Each row appears exactly once; everything else
+  // (hydration, diff payload, dirty detection) is derived from it. Rebuilt
+  // per render so `value` always reflects current state (cheap).
+  const FIELDS: FieldSpec[] = [
+    // Prompts (no defaults: a cleared box round-trips as '').
+    { key: 'systemPrompt', kind: 'str', value: systemPrompt, set: setSystemPrompt },
+    { key: 'verificationPrompt', kind: 'str', value: verificationPrompt, set: setVerificationPrompt },
+    { key: 'systemPromptOverride', kind: 'str', value: systemPromptOverride, set: setSystemPromptOverride },
+    { key: 'verificationPromptOverride', kind: 'str', value: verificationPromptOverride, set: setVerificationPromptOverride },
+    // Ad reviewer (nested `reviewer` state; updatePatterns/minTrimThreshold
+    // save via /settings/reviewer and are diffed by reviewerPatternsChanged).
+    { key: 'reviewPrompt', kind: 'str', value: reviewer.reviewPrompt, obj: 'reviewer', prop: 'reviewPrompt' },
+    { key: 'resurrectPrompt', kind: 'str', value: reviewer.resurrectPrompt, obj: 'reviewer', prop: 'resurrectPrompt' },
+    { key: 'reviewPromptOverride', kind: 'str', value: reviewer.reviewPromptOverride, obj: 'reviewer', prop: 'reviewPromptOverride' },
+    { key: 'resurrectPromptOverride', kind: 'str', value: reviewer.resurrectPromptOverride, obj: 'reviewer', prop: 'resurrectPromptOverride' },
+    { key: 'enableAdReview', kind: 'val', useDefault: true, value: reviewer.enabled, obj: 'reviewer', prop: 'enabled' },
+    { key: 'reviewModel', kind: 'str', useDefault: true, value: reviewer.model, obj: 'reviewer', prop: 'model' },
+    { key: 'reviewMaxBoundaryShift', kind: 'val', useDefault: true, value: reviewer.maxShift, obj: 'reviewer', prop: 'maxShift' },
+    { key: 'adReviewerParallelAds', kind: 'val', useDefault: true, value: reviewer.parallelAds, obj: 'reviewer', prop: 'parallelAds' },
+    // Models
+    { key: 'claudeModel', kind: 'str', value: selectedModel, set: setSelectedModel },
+    { key: 'verificationModel', kind: 'str', value: verificationModel, set: setVerificationModel },
+    { key: 'chaptersModel', kind: 'str', value: chaptersModel, set: setChaptersModel },
+    { key: 'whisperModel', kind: 'str', useDefault: true, value: whisperModel, set: setWhisperModel },
+    // Providers
+    { key: 'llmProvider', kind: 'str', useDefault: true, value: llmProvider, set: (v) => setLlmProvider(v as LlmProvider) },
+    { key: 'openaiBaseUrl', kind: 'str', useDefault: true, value: openaiBaseUrl, set: setOpenaiBaseUrl },
+    { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
+    // Transcription
+    { key: 'whisperBackend', kind: 'str', useDefault: true, value: whisperBackend, set: (v) => setWhisperBackend(v as WhisperBackend) },
+    { key: 'whisperApiBaseUrl', kind: 'str', value: whisperApiConfig.baseUrl, obj: 'whisperApi', prop: 'baseUrl' },
+    { key: 'whisperApiModel', kind: 'str', useDefault: true, value: whisperApiConfig.model, obj: 'whisperApi', prop: 'model' },
+    { key: 'whisperLanguage', kind: 'str', useDefault: true, value: whisperLanguage, set: setWhisperLanguage },
+    { key: 'whisperComputeType', kind: 'str', useDefault: true, value: whisperComputeType, set: setWhisperComputeType },
+    { key: 'transcribeMaxChunkSeconds', kind: 'val', useDefault: true, literal: 600, value: transcribeMaxChunkSeconds, set: setTranscribeMaxChunkSeconds },
+    { key: 'transcribeConcurrentChunks', kind: 'val', useDefault: true, literal: 4, value: transcribeConcurrentChunks, set: setTranscribeConcurrentChunks },
+    { key: 'transcribeChunkOverlapSeconds', kind: 'val', useDefault: true, literal: 30, value: transcribeChunkOverlapSeconds, set: setTranscribeChunkOverlapSeconds },
+    // Audio output
+    { key: 'audioBitrate', kind: 'str', useDefault: true, value: audioBitrate, set: setAudioBitrate },
+    { key: 'audioNormalizeEnabled', kind: 'val', useDefault: true, value: audioNormalizeEnabled, set: setAudioNormalizeEnabled },
+    { key: 'audioNormalizeIntensity', kind: 'str', useDefault: true, value: audioNormalizeIntensity, set: setAudioNormalizeIntensity },
+    { key: 'skipFlacCompression', kind: 'val', useDefault: true, value: skipFlacCompression, set: setSkipFlacCompression },
+    { key: 'maxArtworkBytes', kind: 'val', useDefault: true, value: maxArtworkBytes, set: setMaxArtworkBytes },
+    { key: 'maxRssBytes', kind: 'val', useDefault: true, value: maxRssBytes, set: setMaxRssBytes },
+    { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
+    // Global behavior / output toggles
+    { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
+    { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
+    { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
+    { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
+    { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
+    { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
+    // Ad detection
+    { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
+    { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
+    { key: 'positionalPriorEnabled', kind: 'val', useDefault: true, value: positionalPriorEnabled, set: setPositionalPriorEnabled },
+    // Audio cue detection (nested `audioCue` state)
+    { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
+    { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
+    { key: 'audioCueFreqMaxHz', kind: 'val', useDefault: true, value: audioCue.freqMaxHz, obj: 'audioCue', prop: 'freqMaxHz' },
+    { key: 'audioCueProminenceDb', kind: 'val', useDefault: true, value: audioCue.prominenceDb, obj: 'audioCue', prop: 'prominenceDb' },
+    { key: 'audioCueMinConfidence', kind: 'val', useDefault: true, value: audioCue.minConfidence, obj: 'audioCue', prop: 'minConfidence' },
+    { key: 'audioCueTemplateScore', kind: 'val', useDefault: true, literal: 0.75, value: audioCue.templateScore, obj: 'audioCue', prop: 'templateScore' },
+    { key: 'audioCueFormantAttenDb', kind: 'val', useDefault: true, literal: 0, value: audioCue.formantAttenDb, obj: 'audioCue', prop: 'formantAttenDb' },
+    { key: 'audioCueCreateFromPairs', kind: 'val', useDefault: true, literal: false, value: audioCue.createFromPairs, obj: 'audioCue', prop: 'createFromPairs' },
+    { key: 'audioCueSnapConfidence', kind: 'val', useDefault: true, literal: 0.8, value: audioCue.snapConfidence, obj: 'audioCue', prop: 'snapConfidence' },
+    { key: 'audioCueSnapLeadSeconds', kind: 'val', useDefault: true, literal: 10, value: audioCue.snapLeadSeconds, obj: 'audioCue', prop: 'snapLeadSeconds' },
+    { key: 'audioCueSnapLagSeconds', kind: 'val', useDefault: true, literal: 4, value: audioCue.snapLagSeconds, obj: 'audioCue', prop: 'snapLagSeconds' },
+    { key: 'audioCueCaptureMinSeconds', kind: 'val', useDefault: true, literal: 0.2, value: audioCue.captureMinSeconds, obj: 'audioCue', prop: 'captureMinSeconds' },
+    { key: 'audioCueCaptureMaxSeconds', kind: 'val', useDefault: true, literal: 10, value: audioCue.captureMaxSeconds, obj: 'audioCue', prop: 'captureMaxSeconds' },
+    { key: 'audioCueCaptureMaxIntroSeconds', kind: 'val', useDefault: true, literal: 60, value: audioCue.captureMaxIntroSeconds, obj: 'audioCue', prop: 'captureMaxIntroSeconds' },
+    { key: 'audioCueCaptureMaxOutroSeconds', kind: 'val', useDefault: true, literal: 60, value: audioCue.captureMaxOutroSeconds, obj: 'audioCue', prop: 'captureMaxOutroSeconds' },
+    { key: 'audioCuePairConfidence', kind: 'val', useDefault: true, literal: 0.85, value: audioCue.pairConfidence, obj: 'audioCue', prop: 'pairConfidence' },
+    { key: 'audioCuePairMinBreakSeconds', kind: 'val', useDefault: true, literal: 30, value: audioCue.pairMinBreakSeconds, obj: 'audioCue', prop: 'pairMinBreakSeconds' },
+    { key: 'audioCuePairMaxBreakSeconds', kind: 'val', useDefault: true, literal: 480, value: audioCue.pairMaxBreakSeconds, obj: 'audioCue', prop: 'pairMaxBreakSeconds' },
+    { key: 'audioCuePairMaxBreakFraction', kind: 'val', useDefault: true, literal: 0.5, value: audioCue.pairMaxBreakFraction, obj: 'audioCue', prop: 'pairMaxBreakFraction' },
+    { key: 'silenceSnapNoiseDb', kind: 'val', useDefault: true, literal: -50, value: audioCue.silenceSnapNoiseDb, obj: 'audioCue', prop: 'silenceSnapNoiseDb' },
+    { key: 'silenceSnapMinDurationSeconds', kind: 'val', useDefault: true, literal: 0.3, value: audioCue.silenceSnapMinDurationSeconds, obj: 'audioCue', prop: 'silenceSnapMinDurationSeconds' },
+    { key: 'silenceSnapMaxDistanceSeconds', kind: 'val', useDefault: true, literal: 2, value: audioCue.silenceSnapMaxDistanceSeconds, obj: 'audioCue', prop: 'silenceSnapMaxDistanceSeconds' },
+  ];
+
   // Skip re-seeding form fields from a settings refetch while the user has
   // unsaved edits, or an immediate-save refetch (tunables/retention invalidate
   // ['settings']) would clobber them (fe-settings-history-1).
@@ -376,9 +496,9 @@ function Settings() {
   // re-hydrates -- otherwise `settings === settingsSnapshot` on remount and the
   // form would show the neutral placeholders instead of the saved values (#323).
   // The `!formDirty` guard still prevents a background refetch from clobbering
-  // unsaved edits. Defaults come from the backend `settings.defaults` block, not
-  // hardcoded literals; the hydration and computeChangedFields fallbacks MUST
-  // match (see fe-settings-history-1 / #234) or `hasChanges` never settles.
+  // unsaved edits. Defaults come from the backend `settings.defaults` block via
+  // fieldBaseline(); hydration and computeChangedFields share it, so their
+  // fallbacks cannot diverge (see fe-settings-history-1 / #234).
   const [formDirty, setFormDirty] = useState(false);
   const [settingsSnapshot, setSettingsSnapshot] = useState<typeof settings>(undefined);
   // After a save or reset lands, the refetch it triggers must re-seed the
@@ -402,82 +522,22 @@ function Settings() {
     if (settingsJustFetched) setSeenSettingsUpdatedAt(settingsUpdatedAt);
     if (!formDirty || (rehydratePending && settingsJustFetched)) {
       if (rehydratePending && settingsJustFetched) setRehydratePending(false);
-      const d = settings.defaults;
-      setSystemPrompt(settings.systemPrompt?.value || '');
-      setVerificationPrompt(settings.verificationPrompt?.value || '');
-      setSystemPromptOverride(settings.systemPromptOverride?.value || '');
-      setVerificationPromptOverride(settings.verificationPromptOverride?.value || '');
-      // Spread prev so the pattern-update fields seeded from the separate
-      // reviewerSettings query (see useSyncFromQuery below) are preserved.
-      setReviewer((prev) => ({
-        ...prev,
-        enabled: settings.enableAdReview?.value ?? d.enableAdReview,
-        model: settings.reviewModel?.value || d.reviewModel,
-        maxShift: settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift,
-        reviewPrompt: settings.reviewPrompt?.value || '',
-        resurrectPrompt: settings.resurrectPrompt?.value || '',
-        reviewPromptOverride: settings.reviewPromptOverride?.value || '',
-        resurrectPromptOverride: settings.resurrectPromptOverride?.value || '',
-        parallelAds: settings.adReviewerParallelAds?.value ?? d.adReviewerParallelAds,
-      }));
-      setSelectedModel(settings.claudeModel?.value || '');
-      setVerificationModel(settings.verificationModel?.value || '');
-      setWhisperModel(settings.whisperModel?.value || d.whisperModel);
-      setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? d.autoProcessEnabled);
-      setMaxFeedEpisodes(settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes);
-      setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault);
-      setArtworkWatermarkEnabled(settings.artworkWatermarkEnabled?.value ?? d.artworkWatermarkEnabled);
-      setAudioBitrate(settings.audioBitrate?.value || d.audioBitrate);
-      setAudioNormalizeEnabled(settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled);
-      setAudioNormalizeIntensity(settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity);
-      setSkipFlacCompression(settings.skipFlacCompression?.value ?? d.skipFlacCompression);
-      setMaxArtworkBytes(settings.maxArtworkBytes?.value ?? d.maxArtworkBytes);
-      setMaxRssBytes(settings.maxRssBytes?.value ?? d.maxRssBytes);
-      setMaxAudioDownloadMb(settings.maxAudioDownloadMb?.value ?? d.maxAudioDownloadMb);
-      setAudioCue({
-        enabled: settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled,
-        freqMinHz: settings.audioCueFreqMinHz?.value ?? d.audioCueFreqMinHz,
-        freqMaxHz: settings.audioCueFreqMaxHz?.value ?? d.audioCueFreqMaxHz,
-        prominenceDb: settings.audioCueProminenceDb?.value ?? d.audioCueProminenceDb,
-        minConfidence: settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence,
-        templateScore: settings.audioCueTemplateScore?.value ?? d.audioCueTemplateScore ?? 0.75,
-        formantAttenDb: settings.audioCueFormantAttenDb?.value ?? d.audioCueFormantAttenDb ?? 0,
-        createFromPairs: settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false,
-        snapConfidence: settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8,
-        snapLeadSeconds: settings.audioCueSnapLeadSeconds?.value ?? d.audioCueSnapLeadSeconds ?? 10,
-        snapLagSeconds: settings.audioCueSnapLagSeconds?.value ?? d.audioCueSnapLagSeconds ?? 4,
-        captureMinSeconds: settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2,
-        captureMaxSeconds: settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10,
-        captureMaxIntroSeconds: settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60,
-        captureMaxOutroSeconds: settings.audioCueCaptureMaxOutroSeconds?.value ?? d.audioCueCaptureMaxOutroSeconds ?? 60,
-        pairConfidence: settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85,
-        pairMinBreakSeconds: settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30,
-        pairMaxBreakSeconds: settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480,
-        pairMaxBreakFraction: settings.audioCuePairMaxBreakFraction?.value ?? d.audioCuePairMaxBreakFraction ?? 0.5,
-        silenceSnapNoiseDb: settings.silenceSnapNoiseDb?.value ?? d.silenceSnapNoiseDb ?? -50,
-        silenceSnapMinDurationSeconds: settings.silenceSnapMinDurationSeconds?.value ?? d.silenceSnapMinDurationSeconds ?? 0.3,
-        silenceSnapMaxDistanceSeconds: settings.silenceSnapMaxDistanceSeconds?.value ?? d.silenceSnapMaxDistanceSeconds ?? 2,
-      });
-      setPositionalPriorEnabled(
-        settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled);
-      setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? d.vttTranscriptsEnabled);
-      setChaptersEnabled(settings.chaptersEnabled?.value ?? d.chaptersEnabled);
-      setChaptersModel(settings.chaptersModel?.value || '');
-      setMinCutConfidence(settings.minCutConfidence?.value ?? d.minCutConfidence);
-      setMinContentBetweenAdsSeconds(settings.minContentBetweenAdsSeconds?.value ?? d.minContentBetweenAdsSeconds ?? 12);
-      setLlmProvider((settings.llmProvider?.value || d.llmProvider) as LlmProvider);
-      setOpenaiBaseUrl(settings.openaiBaseUrl?.value || d.openaiBaseUrl);
-      setPricingSourceMode(settings.pricingSourceMode?.value || d.pricingSourceMode);
-      setWhisperBackend((settings.whisperBackend?.value || d.whisperBackend) as WhisperBackend);
-      setWhisperApiConfig({
-        baseUrl: settings.whisperApiBaseUrl?.value || '',
-        model: settings.whisperApiModel?.value || d.whisperApiModel,
-      });
-      setWhisperLanguage(settings.whisperLanguage?.value || d.whisperLanguage);
-      setWhisperComputeType(settings.whisperComputeType?.value || d.whisperComputeType);
-      setTranscribeMaxChunkSeconds(settings.transcribeMaxChunkSeconds?.value ?? 600);
-      setTranscribeConcurrentChunks(settings.transcribeConcurrentChunks?.value ?? 4);
-      setTranscribeChunkOverlapSeconds(settings.transcribeChunkOverlapSeconds?.value ?? 30);
+      // Seed every registered field from its baseline. Flat fields set
+      // directly (render-phase setState, same pattern as before); nested
+      // fields are collected into per-object patches and applied once.
+      const patches: Record<'reviewer' | 'audioCue' | 'whisperApi', Record<string, SettingScalar | undefined>> = {
+        reviewer: {}, audioCue: {}, whisperApi: {},
+      };
+      for (const f of FIELDS) {
+        const v = fieldBaseline(settings, f);
+        if (f.set) f.set(v as never);
+        else if (f.obj && f.prop) patches[f.obj][f.prop] = v;
+      }
+      // Spread prev so reviewer fields seeded from the separate
+      // reviewerSettings query (see useSyncFromQuery above) are preserved.
+      setReviewer((prev) => ({ ...prev, ...(patches.reviewer as Partial<typeof prev>) }));
+      setAudioCue((prev) => ({ ...prev, ...(patches.audioCue as Partial<typeof prev>) }));
+      setWhisperApiConfig((prev) => ({ ...prev, ...(patches.whisperApi as Partial<typeof prev>) }));
     }
   }
 
@@ -486,86 +546,19 @@ function Settings() {
   // so omitted fields stay untouched in the DB; that's what lets a Save
   // change one field without wiping the rest, and also closes the
   // hydration-race window where Save could fire before loaded values were
-  // copied into local state. Caller must verify settings is non-null.
-  // String fields use || (treat empty string as "fall back to default");
-  // boolean and numeric fields use ?? (false and 0 are meaningful values).
-  // Defaults come from settings.defaults; these MUST match the hydration block.
+  // copied into local state.
   const computeChangedFields = (): UpdateSettingsPayload => {
     if (!settings) return {};
-    const d = settings.defaults;
     const payload: UpdateSettingsPayload = {};
-
-    // Compare against the SAME fallback the hydration block used (see
-    // setSystemPrompt / setSelectedModel etc above). If the two diverge, a
-    // server-stored value differs from the defaults-derived value, hasChanges
-    // flips permanently true, and Save Changes never goes away (#234 follow-up).
-    if (systemPrompt !== (settings.systemPrompt?.value || '')) payload.systemPrompt = systemPrompt;
-    if (verificationPrompt !== (settings.verificationPrompt?.value || '')) payload.verificationPrompt = verificationPrompt;
-    if (systemPromptOverride !== (settings.systemPromptOverride?.value || '')) payload.systemPromptOverride = systemPromptOverride;
-    if (verificationPromptOverride !== (settings.verificationPromptOverride?.value || '')) payload.verificationPromptOverride = verificationPromptOverride;
-    if (reviewer.reviewPrompt !== (settings.reviewPrompt?.value || '')) payload.reviewPrompt = reviewer.reviewPrompt;
-    if (reviewer.resurrectPrompt !== (settings.resurrectPrompt?.value || '')) payload.resurrectPrompt = reviewer.resurrectPrompt;
-    if (reviewer.reviewPromptOverride !== (settings.reviewPromptOverride?.value || '')) payload.reviewPromptOverride = reviewer.reviewPromptOverride;
-    if (reviewer.resurrectPromptOverride !== (settings.resurrectPromptOverride?.value || '')) payload.resurrectPromptOverride = reviewer.resurrectPromptOverride;
-    if (reviewer.enabled !== (settings.enableAdReview?.value ?? d.enableAdReview)) payload.enableAdReview = reviewer.enabled;
-    if (reviewer.model !== (settings.reviewModel?.value || d.reviewModel)) payload.reviewModel = reviewer.model;
-    if (reviewer.maxShift !== (settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift)) payload.reviewMaxBoundaryShift = reviewer.maxShift;
-    if (reviewer.parallelAds !== (settings.adReviewerParallelAds?.value ?? d.adReviewerParallelAds)) payload.adReviewerParallelAds = reviewer.parallelAds;
-    if (audioCue.enabled !== (settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled)) payload.audioCueDetectionEnabled = audioCue.enabled;
-    if (audioCue.freqMinHz !== (settings.audioCueFreqMinHz?.value ?? d.audioCueFreqMinHz)) payload.audioCueFreqMinHz = audioCue.freqMinHz;
-    if (audioCue.freqMaxHz !== (settings.audioCueFreqMaxHz?.value ?? d.audioCueFreqMaxHz)) payload.audioCueFreqMaxHz = audioCue.freqMaxHz;
-    if (audioCue.prominenceDb !== (settings.audioCueProminenceDb?.value ?? d.audioCueProminenceDb)) payload.audioCueProminenceDb = audioCue.prominenceDb;
-    if (audioCue.minConfidence !== (settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence)) payload.audioCueMinConfidence = audioCue.minConfidence;
-    if (audioCue.templateScore !== (settings.audioCueTemplateScore?.value ?? d.audioCueTemplateScore ?? 0.75)) payload.audioCueTemplateScore = audioCue.templateScore;
-    if (audioCue.formantAttenDb !== (settings.audioCueFormantAttenDb?.value ?? d.audioCueFormantAttenDb ?? 0)) payload.audioCueFormantAttenDb = audioCue.formantAttenDb;
-    if (audioCue.createFromPairs !== (settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false)) payload.audioCueCreateFromPairs = audioCue.createFromPairs;
-    if (audioCue.snapConfidence !== (settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8)) payload.audioCueSnapConfidence = audioCue.snapConfidence;
-    if (audioCue.snapLeadSeconds !== (settings.audioCueSnapLeadSeconds?.value ?? d.audioCueSnapLeadSeconds ?? 10)) payload.audioCueSnapLeadSeconds = audioCue.snapLeadSeconds;
-    if (audioCue.snapLagSeconds !== (settings.audioCueSnapLagSeconds?.value ?? d.audioCueSnapLagSeconds ?? 4)) payload.audioCueSnapLagSeconds = audioCue.snapLagSeconds;
-    if (audioCue.captureMinSeconds !== (settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2)) payload.audioCueCaptureMinSeconds = audioCue.captureMinSeconds;
-    if (audioCue.captureMaxSeconds !== (settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 10)) payload.audioCueCaptureMaxSeconds = audioCue.captureMaxSeconds;
-    if (audioCue.captureMaxIntroSeconds !== (settings.audioCueCaptureMaxIntroSeconds?.value ?? d.audioCueCaptureMaxIntroSeconds ?? 60)) payload.audioCueCaptureMaxIntroSeconds = audioCue.captureMaxIntroSeconds;
-    if (audioCue.captureMaxOutroSeconds !== (settings.audioCueCaptureMaxOutroSeconds?.value ?? d.audioCueCaptureMaxOutroSeconds ?? 60)) payload.audioCueCaptureMaxOutroSeconds = audioCue.captureMaxOutroSeconds;
-    if (audioCue.pairConfidence !== (settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85)) payload.audioCuePairConfidence = audioCue.pairConfidence;
-    if (audioCue.pairMinBreakSeconds !== (settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30)) payload.audioCuePairMinBreakSeconds = audioCue.pairMinBreakSeconds;
-    if (audioCue.pairMaxBreakSeconds !== (settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480)) payload.audioCuePairMaxBreakSeconds = audioCue.pairMaxBreakSeconds;
-    if (audioCue.pairMaxBreakFraction !== (settings.audioCuePairMaxBreakFraction?.value ?? d.audioCuePairMaxBreakFraction ?? 0.5)) payload.audioCuePairMaxBreakFraction = audioCue.pairMaxBreakFraction;
-    if (audioCue.silenceSnapNoiseDb !== (settings.silenceSnapNoiseDb?.value ?? d.silenceSnapNoiseDb ?? -50)) payload.silenceSnapNoiseDb = audioCue.silenceSnapNoiseDb;
-    if (audioCue.silenceSnapMinDurationSeconds !== (settings.silenceSnapMinDurationSeconds?.value ?? d.silenceSnapMinDurationSeconds ?? 0.3)) payload.silenceSnapMinDurationSeconds = audioCue.silenceSnapMinDurationSeconds;
-    if (audioCue.silenceSnapMaxDistanceSeconds !== (settings.silenceSnapMaxDistanceSeconds?.value ?? d.silenceSnapMaxDistanceSeconds ?? 2)) payload.silenceSnapMaxDistanceSeconds = audioCue.silenceSnapMaxDistanceSeconds;
-    if (positionalPriorEnabled !== (settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled)) payload.positionalPriorEnabled = positionalPriorEnabled;
-    if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
-    if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;
-    if (whisperModel !== (settings.whisperModel?.value || d.whisperModel)) payload.whisperModel = whisperModel;
-    if (chaptersModel !== (settings.chaptersModel?.value || '')) payload.chaptersModel = chaptersModel;
-    if (llmProvider !== (settings.llmProvider?.value || d.llmProvider)) payload.llmProvider = llmProvider;
-    if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || d.openaiBaseUrl)) payload.openaiBaseUrl = openaiBaseUrl;
-    if (pricingSourceMode !== (settings.pricingSourceMode?.value || d.pricingSourceMode)) payload.pricingSourceMode = pricingSourceMode;
-    if (whisperBackend !== (settings.whisperBackend?.value || d.whisperBackend)) payload.whisperBackend = whisperBackend;
-    if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '')) payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
-    if (whisperApiConfig.model !== (settings.whisperApiModel?.value || d.whisperApiModel)) payload.whisperApiModel = whisperApiConfig.model;
-    if (whisperLanguage !== (settings.whisperLanguage?.value || d.whisperLanguage)) payload.whisperLanguage = whisperLanguage;
-    if (whisperComputeType !== (settings.whisperComputeType?.value || d.whisperComputeType)) payload.whisperComputeType = whisperComputeType;
-    if (transcribeMaxChunkSeconds !== (settings.transcribeMaxChunkSeconds?.value ?? 600)) payload.transcribeMaxChunkSeconds = transcribeMaxChunkSeconds;
-    if (transcribeConcurrentChunks !== (settings.transcribeConcurrentChunks?.value ?? 4)) payload.transcribeConcurrentChunks = transcribeConcurrentChunks;
-    if (transcribeChunkOverlapSeconds !== (settings.transcribeChunkOverlapSeconds?.value ?? 30)) payload.transcribeChunkOverlapSeconds = transcribeChunkOverlapSeconds;
-    if (audioBitrate !== (settings.audioBitrate?.value || d.audioBitrate)) payload.audioBitrate = audioBitrate;
-    if (audioNormalizeEnabled !== (settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled)) payload.audioNormalizeEnabled = audioNormalizeEnabled;
-    if (audioNormalizeIntensity !== (settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity)) payload.audioNormalizeIntensity = audioNormalizeIntensity;
-    if (skipFlacCompression !== (settings.skipFlacCompression?.value ?? d.skipFlacCompression)) payload.skipFlacCompression = skipFlacCompression;
-    if (maxArtworkBytes !== (settings.maxArtworkBytes?.value ?? d.maxArtworkBytes)) payload.maxArtworkBytes = maxArtworkBytes;
-    if (maxRssBytes !== (settings.maxRssBytes?.value ?? d.maxRssBytes)) payload.maxRssBytes = maxRssBytes;
-    if (maxAudioDownloadMb !== (settings.maxAudioDownloadMb?.value ?? d.maxAudioDownloadMb)) payload.maxAudioDownloadMb = maxAudioDownloadMb;
-
-    if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;
-    if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault)) payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
-    if (artworkWatermarkEnabled !== (settings.artworkWatermarkEnabled?.value ?? d.artworkWatermarkEnabled)) payload.artworkWatermarkEnabled = artworkWatermarkEnabled;
-    if (vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? d.vttTranscriptsEnabled)) payload.vttTranscriptsEnabled = vttTranscriptsEnabled;
-    if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? d.chaptersEnabled)) payload.chaptersEnabled = chaptersEnabled;
-    if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes)) payload.maxFeedEpisodes = maxFeedEpisodes;
-    if (minCutConfidence !== (settings.minCutConfidence?.value ?? d.minCutConfidence)) payload.minCutConfidence = minCutConfidence;
-    if (minContentBetweenAdsSeconds !== (settings.minContentBetweenAdsSeconds?.value ?? d.minContentBetweenAdsSeconds ?? 12)) payload.minContentBetweenAdsSeconds = minContentBetweenAdsSeconds;
-
+    for (const f of FIELDS) {
+      // Compare against the SAME baseline hydration seeded from. If the two
+      // ever diverged, hasChanges would flip permanently true and Save
+      // Changes would never go away (#234 follow-up); deriving both from
+      // fieldBaseline makes that impossible.
+      if (f.value !== fieldBaseline(settings, f)) {
+        (payload as Record<string, SettingScalar>)[f.key] = f.value;
+      }
+    }
     return payload;
   };
 
@@ -577,13 +570,14 @@ function Settings() {
       || reviewer.minTrimThreshold !== reviewerSettings.minTrimThreshold;
   };
 
-  const hasChanges = useMemo(() => {
-    if (!settings) return false;
-    if (Object.keys(computeChangedFields()).length > 0) return true;
-    if (reviewerPatternsChanged()) return true;
-    return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, systemPromptOverride, verificationPromptOverride, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, artworkWatermarkEnabled, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, maxArtworkBytes, maxRssBytes, maxAudioDownloadMb, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, minContentBetweenAdsSeconds, llmProvider, openaiBaseUrl, pricingSourceMode, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  // Recomputed every render: ~65 scalar compares over the registry, cheap
+  // enough to skip memoization. This removes the old useMemo whose
+  // hand-maintained dependency list was a fourth per-field registration.
+  const hasChanges = !!settings && (
+    Object.keys(computeChangedFields()).length > 0
+    || reviewerPatternsChanged()
+    || (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
+  );
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -1028,7 +1022,7 @@ function Settings() {
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
-              className="px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm font-medium"
+              className={`px-6 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm font-medium`}
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
             </button>

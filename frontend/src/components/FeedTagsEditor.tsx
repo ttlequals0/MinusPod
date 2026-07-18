@@ -8,6 +8,7 @@ import {
 } from '../api/community';
 import { TagChips } from './TagChips';
 import LoadingSpinner from './LoadingSpinner';
+import { btnOutline } from './buttonStyles';
 
 interface Props {
   slug: string;
@@ -117,7 +118,7 @@ export function FeedTagsEditor({ slug }: Props) {
                   type="button"
                   onClick={() => setAdding(true)}
                   disabled={save.isPending || remainingVocab.length === 0}
-                  className="px-2 py-1 text-xs rounded border border-border hover:bg-accent disabled:opacity-50"
+                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
                 >
                   + Add tag
                 </button>
@@ -152,7 +153,7 @@ export function FeedTagsEditor({ slug }: Props) {
                   <button
                     type="button"
                     onClick={() => setAdding(false)}
-                    className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
+                    className={`px-2 py-1 text-xs rounded ${btnOutline}`}
                   >
                     Cancel
                   </button>

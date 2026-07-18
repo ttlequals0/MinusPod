@@ -113,15 +113,9 @@ def test_no_result_returns_input_unchanged():
 
 # ---------------------------------------------------------------------------
 # Role gating (only opener -> closer pairs synthesize an ad)
+# _typed_cue is the module-level helper defined further down; Python resolves
+# it at call time, so these tests already use that definition.
 # ---------------------------------------------------------------------------
-
-def _typed_cue(start, end, role, conf=0.9, template_id=1):
-    return AudioSegmentSignal(
-        start=start, end=end, signal_type='audio_cue', confidence=conf,
-        details={'source': 'template', 'label': role, 'role': role,
-                 'template_id': template_id},
-    )
-
 
 def test_two_start_cues_do_not_pair():
     # Two break-entry stingers must NOT bracket the show content between two

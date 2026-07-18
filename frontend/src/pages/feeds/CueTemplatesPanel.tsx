@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, Play, Square } from 'lucide-react';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
@@ -29,9 +29,11 @@ import {
 import { getCueFeedAdvisory } from '../../api/cueDetections';
 import { getEpisode, getEpisodes, getFeed, getFeeds, updateFeed, CUE_SCORE_MAX } from '../../api/feeds';
 import { getSettings } from '../../api/settings';
+import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
+import { formatDate } from '../../utils/format';
 
 const PICKER_PAGE_SIZE = 50;
 
@@ -43,6 +45,9 @@ interface Props {
 // spectral cue detector when at least one is enabled for the feed.
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
+  // Mirrors the CollapsibleSection's persisted open state (same storage key)
+  // so the panel's queries only run once the section is actually visible.
+  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-cue-templates-${slug}`);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openModal, setOpenModal] = useState<{ episodeId: string; episodeTitle: string; duration: number } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -80,7 +85,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const templatesQuery = useQuery({
     queryKey: ['cue-templates', slug],
     queryFn: () => listCueTemplates(slug),
-    enabled: !!slug,
+    enabled: !!slug && panelOpen,
   });
 
   // The feed's network id gates the "promote to network" action.
@@ -104,7 +109,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const advisoryQuery = useQuery({
     queryKey: ['cue-advisory', slug],
     queryFn: () => getCueFeedAdvisory(slug),
-    enabled: !!slug,
+    enabled: !!slug && panelOpen,
   });
 
   // Gate for the "Find across episodes" button: needs >= 2 episodes with
@@ -121,7 +126,7 @@ function CueTemplatesPanel({ slug }: Props) {
         sortBy: 'published',
         sortDir: 'desc',
       }),
-    enabled: !!slug,
+    enabled: !!slug && panelOpen,
     staleTime: 60_000,
   });
   const eligibleCount = (eligibleQuery.data?.episodes ?? []).filter(
@@ -135,19 +140,16 @@ function CueTemplatesPanel({ slug }: Props) {
     mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
-    onError: (e) => setActionError(e instanceof Error ? e.message : 'Update failed'),
+    onError: (e) => setActionError(getErrorMessage(e, 'Update failed')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteCueTemplate(id),
     onSuccess: invalidate,
-    onError: (e) => setActionError(e instanceof Error ? e.message : 'Delete failed'),
+    onError: (e) => setActionError(getErrorMessage(e, 'Delete failed')),
   });
 
-  const templates: CueTemplate[] = useMemo(
-    () => templatesQuery.data ?? [],
-    [templatesQuery.data],
-  );
+  const templates: CueTemplate[] = templatesQuery.data ?? [];
 
   const handleToggle = (template: CueTemplate) => {
     setActionError(null);
@@ -217,7 +219,7 @@ function CueTemplatesPanel({ slug }: Props) {
       const onNetwork = feeds.filter((f) => (f.networkIdOverride || f.networkId) === networkId);
       setPromoteState({ template, feeds: onNetwork });
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Could not load network feeds');
+      setActionError(getErrorMessage(e, 'Could not load network feeds'));
     }
   };
 
@@ -251,7 +253,7 @@ function CueTemplatesPanel({ slug }: Props) {
       }
       setVerifyState({ label: template.label, checked: candidates.length, matched });
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Auto-verify failed');
+      setActionError(getErrorMessage(e, 'Auto-verify failed'));
     } finally {
       setVerifying(false);
     }
@@ -260,7 +262,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const importMutation = useMutation({
     mutationFn: (file: File) => importCueTemplate(slug, file),
     onSuccess: invalidate,
-    onError: (e) => setActionError(e instanceof Error ? e.message : 'Import failed'),
+    onError: (e) => setActionError(getErrorMessage(e, 'Import failed')),
   });
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -287,7 +289,7 @@ function CueTemplatesPanel({ slug }: Props) {
       setPickerOpen(false);
       setOpenModal({ episodeId: ep.id, episodeTitle: ep.title, duration: ep.duration ?? 0 });
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'Could not open this episode');
+      setActionError(getErrorMessage(e, 'Could not open this episode'));
     }
   };
 
@@ -298,6 +300,7 @@ function CueTemplatesPanel({ slug }: Props) {
         subtitle="A recurring ding or stinger the matcher snaps ad edges to."
         defaultOpen={false}
         storageKey={`feed-cue-templates-${slug}`}
+        onToggle={setPanelOpen}
       >
         <input
           ref={importInputRef}
@@ -351,7 +354,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </p>
         )}
         {verifyState && !verifying && (
-          <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+          <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-success' : 'text-warning'}`}>
             Cue "{verifyState.label}" matched {verifyState.matched} of {verifyState.checked} recent
             episode{verifyState.checked === 1 ? '' : 's'}.
             {verifyState.matched === 0 ? ' No matches yet - it may not recur, or the bracket is loose.' : ''}
@@ -584,7 +587,7 @@ function CueTemplatesPanel({ slug }: Props) {
               <div className="mt-3 space-y-1">
                 {advisoryQuery.data.templateHints!.map((h) => (
                   <p key={h.templateId} className="text-sm text-muted-foreground">
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400 mr-2">
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning mr-2">
                       {h.hint === 'raise_threshold' ? 'Raise threshold' : 'Re-capture cue'}
                     </span>
                     {h.label || `Template ${h.templateId}`}: {h.rejected} rejected
@@ -727,28 +730,22 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
           )}
           {episodes.length > 0 && (
             <ul className="divide-y divide-border">
-              {episodes.map((ep) => {
-                const noOriginal = ep.hasOriginalAudio === false;
-                return (
-                  <li key={ep.id}>
-                    <button
-                      type="button"
-                      onClick={() => onPick(ep)}
-                      disabled={noOriginal}
-                      className={`w-full text-left px-3 py-2 ${noOriginal ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/50'}`}
-                      title={noOriginal ? 'Original audio not retained for this episode' : undefined}
-                    >
-                      <p className="text-sm font-medium truncate">{ep.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {ep.published ? new Date(ep.published).toLocaleDateString() : 'unknown date'}
-                        {' - '}{ep.status}
-                        {typeof ep.duration === 'number' && ep.duration > 0 ? ` - ${Math.round(ep.duration / 60)} min` : ''}
-                        {noOriginal ? ' - no original audio' : ''}
-                      </p>
-                    </button>
-                  </li>
-                );
-              })}
+              {episodes.map((ep) => (
+                <li key={ep.id}>
+                  <button
+                    type="button"
+                    onClick={() => onPick(ep)}
+                    className="w-full text-left px-3 py-2 hover:bg-muted/50"
+                  >
+                    <p className="text-sm font-medium truncate">{ep.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ep.published ? formatDate(ep.published) : 'unknown date'}
+                      {' - '}{ep.status}
+                      {typeof ep.duration === 'number' && ep.duration > 0 ? ` - ${Math.round(ep.duration / 60)} min` : ''}
+                    </p>
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
         </div>
@@ -812,7 +809,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       const res = await scanEpisodeCues(slug, ep.id, override);
       setResult(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Scan failed');
+      setError(getErrorMessage(e, 'Scan failed'));
     } finally {
       setRunning(false);
     }
@@ -839,7 +836,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       }
       setError('Threshold suggest timed out after 3 minutes');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Suggest failed');
+      setError(getErrorMessage(e, 'Suggest failed'));
     } finally {
       setSuggesting(false);
     }
@@ -857,7 +854,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       setApplied(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not apply');
+      setError(getErrorMessage(e, 'Could not apply'));
     }
   };
 
@@ -872,7 +869,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       setSelectedEpisode(ep);
       await runScan(ep);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load episode');
+      setError(getErrorMessage(e, 'Could not load episode'));
     }
   };
 
@@ -973,7 +970,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                 <p className="text-muted-foreground">{s.reason}</p>
               )}
               {s.effectFloorWarning === 'signal-below-floor' && (
-                <p className="mt-1 text-amber-600 dark:text-amber-400">
+                <p className="mt-1 text-warning">
                   The real cue scores below the {s.effectFloor?.toFixed(2)} floor, so lowering the
                   match score only surfaces it in diagnostics; it will not change cuts. Re-capture a
                   cleaner cue or enable voiceover attenuation.
@@ -990,7 +987,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                 </button>
               )}
               {applied && (
-                <span className="ml-2 text-xs text-green-600 dark:text-green-400">Saved as feed override</span>
+                <span className="ml-2 text-xs text-success">Saved as feed override</span>
               )}
             </div>
           );
@@ -1021,7 +1018,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-mono ${passed ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        <p className={`text-sm font-mono ${passed ? 'text-success' : 'text-warning'}`}>
                           peak {t.peakScore.toFixed(3)}
                         </p>
                         <p className="text-xs text-muted-foreground">

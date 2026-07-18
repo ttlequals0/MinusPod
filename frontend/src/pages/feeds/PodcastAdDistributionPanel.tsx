@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { getAdDistribution } from '../../api/feeds';
@@ -152,10 +152,13 @@ function PanelBody({ data }: { data: AdDistribution }) {
 }
 
 function PodcastAdDistributionPanel({ slug }: Props) {
+  // Mirrors the CollapsibleSection's persisted open state (same storage key)
+  // so the distribution is only fetched once the panel is actually visible.
+  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-ad-distribution-${slug}`);
   const { data, isLoading, error } = useQuery({
     queryKey: ['ad-distribution', slug],
     queryFn: () => getAdDistribution(slug),
-    enabled: !!slug,
+    enabled: !!slug && panelOpen,
   });
 
   return (
@@ -165,6 +168,7 @@ function PodcastAdDistributionPanel({ slug }: Props) {
         subtitle="Where ads have been cut across this feed's episodes"
         defaultOpen={false}
         storageKey={`feed-ad-distribution-${slug}`}
+        onToggle={setPanelOpen}
         unmountWhenClosed
       >
         {isLoading && <LoadingSpinner size="sm" className="my-2" />}

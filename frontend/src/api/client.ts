@@ -83,6 +83,13 @@ export function extractErrorMessage(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
+// Narrow an unknown catch/onError value to a display string. apiRequest and
+// apiFileRequest always throw Error instances, so callers get err.message;
+// the fallback covers non-Error throws from other code paths.
+export function getErrorMessage(err: unknown, fallback = 'Request failed'): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 // Redirect to login on 401, preserving the current path. Throws so callers stop.
 function handleUnauthorized(endpoint: string): void {
   const currentPath = window.location.pathname;
@@ -99,8 +106,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      // FormData passes through untouched (mirrors apiFileRequest): no
+      // Content-Type header so the browser sets the multipart boundary.
+      const isFormData = body instanceof FormData;
       const headers: Record<string, string> = {};
-      if (body) {
+      if (body && !isFormData) {
         headers['Content-Type'] = 'application/json';
       }
       Object.assign(headers, csrfHeaders(method));
@@ -108,7 +118,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined,
+        body: isFormData ? (body as FormData) : body ? JSON.stringify(body) : undefined,
         signal,
       });
 

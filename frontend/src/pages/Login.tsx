@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { takeLoginRedirect } from '../utils/loginRedirect';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { btnPrimary } from '../components/buttonStyles';
 
 function Login() {
   const navigate = useNavigate();
@@ -104,7 +105,7 @@ function Login() {
             <button
               type="submit"
               disabled={isSubmitting || !password}
-              className="w-full px-4 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium"
+              className={`w-full px-4 py-3 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors font-medium`}
             >
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>

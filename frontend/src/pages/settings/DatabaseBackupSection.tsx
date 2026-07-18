@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { getErrorMessage } from '../../api/client';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
   getDatabaseBackupSettings,
@@ -8,6 +9,8 @@ import {
   runDatabaseBackupNow,
 } from '../../api/settings';
 import { formatStorage } from './settingsUtils';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import SavedBadge from './SavedBadge';
 
 interface Draft {
   enabled?: boolean;
@@ -37,8 +40,7 @@ function DatabaseBackupSection() {
       setDraft({});
       qc.invalidateQueries({ queryKey: ['dbBackup'] });
     },
-    onError: (e: unknown) =>
-      setSaveError(e instanceof Error ? e.message : 'Save failed'),
+    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
   });
 
   const runNow = useMutation({
@@ -81,7 +83,7 @@ function DatabaseBackupSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 text-sm"
+            className={`px-4 py-2 rounded-lg ${btnSecondary} text-sm`}
           >
             Retry
           </button>
@@ -149,7 +151,7 @@ function DatabaseBackupSection() {
               // Render whenever the stored dest is not writable, including the
               // case where validation failed and effectiveDest came back empty;
               // fall back to the entered path so the message still names it.
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-warning">
                 {data.effectiveDest || dest || 'The backup destination'} is not
                 writable. Backups will fail until this is fixed.
               </p>
@@ -196,7 +198,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-sm"
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -204,15 +206,13 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => runNow.mutate()}
               disabled={runNow.isPending}
-              className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 text-sm"
+              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
             >
               {runNow.isPending ? 'Backing up...' : 'Back up now'}
             </button>
-            {save.isSuccess && (
-              <span className="ml-1 text-sm text-green-600 dark:text-green-400">Saved</span>
-            )}
+            {save.isSuccess && <SavedBadge className="ml-1" />}
             {runNow.isSuccess && (
-              <span className="ml-1 text-sm text-green-600 dark:text-green-400">
+              <span className="ml-1 text-sm text-success">
                 Backup complete
               </span>
             )}

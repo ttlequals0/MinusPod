@@ -16,10 +16,9 @@ from api import (
 )
 from config import (
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
-    WHISPER_COMPUTE_TYPES, WHISPER_COMPUTE_TYPE_DEFAULT,
-    DEFAULT_OPENAI_BASE_URL, OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
+    WHISPER_COMPUTE_TYPES,
+    OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
-    resolve_env_backed_default,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
@@ -28,13 +27,17 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
-    STAGE_TUNABLE_PAYLOAD_KEYS,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     get_env_backed_int,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
 )
+from ad_detector import AdDetector
 from audio_processor import NORMALIZE_PRESETS
+from database.settings import (
+    AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
+    registry_default, registry_get_default,
+)
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
     TTL_HOURS_MIN, TTL_HOURS_MAX,
@@ -57,6 +60,12 @@ from db_backup_service import (
     validate_backup_dest,
 )
 from utils.cron import is_valid_expression
+
+# Every LLM provider the settings API accepts.
+VALID_LLM_PROVIDERS = (
+    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+    PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+)
 
 logger = logging.getLogger('podcast.api')
 
@@ -93,17 +102,11 @@ def _settings_view(raw: Mapping[str, Any]) -> Dict[str, SettingEntry]:
 
 
 def _setting_value(settings, key, default=None):
-    """Extract value from the settings dict returned by get_all_settings().
-
-    Accepts both the raw dict shape and a ``SettingEntry`` mapping so
-    legacy callers keep working without a forced wrap.
-    """
+    """Extract value from the ``SettingEntry`` view built by _settings_view()."""
     entry = settings.get(key)
     if entry is None:
         return default
-    if isinstance(entry, SettingEntry):
-        return entry.value if entry.value is not None else default
-    return entry.get('value', default)
+    return entry.value if entry.value is not None else default
 
 
 def _setting_is_default(settings, key):
@@ -111,9 +114,16 @@ def _setting_is_default(settings, key):
     entry = settings.get(key)
     if entry is None:
         return True
-    if isinstance(entry, SettingEntry):
-        return entry.is_default
-    return entry.get('is_default', True)
+    return entry.is_default
+
+
+def _clamped_int(raw, default, lo, hi):
+    """Parse ``raw`` as an int (falling back to ``default``) and clamp to [lo, hi]."""
+    try:
+        value = int(raw) if raw is not None else default
+    except (TypeError, ValueError):
+        value = default
+    return max(lo, min(hi, value))
 
 
 # ========== Settings Endpoints ==========
@@ -159,26 +169,32 @@ def get_settings():
     chapters_model = _setting_value(settings, 'chapters_model', CHAPTERS_MODEL)
 
     # Get whisper model setting (defaults to env var or 'small')
-    default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
+    default_whisper_model = registry_default('whisper_model')
     whisper_model = _setting_value(settings, 'whisper_model', default_whisper_model)
 
-    # Get boolean settings
-    auto_process_value = _setting_value(settings, 'auto_process_enabled', 'true')
+    # Get boolean settings (fallback strings come from the registry)
+    auto_process_value = _setting_value(
+        settings, 'auto_process_enabled', registry_default('auto_process_enabled'))
     auto_process_enabled = auto_process_value.lower() in ('true', '1', 'yes')
-    vtt_value = _setting_value(settings, 'vtt_transcripts_enabled', 'true')
+    vtt_value = _setting_value(
+        settings, 'vtt_transcripts_enabled', registry_default('vtt_transcripts_enabled'))
     vtt_enabled = vtt_value.lower() in ('true', '1', 'yes')
-    chapters_value = _setting_value(settings, 'chapters_enabled', 'true')
+    chapters_value = _setting_value(
+        settings, 'chapters_enabled', registry_default('chapters_enabled'))
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
     only_expose_processed_value = _setting_value(
-        settings, 'only_expose_processed_default', 'false')
+        settings, 'only_expose_processed_default',
+        registry_default('only_expose_processed_default'))
     only_expose_processed_default = (
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
     artwork_watermark_value = _setting_value(
-        settings, 'artwork_watermark_enabled', 'false')
+        settings, 'artwork_watermark_enabled',
+        registry_default('artwork_watermark_enabled'))
     artwork_watermark_enabled = (
         artwork_watermark_value.lower() in ('true', '1', 'yes'))
     feed_auth_enabled = coerce_bool_setting(
-        _setting_value(settings, 'feed_auth_enabled', 'false'))
+        _setting_value(settings, 'feed_auth_enabled',
+                       registry_default('feed_auth_enabled')))
     # Bearer key for authenticated feeds; intentionally readable (the UI/API
     # must display it so the operator can subscribe apps with it).
     feed_auth_key = _setting_value(settings, 'feed_auth_key', '') or None
@@ -193,20 +209,23 @@ def get_settings():
         opml_original_url = modified_feed_url(_opml_base, 'opml/original.opml', feed_auth_key)
 
     try:
-        max_feed_episodes = int(_setting_value(settings, 'max_feed_episodes', '300'))
+        max_feed_episodes = int(_setting_value(
+            settings, 'max_feed_episodes', registry_default('max_feed_episodes')))
     except (ValueError, TypeError):
-        max_feed_episodes = 300
+        max_feed_episodes = registry_get_default('max_feed_episodes')
 
     # Get min cut confidence (ad detection aggressiveness)
     try:
-        min_cut_confidence = float(_setting_value(settings, 'min_cut_confidence', '0.80'))
+        min_cut_confidence = float(_setting_value(
+            settings, 'min_cut_confidence', registry_default('min_cut_confidence')))
     except (ValueError, TypeError):
-        min_cut_confidence = 0.80
+        min_cut_confidence = registry_get_default('min_cut_confidence')
 
     # LLM provider settings
     llm_provider = get_effective_provider()
     openai_base_url = get_effective_base_url()
-    pricing_source_mode = _setting_value(settings, 'pricing_source_mode', 'auto')
+    pricing_source_mode = _setting_value(
+        settings, 'pricing_source_mode', registry_default('pricing_source_mode'))
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
     openrouter_api_key = get_effective_openrouter_api_key()
@@ -214,23 +233,17 @@ def get_settings():
 
     podcast_index_api_key = _setting_value(settings, 'podcast_index_api_key', '') or os.environ.get('PODCAST_INDEX_API_KEY', '')
 
-    # Whisper backend settings (env var defaults)
-    default_whisper_backend = os.environ.get('WHISPER_BACKEND', 'local')
-    default_whisper_api_base_url = os.environ.get('WHISPER_API_BASE_URL', '')
-    default_whisper_api_model = os.environ.get('WHISPER_API_MODEL', 'whisper-1')
-    default_whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
-    default_whisper_compute_type = os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT)
-    default_vad_gap_enabled = os.environ.get('VAD_GAP_DETECTION_ENABLED', 'true').lower() in ('true', '1', 'yes')
+    # Whisper backend settings (env var defaults, resolved via the registry)
+    default_whisper_backend = registry_default('whisper_backend')
+    default_whisper_api_base_url = registry_default('whisper_api_base_url')
+    default_whisper_api_model = registry_default('whisper_api_model')
+    default_whisper_language = registry_default('whisper_language')
+    default_whisper_compute_type = registry_default('whisper_compute_type')
+    default_vad_gap_enabled = registry_get_default('vad_gap_detection_enabled')
 
-    def _env_float(key, default):
-        try:
-            return float(os.environ.get(key, str(default)))
-        except (ValueError, TypeError):
-            return default
-
-    default_vad_gap_start = _env_float('VAD_GAP_START_MIN_SECONDS', 3.0)
-    default_vad_gap_mid = _env_float('VAD_GAP_MID_MIN_SECONDS', 8.0)
-    default_vad_gap_tail = _env_float('VAD_GAP_TAIL_MIN_SECONDS', 3.0)
+    default_vad_gap_start = registry_get_default('vad_gap_start_min_seconds')
+    default_vad_gap_mid = registry_get_default('vad_gap_mid_min_seconds')
+    default_vad_gap_tail = registry_get_default('vad_gap_tail_min_seconds')
     whisper_backend = _setting_value(settings, 'whisper_backend', default_whisper_backend)
     whisper_api_base_url = _setting_value(settings, 'whisper_api_base_url', default_whisper_api_base_url)
     whisper_api_key = _setting_value(settings, 'whisper_api_key', '')
@@ -252,37 +265,31 @@ def get_settings():
     min_content_between_ads = _db_float('min_content_between_ads_seconds', MIN_CONTENT_BETWEEN_ADS_SECONDS)
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
-    audio_normalize_enabled_raw = _setting_value(settings, 'audio_normalize_enabled', 'false')
+    audio_normalize_enabled_raw = _setting_value(
+        settings, 'audio_normalize_enabled', registry_default('audio_normalize_enabled'))
     audio_normalize_enabled = str(audio_normalize_enabled_raw).lower() in ('true', '1', 'yes')
-    audio_normalize_intensity = _setting_value(settings, 'audio_normalize_intensity', 'normal')
-    default_skip_flac = os.environ.get('SKIP_FLAC_COMPRESSION', 'false')
-    skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
+    audio_normalize_intensity = _setting_value(
+        settings, 'audio_normalize_intensity', registry_default('audio_normalize_intensity'))
+    skip_flac_raw = _setting_value(
+        settings, 'skip_flac_compression', registry_default('skip_flac_compression'))
     skip_flac = coerce_bool_setting(skip_flac_raw)
 
     default_parallel_windows = str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT)
     parallel_windows_raw = _setting_value(
         settings, 'ad_detection_parallel_windows', default_parallel_windows
     )
-    try:
-        parallel_windows = int(parallel_windows_raw)
-    except (ValueError, TypeError):
-        parallel_windows = AD_DETECTION_PARALLEL_WINDOWS_DEFAULT
-    parallel_windows = max(
-        AD_DETECTION_PARALLEL_WINDOWS_MIN,
-        min(AD_DETECTION_PARALLEL_WINDOWS_MAX, parallel_windows),
+    parallel_windows = _clamped_int(
+        parallel_windows_raw, AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
+        AD_DETECTION_PARALLEL_WINDOWS_MIN, AD_DETECTION_PARALLEL_WINDOWS_MAX,
     )
 
     default_reviewer_parallel = str(AD_REVIEWER_PARALLEL_ADS_DEFAULT)
     reviewer_parallel_raw = _setting_value(
         settings, 'ad_reviewer_parallel_ads', default_reviewer_parallel
     )
-    try:
-        reviewer_parallel = int(reviewer_parallel_raw)
-    except (ValueError, TypeError):
-        reviewer_parallel = AD_REVIEWER_PARALLEL_ADS_DEFAULT
-    reviewer_parallel = max(
-        AD_REVIEWER_PARALLEL_ADS_MIN,
-        min(AD_REVIEWER_PARALLEL_ADS_MAX, reviewer_parallel),
+    reviewer_parallel = _clamped_int(
+        reviewer_parallel_raw, AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+        AD_REVIEWER_PARALLEL_ADS_MIN, AD_REVIEWER_PARALLEL_ADS_MAX,
     )
 
     max_artwork_bytes = get_env_backed_int(
@@ -300,9 +307,12 @@ def get_settings():
         except (ValueError, TypeError):
             return default
 
-    transcribe_max_chunk_seconds = _db_int('transcribe_max_chunk_seconds', 600)
-    transcribe_concurrent_chunks = _db_int('transcribe_concurrent_chunks', 4)
-    transcribe_chunk_overlap_seconds = _db_int('transcribe_chunk_overlap_seconds', 30)
+    transcribe_max_chunk_seconds = _db_int(
+        'transcribe_max_chunk_seconds', registry_get_default('transcribe_max_chunk_seconds'))
+    transcribe_concurrent_chunks = _db_int(
+        'transcribe_concurrent_chunks', registry_get_default('transcribe_concurrent_chunks'))
+    transcribe_chunk_overlap_seconds = _db_int(
+        'transcribe_chunk_overlap_seconds', registry_get_default('transcribe_chunk_overlap_seconds'))
 
     # Per-stage LLM tunables: resolved value (DB > env > default) and env-default provenance.
     from config import (
@@ -345,13 +355,15 @@ def get_settings():
         'windowOverlapSeconds':        _tu('window_overlap_seconds'),
     }
 
-    enable_ad_review_raw = _setting_value(settings, 'enable_ad_review', 'false')
+    enable_ad_review_raw = _setting_value(
+        settings, 'enable_ad_review', registry_default('enable_ad_review'))
     enable_ad_review = str(enable_ad_review_raw).strip().lower() == 'true'
-    review_model = _setting_value(settings, 'review_model', 'same_as_pass')
+    review_model = _setting_value(settings, 'review_model', registry_default('review_model'))
     try:
-        review_max_boundary_shift = int(_setting_value(settings, 'review_max_boundary_shift', '60'))
+        review_max_boundary_shift = int(_setting_value(
+            settings, 'review_max_boundary_shift', registry_default('review_max_boundary_shift')))
     except (ValueError, TypeError):
-        review_max_boundary_shift = 60
+        review_max_boundary_shift = registry_get_default('review_max_boundary_shift')
     # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace
     # row also yields the default text -- _setting_value only covers a missing row, so a
     # blank one would render an unrecoverable empty textarea. All four prompts share this
@@ -360,14 +372,17 @@ def get_settings():
     resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
 
     # Audio cue detection experiment (#350)
-    audio_cue_enabled = str(
-        _setting_value(settings, 'audio_cue_detection_enabled', 'false')).strip().lower() == 'true'
-    audio_cue_create_from_pairs = coerce_bool_setting(
-        _setting_value(settings, 'audio_cue_create_from_pairs', 'false'))
+    audio_cue_enabled = str(_setting_value(
+        settings, 'audio_cue_detection_enabled',
+        registry_default('audio_cue_detection_enabled'))).strip().lower() == 'true'
+    audio_cue_create_from_pairs = coerce_bool_setting(_setting_value(
+        settings, 'audio_cue_create_from_pairs',
+        registry_default('audio_cue_create_from_pairs')))
 
     # Learned positional prior experiment (#360)
-    positional_prior_enabled = coerce_bool_setting(
-        _setting_value(settings, 'positional_prior_enabled', 'false'))
+    positional_prior_enabled = coerce_bool_setting(_setting_value(
+        settings, 'positional_prior_enabled',
+        registry_default('positional_prior_enabled')))
 
     def _cue_num(key, default):
         try:
@@ -488,79 +503,12 @@ def get_settings():
             payload_key: STAGE_TUNABLE_DEFAULTS[db_key]
             for payload_key, db_key, _ in STAGE_TUNABLE_PAYLOAD_KEYS
         },
+        # Every per-setting default derives from SETTINGS_REGISTRY;
+        # openrouterBaseUrl is a fixed constant, not a setting.
         'defaults': {
-            'systemPrompt': DEFAULT_SYSTEM_PROMPT,
-            'verificationPrompt': DEFAULT_VERIFICATION_PROMPT,
-            'reviewPrompt': DEFAULT_REVIEW_PROMPT,
-            'resurrectPrompt': DEFAULT_RESURRECT_PROMPT,
-            'enableAdReview': False,
-            'reviewModel': 'same_as_pass',
-            'reviewMaxBoundaryShift': 60,
-            'claudeModel': DEFAULT_MODEL,
-            'verificationModel': DEFAULT_MODEL,
-            'whisperModel': default_whisper_model,
-            'autoProcessEnabled': coerce_bool_setting(resolve_env_backed_default('auto_process_enabled')),
-            'maxFeedEpisodes': 300,
-            'onlyExposeProcessedDefault': False,
-            'artworkWatermarkEnabled': coerce_bool_setting(resolve_env_backed_default('artwork_watermark_enabled')),
-            'feedAuthEnabled': coerce_bool_setting(resolve_env_backed_default('feed_auth_enabled')),
-            'vttTranscriptsEnabled': True,
-            'chaptersEnabled': True,
-            'chaptersModel': CHAPTERS_MODEL,
-            'minCutConfidence': 0.80,
-            'llmProvider': resolve_env_backed_default('llm_provider'),
-            'openaiBaseUrl': os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL),
-            'pricingSourceMode': 'auto',
+            **{spec.payload_key: registry_get_default(key)
+               for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
             'openrouterBaseUrl': OPENROUTER_BASE_URL,
-            'whisperBackend': default_whisper_backend,
-            'whisperApiBaseUrl': default_whisper_api_base_url,
-            'whisperApiModel': default_whisper_api_model,
-            'whisperLanguage': default_whisper_language,
-            'whisperComputeType': default_whisper_compute_type,
-            'vadGapDetectionEnabled': default_vad_gap_enabled,
-            'vadGapStartMinSeconds': default_vad_gap_start,
-            'vadGapMidMinSeconds': default_vad_gap_mid,
-            'vadGapTailMinSeconds': default_vad_gap_tail,
-            'minContentBetweenAdsSeconds': MIN_CONTENT_BETWEEN_ADS_SECONDS,
-            'audioCueDetectionEnabled': False,
-            'positionalPriorEnabled': False,
-            'audioCueFreqMinHz': int(AUDIO_CUE_FREQ_MIN_HZ),
-            'audioCueFreqMaxHz': int(AUDIO_CUE_FREQ_MAX_HZ),
-            'audioCueProminenceDb': AUDIO_CUE_PROMINENCE_DB,
-            'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
-            'audioCueCreateFromPairs': False,
-            'audioCueTemplateScore': AUDIO_CUE_TEMPLATE_SCORE,
-            'audioCueFormantAttenDb': AUDIO_CUE_FORMANT_ATTEN_DB,
-            'audioCueSnapConfidence': AUDIO_CUE_SNAP_CONFIDENCE,
-            'audioCueSnapLeadSeconds': AUDIO_CUE_SNAP_LEAD_SECONDS,
-            'audioCueSnapLagSeconds': AUDIO_CUE_SNAP_LAG_SECONDS,
-            'audioCueCaptureMinSeconds': AUDIO_CUE_CAPTURE_MIN_SECONDS,
-            'audioCueCaptureMaxSeconds': AUDIO_CUE_CAPTURE_MAX_SECONDS,
-            'audioCueCaptureMaxIntroSeconds': AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS,
-            'audioCueCaptureMaxOutroSeconds': AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
-            'audioCuePairConfidence': AUDIO_CUE_PAIR_CONFIDENCE,
-            'audioCuePairMinBreakSeconds': AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
-            'audioCuePairMaxBreakSeconds': AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
-            'audioCuePairMaxBreakFraction': AUDIO_CUE_PAIR_MAX_BREAK_FRACTION,
-            'silenceSnapNoiseDb': SILENCE_SNAP_NOISE_DB,
-            'silenceSnapMinDurationSeconds': SILENCE_SNAP_MIN_DURATION_SECONDS,
-            'silenceSnapMaxDistanceSeconds': SILENCE_SNAP_MAX_DISTANCE_SECONDS,
-            'audioBitrate': DEFAULT_AUDIO_BITRATE,
-            'audioNormalizeEnabled': False,
-            'audioNormalizeIntensity': 'normal',
-            'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
-            'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
-            'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
-            'maxArtworkBytes': get_env_backed_int(
-                'max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
-                ceiling=MAX_ARTWORK_BYTES_MAX, settings={}),
-            'maxRssBytes': get_env_backed_int(
-                'max_rss_bytes', floor=MAX_RSS_BYTES_MIN, settings={}),
-            'maxAudioDownloadMb': get_env_backed_int(
-                'max_audio_download_mb', floor=MAX_AUDIO_DOWNLOAD_MB_MIN, settings={}),
-            'transcribeMaxChunkSeconds': 600,
-            'transcribeConcurrentChunks': 4,
-            'transcribeChunkOverlapSeconds': 30,
         }
     })
 
@@ -817,47 +765,27 @@ def _apply_audio_fields(db, data):
         db.set_setting('audio_normalize_intensity', data['audioNormalizeIntensity'], is_default=False)
         logger.info(f"Updated audio normalize intensity to: {data['audioNormalizeIntensity']}")
 
-    if 'adDetectionParallelWindows' in data:
+    for payload_key, db_key, lo, hi in (
+        ('adDetectionParallelWindows', 'ad_detection_parallel_windows',
+         AD_DETECTION_PARALLEL_WINDOWS_MIN, AD_DETECTION_PARALLEL_WINDOWS_MAX),
+        ('adReviewerParallelAds', 'ad_reviewer_parallel_ads',
+         AD_REVIEWER_PARALLEL_ADS_MIN, AD_REVIEWER_PARALLEL_ADS_MAX),
+    ):
+        if payload_key not in data:
+            continue
         try:
-            n = int(data['adDetectionParallelWindows'])
+            n = int(data[payload_key])
         except (ValueError, TypeError):
             return json_response(
-                {'error': 'adDetectionParallelWindows must be an integer'}, 400
+                {'error': f'{payload_key} must be an integer'}, 400
             )
-        if not (AD_DETECTION_PARALLEL_WINDOWS_MIN <= n <= AD_DETECTION_PARALLEL_WINDOWS_MAX):
+        if not (lo <= n <= hi):
             return json_response(
-                {
-                    'error': (
-                        f'adDetectionParallelWindows must be between '
-                        f'{AD_DETECTION_PARALLEL_WINDOWS_MIN} and '
-                        f'{AD_DETECTION_PARALLEL_WINDOWS_MAX}'
-                    )
-                },
+                {'error': f'{payload_key} must be between {lo} and {hi}'},
                 400,
             )
-        db.set_setting('ad_detection_parallel_windows', str(n), is_default=False)
-        logger.info(f"Updated ad_detection_parallel_windows to: {n}")
-
-    if 'adReviewerParallelAds' in data:
-        try:
-            n = int(data['adReviewerParallelAds'])
-        except (ValueError, TypeError):
-            return json_response(
-                {'error': 'adReviewerParallelAds must be an integer'}, 400
-            )
-        if not (AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX):
-            return json_response(
-                {
-                    'error': (
-                        f'adReviewerParallelAds must be between '
-                        f'{AD_REVIEWER_PARALLEL_ADS_MIN} and '
-                        f'{AD_REVIEWER_PARALLEL_ADS_MAX}'
-                    )
-                },
-                400,
-            )
-        db.set_setting('ad_reviewer_parallel_ads', str(n), is_default=False)
-        logger.info(f"Updated ad_reviewer_parallel_ads to: {n}")
+        db.set_setting(db_key, str(n), is_default=False)
+        logger.info(f"Updated {db_key} to: {n}")
     return None
 
 
@@ -919,13 +847,9 @@ def _apply_provider_fields(db, data):
     """
     provider_changed = False
     if 'llmProvider' in data:
-        valid_llm_providers = (
-            PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-            PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
-        )
-        if data['llmProvider'] not in valid_llm_providers:
+        if data['llmProvider'] not in VALID_LLM_PROVIDERS:
             return json_response(
-                {'error': f'llmProvider must be one of: {", ".join(valid_llm_providers)}'}, 400
+                {'error': f'llmProvider must be one of: {", ".join(VALID_LLM_PROVIDERS)}'}, 400
             )
         db.set_setting('llm_provider', data['llmProvider'], is_default=False)
         logger.info(f"Updated LLM provider to: {data['llmProvider']}")
@@ -1361,79 +1285,17 @@ def regenerate_feed_auth_key():
 @api.route('/settings/ad-detection/reset', methods=['POST'])
 @log_request
 def reset_ad_detection_settings():
-    """Reset ad detection settings to defaults."""
+    """Reset ad detection settings to defaults.
+
+    The key list derives from SETTINGS_REGISTRY (entries flagged
+    ``in_ad_reset``): prompts, models, whisper/VAD, the audio-cue family,
+    env-backed keys, the two provider secrets, and all stage tunables.
+    """
     db = get_database()
 
-    db.reset_setting('system_prompt')
-    db.reset_setting('verification_prompt')
-    db.reset_setting('claude_model')
-    db.reset_setting('verification_model')
-    db.reset_setting('whisper_model')
-    db.reset_setting('vtt_transcripts_enabled')
-    db.reset_setting('chapters_enabled')
-    db.reset_setting('chapters_model')
-
-    db.reset_setting('min_cut_confidence')
-    db.reset_setting('auto_process_enabled')
-    db.reset_setting('audio_bitrate')
-    db.reset_setting('audio_normalize_enabled')
-    db.reset_setting('audio_normalize_intensity')
-    db.reset_setting('transcribe_max_chunk_seconds')
-    db.reset_setting('transcribe_concurrent_chunks')
-    db.reset_setting('transcribe_chunk_overlap_seconds')
-    db.reset_setting('ad_detection_parallel_windows')
-    db.reset_setting('ad_reviewer_parallel_ads')
-    db.reset_setting('max_artwork_bytes')
-    db.reset_setting('max_rss_bytes')
-    db.reset_setting('max_audio_download_mb')
-
-    # Reset LLM provider settings back to env var defaults
-    db.reset_setting('llm_provider')
-    db.reset_setting('openai_base_url')
-    db.reset_setting('pricing_source_mode')
-    db.reset_setting('openrouter_api_key')
+    for key in AD_RESET_SETTING_KEYS:
+        db.reset_setting(key)
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
-
-    # Reset whisper backend settings
-    db.reset_setting('whisper_backend')
-    db.reset_setting('whisper_api_base_url')
-    db.reset_setting('whisper_api_key')
-    db.reset_setting('whisper_api_model')
-    db.reset_setting('whisper_compute_type')
-    db.reset_setting('whisper_language')
-    db.reset_setting('skip_flac_compression')
-    db.reset_setting('vad_gap_detection_enabled')
-    db.reset_setting('vad_gap_start_min_seconds')
-    db.reset_setting('vad_gap_mid_min_seconds')
-    db.reset_setting('vad_gap_tail_min_seconds')
-
-    # Audio cue detection family (#350)
-    db.reset_setting('audio_cue_detection_enabled')
-    db.reset_setting('audio_cue_freq_min_hz')
-    db.reset_setting('audio_cue_freq_max_hz')
-    db.reset_setting('audio_cue_prominence_db')
-    db.reset_setting('audio_cue_min_confidence')
-    db.reset_setting('audio_cue_template_score')
-    db.reset_setting('audio_cue_formant_atten_db')
-    db.reset_setting('audio_cue_create_from_pairs')
-    db.reset_setting('audio_cue_snap_confidence')
-    db.reset_setting('audio_cue_snap_lead_seconds')
-    db.reset_setting('audio_cue_snap_lag_seconds')
-    db.reset_setting('audio_cue_capture_min_seconds')
-    db.reset_setting('audio_cue_capture_max_seconds')
-    db.reset_setting('audio_cue_capture_max_intro_seconds')
-    db.reset_setting('audio_cue_capture_max_outro_seconds')
-    db.reset_setting('audio_cue_pair_confidence')
-    db.reset_setting('audio_cue_pair_min_break_seconds')
-    db.reset_setting('audio_cue_pair_max_break_seconds')
-    db.reset_setting('audio_cue_pair_max_break_fraction')
-    db.reset_setting('audio_cue_pair_orient_window_seconds')
-
-    # Per-stage LLM tunables (temperature, max tokens, reasoning, Ollama context
-    # window, detection-window geometry). reset_setting clears each row so
-    # env > default resolution applies.
-    for _payload_key, db_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
-        db.reset_setting(db_key)
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)
@@ -1485,6 +1347,15 @@ def _ensure_openrouter_aliases_present(models: list) -> None:
     models[:0] = missing
 
 
+def _current_provider_models():
+    """Current provider's model list, with OpenRouter aliases and pricing."""
+    models = AdDetector().get_available_models()
+    if get_effective_provider() == PROVIDER_OPENROUTER:
+        _ensure_openrouter_aliases_present(models)
+    _enrich_models_with_pricing(models)
+    return models
+
+
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
@@ -1496,13 +1367,9 @@ def get_available_models():
     provider_override = request.args.get('provider')
 
     if provider_override:
-        valid_providers = (
-            PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
-            PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
-        )
-        if provider_override not in valid_providers:
+        if provider_override not in VALID_LLM_PROVIDERS:
             return error_response(
-                f'provider must be one of: {", ".join(valid_providers)}', 400
+                f'provider must be one of: {", ".join(VALID_LLM_PROVIDERS)}', 400
             )
         client = create_client_for_provider(provider_override)
         if client:
@@ -1522,16 +1389,12 @@ def get_available_models():
                 models = []
         else:
             models = []
+        if provider_override == PROVIDER_OPENROUTER:
+            _ensure_openrouter_aliases_present(models)
+        _enrich_models_with_pricing(models)
     else:
-        from ad_detector import AdDetector
-        ad_detector = AdDetector()
-        models = ad_detector.get_available_models()
+        models = _current_provider_models()
 
-    target_provider = provider_override or get_effective_provider()
-    if target_provider == PROVIDER_OPENROUTER:
-        _ensure_openrouter_aliases_present(models)
-
-    _enrich_models_with_pricing(models)
     return json_response({'models': models})
 
 
@@ -1544,14 +1407,8 @@ def refresh_models():
     ``_model_list_cache`` in llm_client, so the next ``list_models()``
     call repopulates from upstream.
     """
-    from ad_detector import AdDetector
-
     get_llm_client(force_new=True)
-    ad_detector = AdDetector()
-    models = ad_detector.get_available_models()
-    if get_effective_provider() == PROVIDER_OPENROUTER:
-        _ensure_openrouter_aliases_present(models)
-    _enrich_models_with_pricing(models)
+    models = _current_provider_models()
 
     logger.info(f"Refreshed model list: {len(models)} models available")
     return json_response({'models': models, 'count': len(models)})
@@ -2211,14 +2068,10 @@ def get_reviewer_settings():
         AD_REVIEWER_PARALLEL_ADS_MAX,
     )
     db = get_database()
-    parallel_raw = db.get_setting('ad_reviewer_parallel_ads')
-    try:
-        parallel_ads = int(parallel_raw) if parallel_raw is not None else AD_REVIEWER_PARALLEL_ADS_DEFAULT
-    except (TypeError, ValueError):
-        parallel_ads = AD_REVIEWER_PARALLEL_ADS_DEFAULT
-    parallel_ads = max(
-        AD_REVIEWER_PARALLEL_ADS_MIN,
-        min(AD_REVIEWER_PARALLEL_ADS_MAX, parallel_ads),
+    parallel_ads = _clamped_int(
+        db.get_setting('ad_reviewer_parallel_ads'),
+        AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+        AD_REVIEWER_PARALLEL_ADS_MIN, AD_REVIEWER_PARALLEL_ADS_MAX,
     )
     return json_response({
         'updatePatternsFromReviewerAdjustments': db.get_setting_bool(

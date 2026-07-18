@@ -8,6 +8,17 @@ from utils.constants import EpisodeStatus
 
 logger = logging.getLogger(__name__)
 
+# Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
+# reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
+AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
+                   first_pass_prompt = NULL,
+                   first_pass_response = NULL,
+                   second_pass_prompt = NULL,
+                   second_pass_response = NULL,
+                   chapters_json = NULL,
+                   transcript_vtt = NULL,
+                   final_segments_json = NULL"""
+
 
 def normalize_published_at(value: Optional[str]) -> Optional[str]:
     """Normalize a published_at value to ISO 8601 format.
@@ -142,18 +153,6 @@ class EpisodeMixin:
             'previous': _neighbor('>', 'ASC'),   # newer: smallest key above current
             'next': _neighbor('<', 'DESC'),      # older: largest key below current
         }
-
-    def get_episode_by_id(self, db_id: int) -> Optional[Dict]:
-        """Get episode by database ID."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT e.*, p.slug FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
-               WHERE e.id = ?""",
-            (db_id,)
-        )
-        row = cursor.fetchone()
-        return dict(row) if row else None
 
     def get_episode_statuses_for_podcast(self, slug: str) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
         """Bulk-load episode statuses for a podcast (lightweight, no JOINs to details).
@@ -631,15 +630,8 @@ class EpisodeMixin:
             return
 
         conn.execute(
-            """UPDATE episode_details
-               SET ad_markers_json = NULL,
-                   first_pass_prompt = NULL,
-                   first_pass_response = NULL,
-                   second_pass_prompt = NULL,
-                   second_pass_response = NULL,
-                   chapters_json = NULL,
-                   transcript_vtt = NULL,
-                   final_segments_json = NULL
+            f"""UPDATE episode_details
+               {AD_DATA_NULL_SET_SQL}
                WHERE episode_id = ?""",
             (db_episode_id,)
         )
@@ -818,14 +810,7 @@ class EpisodeMixin:
         placeholders = ','.join('?' for _ in db_ids)
         conn.execute(
             f"""UPDATE episode_details
-                SET ad_markers_json = NULL,
-                    first_pass_prompt = NULL,
-                    first_pass_response = NULL,
-                    second_pass_prompt = NULL,
-                    second_pass_response = NULL,
-                    chapters_json = NULL,
-                    transcript_vtt = NULL,
-                    final_segments_json = NULL
+                {AD_DATA_NULL_SET_SQL}
                 WHERE episode_id IN ({placeholders})""",
             db_ids
         )

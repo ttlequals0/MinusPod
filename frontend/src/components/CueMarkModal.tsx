@@ -9,10 +9,12 @@ import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import { primaryBtn, ctrlBtn } from './ad-editor/controlStyles';
+import { useEscape } from './cueScanStyles';
 import {
   formatTime,
+  commitTimeInput,
+  timeInputKeyDown,
   getThemeWaveformColors,
-  parseTimeInput,
 } from '../utils/adReviewHelpers';
 import {
   createCueTemplate,
@@ -29,6 +31,7 @@ import {
   type CueCandidate,
 } from '../api/cueTemplates';
 import { episodeOriginalUrl } from '../api/feeds';
+import { getErrorMessage } from '../api/client';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -155,7 +158,6 @@ function CueMarkModal({
   // Bumped on each new scan and on unmount, so a stale fetch's resolution bails
   // instead of scheduling a poll or calling setState on a dead component.
   const candidateRunRef = useRef(0);
-  const resetTick = 0;
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -175,9 +177,10 @@ function CueMarkModal({
   // Fetch the whole episode's peaks ONCE (stable), then slice the current
   // window out client-side. Re-fetching per window would null `peaks` on every
   // zoom/pan tick, flashing the pins and waveform; slicing keeps the loaded
-  // peaks stable so only the rendered slice changes.
+  // peaks stable so only the rendered slice changes. This modal never forces
+  // a refetch, so the resetTick knob stays at 0.
   const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, 0, totalDuration, resetTick,
+    podcastSlug, episodeId, 0, totalDuration, 0,
   );
 
   const audioUrl = episodeOriginalUrl(podcastSlug, episodeId);
@@ -187,11 +190,7 @@ function CueMarkModal({
   const windowPeaks = usePeakSlice(peaks, peakResolutionMs, windowStart, windowEnd);
 
   // Close on Escape, matching the rest of the app's modal behaviour.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   // Move focus into the dialog on open so keyboard and screen-reader users land
   // inside it.
@@ -395,20 +394,10 @@ function CueMarkModal({
 
   // Commit clamps only to absolute episode bounds (not cross-field), so editing
   // one field never stomps the other; start < end is enforced at Save.
-  const commitStart = () => {
-    const v = parseTimeInput(startInput);
-    if (v == null) { setStartInput(formatTime(cueStart)); return; }
-    const clamped = Math.max(0, Math.min(totalDuration, v));
-    setCueStart(clamped);
-    setStartInput(formatTime(clamped));
-  };
-  const commitEnd = () => {
-    const v = parseTimeInput(endInput);
-    if (v == null) { setEndInput(formatTime(cueEnd)); return; }
-    const clamped = Math.max(0, Math.min(totalDuration, v));
-    setCueEnd(clamped);
-    setEndInput(formatTime(clamped));
-  };
+  const commitStart = () =>
+    commitTimeInput(startInput, cueStart, totalDuration, setCueStart, setStartInput);
+  const commitEnd = () =>
+    commitTimeInput(endInput, cueEnd, totalDuration, setCueEnd, setEndInput);
 
   const clearSelectionStop = useCallback(() => {
     if (selectionStopRef.current) selectionStopRef.current();
@@ -562,7 +551,7 @@ function CueMarkModal({
       onFinalSave?.(template);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      setError(getErrorMessage(e, 'Save failed'));
     } finally {
       setSaving(false);
     }
@@ -577,7 +566,7 @@ function CueMarkModal({
       const res = await previewCueTemplate(podcastSlug, episodeId, template.id);
       setPreviewMatches(res.matches);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Preview failed');
+      setError(getErrorMessage(e, 'Preview failed'));
     } finally {
       setPreviewing(false);
     }
@@ -589,13 +578,10 @@ function CueMarkModal({
   const inCue = playheadTime >= cueStart && playheadTime <= cueEnd;
 
   return (
+    // Data-entry modal: no backdrop click-to-close (an accidental outside tap
+    // would lose the bracket). Only X / Cancel / Escape close it.
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
-      onMouseDown={(e) => {
-        // Data-entry modal: never auto-close on an outside click (an accidental
-        // tap would lose the bracket). Only X / Cancel / Escape close it.
-        if (e.target !== e.currentTarget) return;
-      }}
     >
       <div
         ref={dialogRef}
@@ -866,10 +852,7 @@ function CueMarkModal({
               value={startInput}
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={commitStart}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-                else if (e.key === 'Escape') { e.preventDefault(); setStartInput(formatTime(cueStart)); (e.target as HTMLInputElement).blur(); }
-              }}
+              onKeyDown={timeInputKeyDown(cueStart, setStartInput)}
               className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-emerald-500`}
             />
           </div>
@@ -883,10 +866,7 @@ function CueMarkModal({
               value={endInput}
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={commitEnd}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-                else if (e.key === 'Escape') { e.preventDefault(); setEndInput(formatTime(cueEnd)); (e.target as HTMLInputElement).blur(); }
-              }}
+              onKeyDown={timeInputKeyDown(cueEnd, setEndInput)}
               className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-rose-500`}
             />
           </div>
@@ -939,7 +919,7 @@ function CueMarkModal({
 
         {error && <p className="text-sm text-destructive mt-3">{error}</p>}
         {saveWarning && (
-          <p className="text-sm text-amber-600 dark:text-amber-400 mt-3" role="alert">
+          <p className="text-sm text-warning mt-3" role="alert">
             {saveWarning}
           </p>
         )}

@@ -323,15 +323,6 @@ class PatternMixin:
         conn.commit()
         return True
 
-    def increment_pattern_false_positive(self, pattern_id: int):
-        """Increment pattern false positive count."""
-        conn = self.get_connection()
-        conn.execute(
-            "UPDATE ad_patterns SET false_positive_count = false_positive_count + 1 WHERE id = ?",
-            (pattern_id,)
-        )
-        conn.commit()
-
     def _delete_ad_pattern_conn(self, conn, pattern_id: int) -> bool:
         """Delete an ad pattern on the caller's connection without committing."""
         cursor = conn.execute(

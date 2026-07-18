@@ -7,6 +7,7 @@ import type { CueDetection } from '../api/types';
 import { episodeOriginalUrl } from '../api/feeds';
 import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
+import { btnDestructive, btnPrimary } from './buttonStyles';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -34,7 +35,7 @@ const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
   },
   below_threshold: {
     label: 'missed - below threshold',
-    className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    className: 'bg-amber-500/15 text-warning',
     title: 'Scored just under the feed threshold; never a signal, never affected a cut',
   },
 };
@@ -95,7 +96,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     aria-label={playingKey === String(d.id) ? 'Pause match' : 'Play this match'}
                     title={playingKey === String(d.id) ? 'Pause' : 'Play this match'}
-                    className="p-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0 touch-manipulation"
+                    className={`p-1.5 rounded-full ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
                   >
                     {playingKey === String(d.id) ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
@@ -144,7 +145,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
                         disabled={pending}
-                        className="px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnDestructive} active:bg-destructive/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0`}
                       >
                         Reject
                       </button>
@@ -154,7 +155,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <span
                         className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                           d.verdict === 'confirmed'
-                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            ? 'bg-success/20 text-success'
                             : 'bg-red-500/20 text-red-600 dark:text-red-400'
                         }`}
                       >

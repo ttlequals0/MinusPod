@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
 import { copyText } from '../utils/clipboard';
+import { useTransientState } from '../hooks/useTransientState';
+import { btnGhost } from './buttonStyles';
 
 interface CopyButtonProps {
   text: string;
@@ -20,13 +21,7 @@ function CopyButton({
   labelClassName = 'text-xs',
   hideLabelOnMobile = false,
 }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
+  const [copied, setCopied] = useTransientState(false, 2000);
 
   const handleCopy = async () => {
     if (await copyText(text)) setCopied(true);
@@ -46,7 +41,7 @@ function CopyButton({
       className={`${baseClass} transition-colors ${
         copied
           ? copiedClassName
-          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          : btnGhost
       } ${className}`}
       title={copied ? copiedLabel : label}
       aria-label={copied ? copiedLabel : label}

@@ -9,6 +9,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, get_feed_auth_key,
     extract_transcript_segment, get_status_service,
+    _resolve_original_audio,
 )
 from config import is_pending_review
 from audio_peaks import compute_peaks, PeaksError
@@ -20,7 +21,6 @@ from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
 from utils.time import utc_now_iso
-from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
 
@@ -30,16 +30,81 @@ logger = logging.getLogger('podcast.api')
 REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
 
 
+def _check_recut_preconditions(db, slug, episode_id, episode):
+    """Recut cuts the retained original from the saved detections and re-times
+    the saved segments; it cannot run if any of those inputs are missing. Fail
+    with an actionable message rather than silently falling back to an LLM
+    reprocess. Returns an error_response or None."""
+    if not get_storage().get_original_path(slug, episode_id).exists():
+        return error_response(
+            'Original audio was not retained for this episode, so it cannot '
+            'be re-cut. Use "reprocess" or "full" to rebuild it from source.', 409)
+    if not db.get_original_segments(slug, episode_id):
+        return error_response(
+            'No saved transcript segments for this episode; recut needs them '
+            'to re-time the transcript. Use "reprocess" or "full" first.', 409)
+    if not episode.get('ad_markers_json'):
+        return error_response(
+            'No ad detections to cut. Detect ads first with "reprocess" or "full".', 409)
+    return None
+
+
+# Reprocess-mode rules shared by the three reprocess endpoints
+# (reprocess_all_episodes = 'batch', bulk_episode_action = 'bulk',
+# reprocess_episode_with_mode = 'single'). Fields:
+#   contexts:         endpoints that may request the mode. recut stays
+#                     single-episode-only by design.
+#   clear:            what to wipe before requeueing. 'details' wipes the whole
+#                     episode_details row; 'ad_data' keeps the saved transcript
+#                     (clears just the ad-detection outputs) so transcription is
+#                     skipped; 'none' keeps everything -- recut re-cuts the
+#                     retained original from the saved ad detections and
+#                     re-times the saved transcript, so clearing either would
+#                     break it (the derived audio/VTT/chapters are overwritten
+#                     during the recut).
+#   needs_transcript: mode reuses the saved transcript to skip re-transcription
+#                     and cannot run without one (issue #349).
+#   preconditions:    extra per-episode input checks, single-episode-only
+#                     (returns an error_response or None).
+REPROCESS_MODE_SPECS = {
+    'reprocess': {
+        'contexts': ('batch', 'bulk', 'single'),
+        'clear': 'details',
+        'needs_transcript': False,
+        'preconditions': None,
+    },
+    'full': {
+        'contexts': ('batch', 'bulk', 'single'),
+        'clear': 'details',
+        'needs_transcript': False,
+        'preconditions': None,
+    },
+    'llm': {
+        'contexts': ('batch', 'bulk', 'single'),
+        'clear': 'ad_data',
+        'needs_transcript': True,
+        'preconditions': None,
+    },
+    'recut': {
+        'contexts': ('single',),
+        'clear': 'none',
+        'needs_transcript': False,
+        'preconditions': _check_recut_preconditions,
+    },
+}
+
+
+def _mode_allowed(mode, context):
+    spec = REPROCESS_MODE_SPECS.get(mode)
+    return spec is not None and context in spec['contexts']
+
+
 def _clear_episode_for_mode(db, slug, episode_id, mode):
-    """Clear cached detection data before a reprocess. LLM-only mode keeps the
-    saved transcript (clears just the ad-detection outputs) so transcription is
-    skipped; every other mode wipes the whole episode_details row."""
-    if mode == 'recut':
-        # Recut re-cuts the retained original from the saved ad detections and
-        # re-times the saved transcript; clearing either would break it. The
-        # derived audio/VTT/chapters are overwritten during the recut.
+    """Clear cached detection data before a reprocess, per the mode's spec."""
+    clear = REPROCESS_MODE_SPECS[mode]['clear']
+    if clear == 'none':
         return
-    if mode == 'llm':
+    if clear == 'ad_data':
         db.clear_episode_ad_data(slug, episode_id)
     else:
         db.clear_episode_details(slug, episode_id)
@@ -96,8 +161,7 @@ def list_episodes(slug):
     # The API emits 'completed' as the alias for processed episodes (see the
     # output mapping below), so accept that alias as a filter value too;
     # otherwise filtering by the status the client was handed returns nothing.
-    if status == EpisodeStatus.COMPLETED.value:
-        status = EpisodeStatus.PROCESSED.value
+    status = EpisodeStatus.from_api(status)
     limit = min(max(1, request.args.get('limit', 25, type=int)), 500)
     offset = max(0, request.args.get('offset', 0, type=int))
     sort_by = request.args.get('sort_by', 'published_at')
@@ -108,41 +172,10 @@ def list_episodes(slug):
 
     episode_list = []
     for ep in episodes:
-        time_saved = 0
-        if ep.get('original_duration') and ep.get('new_duration'):
-            time_saved = ep['original_duration'] - ep['new_duration']
-
-        # Map status for frontend compatibility
-        # 'processed' -> 'completed'; discovered/permanently_failed pass through
-        status = ep['status']
-        if status == EpisodeStatus.PROCESSED:
-            status = EpisodeStatus.COMPLETED.value
-
-        episode_list.append({
-            # Frontend expected fields
-            'id': ep['episode_id'],
-            'title': ep['title'],
-            'description': ep.get('description'),
-            'status': status,
-            'published': ep.get('published_at') or ep['created_at'],
-            'duration': ep['original_duration'],
-            'ad_count': ep['ads_removed'],
-            # True when this episode's original audio is still on disk (required
-            # to mark cue templates or replay original audio) (#350).
-            'hasOriginalAudio': bool(ep.get('original_file')),
-            # Additional fields for backward compatibility
-            'episodeId': ep['episode_id'],
-            'createdAt': ep['created_at'],
-            'processedAt': ep['processed_at'],
-            'originalDuration': ep['original_duration'],
-            'newDuration': ep['new_duration'],
-            'adsRemoved': ep['ads_removed'],
-            'timeSaved': time_saved,
-            'error': ep.get('error_message'),
-            'artworkUrl': ep.get('artwork_url'),
-            'episodeNumber': ep.get('episode_number'),
-            'pendingReviewCount': ep.get('pending_review_count', 0),
-        })
+        item = _episode_base_json(ep)
+        item['ad_count'] = ep['ads_removed']
+        item['episodeNumber'] = ep.get('episode_number')
+        episode_list.append(item)
 
     return json_response({
         'episodes': episode_list,
@@ -150,6 +183,39 @@ def list_episodes(slug):
         'limit': limit,
         'offset': offset
     })
+
+
+def _episode_base_json(ep):
+    """Shared camelCase fields for the episode list and detail serializers.
+
+    Status is mapped for frontend compatibility: 'processed' -> 'completed';
+    discovered/permanently_failed pass through.
+    """
+    time_saved = 0
+    if ep.get('original_duration') and ep.get('new_duration'):
+        time_saved = ep['original_duration'] - ep['new_duration']
+
+    return {
+        'id': ep['episode_id'],
+        'episodeId': ep['episode_id'],
+        'title': ep['title'],
+        'description': ep.get('description'),
+        'status': EpisodeStatus.to_api(ep['status']),
+        'published': ep.get('published_at') or ep['created_at'],
+        'createdAt': ep['created_at'],
+        'processedAt': ep['processed_at'],
+        'duration': ep['original_duration'],
+        'originalDuration': ep['original_duration'],
+        'newDuration': ep['new_duration'],
+        'adsRemoved': ep['ads_removed'],
+        'timeSaved': time_saved,
+        # True when this episode's original audio is still on disk (required
+        # to mark cue templates or replay original audio) (#350).
+        'hasOriginalAudio': bool(ep.get('original_file')),
+        'error': ep.get('error_message'),
+        'artworkUrl': ep.get('artwork_url'),
+        'pendingReviewCount': ep.get('pending_review_count', 0),
+    }
 
 
 def _run_stats_to_api(stats):
@@ -296,14 +362,8 @@ def get_episode(slug, episode_id):
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
-    time_saved = 0
-    if episode.get('original_duration') and episode.get('new_duration'):
-        time_saved = episode['original_duration'] - episode['new_duration']
-
-    # Map status for frontend compatibility
-    status = episode['status']
-    if status == EpisodeStatus.PROCESSED:
-        status = EpisodeStatus.COMPLETED.value
+    base = _episode_base_json(episode)
+    status = base['status']
 
     # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None
@@ -330,32 +390,18 @@ def get_episode(slug, episode_id):
     processing_runs = _processing_runs(db, episode)
 
     return json_response({
-        'id': episode['episode_id'],
-        'episodeId': episode['episode_id'],
-        'title': episode['title'],
-        'description': episode.get('description'),
-        'status': status,
-        'published': episode.get('published_at') or episode['created_at'],
-        'createdAt': episode['created_at'],
-        'processedAt': episode['processed_at'],
-        'duration': episode['original_duration'],
-        'originalDuration': episode['original_duration'],
-        'newDuration': episode['new_duration'],
+        **base,
         'originalUrl': episode['original_url'],
         'processedUrl': _processed_url(slug, episode_id,
                                        episode.get('processed_version') or 0,
                                        key=feed_auth_key),
-        'hasOriginalAudio': bool(episode.get('original_file')),
         'originalAudioUrl': f"/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3",
-        'adsRemoved': episode['ads_removed'],
         'adsRemovedFirstPass': episode.get('ads_removed_firstpass', 0),
         'adsRemovedVerification': episode.get('ads_removed_secondpass', 0),
-        'timeSaved': time_saved,
         'fileSize': file_size,
         'adMarkers': ad_markers,
         'rejectedAdMarkers': rejected_ad_markers,
         'pendingReviewMarkers': pending_review_markers,
-        'pendingReviewCount': episode.get('pending_review_count', 0),
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
@@ -369,12 +415,10 @@ def get_episode(slug, episode_id):
         'chaptersAvailable': chapters_available,
         'chaptersUrl': (f"/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
                         if chapters_available else None),
-        'error': episode.get('error_message'),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),
         'verificationPrompt': episode.get('second_pass_prompt'),
         'verificationResponse': episode.get('second_pass_response'),
-        'artworkUrl': episode.get('artwork_url'),
         'rssDuration': episode.get('rss_duration'),
         'processingRuns': processing_runs,
         'lowAdYield': _low_ad_yield(db, episode, processing_runs),
@@ -455,23 +499,12 @@ def serve_original_audio(slug, episode_id):
     Returns 404 when the episode has no original retained (global setting
     off, old episode processed before the feature, or retention expired).
     """
-    # Blueprint url_value_preprocessor already ran is_dangerous_slug on
-    # `slug`; we still need a strict episode-ID check because .isalnum()
-    # accepts Unicode lookalikes, and real IDs are 12-char MD5 hex.
-    if not is_valid_episode_id(episode_id):
-        abort(400)
+    # Blueprint url_value_preprocessor validated `slug` and `episode_id`.
     db = get_database()
     storage = get_storage()
-    episode = db.get_episode(slug, episode_id)
-    if not episode or not episode.get('original_file'):
-        return error_response('Original audio not retained for this episode', 404)
-    path = storage.get_original_path(slug, episode_id)
-    if not path.exists():
-        # Self-heal rows where the file vanished without the column being
-        # cleared (original-only retention sweeps before 2.52.0 did this),
-        # so Ad Review stops offering a play button that can only 404.
-        db.upsert_episode(slug, episode_id, original_file=None)
-        return error_response('Original audio file missing', 404)
+    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True)
+    if err is not None:
+        return err
     response = send_file(path, mimetype='audio/mpeg', conditional=True)
     # Advertise byte-range support so the wavesurfer-based AdEditor can seek
     # without re-downloading the file. Without this header some clients
@@ -493,18 +526,11 @@ def get_episode_peaks(slug, episode_id):
     Used by the AdEditor's wavesurfer view to render a waveform scoped to
     the current ad selection plus a user-selectable context window.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
     db = get_database()
     storage = get_storage()
-    episode = db.get_episode(slug, episode_id)
-    if not episode or not episode.get('original_file'):
-        return error_response('Original audio not retained for this episode', 404)
-    path = storage.get_original_path(slug, episode_id)
-    if not path.exists():
-        # Same self-heal as serve_original_audio: the column is stale.
-        db.upsert_episode(slug, episode_id, original_file=None)
-        return error_response('Original audio file missing', 404)
+    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True)
+    if err is not None:
+        return err
 
     def _f(name, default=None):
         raw = request.args.get(name)
@@ -558,8 +584,6 @@ def get_episode_transcript_span(slug, episode_id):
     Used by the AdEditor create mode to auto-populate the text_template
     field from the currently selected window of the episode's VTT.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:
@@ -812,8 +836,9 @@ def reprocess_all_episodes(slug):
     data = request.get_json() or {}
     mode = data.get('mode', 'reprocess')
 
-    if mode not in ('reprocess', 'full', 'llm'):
+    if not _mode_allowed(mode, 'batch'):
         return error_response('Invalid mode. Use "reprocess", "full", or "llm"', 400)
+    mode_spec = REPROCESS_MODE_SPECS[mode]
 
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
@@ -842,7 +867,7 @@ def reprocess_all_episodes(slug):
             continue
 
         # LLM-only reprocess needs a saved transcript; skip episodes without one.
-        if mode == 'llm' and not db.has_transcript(slug, episode_id):
+        if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
             skipped.append({'episodeId': episode_id,
                             'reason': 'No transcript for LLM-only reprocess'})
             continue
@@ -941,6 +966,7 @@ def bulk_episode_action(slug):
     elif action in ('reprocess', 'reprocess_full', 'reprocess_llm'):
         # File cleanup must be per-episode, but DB updates are batched
         mode = {'reprocess_full': 'full', 'reprocess_llm': 'llm'}.get(action, 'reprocess')
+        mode_spec = REPROCESS_MODE_SPECS[mode]
         eligible_ids = []
         for episode_id in episode_ids:
             try:
@@ -949,7 +975,7 @@ def bulk_episode_action(slug):
                     skipped += 1
                     continue
                 # LLM-only reprocess needs a saved transcript; skip episodes without one.
-                if mode == 'llm' and not db.has_transcript(slug, episode_id):
+                if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
                     skipped += 1
                     continue
                 # Keep existing audio until the new version is durable (orchestration-5).
@@ -959,7 +985,7 @@ def bulk_episode_action(slug):
                 errors.append(f"{episode_id}: bulk action failed")
         if eligible_ids:
             # LLM-only mode preserves the transcript; other modes wipe the row.
-            if mode == 'llm':
+            if mode_spec['clear'] == 'ad_data':
                 db.batch_clear_episode_ad_data(slug, eligible_ids)
             else:
                 db.batch_clear_episode_details(slug, eligible_ids)
@@ -1268,8 +1294,9 @@ def reprocess_episode_with_mode(slug, episode_id):
     data = request.get_json() or {}
     mode = data.get('mode', 'reprocess')
 
-    if mode not in ('reprocess', 'full', 'llm', 'recut'):
+    if not _mode_allowed(mode, 'single'):
         return error_response('Invalid mode. Use "reprocess", "full", "llm", or "recut"', 400)
+    mode_spec = REPROCESS_MODE_SPECS[mode]
 
     episode = db.get_episode(slug, episode_id)
     if not episode:
@@ -1284,26 +1311,15 @@ def reprocess_episode_with_mode(slug, episode_id):
 
     # LLM-only reprocess reuses the saved transcript to skip re-transcription;
     # it cannot run without one. Mirror retry-ad-detection's guard.
-    if mode == 'llm' and not db.has_transcript(slug, episode_id):
+    if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
         return error_response(
             'No transcript available for LLM-only reprocess. '
             'Use "reprocess" or "full" to re-transcribe first.', 400)
 
-    # Recut cuts the retained original from the saved detections and re-times the
-    # saved segments; it cannot run if any of those inputs are missing. Fail with
-    # an actionable message rather than silently falling back to an LLM reprocess.
-    if mode == 'recut':
-        if not get_storage().get_original_path(slug, episode_id).exists():
-            return error_response(
-                'Original audio was not retained for this episode, so it cannot '
-                'be re-cut. Use "reprocess" or "full" to rebuild it from source.', 409)
-        if not db.get_original_segments(slug, episode_id):
-            return error_response(
-                'No saved transcript segments for this episode; recut needs them '
-                'to re-time the transcript. Use "reprocess" or "full" first.', 409)
-        if not episode.get('ad_markers_json'):
-            return error_response(
-                'No ad detections to cut. Detect ads first with "reprocess" or "full".', 409)
+    if mode_spec['preconditions']:
+        err = mode_spec['preconditions'](db, slug, episode_id, episode)
+        if err is not None:
+            return err
 
     try:
         # 1. Set reprocess_mode FIRST so process_episode can read it

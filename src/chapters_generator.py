@@ -10,10 +10,10 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    APIError, RateLimitError,
-    get_llm_timeout, get_effective_provider,
+    get_llm_timeout, get_llm_max_retries, get_effective_provider,
     PROVIDER_ANTHROPIC,
 )
+from utils.llm_call import call_llm
 
 logger = logging.getLogger(__name__)
 
@@ -222,17 +222,24 @@ Transcript:
 
         try:
             max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_boundary')
-            response = self._llm_client.messages_create(
+            response, last_error = call_llm(
+                llm_client=self._llm_client,
                 model=get_chapters_model(),
+                system_prompt="",
+                prompt=prompt,
+                llm_timeout=get_llm_timeout(),
+                max_retries=get_llm_max_retries(),
                 max_tokens=max_tokens,
-                system="",
                 temperature=temperature,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=get_llm_timeout(),
                 reasoning_effort=reasoning,
+                slug=None,
                 episode_id=self._episode_id,
+                call_label="chapter topic detection",
                 pass_name=PASS_CHAPTER_GENERATION,
             )
+            if response is None:
+                logger.error(f"Failed to detect topic boundaries: {last_error}")
+                return []
 
             result_text = response.content.strip()
             logger.info(f"LLM topic detection response ({len(result_text)} chars):\n{result_text}")
@@ -378,34 +385,35 @@ Transcript:
 
         prompt = "\n".join(prompt_parts)
 
-        try:
-            max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_title')
-            response = self._llm_client.messages_create(
-                model=get_chapters_model(),
-                max_tokens=max_tokens,
-                system="",
-                temperature=temperature,
-                messages=[{"role": "user", "content": prompt}],
-                timeout=get_llm_timeout(),
-                reasoning_effort=reasoning,
-                episode_id=self._episode_id,
-                pass_name=PASS_CHAPTER_GENERATION,
-            )
+        max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_title')
+        response, last_error = call_llm(
+            llm_client=self._llm_client,
+            model=get_chapters_model(),
+            system_prompt="",
+            prompt=prompt,
+            llm_timeout=get_llm_timeout(),
+            max_retries=get_llm_max_retries(),
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning_effort=reasoning,
+            slug=None,
+            episode_id=self._episode_id,
+            call_label="chapter title generation",
+            pass_name=PASS_CHAPTER_GENERATION,
+        )
+        if response is None:
+            # Caller (generate_chapter_titles) catches this and degrades to
+            # generic titles; retries/classification/webhooks already ran
+            # inside call_llm.
+            raise last_error
 
-            response_text = response.content.strip()
-            titles = [line.strip() for line in response_text.split('\n') if line.strip()]
+        response_text = response.content.strip()
+        titles = [line.strip() for line in response_text.split('\n') if line.strip()]
 
-            while len(titles) < len(chapter_requests):
-                titles.append(f"Part {len(titles) + 1}")
+        while len(titles) < len(chapter_requests):
+            titles.append(f"Part {len(titles) + 1}")
 
-            return titles[:len(chapter_requests)]
-
-        except RateLimitError:
-            logger.warning("Rate limited generating chapter titles, using generic")
-            raise
-        except APIError as e:
-            logger.error(f"API error generating chapter titles: {e}")
-            raise
+        return titles[:len(chapter_requests)]
 
     def _apply_generic_titles(self, chapters: List[Dict]) -> List[Dict]:
         """Apply generic titles to chapters that need them."""

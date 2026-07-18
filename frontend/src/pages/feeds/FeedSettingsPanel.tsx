@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX } from '../../api/feeds';
 import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
-import CollapsibleSection from '../../components/CollapsibleSection';
+import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
+import { btnPrimary } from '../../components/buttonStyles';
 
 interface Props {
   feed: Feed;
@@ -25,7 +26,6 @@ interface CueOverrideRowProps {
   step: number;
   value: string;
   setValue: (v: string) => void;
-  field: keyof UpdateFeedPayload;
   feedValue: number | null | undefined;
   hint: string;
   onBlur: () => void;
@@ -63,7 +63,7 @@ function CueOverrideRow({
       {description ? (
         <div className="flex flex-col gap-1 flex-1 min-w-0">
           {inputRow}
-          <p className="text-xs text-amber-600 dark:text-amber-400">{description}</p>
+          <p className="text-xs text-warning">{description}</p>
         </div>
       ) : inputRow}
     </div>
@@ -72,6 +72,9 @@ function CueOverrideRow({
 
 function FeedSettingsPanel({ feed, slug }: Props) {
   const queryClient = useQueryClient();
+  // Mirrors the CollapsibleSection's persisted open state (same storage key)
+  // so the networks list is only fetched once the panel is actually visible.
+  const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-settings-${slug}`);
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [customNetwork, setCustomNetwork] = useState(false);
@@ -85,6 +88,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const { data: networks } = useQuery({
     queryKey: ['networks'],
     queryFn: getNetworks,
+    enabled: panelOpen,
   });
 
   const { data: settings } = useQuery({
@@ -240,6 +244,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         subtitle="Network, DAI platform, auto-processing, language, tags, and collapsed cue tuning and advanced controls"
         defaultOpen={false}
         storageKey={`feed-settings-${slug}`}
+        onToggle={setPanelOpen}
       >
         <div className="space-y-4">
           {/* Network / DAI / Feed cap */}
@@ -317,7 +322,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <button
                   onClick={saveNetworkEdit}
                   disabled={updateMutation.isPending}
-                  className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                  className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50`}
                 >
                   {updateMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
@@ -335,7 +340,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.networkIdOverride
                     ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                    : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    : 'bg-green-500/20 text-success'
                 }`}>
                   {feed.networkIdOverride ? 'Override' : 'Detected'}: {feed.networkIdOverride || feed.networkId}
                 </span>
@@ -370,7 +375,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   placeholder="https://example.com/feed.xml"
                   className="w-full min-w-0 px-2 py-1 bg-secondary border border-border rounded"
                 />
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-xs text-warning">
                   Points this feed at a different source URL. Existing episodes are
                   kept and matched by GUID; the feed refreshes right after saving.
                 </p>
@@ -381,7 +386,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <button
                     onClick={saveSourceUrl}
                     disabled={sourceUrlMutation.isPending}
-                    className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50`}
                   >
                     {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
                   </button>
@@ -431,7 +436,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.autoProcessOverride
-                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    ? 'bg-green-500/20 text-success'
                     : 'bg-red-500/20 text-red-600 dark:text-red-400'
                 }`}>
                   {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
@@ -453,21 +458,27 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="blacklist">Remove ads (default)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
               </select>
-              {feed.skipAdDetection === true && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+              {(feed.processingMode
+                ? feed.processingMode === 'skip_detection'
+                : feed.skipAdDetection === true) && (
+                <p className="text-xs text-warning">
                   Ad detection is skipped for this feed (Advanced section), so this
                   setting has no effect.
                 </p>
               )}
-              {feed.skipAdDetection !== true && feed.detectionMode !== 'keep_content' && (
+              {(feed.processingMode
+                ? feed.processingMode === 'standard'
+                : feed.skipAdDetection !== true && feed.detectionMode !== 'keep_content') && (
                 <p className="text-xs text-muted-foreground">
                   Keep content only asks the model to mark what is show content and
                   removes the rest. Episodes fall back to normal ad removal when the
                   labeling fails safety checks.
                 </p>
               )}
-              {feed.skipAdDetection !== true && feed.detectionMode === 'keep_content' && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+              {(feed.processingMode
+                ? feed.processingMode === 'keep_content'
+                : feed.skipAdDetection !== true && feed.detectionMode === 'keep_content') && (
+                <p className="text-xs text-warning">
                   Removes everything the model does not mark as show content. For feeds with
                   unrecognizable inserted ads. Safety checks revert to normal removal when the
                   labeling looks off, but they can miss a single mislabeled stretch and cut real
@@ -519,7 +530,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.onlyExposeProcessedEpisodes
-                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    ? 'bg-green-500/20 text-success'
                     : 'bg-red-500/20 text-red-600 dark:text-red-400'
                 }`}>
                   {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
@@ -545,8 +556,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="flex flex-col gap-3 pt-1">
               {/* Cue match threshold */}
               <CueOverrideRow label="Cue threshold" min={CUE_SCORE_MIN} max={CUE_SCORE_MAX} step={0.01}
-                value={cueScoreInput} setValue={setCueScoreInput}
-                field="cueTemplateScoreOverride" feedValue={feed.cueTemplateScoreOverride}
+                value={cueScoreInput} setValue={setCueScoreInput} feedValue={feed.cueTemplateScoreOverride}
                 hint="Empty = use global" formatOverride={(v) => v.toFixed(2)}
                 placeholder={
                   settings?.audioCueTemplateScore?.value != null
@@ -578,48 +588,42 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               <CueOverrideRow label="Pair min break" min={1} max={600} step={1}
-                value={pairMinInput} setValue={setPairMinInput}
-                field="cuePairMinBreakOverride" feedValue={feed.cuePairMinBreakOverride}
+                value={pairMinInput} setValue={setPairMinInput} feedValue={feed.cuePairMinBreakOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(pairMinInput, feed.cuePairMinBreakOverride,
                   'cuePairMinBreakOverride', 1, 600,
                   () => setPairMinInput(s(feed.cuePairMinBreakOverride)))} />
               <CueOverrideRow label="Pair max break" min={1} max={3600} step={1}
-                value={pairMaxInput} setValue={setPairMaxInput}
-                field="cuePairMaxBreakOverride" feedValue={feed.cuePairMaxBreakOverride}
+                value={pairMaxInput} setValue={setPairMaxInput} feedValue={feed.cuePairMaxBreakOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(pairMaxInput, feed.cuePairMaxBreakOverride,
                   'cuePairMaxBreakOverride', 1, 3600,
                   () => setPairMaxInput(s(feed.cuePairMaxBreakOverride)))} />
               <CueOverrideRow label="Pair max fraction" min={0} max={1} step={0.05}
-                value={pairFracInput} setValue={setPairFracInput}
-                field="cuePairMaxBreakFractionOverride" feedValue={feed.cuePairMaxBreakFractionOverride}
+                value={pairFracInput} setValue={setPairFracInput} feedValue={feed.cuePairMaxBreakFractionOverride}
                 hint="0-1, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(pairFracInput, feed.cuePairMaxBreakFractionOverride,
                   'cuePairMaxBreakFractionOverride', 0, 1,
                   () => setPairFracInput(s(feed.cuePairMaxBreakFractionOverride)))} />
               <CueOverrideRow label="Snap confidence" min={0} max={1} step={0.01}
-                value={snapConfInput} setValue={setSnapConfInput}
-                field="cueSnapConfidenceOverride" feedValue={feed.cueSnapConfidenceOverride}
+                value={snapConfInput} setValue={setSnapConfInput} feedValue={feed.cueSnapConfidenceOverride}
                 hint="0-1, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(snapConfInput, feed.cueSnapConfidenceOverride,
                   'cueSnapConfidenceOverride', 0, 1,
                   () => setSnapConfInput(s(feed.cueSnapConfidenceOverride)))} />
               <CueOverrideRow label="Snap lead" min={0.5} max={30} step={0.5}
-                value={snapLeadInput} setValue={setSnapLeadInput}
-                field="cueSnapLeadOverride" feedValue={feed.cueSnapLeadOverride}
+                value={snapLeadInput} setValue={setSnapLeadInput} feedValue={feed.cueSnapLeadOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(snapLeadInput, feed.cueSnapLeadOverride,
                   'cueSnapLeadOverride', 0.5, 30,
                   () => setSnapLeadInput(s(feed.cueSnapLeadOverride)))} />
               <CueOverrideRow label="Snap lag" min={0.5} max={30} step={0.5}
-                value={snapLagInput} setValue={setSnapLagInput}
-                field="cueSnapLagOverride" feedValue={feed.cueSnapLagOverride}
+                value={snapLagInput} setValue={setSnapLagInput} feedValue={feed.cueSnapLagOverride}
                 hint="s, empty = global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(snapLagInput, feed.cueSnapLagOverride,
@@ -673,7 +677,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       />
                       <span>{toggleLabel}</span>
                     </label>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="text-xs text-warning">
                       {warning}
                     </p>
                   </div>
@@ -682,8 +686,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Max ad duration override (Phase C held-for-review) */}
               <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
-                value={maxAdDurInput} setValue={setMaxAdDurInput}
-                field="maxAdDurationOverride" feedValue={feed.maxAdDurationOverride}
+                value={maxAdDurInput} setValue={setMaxAdDurInput} feedValue={feed.maxAdDurationOverride}
                 hint="s, empty = no cap" placeholder="no cap"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurInput, feed.maxAdDurationOverride,
@@ -704,7 +707,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                     <span>Only cue-backed ads auto-cut</span>
                   </label>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     Only ads with audio cue evidence auto-cut; others are held for review. Enable cue templates first.
                   </p>
                 </div>
@@ -745,7 +748,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     />
                     <span>Serve episodes untouched</span>
                   </label>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     Episodes are downloaded and served exactly as published: no transcription, ad detection, or cutting. The feed URL stays the same, so turning this off resumes processing for new episodes. Episodes served untouched keep their original audio until you reprocess them.
                   </p>
                 </div>
@@ -794,7 +797,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     Downloads a second copy of each new episode with a different client signature and compares them. Audio that differs between fetches was inserted dynamically. Doubles this feed's download count in the publisher's stats. Auto turns this on when the feed looks dynamically ad-served.
                   </p>
                 </div>

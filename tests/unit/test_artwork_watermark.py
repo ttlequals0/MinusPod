@@ -4,32 +4,17 @@ Covers the compositor, the cached watermark variant in Storage, and the served
 RSS feed pointing its channel image at the badge-overlaid endpoint only when the
 toggle is on and the cover is cached.
 """
-import atexit
 import io
-import os
-import shutil
-import sys
-import tempfile
 
 from PIL import Image
 
-_test_data_dir = tempfile.mkdtemp(prefix='watermark_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('watermark_test_', reset_storage=True)
 
-import database
 import storage as storage_mod
 import artwork_watermark
 from rss_parser import RSSParser
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage._instance = None
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
 st = storage_mod.Storage()
 

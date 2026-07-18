@@ -170,22 +170,6 @@ class SponsorService:
         self._refresh_cache_if_needed()
         return self._cache_normalizations or []
 
-    def normalize_text(self, text: str) -> str:
-        """Apply all active normalizations to text."""
-        if not text:
-            return text
-
-        text = text.lower()
-
-        for norm in self.get_normalizations():
-            try:
-                text = re.sub(norm['pattern'], norm['replacement'], text, flags=re.IGNORECASE)
-            except re.error as e:
-                logger.warning(f"Invalid regex pattern '{norm['pattern']}': {e}")
-
-        # Normalize whitespace
-        return ' '.join(text.split())
-
     def apply_transcript_corrections(self, text: str) -> str:
         """Apply display-preserving corrections to transcript text.
 

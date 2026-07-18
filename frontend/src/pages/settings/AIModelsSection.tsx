@@ -2,6 +2,7 @@ import type { ClaudeModel } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatModelLabel } from './settingsUtils';
+import { btnSecondary } from '../../components/buttonStyles';
 
 interface AIModelsSectionProps {
   models: ClaudeModel[] | undefined;
@@ -45,7 +46,7 @@ function AIModelsSection({
         <button
           onClick={onRefresh}
           disabled={refreshIsPending}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
           title="Refresh model list from provider"
         >
           {refreshIsPending ? (

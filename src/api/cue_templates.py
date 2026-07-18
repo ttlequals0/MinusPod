@@ -22,12 +22,12 @@ import wave
 import zipfile
 
 import numpy as np
-from flask import abort, request, send_file
+from flask import request, send_file
 
 from api import (
     api, log_request, json_response, error_response,
     get_database, get_storage, _get_version,
-    _normalize_nullable_finite_float,
+    _normalize_nullable_finite_float, _resolve_original_audio,
 )
 from audio_analysis.cue_features import (
     SAMPLE_RATE_HZ, N_COEFFS, FRAME_HOP_MS, FRAME_LENGTH_MS,
@@ -101,21 +101,20 @@ MAX_IMPORT_WAV_BYTES = 5 * 1024 * 1024
 MAX_IMPORT_CUE_SECONDS = 120
 
 
-def _resolve_original_audio(db, storage, slug, episode_id):
-    """Resolve an episode's retained original audio path.
+def _episode_route_context(slug, episode_id):
+    """Shared preamble for per-episode cue routes: resolve db/storage and
+    load the feed row. The ``episode_id`` path param is already validated by
+    the blueprint's url_value_preprocessor (400 on malformed ids).
 
-    Returns ``(audio_path, None)`` on success or ``(None, error_response)`` when
-    the episode is unknown, has no retained original, or the file is missing.
-    Shared by the create / cue-scan / preview routes, which all require the
-    original (un-cut) audio because a cue can sit inside a removed ad.
+    Returns ``(db, storage, podcast, None)`` on success or
+    ``(db, storage, None, error_response)`` when the feed is unknown.
     """
-    episode = db.get_episode(slug, episode_id)
-    if not episode or not episode.get('original_file'):
-        return None, error_response('original audio not retained for this episode', 404)
-    audio_path = storage.get_original_path(slug, episode_id)
-    if not audio_path.exists():
-        return None, error_response('original audio file missing', 404)
-    return audio_path, None
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return db, storage, None, error_response('feed not found', 404)
+    return db, storage, podcast, None
 
 
 class _WindowTooShort(Exception):
@@ -140,22 +139,21 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
 
 def _template_to_meta_dict(row: dict) -> dict:
     """Strip the binary blobs for JSON responses."""
-    keys = row.keys() if hasattr(row, 'keys') else row
     return {
         'id': row['id'],
         'podcastId': row['podcast_id'],
         'label': row['label'],
-        'cueType': row['cue_type'] if 'cue_type' in keys else AUDIO_CUE_TYPE_DEFAULT,
+        'cueType': row.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
         'sourceEpisodeId': row['source_episode_id'],
         'sourceOffsetS': row['source_offset_s'],
         'durationS': row['duration_s'],
         'sampleRate': row['sample_rate'],
         'nCoeffs': row['n_coeffs'],
-        'scope': row['scope'] if 'scope' in keys else 'podcast',
-        'networkId': row['network_id'] if 'network_id' in keys else None,
+        'scope': row.get('scope', 'podcast'),
+        'networkId': row.get('network_id'),
         'enabled': bool(row['enabled']),
         'createdAt': row['created_at'],
-        'createdBy': row['created_by'] if 'created_by' in keys else None,
+        'createdBy': row.get('created_by'),
         'hasAudio': bool(row.get('pcm_blob')) or bool(row.get('has_audio')),
         'scoreThreshold': row.get('score_threshold'),
     }
@@ -432,13 +430,9 @@ def cue_scan_episode(slug, episode_id):
     ``scoreThreshold`` overrides the global threshold for this run only --
     handy for sweeping values without re-saving settings.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
     if err:
         return err
@@ -525,13 +519,9 @@ def preview_cue_template(slug, episode_id):
     The matcher is the same one the audio analysis pipeline uses, so the
     preview shows exactly what would appear in production.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
     payload = request.get_json(silent=True) or {}
     try:
         template_id = int(payload['templateId'])
@@ -599,7 +589,7 @@ def export_cue_template(template_id):
         'schemaVersion': CUE_TEMPLATE_SCHEMA_VERSION,
         'appVersion': _get_version(),
         'label': row['label'],
-        'cueType': row['cue_type'] if 'cue_type' in row.keys() else AUDIO_CUE_TYPE_DEFAULT,
+        'cueType': row.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
         'durationS': row['duration_s'],
         'sampleRate': sample_rate,
         'nCoeffs': row['n_coeffs'],
@@ -756,7 +746,7 @@ def import_cue_template(slug):
     return json_response({'template': _template_to_meta_dict(row)}, status=201)
 
 
-def _scan_loud_spots(db, audio_path, max_duration=AUDIO_CUE_SCAN_MAX_DURATION_SECONDS):
+def _scan_loud_spots(audio_path, max_duration=AUDIO_CUE_SCAN_MAX_DURATION_SECONDS):
     """Band-pass energy pass over original audio -> loud-spot dicts.
 
     Uses the generous discovery profile (config.AUDIO_CUE_SCAN_*), not the
@@ -805,18 +795,14 @@ def episode_loud_spots(slug, episode_id):
     so the user can find a cue to bracket. These are NOT detected cues -- before
     a template there is nothing to match against -- just loud spots to hunt in.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
     if err:
         return err
     try:
-        loud_spots = _scan_loud_spots(db, audio_path)
+        loud_spots = _scan_loud_spots(audio_path)
     except Exception as e:
         return error_response(f'loud-spot scan failed: {e}', 500)
     return json_response({'episodeId': episode_id, 'loudSpots': loud_spots})
@@ -831,13 +817,9 @@ def episode_detected_cues(slug, episode_id):
     loud spikes and they are too noisy to suggest as templates. Use the
     cue-candidates endpoint to find sounds that actually recur.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
 
     cue_signals = _episode_template_cue_signals(db, slug, episode_id)
 
@@ -1250,13 +1232,9 @@ def episode_cue_candidates(slug, episode_id):
     Pass ?rescan=1 to force a fresh scan. Pass ?peek=1 for a read-only check that
     returns a cached result or 'idle' without ever starting a scan.
     """
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
     podcast_id = podcast['id']
     force = request.args.get('rescan') in ('1', 'true', 'yes')
     peek = request.args.get('peek') in ('1', 'true', 'yes')
@@ -1637,10 +1615,9 @@ _WIN_PEAK_NEIGHBORHOOD_S = 3.0
 # a multi-hour file transiently costs GBs (the matcher chunks its decoding for
 # the same reason -- see cue_template_matcher.CHUNK_SECONDS).
 _WIN_MFCC_CHUNK_S = 600.0
-# One MFCC frame hop in seconds, and the frame length (ms) the slicer uses to
+# One MFCC frame hop in seconds; the slicer uses FRAME_LENGTH_MS directly to
 # reproduce compute_mfcc's frame count over a window's sample span.
 _WIN_FRAME_HOP_S = FRAME_HOP_MS / 1000.0
-_WIN_FRAME_LENGTH_MS = FRAME_LENGTH_MS
 
 _WIN_SOURCE_AUDIO_GONE_MSG = (
     'the source episode original audio is needed to re-decode the window; '
@@ -1792,7 +1769,7 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
         region_mfcc = compute_mfcc(region_pcm, n_coeffs=n_coeffs,
                                    formant_atten_db=formant_atten)
         _hop = int(round(SAMPLE_RATE_HZ * FRAME_HOP_MS / 1000))
-        _frame_len = int(round(SAMPLE_RATE_HZ * _WIN_FRAME_LENGTH_MS / 1000))
+        _frame_len = int(round(SAMPLE_RATE_HZ * FRAME_LENGTH_MS / 1000))
 
         def region_slice_mfcc(start_s, end_s):
             lo_sample = int((start_s - region_start) * SAMPLE_RATE_HZ)
@@ -2031,13 +2008,9 @@ def _unstamp_cached_candidates(db, podcast_id, episode_id, dismissal_id):
 @log_request
 def dismiss_cue_candidate(slug, episode_id):
     """Feed-wide 'not a cue': fingerprint the span and persist a dismissal."""
-    if not is_valid_episode_id(episode_id):
-        abort(400)
-    db = get_database()
-    storage = get_storage()
-    podcast = db.get_podcast_by_slug(slug)
-    if not podcast:
-        return error_response('feed not found', 404)
+    db, storage, podcast, err = _episode_route_context(slug, episode_id)
+    if err:
+        return err
     data = request.get_json(silent=True) or {}
     try:
         start_s = float(data.get('start_s'))

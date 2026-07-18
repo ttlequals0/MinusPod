@@ -6,6 +6,8 @@ import {
   downloadCommunityBundle,
 } from '../api/patterns';
 import { PatternExportEditRow } from './PatternExportEditRow';
+import { getErrorMessage } from '../api/client';
+import { Modal } from './Modal';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -139,7 +141,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
       const result = await previewExportBundle(ids, overridesForIds(ids));
       setPreview(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Preview failed');
+      setError(getErrorMessage(e, 'Preview failed'));
     } finally {
       setBusy(false);
     }
@@ -153,7 +155,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
       const { filename } = await downloadCommunityBundle(preview.ready, overridesForIds(preview.ready));
       setDownloadedFilename(filename);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Download failed');
+      setError(getErrorMessage(e, 'Download failed'));
     } finally {
       setBusy(false);
     }
@@ -162,221 +164,220 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
   const totalEligible = visiblePatterns.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
-      <div
-        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-lg bg-card text-card-foreground border border-border shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-6 pb-3 border-b border-border">
-          <h2 className="text-lg font-semibold mb-1">Export patterns</h2>
-          <p className="text-sm text-muted-foreground">
-            Pick the patterns to include, then choose where they go.
-          </p>
-        </div>
+    <Modal
+      onClose={handleClose}
+      closeOnBackdrop
+      panelClassName="w-full max-w-2xl max-h-[80vh] flex flex-col text-card-foreground"
+    >
+      <div className="p-6 pb-3 border-b border-border">
+        <h2 className="text-lg font-semibold mb-1">Export patterns</h2>
+        <p className="text-sm text-muted-foreground">
+          Pick the patterns to include, then choose where they go.
+        </p>
+      </div>
 
-        <div className="px-6 py-3 border-b border-border space-y-2 text-sm">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="export-destination"
-              checked={destination === 'download'}
-              onChange={() => changeDestination('download')}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium">Download as JSON</span>
-              <span className="block text-xs text-muted-foreground">
-                One bundle file you can import into another MinusPod instance.
-              </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="radio"
-              name="export-destination"
-              checked={destination === 'community'}
-              onChange={() => changeDestination('community')}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="font-medium">Submit to community</span>
-              <span className="block text-xs text-muted-foreground">
-                Bundle everything that passes the quality gates. Commit it to a fork and open a PR. Community patterns are excluded.
-              </span>
-            </span>
-          </label>
-        </div>
-
-        {destination === 'community' && stage === 'preview' && preview && (
-          <CommunityPreview
-            preview={preview}
-            onBack={() => setPreview(null)}
-            onDownload={downloadBundle}
-            busy={busy}
+      <div className="px-6 py-3 border-b border-border space-y-2 text-sm">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name="export-destination"
+            checked={destination === 'download'}
+            onChange={() => changeDestination('download')}
+            className="mt-0.5"
           />
-        )}
+          <span>
+            <span className="font-medium">Download as JSON</span>
+            <span className="block text-xs text-muted-foreground">
+              One bundle file you can import into another MinusPod instance.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name="export-destination"
+            checked={destination === 'community'}
+            onChange={() => changeDestination('community')}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">Submit to community</span>
+            <span className="block text-xs text-muted-foreground">
+              Bundle everything that passes the quality gates. Commit it to a fork and open a PR. Community patterns are excluded.
+            </span>
+          </span>
+        </label>
+      </div>
 
-        {destination === 'community' && stage === 'done' && downloadedFilename && (
-          <CommunityDone filename={downloadedFilename} onClose={onClose} />
-        )}
+      {destination === 'community' && stage === 'preview' && preview && (
+        <CommunityPreview
+          preview={preview}
+          onBack={() => setPreview(null)}
+          onDownload={downloadBundle}
+          busy={busy}
+        />
+      )}
 
-        {(destination === 'download' || stage === 'pick') && (
-          <>
-            <div className="px-6 py-2 border-b border-border flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  className="rounded"
-                />
-                <span>{allSelected ? 'Deselect all' : 'Select all'}</span>
-              </label>
-              <span className="text-xs text-muted-foreground">
-                {effectiveSelection.size} of {totalEligible} selected
-              </span>
-            </div>
+      {destination === 'community' && stage === 'done' && downloadedFilename && (
+        <CommunityDone filename={downloadedFilename} onClose={onClose} />
+      )}
 
-            <div className="flex-1 overflow-y-auto p-3">
-              {visiblePatterns.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {destination === 'community'
-                    ? 'Nothing to submit. Only local or imported patterns can be shared.'
-                    : 'No patterns match the current filters.'}
-                </p>
-              )}
-              <ul className="space-y-1">
-                {visiblePatterns.map((p) => (
-                  <li key={p.id}>
-                    <label className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-accent/50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={effectiveSelection.has(p.id)}
-                        onChange={() => toggleOne(p.id)}
-                        className="mt-0.5 rounded"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-mono text-xs text-muted-foreground">#{p.id}</span>
-                          <span className="font-medium">{p.sponsor || '(unknown sponsor)'}</span>
-                          <span className="text-xs text-muted-foreground">[{p.scope}]</span>
-                          {p.source === PATTERN_SOURCE_COMMUNITY && (
-                            <span className="text-xs text-teal-700 dark:text-teal-400">community</span>
-                          )}
-                          {patternOverrides[p.id] && destination === 'community' && (
-                            <span className="text-xs text-amber-700 dark:text-amber-400">override</span>
-                          )}
-                        </div>
-                        {p.text_template && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {p.text_template.substring(0, 100)}...
-                          </div>
+      {(destination === 'download' || stage === 'pick') && (
+        <>
+          <div className="px-6 py-2 border-b border-border flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                className="rounded"
+              />
+              <span>{allSelected ? 'Deselect all' : 'Select all'}</span>
+            </label>
+            <span className="text-xs text-muted-foreground">
+              {effectiveSelection.size} of {totalEligible} selected
+            </span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {visiblePatterns.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {destination === 'community'
+                  ? 'Nothing to submit. Only local or imported patterns can be shared.'
+                  : 'No patterns match the current filters.'}
+              </p>
+            )}
+            <ul className="space-y-1">
+              {visiblePatterns.map((p) => (
+                <li key={p.id}>
+                  <label className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-accent/50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={effectiveSelection.has(p.id)}
+                      onChange={() => toggleOne(p.id)}
+                      className="mt-0.5 rounded"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-mono text-xs text-muted-foreground">#{p.id}</span>
+                        <span className="font-medium">{p.sponsor || '(unknown sponsor)'}</span>
+                        <span className="text-xs text-muted-foreground">[{p.scope}]</span>
+                        {p.source === PATTERN_SOURCE_COMMUNITY && (
+                          <span className="text-xs text-teal-700 dark:text-teal-400">community</span>
+                        )}
+                        {patternOverrides[p.id] && destination === 'community' && (
+                          <span className="text-xs text-amber-700 dark:text-amber-400">override</span>
                         )}
                       </div>
-                      {destination === 'community' && (
-                        <button
-                          type="button"
-                          className="shrink-0 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setExpandedRowId((prev) => (prev === p.id ? null : p.id));
-                          }}
-                        >
-                          {expandedRowId === p.id ? 'Done' : 'Edit'}
-                        </button>
+                      {p.text_template && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {p.text_template.substring(0, 100)}...
+                        </div>
                       )}
-                    </label>
-                    {destination === 'community' && expandedRowId === p.id && (
-                      <PatternExportEditRow
-                        patternId={p.id}
-                        communityIdHint={previewShortId(p.id)}
-                        baseSponsor={p.sponsor || ''}
-                        baseAliases={[]}
-                        baseTags={[]}
-                        override={patternOverrides[p.id]}
-                        onChange={(next: PatternOverride | undefined) => {
-                          // Any edit invalidates the last preview -- the next
-                          // download must re-run preview against the new
-                          // override map to surface fresh rejections.
-                          setPreview(null);
-                          setDownloadedFilename(null);
-                          setPatternOverrides((prev) => {
-                            const copy = { ...prev };
-                            if (next) copy[p.id] = next;
-                            else delete copy[p.id];
-                            return copy;
-                          });
+                    </div>
+                    {destination === 'community' && (
+                      <button
+                        type="button"
+                        className="shrink-0 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setExpandedRowId((prev) => (prev === p.id ? null : p.id));
                         }}
-                      />
+                      >
+                        {expandedRowId === p.id ? 'Done' : 'Edit'}
+                      </button>
                     )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="p-6 pt-3 border-t border-border space-y-3">
-              {destination === 'download' && (
-                <div className="flex items-center gap-4 text-sm">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includeDisabled}
-                      onChange={(e) => setIncludeDisabled(e.target.checked)}
-                      className="rounded"
-                    />
-                    <span>Include disabled patterns</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includeCorrections}
-                      onChange={(e) => setIncludeCorrections(e.target.checked)}
-                      className="rounded"
+                  {destination === 'community' && expandedRowId === p.id && (
+                    <PatternExportEditRow
+                      patternId={p.id}
+                      communityIdHint={previewShortId(p.id)}
+                      baseSponsor={p.sponsor || ''}
+                      baseAliases={[]}
+                      baseTags={[]}
+                      override={patternOverrides[p.id]}
+                      onChange={(next: PatternOverride | undefined) => {
+                        // Any edit invalidates the last preview -- the next
+                        // download must re-run preview against the new
+                        // override map to surface fresh rejections.
+                        setPreview(null);
+                        setDownloadedFilename(null);
+                        setPatternOverrides((prev) => {
+                          const copy = { ...prev };
+                          if (next) copy[p.id] = next;
+                          else delete copy[p.id];
+                          return copy;
+                        });
+                      }}
                     />
-                    <span>Include correction history</span>
-                  </label>
-                </div>
-              )}
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
 
-              {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              )}
+          <div className="p-6 pt-3 border-t border-border space-y-3">
+            {destination === 'download' && (
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeDisabled}
+                    onChange={(e) => setIncludeDisabled(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Include disabled patterns</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeCorrections}
+                    onChange={(e) => setIncludeCorrections(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Include correction history</span>
+                </label>
+              </div>
+            )}
 
-              <div className="flex justify-end gap-2">
+            {error && (
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={busy}
+                className="px-3 py-1.5 text-sm rounded border border-border disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              {destination === 'download' ? (
                 <button
                   type="button"
-                  onClick={handleClose}
-                  disabled={busy}
-                  className="px-3 py-1.5 text-sm rounded border border-border disabled:opacity-50"
+                  onClick={downloadSelected}
+                  disabled={effectiveSelection.size === 0}
+                  className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
                 >
-                  Cancel
+                  Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                 </button>
-                {destination === 'download' ? (
-                  <button
-                    type="button"
-                    onClick={downloadSelected}
-                    disabled={effectiveSelection.size === 0}
-                    className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
-                  >
-                    Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={runPreview}
-                    disabled={effectiveSelection.size === 0 || busy}
-                    className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
-                  >
-                    {busy ? 'Checking...' : 'Continue'}
-                  </button>
-                )}
-              </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={runPreview}
+                  disabled={effectiveSelection.size === 0 || busy}
+                  className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
+                >
+                  {busy ? 'Checking...' : 'Continue'}
+                </button>
+              )}
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
 

@@ -1,3 +1,5 @@
+import type { KeyboardEvent } from 'react';
+
 // Shared, state-free helpers extracted from AdReviewModal. Keeping them
 // here keeps the modal focused on composition and lets us unit-test the
 // pure pieces without mounting React.
@@ -46,6 +48,45 @@ export function getThemeWaveformColors(): { waveColor: string; progressColor: st
   const color = primary ? `hsl(${primary})` : '#22d3ee';
   return { waveColor: color, progressColor: color };
 }
+
+// Shared commit for the timestamp text inputs of both audio-editor modals.
+// Clamps only to absolute episode bounds [0, maxSeconds]; cross-field
+// validation (Start < End) is enforced at Save time so the user can edit both
+// fields without each blur stomping the other. Invalid input reverts to the
+// current boundary. `onCommitted` runs only on a successful commit (e.g.
+// AdReviewModal recenters its waveform window on the committed value).
+export function commitTimeInput(
+  input: string,
+  fallback: number,
+  maxSeconds: number,
+  setBoundary: (v: number) => void,
+  setInput: (s: string) => void,
+  onCommitted?: (v: number) => void,
+): void {
+  const parsed = parseTimeInput(input);
+  if (parsed === null) {
+    setInput(formatTime(fallback));
+    return;
+  }
+  const clamped = Math.max(0, Math.min(parsed, maxSeconds));
+  setBoundary(clamped);
+  setInput(formatTime(clamped));
+  onCommitted?.(clamped);
+}
+
+// Enter commits (via blur), Escape reverts to the current boundary.
+export const timeInputKeyDown =
+  (fallback: number, setInput: (s: string) => void) =>
+  (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setInput(formatTime(fallback));
+      (e.target as HTMLInputElement).blur();
+    }
+  };
 
 export function loadPlayWhileDragging(): boolean {
   try {

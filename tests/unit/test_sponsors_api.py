@@ -5,27 +5,14 @@ No app_password is set, so the session is unauthenticated and CSRF is
 bypassed for mutations (same setup as test_stage_tunables_api).
 """
 import json
-import os
-import sys
-import tempfile
 
 import pytest
 
-_test_data_dir = tempfile.mkdtemp(prefix='sponsors_api_test_')
-os.environ['SECRET_KEY'] = 'test-secret'
-os.environ['DATA_DIR'] = _test_data_dir
-os.environ['MINUSPOD_MASTER_PASSPHRASE'] = 'sponsors-api-test-passphrase'
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+_test_data_dir = bootstrap('sponsors_api_test_', passphrase='sponsors-api-test-passphrase')
 
 import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
 from main_app import app
 
 

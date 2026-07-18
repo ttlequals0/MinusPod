@@ -5,7 +5,9 @@ import {
   getEmailNotificationSettings, updateEmailNotificationSettings, sendTestEmail,
 } from '../../api/settings';
 import type { EmailNotificationSettings, EmailNotificationSettingsPayload } from '../../api/settings';
+import { useTransientState } from '../../hooks/useTransientState';
 import { EVENT_OPTIONS } from './notificationEvents';
+import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 
 interface EmailDraft {
   enabled: boolean;
@@ -41,7 +43,7 @@ function EmailSettingsForm() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<EmailDraft | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useTransientState<{ success: boolean; message: string } | null>(null, 4000);
 
   const { data: settings, isLoading, isError } = useQuery({
     queryKey: ['emailNotifications'],
@@ -61,14 +63,8 @@ function EmailSettingsForm() {
 
   const testMutation = useMutation({
     mutationFn: sendTestEmail,
-    onSuccess: (data) => {
-      setTestResult(data);
-      setTimeout(() => setTestResult(null), 4000);
-    },
-    onError: () => {
-      setTestResult({ success: false, message: 'Request failed' });
-      setTimeout(() => setTestResult(null), 4000);
-    },
+    onSuccess: (data) => setTestResult(data),
+    onError: () => setTestResult({ success: false, message: 'Request failed' }),
   });
 
   if (isError) {
@@ -287,7 +283,7 @@ function EmailSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save'}
         </button>
@@ -295,7 +291,7 @@ function EmailSettingsForm() {
           type="button"
           onClick={() => testMutation.mutate()}
           disabled={testMutation.isPending || !savedSendReady || dirty}
-          className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm"
+          className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm`}
         >
           {testMutation.isPending ? 'Sending...' : 'Send test email'}
         </button>

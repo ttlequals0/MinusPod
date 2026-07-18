@@ -40,7 +40,7 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   },
   manual: {
     label: 'Manual',
-    className: 'bg-amber-500/20 text-amber-600 dark:text-amber-400',
+    className: 'bg-amber-500/20 text-warning',
   },
   cue_pair: {
     label: 'Cue pair',

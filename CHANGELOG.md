@@ -6,6 +6,102 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.0] - 2026-07-17
+
+### Performance
+- Chunked transcription now runs one ffmpeg pass per chunk instead of two or
+  three: the preprocessing filters (and FLAC encode on the API path) are folded
+  into chunk extraction. Saves roughly 1-2 minutes of decode/encode per long
+  episode plus the intermediate WAV disk traffic.
+- The audio analysis stage runs its independent components (volume, audio cue,
+  silence) concurrently, with splice detection starting as soon as the volume
+  frames it needs are ready. The stage runs twice per episode, so long episodes
+  save minutes of sequential ffmpeg.
+- The differential fetch (second download for DAI diffing) now runs in a worker
+  thread overlapped with audio analysis instead of blocking between stages. It
+  still starts only after transcription so the two CDN fetches stay separated
+  in time.
+- Keep-content mode sends its detection windows through the same parallel
+  window runner as normal detection instead of one blocking LLM call at a time.
+- The audio fingerprint scan computes similarities with batched numpy instead
+  of a per-position Python loop: 4-7x faster, bit-identical results (pinned by
+  a new equivalence test).
+- Text pattern matching batches all sliding-window TF-IDF transforms per bucket
+  into one call.
+- Serving RSS to a subscriber no longer blocks on an upstream refresh when a
+  cached feed exists: the cache is served immediately and the refresh happens
+  in the background (bounded to one in-flight refresh per feed). Forced
+  refreshes and first-time fetches still refresh synchronously.
+- /system/status caches its filesystem walks for 45 seconds instead of
+  stat-ing the full library twice per request.
+- The leader worker no longer performs a redundant sequential refresh of every
+  feed at startup; the background scheduler's first pass covers it in parallel.
+
+### Changed
+- Full-codebase cleanup pass (no intended feature changes). Dead code removed
+  across the backend: unused config constants, ten unreferenced methods, the
+  never-executed MIGRATION_INDEXES_SQL block, an unreachable transcriber API
+  branch, and assorted unused imports. Duplicated logic consolidated behind
+  shared helpers: UTC timestamp formatting (utils/time), overlap math
+  (overlap_seconds), episode and podcast JSON serializers in the API layer,
+  the cue-template route preamble, the ad detector's detection/verification
+  window orchestration, reviewer verdict stamping and history recording in
+  the processing pipeline, and quiet file unlinks in the transcriber.
+- Frontend cleanup to match: shared SortHeader and ScopeBadge components,
+  shared time-input commit helpers for the two audio editors, a single
+  useCollapsibleOpen hook for panels that gate work on their open state, and
+  removal of inert state (the ad review modal's busy flag, dead branches in
+  the cue episode picker).
+- apiRequest now passes FormData bodies through, so OPML and cue-template
+  imports get the shared 401 handling. Both imports are single-attempt
+  (no retry) because they are not idempotent.
+- Per-feed processing mode (pass-through, skip ad detection, keep content only,
+  standard) is now resolved once per episode by a single precedence function
+  instead of independent column checks scattered through the pipeline. The
+  toggles stay independent in the API; feed responses now include a
+  processingMode field with the resolved mode, and the feed settings hints key
+  off it.
+- Global settings defaults are driven by one registry covering seeding, reset,
+  and the GET /settings defaults, replacing four hand-synchronized catalogs.
+  Seeded values, reset behavior, and API payloads are unchanged (pinned by a
+  snapshot test).
+- Reprocess-mode rules (reprocess, full, llm, recut) live in one spec table
+  consumed by all three reprocess endpoints; recut remains single-episode only.
+- Chapter generation calls the LLM through the shared retry and rate-limit
+  classification path, so transient provider errors retry with backoff and
+  fire webhook alerts instead of silently degrading to generic titles.
+- Table DDL is single-sourced: schema creation and the create-missing-tables
+  path share per-table constants instead of hand-synchronized copies.
+- Episode id path parameters are validated once at the API blueprint level;
+  malformed ids now return 400 on all API routes instead of falling through to
+  a database 404 on some.
+- The frontend has shared building blocks that previously existed as drifting
+  copies: button style recipes, success/warning theme tokens each theme can
+  restyle, a Modal/ConfirmModal shell, a settings field registry that
+  closes the hydration-vs-diff drift bug class, a transient-status hook that
+  fixes leaked timers, and a shared API error-message helper.
+
+### Fixed
+- The reviewer contradiction guard now uses regex patterns instead of four
+  literal substrings, so verdicts whose reasoning says the span is not an ad
+  (for example "contain no advertising content" or "is not advertising") are
+  held for review instead of being cut. The literal patterns missed real
+  reasonings on several episodes while the spans were cut anyway.
+- The idx_patterns_scope index was defined but never created on any database;
+  a migration now creates it.
+- Episode pages no longer fetch the full original transcript on every visit
+  after the section had been opened once anywhere; the fetch now follows the
+  section's open state.
+- The ad review editor no longer re-downloads the full-episode waveform peaks
+  and the sponsor catalog on every step between ads; both are cached for the
+  session and the Reset control clears the cache properly.
+- Feed detail panels (ad distribution, cue templates, feed settings) no longer
+  fire their network requests while collapsed; data loads when the panel is
+  opened or was left open.
+- Cue-template routes no longer clear an episode's stored original-audio
+  reference when the file is temporarily unreadable; only the original-audio
+  serving routes keep that self-heal.
+
 ## [2.61.0] - 2026-07-17
 
 ### Added

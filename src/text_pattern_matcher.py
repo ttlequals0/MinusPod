@@ -516,23 +516,17 @@ class TextPatternMatcher:
 
     def _score_windows(self, full_text, segment_map, segments, matches,
                        target_patterns, target_vectors, window_size, step_size):
-        """Score sliding windows against a set of pattern vectors."""
+        """Score sliding windows against a set of pattern vectors.
+
+        All windows are vectorized in a single batched transform (one call
+        instead of one per window). Scores are numerically identical to
+        per-window transforms: TfidfVectorizer.transform treats each
+        document independently.
+        """
         from sklearn.metrics.pairwise import cosine_similarity
         import numpy as np
 
-        for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
-            end_pos = min(start_pos + window_size, len(full_text))
-            window_text = full_text[start_pos:end_pos]
-
-            if len(window_text.strip()) < MIN_TEXT_LENGTH:
-                continue
-
-            try:
-                window_vec = self._vectorizer.transform([window_text])
-            except Exception:
-                continue
-
-            similarities = cosine_similarity(window_vec, target_vectors)[0]
+        def score_row(similarities, start_pos, end_pos, window_len):
             best_idx = np.argmax(similarities)
             best_score = similarities[best_idx]
 
@@ -544,7 +538,7 @@ class TextPatternMatcher:
                         f"Pattern match attempt: score={best_score:.3f} "
                         f"threshold={TFIDF_THRESHOLD} pattern_id={pattern_preview.id} "
                         f"sponsor={pattern_preview.sponsor} "
-                        f"pattern_len={pattern_len} window_len={len(window_text)}"
+                        f"pattern_len={pattern_len} window_len={window_len}"
                     )
 
             if best_score >= TFIDF_THRESHOLD:
@@ -567,6 +561,34 @@ class TextPatternMatcher:
                         sponsor=pattern.sponsor,
                         match_type="content"
                     ))
+
+        window_bounds = []
+        window_texts = []
+        for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
+            end_pos = min(start_pos + window_size, len(full_text))
+            window_text = full_text[start_pos:end_pos]
+
+            if len(window_text.strip()) < MIN_TEXT_LENGTH:
+                continue
+
+            window_bounds.append((start_pos, end_pos))
+            window_texts.append(window_text)
+
+        if not window_texts:
+            return
+
+        try:
+            window_matrix = self._vectorizer.transform(window_texts)
+        except Exception as e:
+            # A fitted TfidfVectorizer cannot fail per-document, so a batch
+            # failure would hit every window individually too; skip scoring.
+            logger.warning(f"Content window vectorization failed: {e}")
+            return
+
+        all_similarities = cosine_similarity(window_matrix, target_vectors)
+        for i, (start_pos, end_pos) in enumerate(window_bounds):
+            score_row(all_similarities[i], start_pos, end_pos,
+                      len(window_texts[i]))
 
     def _find_phrase_matches(
         self,

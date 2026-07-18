@@ -3,10 +3,11 @@ import json
 import logging
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Tuple
 
 from utils.text import extract_text_in_range
+from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,7 @@ class MaintenanceMixin:
     def _retention_cutoff_str(days: int) -> str:
         """ISO-8601 UTC string for `days` ago. Used by both the original-only
         pre-pass and the main processed-file pass below."""
-        return (
-            datetime.now(timezone.utc) - timedelta(days=days)
-        ).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return (utc_now() - timedelta(days=days)).strftime(ISO_FORMAT)
 
     def _resolve_original_retention(self, retention_days: int):
         """Return original_retention_days if the pre-pass should run, else None.
@@ -201,15 +200,6 @@ class MaintenanceMixin:
             logger.info(f"Retention cleanup: reset {total_reset} episodes to discovered, freed {total_freed_mb:.1f} MB")
 
         return total_reset, total_freed_mb
-
-    def delete_old_episodes(self, cutoff_date: str) -> int:
-        """Delete episodes older than cutoff date. Returns count deleted."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "DELETE FROM episodes WHERE created_at < ?", (cutoff_date,)
-        )
-        conn.commit()
-        return cursor.rowcount
 
     def deduplicate_patterns(self) -> int:
         """Remove duplicate patterns, merging stats into the pattern with most confirmations.

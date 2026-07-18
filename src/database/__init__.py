@@ -3,12 +3,11 @@ import sqlite3
 import threading
 import logging
 from pathlib import Path
-from typing import Optional
 
 from database.schema import SchemaMixin
 from database.podcasts import PodcastMixin
 from database.episodes import EpisodeMixin
-from database.settings import SettingsMixin, DEFAULT_MODEL_PRICING
+from database.settings import SettingsMixin
 from database.patterns import PatternMixin
 from database.sponsors import SponsorMixin
 from database.stats import StatsMixin

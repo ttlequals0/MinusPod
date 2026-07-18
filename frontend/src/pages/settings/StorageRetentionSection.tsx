@@ -1,5 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import { btnPrimary } from '../../components/buttonStyles';
+import SavedBadge from './SavedBadge';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -127,13 +129,11 @@ function StorageRetentionSection({
           <button
             onClick={onSave}
             disabled={saveIsPending || originalExceedsProcessed}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
           >
             {saveIsPending ? 'Saving...' : 'Save Retention Settings'}
           </button>
-          {saveIsSuccess && (
-            <span className="ml-3 text-sm text-green-600 dark:text-green-400">Saved</span>
-          )}
+          {saveIsSuccess && <SavedBadge className="ml-3" />}
         </div>
       </div>
     </CollapsibleSection>

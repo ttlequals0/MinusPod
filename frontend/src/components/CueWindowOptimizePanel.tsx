@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import LoadingSpinner from './LoadingSpinner';
 import { ghostBtn, primaryBtn } from './cueScanStyles';
+import { getErrorMessage } from '../api/client';
 import { useScanQuery } from '../hooks/useScanQuery';
 import {
   optimizeCueWindow,
@@ -63,7 +64,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
       queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
       onClose();
     },
-    onError: (e) => setApplyError(e instanceof Error ? e.message : 'Apply failed'),
+    onError: (e) => setApplyError(getErrorMessage(e, 'Apply failed')),
   });
 
   const rescan = () => {
@@ -93,7 +94,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
         <div className="space-y-2">
           {alreadyOptimal ? (
             <p>
-              <span className="px-2 py-0.5 rounded font-medium bg-green-500/20 text-green-600 dark:text-green-400">
+              <span className="px-2 py-0.5 rounded font-medium bg-success/20 text-success">
                 Already optimal
               </span>
               <span className="ml-2 text-muted-foreground">
@@ -122,8 +123,8 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
                 {meanPeakScore.toFixed(3)}
                 {scoreDelta != null && (
                   <span className={`ml-1 ${scoreDelta >= 0
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-amber-600 dark:text-amber-400'}`}
+                    ? 'text-success'
+                    : 'text-warning'}`}
                   >
                     {scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(3)}
                   </span>

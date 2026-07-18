@@ -28,7 +28,9 @@ def seeded_episode(app_client):
 
     db = get_database()
     slug = 'llm-reprocess-feed'
-    episode_id = 'llmrep001'
+    # Must be 12-char hex: the blueprint url_value_preprocessor now 400s
+    # malformed episode_id path params before the route body runs.
+    episode_id = 'aa11bb22cc33'
 
     db.create_podcast(slug, 'https://example.com/feed.xml', 'LLM Reprocess Feed')
     db.upsert_episode(slug, episode_id,

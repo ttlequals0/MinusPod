@@ -72,12 +72,9 @@ CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are like
 LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
 
 # Ad detector specific durations
-MIN_TYPICAL_AD_DURATION = 30.0  # Most sponsor reads are 60-120 seconds
-MIN_SPONSOR_READ_DURATION = 90.0  # Threshold for extension consideration
 SHORT_GAP_THRESHOLD = 120.0          # 2 minutes - gap between ads to merge
 MAX_MERGED_DURATION = 300.0          # 5 minutes max for merged ads
 MIN_CONTENT_BETWEEN_ADS_SECONDS = 12.0  # default threshold for cross-ad-break filler merge
-MAX_REALISTIC_SIGNAL = 180.0    # 3 minutes - anything longer is suspect
 MIN_OVERLAP_TOLERANCE = 120.0   # 2 min tolerance for boundary ads
 MAX_AD_DURATION_WINDOW = 420.0  # 7 min max (longest reasonable sponsor read)
 
@@ -124,26 +121,12 @@ SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promo
 PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration correction
 
 # ============================================================
-# False Positive Cross-Episode Matching
-# ============================================================
-FALSE_POSITIVE_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity to match rejected content
-MAX_FALSE_POSITIVE_TEXTS = 100              # Max false positives to load per podcast
-
-# ============================================================
 # Processing Limits
 # ============================================================
 MAX_EPISODE_RETRIES = 4         # Retries before permanent failure (initial + 4 retries = 5 total attempts, ladder 5m/15m/30m/60m)
 JIT_RETRY_COOLDOWN_SECONDS = 60 # Base cooldown between JIT retries (doubles per attempt)
 WINDOW_SIZE_SECONDS = 600       # Claude processing window (10 min)
 WINDOW_OVERLAP_SECONDS = 180    # Overlap between windows (3 min)
-MAX_FILE_SIZE_MB = 500          # Maximum audio file size
-
-# ============================================================
-# Caching (seconds)
-# ============================================================
-FEED_CACHE_TTL = 30             # Seconds to cache feed map
-RSS_PARSE_CACHE_TTL = 60        # Seconds to cache parsed RSS
-SETTINGS_CACHE_TTL = 60         # Seconds to cache settings
 
 # ============================================================
 # Background Processing (seconds)
@@ -158,9 +141,6 @@ RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 # gates lastRefreshError on the threshold so the UI marker matches.
 FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
-AUTO_PROCESS_INITIAL_BACKOFF = 30   # Initial backoff when queue busy
-AUTO_PROCESS_MAX_BACKOFF = 300      # Maximum backoff (5 min)
-GRACEFUL_SHUTDOWN_TIMEOUT = 300     # Seconds to wait for processing
 
 # ============================================================
 # Text Pattern Matching Thresholds
@@ -191,7 +171,6 @@ AD_CONTENT_PHONE_PATTERNS = ['1-800', '1 800', 'one eight hundred']
 # Ad Duration Estimation
 # ============================================================
 DEFAULT_AD_DURATION_ESTIMATE = 90.0  # Assumed ad length when only intro/outro found
-SPONSOR_MISMATCH_MAX_GAP = 60.0      # Max gap for sponsor mismatch extension
 
 # ============================================================
 # Volume Analysis (DAI ads)
@@ -450,6 +429,39 @@ def resolve_detection_mode(db, slug):
     except Exception:
         return DETECTION_MODE_BLACKLIST
     return mode if mode in DETECTION_MODES else DETECTION_MODE_BLACKLIST
+
+
+# Per-feed processing mode: the effective pipeline behavior resolved from
+# three independent podcasts columns (passthrough_enabled, skip_ad_detection,
+# detection_mode). The columns are deliberately NOT exclusive (issue #537):
+# a user can leave skip-detection set while temporarily enabling passthrough;
+# precedence decides which one wins.
+PROCESSING_MODE_PASSTHROUGH = 'passthrough'
+PROCESSING_MODE_SKIP_DETECTION = 'skip_detection'
+PROCESSING_MODE_KEEP_CONTENT = 'keep_content'
+PROCESSING_MODE_STANDARD = 'standard'
+
+
+def resolve_feed_processing_mode(podcast_row):
+    """Effective processing mode from an already-fetched podcasts row.
+
+    Precedence: passthrough > skip_ad_detection > keep_content > standard.
+    This matches the pipeline's historical branch ordering: passthrough
+    returned before the skip check ran, and a skipped detection stage never
+    consulted detection_mode. Keep-content semantics mirror
+    resolve_detection_mode (the DB-read variant kept for callers without the
+    row): only the exact 'keep_content' value opts in; NULL, 'blacklist',
+    or an unknown value all resolve past it.
+    """
+    if not podcast_row:
+        return PROCESSING_MODE_STANDARD
+    if podcast_row.get('passthrough_enabled'):
+        return PROCESSING_MODE_PASSTHROUGH
+    if podcast_row.get('skip_ad_detection'):
+        return PROCESSING_MODE_SKIP_DETECTION
+    if podcast_row.get('detection_mode') == DETECTION_MODE_KEEP_CONTENT:
+        return PROCESSING_MODE_KEEP_CONTENT
+    return PROCESSING_MODE_STANDARD
 
 
 def resolve_cue_template_score_with_source(db, podcast_id):
@@ -723,7 +735,6 @@ def audio_cue_type_role(cue_type):
 # the default type's role.
 AUDIO_CUE_ROLE_DEFAULT = audio_cue_type_role(AUDIO_CUE_TYPE_DEFAULT)  # 'boundary'
 AUDIO_CUE_ROLE_NON_AD = 'non_ad'  # intro/outro: never snaps or pairs
-AUDIO_CUE_ROLE_START = 'start'   # opener-only (ad entry): opens a cue pair
 AUDIO_CUE_ROLE_END = 'end'       # closer-only (ad exit): closes a cue pair
 # Cue signal source: a precise template match vs the coarse spectral fallback.
 # Only template cues may create ads or move ad edges; spectral cues are
@@ -834,10 +845,6 @@ WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN = ('int8_float16', 'int8', 'float32')
 # VAD gap detector: catches audio regions Whisper's VAD dropped (sped-up
 # disclaimers, distorted ad tails) that the transcript-based ad detectors
 # never see. A "gap" is a span with no Whisper segment.
-VAD_GAP_DETECTION_ENABLED_DEFAULT = True
-VAD_GAP_START_MIN_SECONDS_DEFAULT = 3.0  # head: cut when gap >= this
-VAD_GAP_MID_MIN_SECONDS_DEFAULT = 8.0    # mid: cut only with signoff AND resume context
-VAD_GAP_TAIL_MIN_SECONDS_DEFAULT = 3.0   # tail: cut when no postroll already covers it
 VAD_GAP_CONFIDENCE = 0.75                # emitted marker confidence
 
 # Default base URL for OpenAI-compatible providers (single source of truth;

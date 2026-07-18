@@ -69,12 +69,38 @@ NEGATIVE_REASONS = [
     'This is NOT AN AD, it is host conversation',
     'Window has no ad content at these timestamps',
     'The span contains no ad and should not be cut',
+    # Verbatim prod reasonings the original four literal substrings missed
+    # while the spans were cut anyway (monday-morning-podcast 39098646c82c):
+    'The candidate boundaries (299.2s-395.4s) contain no advertising content '
+    'whatsoever. This is a false positive from the text pattern matcher.',
+    'The content within the candidate boundaries is not advertising -- it is '
+    "Bill Burr's own comedic riff on insurance",
+    # Artifact/editorial family seen on TWiT-network episodes:
+    "The window contains only the words 'and many more.'",
+    'This span is a transcription artifact, not advertising content',
+    'This is entirely organic conversation between the hosts',
+]
+
+
+# Reasonings that AFFIRM the cut while mentioning the same nouns the
+# contradiction patterns key on. Broad noun-phrase patterns matched these
+# (negation-blind) and falsely held confirmed ads, shipping them uncut.
+POSITIVE_REASONS = [
+    'This span is a clear sponsor read, not a false positive',
+    'adjusted end ensures no advertising remains after the cut',
+    'boundaries capture the transition from organic conversation into the ad read',
+    'Confirmed sponsor read for BetterHelp',
 ]
 
 
 @pytest.mark.parametrize('reason', NEGATIVE_REASONS)
 def test_reasoning_contradicts_cut_matches_negative_patterns(reason):
     assert reasoning_contradicts_cut(reason) is True
+
+
+@pytest.mark.parametrize('reason', POSITIVE_REASONS)
+def test_reasoning_affirming_cut_is_not_held(reason):
+    assert reasoning_contradicts_cut(reason) is False
 
 
 def test_reasoning_contradicts_cut_ignores_normal_reasons():
@@ -192,7 +218,7 @@ def test_apply_reviewer_verdict_contradicted_adjust_keeps_boundaries():
         pool='accepted', pass_num=1, verdict='adjust',
         original_start=120.0, original_end=180.0,
         adjusted_start=115.0, adjusted_end=185.0,
-        reasoning='no advertisement present here', model_used='m',
+        reasoning='window contains no advertisement', model_used='m',
     )
     processing._apply_reviewer_verdict_to_ad(ad, v)
     assert ad['held_for_review'] is True

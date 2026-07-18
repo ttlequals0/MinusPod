@@ -1,31 +1,11 @@
 """Tests for is_transient_error: download 404s must be retryable."""
-import atexit
-import os
-import shutil
-import sys
-import tempfile
 
 import pytest
 import requests
 
-# Boot pattern (see test_history_ad_count.py): bind a temp DATA_DIR before
-# importing main_app, which otherwise mkdirs /app/data at module load.
-_test_data_dir = tempfile.mkdtemp(prefix='error_class_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
-
+_test_data_dir = bootstrap('error_class_test_')
 from main_app.processing import is_transient_error
 
 

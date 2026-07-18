@@ -9,9 +9,10 @@ from unittest.mock import MagicMock
 from text_pattern_matcher import (
     _split_sentences, _extract_intro_phrase, _extract_outro_phrase,
     TextPatternMatcher, AdPattern, TextMatch, MAX_MATCH_DURATION,
+    MIN_TEXT_LENGTH,
 )
 from ad_detector import _unpack_region, get_uncovered_portions, AdDetector
-from config import DEFAULT_AD_DURATION_ESTIMATE
+from config import DEFAULT_AD_DURATION_ESTIMATE, TFIDF_MATCH_THRESHOLD
 
 
 class TestSplitSentences:
@@ -544,3 +545,92 @@ class TestMergeDetectionResults:
         assert out[0]['pattern_id'] == 7
         assert 'content-derived' in out[0]['reason']
         assert out[0]['sponsor'] == 'Hims'
+
+
+class TestScoreWindowsBatched:
+    """Batched _score_windows must produce scores identical to the old
+    per-window transform loop (one transform per window)."""
+
+    def _make_matcher_and_patterns(self):
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        ad_copy = (
+            "this episode is brought to you by acme mattress the best "
+            "mattress for deep sleep visit acme dot com slash podcast "
+            "for twenty percent off your first order"
+        )
+        other_copy = (
+            "try globex meal kits fresh ingredients delivered weekly "
+            "use code podcast at checkout for a free box"
+        )
+        matcher = TextPatternMatcher()
+        vectorizer = TfidfVectorizer(
+            ngram_range=(1, 3), min_df=1, stop_words='english', lowercase=True
+        )
+        vectorizer.fit([ad_copy, other_copy])
+        matcher._vectorizer = vectorizer
+        matcher._initialized = True
+
+        patterns = [
+            AdPattern(id=1, text_template=ad_copy, intro_variants=[],
+                      outro_variants=[], sponsor='Acme', scope='global'),
+            AdPattern(id=2, text_template=other_copy, intro_variants=[],
+                      outro_variants=[], sponsor='Globex', scope='global'),
+        ]
+        target_vectors = vectorizer.transform(
+            [p.text_template for p in patterns]
+        )
+
+        filler = (
+            "the hosts talk about the news of the week and answer listener "
+            "questions about many different unrelated topics and stories "
+        )
+        full_text = filler + ad_copy + " " + filler
+        segments = [{'start': 0.0, 'end': 600.0}]
+        segment_map = [(0, len(full_text), 0)]
+        return matcher, patterns, target_vectors, full_text, segments, segment_map
+
+    def test_batched_scores_equal_per_window(self):
+        from sklearn.metrics.pairwise import cosine_similarity
+        import numpy as np
+
+        (matcher, patterns, target_vectors, full_text,
+         segments, segment_map) = self._make_matcher_and_patterns()
+        window_size, step_size = 180, 60
+
+        matches = []
+        matcher._score_windows(full_text, segment_map, segments, matches,
+                               patterns, target_vectors,
+                               window_size, step_size)
+
+        # Reference: the old per-window loop, one transform per window.
+        ref_matches = []
+        per_window_rows = []
+        batched_texts = []
+        for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
+            end_pos = min(start_pos + window_size, len(full_text))
+            window_text = full_text[start_pos:end_pos]
+            if len(window_text.strip()) < MIN_TEXT_LENGTH:
+                continue
+            batched_texts.append(window_text)
+            sims = cosine_similarity(
+                matcher._vectorizer.transform([window_text]), target_vectors
+            )[0]
+            per_window_rows.append(sims)
+            best_idx = int(np.argmax(sims))
+            best_score = float(sims[best_idx])
+            if best_score >= TFIDF_MATCH_THRESHOLD:
+                ref_matches.append((patterns[best_idx].id, best_score))
+
+        # The vectorizer treats documents independently: the batched matrix
+        # must be numerically identical to stacked per-window transforms.
+        batched_sims = cosine_similarity(
+            matcher._vectorizer.transform(batched_texts), target_vectors
+        )
+        assert np.array_equal(batched_sims, np.vstack(per_window_rows))
+
+        # And the matches emitted by _score_windows must equal the old loop's.
+        assert ref_matches, "test setup must produce at least one match"
+        assert [(m.pattern_id, m.confidence) for m in matches] == ref_matches
+        assert all(m.match_type == 'content' for m in matches)
+        assert all(m.sponsor == 'Acme' for m in matches)

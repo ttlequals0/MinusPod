@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats, SearchResult } from '../api/search';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { btnSecondary } from '../components/buttonStyles';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'pattern' | 'sponsor';
 
@@ -131,7 +132,7 @@ function Search() {
         <button
           onClick={() => rebuildMutation.mutate()}
           disabled={rebuildMutation.isPending}
-          className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
         >
           {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild Index'}
         </button>
@@ -171,7 +172,7 @@ function Search() {
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
               filterType === type
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                : btnSecondary
             }`}
           >
             {type === 'all' ? 'All' : typeLabels[type]}

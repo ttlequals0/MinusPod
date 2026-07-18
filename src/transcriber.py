@@ -62,7 +62,6 @@ BATCH_SIZE_TIERS = [
     (60 * 60, 16),      # < 60 min: batch_size=16
     (90 * 60, 12),      # 60-90 min: batch_size=12
     (120 * 60, 8),      # 90-120 min: batch_size=8
-    (float('inf'), 4),  # > 120 min: batch_size=4
 ]
 
 # Podcast-aware initial prompt with sponsor vocabulary. Whisper sometimes
@@ -151,19 +150,37 @@ def _is_vocabulary_regurgitation(text):
     return residue <= _VOCAB_REGURGITATION_MAX_RESIDUE * total
 
 
-def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> Optional[str]:
+# Filter chain preprocess_audio applies; also folded into chunk extraction
+# (extract_audio_chunk(preprocess=True)) so chunked paths run one ffmpeg pass
+# per chunk instead of extract + preprocess.
+PREPROCESS_AUDIO_FILTERS = 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000'
+
+
+def extract_audio_chunk(
+    audio_path: str,
+    start_time: float,
+    end_time: float,
+    preprocess: bool = False,
+    flac: bool = False,
+) -> Optional[str]:
     """Extract a time range from an audio file using ffmpeg.
 
     Args:
         audio_path: Path to source audio file
         start_time: Start time in seconds
         end_time: End time in seconds
+        preprocess: Apply the same filter chain as preprocess_audio in this
+            single pass, so the chunk needs no second ffmpeg pass. Callers
+            that set this must skip preprocessing downstream
+            (transcribe(..., preprocessed=True)).
+        flac: Encode the chunk as FLAC (ready for API upload) instead of
+            PCM WAV, skipping the separate encode pass.
 
     Returns:
         Path to temporary chunk file, or None on failure.
         Caller is responsible for cleaning up the temp file.
     """
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    tmp = tempfile.NamedTemporaryFile(suffix='.flac' if flac else '.wav', delete=False)
     output_path = tmp.name
     tmp.close()
 
@@ -177,14 +194,19 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
             '-t', str(duration),
             '-ar', '16000',  # Whisper native sample rate
             '-ac', '1',      # Mono
-            '-c:a', 'pcm_s16le',  # Uncompressed for faster processing
-            output_path
         ]
+        if preprocess:
+            cmd += ['-af', PREPROCESS_AUDIO_FILTERS]
+        # FLAC for upload; otherwise uncompressed for faster processing
+        cmd += ['-c:a', 'flac' if flac else 'pcm_s16le', output_path]
 
+        # With filtering folded in, allow the same budget the standalone
+        # preprocess pass had (FFMPEG_LONG_TIMEOUT floor) instead of the
+        # tighter extract-only timeout.
         result = tracked_run(
             cmd,
             capture_output=True,
-            timeout=FFMPEG_CHUNK_TIMEOUT
+            timeout=FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT
         )
 
         if result.returncode == 0 and os.path.exists(output_path):
@@ -206,11 +228,8 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
         return None
     finally:
         # Clean up temp file on failure (caller cleans up on success)
-        if not success and os.path.exists(output_path):
-            try:
-                os.unlink(output_path)
-            except OSError:
-                pass
+        if not success:
+            _unlink_quiet(output_path)
 
 
 def merge_overlapping_segments(
@@ -248,8 +267,9 @@ def merge_overlapping_segments(
     result = existing_segments.copy()
 
     # Find the last segment end time from existing segments
-    # to avoid adding duplicates
-    last_existing_end = max(seg['end'] for seg in existing_segments) if existing_segments else 0
+    # to avoid adding duplicates (existing_segments is non-empty here;
+    # the empty case returned early above)
+    last_existing_end = max(seg['end'] for seg in existing_segments)
 
     for seg in new_segments:
         # Skip segments that are entirely in the overlap zone AND
@@ -447,25 +467,21 @@ def _get_whisper_compute_type() -> str:
 def calculate_optimal_chunk_duration(
     model_name: str,
     device: str = "cuda",
-    whisper_backend: str = WHISPER_BACKEND_LOCAL,
 ) -> Tuple[int, str]:
     """Calculate optimal chunk duration based on available memory and model size.
 
     Uses model-specific memory profiles and current available memory to
-    determine how much audio can be safely processed in one chunk.
+    determine how much audio can be safely processed in one chunk. Only the
+    local backend reaches this path; the API backend branches to
+    _transcribe_chunked_parallel_api before chunk sizing.
 
     Args:
         model_name: Whisper model name (e.g., "small", "large-v3")
         device: "cuda" or "cpu"
-        whisper_backend: "local" or "openai-api"
 
     Returns:
         Tuple of (chunk_duration_seconds, reasoning_message)
     """
-    # For remote backends, memory is irrelevant - use fixed duration caps
-    if whisper_backend == WHISPER_BACKEND_API:
-        return API_CHUNK_DURATION_SECONDS, "API backend (fixed 10-min chunks for 25MB limit)"
-
     # Get model memory profile
     profile = WHISPER_MEMORY_PROFILES.get(model_name, WHISPER_DEFAULT_PROFILE)
     base_memory_gb, memory_per_minute_gb = profile
@@ -671,17 +687,6 @@ class WhisperModelSingleton:
         return cls._base_model, cls._instance
 
     @classmethod
-    def get_base_model(cls) -> WhisperModel:
-        """
-        Get just the base model for operations like language detection
-        Returns:
-            WhisperModel: Base Whisper model
-        """
-        if cls._base_model is None or cls._should_reload():
-            cls.get_instance()
-        return cls._base_model
-
-    @classmethod
     def get_batched_pipeline(cls) -> BatchedInferencePipeline:
         """
         Get just the batched pipeline for transcription
@@ -742,6 +747,7 @@ class Transcriber:
         podcast_name: str = None,
         whisper_settings: Dict[str, str] = None,
         language_override: Optional[str] = None,
+        preprocessed: bool = False,
     ) -> Optional[List[Dict]]:
         """Transcribe audio using an OpenAI-compatible whisper API.
 
@@ -752,6 +758,9 @@ class Transcriber:
             audio_path: Path to the audio file to transcribe.
             podcast_name: Optional podcast name for context-aware prompting.
             whisper_settings: Pre-fetched settings dict from _get_whisper_settings().
+            preprocessed: The file already went through the preprocess filter
+                chain (extract_audio_chunk(preprocess=True)); skip the
+                redundant preprocess pass.
 
         Returns:
             List of transcript segments, or None on failure.
@@ -769,8 +778,10 @@ class Transcriber:
                 logger.error("Whisper API base URL not configured")
                 return None
 
-            # Preprocess audio for consistent quality
-            preprocessed_path = self.preprocess_audio(audio_path)
+            # Preprocess audio for consistent quality (skipped when the
+            # chunk was extracted with the filter chain already applied)
+            if not preprocessed:
+                preprocessed_path = self.preprocess_audio(audio_path)
             transcribe_path = preprocessed_path if preprocessed_path else audio_path
 
             # After preprocessing, compress to FLAC for upload (lossless, ~4-5x smaller than WAV).
@@ -791,19 +802,11 @@ class Transcriber:
                         logger.info(f"Compressed for upload: {os.path.getsize(flac_path) / 1024 / 1024:.1f}MB FLAC")
                     else:
                         # Compression failed -- remove orphaned temp file
-                        if os.path.exists(flac_path):
-                            try:
-                                os.unlink(flac_path)
-                            except OSError:
-                                pass
+                        _unlink_quiet(flac_path)
                         flac_path = None
                 except Exception as e:
                     logger.warning(f"FLAC compression failed, sending WAV: {e}")
-                    if flac_path and os.path.exists(flac_path):
-                        try:
-                            os.unlink(flac_path)
-                        except OSError:
-                            pass
+                    _unlink_quiet(flac_path)
                     flac_path = None
 
             # Build request
@@ -940,7 +943,8 @@ class Transcriber:
                     'words': words,
                 })
 
-            if not result and response is not None and response.status_code == 200:
+            # response is a 200 here; non-200/None returned above
+            if not result:
                 body_len = len(response.text) if response.text else 0
                 logger.warning(
                     "Whisper API returned 200 but 0 usable segments (body %d chars). "
@@ -966,16 +970,8 @@ class Transcriber:
             logger.error(f"API transcription failed: {e}")
             return None
         finally:
-            if preprocessed_path and os.path.exists(preprocessed_path):
-                try:
-                    os.unlink(preprocessed_path)
-                except OSError:
-                    pass
-            if flac_path and os.path.exists(flac_path):
-                try:
-                    os.unlink(flac_path)
-                except OSError:
-                    pass
+            _unlink_quiet(preprocessed_path)
+            _unlink_quiet(flac_path)
 
     def get_initial_prompt(self, podcast_name: str = None) -> str:
         """Generate a podcast-aware initial prompt for Whisper."""
@@ -1092,7 +1088,7 @@ class Transcriber:
             if duration_seconds < threshold:
                 return batch_size
 
-        return 4  # Fallback for very long episodes
+        return 4  # Fallback for very long episodes (> 120 min)
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -1117,7 +1113,7 @@ class Transcriber:
                 'ffmpeg', '-y', '-i', input_path,
                 '-ar', '16000',  # 16kHz (Whisper native sample rate)
                 '-ac', '1',      # Mono
-                '-af', 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000',
+                '-af', PREPROCESS_AUDIO_FILTERS,
                 output_path
             ]
             # Scale timeout by file size: 10s per MB (~1MB/min for podcasts)
@@ -1142,11 +1138,8 @@ class Transcriber:
             return None
         finally:
             # Clean up temp file on any failure path
-            if not success and os.path.exists(output_path):
-                try:
-                    os.unlink(output_path)
-                except OSError:
-                    pass
+            if not success:
+                _unlink_quiet(output_path)
 
     def check_audio_availability(self, url: str, timeout: int = 10) -> tuple:
         """Check if audio URL is accessible without downloading.
@@ -1273,6 +1266,7 @@ class Transcriber:
         podcast_name: str = None,
         language_override: Optional[str] = None,
         vad_filter: bool = True,
+        preprocessed: bool = False,
     ) -> List[Dict]:
         """Transcribe audio file using Faster Whisper with batched pipeline.
 
@@ -1285,6 +1279,10 @@ class Transcriber:
 
         ``vad_filter=False`` disables Whisper's VAD (tail re-transcription,
         spec 1.2). Local backend only; API backends have no VAD switch.
+
+        ``preprocessed=True`` means the caller already applied the preprocess
+        filter chain (chunks from extract_audio_chunk(preprocess=True)), so
+        the redundant preprocess pass is skipped.
         """
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
@@ -1297,6 +1295,7 @@ class Transcriber:
             return self._transcribe_via_api(
                 audio_path, podcast_name, whisper_settings,
                 language_override=language_override,
+                preprocessed=preprocessed,
             )
 
         language_setting = _effective_language(language_override, whisper_settings)
@@ -1313,8 +1312,10 @@ class Transcriber:
 
             logger.info(f"Starting transcription of: {audio_path} (model: {current_model})")
 
-            # Preprocess audio for consistent quality
-            preprocessed_path = self.preprocess_audio(audio_path)
+            # Preprocess audio for consistent quality (skipped when the
+            # chunk was extracted with the filter chain already applied)
+            if not preprocessed:
+                preprocessed_path = self.preprocess_audio(audio_path)
             transcribe_path = preprocessed_path if preprocessed_path else audio_path
 
             # Create podcast-aware prompt with sponsor vocabulary
@@ -1538,8 +1539,16 @@ class Transcriber:
 
         connectivity_errors: List[ServiceUnavailableError] = []
 
+        # One ffmpeg pass per chunk: extraction applies the preprocess filter
+        # chain, and (unless the operator opted out of FLAC compression)
+        # encodes straight to FLAC ready for upload.
+        extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
+
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
-            chunk_path = extract_audio_chunk(audio_path, c_start, c_end)
+            chunk_path = extract_audio_chunk(
+                audio_path, c_start, c_end,
+                preprocess=True, flac=extract_as_flac,
+            )
             if not chunk_path:
                 logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
                 return chunk_idx, None
@@ -1547,6 +1556,7 @@ class Transcriber:
                 segs = self._transcribe_via_api(
                     chunk_path, podcast_name, whisper_settings,
                     language_override=language_override,
+                    preprocessed=True,
                 )
                 if segs is None:
                     return chunk_idx, None
@@ -1569,11 +1579,7 @@ class Transcriber:
                 logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
                 return chunk_idx, None
             finally:
-                if chunk_path and os.path.exists(chunk_path):
-                    try:
-                        os.unlink(chunk_path)
-                    except OSError:
-                        pass
+                _unlink_quiet(chunk_path)
 
         results: List[Optional[List[Dict]]] = [None] * num_chunks
         failed = 0
@@ -1707,7 +1713,7 @@ class Transcriber:
 
         # Calculate optimal chunk duration based on available memory
         chunk_duration, memory_reason = calculate_optimal_chunk_duration(
-            model_name, device, whisper_backend=whisper_settings['backend']
+            model_name, device
         )
         overlap = CHUNK_OVERLAP_SECONDS
 
@@ -1771,15 +1777,21 @@ class Transcriber:
                 f"(chunk_size={chunk_duration/60:.0f}min)"
             )
 
-            # Extract chunk using ffmpeg
-            chunk_path = extract_audio_chunk(audio_path, chunk_start, chunk_end_with_overlap)
+            # Extract chunk using ffmpeg, applying the preprocess filter
+            # chain in the same pass so transcribe() can skip its own
+            chunk_path = extract_audio_chunk(
+                audio_path, chunk_start, chunk_end_with_overlap, preprocess=True
+            )
             if not chunk_path:
                 logger.error(f"Failed to extract chunk {chunk_num + 1}")
                 return None
 
             try:
                 # Transcribe chunk (will handle its own batch sizing and retries)
-                chunk_segments = self.transcribe(chunk_path, podcast_name, language_override=language_override)
+                chunk_segments = self.transcribe(
+                    chunk_path, podcast_name,
+                    language_override=language_override, preprocessed=True,
+                )
 
                 if chunk_segments is None:
                     failed_chunks.append((chunk_start, chunk_end_with_overlap))
@@ -1855,11 +1867,7 @@ class Transcriber:
 
             finally:
                 # Clean up chunk file
-                if chunk_path and os.path.exists(chunk_path):
-                    try:
-                        os.unlink(chunk_path)
-                    except OSError:
-                        pass
+                _unlink_quiet(chunk_path)
 
                 # Clear GPU cache between chunks (no reload cost)
                 clear_gpu_memory()

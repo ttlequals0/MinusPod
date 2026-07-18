@@ -5,32 +5,15 @@ artwork_watermark_enabled setting takes effect, WITHOUT re-discovering or
 queuing episodes (so the "Refresh all artwork" button never triggers
 processing). refresh_all_artwork does it across every feed.
 """
-import atexit
 import io
 import os
-import shutil
-import sys
-import tempfile
 from unittest.mock import patch
 
 from PIL import Image
 
-_test_data_dir = tempfile.mkdtemp(prefix='refresh_artwork_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage._instance = None
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
-
+_test_data_dir = bootstrap('refresh_artwork_test_', reset_storage=True)
 import main_app.feeds as mf
 
 ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"

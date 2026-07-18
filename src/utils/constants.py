@@ -27,6 +27,18 @@ class EpisodeStatus(str, Enum):
     DEFERRED = "deferred"
     COMPLETED = "completed"
 
+    @classmethod
+    def to_api(cls, status):
+        """DB status -> API status: 'processed' is exposed as 'completed'.
+        Every other status passes through unchanged."""
+        return cls.COMPLETED.value if status == cls.PROCESSED else status
+
+    @classmethod
+    def from_api(cls, status):
+        """API status -> DB status: accept the 'completed' alias for
+        'processed'. Every other status passes through unchanged."""
+        return cls.PROCESSED.value if status == cls.COMPLETED else status
+
 
 # Invalid sponsor values that indicate extraction failure or garbage data.
 # Used by ad_detector (validate_ads_from_response, _extract_sponsor_from_reason)

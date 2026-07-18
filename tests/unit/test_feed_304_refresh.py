@@ -1,24 +1,10 @@
 """Tests for RSS feed 304 Not Modified handling in refresh_rss_feed."""
-import os
-import sys
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Create temp data dir and set env before any imports that touch /app/data
-_test_data_dir = tempfile.mkdtemp(prefix='feed_304_test_')
-os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['DATA_DIR'] = _test_data_dir
+from tests.app_bootstrap import bootstrap
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-import database
-import storage as storage_mod
-database.Database._instance = None
-database.Database.__init__.__defaults__ = (_test_data_dir,)
-database.Database.__new__.__defaults__ = (_test_data_dir,)
-storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
-
+_test_data_dir = bootstrap('feed_304_test_')
 from main_app.feeds import refresh_rss_feed
 import main_app.feeds as _feeds_module
 

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.61.0
+  version: 2.62.0
   contact:
     name: MinusPod
   license:
@@ -6921,6 +6921,14 @@ components:
             - keep_content
             - null
           description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior.
+        processingMode:
+          type: string
+          enum:
+            - passthrough
+            - skip_detection
+            - keep_content
+            - standard
+          description: Effective processing mode resolved from the per-feed flags, with precedence passthrough > skip_detection > keep_content > standard. Read-only; set via passthroughEnabled, skipAdDetection, and detectionMode.
         cueTemplateScoreOverride:
           type:
             - number

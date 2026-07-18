@@ -22,6 +22,7 @@ from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     differential_fetch_effective,
+    resolve_feed_processing_mode,
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
@@ -189,9 +190,12 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
     return _normalize_nullable_finite_float(value, field_name, lo, hi)
 
 
-# (json_key, db_col) for the boundary-snap, held-review, and differential
-# opt-in flags. Nullable-bool columns; NULL/0 read as off downstream.
-_SNAP_FLAG_FIELDS = [
+# (json_key, db_col) for the nullable-bool per-feed toggles: boundary-snap,
+# held-review, differential, pass-through, and skip-detection opt-ins.
+# NULL/0 read as off downstream. Pass-through/skip-detection/keep-content
+# are deliberately independent columns (issue #537) -- precedence between
+# them is resolved at processing time by resolve_feed_processing_mode.
+_NULLABLE_BOOL_FIELDS = [
     ('silenceSnapEnabled',       'silence_snap_enabled'),
     ('transitionSnapEnabled',    'transition_snap_enabled'),
     ('cueGatedApproval',         'cue_gated_approval'),
@@ -212,7 +216,7 @@ def _cue_override_fields(podcast) -> dict:
             podcast.get('cue_create_from_pairs_override')),
     } | {
         json_key: _deserialize_nullable_bool(podcast.get(db_col))
-        for json_key, db_col in _SNAP_FLAG_FIELDS
+        for json_key, db_col in _NULLABLE_BOOL_FIELDS
     }
 
 
@@ -272,6 +276,37 @@ def _public_feed_url(slug, key):
                              slug, key)
 
 
+def _podcast_base_json(podcast, feed_url) -> dict:
+    """Fields shared by the feed list, detail, and PATCH responses."""
+    return {
+        'slug': podcast['slug'],
+        'title': podcast['title'] or podcast['slug'],
+        'titleOverride': podcast.get('title_override'),
+        'detectionMode': podcast.get('detection_mode'),
+        'processingMode': resolve_feed_processing_mode(podcast),
+        **_cue_override_fields(podcast),
+        'sourceUrl': podcast['source_url'],
+        'feedUrl': feed_url,
+        'statusCounts': _status_counts(podcast),
+        'networkId': podcast.get('network_id'),
+        'daiPlatform': podcast.get('dai_platform'),
+        'maxEpisodes': podcast.get('max_episodes'),
+        'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
+    }
+
+
+def _podcast_listing_fields(podcast) -> dict:
+    """Extra fields shared by the feed list and detail responses (not PATCH)."""
+    return {
+        'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
+        'episodeCount': podcast.get('episode_count', 0),
+        'processedCount': podcast.get('processed_count', 0),
+        'lastRefreshed': podcast.get('last_checked_at'),
+        **_refresh_error_fields(podcast),
+        'createdAt': podcast.get('created_at'),
+    }
+
+
 @api.route('/feeds', methods=['GET'])
 @log_request
 def list_feeds():
@@ -286,25 +321,9 @@ def list_feeds():
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feeds.append({
-            'slug': podcast['slug'],
-            'title': podcast['title'] or podcast['slug'],
-            'titleOverride': podcast.get('title_override'),
-            'detectionMode': podcast.get('detection_mode'),
-            **_cue_override_fields(podcast),
-            'sourceUrl': podcast['source_url'],
-            'feedUrl': feed_url,
-            'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
-            'episodeCount': podcast.get('episode_count', 0),
-            'processedCount': podcast.get('processed_count', 0),
-            'statusCounts': _status_counts(podcast),
-            'lastRefreshed': podcast.get('last_checked_at'),
-            **_refresh_error_fields(podcast),
-            'createdAt': podcast.get('created_at'),
+            **_podcast_base_json(podcast, feed_url),
+            **_podcast_listing_fields(podcast),
             'lastEpisodeDate': podcast.get('last_episode_date'),
-            'networkId': podcast.get('network_id'),
-            'daiPlatform': podcast.get('dai_platform'),
-            'maxEpisodes': podcast.get('max_episodes'),
-            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
         })
 
     return json_response({
@@ -641,28 +660,14 @@ def get_feed(slug):
         [e.get('original_url') for e in recent_episodes])
 
     return json_response({
-        'slug': podcast['slug'],
-        'title': podcast['title'] or podcast['slug'],
+        **_podcast_base_json(podcast, feed_url),
+        **_podcast_listing_fields(podcast),
         'description': podcast.get('description'),
-        'sourceUrl': podcast['source_url'],
-        'feedUrl': feed_url,
-        'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
-        'episodeCount': podcast.get('episode_count', 0),
-        'processedCount': podcast.get('processed_count', 0),
-        'statusCounts': _status_counts(podcast),
-        'lastRefreshed': podcast.get('last_checked_at'),
-        **_refresh_error_fields(podcast),
-        'createdAt': podcast.get('created_at'),
-        'networkId': podcast.get('network_id'),
-        'daiPlatform': podcast.get('dai_platform'),
         'daiLikely': dai_likely,
         'websiteUrl': podcast.get('website_url'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
         'languageOverride': podcast.get('language_override'),
-        'titleOverride': podcast.get('title_override'),
-        'detectionMode': podcast.get('detection_mode'),
-        **_cue_override_fields(podcast),
         # Same rule as the differential stage gate, applied to the feed's
         # recent episodes (#519). The pipeline evaluates each new episode's
         # own enclosure URL, so this is a prediction, not a guarantee.
@@ -671,8 +676,6 @@ def get_feed(slug):
             dai_platform=podcast.get('dai_platform'),
             dai_likely=dai_likely,
         ),
-        'maxEpisodes': podcast.get('max_episodes'),
-        'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
 
 
@@ -743,7 +746,7 @@ def update_feed(slug):
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
 
-    for json_key, db_col in _SNAP_FLAG_FIELDS:
+    for json_key, db_col in _NULLABLE_BOOL_FIELDS:
         if json_key in data:
             v, err = _normalize_cue_bool_override(data[json_key], json_key)
             if err:
@@ -809,20 +812,9 @@ def update_feed(slug):
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
 
         return json_response({
-            'slug': podcast['slug'],
-            'title': podcast['title'] or podcast['slug'],
-            'sourceUrl': podcast['source_url'],
-            'networkId': podcast.get('network_id'),
-            'daiPlatform': podcast.get('dai_platform'),
+            **_podcast_base_json(podcast, _public_feed_url(slug, get_feed_auth_key(db))),
             'networkIdOverride': podcast.get('network_id_override'),
             'languageOverride': podcast.get('language_override'),
-            'titleOverride': podcast.get('title_override'),
-            'detectionMode': podcast.get('detection_mode'),
-            **_cue_override_fields(podcast),
-            'maxEpisodes': podcast.get('max_episodes'),
-            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
-            'statusCounts': _status_counts(podcast),
-            'feedUrl': _public_feed_url(slug, get_feed_auth_key(db))
         })
     except Exception:
         logger.exception(f"Failed to update feed {slug}")

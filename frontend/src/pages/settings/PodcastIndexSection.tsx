@@ -9,7 +9,7 @@ interface PodcastIndexSectionProps {
 }
 
 const STATUS_BADGE_STYLES = {
-  green: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', dot: 'bg-green-500' },
+  green: { bg: 'bg-green-500/10 text-success', dot: 'bg-green-500' },
   muted: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
 } as const;
 

@@ -8,13 +8,12 @@ import re
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
-from database.schema.tables import SCHEMA_SQL, MIGRATION_INDEXES_SQL
+from database.schema.tables import SCHEMA_SQL, TABLE_DDL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 
 
@@ -103,200 +102,39 @@ class SchemaMixin:
             # Still run migrations to ensure all columns exist
             self._run_schema_migrations()
 
+    # Tables created on existing databases that pre-date them. Each name
+    # executes the shared current-shape DDL from tables.py (TABLE_DDL); the
+    # ALTER-based migrations in _run_schema_migrations bring tables created
+    # by older builds up to the same shape, so the later column ALTERs are
+    # no-ops for tables created here. Order preserved from the historical
+    # inline copies; ad_reviewer_log stays last (it is the sentinel below).
+    _MIGRATION_CREATED_TABLES = (
+        'ad_patterns',
+        'audio_cue_templates',
+        'audio_fingerprints',
+        'pattern_corrections',
+        'known_sponsors',
+        'sponsor_normalizations',
+        'processing_history',
+        'model_pricing',
+        'token_usage',
+        'ad_reviewer_log',
+    )
+
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
         # Sentinel: ad_reviewer_log is the last table created in this block.
         # If it already exists, every other CREATE IF NOT EXISTS below is a
         # no-op too, so we can skip the boot "Created new tables..." log.
         sentinel_existed = self._table_exists(conn, 'ad_reviewer_log')
-        # Create ad_patterns table if not exists (must match SCHEMA_SQL exactly)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS ad_patterns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                scope TEXT NOT NULL CHECK(scope IN ('global', 'network', 'podcast')),
-                network_id TEXT,
-                podcast_id TEXT,
-                dai_platform TEXT,
-                text_template TEXT,
-                intro_variants TEXT DEFAULT '[]',
-                outro_variants TEXT DEFAULT '[]',
-                sponsor_id INTEGER REFERENCES known_sponsors(id),
-                confirmation_count INTEGER DEFAULT 0,
-                false_positive_count INTEGER DEFAULT 0,
-                last_matched_at TEXT,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                created_from_episode_id TEXT,
-                is_active INTEGER DEFAULT 1,
-                disabled_at TEXT,
-                disabled_reason TEXT,
-                created_by TEXT DEFAULT 'auto',
-                source TEXT NOT NULL DEFAULT 'local' CHECK(source IN ('local', 'community', 'imported')),
-                community_id TEXT,
-                version INTEGER NOT NULL DEFAULT 1,
-                submitted_app_version TEXT,
-                protected_from_sync INTEGER NOT NULL DEFAULT 0,
-                source_language TEXT
-            )
-        """)
-
-        # Create audio_cue_templates table if not exists (must match SCHEMA_SQL exactly, #350)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS audio_cue_templates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                podcast_id INTEGER NOT NULL,
-                label TEXT NOT NULL,
-                source_episode_id TEXT,
-                source_offset_s REAL NOT NULL,
-                duration_s REAL NOT NULL,
-                sample_rate INTEGER NOT NULL,
-                n_coeffs INTEGER NOT NULL,
-                mfcc_blob BLOB NOT NULL,
-                pcm_blob BLOB,
-                pcm_sample_rate INTEGER,
-                scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
-                network_id TEXT,
-                cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary',
-                enabled INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                created_by TEXT DEFAULT 'user',
-                FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
-            )
-        """)
-
-        # Create audio_fingerprints table if not exists (must match SCHEMA_SQL exactly)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS audio_fingerprints (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_id INTEGER UNIQUE,
-                fingerprint BLOB,
-                duration REAL,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        # Create pattern_corrections table if not exists (must match SCHEMA_SQL exactly)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS pattern_corrections (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_id INTEGER,
-                episode_id TEXT,
-                podcast_title TEXT,
-                episode_title TEXT,
-                correction_type TEXT NOT NULL CHECK(correction_type IN (
-                    'false_positive', 'boundary_adjustment', 'confirm',
-                    'promotion', 'auto_promotion', 'create'
-                )),
-                original_bounds TEXT,
-                corrected_bounds TEXT,
-                text_snippet TEXT,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                sponsor_id INTEGER REFERENCES known_sponsors(id)
-            )
-        """)
-
-        # Create known_sponsors table if not exists (must match SCHEMA_SQL exactly)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS known_sponsors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                aliases TEXT DEFAULT '[]',
-                category TEXT,
-                common_ctas TEXT DEFAULT '[]',
-                is_active INTEGER DEFAULT 1,
-                tags TEXT NOT NULL DEFAULT '[]',
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        # Create sponsor_normalizations table if not exists
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS sponsor_normalizations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern TEXT UNIQUE NOT NULL,
-                replacement TEXT NOT NULL,
-                category TEXT CHECK(category IN ('sponsor', 'url', 'number', 'phrase')),
-                is_active INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        # Create processing_history table if not exists (audit log of processing attempts)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS processing_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                podcast_id INTEGER NOT NULL,
-                podcast_slug TEXT NOT NULL,
-                podcast_title TEXT,
-                episode_id TEXT NOT NULL,
-                episode_title TEXT,
-                processed_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                processing_duration_seconds REAL,
-                status TEXT NOT NULL CHECK(status IN ('completed', 'failed')),
-                ads_detected INTEGER DEFAULT 0,
-                audio_cues_detected INTEGER DEFAULT 0,
-                error_message TEXT,
-                reprocess_number INTEGER DEFAULT 1,
-                input_tokens INTEGER DEFAULT 0,
-                output_tokens INTEGER DEFAULT 0,
-                llm_cost REAL DEFAULT 0.0,
-                processing_stats_json TEXT,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
-            )
-        """)
+        for table in self._MIGRATION_CREATED_TABLES:
+            conn.execute(TABLE_DDL[table])
 
         # Create indexes for processing_history
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status)")
 
-        # Create model_pricing table if not exists
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS model_pricing (
-                model_id TEXT PRIMARY KEY,
-                match_key TEXT,
-                raw_model_id TEXT,
-                display_name TEXT NOT NULL,
-                input_cost_per_mtok REAL NOT NULL,
-                output_cost_per_mtok REAL NOT NULL,
-                source TEXT DEFAULT 'legacy',
-                updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        # Create token_usage table if not exists
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS token_usage (
-                model_id TEXT PRIMARY KEY,
-                match_key TEXT,
-                total_input_tokens INTEGER NOT NULL DEFAULT 0,
-                total_output_tokens INTEGER NOT NULL DEFAULT 0,
-                total_cost REAL NOT NULL DEFAULT 0.0,
-                call_count INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS ad_reviewer_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                episode_id TEXT NOT NULL,
-                podcast_id TEXT,
-                pass INTEGER NOT NULL,
-                pool TEXT NOT NULL,
-                original_start REAL NOT NULL,
-                original_end REAL NOT NULL,
-                verdict TEXT NOT NULL,
-                adjusted_start REAL,
-                adjusted_end REAL,
-                reasoning TEXT,
-                confidence REAL,
-                model_used TEXT NOT NULL,
-                latency_ms INTEGER,
-                success INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_episode "
             "ON ad_reviewer_log(episode_id)"
@@ -573,6 +411,19 @@ class SchemaMixin:
             conn.commit()
         except Exception as e:
             logger.warning(f"Community pattern index creation: {e}")
+
+        # idx_patterns_scope: defined in the retired MIGRATION_INDEXES_SQL
+        # constant but never executed anywhere, so no existing database has
+        # it. Same idempotent pattern as the sibling ad_patterns indexes
+        # above; fresh databases get it from SCHEMA_SQL.
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_patterns_scope "
+                "ON ad_patterns(scope, network_id, podcast_id) WHERE is_active = 1"
+            )
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"idx_patterns_scope index creation: {e}")
 
         # known_sponsors.tags (2.4.0)
         ks_cols = self._get_table_columns(conn, 'known_sponsors')
@@ -1424,10 +1275,13 @@ class SchemaMixin:
             logger.warning(f"Migration failed for audio cue prompt refresh: {e}")
 
         # Per-feed audio cue templates (#350). User-marked ding/stinger samples
-        # used by the template-based cue matcher. DDL is kept byte-identical to
-        # SCHEMA_SQL in tables.py. The ALTERs cover an existing table created by
-        # an earlier build that lacked the pcm/scope columns (additive, no data
-        # loss).
+        # used by the template-based cue matcher. The CREATE here keeps the
+        # table shape this migration originally shipped with (no
+        # score_threshold); on current boots the table already exists (from
+        # SCHEMA_SQL or _create_new_tables_only via TABLE_DDL), so it is a
+        # no-op safety net. The ALTERs cover an existing table created by an
+        # earlier build that lacked the pcm/scope columns (additive, no data
+        # loss); score_threshold is added by the act_migrations block above.
         try:
             fresh = not self._table_exists(conn, 'audio_cue_templates')
             conn.execute("""
@@ -1544,8 +1398,10 @@ class SchemaMixin:
             logger.warning(f"audio_cue_templates table creation: {e}")
 
         # Per-cue detection telemetry (#350 follow-up). Advisory-only table; no
-        # data loss risk (additive, never touched by other migrations). DDL kept
-        # byte-identical to SCHEMA_SQL in tables.py.
+        # data loss risk (additive, never touched by other migrations). The
+        # CREATE here keeps the shape this migration originally shipped with;
+        # the edge_distance_s / unused_reason ALTERs below bring it to the
+        # current SCHEMA_SQL shape.
         try:
             fresh_cd = not self._table_exists(conn, 'cue_detections')
             conn.execute("""
@@ -1656,22 +1512,10 @@ class SchemaMixin:
             logger.warning(f"cue_detections table creation: {e}")
 
         # cue_candidate_scans: cached result of the on-demand recurring-sound
-        # scan. Additive, no data-loss risk. DDL byte-identical to SCHEMA_SQL.
+        # scan. Additive, no data-loss risk. Shares the SCHEMA_SQL DDL.
         try:
             fresh_ccs = not self._table_exists(conn, 'cue_candidate_scans')
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cue_candidate_scans (
-                    podcast_id INTEGER NOT NULL,
-                    episode_id TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'scanning' CHECK(status IN ('scanning', 'ready', 'error')),
-                    candidates_json TEXT,
-                    error TEXT,
-                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    claim_epoch INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (podcast_id, episode_id),
-                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
-                )
-            """)
+            conn.execute(TABLE_DDL['cue_candidate_scans'])
             conn.commit()
             if fresh_ccs:
                 logger.info("Migration: Created cue_candidate_scans table")
@@ -1680,22 +1524,10 @@ class SchemaMixin:
             logger.warning(f"cue_candidate_scans table creation: {e}")
 
         # cue_threshold_scans: cached result of the threshold-suggest sweep.
-        # Additive, no data-loss risk. DDL byte-identical to SCHEMA_SQL in tables.py.
+        # Additive, no data-loss risk. Shares the SCHEMA_SQL DDL.
         try:
             fresh_cts = not self._table_exists(conn, 'cue_threshold_scans')
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cue_threshold_scans (
-                    podcast_id INTEGER NOT NULL,
-                    episode_id TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'scanning' CHECK(status IN ('scanning', 'ready', 'error')),
-                    result_json TEXT,
-                    error TEXT,
-                    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    claim_epoch INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (podcast_id, episode_id),
-                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
-                )
-            """)
+            conn.execute(TABLE_DDL['cue_threshold_scans'])
             conn.commit()
             if fresh_cts:
                 logger.info("Migration: Created cue_threshold_scans table")
@@ -1708,19 +1540,7 @@ class SchemaMixin:
         # candidates dismissed. fingerprint = JSON array of fpcalc -raw ints.
         try:
             fresh_ccd = not self._table_exists(conn, 'cue_candidate_dismissals')
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cue_candidate_dismissals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    podcast_id INTEGER NOT NULL,
-                    source_episode_id TEXT NOT NULL,
-                    start_s REAL NOT NULL,
-                    end_s REAL NOT NULL,
-                    label TEXT,
-                    fingerprint TEXT NOT NULL,
-                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
-                )
-            """)
+            conn.execute(TABLE_DDL['cue_candidate_dismissals'])
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
                 ON cue_candidate_dismissals(podcast_id)
@@ -1733,25 +1553,10 @@ class SchemaMixin:
             logger.warning(f"cue_candidate_dismissals table creation: {e}")
 
         # cue_cross_episode_scans: cached result of the cross-episode body scan
-        # (D1b, #350). Additive, no data-loss risk. DDL identical to SCHEMA_SQL.
+        # (D1b, #350). Additive, no data-loss risk. Shares the SCHEMA_SQL DDL.
         try:
             fresh_ces = not self._table_exists(conn, 'cue_cross_episode_scans')
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cue_cross_episode_scans (
-                    podcast_id INTEGER NOT NULL,
-                    episode_set_hash TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'scanning'
-                        CHECK(status IN ('scanning', 'ready', 'error')),
-                    result_json TEXT,
-                    error TEXT,
-                    updated_at TEXT NOT NULL
-                        DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    claim_epoch INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (podcast_id, episode_set_hash),
-                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id)
-                        ON DELETE CASCADE
-                )
-            """)
+            conn.execute(TABLE_DDL['cue_cross_episode_scans'])
             conn.commit()
             if fresh_ces:
                 logger.info("Migration: Created cue_cross_episode_scans table")
@@ -1760,23 +1565,11 @@ class SchemaMixin:
             logger.warning(f"cue_cross_episode_scans table creation: {e}")
 
         # cue_window_optimize_scans: per-template window optimizer cache (D2a, #350).
-        # Keyed by template_id alone. Additive, no data-loss risk.
+        # Keyed by template_id alone. Additive, no data-loss risk. Shares the
+        # SCHEMA_SQL DDL.
         try:
             fresh_wos = not self._table_exists(conn, 'cue_window_optimize_scans')
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS cue_window_optimize_scans (
-                    template_id INTEGER NOT NULL PRIMARY KEY,
-                    status TEXT NOT NULL DEFAULT 'scanning'
-                        CHECK(status IN ('scanning', 'ready', 'error')),
-                    result_json TEXT,
-                    error TEXT,
-                    updated_at TEXT NOT NULL
-                        DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-                    claim_epoch INTEGER NOT NULL DEFAULT 0,
-                    FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id)
-                        ON DELETE CASCADE
-                )
-            """)
+            conn.execute(TABLE_DDL['cue_window_optimize_scans'])
             conn.commit()
             if fresh_wos:
                 logger.info("Migration: Created cue_window_optimize_scans table")
@@ -3190,8 +2983,6 @@ class SchemaMixin:
 
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
-        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
-
         conn = self.get_connection()
 
         # Check if migration already done
@@ -3304,82 +3095,21 @@ class SchemaMixin:
         logger.info("JSON to SQLite migration completed")
 
     def _seed_default_settings(self, conn: 'sqlite3.Connection'):
-        """Seed default settings."""
-        from database import (
-            DEFAULT_SYSTEM_PROMPT,
-            DEFAULT_VERIFICATION_PROMPT,
-            DEFAULT_REVIEW_PROMPT,
-            DEFAULT_RESURRECT_PROMPT,
-        )
+        """Seed default settings from SETTINGS_REGISTRY.
 
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('system_prompt', DEFAULT_SYSTEM_PROMPT)
-        )
+        Every seeded key/value comes from database.settings.SETTINGS_REGISTRY
+        (entries flagged ``seeded=True``); this function no longer hand-lists
+        defaults. Env-var overrides (RETENTION_PERIOD, WHISPER_MODEL, ...)
+        are encoded in the registry entries themselves.
+        """
+        from database.settings import iter_seed_defaults
 
-        # Retention period from env or default 24 hours
-        retention_minutes = os.environ.get('RETENTION_PERIOD', '1440')
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('retention_period_minutes', retention_minutes)
-        )
-
-        # Keep original (pre-cut) audio alongside processed output so the ad
-        # editor can play the untouched track for boundary review. Roughly
-        # doubles per-episode audio storage; user can opt out in Settings.
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('keep_original_audio', 'true')
-        )
-
-        # Offline queue (#482): defer episodes when the LLM/Whisper endpoint is
-        # unreachable. Off by default; TTL is how long deferred episodes wait
-        # before being marked permanently failed.
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('offline_queue_enabled', 'false')
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('offline_queue_ttl_hours', '48')
-        )
-
-        # Processing timeouts (soft = auto-clear stuck jobs; hard = force-release).
-        # Env var overrides are only used here for seeding; runtime changes live in DB.
-        soft_default = os.environ.get('PROCESSING_SOFT_TIMEOUT', '3600')
-        hard_default = os.environ.get('PROCESSING_HARD_TIMEOUT', '7200')
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('processing_soft_timeout_seconds', soft_default)
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('processing_hard_timeout_seconds', hard_default)
-        )
-
-        # Verification pass prompt
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('verification_prompt', DEFAULT_VERIFICATION_PROMPT)
-        )
-
-        # Verification pass model (defaults to same as first pass)
-        from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
-        provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-        env_model = os.environ.get('OPENAI_MODEL') if provider != 'anthropic' else None
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('verification_model', env_model or DEFAULT_MODEL)
-        )
+        for key, value in iter_seed_defaults():
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+                   ON CONFLICT(key) DO NOTHING""",
+                (key, value)
+            )
 
         # Migrate old second_pass settings to verification settings
         try:
@@ -3404,155 +3134,6 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Settings migration (second_pass -> verification): {e}")
-
-        # Whisper model (defaults to env var or 'small')
-        whisper_model = os.environ.get('WHISPER_MODEL', 'small')
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('whisper_model', whisper_model)
-        )
-
-        # Whisper language. ISO 639-1 code (e.g. 'en', 'fi', 'es') or 'auto'
-        # to let Whisper detect. Default English preserves prior behavior.
-        whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('whisper_language', whisper_language)
-        )
-
-        # Audio analysis settings
-        audio_analysis_settings = [
-            ('volume_threshold_db', '3.0'),
-            ('transition_threshold_db', '3.5'),
-        ]
-        for key, value in audio_analysis_settings:
-            conn.execute(
-                """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-                   ON CONFLICT(key) DO NOTHING""",
-                (key, value)
-            )
-
-        # Ad detection aggressiveness (minimum confidence to cut from audio)
-        # Lower = more aggressive (removes more potential ads)
-        # Higher = more conservative (removes only high-confidence ads)
-        # Range: 0.50 to 0.95, default 0.80
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('min_cut_confidence', '0.80')
-        )
-
-        # Auto-process new episodes (enabled by default)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('auto_process_enabled', 'true')
-        )
-
-        # Default cap on episodes returned in served RSS feeds (per-feed
-        # max_episodes overrides this when set).
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('max_feed_episodes', '300')
-        )
-
-        # Global default for hiding unprocessed episodes from served RSS
-        # feeds (per-feed only_expose_processed_episodes overrides when set).
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('only_expose_processed_default', 'false')
-        )
-
-        # Audio output bitrate (defaults to 128k)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('audio_bitrate', '128k')
-        )
-
-        # Loudness normalization (dynaudnorm second pass). Off by default -
-        # opt-in so existing users see no behavior change.
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('audio_normalize_enabled', 'false')
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('audio_normalize_intensity', 'normal')
-        )
-
-        # Parallel chunked transcription tuning (API backends)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('transcribe_max_chunk_seconds', '600')
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('transcribe_concurrent_chunks', '4')
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('transcribe_chunk_overlap_seconds', '30')
-        )
-
-        # VTT transcripts enabled (Podcasting 2.0)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('vtt_transcripts_enabled', 'true')
-        )
-
-        # Chapters enabled (Podcasting 2.0)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('chapters_enabled', 'true')
-        )
-
-        # Chapters model (Podcasting 2.0) - provider-aware default
-        from chapters_generator import CHAPTERS_MODEL
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('chapters_model', env_model or CHAPTERS_MODEL)
-        )
-
-        # LLM provider (seeded from env; runtime changes go via settings API)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('llm_provider', os.environ.get('LLM_PROVIDER', 'anthropic'))
-        )
-
-        # OpenAI base URL (seeded from env; runtime changes go via settings API)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('openai_base_url', os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'))
-        )
-
-        ad_reviewer_seeds = [
-            ('enable_ad_review', 'false'),
-            ('review_model', 'same_as_pass'),
-            ('review_max_boundary_shift', '60'),
-            ('review_prompt', DEFAULT_REVIEW_PROMPT),
-            ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT),
-        ]
-        for key, value in ad_reviewer_seeds:
-            conn.execute(
-                """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-                   ON CONFLICT(key) DO NOTHING""",
-                (key, value)
-            )
 
         conn.commit()
         logger.info("Default settings seeded")

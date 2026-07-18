@@ -70,6 +70,10 @@ export interface Feed {
   passthroughEnabled?: boolean | null;
   // Skip ad detection (#538): transcripts and chapters only, no ads cut.
   skipAdDetection?: boolean | null;
+  // What the pipeline will actually do, resolved server-side from the
+  // passthrough/skip/detection-mode columns (each mode shadows the later
+  // ones). Absent on older backends; fall back to the raw columns.
+  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard';
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

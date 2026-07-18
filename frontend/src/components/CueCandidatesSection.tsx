@@ -11,6 +11,8 @@ import {
 import { episodeOriginalUrl } from '../api/feeds';
 import { getSettings } from '../api/settings';
 import { formatTimestamp } from '../utils/format';
+import { useScanQuery } from '../hooks/useScanQuery';
+import { btnPrimary, btnSecondary } from './buttonStyles';
 
 interface CueCandidatesSectionProps {
   slug: string;
@@ -22,10 +24,8 @@ interface CueCandidatesSectionProps {
 
 const btnBase =
   'px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0';
-const makeBtn =
-  `${btnBase} bg-primary text-primary-foreground hover:bg-primary/90`;
-const secondaryBtn =
-  `${btnBase} bg-secondary text-secondary-foreground hover:bg-secondary/80`;
+const makeBtn = `${btnBase} ${btnPrimary}`;
+const secondaryBtn = `${btnBase} ${btnSecondary}`;
 
 function CueCandidatesSection({
   slug, episodeId, episodeTitle, episodeDuration, hasOriginalAudio,
@@ -52,15 +52,20 @@ function CueCandidatesSection({
   const captureMaxOutroSeconds = settingsQuery.data?.audioCueCaptureMaxOutroSeconds?.value ?? 60;
 
   // Decodes the whole episode in a background thread, so only runs on an
-  // explicit scan and polls until the server reports the scan is done.
-  const candidatesQuery = useQuery({
+  // explicit scan; useScanQuery polls until the server reports the scan done
+  // and exposes the same rescan idiom the other scan panels use.
+  const { data, scanning: queryScanning, scanError, rescan } = useScanQuery({
     queryKey: ['cue-candidates', slug, episodeId],
     queryFn: () => getCueCandidates(slug, episodeId),
+    rescanFn: () => getCueCandidates(slug, episodeId, true),
     enabled: scanned,
-    staleTime: Infinity,
-    refetchInterval: (query) =>
-      query.state.data?.status === 'scanning' ? 3000 : false,
+    savedErrorFallback: 'Scan failed.',
+    thrownError: 'Scan failed. Try again.',
   });
+  // Gate on `scanned`: a cached {status:'scanning'} envelope from a previous
+  // mount would otherwise show a never-resolving spinner (the poll is disabled
+  // until the user clicks Find) alongside the Find button.
+  const scanning = scanned && queryScanning;
 
   const [showDismissed, setShowDismissed] = useState(false);
   const dismissalsQuery = useQuery({
@@ -85,20 +90,8 @@ function CueCandidatesSection({
     onSuccess: invalidate,
   });
 
-  const data = candidatesQuery.data;
   const candidates = (data?.candidates ?? []).filter((c) => !c.dismissed);
-  const scanning = scanned && (candidatesQuery.isLoading || data?.status === 'scanning');
-  const scanError = data?.status === 'error'
-    ? (data.error || 'Scan failed.')
-    : (candidatesQuery.error ? 'Scan failed. Try again.' : null);
   const noneFound = data?.status === 'ready' && candidates.length === 0 && dismissals.length === 0;
-
-  const rescan = () =>
-    queryClient.fetchQuery({
-      queryKey: ['cue-candidates', slug, episodeId],
-      queryFn: () => getCueCandidates(slug, episodeId, true),
-      staleTime: 0,
-    });
 
   // Include kind: an intro and a recurring hit can share start/end on short
   // episodes, and a bare start-end key would collide (dup React keys + preview state).
@@ -247,7 +240,7 @@ function CueCandidatesSection({
                       </span>
                       <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                         c.kind === 'intro' || c.kind === 'outro'
-                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          ? 'bg-amber-500/20 text-warning'
                           : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                       }`}>
                         {cueCandidateLabel(c)}
@@ -312,7 +305,7 @@ function CueCandidatesSection({
                       <button
                         onClick={() => undoMutation.mutate(d.id)}
                         disabled={undoMutation.isPending}
-                        className="shrink-0 px-2 py-1 text-xs rounded font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+                        className={`shrink-0 px-2 py-1 text-xs rounded font-medium ${btnSecondary} disabled:opacity-50`}
                       >
                         Undo
                       </button>

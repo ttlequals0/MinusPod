@@ -5,10 +5,8 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import CopyButton from '../../components/CopyButton';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
 import { regenerateAllFeeds } from '../../api/feeds';
-
-function mutationError(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
+import { btnSecondary } from '../../components/buttonStyles';
+import { getErrorMessage } from '../../api/client';
 
 function AuthenticatedFeedsSection() {
   const queryClient = useQueryClient();
@@ -71,7 +69,7 @@ function AuthenticatedFeedsSection() {
           </p>
           {toggleMutation.isError && (
             <p className="mt-2 text-sm text-destructive">
-              {mutationError(toggleMutation.error, 'Failed to update setting')}
+              {getErrorMessage(toggleMutation.error, 'Failed to update setting')}
             </p>
           )}
         </div>
@@ -92,16 +90,16 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={handleRegenerateKey}
                 disabled={regenerateKeyMutation.isPending}
-                className="px-3 py-1.5 text-sm rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                className={`px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
               >
                 {regenerateKeyMutation.isPending ? 'Regenerating key...' : 'Regenerate key'}
               </button>
               {regenerateKeyMutation.isSuccess && (
-                <p className="mt-2 text-sm text-green-600 dark:text-green-400">Key regenerated</p>
+                <p className="mt-2 text-sm text-success">Key regenerated</p>
               )}
               {regenerateKeyMutation.isError && (
                 <p className="mt-2 text-sm text-destructive">
-                  {mutationError(regenerateKeyMutation.error, 'Failed to regenerate key')}
+                  {getErrorMessage(regenerateKeyMutation.error, 'Failed to regenerate key')}
                 </p>
               )}
             </div>
@@ -111,19 +109,19 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={() => regenerateFeedsMutation.mutate()}
                 disabled={regenerateFeedsMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
               >
                 <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
                 {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}
               </button>
               {regenerateFeedsMutation.isSuccess && regenerateFeedsMutation.data && (
-                <p className="mt-2 text-sm text-green-600 dark:text-green-400">
+                <p className="mt-2 text-sm text-success">
                   Regenerated {regenerateFeedsMutation.data.feedCount} feed{regenerateFeedsMutation.data.feedCount === 1 ? '' : 's'}
                 </p>
               )}
               {regenerateFeedsMutation.isError && (
                 <p className="mt-2 text-sm text-destructive">
-                  {mutationError(regenerateFeedsMutation.error, 'Failed to regenerate feeds')}
+                  {getErrorMessage(regenerateFeedsMutation.error, 'Failed to regenerate feeds')}
                 </p>
               )}
             </div>

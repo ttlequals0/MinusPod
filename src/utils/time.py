@@ -241,6 +241,14 @@ def first_not_none(*values):
     return None
 
 
+def overlap_seconds(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
+    """Return the overlap duration (seconds) of [start_a, end_a] and [start_b, end_b].
+
+    Zero when the ranges do not overlap.
+    """
+    return max(0.0, min(end_a, end_b) - max(start_a, start_b))
+
+
 def overlap_ratio(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
     """Return the fraction of region B covered by region A (0.0-1.0).
 
@@ -248,9 +256,7 @@ def overlap_ratio(start_a: float, end_a: float, start_b: float, end_b: float) ->
     of one time range is contained inside another. If B has zero or negative
     duration, returns 0.0.
     """
-    overlap_start = max(start_a, start_b)
-    overlap_end = min(end_a, end_b)
-    overlap = max(0.0, overlap_end - overlap_start)
+    overlap = overlap_seconds(start_a, end_a, start_b, end_b)
     b_duration = end_b - start_b
     return overlap / b_duration if b_duration > 0 else 0.0
 

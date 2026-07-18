@@ -113,11 +113,6 @@ class AudioMetadata:
         return duration
 
     @classmethod
-    def clear_cache(cls) -> None:
-        """Clear the duration cache."""
-        cls._cache.clear()
-
-    @classmethod
     def invalidate(cls, path: str) -> None:
         """Remove a specific path from the cache."""
         cls._cache.pop(path, None)
