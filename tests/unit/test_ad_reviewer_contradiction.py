@@ -245,7 +245,9 @@ def test_contradicted_adjust_preserves_proposed_bounds():
     assert ad['reviewer_proposed_end'] == 180.0
 
 
-def test_contradicted_confirmed_has_no_proposed_bounds():
+def test_apply_reviewer_verdict_confirmed_without_bounds_has_none():
+    # A confirmed contradiction hold with no recovered trim carries no
+    # proposed bounds (extraction failed or reasoning named no sub-span).
     ad = {'start': 120.0, 'end': 180.0, 'was_cut': True}
     v = ReviewVerdict(
         pool='accepted', pass_num=1, verdict='confirmed',
@@ -256,3 +258,151 @@ def test_contradicted_confirmed_has_no_proposed_bounds():
     assert ad['held_for_review'] is True
     assert 'reviewer_proposed_start' not in ad
     assert 'reviewer_proposed_end' not in ad
+
+
+def test_apply_reviewer_verdict_confirmed_with_recovered_bounds():
+    # Trim recovery stashes the sub-span in adjusted_* on the confirmed
+    # verdict; the master-ad merge must surface it as reviewer_proposed_*
+    # while leaving the pass-1 boundaries and the hold untouched.
+    ad = {'start': 120.0, 'end': 180.0, 'was_cut': True}
+    v = ReviewVerdict(
+        pool='accepted', pass_num=1, verdict='confirmed',
+        original_start=120.0, original_end=180.0,
+        adjusted_start=120.0, adjusted_end=150.0,
+        reasoning='the ad ends at 150.0s; the rest is not an ad',
+        model_used='m',
+    )
+    processing._apply_reviewer_verdict_to_ad(ad, v)
+    assert ad['held_for_review'] is True
+    assert ad['was_cut'] is False
+    assert ad['start'] == 120.0 and ad['end'] == 180.0
+    assert ad['reviewer_proposed_start'] == 120.0
+    assert ad['reviewer_proposed_end'] == 150.0
+
+
+# ---------- Trim-bounds recovery on confirmed-verdict contradiction holds ----------
+# Prod incident (the-brilliant-idiots 79eedd7bf2a7): reviewer returned
+# 0.0-87.8s unchanged (verdict derived 'confirmed') while its reasoning said
+# the ad ends at ~65.8s and the tail must be trimmed. The hold fired but
+# carried no bounds the UI could one-tap approve. A follow-up LLM call now
+# recovers {"ad_start", "ad_end"} from the reasoning text.
+
+TRIM_REASONING = (
+    'The ad content ends at 150.0s; the closing sentence is show content, '
+    'is not an ad, and must be trimmed off the end'
+)
+
+
+def _run_confirmed_hold(followup):
+    """Run one review whose main call yields a confirmed contradiction hold
+    with trim language, and whose follow-up call yields ``followup`` (an
+    _LLMResp or an exception instance). Returns (result, llm mock)."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    return result, reviewer._llm_client
+
+
+def test_contradicted_confirmed_recovers_proposed_bounds():
+    result, llm = _run_confirmed_hold(_resp('{"ad_start": 120.0, "ad_end": 150.0}'))
+    assert llm.messages_create.call_count == 2
+    assert result.verdicts[0].verdict == 'confirmed'
+    # Enrichment only: still held, never cut, boundaries untouched.
+    assert result.accepted_after_review == []
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert held['start'] == 120.0 and held['end'] == 180.0
+    assert held['reviewer_proposed_start'] == 120.0
+    assert held['reviewer_proposed_end'] == 150.0
+    # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
+    # onto the master ad.
+    assert result.verdicts[0].adjusted_start == 120.0
+    assert result.verdicts[0].adjusted_end == 150.0
+
+
+def test_contradicted_confirmed_extraction_null_yields_no_bounds():
+    # Model says the reasoning names no sub-span -> hold without bounds,
+    # exactly the pre-recovery behavior.
+    result, llm = _run_confirmed_hold(_resp('null'))
+    assert llm.messages_create.call_count == 2
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert 'reviewer_proposed_start' not in held
+    assert 'reviewer_proposed_end' not in held
+    assert result.accepted_after_review == []
+
+
+def test_contradicted_confirmed_out_of_range_recovery_rejected():
+    # Recovered start is 20s before the original span: hard-reject, hold
+    # without bounds rather than trust bad numbers.
+    result, _ = _run_confirmed_hold(_resp('{"ad_start": 100.0, "ad_end": 150.0}'))
+    held = result.held_by_contradiction[0]
+    assert 'reviewer_proposed_start' not in held
+    assert 'reviewer_proposed_end' not in held
+
+
+def test_contradicted_confirmed_tiny_trim_rejected():
+    # Recovered ad portion is 2s inside a 60s span, under the
+    # MIN_AD_DURATION_FOR_REMOVAL floor: a trim that claims almost none of a
+    # span the model confirmed as an ad is more likely a hallucination than a
+    # real trim. Hold without bounds rather than pre-fill a bad one-tap trim.
+    result, _ = _run_confirmed_hold(_resp('{"ad_start": 120.0, "ad_end": 122.0}'))
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert 'reviewer_proposed_start' not in held
+    assert 'reviewer_proposed_end' not in held
+    assert result.accepted_after_review == []
+
+
+def test_contradicted_confirmed_full_span_recovery_rejected():
+    # Recovering the entire original span is not a trim; offering it as a
+    # "trimmed" approval would cut the full span including the show content.
+    result, _ = _run_confirmed_hold(_resp('{"ad_start": 120.0, "ad_end": 180.0}'))
+    held = result.held_by_contradiction[0]
+    assert 'reviewer_proposed_start' not in held
+    assert 'reviewer_proposed_end' not in held
+
+
+def test_contradicted_confirmed_recovery_llm_failure_falls_back():
+    result, _ = _run_confirmed_hold(RuntimeError('boom'))
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert 'reviewer_proposed_start' not in held
+    assert result.accepted_after_review == []
+
+
+def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
+    # "contains no ad content" identifies nothing to recover; the precheck
+    # must not spend a second LLM call.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
+        '"reason": "This segment contains no advertisement content whatsoever"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 1
+    held = result.held_by_contradiction[0]
+    assert 'reviewer_proposed_start' not in held

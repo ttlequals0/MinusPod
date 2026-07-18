@@ -27,8 +27,11 @@ from ad_reviewer import (
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
-from utils.audio import get_audio_codec
-from utils.time import ranges_overlap, utc_now_iso
+from utils.audio import get_audio_codec, get_audio_duration
+from utils.time import (
+    adjust_timestamp, merge_cut_spans, ranges_overlap, span_inside_any_cut,
+    utc_now_iso,
+)
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
@@ -50,7 +53,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
-from embedded_chapters import embed_chapters
+from embedded_chapters import embed_chapters, MIN_CHAPTER_SECONDS
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -1197,9 +1200,11 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['source'] = 'reviewer'
         ad['reviewer_contradiction'] = True
         # Preserve the reviewer's proposed trim so the review UI can offer
-        # approving the trimmed span instead of all-or-nothing.
-        if (v.verdict == 'adjust'
-                and v.adjusted_start is not None
+        # approving the trimmed span instead of all-or-nothing. Adjust
+        # verdicts carry adjusted_* natively; confirmed verdicts carry them
+        # only when the trim-recovery follow-up call reconstructed the
+        # sub-span from the reasoning text (ad_reviewer._recover_contradiction_trim).
+        if (v.adjusted_start is not None
                 and v.adjusted_end is not None):
             ad['reviewer_proposed_start'] = v.adjusted_start
             ad['reviewer_proposed_end'] = v.adjusted_end
@@ -1832,15 +1837,167 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok
 
 
+def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):
+    """Inverse of utils.time.adjust_timestamp: project a processed-timeline
+    timestamp back onto the original (pre-cut) timeline. All values are
+    seconds; cuts are in original-episode coordinates. A timestamp that falls
+    inside a replacement beep has no original content behind it and maps to
+    the cut's start (the point the beep replaced)."""
+    removed = 0.0
+    beeps = 0
+    for start, end, n_spans in merge_cut_spans(cuts):
+        beep_block_start = start - removed + beeps * replacement_duration
+        if processed_time < beep_block_start:
+            break
+        if processed_time < beep_block_start + n_spans * replacement_duration:
+            return start
+        removed += end - start
+        beeps += n_spans
+    return processed_time + removed - beeps * replacement_duration
+
+
+def _remap_chapters_for_recut(chapters, previous_cuts, new_cuts,
+                               replacement_duration, original_duration,
+                               new_duration):
+    """Project stored chapters-JSON chapters onto the recut timeline.
+
+    chapters carry startTime in SECONDS (Podcasting 2.0; the ms conversion
+    happens only inside embedded_chapters.render_ffmetadata) on the PREVIOUS
+    processed timeline. previous_cuts and new_cuts are both in
+    original-episode coordinates, so each start goes previous-processed ->
+    original (inverse of the previous cut adjustment) -> recut timeline
+    (adjust_timestamp with the new applied cuts).
+
+    Mirrors embedded_chapters.remap_chapters' policy: a chapter whose whole
+    span (start to next chapter's start, in original coordinates) sits inside
+    a new cut is dropped -- its span folds into its predecessor -- and a
+    remapped chapter left closer than MIN_CHAPTER_SECONDS to its successor is
+    dropped as a degenerate sliver. Titles, urls, and any other keys are
+    carried through untouched."""
+    ordered = sorted(chapters, key=lambda ch: float(ch.get('startTime', 0)))
+    orig_starts = [
+        _unadjust_timestamp(float(ch.get('startTime', 0)), previous_cuts,
+                            replacement_duration)
+        for ch in ordered
+    ]
+    remapped = []
+    for i, ch in enumerate(ordered):
+        orig_start = orig_starts[i]
+        orig_end = (orig_starts[i + 1] if i + 1 < len(ordered)
+                    else original_duration)
+        if span_inside_any_cut(orig_start, orig_end, new_cuts):
+            continue
+        remapped.append(
+            (adjust_timestamp(orig_start, new_cuts, replacement_duration), ch))
+    survivors = [
+        (start, ch) for i, (start, ch) in enumerate(remapped)
+        if (remapped[i + 1][0] if i + 1 < len(remapped) else new_duration)
+        - start >= MIN_CHAPTER_SECONDS
+    ]
+    out = []
+    for start, ch in survivors:
+        # Same output shape as ChaptersGenerator: integer seconds, minimum 1.
+        new_start = max(1, int(round(start)))
+        if out and new_start <= out[-1]['startTime']:
+            continue
+        out.append({**ch, 'startTime': new_start})
+    return out
+
+
+def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
+                            previous_cuts, original_duration,
+                            audio_path=None, audio_duration=None):
+    """Recut-path chapter fixup (AI-free): remap the stored chapters JSON onto
+    the recut timeline and re-embed it into the recut MP3.
+
+    previous_cuts is the AUTHORITATIVE applied cut list the stored chapters
+    JSON was generated against (original-episode coordinates), loaded from the
+    persisted applied_cuts_json. None means no authoritative list exists
+    (episode rendered before applied_cuts_json was persisted, or the slot was
+    cleared/unparseable): the remap is SKIPPED and the existing chapters JSON
+    is left untouched, exactly as the pre-2.62.1 recut did. Reconstructing the
+    list from was_cut markers is deliberately not attempted -- a wrong remap
+    ships wrong timestamps in served RSS and embedded ID3, worse than
+    stale-but-consistent ones. This keeps the feature correct-or-noop.
+
+    On a successful remap, all_cuts (the recut's own applied cuts) becomes the
+    new authoritative list so the NEXT recut remaps from it.
+
+    Never raises: on any failure the previous JSON is left in place and the
+    recut proceeds."""
+    try:
+        if previous_cuts is None:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Chapter remap skipped (no authoritative "
+                f"applied cuts persisted); keeping previous chapters JSON")
+            return
+        chapters_json = storage.get_chapters_json(slug, episode_id)
+        chapters = (chapters_json or {}).get('chapters') or []
+        if not chapters:
+            return
+        if not original_duration:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] No original duration for chapter "
+                f"remap; keeping previous chapters JSON")
+            return
+        # One resolved duration for BOTH the JSON sliver filter and the ID3
+        # embed, so the served and embedded chapter sets trim against the same
+        # tail bound. Prefer the caller's known value, then a probe of the
+        # rendered file, then the arithmetic projection.
+        resolved_duration = audio_duration
+        if resolved_duration is None and audio_path:
+            resolved_duration = get_audio_duration(audio_path)
+        if resolved_duration is None:
+            resolved_duration = adjust_timestamp(
+                original_duration, all_cuts, replacement_duration)
+        remapped = _remap_chapters_for_recut(
+            chapters, previous_cuts, all_cuts or [],
+            replacement_duration, original_duration, resolved_duration)
+        if not remapped:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Chapter remap swallowed every "
+                f"chapter; keeping previous chapters JSON")
+            return
+        # Embed FIRST, save JSON only after it succeeds: if the embed fails,
+        # the served JSON and the embedded ID3 must stay the OLD, matching set
+        # (issue #523 was the reverse order -- new JSON, stale ID3). This is a
+        # set replacement of the ffmpeg cut step's remapped source chapters,
+        # not a second remap: embed_chapters writes the timestamps as-is and
+        # returns False (never raises for ffmpeg/OS errors) on failure.
+        if audio_path:
+            if not embed_chapters(str(audio_path), remapped,
+                                  duration=resolved_duration):
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Chapter embed failed after recut; "
+                    f"keeping previous chapters JSON and embedded ID3")
+                return
+        storage.save_chapters_json(slug, episode_id,
+                                   {**chapters_json, 'chapters': remapped})
+        # The remapped JSON now lives on the recut timeline defined by
+        # all_cuts; persist it as the authoritative list for the next recut.
+        storage.save_applied_cuts(slug, episode_id, all_cuts or [])
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Remapped {len(chapters)} stored "
+            f"chapter(s) -> {len(remapped)} onto the recut timeline "
+            f"(no AI call)")
+    except Exception as e:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Failed to remap stored chapters after "
+            f"recut; keeping previous chapters JSON: {e}")
+
+
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
-                      audio_path=None, audio_duration=None):
+                      audio_path=None, audio_duration=None,
+                      previous_cuts=None, original_duration=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
     detection is the one LLM call here. Recut uses it to stay AI-free; the
-    existing chapters are left in place and can be refreshed with the manual
-    Regenerate Chapters action.
+    existing chapters are kept but remapped onto the new cut list (pure
+    arithmetic via _remap_stored_chapters, using previous_cuts and
+    original_duration) and can still be refreshed with the manual Regenerate
+    Chapters action.
 
     audio_path, when given, is the final processed MP3; generated chapters
     are also embedded into it as ID3v2 frames for players that ignore the
@@ -1875,6 +2032,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         chapters_enabled = db.get_setting('chapters_enabled')
         if not regenerate_chapters:
             audio_logger.info(f"[{slug}:{episode_id}] Skipping chapter regeneration (no AI call)")
+            _remap_stored_chapters(slug, episode_id, all_cuts,
+                                   replacement_duration, previous_cuts,
+                                   original_duration,
+                                   audio_path=audio_path,
+                                   audio_duration=audio_duration)
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
@@ -1889,6 +2051,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
             )
             if chapters and chapters.get('chapters'):
                 storage.save_chapters_json(slug, episode_id, chapters)
+                # Persist the applied cut list these chapters were generated
+                # against (all_cuts, original-episode coordinates) so a later
+                # recut remaps from this authoritative list instead of
+                # reconstructing it from was_cut markers.
+                storage.save_applied_cuts(slug, episode_id, all_cuts or [])
                 audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
                 if audio_path:
                     embed_chapters(str(audio_path), chapters['chapters'],
@@ -2432,11 +2599,25 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         status_service.update_job_stage("recut:assets", 85)
         # Skip chapter regeneration: its topic-boundary detection is an LLM call,
-        # and recut is meant to be AI-free. Existing chapters stay; the user can
-        # refresh them with the manual Regenerate Chapters action.
+        # and recut is meant to be AI-free. The stored chapters JSON is instead
+        # remapped arithmetically onto the new cut list; the user can still
+        # refresh titles with the manual Regenerate Chapters action.
+        #
+        # Coordinate note: applied_cuts are in ORIGINAL-episode coordinates
+        # (the recut re-cuts the retained original), while the stored chapters
+        # JSON sits on the PREVIOUS processed timeline. previous_cuts -- the
+        # prior render's applied cut list persisted as applied_cuts_json, also
+        # in original coordinates -- lets the remap go previous-processed ->
+        # original (inverse via previous_cuts) -> recut (adjust via
+        # applied_cuts). None (episode rendered before applied_cuts_json was
+        # persisted) makes the remap a safe no-op rather than a wrong guess.
+        previous_cuts = storage.get_applied_cuts(slug, episode_id)
         _generate_assets(slug, episode_id, segments, applied_cuts,
                           episode_description, podcast_name, episode_title,
-                          regenerate_chapters=False)
+                          regenerate_chapters=False,
+                          audio_path=final_path, audio_duration=new_duration,
+                          previous_cuts=previous_cuts,
+                          original_duration=original_duration)
 
         pass1_cut_count = sum(
             1 for ad in ads_to_remove

@@ -131,10 +131,10 @@ def embed_chapters(audio_path: str, chapters: List[Dict],
     Stream-copy remux with an ffmetadata side input (the same mechanism the
     cut path uses for remapped chapters), replacing any chapters already in
     the file so the embedded set matches the podcast:chapters JSON written
-    alongside it. Callers pair this with save_chapters_json; a path that
-    rebuilds the audio without regenerating chapters (recut) reverts the
-    embedded set to the remapped source chapters until chapters are
-    regenerated.
+    alongside it. Callers pair this with save_chapters_json; the recut path
+    remaps the stored chapters JSON onto the new timeline arithmetically and
+    re-embeds it, so the ffmpeg cut step's remapped source chapters only
+    remain when no chapters JSON exists.
 
     The rewrite lands in a per-call temp file (unique name, so concurrent
     calls on the same episode cannot corrupt each other's output) and moves

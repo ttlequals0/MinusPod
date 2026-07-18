@@ -63,7 +63,7 @@ SEED_SNAPSHOT = {
     'retention_period_minutes': '1440',
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
-    'review_prompt': ('sha256', '887fcb360f2b3d15775859eb8660c5cef89c426cee6ccb6ed9b95173e6c883a6'),
+    'review_prompt': ('sha256', '897102def672fcfffdfd2500e43cfdb6699aebf650606aee18549a4c033758d3'),
     'system_prompt': ('sha256', 'df48d3c574c5998459ec470905b2518d21dc6da7f014f348d6c92ccc5f358187'),
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',

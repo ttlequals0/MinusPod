@@ -252,6 +252,10 @@ class SchemaMixin:
             ('final_segments_json', 'TEXT'),
             # Layer 3 cross-fetch differential result (additive; never dropped)
             ('dai_differential_json', 'TEXT'),
+            # Authoritative applied cut list (original-episode coordinates) the
+            # served chapters JSON was generated against; the recut chapter
+            # remap loads it instead of reconstructing from was_cut markers.
+            ('applied_cuts_json', 'TEXT'),
         ]
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)
@@ -1591,6 +1595,31 @@ class SchemaMixin:
             except Exception as e:
                 conn.rollback()
                 logger.warning(f"{_scan_table}.claim_epoch migration: {e}")
+
+        # Refresh the default review prompt with the PARTIAL SPAN contract:
+        # when the reviewer concludes part of the span is not ad content, it
+        # must return adjusted boundaries, never the original boundaries with
+        # a prose-only trim in the reason text. Marker phrase is unique to
+        # this revision and idempotent: only overwrites a prompt that is
+        # still the stored default (is_default=1); user-customized prompts
+        # are untouched.
+        try:
+            from database import DEFAULT_REVIEW_PROMPT
+            row = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'review_prompt'"
+            ).fetchone()
+            if row and row['is_default'] and 'PARTIAL SPAN' not in (row['value'] or ''):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'review_prompt'",
+                    (DEFAULT_REVIEW_PROMPT,),
+                )
+                conn.commit()
+                logger.info(
+                    "Migration: Updated default review_prompt with PARTIAL SPAN contract"
+                )
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"Migration failed for review_prompt PARTIAL SPAN refresh: {e}")
 
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.

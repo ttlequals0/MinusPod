@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.1] - 2026-07-18
+
+### Fixed
+- The ad reviewer now holds a "confirmed" ad for review when its own reasoning
+  says part of the span is not an ad (for example a preroll whose tail bleeds
+  into show banter), and recovers the ad-only boundary so the review screen
+  offers a one-tap trimmed approval instead of an all-or-nothing cut. The
+  reviewer prompt now also requires adjusted boundaries whenever the reasoning
+  identifies non-ad content, so these land as automatic trims rather than
+  holds. Recovered boundaries shorter than the minimum ad length are treated
+  as unreliable and left for manual review.
+- VAD-gap ad extension no longer swallows show content across a dynamic-ad
+  insertion seam. When the audio just past an extended boundary repeats a long
+  verbatim run of speech from inside the ad (the tell-tale duplicated seconds a
+  dynamic insertion leaves around its splice), the extension stops at the real
+  boundary. The match threshold is set high enough that shared sponsor phrases
+  ("this episode is brought to you by") do not trigger it.
+- Approving held ads (recut) now keeps the served and embedded chapter
+  timestamps correct. The applied cut list is persisted with each render and
+  the chapters are remapped arithmetically against it, with no AI call. For
+  episodes processed before this release (no stored cut list) the chapters are
+  left untouched, exactly as before, rather than risk a wrong remap; use
+  Regenerate Chapters to refresh them.
+
 ## [2.62.0] - 2026-07-17
 
 ### Performance

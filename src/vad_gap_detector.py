@@ -11,8 +11,10 @@ covers them). Emits ad markers for gaps that look like ad residue:
 Runs after Claude + text-pattern detection, before validation. See the
 2.0.7 plan for the full rationale.
 """
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+from difflib import SequenceMatcher
 import logging
+import re
 
 from roll_detector import (
     SIGNOFF_PATTERNS,
@@ -20,11 +22,35 @@ from roll_detector import (
     AD_INDICATOR_PATTERNS,
     _region_covered,
 )
+from utils.text import get_transcript_text_for_range
 from config import VAD_GAP_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
 _GAP_ADJACENCY_BUFFER = 1.0  # seconds; how close a gap must be to an ad to count as adjacent
+
+# DAI seam check (the-brilliant-idiots/79eedd7bf2a7 incident): dynamic ad
+# insertion can duplicate a few seconds of show audio around the splice. One
+# copy lands inside the detected ad span near the gap, the other right after
+# the gap where the show resumes. Extending the ad across the gap then swallows
+# real content. If the transcript just beyond the proposed extended boundary
+# verbatim-duplicates transcript inside the span near the seam, skip the
+# extension.
+#
+# 50 normalized chars is roughly 10 consecutive words. A contiguous verbatim
+# run that long is far more likely duplicated SHOW audio (the DAI splice
+# copies a real sentence of content around the seam) than shared ad
+# boilerplate: stock CTAs like "this episode is brought to you by" (~33 chars)
+# and transitions like "welcome back" normalize well under this, so two
+# back-to-back sponsor reads sharing that boilerplate across the gap do not
+# falsely block the extension (which would leave the gap of ad residue uncut).
+# The incident line normalized to ~66 chars. A false positive only skips an
+# optional extension, keeping the LLM-detected boundary.
+_SEAM_MIN_DUP_CHARS = 50
+# Duplicated splice audio sits within seconds of the seam, so compare narrow
+# windows: up to 30s of span text before/after the boundary vs 15s beyond it.
+_SEAM_INSIDE_WINDOW_SECONDS = 30.0
+_SEAM_BEYOND_WINDOW_SECONDS = 15.0
 
 
 def _ends_with_signoff(text: str) -> bool:
@@ -43,15 +69,73 @@ def _starts_with_resume(text: str) -> bool:
     return any(p.search(head) for p in SHOW_START_PATTERNS)
 
 
-def _adjacent_existing_ad(gap_start: float, gap_end: float, ads: List[Dict]) -> Optional[Dict]:
+def _adjacent_existing_ad(
+    gap_start: float, gap_end: float, ads: List[Dict],
+) -> Tuple[Optional[Dict], Optional[str]]:
     for ad in ads:
         ad_start = ad.get('start', 0.0)
         ad_end = ad.get('end', 0.0)
         if abs(ad_end - gap_start) <= _GAP_ADJACENCY_BUFFER:
-            return ad  # ad ends right before the gap
+            return ad, 'before'  # ad ends right before the gap
         if abs(gap_end - ad_start) <= _GAP_ADJACENCY_BUFFER:
-            return ad  # ad starts right after the gap
-    return None
+            return ad, 'after'  # ad starts right after the gap
+    return None, None
+
+
+def _normalize_seam_text(text: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace for verbatim compare."""
+    s = re.sub(r'[^a-z0-9\s]+', ' ', text.lower())
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _has_verbatim_duplicate(inside_text: str, beyond_text: str) -> bool:
+    a = _normalize_seam_text(inside_text)
+    b = _normalize_seam_text(beyond_text)
+    if len(a) < _SEAM_MIN_DUP_CHARS or len(b) < _SEAM_MIN_DUP_CHARS:
+        return False
+    match = SequenceMatcher(None, a, b, autojunk=False).find_longest_match(
+        0, len(a), 0, len(b))
+    return match.size >= _SEAM_MIN_DUP_CHARS
+
+
+def _dai_seam_detected(
+    segments: List[Dict],
+    gap_start: float,
+    gap_end: float,
+    adjacent: Dict,
+    side: str,
+) -> bool:
+    """True when the proposed gap extension shows a DAI splice duplicate.
+
+    Compares transcript just beyond the proposed extended boundary against
+    span text near the seam. The extension region itself is untranscribed
+    (the gap) plus at most the ~1s adjacency buffer, so a duplicate's first
+    copy always sits at or before the pre-extension boundary. Stopping "at
+    the first occurrence" would therefore shrink the LLM-detected boundary,
+    which this check must never do -- skipping the extension entirely is the
+    only shrink-only option, so the caller skips on True.
+    """
+    if side == 'before':
+        # Extension pushes ad end forward to gap_end. Beyond-boundary text is
+        # the resume after the gap; inside text is the span tail before it.
+        inside = get_transcript_text_for_range(
+            segments,
+            max(adjacent.get('start', 0.0), gap_start - _SEAM_INSIDE_WINDOW_SECONDS),
+            gap_start,
+        )
+        beyond = get_transcript_text_for_range(
+            segments, gap_end, gap_end + _SEAM_BEYOND_WINDOW_SECONDS)
+    else:
+        # Extension pulls ad start backward to gap_start. Beyond-boundary text
+        # is the show before the gap; inside text is the span head after it.
+        inside = get_transcript_text_for_range(
+            segments,
+            gap_end,
+            min(adjacent.get('end', 0.0), gap_end + _SEAM_INSIDE_WINDOW_SECONDS),
+        )
+        beyond = get_transcript_text_for_range(
+            segments, gap_start - _SEAM_BEYOND_WINDOW_SECONDS, gap_start)
+    return _has_verbatim_duplicate(inside, beyond)
 
 
 def _new_marker(start: float, end: float, reason: str) -> Dict:
@@ -115,8 +199,15 @@ def detect_vad_gaps(
         if _region_covered(gap_start, gap_end, existing_ads):
             continue
 
-        adjacent = _adjacent_existing_ad(gap_start, gap_end, existing_ads)
+        adjacent, side = _adjacent_existing_ad(gap_start, gap_end, existing_ads)
         if adjacent is not None:
+            if _dai_seam_detected(segments, gap_start, gap_end, adjacent, side):
+                logger.info(
+                    f"VAD mid gap {gap_start:.1f}-{gap_end:.1f}s: DAI seam "
+                    f"duplicate beyond boundary; not extending ad "
+                    f"{adjacent.get('start', 0.0):.1f}-{adjacent.get('end', 0.0):.1f}s"
+                )
+                continue
             old_start = adjacent.get('start', 0.0)
             old_end = adjacent.get('end', 0.0)
             adjacent['start'] = min(old_start, gap_start)

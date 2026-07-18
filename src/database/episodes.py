@@ -17,7 +17,8 @@ AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
                    second_pass_response = NULL,
                    chapters_json = NULL,
                    transcript_vtt = NULL,
-                   final_segments_json = NULL"""
+                   final_segments_json = NULL,
+                   applied_cuts_json = NULL"""
 
 
 def normalize_published_at(value: Optional[str]) -> Optional[str]:
@@ -453,6 +454,61 @@ class EpisodeMixin:
 
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} final segments to database")
+
+    def save_applied_cuts(self, slug: str, episode_id: str, cuts: List[Dict]):
+        """Save the applied cut list (original-episode coordinates) the served
+        chapters JSON was generated against. Overwrites on reprocess/recut.
+
+        The recut chapter remap loads this authoritative list instead of
+        reconstructing it from was_cut markers (which drops trusted sub-10s
+        cuts and cannot reproduce pass-2 boundary shifts). Only start/end are
+        needed: the remap arithmetic re-merges the spans and counts one
+        replacement beep per span via merge_cut_spans.
+        """
+        conn = self.get_connection()
+
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            logger.warning(f"Episode not found for applied cuts: {slug}/{episode_id}")
+            return
+
+        cuts_json = json.dumps(
+            [{'start': float(c['start']), 'end': float(c['end'])} for c in cuts]
+        )
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, applied_cuts_json)
+               VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE
+               SET applied_cuts_json = excluded.applied_cuts_json""",
+            (db_episode_id, cuts_json)
+        )
+
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Saved {len(cuts)} applied cut(s) to database")
+
+    def get_applied_cuts(self, slug: str, episode_id: str) -> Optional[List[Dict]]:
+        """Get the persisted applied cut list, or None when never persisted.
+
+        None (column NULL) means no authoritative cuts exist (episode rendered
+        before this was added, or cleared for reprocess); the recut remap must
+        treat that as a skip, not as an empty cut list. A persisted empty list
+        [] is authoritative (an episode where nothing was cut).
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT ed.applied_cuts_json FROM episode_details ed
+               JOIN episodes e ON ed.episode_id = e.id
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        if not row or row['applied_cuts_json'] is None:
+            return None
+        try:
+            return json.loads(row['applied_cuts_json'])
+        except (TypeError, ValueError):
+            return None
 
     def get_original_segments(self, slug: str, episode_id: str) -> Optional[List[Dict]]:
         """Get original (pre-cut) Whisper segments as a list, or None."""

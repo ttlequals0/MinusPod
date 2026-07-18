@@ -143,6 +143,8 @@ KEEP THE AD (return one segment): The candidate is a real-world advertisement th
 - End should land at or just after the last call to action (final URL, promo code, sign-off), not in the middle of show content that follows
 - Adjusted boundaries must stay within {max_boundary_shift_seconds} seconds of the original boundaries in either direction
 
+PARTIAL SPAN: if any part of the candidate span is not ad content (show content before the ad starts or after it ends), you MUST return adjusted start and end timestamps covering only the ad portion. Never return the original boundaries and describe the trim only in the "reason" text: the reason is prose for a human, and only the start and end numbers control the cut.
+
 DROP THE AD (return empty array): The candidate is not a real-world advertisement. Reject cases:
 - A guest discussing their own work, book, or project in the context of the interview
 - The host organically mentioning their own other shows, social media, or Patreon as part of conversational flow (not a produced segment)
