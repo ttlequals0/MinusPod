@@ -147,8 +147,9 @@ class AudioEnforcer:
         if not audio_analysis:
             return ""
 
-        # Cross-fetch differential regions (Layer 3): audio that differs
-        # across fetches is dynamically inserted by definition.
+        # Cross-fetch differential regions (Layer 3): audio that differs across
+        # fetches MAY be a dynamically inserted ad. A CDN re-encode can also make
+        # real content differ (#541), so this is a hint, not a confirmation.
         dai_regions = []
         dai_differential = getattr(audio_analysis, 'dai_differential', None) or {}
         for region in dai_differential.get('regions', []):
@@ -270,10 +271,12 @@ class AudioEnforcer:
 
         for r_start, r_end in dai_regions:
             lines.append(
-                f"- CONFIRMED dynamically inserted ad at {r_start:.1f}s-{r_end:.1f}s: "
-                f"the audio in this range differs across independent fetches of "
-                f"this episode, so an ad server inserted it and it is not part "
-                f"of the show"
+                f"- Audio differs across fetches at {r_start:.1f}s-{r_end:.1f}s: "
+                f"the audio in this range changed between two independent "
+                f"fetches of this episode, which is a strong signal it was "
+                f"dynamically inserted and is LIKELY an ad. Flag it as an ad "
+                f"when the surrounding audio and transcript are consistent with "
+                f"one; only leave it if the text clearly reads as show content"
             )
 
         splice_lines = _splice_lines(audio_analysis, window_start, window_end)

@@ -385,6 +385,8 @@ function EpisodeDetail() {
                       ? 'A second fetch of this episode differed from the first in the marked regions. The differing audio was dynamically inserted.'
                       : episode.daiDifferential.status === 'no_differential'
                       ? 'A second fetch matched the first everywhere it was compared. No differing ad fill was caught; the feed can still carry dynamic ads.'
+                      : episode.daiDifferential.status === 'unreliable_reencode'
+                      ? 'The second fetch was re-encoded end to end, so alignment could not lock on and nearly the whole file read as differing. The result was discarded rather than cutting real content.'
                       : episode.daiDifferential.error || 'The second fetch or the comparison failed.'
                   }
                 >
@@ -392,6 +394,8 @@ function EpisodeDetail() {
                     ? `Cross-fetch: ${episode.daiDifferential.regions.filter((r) => r.kind === 'differential').length} inserted`
                     : episode.daiDifferential.status === 'no_differential'
                     ? 'Cross-fetch: no diff'
+                    : episode.daiDifferential.status === 'unreliable_reencode'
+                    ? 'Cross-fetch: unreliable (re-encoded)'
                     : 'Cross-fetch: failed'}
                 </span>
               )}

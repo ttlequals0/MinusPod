@@ -124,6 +124,48 @@ class TestAdValidatorConfidence:
         assert result.ads[0]['validation']['decision'] == Decision.REJECT.value
 
 
+class TestAdValidatorDifferentialHold:
+    """#541: an uncorroborated cross-fetch differential marker must survive
+    validation as a held-for-review marker, not be silently accepted/cut."""
+
+    def test_uncorroborated_differential_held_survives_validation(self):
+        from config import HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+        validator = AdValidator(episode_duration=300.0, segments=[])
+        ad = {
+            'start': 100.0,
+            'end': 160.0,
+            'confidence': 0.95,
+            'reason': 'Audio differs across fetches; no other ad signal -- review',
+            'detection_stage': 'dai_differential',
+            'held_for_review': True,
+            'was_cut': False,
+            'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+            'differential_uncorroborated': True,
+        }
+        result = validator.validate([ad])
+        out = result.ads[0]
+        # The validator pops incoming hold state and re-derives it from the
+        # surviving differential_uncorroborated flag, so it lands as REVIEW+held.
+        assert out['validation']['decision'] == Decision.REVIEW.value
+        assert out['held_for_review'] is True
+        assert out['hold_reason'] == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+
+    def test_corroborated_differential_not_held(self):
+        # A differential cut marker with the flag already cleared (corroborated
+        # by an overlapping marker) validates as a normal high-confidence ad.
+        validator = AdValidator(episode_duration=300.0, segments=[])
+        ad = {
+            'start': 100.0,
+            'end': 160.0,
+            'confidence': 0.95,
+            'reason': ('Dynamically inserted: audio differs across fetches '
+                       '(corroborated by overlapping ad marker)'),
+            'detection_stage': 'dai_differential',
+        }
+        result = validator.validate([ad])
+        assert result.ads[0].get('held_for_review') is not True
+
+
 class TestAdValidatorMerging:
     """Tests for ad merging behavior."""
 
@@ -1229,3 +1271,29 @@ class TestDaiDifferentialCorroboration:
         ad = result.ads[0]
         assert 'corroborated_by' not in ad
         assert ad['validation']['adjusted_confidence'] < 0.80
+
+
+class TestMergeCloseAdsDifferentialBoundary:
+    def test_close_ads_do_not_merge_across_differential_hold_boundary(self):
+        # #541: a confident cut ad within MERGE_GAP_THRESHOLD of a held
+        # uncorroborated differential must NOT fold into it -- the fold would
+        # keep differential_uncorroborated on the merged span and Rule 5 would
+        # hold the real ad forever. They stay separate.
+        from config import HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+        from ad_validator import ValidationResult
+        validator = AdValidator(episode_duration=3600.0, segments=[])
+        result = ValidationResult(ads=[])
+        merged = validator._merge_close_ads([
+            {'start': 100.0, 'end': 150.0, 'confidence': 0.95,
+             'reason': 'Audio differs across fetches; no other ad signal -- review',
+             'detection_stage': 'dai_differential',
+             'held_for_review': True, 'was_cut': False,
+             'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+             'differential_uncorroborated': True},
+            {'start': 154.0, 'end': 200.0, 'confidence': 0.90,
+             'reason': 'BetterHelp sponsor read',
+             'detection_stage': 'claude'},
+        ], result)
+        assert len(merged) == 2
+        assert merged[0]['differential_uncorroborated'] is True
+        assert 'differential_uncorroborated' not in merged[1]

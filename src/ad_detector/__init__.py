@@ -24,9 +24,11 @@ from llm_client import (
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm_for_window
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
-from utils.time import overlap_ratio
+from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    is_cue_backed,
     MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
@@ -241,15 +243,61 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
     }
 
 
-def dai_differential_ads(dai_differential, fp_pairs):
+# Minimum fraction of a held differential span that must carry transcript
+# before a claude overlap may upgrade the hold to a cut (#541). Claude sees
+# the differential region as a prompt hint, so with little or no transcript
+# in the span its flag cannot be independent verification. 0.2 tolerates
+# edge bleed from neighboring segments while an actually transcribed ad read
+# covers far more of its span.
+DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
+
+
+def _span_transcript_coverage(segments, start, end):
+    """Fraction (0.0-1.0) of [start, end] covered by transcript segments."""
+    span = end - start
+    if span <= 0 or not segments:
+        return 0.0
+    covered = 0.0
+    for seg in segments:
+        covered += max(0.0, min(float(seg.get('end', 0.0)), end)
+                       - max(float(seg.get('start', 0.0)), start))
+    return min(1.0, covered / span)
+
+
+def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
     """Detection candidates from cross-fetch differential regions (Layer 3).
 
-    Regions proven to differ across fetches become markers with
-    detection_stage 'dai_differential' at 0.95 -- the same precedent as the
-    fingerprint stage. They still pass validator + reviewer gates.
+    A region proven to differ across fetches is handled by its corroboration
+    (#541). A genuine DAI ad is often dynamically served and never transcribed,
+    so it may carry no ad-language text at all -- gating a cut on transcript
+    ad-language would drop those real ads. The whole-file re-encode false
+    positive ALSO differs with no ad-language, so text cannot separate them.
+    The only reliable discriminator downstream is the differential FRACTION
+    (handled in the aligner's re-encode guard); here each surviving region is
+    handled by whether another signal overlaps it:
+
+    - Overlaps a marker from another stage (``corroborating_spans``:
+      fingerprint/text_pattern/cue already found, or a Claude marker folded in
+      later by ``_merge_detection_results``) -> emit as a corroborated cut at
+      0.95, the same precedent as the fingerprint stage.
+    - No overlap (uncorroborated, differential-only) -> DO NOT auto-cut and DO
+      NOT drop. Emit a HELD-FOR-REVIEW marker (held_for_review=True,
+      was_cut=False, hold_reason=HOLD_REASON_DIFFERENTIAL_UNCORROBORATED) so a
+      real transcript-less DAI ad surfaces for one-tap approval while a spurious
+      re-encode differential never silently cuts. The validator re-derives this
+      hold from the surviving ``differential_uncorroborated`` flag after it pops
+      stale hold state, and ``_merge_detection_results`` clears that flag when a
+      real marker overlaps (corroboration upgrades the hold to a cut).
+
+    The stored differential region still strengthens a nearby LLM/pattern marker
+    via the validator's _audio_corroboration_source (that path reads the regions
+    directly and is unchanged).
+
     fp_pairs is a list of (start, end) false-positive spans to exclude.
+    corroborating_spans is a list of (start, end) ad spans from other stages.
     """
     ads = []
+    corroborating_spans = corroborating_spans or []
     for region in (dai_differential or {}).get('regions', []):
         if region.get('kind') != 'differential':
             continue
@@ -258,14 +306,33 @@ def dai_differential_ads(dai_differential, fp_pairs):
         if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
                for fp_start, fp_end in fp_pairs):
             continue
-        ads.append({
-            'start': start,
-            'end': end,
-            'confidence': 0.95,
-            'reason': 'Dynamically inserted: audio differs across fetches',
-            'sponsor': None,
-            'detection_stage': 'dai_differential',
-        })
+
+        stage_overlap = any(ranges_overlap(cs, ce, start, end)
+                            for cs, ce in corroborating_spans)
+        if stage_overlap:
+            ads.append({
+                'start': start,
+                'end': end,
+                'confidence': 0.95,
+                'reason': ('Dynamically inserted: audio differs across fetches '
+                           '(corroborated by overlapping ad marker)'),
+                'sponsor': None,
+                'detection_stage': 'dai_differential',
+            })
+        else:
+            ads.append({
+                'start': start,
+                'end': end,
+                'confidence': 0.95,
+                'reason': ('Audio differs across fetches; no other ad signal '
+                           '-- review'),
+                'sponsor': None,
+                'detection_stage': 'dai_differential',
+                'held_for_review': True,
+                'was_cut': False,
+                'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+                'differential_uncorroborated': True,
+            })
     return ads
 
 
@@ -937,7 +1004,8 @@ class AdDetector:
 
             # Merge in foreign language ads (auto-detected non-English segments)
             if foreign_language_ads:
-                final_ads = self._merge_detection_results(final_ads + foreign_language_ads)
+                final_ads = self._merge_detection_results(
+                    final_ads + foreign_language_ads, segments=segments)
                 logger.info(f"[{slug}:{episode_id}] Merged {len(foreign_language_ads)} foreign language ads")
 
             total_ad_time = sum(ad['end'] - ad['start'] for ad in final_ads)
@@ -1258,8 +1326,17 @@ class AdDetector:
         # Stage 2.5: Cross-fetch differential candidates (Layer 3). Not added
         # to pattern_matched_regions: overlapping Claude detections keep their
         # sponsor/reason and _merge_detection_results folds the spans.
+        # A differential region that overlaps a marker already found
+        # (fingerprint/text_pattern/cue) cuts; an uncorroborated region is held
+        # for review instead of silently cut (#541). Claude runs after this
+        # stage, so a region overlapping a Claude ad is folded by
+        # _merge_detection_results, which clears the held flag so it cuts, and
+        # it is still corroborated via the validator's audio-corroboration path.
         if dai_differential:
-            dd_ads = dai_differential_ads(dai_differential, fp_pairs)
+            corroborating_spans = [(a['start'], a['end']) for a in all_ads]
+            dd_ads = dai_differential_ads(
+                dai_differential, fp_pairs,
+                corroborating_spans=corroborating_spans)
             all_ads.extend(dd_ads)
             detection_stats['dai_differential_matches'] = len(dd_ads)
             if dd_ads:
@@ -1414,7 +1491,7 @@ class AdDetector:
         all_ads.sort(key=lambda x: x['start'])
 
         # Merge overlapping ads
-        all_ads = self._merge_detection_results(all_ads)
+        all_ads = self._merge_detection_results(all_ads, segments=segments)
 
         # Log detection summary
         total = len(all_ads)
@@ -1774,8 +1851,15 @@ class AdDetector:
 
         return foreign_ads
 
-    def _merge_detection_results(self, ads: List[Dict]) -> List[Dict]:
-        """Merge overlapping ads from different detection stages."""
+    def _merge_detection_results(self, ads: List[Dict],
+                                 segments: Optional[List[Dict]] = None) -> List[Dict]:
+        """Merge overlapping ads from different detection stages.
+
+        segments, when given, lets the merge verify transcript coverage of a
+        held differential span before a claude overlap may upgrade it to a cut
+        (see the #541 block below). Without segments claude overlaps never
+        upgrade, which fails safe to held.
+        """
         if not ads:
             return []
 
@@ -1788,6 +1872,17 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
+                # Adjacency is not corroboration (#541): a held uncorroborated
+                # differential that is merely NEAR (touching/gapped, no true
+                # overlap with) a non-differential marker must not fold into
+                # it -- merging would either silently cut the held span or
+                # hold the real ad. Keep them separate; only a true overlap
+                # proceeds into the merge and the upgrade logic below.
+                if (bool(last.get('differential_uncorroborated'))
+                        != bool(current.get('differential_uncorroborated'))
+                        and current['start'] >= last['end']):
+                    merged.append(current.copy())
+                    continue
                 # Non-overlapping spans (touching or gapped) are distinct ads,
                 # not the same ad overlapping across stages. Touch counts too
                 # (LLM breaks are often exactly contiguous). Keep these
@@ -1824,6 +1919,39 @@ class AdDetector:
                 if len(cur_reason) > len(last_reason):
                     last['reason'] = cur_reason
                     last['sponsor'] = current.get('sponsor')
+
+                # A differential region held as uncorroborated (#541) upgrades
+                # to a cut when an INDEPENDENT stage (fingerprint, text
+                # pattern, cue-backed) overlaps it: that overlap is genuine
+                # corroboration. A claude overlap only counts when the
+                # differential span has real transcript coverage: claude was
+                # shown the differential region as a prompt hint, so on an
+                # untranscribed span (music bed) its flag can only echo the
+                # hint, not verify it -- the merged marker then STAYS held for
+                # human review. Handles the flag on either side of the merge
+                # (the fold otherwise drops current's hold fields silently).
+                diff_is_last = bool(last.get('differential_uncorroborated'))
+                diff_is_cur = bool(current.get('differential_uncorroborated'))
+                if diff_is_last != diff_is_cur:
+                    diff_side = last if diff_is_last else current
+                    other = current if diff_is_last else last
+                    independent = (
+                        other.get('detection_stage') in ('fingerprint', 'text_pattern')
+                        or is_cue_backed(other))
+                    claude_verified = (
+                        other.get('detection_stage') == 'claude'
+                        and _span_transcript_coverage(
+                            segments, diff_side['start'], diff_side['end'])
+                        >= DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE)
+                    if independent or claude_verified:
+                        for key in ('differential_uncorroborated',
+                                    'held_for_review', 'hold_reason', 'was_cut'):
+                            last.pop(key, None)
+                    else:
+                        last['differential_uncorroborated'] = True
+                        last['held_for_review'] = True
+                        last['hold_reason'] = HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+                        last['was_cut'] = False
             else:
                 merged.append(current.copy())
 

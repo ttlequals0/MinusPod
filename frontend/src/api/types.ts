@@ -124,7 +124,7 @@ export interface DaiDifferentialRegion {
 }
 
 export interface DaiDifferential {
-  status: 'ok' | 'no_differential' | 'error';
+  status: 'ok' | 'no_differential' | 'unreliable_reencode' | 'error';
   regions: DaiDifferentialRegion[];
   refetch_meta?: Record<string, unknown>;
   error?: string | null;

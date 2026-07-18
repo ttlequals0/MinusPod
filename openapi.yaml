@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.62.1
+  version: 2.63.0
   contact:
     name: MinusPod
   license:
@@ -7140,11 +7140,11 @@ components:
               type:
                 - object
                 - 'null'
-              description: Cross-fetch differential result for this episode. null when the feed is not opted in or the episode predates the feature. status no_differential means no differential was found, not proof the feed has no DAI.
+              description: Cross-fetch differential result for this episode. null when the feed is not opted in or the episode predates the feature. status no_differential means no differential was found, not proof the feed has no DAI. status unreliable_reencode means alignment failed wholesale (the CDN re-encoded the whole file on the refetch), so the differential was discarded and no regions are reported.
               properties:
                 status:
                   type: string
-                  enum: [ok, no_differential, error]
+                  enum: [ok, no_differential, unreliable_reencode, error]
                 regions:
                   type: array
                   items:

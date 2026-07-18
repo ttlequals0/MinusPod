@@ -6,6 +6,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.63.0] - 2026-07-18
+
+### Fixed
+- The cross-fetch differential stage no longer silently auto-cuts real show
+  content as a "dynamically inserted" ad, and no longer drops real ads (#541).
+  When a CDN re-encodes the whole file on the second fetch, alignment fails
+  wholesale and real content reads as "differing"; a genuine dynamically served
+  ad, by contrast, is often never transcribed, so it carries no ad-language text
+  at all. The reliable discriminator is the differential FRACTION, not the
+  transcript:
+  - Whole-file re-encode guard: the differential is discarded (status
+    `unreliable_reencode`, zero regions) only when BOTH more than 70% of the run
+    reads as differential AND confirmed-identical coverage is under 15% -- the
+    wholesale-misalignment signature of a re-encode. A real show, even an
+    ad-heavy one, keeps meaningful identical coverage, so requiring both keeps a
+    correctly-aligned episode's discrete ads.
+  - Uncorroborated differential regions are now held for review instead of being
+    silently cut or silently dropped. A region that truly overlaps a marker from
+    an independent stage (fingerprint / text pattern / cue) still cuts as a
+    corroborated ad; a Claude overlap only counts when the span has real
+    transcript coverage, since the model is shown the differential as a hint
+    and on an untranscribed span its flag would just echo that hint. A region
+    with no genuine corroboration surfaces in the pending-review queue for
+    one-tap approval, so a real transcript-less DAI ad is caught while a
+    spurious re-encode differential never solo-cuts. Held differentials also
+    never merge with nearby non-differential markers unless they truly
+    overlap: mere adjacency neither cuts the held span nor holds the real ad.
+  - The audio hint sent to the model for a differential range is now a
+    middle-ground signal ("audio differs across fetches ... LIKELY an ad, flag it
+    when the surrounding audio and transcript are consistent") rather than the
+    old absolute "CONFIRMED ... not part of the show".
+
 ## [2.62.1] - 2026-07-18
 
 ### Fixed
