@@ -338,10 +338,15 @@ class Storage:
         """Save final (post-cut) segments JSON to database. Overwrites on reprocess."""
         self.db.save_final_segments(slug, episode_id, segments)
 
-    def save_applied_cuts(self, slug: str, episode_id: str, cuts: list) -> None:
-        """Persist the applied cut list the served chapters JSON was generated
-        against (original-episode coordinates). Overwrites on reprocess/recut."""
-        self.db.save_applied_cuts(slug, episode_id, cuts)
+    def save_chapters_and_applied_cuts(self, slug: str, episode_id: str,
+                                       chapters: Dict, cuts: list) -> None:
+        """Atomically persist chapters JSON plus the applied cut list it was
+        generated against (single DB statement; a failure can never leave
+        fresh chapters paired with stale cuts, which would poison the next
+        recut remap)."""
+        self.db.save_chapters_and_applied_cuts(
+            slug, episode_id, json.dumps(chapters), cuts
+        )
 
     def get_applied_cuts(self, slug: str, episode_id: str) -> Optional[list]:
         """Get the persisted applied cut list, or None when never persisted."""

@@ -142,12 +142,12 @@ def _stub_assets_io(monkeypatch, counters, embed_ok=True):
     monkeypatch.setattr(processing.storage, 'save_final_segments', lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_transcript_vtt', lambda *a, **k: None)
     monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
+    def _save_both(s, e, chapters, cuts):
+        # Chapters + applied cuts persist through ONE atomic storage call.
+        counters['saved'] = chapters
+        counters['applied_saved'] = cuts
     monkeypatch.setattr(
-        processing.storage, 'save_chapters_json',
-        lambda s, e, c: counters.__setitem__('saved', c))
-    monkeypatch.setattr(
-        processing.storage, 'save_applied_cuts',
-        lambda s, e, cuts: counters.__setitem__('applied_saved', cuts))
+        processing.storage, 'save_chapters_and_applied_cuts', _save_both)
     # Default: no probe (callers pass audio_duration). Overridden where the
     # duration=None consistency path is exercised.
     monkeypatch.setattr(processing, 'get_audio_duration', lambda p: None)

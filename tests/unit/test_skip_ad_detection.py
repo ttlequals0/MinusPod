@@ -49,7 +49,7 @@ def _run_pipeline(skip_ad_detection):
         p(processing, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
         verify = p(processing, '_run_verification_pass',
-                   return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True))
+                   return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
         generate_assets = p(processing, '_generate_assets')
         finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
@@ -121,4 +121,4 @@ class TestSkipAdDetection:
         result = processing._run_verification_pass(
             None, '/tmp/skip-cut.mp3', [], False, 0.8, None, None,
             skip_detection=True)
-        assert result == (0, [], [], [], '/tmp/skip-cut.mp3', 0, True)
+        assert result == (0, [], [], [], '/tmp/skip-cut.mp3', 0, True, 0)

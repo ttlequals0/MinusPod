@@ -21,7 +21,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_reviewer import (
-    AdReviewer, ReviewVerdict, reasoning_contradicts_cut,
+    AdReviewer, ReviewVerdict, is_contradiction_hold,
     split_resurrection_pool,
 )
 from audio_processor import get_replacement_duration, AudioProcessor
@@ -29,16 +29,19 @@ from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_e
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.time import (
-    adjust_timestamp, merge_cut_spans, ranges_overlap, span_inside_any_cut,
-    utc_now_iso,
+    adjust_timestamp, merge_cut_spans, overlap_ratio, ranges_overlap,
+    span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
+    PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
     is_cue_backed, is_pending_review,
@@ -74,7 +77,9 @@ from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
-from utils.text import parse_transcript_segments
+from utils.text import (
+    parse_transcript_segments,
+)
 from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -1036,16 +1041,24 @@ def _stamp_reviewer_fields(ad, v):
         ad['reviewer_model'] = v.model_used
 
 
-def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
+def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
                            cue_gate_enabled=False):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
-    Mutates ``v_ads_to_cut`` and ``v_ads_for_ui`` in place. Adjust verdicts
-    are coerced to confirmed in pass 2 because applying a boundary shift in
-    original coords cannot safely round-trip through pass 1 cuts to processed
-    coords; supporting it would require a per-pass-1-cut timestamp map.
+    Mutates ``v_ads_to_cut``, ``v_ads_for_ui`` and ``v_ads_held`` in place.
+    Adjust verdicts are coerced to confirmed in pass 2 because applying a
+    boundary shift in original coords cannot safely round-trip through pass 1
+    cuts to processed coords; supporting it would require a per-pass-1-cut
+    timestamp map.
+
+    Contradiction holds (verdict confirmed/adjust whose reasoning denies the
+    ad exists) divert the ad out of the cut list into ``v_ads_held`` as an
+    original-coordinate pending-review marker, the same shape pass-1 holds
+    take via _apply_reviewer_verdict_to_ad. The accepted pool the reviewer
+    sees IS ``v_ads_for_ui`` (original coords), so no processed-to-original
+    mapping is needed for the held marker.
 
     ``cue_gate_enabled``: when True, resurrection is suppressed entirely. A
     resurrected non-held reject would become a cue-less auto-cut, violating the
@@ -1111,6 +1124,36 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
+
+        # Contradiction hold (same criterion the reviewer used to populate
+        # result.held_by_contradiction): the ad must NOT cut. Checked before
+        # the adjust->confirmed coercion so a held adjust is not coerced into
+        # a full-span cut.
+        if v.pool == 'accepted' and is_contradiction_hold(v.verdict, v.reasoning):
+            if proc_ad is not None:
+                if proc_ad in v_ads_to_cut:
+                    v_ads_to_cut.remove(proc_ad)
+                proc_ad['was_cut'] = False
+                _stamp_reviewer_fields(proc_ad, v)
+            held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
+            if held_ad is None:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Pass 2 contradiction hold @ "
+                    f"{v.original_start:.1f}s has no original twin; "
+                    f"removed from cut list without a held marker"
+                )
+                continue
+            # Same shape as a pass-1 contradiction hold, in original coords.
+            _apply_reviewer_verdict_to_ad(held_ad, v)
+            if held_ad in v_ads_for_ui:
+                v_ads_for_ui.remove(held_ad)
+            v_ads_held.append(held_ad)
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Pass 2 reviewer contradiction hold @ "
+                f"{v.original_start:.1f}-{v.original_end:.1f}s: held for "
+                f"review, not cut"
+            )
+            continue
 
         if v.verdict == 'adjust':
             # Pass 2 cannot safely round-trip a boundary shift across pass 1
@@ -1189,8 +1232,7 @@ def _ad_review_enabled(db) -> bool:
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
-    if (v.verdict in ('confirmed', 'adjust')
-            and reasoning_contradicts_cut(v.reasoning)):
+    if is_contradiction_hold(v.verdict, v.reasoning):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning
         # denies the ad exists is not a boundary correction to trust.
@@ -1547,32 +1589,58 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     return kept_processed, kept_original
 
 
+def _corroborates_differential_hold(overlapping, orig_ad, confidence,
+                                     min_cut_confidence):
+    """True when a confident non-held pass-2 ad is the independent
+    corroboration a differential_uncorroborated hold was waiting for: it
+    overlaps exactly that one pending marker, sits mostly inside it, and
+    covers nearly all of it. The ad is still dropped (pending audio is never
+    cut mid-pipeline); the hold is stamped for auto-approval instead."""
+    if (confidence < min_cut_confidence
+            or len(overlapping) != 1
+            or overlapping[0].get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED):
+        return False
+    hold = overlapping[0]
+    ad_inside = overlap_ratio(hold['start'], hold['end'],
+                              orig_ad['start'], orig_ad['end'])
+    hold_covered = overlap_ratio(orig_ad['start'], orig_ad['end'],
+                                 hold['start'], hold['end'])
+    return (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE
+            and hold_covered >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE)
+
+
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
-                                          pass1_held_spans=None):
+                                          pass1_held_markers=None):
     """Confidence gate pass-2 ads.
 
-    Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held).
+    Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count).
 
     Held ads (held_for_review=True) divert to v_ads_held as original-coord
     twins with was_cut=False. They must NOT enter v_ads_for_ui: that list
     feeds all_cuts_for_assets (transcript/chapter mapping) and the pass-2
     reviewer's accepted pool. Contamination would corrupt both.
 
-    ``pass1_held_spans`` are (start, end) tuples for pass-1 markers held for
-    review (in original coordinates). A pass-2 cut whose original span overlaps
-    any of them re-detects audio the hold protects; it diverts to v_ads_held
-    instead of cutting, never destroying the held region.
+    ``pass1_held_markers`` are pass-1 marker dicts held for review (original
+    coordinates). A pass-2 cut overlapping one is ALWAYS dropped -- cutting
+    would destroy audio the hold protects, and a second held marker would
+    double-count pending_review_count. When the dropped ad corroborates a
+    differential hold (see _corroborates_differential_hold), the hold's
+    marker dict is stamped pass2_corroborated in place so
+    _auto_approve_corroborated_holds can approve it through the standard
+    human-approval path after the episode completes. corroborated_count is
+    the number of newly stamped markers (they need a re-save).
 
     Note: verification ads can never carry cue evidence (snap is pass-1 only),
     so on a cue-gated feed every pass-2 proposal is held -- intended
     conservative behavior, documented here.
     """
-    pass1_held_spans = pass1_held_spans or []
+    pass1_held_markers = pass1_held_markers or []
     v_ads_to_cut = []
     v_ads_for_ui = []
     v_ads_held = []
+    corroborated_count = 0
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
         if ad.get('held_for_review'):
@@ -1581,19 +1649,34 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             orig_ad['hold_reason'] = ad.get('hold_reason')
             v_ads_held.append(orig_ad)
             continue
-        # A pass-2 cut overlapping a pass-1 held span would destroy the audio
-        # the hold protects; drop it (never cut). The pass-1 held marker already
-        # represents the region, so we do NOT add a second held marker -- that
-        # would double-count pending_review_count and show a duplicate chip.
-        if any(ranges_overlap(orig_ad['start'], orig_ad['end'], hs, he)
-               for hs, he in pass1_held_spans):
-            audio_logger.info(
-                f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
-                f"overlaps a pass-1 held span")
+        confidence = ad.get('validation', {}).get('adjusted_confidence', ad.get('confidence', 1.0))
+        overlapping = [m for m in pass1_held_markers
+                       if ranges_overlap(orig_ad['start'], orig_ad['end'],
+                                         m['start'], m['end'])]
+        if overlapping:
+            # A pass-2 cut overlapping a pass-1 held span would destroy the
+            # audio the hold protects; drop it (never cut). The pass-1 held
+            # marker already represents the region, so no second held marker
+            # either -- that would double-count pending_review_count.
+            if _corroborates_differential_hold(overlapping, orig_ad,
+                                               confidence, min_cut_confidence):
+                hold = overlapping[0]
+                if not hold.get('pass2_corroborated'):
+                    hold['pass2_corroborated'] = True
+                    flags = hold.setdefault('validation', {}).setdefault('flags', [])
+                    flags.append('INFO: Pass-2 independently re-detected this span as an ad')
+                    corroborated_count += 1
+                audio_logger.info(
+                    f"Pass-2 ad {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
+                    f"corroborates differential hold {hold['start']:.1f}s-"
+                    f"{hold['end']:.1f}s: stamping it for auto-approval")
+            else:
+                audio_logger.info(
+                    f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
+                    f"overlaps a pass-1 held span")
             ad['was_cut'] = False
             orig_ad['was_cut'] = False
             continue
-        confidence = ad.get('validation', {}).get('adjusted_confidence', ad.get('confidence', 1.0))
         if confidence >= min_cut_confidence:
             ad['was_cut'] = True
             ad['detection_stage'] = 'verification'
@@ -1603,7 +1686,86 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             v_ads_for_ui.append(orig_ad)
         else:
             ad['was_cut'] = False
-    return v_ads_to_cut, v_ads_for_ui, v_ads_held
+    return v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count
+
+
+def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
+                                      podcast_name, episode_description,
+                                      markers):
+    """Approve pass-2-corroborated differential holds through the standard
+    human-approval path: file the same confirm correction the approve button
+    writes, then run the standard recut from the retained original audio.
+
+    Runs only after the episode has fully completed. Pending-hold audio is
+    never cut mid-pipeline; when the preconditions are unmet or the recut
+    fails, the markers stay pending for a manual approval (a recut failure
+    carries the same episode-level effects as a failed manual recut). The
+    recut deliberately gets no cancel_event: a cancel here would propagate to
+    the background wrapper's cleanup, which deletes the completed episode's
+    files. Returns the number of holds approved and recut."""
+    holds = [m for m in markers or []
+             if m.get('pass2_corroborated') and is_pending_review(m)
+             and m.get('hold_reason') == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED]
+    if not holds:
+        return 0
+    try:
+        # Same preconditions the recut API enforces; without the retained
+        # original or segments a recut would fail and mark the episode FAILED.
+        if not storage.get_original_path(slug, episode_id).exists():
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Not auto-approving differential "
+                f"hold(s): no retained original audio to recut from")
+            return 0
+        if not db.get_original_segments(slug, episode_id):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Not auto-approving differential "
+                f"hold(s): no saved transcript segments to recut with")
+            return 0
+        # A human reject always wins: never auto-approve a span the user has
+        # explicitly marked as content.
+        fp_corrections, confirmed_corrections = _load_user_corrections(
+            slug, episode_id, db)
+        fp_corrections = fp_corrections or []
+        approvable = []
+        for m in holds:
+            if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
+                   for fp in fp_corrections):
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Not auto-approving differential "
+                    f"hold {m['start']:.1f}s-{m['end']:.1f}s: a user "
+                    f"rejection covers the span")
+            else:
+                approvable.append(m)
+        holds = approvable
+        if not holds:
+            return 0
+        for m in holds:
+            # Reprocess idempotency: an equivalent confirm already on file
+            # (from a previous run or a human) needs no second row.
+            if any(ranges_overlap(m['start'], m['end'], c['start'], c['end'])
+                   for c in confirmed_corrections or []):
+                continue
+            db.create_pattern_correction(
+                correction_type='confirm',
+                pattern_id=m.get('pattern_id'),
+                episode_id=episode_id,
+                original_bounds={'start': m['start'], 'end': m['end']},
+                corrected_bounds=None,
+                text_snippet='auto-approved: pass-2 corroborated differential hold',
+            )
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Auto-approving differential hold "
+                f"{m['start']:.1f}s-{m['end']:.1f}s: pass-2 independently "
+                f"re-detected the span as an ad")
+        recut_ok = _recut_episode(slug, episode_id, episode_title,
+                                   podcast_name, episode_description,
+                                   time.time(), cancel_event=None)
+        return len(holds) if recut_ok else 0
+    except Exception as e:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Auto-approve recut failed: {e}; "
+            f"hold(s) remain pending for manual approval")
+        return 0
 
 
 def _pass2_cuts_in_original(recut_applied, pass1_cuts):
@@ -1694,26 +1856,29 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             local_audio_processor, progress_callback,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
-                            pass1_held_spans=None, skip_detection=False):
+                            pass1_held_markers=None, skip_detection=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
     compute_applied_cuts), not the requested list -- every use here is
     processed-to-original timestamp mapping.
 
-    ``pass1_held_spans`` are (start, end) original-coordinate spans of pass-1
-    held markers; a pass-2 cut overlapping one is diverted to held instead of
-    cutting so the protected region survives.
+    ``pass1_held_markers`` are pass-1 markers held for review (original
+    coordinates); a pass-2 cut overlapping one is dropped so the protected
+    region survives. A corroborating re-detection of a differential hold
+    stamps the marker dict pass2_corroborated in place for post-completion
+    auto-approval.
 
     ``skip_detection`` (#538) reports the pass as cleanly done with nothing
     found; pass 2 is a second LLM scan, so skipping pass 1 alone would still
     pay for it.
 
     Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held,
-    processed_path, verification_cue_count, verification_ok).
+    processed_path, verification_cue_count, verification_ok,
+    v_corroborated_count).
     """
     if skip_detection:
-        return 0, [], [], [], processed_path, 0, True
+        return 0, [], [], [], processed_path, 0, True, 0
     slug = ctx.slug
     episode_id = ctx.episode_id
     podcast_name = ctx.podcast_name
@@ -1725,6 +1890,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     v_cuts_for_assets = []
     v_ads_held = []
     verification_cue_count = 0
+    v_corroborated_count = 0
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
     try:
@@ -1786,10 +1952,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
             if verification_ads_processed:
                 # Confidence gate and re-cut
-                v_ads_to_cut, v_ads_for_ui, v_ads_held = _gate_verification_ads_by_confidence(
+                v_ads_to_cut, v_ads_for_ui, v_ads_held, v_corroborated_count = _gate_verification_ads_by_confidence(
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
-                    pass1_held_spans=pass1_held_spans,
+                    pass1_held_markers=pass1_held_markers,
                 )
 
                 # Pass 2 reviewer operates on original-coord ads (the prompt
@@ -1799,7 +1965,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 # across pass 1 cuts.
                 _apply_pass2_reviewer(
                     ctx,
-                    v_ads_to_cut, v_ads_for_ui,
+                    v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     verification_ads_processed, verification_ads_original,
                     original_segments, min_cut_confidence,
                     cue_gate_enabled=cue_gate_enabled,
@@ -1834,7 +2000,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         # The pass did not complete; callers must not report a clean scan.
         verification_ok = False
 
-    return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok
+    return verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count
 
 
 def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):
@@ -1971,11 +2137,13 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
                     f"keeping previous chapters JSON and embedded ID3")
                 return
-        storage.save_chapters_json(slug, episode_id,
-                                   {**chapters_json, 'chapters': remapped})
-        # The remapped JSON now lives on the recut timeline defined by
-        # all_cuts; persist it as the authoritative list for the next recut.
-        storage.save_applied_cuts(slug, episode_id, all_cuts or [])
+        # The remapped JSON lives on the recut timeline defined by all_cuts;
+        # both persist in ONE DB write so a failure can never pair fresh
+        # chapters with a stale authoritative cut list (that pairing makes
+        # the NEXT remap unproject through the wrong previous cuts).
+        storage.save_chapters_and_applied_cuts(
+            slug, episode_id, {**chapters_json, 'chapters': remapped},
+            all_cuts or [])
         audio_logger.info(
             f"[{slug}:{episode_id}] Remapped {len(chapters)} stored "
             f"chapter(s) -> {len(remapped)} onto the recut timeline "
@@ -2050,12 +2218,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 replacement_duration=replacement_duration,
             )
             if chapters and chapters.get('chapters'):
-                storage.save_chapters_json(slug, episode_id, chapters)
-                # Persist the applied cut list these chapters were generated
-                # against (all_cuts, original-episode coordinates) so a later
-                # recut remaps from this authoritative list instead of
-                # reconstructing it from was_cut markers.
-                storage.save_applied_cuts(slug, episode_id, all_cuts or [])
+                # Chapters and the applied cut list they were generated
+                # against (all_cuts, original-episode coordinates) persist in
+                # ONE DB write: a later recut remaps from this authoritative
+                # list, and a failure between two separate writes would leave
+                # fresh chapters with stale cuts and poison that remap.
+                storage.save_chapters_and_applied_cuts(
+                    slug, episode_id, chapters, all_cuts or [])
                 audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
                 if audio_path:
                     embed_chapters(str(audio_path), chapters['chapters'],
@@ -2419,6 +2588,9 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         slug, episode_id, validation_result.ads, min_cut_confidence,
         cue_gate_enabled=cue_gate_enabled,
     )
+    # Anchor every recut boundary to a transcript segment edge when it lands
+    # within snap tolerance: reviewer trims, human trims, and approved
+    # differential markers all flow through this list un-snapped otherwise.
     return ads_to_remove, validation_result.ads
 
 
@@ -3085,13 +3257,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Stage 6: Verification pass
             current_pass = "pass2"
-            # Pass-1 held spans (original coords): pass 2 must not cut inside
-            # them or it destroys the audio the hold protects.
-            pass1_held_spans = [
-                (m['start'], m['end']) for m in all_ads_with_validation
-                if is_pending_review(m)
+            # Pass-1 held markers (original coords): pass 2 must not cut
+            # inside them; a corroborating re-detection of a differential
+            # hold stamps the marker dict in place for auto-approval.
+            pass1_held_markers = [
+                m for m in all_ads_with_validation if is_pending_review(m)
             ]
-            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok = _run_verification_pass(
+            verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
@@ -3101,7 +3273,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 reuse_transcript=(reprocess_mode == 'llm'),
                 max_ad_duration_override=max_ad_duration_override,
                 cue_gate_enabled=cue_gate_enabled,
-                pass1_held_spans=pass1_held_spans,
+                pass1_held_markers=pass1_held_markers,
                 skip_detection=skip_detection,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
@@ -3144,7 +3316,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # separate from v_ads_for_ui so the reviewer pool and asset mapping
             # are never contaminated with held ads.
             merge_v = v_ads_for_ui + v_ads_held
-            if merge_v:
+            # Corroboration stamps mutated markers already in
+            # all_ads_with_validation, so they need a re-save too.
+            if merge_v or v_corroborated_count:
                 all_ads_with_validation = list(all_ads_with_validation) + merge_v
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
@@ -3209,6 +3383,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                run_stats=run_stats)
 
             status_service.complete_job()
+
+            # After the episode is fully complete: approve any differential
+            # hold pass 2 corroborated, via the same correction + recut path
+            # a human approval uses.
+            _auto_approve_corroborated_holds(
+                slug, episode_id, episode_title, podcast_name,
+                episode_description, all_ads_with_validation)
             return True
 
         finally:

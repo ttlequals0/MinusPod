@@ -1,10 +1,11 @@
 """Tests for the ad reviewer."""
+import logging
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
-
 from ad_reviewer import (
     AdReviewer,
+    BOUNDARY_SNAP_TOLERANCE_S,
     RESURRECT_BAND_WIDTH,
     _first_num,
     split_resurrection_pool,
@@ -127,9 +128,9 @@ def test_supra_tolerance_subsecond_shift_yields_adjust():
         'review_max_boundary_shift': '60',
     })
     reviewer._llm_client.messages_create.return_value = _resp(
-        '[{"start": 119.5, "end": 180.5, "confidence": 0.9}]'
+        '[{"start": 114.5, "end": 175.5, "confidence": 0.9}]'
     )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    ad = {'start': 115.0, 'end': 175.0, 'confidence': 0.9}
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
@@ -137,8 +138,8 @@ def test_supra_tolerance_subsecond_shift_yields_adjust():
     )
     assert result.verdicts[0].verdict == 'adjust'
     out = result.accepted_after_review[0]
-    assert out['start'] == 119.5
-    assert out['end'] == 180.5
+    assert out['start'] == 114.5
+    assert out['end'] == 175.5
 
 
 def test_array_with_shifted_boundaries_yields_adjust():
@@ -327,6 +328,145 @@ def test_empty_array_yields_reject():
     assert len(result.rejected_by_reviewer) == 1
     assert result.rejected_by_reviewer[0]['source'] == 'reviewer'
     assert result.rejected_by_reviewer[0]['was_cut'] is False
+
+
+# ---------- Timestamped candidate prompt (a55cb5b8216d regression) ----------
+
+def _dillon_segments():
+    """the-tim-dillon-show a55cb5b8216d: DAI candidate 0.0-35.03s. The ad's
+    final sentence ends at the 28.42s segment edge; no segment edge sits
+    near the 20.0s the model emitted (it was an interpolated guess)."""
+    return [
+        {'start': 0.0, 'end': 6.5, 'text': 'Shell V-Power Nitro Plus is engineered with four levels of defense.'},
+        {'start': 6.5, 'end': 15.0, 'text': 'It removes gunk and protects against wear and corrosion.'},
+        {'start': 15.0, 'end': 28.42, 'text': 'So fuel up with Shell V-Power Nitro Plus today.'},
+        {'start': 28.42, 'end': 35.03, 'text': 'Welcome back to the show, everybody.'},
+        {'start': 35.03, 'end': 60.0, 'text': 'more show content'},
+    ]
+
+
+def test_user_prompt_candidate_lines_are_timestamped():
+    """Every candidate line carries its segment start/end so the model can
+    quote an exact boundary for any sentence it names."""
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 120.0, 'end': 180.0},
+        segments=_mock_segments(),
+        episode_meta=_mock_episode_meta(),
+        pool='accepted',
+    )
+    assert '[120.0s-180.0s] ad sponsor pitch' in prompt
+    assert '>>> CANDIDATE AD START [120.0s] >>>' in prompt
+    assert '<<< CANDIDATE AD END [180.0s] <<<' in prompt
+    # Context blocks keep the stripped single-anchor form.
+    assert '[60.0s] show content' in prompt
+
+
+def test_resurrect_prompt_candidate_lines_are_timestamped():
+    """The resurrection pool shares _build_user_prompt; same anchors."""
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 120.0, 'end': 180.0},
+        segments=_mock_segments(),
+        episode_meta=_mock_episode_meta(),
+        pool='resurrection',
+    )
+    assert '[120.0s-180.0s] ad sponsor pitch' in prompt
+    assert 'rejected for low confidence' in prompt
+
+
+def test_tim_dillon_final_sentence_anchor_visible_in_prompt():
+    """Regression a55cb5b8216d: with only the two span-edge anchors the model
+    trimmed the candidate to an interpolated end=20.0s while its reasoning
+    named the ad's final sentence, which ends at 28.42s. The timestamped
+    candidate lines now put that 28.4s edge in the prompt; the behavioral
+    improvement is model-side, this pins the prompt contract."""
+    reviewer = _build_reviewer({'review_prompt': 'review'})
+    prompt = reviewer._build_user_prompt(
+        ad={'start': 0.0, 'end': 35.03},
+        segments=_dillon_segments(),
+        episode_meta=_mock_episode_meta(),
+        pool='accepted',
+    )
+    assert '[15.0s-28.4s] So fuel up with Shell V-Power Nitro Plus today.' in prompt
+    # The old shape gave exactly two anchors ([0.0s] and [35.0s]) with all
+    # candidate text between them stripped of timestamps.
+    assert '28.4s' in prompt
+
+
+# ---------- Edge-proximity tolerance constant ----------
+
+def test_boundary_tolerance_constant():
+    assert BOUNDARY_SNAP_TOLERANCE_S == 3.0
+
+
+# ---------- Prose/number consistency warning on adjust verdicts ----------
+
+def test_prose_number_mismatch_logs_warning(caplog):
+    """Reasoning names 'ends at 128.0s' while the emitted end is 150.0s
+    (gap 22s > 5s): one WARNING, no behavior change."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 150.0, "confidence": 0.9, '
+        '"reason": "Trimmed tail; the ad ends at 128.0s before show content"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    with caplog.at_level(logging.WARNING, logger='ad_reviewer'):
+        result = reviewer.review(
+            accepted_ads=[ad], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+    out = result.accepted_after_review[0]
+    assert out['end'] == 150.0  # behavior unchanged
+    warnings = [r for r in caplog.records
+                if 'prose/number mismatch' in r.message]
+    assert len(warnings) == 1
+    assert '128.0' in warnings[0].message
+    assert '150.0' in warnings[0].message
+
+
+def test_prose_number_agreement_does_not_warn(caplog):
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 150.0, "confidence": 0.9, '
+        '"reason": "Trimmed tail; the ad ends at 150.0s"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    with caplog.at_level(logging.WARNING, logger='ad_reviewer'):
+        reviewer.review(
+            accepted_ads=[ad], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+    assert not [r for r in caplog.records
+                if 'prose/number mismatch' in r.message]
+
+
+def test_adjust_without_prose_figures_does_not_warn(caplog):
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 115.0, "end": 185.0, "confidence": 0.9, '
+        '"reason": "Adjusted to capture the transition phrase"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    with caplog.at_level(logging.WARNING, logger='ad_reviewer'):
+        reviewer.review(
+            accepted_ads=[ad], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+    assert not [r for r in caplog.records
+                if 'prose/number mismatch' in r.message]
 
 
 # ---------- Resurrection pool ----------

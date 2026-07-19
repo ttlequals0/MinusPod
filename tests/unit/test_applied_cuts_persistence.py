@@ -5,6 +5,8 @@ reconstructing it from was_cut markers. None (never persisted) and [] (nothing
 cut) are distinct: the recut treats None as a skip, [] as an authoritative
 empty list.
 """
+import json
+
 from database import Database
 
 
@@ -54,6 +56,57 @@ class TestAppliedCutsRoundTrip:
     def test_unknown_episode_no_op(self, temp_db, mock_podcast):
         temp_db.save_applied_cuts(mock_podcast['slug'], 'nonexistent', CUTS_A)
         assert temp_db.get_applied_cuts(mock_podcast['slug'], 'nonexistent') is None
+
+
+class TestChaptersAndAppliedCutsAtomicSave:
+    """Regression R4: chapters JSON and applied cuts persist as one upsert so
+    a failure between two separate writes can never pair fresh chapters with
+    stale cuts (which would poison the next recut remap)."""
+
+    CHAPTERS = {'version': '1.2.0',
+                'chapters': [{'startTime': 10, 'title': 'Intro'}]}
+
+    def test_combined_save_writes_both(self, temp_db, mock_episode):
+        slug = mock_episode['slug']
+        ep_id = mock_episode['episode_id']
+
+        temp_db.save_chapters_and_applied_cuts(
+            slug, ep_id, json.dumps(self.CHAPTERS), CUTS_A)
+
+        assert temp_db.get_applied_cuts(slug, ep_id) == CUTS_A
+        episode = temp_db.get_episode(slug, ep_id)
+        assert json.loads(episode['chapters_json']) == self.CHAPTERS
+
+    def test_combined_save_overwrites_both(self, temp_db, mock_episode):
+        slug = mock_episode['slug']
+        ep_id = mock_episode['episode_id']
+
+        temp_db.save_chapters_and_applied_cuts(
+            slug, ep_id, json.dumps(self.CHAPTERS), CUTS_A)
+        chapters2 = {'chapters': [{'startTime': 5, 'title': 'New'}]}
+        temp_db.save_chapters_and_applied_cuts(
+            slug, ep_id, json.dumps(chapters2), CUTS_B)
+
+        assert temp_db.get_applied_cuts(slug, ep_id) == CUTS_B
+        episode = temp_db.get_episode(slug, ep_id)
+        assert json.loads(episode['chapters_json']) == chapters2
+
+    def test_combined_save_only_start_end_persisted(self, temp_db, mock_episode):
+        slug = mock_episode['slug']
+        ep_id = mock_episode['episode_id']
+
+        temp_db.save_chapters_and_applied_cuts(
+            slug, ep_id, json.dumps(self.CHAPTERS),
+            [{'start': 10.0, 'end': 20.0, 'confidence': 0.9, 'reason': 'ad'}])
+        assert temp_db.get_applied_cuts(slug, ep_id) == [
+            {'start': 10.0, 'end': 20.0}]
+
+    def test_combined_save_unknown_episode_no_op(self, temp_db, mock_podcast):
+        temp_db.save_chapters_and_applied_cuts(
+            mock_podcast['slug'], 'nonexistent',
+            json.dumps(self.CHAPTERS), CUTS_A)
+        assert temp_db.get_applied_cuts(
+            mock_podcast['slug'], 'nonexistent') is None
 
 
 class TestAppliedCutsMigration:

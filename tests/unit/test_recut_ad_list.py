@@ -150,7 +150,7 @@ def _stub_assets_io(monkeypatch, counters):
     monkeypatch.setattr(processing.db, 'get_setting', lambda k: 'true')
     monkeypatch.setattr(processing.storage, 'save_final_segments', lambda *a, **k: None)
     monkeypatch.setattr(processing.storage, 'save_transcript_vtt', lambda *a, **k: None)
-    monkeypatch.setattr(processing.storage, 'save_chapters_json',
+    monkeypatch.setattr(processing.storage, 'save_chapters_and_applied_cuts',
                         lambda *a, **k: counters.__setitem__('save_chapters', counters.get('save_chapters', 0) + 1))
     monkeypatch.setattr(processing.db, 'save_episode_details', lambda *a, **k: None)
 

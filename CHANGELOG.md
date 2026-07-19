@@ -6,6 +6,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.63.2] - 2026-07-18
+
+### Fixed
+- Differential holds that pass 2 independently re-detects as ads are now
+  approved automatically instead of waiting in the review queue. The hold
+  exists because no independent stage confirmed the span in pass 1 (typically
+  a quiet DAI post-roll the original-audio transcript barely covers); a
+  second Whisper transcription reading nearly the whole span as a confident
+  ad is exactly that missing corroboration. Pending audio is still never cut
+  mid-pipeline: the corroborating detection is dropped as before, the hold is
+  stamped, and after the episode completes the stamp files the same confirm
+  correction the approve button writes and runs the standard recut from the
+  retained original audio. Corroboration requires the detection to clear the
+  normal cut-confidence bar, overlap exactly one pending marker, sit at least
+  half inside the held span, and cover at least 90 percent of it. Guard
+  rails: a span the user explicitly rejected is never auto-approved, an
+  existing equivalent confirm is not duplicated, the recut only runs when its
+  preconditions (retained original audio, saved segments) hold, and it is not
+  cancellable so a cancel cannot delete a completed episode's files. All
+  other hold reasons and held pass-2 detections behave exactly as before.
+
+## [2.63.1] - 2026-07-18
+
+### Fixed
+- The boundary reviewer now sees per-segment timestamps for the candidate ad
+  span instead of timestamp-stripped text, so a proposed trim can land on the
+  sentence it names. A warning logs when a trim's number disagrees with the
+  seconds figure in its own reasoning. Root cause of a partial preroll ad
+  shipping on a DAI feed: the reviewer trimmed a 35 second candidate to 20
+  seconds while its reasoning named the sentence ending at 28.4 seconds, a
+  number it was never shown.
+- Verification-pass contradiction holds are no longer discarded: a pass-2 ad
+  the reviewer flags as contradictory is now removed from the cut list and
+  surfaces in the pending-review queue, matching pass 1. Previously its full
+  span cut silently.
+- A cross-episode pattern is no longer rewritten from a trimmed correction
+  when a large trimmed boundary does not land near a transcript segment
+  edge; unanchored 20 second and larger trims no longer propagate to future
+  episodes.
+- Trim recovery skips markers that merged multiple distinct ads, matching the
+  reviewer's expand-only rule, so a recovered sub-span cannot drop a
+  still-confirmed sub-ad.
+- The chapters JSON and the applied-cut list persist in one database write,
+  removing the window where a failure between the two could poison the next
+  recut's chapter remap.
+
 ## [2.63.0] - 2026-07-18
 
 ### Fixed

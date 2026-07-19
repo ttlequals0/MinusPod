@@ -486,6 +486,39 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Saved {len(cuts)} applied cut(s) to database")
 
+    def save_chapters_and_applied_cuts(self, slug: str, episode_id: str,
+                                       chapters_json: str, cuts: List[Dict]):
+        """Persist chapters JSON and the applied cut list it was generated
+        against as ONE upsert (single statement, single commit).
+
+        The pair must move together: fresh chapters paired with stale cuts
+        would make the next recut remap through the wrong previous-cut list
+        and ship wrong timestamps, while a failure that leaves both old is
+        merely stale-but-consistent. Two separate writes had a failure window
+        between them; one statement has none.
+        """
+        conn = self.get_connection()
+
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            logger.warning(f"Episode not found for chapters+applied cuts: {slug}/{episode_id}")
+            return
+
+        cuts_json = json.dumps(
+            [{'start': float(c['start']), 'end': float(c['end'])} for c in cuts]
+        )
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, chapters_json, applied_cuts_json)
+               VALUES (?, ?, ?)
+               ON CONFLICT(episode_id) DO UPDATE
+               SET chapters_json = excluded.chapters_json,
+                   applied_cuts_json = excluded.applied_cuts_json""",
+            (db_episode_id, chapters_json, cuts_json)
+        )
+
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Saved chapters JSON + {len(cuts)} applied cut(s) atomically")
+
     def get_applied_cuts(self, slug: str, episode_id: str) -> Optional[List[Dict]]:
         """Get the persisted applied cut list, or None when never persisted.
 
