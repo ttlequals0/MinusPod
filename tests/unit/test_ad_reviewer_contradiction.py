@@ -386,6 +386,39 @@ def test_contradicted_confirmed_recovery_llm_failure_falls_back():
     assert result.accepted_after_review == []
 
 
+def test_merged_ad_contradiction_skips_trim_recovery():
+    # Regression R3c: _review_single blocks inward shrink on
+    # merged_distinct_ads, but trim recovery could still propose a sub-span
+    # that drops a still-confirmed sub-ad. A merged ad must hold WITHOUT
+    # proposed bounds and never spend the recovery LLM call.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 120.0, "ad_end": 150.0}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9,
+          'merged_distinct_ads': True}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 1, (
+        "merged ad must not spend the recovery call"
+    )
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert 'reviewer_proposed_start' not in held
+    assert 'reviewer_proposed_end' not in held
+    assert result.accepted_after_review == []
+
+
 def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
     # "contains no ad content" identifies nothing to recover; the precheck
     # must not spend a second LLM call.

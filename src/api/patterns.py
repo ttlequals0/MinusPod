@@ -11,6 +11,7 @@ from pattern_service import PatternService
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
+from utils.text import BOUNDARY_SNAP_TOLERANCE_S, parse_transcript_segments
 
 from flask import Response, request
 
@@ -915,6 +916,27 @@ def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,
                             pending_review_count=count_pending_review(markers))
 
 
+def _unanchored_trim_bounds(transcript, original_start, original_end,
+                            adjusted_start, adjusted_end, moved_epsilon=0.1):
+    """Return the trimmed boundaries that do NOT land within snap tolerance
+    of a transcript segment edge. Only boundaries the trim actually moved
+    are checked; an unchanged edge needs no anchor. An empty transcript
+    anchors nothing (every moved boundary reports unanchored)."""
+    segments = parse_transcript_segments(transcript or '')
+    edges = [
+        float(e) for seg in segments
+        for e in (seg.get('start'), seg.get('end')) if e is not None
+    ]
+    unanchored = []
+    for name, new, old in (('start', adjusted_start, original_start),
+                           ('end', adjusted_end, original_end)):
+        if abs(new - old) <= moved_epsilon:
+            continue
+        if not any(abs(e - new) <= BOUNDARY_SNAP_TOLERANCE_S for e in edges):
+            unanchored.append((name, new))
+    return unanchored
+
+
 def _maybe_rewrite_pattern_from_adjustment(
     db, pattern_service, pattern_id, transcript,
     original_start, original_end, adjusted_start, adjusted_end,
@@ -924,6 +946,12 @@ def _maybe_rewrite_pattern_from_adjustment(
     rewrite the pattern's text_template/variants from the new bounds.
     Community patterns are never auto-rewritten (handled in
     pattern_service.rewrite_pattern_from_bounds).
+
+    Anchor gate: the rewrite propagates cross-episode, so it only fires when
+    every trimmed boundary lands within BOUNDARY_SNAP_TOLERANCE_S of a
+    transcript segment edge. A mid-segment 20s+ trim is exactly the
+    unanchored class that must not rewrite the pattern; it is logged and
+    skipped (the episode-local correction still applies).
     """
     try:
         narrowed = (
@@ -940,6 +968,18 @@ def _maybe_rewrite_pattern_from_adjustment(
             'min_trim_threshold', default=20.0
         )
         if enabled and narrowed and trim_seconds >= threshold and transcript:
+            unanchored = _unanchored_trim_bounds(
+                transcript, original_start, original_end,
+                adjusted_start, adjusted_end,
+            )
+            if unanchored:
+                detail = ', '.join(f"{n}={v:.1f}s" for n, v in unanchored)
+                logger.info(
+                    f"Pattern {pattern_id} rewrite skipped: trimmed "
+                    f"boundary not anchored to a segment edge ({detail}, "
+                    f"tolerance {BOUNDARY_SNAP_TOLERANCE_S:.1f}s)"
+                )
+                return
             rewritten = pattern_service.rewrite_pattern_from_bounds(
                 pattern_id, transcript,
                 original_start, original_end,

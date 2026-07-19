@@ -8,6 +8,13 @@ from typing import List, Optional
 
 from utils.time import parse_timestamp
 
+# Edge-proximity tolerance for cut/trim boundaries. Used by the
+# pattern-rewrite anchor gate (a large trimmed boundary must land within
+# this distance of a transcript segment edge to be trusted) and as the base
+# for the ad reviewer's prose-mismatch warning margin. Boundaries are never
+# moved to segment edges; this only measures proximity.
+BOUNDARY_SNAP_TOLERANCE_S = 3.0
+
 
 def parse_transcript_segments(transcript_text: str) -> List[dict]:
     """Parse VTT-formatted transcript text into segment dicts.
@@ -58,6 +65,35 @@ def get_transcript_text_for_range(
         if seg['end'] >= start_time and seg['start'] <= end_time:
             texts.append(seg.get('text', ''))
     return ' '.join(texts)
+
+
+def get_timestamped_transcript_for_range(
+    segments: List[dict],
+    start_time: float,
+    end_time: float,
+) -> str:
+    """Get per-segment timestamped transcript lines for a time range.
+
+    Unlike get_transcript_text_for_range, which strips intra-span timestamps,
+    this keeps each overlapping segment on its own line with its start/end in
+    seconds so every sentence carries its boundary (reviewer prompts need
+    these anchors to emit exact trim timestamps).
+
+    Args:
+        segments: List of transcript segment dicts with 'start', 'end', 'text'
+        start_time: Start of range in seconds
+        end_time: End of range in seconds
+
+    Returns:
+        Newline-joined lines in the form "[12.3s-15.7s] text"
+    """
+    lines = []
+    for seg in segments:
+        if seg['end'] >= start_time and seg['start'] <= end_time:
+            lines.append(
+                f"[{seg['start']:.1f}s-{seg['end']:.1f}s] {seg.get('text', '')}"
+            )
+    return '\n'.join(lines)
 
 
 def extract_text_in_range(

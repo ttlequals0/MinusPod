@@ -21,7 +21,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_reviewer import (
-    AdReviewer, ReviewVerdict, reasoning_contradicts_cut,
+    AdReviewer, ReviewVerdict, is_contradiction_hold,
     split_resurrection_pool,
 )
 from audio_processor import get_replacement_duration, AudioProcessor
@@ -74,7 +74,9 @@ from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
-from utils.text import parse_transcript_segments
+from utils.text import (
+    parse_transcript_segments,
+)
 from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -1036,16 +1038,24 @@ def _stamp_reviewer_fields(ad, v):
         ad['reviewer_model'] = v.model_used
 
 
-def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
+def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence,
                            cue_gate_enabled=False):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
 
-    Mutates ``v_ads_to_cut`` and ``v_ads_for_ui`` in place. Adjust verdicts
-    are coerced to confirmed in pass 2 because applying a boundary shift in
-    original coords cannot safely round-trip through pass 1 cuts to processed
-    coords; supporting it would require a per-pass-1-cut timestamp map.
+    Mutates ``v_ads_to_cut``, ``v_ads_for_ui`` and ``v_ads_held`` in place.
+    Adjust verdicts are coerced to confirmed in pass 2 because applying a
+    boundary shift in original coords cannot safely round-trip through pass 1
+    cuts to processed coords; supporting it would require a per-pass-1-cut
+    timestamp map.
+
+    Contradiction holds (verdict confirmed/adjust whose reasoning denies the
+    ad exists) divert the ad out of the cut list into ``v_ads_held`` as an
+    original-coordinate pending-review marker, the same shape pass-1 holds
+    take via _apply_reviewer_verdict_to_ad. The accepted pool the reviewer
+    sees IS ``v_ads_for_ui`` (original coords), so no processed-to-original
+    mapping is needed for the held marker.
 
     ``cue_gate_enabled``: when True, resurrection is suppressed entirely. A
     resurrected non-held reject would become a cue-less auto-cut, violating the
@@ -1111,6 +1121,36 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
+
+        # Contradiction hold (same criterion the reviewer used to populate
+        # result.held_by_contradiction): the ad must NOT cut. Checked before
+        # the adjust->confirmed coercion so a held adjust is not coerced into
+        # a full-span cut.
+        if v.pool == 'accepted' and is_contradiction_hold(v.verdict, v.reasoning):
+            if proc_ad is not None:
+                if proc_ad in v_ads_to_cut:
+                    v_ads_to_cut.remove(proc_ad)
+                proc_ad['was_cut'] = False
+                _stamp_reviewer_fields(proc_ad, v)
+            held_ad = ui_ad if ui_ad is not None else original_by_key.get(key)
+            if held_ad is None:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Pass 2 contradiction hold @ "
+                    f"{v.original_start:.1f}s has no original twin; "
+                    f"removed from cut list without a held marker"
+                )
+                continue
+            # Same shape as a pass-1 contradiction hold, in original coords.
+            _apply_reviewer_verdict_to_ad(held_ad, v)
+            if held_ad in v_ads_for_ui:
+                v_ads_for_ui.remove(held_ad)
+            v_ads_held.append(held_ad)
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Pass 2 reviewer contradiction hold @ "
+                f"{v.original_start:.1f}-{v.original_end:.1f}s: held for "
+                f"review, not cut"
+            )
+            continue
 
         if v.verdict == 'adjust':
             # Pass 2 cannot safely round-trip a boundary shift across pass 1
@@ -1189,8 +1229,7 @@ def _ad_review_enabled(db) -> bool:
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
-    if (v.verdict in ('confirmed', 'adjust')
-            and reasoning_contradicts_cut(v.reasoning)):
+    if is_contradiction_hold(v.verdict, v.reasoning):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning
         # denies the ad exists is not a boundary correction to trust.
@@ -1799,7 +1838,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 # across pass 1 cuts.
                 _apply_pass2_reviewer(
                     ctx,
-                    v_ads_to_cut, v_ads_for_ui,
+                    v_ads_to_cut, v_ads_for_ui, v_ads_held,
                     verification_ads_processed, verification_ads_original,
                     original_segments, min_cut_confidence,
                     cue_gate_enabled=cue_gate_enabled,
@@ -1971,11 +2010,13 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                     f"[{slug}:{episode_id}] Chapter embed failed after recut; "
                     f"keeping previous chapters JSON and embedded ID3")
                 return
-        storage.save_chapters_json(slug, episode_id,
-                                   {**chapters_json, 'chapters': remapped})
-        # The remapped JSON now lives on the recut timeline defined by
-        # all_cuts; persist it as the authoritative list for the next recut.
-        storage.save_applied_cuts(slug, episode_id, all_cuts or [])
+        # The remapped JSON lives on the recut timeline defined by all_cuts;
+        # both persist in ONE DB write so a failure can never pair fresh
+        # chapters with a stale authoritative cut list (that pairing makes
+        # the NEXT remap unproject through the wrong previous cuts).
+        storage.save_chapters_and_applied_cuts(
+            slug, episode_id, {**chapters_json, 'chapters': remapped},
+            all_cuts or [])
         audio_logger.info(
             f"[{slug}:{episode_id}] Remapped {len(chapters)} stored "
             f"chapter(s) -> {len(remapped)} onto the recut timeline "
@@ -2050,12 +2091,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 replacement_duration=replacement_duration,
             )
             if chapters and chapters.get('chapters'):
-                storage.save_chapters_json(slug, episode_id, chapters)
-                # Persist the applied cut list these chapters were generated
-                # against (all_cuts, original-episode coordinates) so a later
-                # recut remaps from this authoritative list instead of
-                # reconstructing it from was_cut markers.
-                storage.save_applied_cuts(slug, episode_id, all_cuts or [])
+                # Chapters and the applied cut list they were generated
+                # against (all_cuts, original-episode coordinates) persist in
+                # ONE DB write: a later recut remaps from this authoritative
+                # list, and a failure between two separate writes would leave
+                # fresh chapters with stale cuts and poison that remap.
+                storage.save_chapters_and_applied_cuts(
+                    slug, episode_id, chapters, all_cuts or [])
                 audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
                 if audio_path:
                     embed_chapters(str(audio_path), chapters['chapters'],
@@ -2419,6 +2461,9 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         slug, episode_id, validation_result.ads, min_cut_confidence,
         cue_gate_enabled=cue_gate_enabled,
     )
+    # Anchor every recut boundary to a transcript segment edge when it lands
+    # within snap tolerance: reviewer trims, human trims, and approved
+    # differential markers all flow through this list un-snapped otherwise.
     return ads_to_remove, validation_result.ads
 
 

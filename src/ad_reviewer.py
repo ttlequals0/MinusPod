@@ -30,7 +30,11 @@ from llm_client import (
 from utils.llm_call import call_llm, call_llm_for_window
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
-from utils.text import get_transcript_text_for_range
+from utils.text import (
+    BOUNDARY_SNAP_TOLERANCE_S,
+    get_timestamped_transcript_for_range,
+    get_transcript_text_for_range,
+)
 
 
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
@@ -108,6 +112,12 @@ def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
     return any(r.search(lowered) for r in _CONTRADICTION_RES)
 
 
+def is_contradiction_hold(verdict: str, reasoning: Optional[str]) -> bool:
+    """Single hold criterion shared by the reviewer pool split and both
+    pass-1/pass-2 apply paths."""
+    return verdict in ('confirmed', 'adjust') and reasoning_contradicts_cut(reasoning)
+
+
 def _resolve_reviewer_parallel_ads() -> int:
     """Resolve the reviewer parallel-ads concurrency for this run.
 
@@ -142,6 +152,59 @@ RESURRECT_BAND_WIDTH = 0.20
 # from the LLM surface as adjust verdicts in the audit log; only true
 # rounding noise rounds away.
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
+
+# Prose/number consistency check on adjust verdicts: warn when the reasoning
+# names a boundary figure further than the edge-proximity tolerance + 2s
+# margin from the emitted boundary (observability only; see
+# _warn_prose_boundary_mismatch).
+_PROSE_BOUNDARY_WARN_GAP_S = BOUNDARY_SNAP_TOLERANCE_S + 2.0
+
+# Explicit seconds figures next to boundary words in adjust reasoning, e.g.
+# "the ad ends at 28.4s" / "starts at roughly 95s". (?!:) rejects clock-style
+# times ("ends at 1:05") whose leading digit is not a seconds figure.
+_PROSE_END_FIGURE_RE = re.compile(
+    r'\b(?:ends?\s+(?:at|around|near|by)|until|through)\s+'
+    r'(?:roughly\s+|about\s+|approximately\s+|around\s+)?'
+    r'(\d+(?:\.\d+)?)(?!:)\s*s?\b',
+    re.IGNORECASE,
+)
+_PROSE_START_FIGURE_RE = re.compile(
+    r'\b(?:starts?|begins?)\s+(?:at|around|near)\s+'
+    r'(?:roughly\s+|about\s+|approximately\s+|around\s+)?'
+    r'(\d+(?:\.\d+)?)(?!:)\s*s?\b',
+    re.IGNORECASE,
+)
+
+
+def _warn_prose_boundary_mismatch(
+    reasoning: Optional[str],
+    start: float,
+    end: float,
+    *,
+    slug: Optional[str],
+    episode_id: Optional[str],
+) -> None:
+    """Log when adjust reasoning names a boundary figure far from the emitted
+    number (the-tim-dillon-show a55cb5b8216d: reasoning named the ad's final
+    sentence near 28.4s while the emitted end was 20.0s). Observability only:
+    auto-arbitrating between two model numbers would be guesswork.
+    """
+    if not reasoning:
+        return
+    for regex, boundary, side in (
+        (_PROSE_START_FIGURE_RE, start, "start"),
+        (_PROSE_END_FIGURE_RE, end, "end"),
+    ):
+        for match in regex.finditer(reasoning):
+            figure = float(match.group(1))
+            if abs(figure - boundary) > _PROSE_BOUNDARY_WARN_GAP_S:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Reviewer adjust prose/number "
+                    f"mismatch: reasoning names {side} {figure:.1f}s but "
+                    f"emitted {side} is {boundary:.1f}s "
+                    f"(reasoning: {reasoning[:120]!r})"
+                )
+                return
 
 
 def _first_num(d: dict, keys: tuple, default: float) -> float:
@@ -555,8 +618,7 @@ class AdReviewer:
                 marked["reviewer_model"] = verdict.model_used
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
-            elif (verdict.verdict in ("confirmed", "adjust")
-                    and reasoning_contradicts_cut(verdict.reasoning)):
+            elif is_contradiction_hold(verdict.verdict, verdict.reasoning):
                 held = dict(updated_ad)
                 held["was_cut"] = False
                 held["held_for_review"] = True
@@ -581,6 +643,8 @@ class AdReviewer:
                 if verdict.verdict == "confirmed":
                     recovered = self._recover_contradiction_trim(
                         verdict,
+                        ad=updated_ad,
+                        segments=segments,
                         model=model,
                         pass_num=pass_num,
                         slug=episode_meta.get('slug'),
@@ -862,6 +926,10 @@ class AdReviewer:
             verdict = "adjust"
 
         if verdict == "adjust":
+            _warn_prose_boundary_mismatch(
+                reason, clamped_start, clamped_end,
+                slug=slug, episode_id=episode_id,
+            )
             updated = dict(ad)
             updated["start"] = clamped_start
             updated["end"] = clamped_end
@@ -896,6 +964,8 @@ class AdReviewer:
         self,
         verdict: "ReviewVerdict",
         *,
+        ad: Dict,
+        segments: List[Dict],
         model: str,
         pass_num: int,
         slug: Optional[str],
@@ -916,6 +986,17 @@ class AdReviewer:
         failure -- never raises into the pipeline, and the result only
         enriches the held marker; it cannot flip the hold into a cut.
         """
+        # Same expand-only rule as _review_single: a merged ad's span is the
+        # union of independently confirmed sub-ads, so a recovered sub-span
+        # would offer a one-tap trim that drops a still-confirmed sub-ad.
+        # Hold without proposed bounds instead.
+        if ad.get('merged_distinct_ads'):
+            logger.info(
+                f"[{slug}:{episode_id}] Trim recovery skipped on merged ad @ "
+                f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s "
+                f"(expand-only; holding without proposed bounds)"
+            )
+            return None
         reasoning = verdict.reasoning or ""
         if not _TRIM_LANGUAGE_RE.search(reasoning):
             return None
@@ -1030,9 +1111,16 @@ class AdReviewer:
         before_text = get_transcript_text_for_range(
             segments, max(0.0, start - 60.0), start
         )
-        ad_text = get_transcript_text_for_range(segments, start, end) or (
-            ad.get("end_text", "") or ""
-        )
+        # Per-segment timestamped lines so every candidate sentence carries
+        # its boundary: with only the two span-edge anchors the model cannot
+        # emit an exact trim timestamp for a sentence it names (the-tim-dillon-
+        # show a55cb5b8216d trimmed to an interpolated 20.0s when the ad's
+        # final sentence ended at 28.4s). Context blocks stay stripped: they
+        # are boundary-adjacent only and can be long.
+        ad_text = get_timestamped_transcript_for_range(segments, start, end)
+        if not ad_text:
+            fallback = ad.get("end_text", "") or ""
+            ad_text = f"[{start:.1f}s-{end:.1f}s] {fallback}" if fallback else ""
         after_text = get_transcript_text_for_range(segments, end, end + 60.0)
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
@@ -1086,9 +1174,12 @@ class AdReviewer:
             f"{description_section}\n"
             f"{framing}\n"
             f"{cue_section}"
-            f"Transcript (60s before, the candidate ad, 60s after):\n"
+            f"Transcript (60s before, the candidate ad, 60s after; candidate "
+            f"lines carry [start-end] second timestamps):\n"
             f"[{max(0.0, start - 60.0):.1f}s] {before_text}\n"
-            f"[{start:.1f}s] >>> CANDIDATE AD START >>> {ad_text} <<< CANDIDATE AD END <<< [{end:.1f}s]\n"
+            f">>> CANDIDATE AD START [{start:.1f}s] >>>\n"
+            f"{ad_text}\n"
+            f"<<< CANDIDATE AD END [{end:.1f}s] <<<\n"
             f"[{end:.1f}s] {after_text}\n"
         )
 
