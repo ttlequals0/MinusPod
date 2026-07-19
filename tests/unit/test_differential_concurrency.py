@@ -50,7 +50,7 @@ def _run_pipeline(differential_fn, audio_analysis_fn):
         p(processing, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
         p(processing, '_run_verification_pass',
-          return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True))
+          return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
         p(processing, '_generate_assets')
         p(processing, '_finalize_episode')
         p(processing.shutil, 'move')

@@ -6,6 +6,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.63.2] - 2026-07-18
+
+### Fixed
+- Differential holds that pass 2 independently re-detects as ads are now
+  approved automatically instead of waiting in the review queue. The hold
+  exists because no independent stage confirmed the span in pass 1 (typically
+  a quiet DAI post-roll the original-audio transcript barely covers); a
+  second Whisper transcription reading nearly the whole span as a confident
+  ad is exactly that missing corroboration. Pending audio is still never cut
+  mid-pipeline: the corroborating detection is dropped as before, the hold is
+  stamped, and after the episode completes the stamp files the same confirm
+  correction the approve button writes and runs the standard recut from the
+  retained original audio. Corroboration requires the detection to clear the
+  normal cut-confidence bar, overlap exactly one pending marker, sit at least
+  half inside the held span, and cover at least 90 percent of it. Guard
+  rails: a span the user explicitly rejected is never auto-approved, an
+  existing equivalent confirm is not duplicated, the recut only runs when its
+  preconditions (retained original audio, saved segments) hold, and it is not
+  cancellable so a cancel cannot delete a completed episode's files. All
+  other hold reasons and held pass-2 detections behave exactly as before.
+
 ## [2.63.1] - 2026-07-18
 
 ### Fixed

@@ -46,6 +46,14 @@ HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 
+# A pass-2 detection corroborates a differential hold (stamping it for
+# auto-approval) only when at least this fraction of the pass-2 span lies
+# inside the held span...
+PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
+# ...and the detection covers at least this fraction of the held span. A
+# short ad inside a long hold must not approve the whole hold.
+PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.9
+
 
 def is_cue_backed(ad) -> bool:
     """Single source of truth for the cue gate: an ad is exempt from cue-gated
