@@ -19,7 +19,7 @@ from config import (
     POSITIONAL_PRIOR_EVENT_DEDUPE_GAP, POSITIONAL_PRIOR_MIN_LLM_CONFIDENCE,
     POSITIONAL_PRIOR_MIN_BOOST, POSITIONAL_PRIOR_MAX_BOOST,
     POSITIONAL_PRIOR_MAX_DURATION_RATIO, POSITIONAL_PRIOR_HISTOGRAM_BUCKETS,
-    PATTERN_CORRECTION_OVERLAP_THRESHOLD,
+    CORRECTION_MATCH_MIN_COVERAGE,
 )
 from utils.time import format_duration, overlap_ratio, ranges_overlap
 
@@ -98,7 +98,7 @@ def _episode_event_positions(markers: List[Dict], corrections: List[Dict],
         if stage not in TRUSTED_STAGES and confidence < POSITIONAL_PRIOR_MIN_LLM_CONFIDENCE:
             continue
         if any(overlap_ratio(c['start'], c['end'], start, end)
-               >= PATTERN_CORRECTION_OVERLAP_THRESHOLD for c in false_positives):
+               >= CORRECTION_MATCH_MIN_COVERAGE for c in false_positives):
             continue
         for adj in adjustments:
             # Match by the marker bounds the user adjusted (orig_*); the

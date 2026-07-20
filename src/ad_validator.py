@@ -16,6 +16,7 @@ from config import (
     HOLD_REASON_UNCORROBORATED_TAIL,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
+    CORRECTION_MATCH_MIN_COVERAGE,
     is_cue_backed,
 )
 from utils.text import extract_text_from_segments
@@ -219,7 +220,7 @@ class AdValidator:
         return False
 
     def _overlaps_corrections(self, corrections: List[Dict], start: float, end: float,
-                               overlap_threshold: float = 0.5) -> bool:
+                               overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
         """Check if a time range overlaps with any correction in the given list.
 
         Args:
@@ -249,17 +250,17 @@ class AdValidator:
         return False
 
     def _overlaps_false_positive(self, start: float, end: float,
-                                  overlap_threshold: float = 0.5) -> bool:
+                                  overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
         """Check if a time range overlaps with any user-marked false positive."""
         return self._overlaps_corrections(self.false_positive_corrections, start, end, overlap_threshold)
 
     def _overlaps_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = 0.5) -> bool:
+                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
         """Check if a time range overlaps with any user-confirmed correction."""
         return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
 
     def _matching_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = 0.5) -> Optional[Dict]:
+                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> Optional[Dict]:
         """Return a user-confirmed correction covering >= threshold of the
         range, or None. Mirrors _overlaps_confirmed but yields the match so
         the caller can honor a trimmed approval's confirmed_span. A trimmed

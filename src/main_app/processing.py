@@ -37,6 +37,7 @@ from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
+    CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
@@ -1740,9 +1741,16 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
         if not holds:
             return 0
         for m in holds:
-            # Reprocess idempotency: an equivalent confirm already on file
-            # (from a previous run or a human) needs no second row.
-            if any(ranges_overlap(m['start'], m['end'], c['start'], c['end'])
+            # Reprocess idempotency: a confirm already on file needs no
+            # second row -- but only one that would actually force-accept
+            # this span at recut time (validator criterion: it covers at
+            # least half the span). A mere graze, typical of a stale confirm
+            # from a previous fetch's shifted DAI timeline, must not count:
+            # skipping on a graze runs the recut without a matching confirm,
+            # the validator re-holds the marker, and the auto-approval
+            # silently does nothing (DTNS 5313 reprocess).
+            if any(overlap_ratio(c['start'], c['end'], m['start'], m['end'])
+                   >= CORRECTION_MATCH_MIN_COVERAGE
                    for c in confirmed_corrections or []):
                 continue
             db.create_pattern_correction(

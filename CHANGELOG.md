@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.64.1] - 2026-07-20
+
+### Fixed
+- Two bugs that kept obvious DAI ads stuck in the review queue (found by
+  tracing a Daily Tech News Show episode through both a normal run and a
+  reprocess):
+  - The detection merge decided cut-vs-held by sort order. When a Claude ad
+    started fractionally before the differential region it corroborated
+    (0.24 seconds in the observed episode), the merge rewrote the marker's
+    stage to dai_differential before the corroboration check read it, so
+    the check no longer saw a Claude corroborator and re-held a span with
+    72 percent transcript coverage and four transcribed sponsor reads. The
+    check now reads the corroborator's pre-merge stage.
+  - Pass-2 auto-approval treated any confirm that grazed the held span as
+    "already on file" and skipped filing its own. After a reprocess, DAI
+    timelines shift, so stale confirms from the previous copy routinely
+    graze a new hold without covering it; the recut then ran without a
+    matching confirm, the validator re-held the marker, and the
+    auto-approval reported success while doing nothing. The idempotency
+    check now uses the validator's own force-accept criterion (the confirm
+    must cover at least half the span), sourced from one shared constant.
+
 ## [2.64.0] - 2026-07-20
 
 ### Added
