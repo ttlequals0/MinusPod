@@ -1850,6 +1850,14 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
+                # The stage-priority merge below overwrites last's stage
+                # (e.g. claude -> dai_differential) BEFORE the #541 upgrade
+                # check runs. Snapshot it: the check must see the
+                # corroborator's real stage, or a claude ad that happens to
+                # sort before the differential region is misread as
+                # differential and the hold survives its own corroboration
+                # (DTNS 5313: 0.24s of sort order decided cut vs held).
+                last_stage_before_merge = last.get('detection_stage')
                 # Adjacency is not corroboration (#541): a held differential
                 # only merges with a non-differential marker on true overlap.
                 if (bool(last.get('differential_uncorroborated'))
@@ -1904,11 +1912,13 @@ class AdDetector:
                 if diff_is_last != diff_is_cur:
                     diff_side = last if diff_is_last else current
                     other = current if diff_is_last else last
+                    other_stage = (current.get('detection_stage')
+                                   if diff_is_last else last_stage_before_merge)
                     independent = (
-                        other.get('detection_stage') in ('fingerprint', 'text_pattern')
+                        other_stage in ('fingerprint', 'text_pattern')
                         or is_cue_backed(other))
                     claude_verified = (
-                        other.get('detection_stage') == 'claude'
+                        other_stage == 'claude'
                         and _span_transcript_coverage(
                             segments, diff_side['start'], diff_side['end'])
                         >= DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE)

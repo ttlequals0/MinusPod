@@ -156,6 +156,36 @@ def test_merge_hold_survives_fold_when_differential_is_second():
     assert merged[0]['differential_uncorroborated'] is True
 
 
+def test_merge_upgrades_hold_when_claude_sorts_first():
+    # DTNS 5313: the claude ad started 0.24s before the differential region,
+    # so it became `last` in the merge and stage priority rewrote its stage
+    # to dai_differential BEFORE the upgrade check read it. The check then
+    # saw no claude corroborator and re-held the marker despite 72%
+    # transcript coverage. The corroborator's pre-merge stage must decide.
+    detector = AdDetector(api_key='test-key')
+    segments = [
+        {'start': 891.3, 'end': 919.6, 'text': 'Ship a Ton is back'},
+        {'start': 920.4, 'end': 966.3, 'text': 'A BetterHelp ad'},
+        {'start': 966.6, 'end': 1007.9, 'text': 'Vanta and Stamps.com reads'},
+    ]
+    merged = detector._merge_detection_results([
+        {'start': 891.3, 'end': 1007.9, 'confidence': 0.9,
+         'reason': 'Ship a Ton / RevenueCat sponsor block',
+         'sponsor': 'Ship a Ton / RevenueCat', 'detection_stage': 'claude'},
+        {'start': 891.54, 'end': 1011.79, 'confidence': 0.95,
+         'reason': 'Audio differs across fetches; no other ad signal -- review',
+         'sponsor': None, 'detection_stage': 'dai_differential',
+         'held_for_review': True, 'was_cut': False,
+         'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+         'differential_uncorroborated': True},
+    ], segments=segments)
+    assert len(merged) == 1
+    assert merged[0].get('held_for_review') is not True
+    assert 'differential_uncorroborated' not in merged[0]
+    assert 'hold_reason' not in merged[0]
+    assert merged[0]['detection_stage'] == 'dai_differential'
+
+
 def test_merge_independent_stage_upgrades_hold_without_transcript():
     # Fingerprint corroboration is independent of the prompt hint, so it
     # upgrades the hold to a cut even on an untranscribed span.

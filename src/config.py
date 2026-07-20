@@ -128,6 +128,13 @@ NETWORK_TO_GLOBAL_THRESHOLD = 2    # Networks needed for global promotion
 PROMOTION_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity for pattern merging
 SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promotion
 PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration correction
+# Minimum fraction of a span a user correction must cover to match it.
+# Single source for the validator's force-accept checks and the
+# auto-approve idempotency check in processing.py: a correction that would
+# not force-accept a span at recut time must never suppress filing a new
+# confirm for it (stale confirms from a previous fetch's shifted DAI
+# timeline routinely graze a new hold without covering it).
+CORRECTION_MATCH_MIN_COVERAGE = 0.5
 
 # ============================================================
 # Processing Limits

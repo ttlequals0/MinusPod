@@ -589,6 +589,63 @@ def test_auto_approve_dedupes_existing_confirm(monkeypatch):
     recut.assert_called_once()
 
 
+def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
+    """A stale confirm that merely grazes the hold -- typical after a
+    reprocess fetched a copy with a shifted DAI timeline -- covers too
+    little of the span to force-accept it at recut time. Treating the graze
+    as an equivalent confirm skips filing, the recut re-holds the marker,
+    and the approval silently does nothing (DTNS 5313 reprocess). Only a
+    confirm covering at least half the hold counts as already on file."""
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = []
+    # Covers 32.6s of the 107.4s hold (30%): below the validator's
+    # force-accept coverage, so it cannot approve the hold at recut time.
+    db.get_confirmed_corrections.return_value = [
+        {'start': 1723.1, 'end': 1783.1}]
+    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    recut = MagicMock(return_value=True)
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
+    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
+
+    hold = _diff_hold(1648.3, 1755.7)
+    hold['pass2_corroborated'] = True
+
+    n = processing_mod._auto_approve_corroborated_holds(
+        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+
+    assert n == 1
+    kwargs = db.create_pattern_correction.call_args.kwargs
+    assert kwargs['correction_type'] == 'confirm'
+    assert kwargs['original_bounds'] == {'start': 1648.3, 'end': 1755.7}
+    recut.assert_called_once()
+
+
+def test_auto_approve_dedupes_confirm_covering_most_of_hold(monkeypatch):
+    """A confirm covering well over half the hold would force-accept it at
+    recut time, so it counts as already on file (no second row)."""
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = []
+    # Covers 80s of the 107.4s hold (74%).
+    db.get_confirmed_corrections.return_value = [
+        {'start': 1660.0, 'end': 1740.0}]
+    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    recut = MagicMock(return_value=True)
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
+    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
+
+    hold = _diff_hold(1648.3, 1755.7)
+    hold['pass2_corroborated'] = True
+
+    n = processing_mod._auto_approve_corroborated_holds(
+        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+
+    assert n == 1
+    db.create_pattern_correction.assert_not_called()
+    recut.assert_called_once()
+
+
 def test_auto_approve_recut_gets_no_cancel_event(monkeypatch):
     """The recut must run with cancel_event=None: a cancel would propagate to
     the background wrapper's cleanup and delete the completed episode."""
