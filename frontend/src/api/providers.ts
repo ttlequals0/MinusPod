@@ -52,20 +52,34 @@ export function testProvider(name: ProviderName) {
   });
 }
 
-export interface WhisperConnectionTestResult {
+export interface ConnectionTestResult {
   ok: boolean;
   reachable: boolean;
   status?: number;
   detail: string;
 }
 
-// Sends the values currently in the form (saved or not) so the user can
-// probe an endpoint before committing it. The stored API key is only sent
-// by the backend when the tested URL matches the saved base URL.
+// Connection tests send the values currently in the form (saved or not) so
+// the user can probe an endpoint before committing it. The stored API key is
+// only sent by the backend when the tested URL matches the saved base URL.
 export function testWhisperConnection(baseUrl: string, model: string, skipFlacCompression: boolean) {
-  return apiRequest<WhisperConnectionTestResult>('/settings/providers/whisper/test-connection', {
+  return apiRequest<ConnectionTestResult>('/settings/providers/whisper/test-connection', {
     method: 'POST',
     body: { baseUrl, model, skipFlacCompression },
+  });
+}
+
+export function testLlmConnection(name: 'openai' | 'ollama', baseUrl: string) {
+  return apiRequest<ConnectionTestResult>(`/settings/providers/${name}/test-connection`, {
+    method: 'POST',
+    body: { baseUrl },
+  });
+}
+
+// Uses the saved credentials only; unsaved drafts must be saved first.
+export function testPodcastIndex() {
+  return apiRequest<ConnectionTestResult>('/settings/podcast-index/test', {
+    method: 'POST',
   });
 }
 

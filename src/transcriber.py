@@ -1,6 +1,5 @@
 """Transcription using Faster Whisper."""
 import io
-import json
 import logging
 import math
 import struct
@@ -20,9 +19,10 @@ from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
+from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
 from utils.safe_http import (
     URLTrust, safe_get, safe_post, stream_to_file_capped,
-    read_response_capped, ResponseTooLargeError,
+    ResponseTooLargeError,
 )
 from utils.subprocess_registry import tracked_run
 from config import (
@@ -432,11 +432,6 @@ def _probe_wav_bytes(duration_s: float = 1.0, rate: int = 16000) -> bytes:
     return buf.getvalue()
 
 
-# Probe responses are tiny (a transcript of one second of tone); anything
-# bigger means the URL points at something that is not a transcription API.
-_PROBE_RESPONSE_CAP_BYTES = 64 * 1024
-
-
 def _probe_upload(skip_flac_compression: bool) -> Tuple[str, bytes]:
     """Probe audio in the format a real episode upload would use: FLAC by
     default, WAV when the skip toggle is on (mirrors _transcribe_via_api,
@@ -469,13 +464,6 @@ def _probe_upload(skip_flac_compression: bool) -> Tuple[str, bytes]:
     return 'probe.wav', wav
 
 
-def _snippet(body_bytes) -> str:
-    """First 200 bytes of a response body, flattened for display."""
-    if not body_bytes:
-        return ''
-    return ' '.join(body_bytes[:200].decode('utf-8', 'replace').split())
-
-
 def probe_transcription_endpoint(base_url: str, api_key: str = '',
                                  model: str = 'whisper-1',
                                  skip_flac_compression: bool = True) -> Dict:
@@ -504,8 +492,8 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
         'timestamp_granularities[]': ['segment'],
     }
     filename, audio = _probe_upload(skip_flac_compression)
-    try:
-        response = safe_post(
+    error, status, body_bytes = run_probe(
+        lambda: safe_post(
             url,
             trust=URLTrust.OPERATOR_CONFIGURED,
             timeout=HTTP_TIMEOUT_CONNECTION_TEST,
@@ -514,46 +502,18 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
             data=form_data,
             headers=headers,
             stream=True,
-        )
-    except SSRFError:
-        return {'ok': False, 'reachable': False,
-                'detail': 'Base URL failed SSRF validation.'}
-    except requests.ConnectTimeout:
-        return {'ok': False, 'reachable': False,
-                'detail': 'Could not connect to the server within '
-                          f'{int(HTTP_TIMEOUT_CONNECTION_TEST)} seconds. '
-                          'Check the host and port.'}
-    except requests.Timeout:
-        # Read timeout: the connection succeeded but inference did not
-        # finish in time (common while a server cold-loads its model).
-        return {'ok': False, 'reachable': True,
-                'detail': 'The server accepted the connection but did not '
-                          f'answer within {int(HTTP_TIMEOUT_CONNECTION_TEST)} '
-                          'seconds. A first request can be slow while the '
-                          'model loads; try again in a minute.'}
-    except requests.RequestException as e:
-        logger.info(f"Whisper connection test failed for "
-                    f"{safe_url_for_log(url)}: {e}")
-        return {'ok': False, 'reachable': False,
-                'detail': 'Could not connect to the server. Check the host '
-                          'and port, and that the transcriber is running.'}
-
-    status = response.status_code
-    try:
-        body_bytes = read_response_capped(response, _PROBE_RESPONSE_CAP_BYTES)
-    except (ResponseTooLargeError, requests.RequestException):
-        body_bytes = None
-    finally:
-        response.close()
+        ),
+        HTTP_TIMEOUT_CONNECTION_TEST,
+        log_context=safe_url_for_log(url),
+        slow_hint='A first request can be slow while the model loads; '
+                  'try again in a minute.',
+    )
+    if error:
+        return error
 
     result = {'ok': False, 'reachable': True, 'status': status}
     if status < 400:
-        body = None
-        if body_bytes is not None:
-            try:
-                body = json.loads(body_bytes.decode('utf-8', 'replace'))
-            except ValueError:
-                body = None
+        body = parse_probe_json(body_bytes)
         if isinstance(body, dict):
             result['ok'] = True
             result['detail'] = (f'Connected. The transcription endpoint '
@@ -564,21 +524,22 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
                                 'that the URL points at an OpenAI-compatible '
                                 'transcription service.')
     elif status in (401, 403):
-        result['detail'] = (f'The endpoint refused the request '
-                            f'(HTTP {status}). The test sends the saved API '
-                            'key, and only when the tested URL matches the '
-                            'saved one -- save your key and base URL, then '
-                            'test again.')
+        if api_key:
+            result['detail'] = (f'The server rejected the saved API key '
+                                f'(HTTP {status}). Check the key.')
+        else:
+            result['detail'] = (f'The endpoint requires an API key '
+                                f'(HTTP {status}). The test sends the saved '
+                                'key, and only when the tested URL matches '
+                                'the saved one -- save your key and base '
+                                'URL, then test again.')
     elif status == 404:
         result['detail'] = ('The server is running, but there is no '
                             'transcription endpoint at this path (HTTP 404). '
                             'Check the path in the base URL -- for example, '
                             'OpenVINO Model Server uses /v3.')
     else:
-        snippet = _snippet(body_bytes)
-        result['detail'] = (f'The server is reachable but rejected the test '
-                            f'request (HTTP {status})'
-                            + (f': {snippet}' if snippet else '.'))
+        result['detail'] = rejected_detail(status, body_bytes)
     return result
 
 

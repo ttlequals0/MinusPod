@@ -9,7 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.64.0] - 2026-07-20
 
 ### Added
-- Test connection button for the remote transcriber (issue #544). Next to
+- Test connection buttons for every configured external endpoint (issue
+  #544): the remote transcriber, the LLM provider base URL (OpenAI
+  Compatible and Ollama), and PodcastIndex. All three share the same staged
+  result readout: server unreachable (red), reachable but the request
+  failed with a specific reason (amber), or working (green).
+- LLM provider connection test: hits the same /models route the real
+  client uses for discovery, with the same automatic /v1 suffix for
+  Ollama. Unlike the key Test button it works without an API key (local
+  Ollama has none) and can test an unsaved base URL. The saved key is sent
+  only when the tested URL matches the saved one.
+- PodcastIndex connection test: sends the same signed one-result search
+  the Add Feed search uses, so a passing test means search will work.
+  Uses saved credentials only; the button is blocked while unsaved drafts
+  sit in the form.
+- Remote transcriber connection test: next to
   the API Base URL field in Transcription settings, it uploads a one-second
   generated audio sample through the same request shape and upload format
   (FLAC by default, WAV when Skip FLAC compression is on) a real episode

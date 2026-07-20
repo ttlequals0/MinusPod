@@ -1,14 +1,13 @@
-import { useState } from 'react';
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
-import { getErrorMessage } from '../../api/client';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConnectionTestButton from './ConnectionTestButton';
 import LanguageCombobox from '../../components/LanguageCombobox';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ProviderKeyField from './ProviderKeyField';
 import SavedBadge from './SavedBadge';
-import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse, WhisperConnectionTestResult } from '../../api/providers';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
+import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse, ConnectionTestResult } from '../../api/providers';
+import { btnPrimary } from '../../components/buttonStyles';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -22,7 +21,7 @@ interface TranscriptionSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
-  onConnectionTest: (baseUrl: string, model: string, skipFlacCompression: boolean) => Promise<WhisperConnectionTestResult>;
+  onConnectionTest: (baseUrl: string, model: string, skipFlacCompression: boolean) => Promise<ConnectionTestResult>;
   whisperLanguage: string;
   onWhisperLanguageChange: (language: string) => void;
   whisperComputeType: string;
@@ -87,37 +86,6 @@ function TranscriptionSection({
 }: TranscriptionSectionProps) {
   const whisperStatus = providersState?.whisper ?? NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
-  const [connTestBusy, setConnTestBusy] = useState(false);
-  const [connTestResult, setConnTestResult] = useState<WhisperConnectionTestResult | null>(null);
-
-  // A result only describes the values it was tested with; clear it as soon
-  // as any input the probe uses changes, so a stale green "Connected" never
-  // sits next to an untested value.
-  function handleApiConfigChange(field: keyof WhisperApiConfig, value: string) {
-    setConnTestResult(null);
-    onApiConfigChange(field, value);
-  }
-  function handleSkipFlacChange(value: boolean) {
-    setConnTestResult(null);
-    onSkipFlacCompressionChange(value);
-  }
-
-  async function handleConnectionTest() {
-    setConnTestBusy(true);
-    setConnTestResult(null);
-    try {
-      setConnTestResult(await onConnectionTest(apiConfig.baseUrl, apiConfig.model, skipFlacCompression));
-    } catch (e) {
-      setConnTestResult({
-        ok: false,
-        reachable: false,
-        detail: getErrorMessage(e, 'Connection test failed'),
-      });
-    } finally {
-      setConnTestBusy(false);
-    }
-  }
-
   return (
     <CollapsibleSection title="Transcription">
       <div className="space-y-4">
@@ -174,42 +142,18 @@ function TranscriptionSection({
                 type="text"
                 id="whisperApiBaseUrl"
                 value={apiConfig.baseUrl}
-                onChange={(e) => handleApiConfigChange('baseUrl', e.target.value)}
+                onChange={(e) => onApiConfigChange('baseUrl', e.target.value)}
                 placeholder="http://host.docker.internal:8765/v1"
                 className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 OpenAI-compatible transcription endpoint (e.g. whisper.cpp, Groq, OpenAI)
               </p>
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  type="button"
-                  disabled={connTestBusy}
-                  onClick={handleConnectionTest}
-                  className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium disabled:opacity-50`}
-                >
-                  {connTestBusy ? 'Testing...' : 'Test connection'}
-                </button>
-                {connTestBusy && (
-                  <span className="text-sm text-muted-foreground">
-                    Sending a short audio sample -- this can take up to 30 seconds
-                  </span>
-                )}
-              </div>
-              {connTestResult && (
-                <p
-                  className={`mt-2 text-sm ${
-                    connTestResult.ok
-                      ? 'text-success'
-                      : connTestResult.reachable
-                        ? 'text-warning'
-                        : 'text-destructive'
-                  }`}
-                  role="status"
-                >
-                  {connTestResult.detail}
-                </p>
-              )}
+              <ConnectionTestButton
+                key={`${apiConfig.baseUrl}|${apiConfig.model}|${skipFlacCompression}|${whisperStatus.configured}`}
+                onTest={() => onConnectionTest(apiConfig.baseUrl, apiConfig.model, skipFlacCompression)}
+                busyHint="Sending a short audio sample -- this can take up to 30 seconds"
+              />
             </div>
 
             <ProviderKeyField
@@ -231,7 +175,7 @@ function TranscriptionSection({
                 type="text"
                 id="whisperApiModel"
                 value={apiConfig.model}
-                onChange={(e) => handleApiConfigChange('model', e.target.value)}
+                onChange={(e) => onApiConfigChange('model', e.target.value)}
                 placeholder="whisper-1"
                 className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
@@ -303,7 +247,7 @@ function TranscriptionSection({
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
               checked={skipFlacCompression}
-              onChange={handleSkipFlacChange}
+              onChange={onSkipFlacCompressionChange}
               ariaLabel={skipFlacCompression ? 'Skip FLAC compression enabled' : 'Skip FLAC compression disabled'}
             />
             <span className="text-sm font-medium text-foreground">

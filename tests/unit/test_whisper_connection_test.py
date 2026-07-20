@@ -20,8 +20,8 @@ from transcriber import (  # noqa: E402
     _probe_wav_bytes,
     _probe_upload,
     probe_transcription_endpoint,
-    _PROBE_RESPONSE_CAP_BYTES,
 )
+from utils.connection_probe import PROBE_RESPONSE_CAP_BYTES  # noqa: E402
 from utils.url import SSRFError  # noqa: E402
 
 BASE = '/api/v1/settings/providers/whisper/test-connection'
@@ -153,7 +153,7 @@ class TestProbeTranscriptionEndpoint:
         assert 'OpenAI-compatible' in result['detail']
 
     def test_200_oversized_body_is_not_ok(self):
-        huge = b'x' * (_PROBE_RESPONSE_CAP_BYTES + 1)
+        huge = b'x' * (PROBE_RESPONSE_CAP_BYTES + 1)
         with patch('transcriber.safe_post',
                    return_value=_response(200, body=huge)):
             result = probe_transcription_endpoint('http://some-file-server')
@@ -167,6 +167,12 @@ class TestProbeTranscriptionEndpoint:
         assert result['reachable'] is True
         assert result['status'] == 401
         assert 'API key' in result['detail']
+
+    def test_401_with_key_names_saved_key(self):
+        with patch('transcriber.safe_post', return_value=_response(401)):
+            result = probe_transcription_endpoint('http://transcriber:8001/v3',
+                                                  api_key='sk-x')
+        assert 'rejected the saved API key' in result['detail']
 
     def test_404_points_at_path(self):
         with patch('transcriber.safe_post', return_value=_response(404)):
