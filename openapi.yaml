@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.63.2
+  version: 2.64.0
   contact:
     name: MinusPod
   license:
@@ -3174,6 +3174,48 @@ paths:
                 properties:
                   ok:    { type: boolean }
                   error: { type: string }
+  /settings/providers/whisper/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test the remote transcriber connection end to end
+      description: |
+        Uploads a one-second generated audio sample through the same request
+        shape and upload format (FLAC by default, WAV when Skip FLAC
+        compression is on) as the real transcription path, so the result
+        reflects what an actual episode upload would hit. Distinguishes an
+        unreachable server from a reachable server with the wrong endpoint
+        path (for example, OpenVINO Model Server only answers under its
+        versioned base such as `/v3`) and from an endpoint that rejects the
+        request. Accepts unsaved values so a URL can be tested before
+        saving; a `baseUrl` key present in the body is authoritative even
+        when empty. The stored whisper API key is sent only when the tested
+        URL points at the same scheme/host/port as the saved base URL, so
+        the key cannot be sent to an arbitrary URL.
+      operationId: testWhisperConnection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
+                model:   { type: string, description: 'Model name to send; falls back to the saved value' }
+                skipFlacCompression: { type: boolean, description: 'Upload WAV (true) or FLAC (false); falls back to the saved setting' }
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:        { type: boolean, description: 'Transcription endpoint accepted the test audio' }
+                  reachable: { type: boolean, description: 'Server returned any HTTP response' }
+                  status:    { type: integer, description: 'HTTP status code, when a response was received' }
+                  detail:    { type: string, description: 'Human-readable outcome' }
+        '400': { description: 'Invalid input (non-string baseUrl or model, non-boolean skipFlacCompression)' }
   /settings/feed-auth/regenerate-key:
     post:
       tags:

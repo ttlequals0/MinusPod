@@ -25,6 +25,7 @@ import {
   updateProvider,
   clearProvider,
   testProvider,
+  testWhisperConnection,
   type ProviderName,
   type ProvidersResponse,
 } from '../api/providers';
@@ -858,6 +859,7 @@ function Settings() {
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}
         onProviderKeyTest={handleProviderKeyTest}
+        onConnectionTest={testWhisperConnection}
         whisperLanguage={whisperLanguage}
         onWhisperLanguageChange={setWhisperLanguage}
         whisperComputeType={whisperComputeType}

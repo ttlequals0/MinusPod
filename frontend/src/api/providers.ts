@@ -52,6 +52,23 @@ export function testProvider(name: ProviderName) {
   });
 }
 
+export interface WhisperConnectionTestResult {
+  ok: boolean;
+  reachable: boolean;
+  status?: number;
+  detail: string;
+}
+
+// Sends the values currently in the form (saved or not) so the user can
+// probe an endpoint before committing it. The stored API key is only sent
+// by the backend when the tested URL matches the saved base URL.
+export function testWhisperConnection(baseUrl: string, model: string, skipFlacCompression: boolean) {
+  return apiRequest<WhisperConnectionTestResult>('/settings/providers/whisper/test-connection', {
+    method: 'POST',
+    body: { baseUrl, model, skipFlacCompression },
+  });
+}
+
 export function rotateMasterPassphrase(oldPassphrase: string, newPassphrase: string) {
   return apiRequest<{ rotated: number }>('/settings/providers/rotate-passphrase', {
     method: 'POST',

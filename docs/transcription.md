@@ -89,6 +89,20 @@ WHISPER_DEVICE=cpu
 
 On an Intel host with a capable integrated or discrete GPU, you can offload transcription to the GPU instead of the CPU. OpenVINO Model Server runs Whisper as a remote OpenAI-compatible backend with word-level timestamps, so the CPU image's transcription stops pinning every core. See the dedicated [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) guide for the full setup.
 
+## Testing a remote endpoint
+
+Getting the base URL path right is the fiddly part of a remote backend: most servers answer something on every path, but only one path accepts transcription requests. The **Test connection** button under the API Base URL field (Settings > Transcription, with the backend set to Remote API) uploads a one-second generated audio sample using the same request the real pipeline sends, so a passing test means an actual episode upload will work. The values currently in the form are used, saved or not, so you can test a URL before committing it.
+
+The result separates three situations:
+
+- Could not connect: nothing answered at that host and port. Check the address, the port, and that the server is running.
+- Reachable, but the request failed: something is listening, but either there is no transcription endpoint at that path (HTTP 404; OVMS only answers under its versioned base such as `/v3`), or the endpoint refused the request (wrong model name, missing API key). The message includes the server's response where it helps. A slow answer counts here too: if the connection succeeds but the server takes more than 30 seconds (common while a model cold-loads), the test says so rather than reporting the server as down.
+- Connected: the endpoint accepted the sample and returned a transcription result.
+
+The sample is uploaded in the same format a real episode would use: FLAC by default, or WAV when Skip FLAC compression is on. That means the test also catches a server that cannot decode FLAC before a full episode fails on it.
+
+A saved whisper API key is sent with the probe only when the URL being tested points at the same server as the saved base URL. The key is never sent to a URL you have not saved, so save both the key and the base URL before testing a keyed endpoint.
+
 ## Groq
 
 [Groq](https://groq.com) offers fast cloud-based whisper transcription:

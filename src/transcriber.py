@@ -1,9 +1,15 @@
 """Transcription using Faster Whisper."""
+import io
+import json
 import logging
+import math
+import struct
 import tempfile
 import os
 import re
 import subprocess
+import wave
+
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
@@ -14,7 +20,10 @@ from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
-from utils.safe_http import URLTrust, safe_get, safe_post, stream_to_file_capped, ResponseTooLargeError
+from utils.safe_http import (
+    URLTrust, safe_get, safe_post, stream_to_file_capped,
+    read_response_capped, ResponseTooLargeError,
+)
 from utils.subprocess_registry import tracked_run
 from config import (
     API_CHUNK_DURATION_SECONDS,
@@ -36,6 +45,7 @@ from config import (
     FFMPEG_CHUNK_TIMEOUT,
     HTTP_MAX_REDIRECTS_API,
     HTTP_MAX_REDIRECTS_FEED,
+    HTTP_TIMEOUT_CONNECTION_TEST,
     HTTP_TIMEOUT_WHISPER,
     coerce_bool_setting,
     get_env_backed_int, MAX_AUDIO_DOWNLOAD_MB_MIN, MAX_AUDIO_DOWNLOAD_MB_ADVISORY,
@@ -390,6 +400,186 @@ def check_whisper_connectivity(timeout: float = 5.0) -> bool:
     except Exception as e:
         logger.debug(f"Whisper connectivity probe failed: {e}")
         return False
+
+
+def _transcription_url(base_url: str) -> str:
+    """Endpoint URL for an OpenAI-compatible transcription request. Shared
+    by the real upload path and the connection probe so they cannot drift."""
+    return f"{base_url.rstrip('/')}/audio/transcriptions"
+
+
+def _bearer_headers(api_key: str) -> Dict[str, str]:
+    """Auth headers for the whisper API. Shared by the real upload path and
+    the connection probe."""
+    return {'Authorization': f'Bearer {api_key}'} if api_key else {}
+
+
+def _probe_wav_bytes(duration_s: float = 1.0, rate: int = 16000) -> bytes:
+    """One second of 440 Hz tone as an in-memory WAV (mono, 16-bit).
+
+    Used as the upload for probe_transcription_endpoint. A tone rather than silence:
+    some servers reject audio whose signal level is effectively zero before
+    the request ever reaches the transcription path.
+    """
+    n = int(duration_s * rate)
+    samples = [int(8000 * math.sin(2 * math.pi * 440 * i / rate)) for i in range(n)]
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(struct.pack(f'<{n}h', *samples))
+    return buf.getvalue()
+
+
+# Probe responses are tiny (a transcript of one second of tone); anything
+# bigger means the URL points at something that is not a transcription API.
+_PROBE_RESPONSE_CAP_BYTES = 64 * 1024
+
+
+def _probe_upload(skip_flac_compression: bool) -> Tuple[str, bytes]:
+    """Probe audio in the format a real episode upload would use: FLAC by
+    default, WAV when the skip toggle is on (mirrors _transcribe_via_api,
+    including its fall-back to WAV when the FLAC encode fails). Matters for
+    servers with no FLAC decoder (OVMS): a WAV-only probe would pass while
+    real episodes fail.
+    """
+    wav = _probe_wav_bytes()
+    if skip_flac_compression:
+        return 'probe.wav', wav
+    wav_path = flac_path = None
+    try:
+        fd, wav_path = tempfile.mkstemp(suffix='.wav')
+        with os.fdopen(fd, 'wb') as fh:
+            fh.write(wav)
+        fd, flac_path = tempfile.mkstemp(suffix='.flac')
+        os.close(fd)
+        encode = tracked_run(
+            ['ffmpeg', '-y', '-i', wav_path, '-c:a', 'flac', flac_path],
+            capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
+        )
+        if encode.returncode == 0 and os.path.getsize(flac_path) > 0:
+            with open(flac_path, 'rb') as fh:
+                return 'probe.flac', fh.read()
+    except Exception as e:
+        logger.warning(f"Probe FLAC encode failed, sending WAV: {e}")
+    finally:
+        _unlink_quiet(wav_path)
+        _unlink_quiet(flac_path)
+    return 'probe.wav', wav
+
+
+def _snippet(body_bytes) -> str:
+    """First 200 bytes of a response body, flattened for display."""
+    if not body_bytes:
+        return ''
+    return ' '.join(body_bytes[:200].decode('utf-8', 'replace').split())
+
+
+def probe_transcription_endpoint(base_url: str, api_key: str = '',
+                                 model: str = 'whisper-1',
+                                 skip_flac_compression: bool = True) -> Dict:
+    """End-to-end reachability test for a remote transcription endpoint (#544).
+
+    Uploads one second of generated audio using the same URL construction,
+    auth header, form fields, and upload format as the real transcription
+    path, so the result reflects what an actual episode upload would hit.
+    Distinguishes the failure classes that matter for setup debugging:
+    server unreachable, server alive but wrong endpoint path (OVMS answers
+    400/404 everywhere except its versioned base), and endpoint present but
+    rejecting requests.
+
+    Returns a dict: ok (transcription endpoint accepted the probe),
+    reachable (server responded at all), status (HTTP code when one was
+    received), detail (user-facing outcome message).
+    """
+    url = _transcription_url(base_url)
+    headers = _bearer_headers(api_key)
+    form_data = {
+        'model': model,
+        'response_format': 'verbose_json',
+        # Segment-only granularity: some servers (OVMS, older
+        # faster-whisper-server) reject 'word' outright, and this test is
+        # about connectivity, not feature support.
+        'timestamp_granularities[]': ['segment'],
+    }
+    filename, audio = _probe_upload(skip_flac_compression)
+    try:
+        response = safe_post(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_CONNECTION_TEST,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+            files={'file': (filename, io.BytesIO(audio))},
+            data=form_data,
+            headers=headers,
+            stream=True,
+        )
+    except SSRFError:
+        return {'ok': False, 'reachable': False,
+                'detail': 'Base URL failed SSRF validation.'}
+    except requests.ConnectTimeout:
+        return {'ok': False, 'reachable': False,
+                'detail': 'Could not connect to the server within '
+                          f'{int(HTTP_TIMEOUT_CONNECTION_TEST)} seconds. '
+                          'Check the host and port.'}
+    except requests.Timeout:
+        # Read timeout: the connection succeeded but inference did not
+        # finish in time (common while a server cold-loads its model).
+        return {'ok': False, 'reachable': True,
+                'detail': 'The server accepted the connection but did not '
+                          f'answer within {int(HTTP_TIMEOUT_CONNECTION_TEST)} '
+                          'seconds. A first request can be slow while the '
+                          'model loads; try again in a minute.'}
+    except requests.RequestException as e:
+        logger.info(f"Whisper connection test failed for "
+                    f"{safe_url_for_log(url)}: {e}")
+        return {'ok': False, 'reachable': False,
+                'detail': 'Could not connect to the server. Check the host '
+                          'and port, and that the transcriber is running.'}
+
+    status = response.status_code
+    try:
+        body_bytes = read_response_capped(response, _PROBE_RESPONSE_CAP_BYTES)
+    except (ResponseTooLargeError, requests.RequestException):
+        body_bytes = None
+    finally:
+        response.close()
+
+    result = {'ok': False, 'reachable': True, 'status': status}
+    if status < 400:
+        body = None
+        if body_bytes is not None:
+            try:
+                body = json.loads(body_bytes.decode('utf-8', 'replace'))
+            except ValueError:
+                body = None
+        if isinstance(body, dict):
+            result['ok'] = True
+            result['detail'] = (f'Connected. The transcription endpoint '
+                                f'accepted the test audio (HTTP {status}).')
+        else:
+            result['detail'] = (f'The server answered HTTP {status} but did '
+                                'not return a transcription result. Check '
+                                'that the URL points at an OpenAI-compatible '
+                                'transcription service.')
+    elif status in (401, 403):
+        result['detail'] = (f'The endpoint refused the request '
+                            f'(HTTP {status}). The test sends the saved API '
+                            'key, and only when the tested URL matches the '
+                            'saved one -- save your key and base URL, then '
+                            'test again.')
+    elif status == 404:
+        result['detail'] = ('The server is running, but there is no '
+                            'transcription endpoint at this path (HTTP 404). '
+                            'Check the path in the base URL -- for example, '
+                            'OpenVINO Model Server uses /v3.')
+    else:
+        snippet = _snippet(body_bytes)
+        result['detail'] = (f'The server is reachable but rejected the test '
+                            f'request (HTTP {status})'
+                            + (f': {snippet}' if snippet else '.'))
+    return result
 
 
 def _get_chunk_settings() -> Dict[str, int]:
@@ -810,12 +1000,10 @@ class Transcriber:
                     flac_path = None
 
             # Build request
-            url = f"{base_url.rstrip('/')}/audio/transcriptions"
+            url = _transcription_url(base_url)
             initial_prompt = self.get_initial_prompt(podcast_name)
 
-            headers = {}
-            if api_key:
-                headers['Authorization'] = f'Bearer {api_key}'
+            headers = _bearer_headers(api_key)
 
             form_data_base = {
                 'model': model,

@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.64.0] - 2026-07-20
+
+### Added
+- Test connection button for the remote transcriber (issue #544). Next to
+  the API Base URL field in Transcription settings, it uploads a one-second
+  generated audio sample through the same request shape and upload format
+  (FLAC by default, WAV when Skip FLAC compression is on) a real episode
+  uses, so the result reflects an actual transcription call rather than a
+  bare health check. The result separates the cases that matter when
+  setting up a backend like OpenVINO Model Server: server unreachable,
+  server alive but no transcription endpoint at that path (OVMS only
+  answers under its versioned base such as /v3), endpoint present but
+  rejecting the request (wrong model name, missing API key, FLAC upload to
+  a server without a FLAC decoder), and a reachable server that is just
+  slow to answer (model cold-load), which is reported as such instead of
+  as down. Unsaved values can be tested before saving, and a stale result
+  clears as soon as any tested field changes. The saved API key is sent
+  only when the tested URL points at the same server as the saved base
+  URL, so the key cannot be pointed at an arbitrary host. Unlike the
+  existing key Test button, it works without an API key and does not
+  depend on the /models route many transcription servers never implement.
+
+### Changed
+- Dependency bumps via Dependabot: anthropic 0.117.0, openai 2.46.0,
+  huggingface-hub 1.24.0, actions/setup-node v7, and frontend dev
+  dependencies (typescript-eslint 8.64.0, vite 8.1.5, lucide-react 1.25.0).
+
 ## [2.63.2] - 2026-07-18
 
 ### Fixed

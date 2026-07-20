@@ -209,12 +209,15 @@ def safe_post(
     json=None,
     files=None,
     headers: Optional[dict] = None,
+    stream: bool = False,
 ) -> requests.Response:
     """POST ``url`` via a session that revalidates every redirect hop.
 
     Webhooks and other outbound POSTs commonly follow redirects; this
     wrapper runs the same trust-tier revalidation on every hop as
-    ``safe_get`` does. Raises ``SSRFError`` on rejected URLs.
+    ``safe_get`` does. Raises ``SSRFError`` on rejected URLs. With
+    ``stream=True`` the caller owns closing the response (same contract
+    as ``safe_get``).
     """
     _validate_for_tier(url, trust)
     session = _RevalidatingSession(trust, max_redirects)
@@ -226,6 +229,8 @@ def safe_post(
             json=json,
             files=files,
             headers=headers,
+            stream=stream,
         )
     finally:
-        session.close()
+        if not stream:
+            session.close()

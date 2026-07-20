@@ -5,10 +5,12 @@ values (booleans + source only). All outbound base URLs pass SSRF validation.
 """
 import logging
 import os
+from urllib.parse import urlparse
 
 import requests
 from flask import request
 
+import transcriber
 from api import api, error_response, json_response
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from database import Database
@@ -205,3 +207,56 @@ def test_provider(provider):
     if r.status_code < 400:
         return json_response({'ok': True}, 200)
     return json_response({'ok': False, 'error': f'HTTP {r.status_code}'}, 200)
+
+
+def _same_server(url_a: str, url_b: str) -> bool:
+    """True when two base URLs point at the same scheme/host/port."""
+    if not url_a or not url_b:
+        return False
+    a, b = urlparse(url_a), urlparse(url_b)
+    return (a.scheme, a.hostname, a.port) == (b.scheme, b.hostname, b.port)
+
+
+@api.route('/settings/providers/whisper/test-connection', methods=['POST'])
+def test_whisper_connection():
+    """End-to-end probe of a remote transcription endpoint (#544).
+
+    Unlike /test (which needs a stored key and probes /models, a path many
+    transcription servers do not implement), this uploads a generated audio
+    sample through the real transcription request shape. Accepts unsaved
+    baseUrl/model/skipFlacCompression values in the body so the user can
+    test before saving; a baseUrl key present in the body is authoritative,
+    even when empty, so the test never silently probes a URL that is not
+    in the form.
+    """
+    body = request.get_json(silent=True) or {}
+    # Saved values come from the same resolver the real transcription path
+    # uses, so the probe cannot drift from what an episode upload would do.
+    saved = transcriber._get_whisper_settings()
+
+    base = body['baseUrl'] if 'baseUrl' in body else saved['api_base_url']
+    if base is not None and not isinstance(base, str):
+        return error_response('baseUrl must be a string', 400)
+    if not base or not base.strip():
+        return json_response(
+            {'ok': False, 'reachable': False,
+             'detail': 'Enter a base URL first.'}, 200)
+    base = base.strip()
+
+    model = body.get('model') or saved['api_model']
+    if not isinstance(model, str):
+        return error_response('model must be a string', 400)
+
+    skip_flac = body.get('skipFlacCompression', saved['skip_flac_compression'])
+    if not isinstance(skip_flac, bool):
+        return error_response('skipFlacCompression must be a boolean', 400)
+
+    # The saved API key goes out only when the tested URL points at the
+    # same server as the saved base URL. Without this gate, any caller with
+    # a session could exfiltrate the stored key by "testing" a URL they
+    # control -- a secret this API otherwise never returns.
+    api_key = saved['api_key'] if _same_server(base, saved['api_base_url']) else ''
+
+    result = transcriber.probe_transcription_endpoint(
+        base, api_key=api_key, model=model, skip_flac_compression=skip_flac)
+    return json_response(result, 200)
