@@ -69,10 +69,15 @@ export function testWhisperConnection(baseUrl: string, model: string, skipFlacCo
   });
 }
 
-export function testLlmConnection(name: 'openai' | 'ollama', baseUrl: string) {
+// baseUrl applies to the configurable providers (openai, ollama); anthropic
+// and openrouter have fixed public endpoints and ignore the body.
+export function testLlmConnection(
+  name: 'openai' | 'ollama' | 'anthropic' | 'openrouter',
+  baseUrl?: string,
+) {
   return apiRequest<ConnectionTestResult>(`/settings/providers/${name}/test-connection`, {
     method: 'POST',
-    body: { baseUrl },
+    body: baseUrl === undefined ? {} : { baseUrl },
   });
 }
 

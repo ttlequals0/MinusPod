@@ -61,6 +61,8 @@ Configuration is identical either way: pick `Ollama` in Settings > LLM Provider,
 
 A **Test connection** button sits under the Base URL field for the Ollama and OpenAI Compatible providers. It hits the same `/models` route MinusPod uses to discover models (with the same automatic `/v1` suffix for Ollama), works without an API key, and tells you whether the failure is an unreachable host, a wrong path, or a rejected key. You can test a URL before saving it; a saved API key is only sent when the tested URL matches the saved one.
 
+Anthropic and OpenRouter get the same button. Their endpoints are fixed, so the test answers a different question: can this container reach the provider at all, and if not ok, is the problem the network or the saved key.
+
 ### Heads up about Ollama Cloud model selection
 
 Ollama Cloud's `/v1/models` advertises the full Ollama library, including previews and local-only tags that Cloud won't actually route. The dropdown shows whatever the endpoint returns, so entries like `gemma4:31b`, `kimi-k2:1t`, and `gpt-oss:120b` can appear but 404 when called.

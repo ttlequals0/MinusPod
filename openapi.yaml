@@ -3193,8 +3193,10 @@ paths:
         `baseUrl` key present in the body is authoritative even when empty.
         The stored API key is sent only when the tested URL points at the
         same scheme/host/port as the saved base URL, so the key cannot be
-        sent to an arbitrary URL. Anthropic and OpenRouter use fixed public
-        endpoints and are not accepted here; their `/test` covers them.
+        sent to an arbitrary URL. `anthropic` and `openrouter` probe their
+        fixed public endpoints with the saved key; the request body is
+        ignored for them, distinguishing an unreachable network from a
+        rejected or missing key.
       operationId: testProviderConnection
       parameters:
         - in: path
@@ -3202,7 +3204,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [whisper, openai, ollama]
+            enum: [whisper, openai, ollama, anthropic, openrouter]
       requestBody:
         required: false
         content:

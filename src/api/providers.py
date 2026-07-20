@@ -169,6 +169,22 @@ def rotate_master_passphrase():
     return json_response({'rotated': rotated}, 200)
 
 
+# Fixed public endpoints per provider: probe URL + auth header builder.
+# Shared by /test and /test-connection so the contract lives once. These
+# providers accept no baseUrl input anywhere, so the key can only ever be
+# sent to the canonical host.
+_FIXED_PROVIDER_PROBES = {
+    'anthropic': (
+        'https://api.anthropic.com/v1/models',
+        lambda key: {'x-api-key': key, 'anthropic-version': '2023-06-01'} if key else {},
+    ),
+    'openrouter': (
+        'https://openrouter.ai/api/v1/auth/key',
+        lambda key: {'Authorization': f'Bearer {key}'} if key else {},
+    ),
+}
+
+
 @api.route('/settings/providers/<provider>/test', methods=['POST'])
 def test_provider(provider):
     if provider not in _PROVIDERS:
@@ -179,12 +195,9 @@ def test_provider(provider):
     if not api_key:
         return json_response({'ok': False, 'error': 'no key configured'}, 200)
 
-    if provider == 'anthropic':
-        url = 'https://api.anthropic.com/v1/models'
-        headers = {'x-api-key': api_key, 'anthropic-version': '2023-06-01'}
-    elif provider == 'openrouter':
-        url = 'https://openrouter.ai/api/v1/auth/key'
-        headers = {'Authorization': f'Bearer {api_key}'}
+    if provider in _FIXED_PROVIDER_PROBES:
+        url, header_fn = _FIXED_PROVIDER_PROBES[provider]
+        headers = header_fn(api_key)
     else:
         base = db.get_setting(cfg['base_url']) or os.environ.get(cfg['base_env'], '')
         if not base:
@@ -295,10 +308,57 @@ def _probe_models_endpoint(base_url: str, api_key: str) -> dict:
     return result
 
 
-# Providers with a configurable endpoint worth probing. Anthropic and
-# OpenRouter talk to fixed public URLs; their /test key check is the whole
-# story, so they are deliberately absent here.
-_CONNECTION_TEST_PROVIDERS = ('whisper', 'openai', 'ollama')
+def _probe_fixed_endpoint(provider: str, api_key: str) -> dict:
+    """Staged connection probe for a provider with a fixed public endpoint.
+
+    Answers two questions the bare /test cannot: can this container reach
+    the provider at all (egress/DNS), and if not ok, is the problem the
+    key or the network. No baseUrl is accepted, so the saved key only ever
+    travels to the canonical host.
+    """
+    url, header_fn = _FIXED_PROVIDER_PROBES[provider]
+    error, status, body_bytes = run_probe(
+        lambda: safe_get(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_PROBE,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+            headers=header_fn(api_key),
+            stream=True,
+        ),
+        HTTP_TIMEOUT_PROBE,
+        log_context=safe_url_for_log(url),
+    )
+    if error:
+        return error
+
+    result = {'ok': False, 'reachable': True, 'status': status}
+    if status < 400:
+        if isinstance(parse_probe_json(body_bytes), dict):
+            result['ok'] = True
+            result['detail'] = (f'Connected. The API accepted the request '
+                                f'(HTTP {status}).')
+        else:
+            result['detail'] = (f'The API answered HTTP {status} but not '
+                                'with the expected response.')
+    elif status in (401, 403):
+        if api_key:
+            result['detail'] = (f'The API is reachable but rejected the '
+                                f'saved key (HTTP {status}). Check the key.')
+        else:
+            result['detail'] = (f'The API is reachable and requires a key '
+                                f'(HTTP {status}). Save an API key, then '
+                                'test again.')
+    else:
+        result['detail'] = rejected_detail(status, body_bytes)
+    return result
+
+
+# Every provider gets a staged connection test: whisper/openai/ollama probe
+# the configurable endpoint (accepting unsaved base URLs), fixed-endpoint
+# providers probe their public URLs (no baseUrl input).
+_CONNECTION_TEST_PROVIDERS = (
+    ('whisper', 'openai', 'ollama') + tuple(_FIXED_PROVIDER_PROBES))
 
 
 @api.route('/settings/providers/<provider>/test-connection', methods=['POST'])
@@ -311,10 +371,18 @@ def test_provider_connection(provider):
     authoritative, even when empty, so the test never silently probes a URL
     that is not in the form. whisper uploads a generated audio sample
     through the real transcription request shape; openai/ollama hit the
-    same /models route the real LLM client uses for discovery.
+    same /models route the real LLM client uses for discovery; anthropic
+    and openrouter probe their fixed public endpoints (no body input).
     """
     if provider not in _CONNECTION_TEST_PROVIDERS:
         return error_response('unknown provider', 404)
+
+    if provider in _FIXED_PROVIDER_PROBES:
+        # Fixed public endpoint: nothing configurable to accept from the
+        # body, saved key only.
+        api_key = _resolve_key(Database(), _PROVIDERS[provider]) or ''
+        return json_response(_probe_fixed_endpoint(provider, api_key), 200)
+
     body = request.get_json(silent=True) or {}
 
     cfg = _PROVIDERS[provider]

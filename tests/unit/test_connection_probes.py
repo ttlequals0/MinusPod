@@ -114,7 +114,6 @@ class TestLlmConnectionEndpoint:
                            content_type='application/json')
 
     def test_unknown_provider_404(self, client):
-        assert self._post(client, 'anthropic').status_code == 404
         assert self._post(client, 'bogus').status_code == 404
 
     def test_ollama_base_url_normalized_to_v1(self, client):
@@ -181,6 +180,61 @@ class TestLlmConnectionEndpoint:
     def test_same_server_malformed_port_is_false(self):
         assert _same_server('http://host:notaport/v1',
                             'http://host:8000/v1') is False
+
+
+class TestFixedProviderConnection:
+    def _post(self, client, provider, body=None):
+        return client.post(f'/api/v1/settings/providers/{provider}/test-connection',
+                           data=json.dumps(body if body is not None else {}),
+                           content_type='application/json')
+
+    def test_anthropic_probes_fixed_url(self, client):
+        with patch('api.providers.safe_get',
+                   return_value=_response(200, json_body={'data': []})) as sg:
+            r = self._post(client, 'anthropic')
+        assert r.status_code == 200
+        assert r.get_json()['ok'] is True
+        assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
+
+    def test_openrouter_probes_fixed_url(self, client):
+        with patch('api.providers.safe_get',
+                   return_value=_response(200, json_body={'data': {}})) as sg:
+            r = self._post(client, 'openrouter')
+        assert r.get_json()['ok'] is True
+        assert sg.call_args[0][0] == 'https://openrouter.ai/api/v1/auth/key'
+
+    def test_body_base_url_ignored_for_fixed_provider(self, client):
+        # No baseUrl input exists for fixed providers; a body value must
+        # never redirect the probe (or the saved key) anywhere else.
+        with patch('api.providers.safe_get',
+                   return_value=_response(200, json_body={'data': []})) as sg:
+            self._post(client, 'anthropic',
+                       {'baseUrl': 'http://evil.example.com'})
+        assert sg.call_args[0][0] == 'https://api.anthropic.com/v1/models'
+
+    def test_401_without_key(self, client):
+        with patch('api.providers.safe_get', return_value=_response(401)):
+            r = self._post(client, 'anthropic')
+        data = r.get_json()
+        assert data['ok'] is False
+        assert data['reachable'] is True
+        assert 'Save an API key' in data['detail']
+
+    def test_401_with_saved_key(self, client, temp_db):
+        temp_db.set_secret('anthropic_api_key', 'sk-ant-bad')
+        with patch('api.providers.safe_get', return_value=_response(401)) as sg:
+            r = self._post(client, 'anthropic')
+        data = r.get_json()
+        assert 'rejected the saved key' in data['detail']
+        assert sg.call_args[1]['headers']['x-api-key'] == 'sk-ant-bad'
+
+    def test_unreachable(self, client):
+        with patch('api.providers.safe_get',
+                   side_effect=requests_lib.ConnectionError('no route')):
+            r = self._post(client, 'openrouter')
+        data = r.get_json()
+        assert data['ok'] is False
+        assert data['reachable'] is False
 
 
 class TestLegacyKeyTestOllamaNormalization:

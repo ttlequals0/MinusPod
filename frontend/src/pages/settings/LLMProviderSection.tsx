@@ -17,7 +17,7 @@ interface LLMProviderSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
-  onConnectionTest: (provider: 'openai' | 'ollama', baseUrl: string) => Promise<ConnectionTestResult>;
+  onConnectionTest: (provider: 'openai' | 'ollama' | 'anthropic' | 'openrouter', baseUrl?: string) => Promise<ConnectionTestResult>;
   ollamaNumCtx?: StageTunables['ollamaNumCtx'];
   onOllamaNumCtxUpdate?: (payload: UpdateSettingsPayload) => void;
 }
@@ -118,6 +118,15 @@ function LLMProviderSection({
             onSave={onProviderKeySave}
             onClear={onProviderKeyClear}
             onTest={onProviderKeyTest}
+          />
+        )}
+
+        {(llmProvider === LLM_PROVIDERS.ANTHROPIC || llmProvider === LLM_PROVIDERS.OPENROUTER) && (
+          <ConnectionTestButton
+            key={`${llmProvider}|${status.configured}`}
+            onTest={() => onConnectionTest(
+              llmProvider === LLM_PROVIDERS.ANTHROPIC ? 'anthropic' : 'openrouter',
+            )}
           />
         )}
 

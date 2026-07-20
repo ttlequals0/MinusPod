@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client uses for discovery, with the same automatic /v1 suffix for
   Ollama. Unlike the key Test button it works without an API key (local
   Ollama has none) and can test an unsaved base URL. The saved key is sent
-  only when the tested URL matches the saved one.
+  only when the tested URL matches the saved one. Anthropic and OpenRouter
+  get the same button against their fixed public endpoints, separating an
+  unreachable network from a rejected or missing key.
 - PodcastIndex connection test: sends the same signed one-result search
   the Add Feed search uses, so a passing test means search will work.
   Uses saved credentials only; the button is blocked while unsaved drafts
