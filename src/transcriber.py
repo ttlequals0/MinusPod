@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
 
 from utils.audio import get_audio_duration
-from utils.errors import ServiceUnavailableError, AudioTooLargeError
+from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionError
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
@@ -202,6 +202,12 @@ def extract_audio_chunk(
             '-ss', str(start_time),
             '-i', audio_path,
             '-t', str(duration),
+            # Ignore embedded cover art (#556). FLAC output can carry
+            # pictures, so a malformed APIC frame (ID3 declares PNG, bytes
+            # are JPEG) aborts the whole extract without this; WAV output
+            # cannot carry pictures, which is why 2.62.0's fold-in of the
+            # FLAC encode surfaced it.
+            '-vn',
             '-ar', '16000',  # Whisper native sample rate
             '-ac', '1',      # Mono
         ]
@@ -226,7 +232,7 @@ def extract_audio_chunk(
 
         logger.warning(
             f"Chunk extraction failed (returncode={result.returncode}): "
-            f"{result.stderr.decode('utf-8', errors='replace')[:200] if result.stderr else 'no error'}"
+            f"{_ffmpeg_error_tail(result.stderr)}"
         )
         return None
 
@@ -314,6 +320,23 @@ def _unlink_quiet(path):
             os.unlink(path)
         except OSError:
             pass
+
+
+def _ffmpeg_error_tail(stderr, limit: int = 500) -> str:
+    """The diagnosable part of ffmpeg stderr for logs.
+
+    A head-truncated slice is consumed entirely by the version banner and
+    configuration line (#556 was undiagnosable from logs because of it), so
+    surface lines that look like errors, falling back to the tail.
+    """
+    if not stderr:
+        return 'no error output'
+    text = stderr.decode('utf-8', errors='replace')
+    error_lines = [ln for ln in text.splitlines()
+                   if re.search(r'error|invalid|fail|denied|no such',
+                                ln, re.IGNORECASE)]
+    picked = '\n'.join(error_lines[-5:]) if error_lines else text
+    return picked[-limit:]
 
 
 def _max_download_mb() -> int:
@@ -1260,6 +1283,7 @@ class Transcriber:
         try:
             cmd = [
                 'ffmpeg', '-y', '-i', input_path,
+                '-vn',           # ignore embedded cover art (#556)
                 '-ar', '16000',  # 16kHz (Whisper native sample rate)
                 '-ac', '1',      # Mono
                 '-af', PREPROCESS_AUDIO_FILTERS,
@@ -1276,7 +1300,7 @@ class Transcriber:
                 return output_path
             logger.warning(
                 f"Audio preprocessing failed (returncode={result.returncode}), "
-                f"stderr: {result.stderr.decode('utf-8', errors='replace')[:200] if result.stderr else 'none'}"
+                f"stderr: {_ffmpeg_error_tail(result.stderr)}"
             )
             return None
         except subprocess.TimeoutExpired:
@@ -1687,6 +1711,11 @@ class Transcriber:
         )
 
         connectivity_errors: List[ServiceUnavailableError] = []
+        # Chunk indexes whose ffmpeg extract failed (before any API call).
+        # list.append is thread-safe; used so an abort can name local
+        # extraction as the cause instead of the generic transcription
+        # failure that sent #556's reporter debugging a healthy provider.
+        extraction_failures: List[int] = []
 
         # One ffmpeg pass per chunk: extraction applies the preprocess filter
         # chain, and (unless the operator opted out of FLAC compression)
@@ -1700,6 +1729,7 @@ class Transcriber:
             )
             if not chunk_path:
                 logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
+                extraction_failures.append(chunk_idx)
                 return chunk_idx, None
             try:
                 segs = self._transcribe_via_api(
@@ -1766,6 +1796,14 @@ class Transcriber:
                     # transient-retry ladder, whose next attempt re-classifies.
                     if len(connectivity_errors) * 2 > failed:
                         raise connectivity_errors[0]
+                    # Name local extraction as the cause when it dominates
+                    # (#556): "Failed to transcribe audio" points users at a
+                    # healthy transcription provider.
+                    if len(extraction_failures) * 2 > failed:
+                        raise AudioExtractionError(
+                            'Audio chunk extraction failed (ffmpeg could not '
+                            'decode the source file); the transcription API '
+                            'was not the problem')
                     return None
         finally:
             # wait=False: return without blocking on in-flight workers (they
@@ -1933,7 +1971,11 @@ class Transcriber:
             )
             if not chunk_path:
                 logger.error(f"Failed to extract chunk {chunk_num + 1}")
-                return None
+                # Name local extraction as the cause (#556): the generic
+                # transcription-failure message points at the wrong layer.
+                raise AudioExtractionError(
+                    'Audio chunk extraction failed (ffmpeg could not decode '
+                    'the source file); transcription never started')
 
             try:
                 # Transcribe chunk (will handle its own batch sizing and retries)

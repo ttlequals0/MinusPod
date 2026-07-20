@@ -20,6 +20,18 @@ class ServiceUnavailableError(Exception):
         self.service = service  # 'llm' or 'whisper'
 
 
+class AudioExtractionError(Exception):
+    """ffmpeg could not extract or decode audio chunks from the source file.
+
+    Distinct from transcription-API failures so the user-facing error points
+    at the file, not the provider: #556 was a malformed embedded cover image
+    aborting every chunk extract, reported as "Failed to transcribe audio",
+    and the reporter spent the debugging time on a healthy Whisper endpoint.
+    Pass 2 treats it like an outage (skip verification, keep the episode);
+    pass 1 lets it propagate as the episode error.
+    """
+
+
 class AudioTooLargeError(Exception):
     """An episode enclosure exceeds the configured download size cap.
 

@@ -6,6 +6,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.65.0] - 2026-07-20
+
+### Added
+- Podcast search provider option (Settings > Podcast Search): iTunes or
+  PodcastIndex.org. iTunes searches Apple's directory with no account or
+  API key and is the default for installs that never configured
+  PodcastIndex, so name search now works out of the box. An explicit
+  choice always wins, and installs that already had PodcastIndex
+  credentials keep using PodcastIndex until they pick otherwise. Both
+  providers return the same result shape; iTunes entries without an RSS
+  feed URL are dropped rather than shown as dead results.
+
+### Fixed
+- Episodes with malformed embedded cover art no longer fail transcription
+  (issue #556). 2.62.0 folded the FLAC encode into chunk extraction, and
+  FLAC can carry embedded pictures, so ffmpeg tried to transcode a
+  mislabeled APIC frame (ID3 says PNG, bytes are JPEG) into every chunk
+  and aborted the extract. Chunk extraction and audio preprocessing now
+  pass -vn to ignore artwork streams entirely.
+- ffmpeg failures are diagnosable from logs: instead of the first 200
+  characters of stderr (always the version banner), MinusPod now logs the
+  error lines, falling back to the tail.
+- When chunk extraction is what failed, the episode error says so
+  ("Audio chunk extraction failed (ffmpeg could not decode the source
+  file)") instead of the generic transcription failure that pointed
+  #556's reporter at a healthy Whisper provider. Pass 2 treats extraction
+  failure like an outage: verification is skipped, the cut episode is
+  kept.
+
 ## [2.64.1] - 2026-07-20
 
 ### Fixed

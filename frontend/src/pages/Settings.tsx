@@ -267,6 +267,7 @@ function Settings() {
     await reloadProviders();
   };
   const handleProviderKeyTest = (provider: ProviderName) => testProvider(provider);
+  const [podcastSearchProvider, setPodcastSearchProvider] = useState('');
   const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
@@ -436,6 +437,7 @@ function Settings() {
     { key: 'whisperModel', kind: 'str', useDefault: true, value: whisperModel, set: setWhisperModel },
     // Providers
     { key: 'llmProvider', kind: 'str', useDefault: true, value: llmProvider, set: (v) => setLlmProvider(v as LlmProvider) },
+    { key: 'podcastSearchProvider', kind: 'str', value: podcastSearchProvider, set: setPodcastSearchProvider },
     { key: 'openaiBaseUrl', kind: 'str', useDefault: true, value: openaiBaseUrl, set: setOpenaiBaseUrl },
     { key: 'pricingSourceMode', kind: 'str', useDefault: true, value: pricingSourceMode, set: setPricingSourceMode },
     // Transcription
@@ -777,6 +779,8 @@ function Settings() {
 
       <div id="podcast-index">
         <PodcastIndexSection
+          searchProvider={podcastSearchProvider}
+          onSearchProviderChange={setPodcastSearchProvider}
           podcastIndexApiKeyConfigured={settings?.podcastIndexApiKeyConfigured}
           podcastIndexApiKey={podcastIndexApiKey}
           podcastIndexApiSecret={podcastIndexApiSecret}

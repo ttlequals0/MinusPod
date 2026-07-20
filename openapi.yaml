@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.64.1
+  version: 2.65.0
   contact:
     name: MinusPod
   license:
@@ -2283,10 +2283,14 @@ paths:
     get:
       tags:
         - Podcast Discovery
-      summary: Search podcasts via PodcastIndex
+      summary: Search podcasts by name
       description: |
-        Proxy search to PodcastIndex.org API. Requires API credentials
-        configured in settings or environment variables.
+        Proxy search via the configured provider. iTunes (the default when
+        no PodcastIndex credentials exist) needs no setup; PodcastIndex.org
+        requires API credentials in settings or environment variables. An
+        explicit `podcastSearchProvider` setting always wins. Both providers
+        return the same result shape; iTunes entries without a feed URL are
+        dropped.
       operationId: searchPodcasts
       parameters:
         - name: q
@@ -2322,12 +2326,16 @@ paths:
                           type: string
                         link:
                           type: string
+                  provider:
+                    type: string
+                    enum: [itunes, podcastindex]
+                    description: Provider that served this search
         '400':
           description: Missing query parameter
         '502':
-          description: PodcastIndex API unreachable
+          description: Search provider unreachable
         '503':
-          description: PodcastIndex credentials not configured
+          description: PodcastIndex selected but credentials not configured
 
   /search:
     get:

@@ -136,6 +136,13 @@ PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration corr
 # timeline routinely graze a new hold without covering it).
 CORRECTION_MATCH_MIN_COVERAGE = 0.5
 
+# Podcast name-search providers. iTunes needs no credentials and is the
+# default for installs that never configured PodcastIndex; an explicit
+# choice in Settings always wins (see resolve_search_provider).
+SEARCH_PROVIDER_ITUNES = 'itunes'
+SEARCH_PROVIDER_PODCASTINDEX = 'podcastindex'
+PODCAST_SEARCH_PROVIDERS = (SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX)
+
 # ============================================================
 # Processing Limits
 # ============================================================

@@ -11,9 +11,10 @@ from transcriber import (
     check_whisper_connectivity,
     _whisper_api_rejects_word_timestamps,
     extract_audio_chunk,
+    _ffmpeg_error_tail,
     PREPROCESS_AUDIO_FILTERS,
 )
-from utils.errors import ServiceUnavailableError
+from utils.errors import ServiceUnavailableError, AudioExtractionError
 from config import (
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
@@ -772,6 +773,30 @@ class TestExtractAudioChunkSinglePass:
         assert path.endswith('.flac')
 
 
+class TestFfmpegErrorTail:
+    _BANNER = (b'ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025\n'
+               b'  configuration: --prefix=/usr --extra-version=3ubuntu2 '
+               b'--toolchain=hardened --libdir=/usr/lib\n')
+
+    def test_surfaces_error_lines_not_banner(self):
+        stderr = self._BANNER + (
+            b'[png @ 0x1] Invalid PNG signature 0xFFD8FFE000104A46.\n'
+            b'[dec:png @ 0x2] Error submitting packet to decoder\n')
+        tail = _ffmpeg_error_tail(stderr)
+        assert 'Invalid PNG signature' in tail
+        assert 'Error submitting packet' in tail
+        assert 'configuration:' not in tail
+
+    def test_falls_back_to_tail_without_error_lines(self):
+        stderr = self._BANNER + b'Stream mapping details here\n'
+        tail = _ffmpeg_error_tail(stderr, limit=40)
+        assert tail.endswith('Stream mapping details here\n'[-40:])
+
+    def test_empty_stderr(self):
+        assert _ffmpeg_error_tail(None) == 'no error output'
+        assert _ffmpeg_error_tail(b'') == 'no error output'
+
+
 class TestChunkedSinglePass:
     """Chunked paths run exactly one ffmpeg pass per chunk: extraction with
     the preprocess filter chain folded in, no second preprocess pass, and
@@ -857,6 +882,46 @@ class TestChunkedSinglePass:
             assert cmd[cmd.index('-af') + 1] == PREPROCESS_AUDIO_FILTERS
             assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
         transcriber.preprocess_audio.assert_not_called()
+
+    def test_api_chunks_ignore_embedded_artwork(self):
+        # A malformed embedded cover image (ID3 declares PNG, bytes are
+        # JPEG) aborts a FLAC-output extract unless the artwork stream is
+        # excluded (#556). Every chunk extract must carry -vn.
+        ffmpeg_cmds = []
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+
+        with patch('transcriber.tracked_run',
+                   side_effect=self._fake_run_factory(ffmpeg_cmds)), \
+             patch('transcriber.safe_post', return_value=self._mock_api_response()), \
+             patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
+            transcriber._transcribe_chunked_parallel_api(
+                '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+            )
+
+        assert ffmpeg_cmds
+        for cmd in ffmpeg_cmds:
+            assert '-vn' in cmd
+
+    def test_api_chunk_extraction_failure_names_extraction(self):
+        # When the abort is caused by ffmpeg extraction (not the API), the
+        # raised error must say so: #556 surfaced as "Failed to transcribe
+        # audio" and sent the reporter debugging a healthy provider.
+        def failing_run(cmd, **kwargs):
+            result = MagicMock()
+            result.returncode = 69
+            result.stderr = b'Error submitting packet to decoder'
+            return result
+
+        transcriber = Transcriber()
+        transcriber.preprocess_audio = MagicMock(return_value=None)
+
+        with patch('transcriber.tracked_run', side_effect=failing_run), \
+             patch('transcriber._get_chunk_settings', return_value=self._CHUNK_SETTINGS):
+            with pytest.raises(AudioExtractionError):
+                transcriber._transcribe_chunked_parallel_api(
+                    '/tmp/full.mp3', 'TestPodcast', 50.0, self._make_settings()
+                )
 
     def test_transcribe_via_api_preprocessed_flac_runs_no_ffmpeg(self):
         """A preprocessed FLAC chunk uploads as-is: no preprocess pass, no
