@@ -6,7 +6,7 @@
 
 ## Finding Podcast RSS Feeds
 
-MinusPod includes a built-in podcast search using [PodcastIndex.org](https://podcastindex.org). Search by name directly from the Add Feed page. To enable search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup) and add them in Settings > Podcast Search.
+MinusPod includes a built-in podcast search using [PodcastIndex.org](https://podcastindex.org). Search by name directly from the Add Feed page. To enable search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup) and add them in Settings > Podcast Search. After saving, the **Test connection** button in the same section sends a signed one-result search, so you know the credentials work before you need them.
 
 ![Podcast search on the Add Feed page, Dracula dark theme](images/podcast-search-dark.png)
 

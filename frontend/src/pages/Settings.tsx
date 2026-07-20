@@ -25,6 +25,9 @@ import {
   updateProvider,
   clearProvider,
   testProvider,
+  testWhisperConnection,
+  testLlmConnection,
+  testPodcastIndex,
   type ProviderName,
   type ProvidersResponse,
 } from '../api/providers';
@@ -779,6 +782,7 @@ function Settings() {
           podcastIndexApiSecret={podcastIndexApiSecret}
           onApiKeyChange={setPodcastIndexApiKey}
           onApiSecretChange={setPodcastIndexApiSecret}
+          onConnectionTest={testPodcastIndex}
         />
       </div>
 
@@ -813,6 +817,7 @@ function Settings() {
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}
         onProviderKeyTest={handleProviderKeyTest}
+        onConnectionTest={testLlmConnection}
         ollamaNumCtx={settings?.stageTunables?.ollamaNumCtx}
         onOllamaNumCtxUpdate={(payload) => tunableMutation.mutate(payload)}
       />
@@ -858,6 +863,7 @@ function Settings() {
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}
         onProviderKeyTest={handleProviderKeyTest}
+        onConnectionTest={testWhisperConnection}
         whisperLanguage={whisperLanguage}
         onWhisperLanguageChange={setWhisperLanguage}
         whisperComputeType={whisperComputeType}

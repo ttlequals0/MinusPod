@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
-import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
+import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -16,6 +17,7 @@ interface LLMProviderSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
+  onConnectionTest: (provider: 'openai' | 'ollama' | 'anthropic' | 'openrouter', baseUrl?: string) => Promise<ConnectionTestResult>;
   ollamaNumCtx?: StageTunables['ollamaNumCtx'];
   onOllamaNumCtxUpdate?: (payload: UpdateSettingsPayload) => void;
 }
@@ -49,6 +51,7 @@ function LLMProviderSection({
   onProviderKeySave,
   onProviderKeyClear,
   onProviderKeyTest,
+  onConnectionTest,
   ollamaNumCtx,
   onOllamaNumCtxUpdate,
 }: LLMProviderSectionProps) {
@@ -94,6 +97,13 @@ function LLMProviderSection({
                 ? 'Ollama server URL (e.g. http://localhost:11434)'
                 : 'OpenAI-compatible API endpoint (must end with /v1)'}
             </p>
+            <ConnectionTestButton
+              key={`${llmProvider}|${openaiBaseUrl}|${status.configured}`}
+              onTest={() => onConnectionTest(
+                llmProvider === LLM_PROVIDERS.OLLAMA ? 'ollama' : 'openai',
+                openaiBaseUrl,
+              )}
+            />
           </div>
         )}
 
@@ -108,6 +118,15 @@ function LLMProviderSection({
             onSave={onProviderKeySave}
             onClear={onProviderKeyClear}
             onTest={onProviderKeyTest}
+          />
+        )}
+
+        {(llmProvider === LLM_PROVIDERS.ANTHROPIC || llmProvider === LLM_PROVIDERS.OPENROUTER) && (
+          <ConnectionTestButton
+            key={`${llmProvider}|${status.configured}`}
+            onTest={() => onConnectionTest(
+              llmProvider === LLM_PROVIDERS.ANTHROPIC ? 'anthropic' : 'openrouter',
+            )}
           />
         )}
 

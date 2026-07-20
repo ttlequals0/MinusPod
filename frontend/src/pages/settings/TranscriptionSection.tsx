@@ -1,11 +1,12 @@
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConnectionTestButton from './ConnectionTestButton';
 import LanguageCombobox from '../../components/LanguageCombobox';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ProviderKeyField from './ProviderKeyField';
 import SavedBadge from './SavedBadge';
-import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
+import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse, ConnectionTestResult } from '../../api/providers';
 import { btnPrimary } from '../../components/buttonStyles';
 
 interface TranscriptionSectionProps {
@@ -20,6 +21,7 @@ interface TranscriptionSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
+  onConnectionTest: (baseUrl: string, model: string, skipFlacCompression: boolean) => Promise<ConnectionTestResult>;
   whisperLanguage: string;
   onWhisperLanguageChange: (language: string) => void;
   whisperComputeType: string;
@@ -58,6 +60,7 @@ function TranscriptionSection({
   onProviderKeySave,
   onProviderKeyClear,
   onProviderKeyTest,
+  onConnectionTest,
   whisperLanguage,
   onWhisperLanguageChange,
   whisperComputeType,
@@ -146,6 +149,11 @@ function TranscriptionSection({
               <p className="mt-1 text-sm text-muted-foreground">
                 OpenAI-compatible transcription endpoint (e.g. whisper.cpp, Groq, OpenAI)
               </p>
+              <ConnectionTestButton
+                key={`${apiConfig.baseUrl}|${apiConfig.model}|${skipFlacCompression}|${whisperStatus.configured}`}
+                onTest={() => onConnectionTest(apiConfig.baseUrl, apiConfig.model, skipFlacCompression)}
+                busyHint="Sending a short audio sample -- this can take up to 30 seconds"
+              />
             </div>
 
             <ProviderKeyField

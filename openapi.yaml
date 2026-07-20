@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.63.2
+  version: 2.64.0
   contact:
     name: MinusPod
   license:
@@ -3174,6 +3174,73 @@ paths:
                 properties:
                   ok:    { type: boolean }
                   error: { type: string }
+  /settings/providers/{provider}/test-connection:
+    post:
+      tags:
+        - Settings
+      summary: Test a configured endpoint connection end to end
+      description: |
+        Connection probe for providers with a configurable endpoint.
+        `whisper` uploads a one-second generated audio sample through the
+        same request shape and upload format (FLAC by default, WAV when
+        Skip FLAC compression is on) as the real transcription path, so the
+        result reflects what an actual episode upload would hit -- including
+        the wrong-path case (OpenVINO Model Server only answers under its
+        versioned base such as `/v3`). `openai` and `ollama` hit the same
+        `/models` route the real LLM client uses for discovery, with the
+        same Ollama `/v1` normalization, and unlike `/test` need no stored
+        key. Accepts unsaved values so a URL can be tested before saving; a
+        `baseUrl` key present in the body is authoritative even when empty.
+        The stored API key is sent only when the tested URL points at the
+        same scheme/host/port as the saved base URL, so the key cannot be
+        sent to an arbitrary URL. `anthropic` and `openrouter` probe their
+        fixed public endpoints with the saved key; the request body is
+        ignored for them, distinguishing an unreachable network from a
+        rejected or missing key.
+      operationId: testProviderConnection
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [whisper, openai, ollama, anthropic, openrouter]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                baseUrl: { type: string, description: 'Base URL to test; when the key is absent the saved value is used' }
+                model:   { type: string, description: 'whisper only: model name to send; falls back to the saved value' }
+                skipFlacCompression: { type: boolean, description: 'whisper only: upload WAV (true) or FLAC (false); falls back to the saved setting' }
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
+        '400': { description: 'Invalid input (non-string baseUrl or model, non-boolean skipFlacCompression)' }
+        '404': { description: 'Provider without a testable endpoint' }
+  /settings/podcast-index/test:
+    post:
+      tags:
+        - Settings
+      summary: Test the saved PodcastIndex credentials
+      description: |
+        Sends the same signed request the podcast search uses (a one-result
+        search), so a passing test means search will work. Uses only the
+        saved credentials; unsaved form drafts must be saved first.
+      operationId: testPodcastIndex
+      responses:
+        '200':
+          description: Probe result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionTestResult'
   /settings/feed-auth/regenerate-key:
     post:
       tags:
@@ -6583,6 +6650,13 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    ConnectionTestResult:
+      type: object
+      properties:
+        ok:        { type: boolean, description: 'The endpoint accepted the probe' }
+        reachable: { type: boolean, description: 'The server returned any HTTP response' }
+        status:    { type: integer, description: 'HTTP status code, when a response was received' }
+        detail:    { type: string, description: 'Human-readable outcome' }
     CueMatch:
       type: object
       description: One cue match within an episode

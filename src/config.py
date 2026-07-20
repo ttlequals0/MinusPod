@@ -828,6 +828,8 @@ HTTP_TIMEOUT_EXTERNAL = 15.0          # Third-party scraping (pricing sources)
 HTTP_TIMEOUT_FETCH = 30.0             # RSS fetch, artwork / audio download
 HTTP_TIMEOUT_WHISPER = 600            # Remote Whisper transcription upload
                                       # (multi-minute audio over slow network)
+HTTP_TIMEOUT_CONNECTION_TEST = 30.0   # Whisper /test-connection probe: 1s WAV
+                                      # upload + inference, may cold-load model
 
 # ============================================================
 # Chunked Transcription (OOM prevention for long episodes)

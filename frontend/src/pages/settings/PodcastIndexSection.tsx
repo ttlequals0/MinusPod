@@ -1,4 +1,6 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ConnectionTestButton from './ConnectionTestButton';
+import type { ConnectionTestResult } from '../../api/providers';
 
 interface PodcastIndexSectionProps {
   podcastIndexApiKeyConfigured: boolean | undefined;
@@ -6,6 +8,7 @@ interface PodcastIndexSectionProps {
   podcastIndexApiSecret: string;
   onApiKeyChange: (key: string) => void;
   onApiSecretChange: (secret: string) => void;
+  onConnectionTest: () => Promise<ConnectionTestResult>;
 }
 
 const STATUS_BADGE_STYLES = {
@@ -29,7 +32,11 @@ function PodcastIndexSection({
   podcastIndexApiSecret,
   onApiKeyChange,
   onApiSecretChange,
+  onConnectionTest,
 }: PodcastIndexSectionProps) {
+  // The test uses the saved credentials; block it while unsaved drafts sit
+  // in the form so it cannot green-light stale values.
+  const draftsPending = podcastIndexApiKey !== '' || podcastIndexApiSecret !== '';
   return (
     <CollapsibleSection title="Podcast Search" storageKey="settings-section-podcast-index">
       <div className="space-y-4">
@@ -75,6 +82,14 @@ function PodcastIndexSection({
           ) : (
             <StatusBadge variant="muted" label="Not configured" />
           )}
+          <ConnectionTestButton
+            key={`${podcastIndexApiKeyConfigured}|${draftsPending}`}
+            onTest={onConnectionTest}
+            disabled={draftsPending || !podcastIndexApiKeyConfigured}
+            disabledReason={draftsPending
+              ? 'Save changes first -- the test uses the saved credentials.'
+              : 'Enter and save API credentials first.'}
+          />
         </div>
       </div>
     </CollapsibleSection>
