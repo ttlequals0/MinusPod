@@ -401,6 +401,7 @@ export interface Settings {
   pricingSourceMode: SettingValue;
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
+  podcastSearchProvider: SettingValue;
   openrouterBaseUrl: string;
   retentionDays: number;
   stageTunables: StageTunables;
@@ -544,6 +545,7 @@ export interface UpdateSettingsPayload {
   whisperComputeType?: string;
   podcastIndexApiKey?: string;
   podcastIndexApiSecret?: string;
+  podcastSearchProvider?: string;
   // Per-stage LLM tunables. Null clears the stored value (returns to default).
   detectionTemperature?: number | null;
   detectionMaxTokens?: number | null;

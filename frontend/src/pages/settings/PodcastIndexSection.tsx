@@ -3,6 +3,8 @@ import ConnectionTestButton from './ConnectionTestButton';
 import type { ConnectionTestResult } from '../../api/providers';
 
 interface PodcastIndexSectionProps {
+  searchProvider: string;
+  onSearchProviderChange: (provider: string) => void;
   podcastIndexApiKeyConfigured: boolean | undefined;
   podcastIndexApiKey: string;
   podcastIndexApiSecret: string;
@@ -27,6 +29,8 @@ function StatusBadge({ variant, label }: { variant: 'green' | 'muted'; label: st
 }
 
 function PodcastIndexSection({
+  searchProvider,
+  onSearchProviderChange,
   podcastIndexApiKeyConfigured,
   podcastIndexApiKey,
   podcastIndexApiSecret,
@@ -37,60 +41,89 @@ function PodcastIndexSection({
   // The test uses the saved credentials; block it while unsaved drafts sit
   // in the form so it cannot green-light stale values.
   const draftsPending = podcastIndexApiKey !== '' || podcastIndexApiSecret !== '';
+  const usingPodcastIndex = searchProvider === 'podcastindex';
   return (
     <CollapsibleSection title="Podcast Search" storageKey="settings-section-podcast-index">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Search for podcasts by name when adding feeds. Get free API credentials at{' '}
-          <a href="https://api.podcastindex.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            api.podcastindex.org
-          </a>
+          Search for podcasts by name when adding feeds.
         </p>
 
         <div>
-          <label htmlFor="podcastIndexApiKey" className="block text-sm font-medium text-foreground mb-2">
-            API Key
+          <label htmlFor="podcastSearchProvider" className="block text-sm font-medium text-foreground mb-2">
+            Search provider
           </label>
-          <input
-            type="password"
-            id="podcastIndexApiKey"
-            value={podcastIndexApiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API key'}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-          />
+          <select
+            id="podcastSearchProvider"
+            value={searchProvider}
+            onChange={(e) => onSearchProviderChange(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          >
+            <option value="itunes">iTunes (no setup needed)</option>
+            <option value="podcastindex">PodcastIndex.org (API key required)</option>
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {usingPodcastIndex
+              ? 'Searches the PodcastIndex.org directory using your API credentials.'
+              : "Searches Apple's podcast directory. Nothing to configure."}
+          </p>
         </div>
 
-        <div>
-          <label htmlFor="podcastIndexApiSecret" className="block text-sm font-medium text-foreground mb-2">
-            API Secret
-          </label>
-          <input
-            type="password"
-            id="podcastIndexApiSecret"
-            value={podcastIndexApiSecret}
-            onChange={(e) => onApiSecretChange(e.target.value)}
-            placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API secret'}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
-          />
-        </div>
+        {usingPodcastIndex && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Get free API credentials at{' '}
+              <a href="https://api.podcastindex.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                api.podcastindex.org
+              </a>
+            </p>
 
-        <div>
-          <p className="text-sm font-medium text-foreground mb-1">Status</p>
-          {podcastIndexApiKeyConfigured ? (
-            <StatusBadge variant="green" label="Configured" />
-          ) : (
-            <StatusBadge variant="muted" label="Not configured" />
-          )}
-          <ConnectionTestButton
-            key={`${podcastIndexApiKeyConfigured}|${draftsPending}`}
-            onTest={onConnectionTest}
-            disabled={draftsPending || !podcastIndexApiKeyConfigured}
-            disabledReason={draftsPending
-              ? 'Save changes first -- the test uses the saved credentials.'
-              : 'Enter and save API credentials first.'}
-          />
-        </div>
+            <div>
+              <label htmlFor="podcastIndexApiKey" className="block text-sm font-medium text-foreground mb-2">
+                API Key
+              </label>
+              <input
+                type="password"
+                id="podcastIndexApiKey"
+                value={podcastIndexApiKey}
+                onChange={(e) => onApiKeyChange(e.target.value)}
+                placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API key'}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="podcastIndexApiSecret" className="block text-sm font-medium text-foreground mb-2">
+                API Secret
+              </label>
+              <input
+                type="password"
+                id="podcastIndexApiSecret"
+                value={podcastIndexApiSecret}
+                onChange={(e) => onApiSecretChange(e.target.value)}
+                placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API secret'}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-1">Status</p>
+              {podcastIndexApiKeyConfigured ? (
+                <StatusBadge variant="green" label="Configured" />
+              ) : (
+                <StatusBadge variant="muted" label="Not configured" />
+              )}
+              <ConnectionTestButton
+                key={`${podcastIndexApiKeyConfigured}|${draftsPending}`}
+                onTest={onConnectionTest}
+                disabled={draftsPending || !podcastIndexApiKeyConfigured}
+                disabledReason={draftsPending
+                  ? 'Save changes first -- the test uses the saved credentials.'
+                  : 'Enter and save API credentials first.'}
+              />
+            </div>
+          </>
+        )}
       </div>
     </CollapsibleSection>
   );

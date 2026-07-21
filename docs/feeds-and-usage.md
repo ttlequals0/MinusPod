@@ -6,7 +6,7 @@
 
 ## Finding Podcast RSS Feeds
 
-MinusPod includes a built-in podcast search using [PodcastIndex.org](https://podcastindex.org). Search by name directly from the Add Feed page. To enable search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup) and add them in Settings > Podcast Search. After saving, the **Test connection** button in the same section sends a signed one-result search, so you know the credentials work before you need them.
+MinusPod includes a built-in podcast search on the Add Feed page. It works out of the box using Apple's iTunes directory, which needs no account or API key. If you prefer [PodcastIndex.org](https://podcastindex.org), pick it under Settings > Podcast Search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup), and add them there; the **Test connection** button sends a signed one-result search so you know the credentials work before you need them. Installs that already had PodcastIndex credentials before the provider option existed keep using PodcastIndex until they choose otherwise.
 
 ![Podcast search on the Add Feed page, Dracula dark theme](images/podcast-search-dark.png)
 

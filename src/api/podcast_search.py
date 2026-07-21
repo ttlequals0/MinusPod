@@ -8,7 +8,11 @@ import requests
 from flask import request
 
 from api import api, log_request, json_response, error_response, get_database, limiter
-from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_API
+from config import (
+    HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_API,
+    PODCAST_SEARCH_PROVIDERS, SEARCH_PROVIDER_ITUNES,
+    SEARCH_PROVIDER_PODCASTINDEX,
+)
 from utils.connection_probe import run_probe, parse_probe_json, probe_snippet
 from utils.safe_http import URLTrust, safe_get
 from utils.url import SSRFError
@@ -18,6 +22,24 @@ logger = logging.getLogger('podcast.api')
 # One URL builder for the real search and the connection test: a passing
 # test only implies working search while both hit the same endpoint.
 _SEARCH_BYTERM_URL = 'https://api.podcastindex.org/api/1.0/search/byterm'
+# Apple's keyless directory search; returns feedUrl per result.
+_ITUNES_SEARCH_URL = 'https://itunes.apple.com/search'
+
+
+def resolve_search_provider() -> str:
+    """Effective podcast search provider.
+
+    An explicit Settings choice always wins. With no choice saved, installs
+    that already have PodcastIndex credentials keep using PodcastIndex
+    (their behavior before the provider option existed); everyone else gets
+    iTunes, which needs no key.
+    """
+    explicit = get_database().get_setting('podcast_search_provider')
+    if explicit in PODCAST_SEARCH_PROVIDERS:
+        return explicit
+    api_key, api_secret = _get_podcast_index_credentials()
+    return (SEARCH_PROVIDER_PODCASTINDEX if api_key and api_secret
+            else SEARCH_PROVIDER_ITUNES)
 
 
 def _podcast_index_headers(api_key: str, api_secret: str) -> dict:
@@ -55,24 +77,36 @@ def _get_podcast_index_credentials():
 @log_request
 @limiter.limit("30 per minute")
 def search_podcasts():
-    """Search for podcasts via PodcastIndex.org API."""
+    """Search for podcasts via the configured provider.
+
+    iTunes (keyless, the default for installs without PodcastIndex
+    credentials) or PodcastIndex.org. Both map to the same result shape.
+    """
     query = request.args.get('q', '').strip()
     if not query:
         return error_response('Query parameter "q" is required', 400)
 
-    api_key, api_secret = _get_podcast_index_credentials()
-    if not api_key or not api_secret:
-        return error_response(
-            'PodcastIndex API credentials not configured. '
-            'Set them in Settings or via PODCAST_INDEX_API_KEY/PODCAST_INDEX_API_SECRET environment variables.',
-            503,
-        )
+    provider = resolve_search_provider()
+    if provider == SEARCH_PROVIDER_ITUNES:
+        label = 'iTunes'
+        headers = {'User-Agent': 'MinusPod/1.0'}
+        params = {'term': query, 'media': 'podcast', 'limit': 10}
+        base_url = _ITUNES_SEARCH_URL
+    else:
+        label = 'PodcastIndex'
+        api_key, api_secret = _get_podcast_index_credentials()
+        if not api_key or not api_secret:
+            return error_response(
+                'PodcastIndex API credentials not configured. '
+                'Set them in Settings or via PODCAST_INDEX_API_KEY/PODCAST_INDEX_API_SECRET environment variables.',
+                503,
+            )
+        headers = _podcast_index_headers(api_key, api_secret)
+        params = {'q': query, 'max': 10, 'fulltext': ''}
+        base_url = _SEARCH_BYTERM_URL
 
-    headers = _podcast_index_headers(api_key, api_secret)
-
-    params = {'q': query, 'max': 10, 'fulltext': ''}
     qs = '&'.join(f"{k}={requests.utils.requote_uri(str(v))}" for k, v in params.items())
-    endpoint = f"{_SEARCH_BYTERM_URL}?{qs}"
+    endpoint = f"{base_url}?{qs}"
     try:
         resp = safe_get(
             endpoint,
@@ -83,25 +117,34 @@ def search_podcasts():
         )
         resp.raise_for_status()
     except SSRFError as e:
-        logger.warning(f"PodcastIndex SSRF block: {e}")
-        return error_response('PodcastIndex endpoint rejected by SSRF validation', 502)
+        logger.warning(f"{label} SSRF block: {e}")
+        return error_response(f'{label} endpoint rejected by SSRF validation', 502)
     except requests.exceptions.Timeout:
-        return error_response('PodcastIndex API request timed out', 502)
+        return error_response(f'{label} request timed out', 502)
     except requests.exceptions.RequestException as e:
-        logger.error(f"PodcastIndex API error: {e}")
-        return error_response('Failed to reach PodcastIndex API', 502)
+        logger.error(f"{label} API error: {e}")
+        return error_response(f'Failed to reach {label}', 502)
 
     try:
         data = resp.json()
     except ValueError:
-        logger.error("PodcastIndex returned non-JSON response")
-        return error_response('PodcastIndex returned an invalid response', 502)
+        logger.error(f"{label} returned non-JSON response")
+        return error_response(f'{label} returned an invalid response', 502)
 
-    feeds = data.get('feeds', [])
-
-    results = []
-    for feed in feeds:
-        results.append({
+    if provider == SEARCH_PROVIDER_ITUNES:
+        # Entries without a feedUrl (platform-exclusive shows) cannot be
+        # subscribed to; drop them rather than render a dead result.
+        results = [{
+            'id': r.get('collectionId'),
+            'title': r.get('collectionName', ''),
+            'description': r.get('primaryGenreName', ''),
+            'artworkUrl': r.get('artworkUrl600') or r.get('artworkUrl100') or '',
+            'feedUrl': r.get('feedUrl', ''),
+            'author': r.get('artistName', ''),
+            'link': r.get('collectionViewUrl', ''),
+        } for r in data.get('results', []) if r.get('feedUrl')]
+    else:
+        results = [{
             'id': feed.get('id'),
             'title': feed.get('title', ''),
             'description': feed.get('description', ''),
@@ -109,9 +152,9 @@ def search_podcasts():
             'feedUrl': feed.get('url', ''),
             'author': feed.get('author', ''),
             'link': feed.get('link', ''),
-        })
+        } for feed in data.get('feeds', [])]
 
-    return json_response({'results': results})
+    return json_response({'results': results, 'provider': provider})
 
 
 @api.route('/settings/podcast-index/test', methods=['POST'])

@@ -31,7 +31,13 @@ from config import (
     get_env_backed_int,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
+    PODCAST_SEARCH_PROVIDERS,
 )
+# Safe despite api/__init__ importing settings before podcast_search:
+# podcast_search only pulls names api/__init__ defines before its submodule
+# imports. A reorder that gives podcast_search a top-level dependency on
+# settings would break boot -- keep this the only cross-submodule import.
+from api.podcast_search import resolve_search_provider
 from ad_detector import AdDetector
 from audio_processor import NORMALIZE_PRESETS
 from database.settings import (
@@ -448,6 +454,11 @@ def get_settings():
         'pricingSourceMode': _sv('pricing_source_mode', pricing_source_mode),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
+        # value is resolved, not raw: unset falls back to PodcastIndex when
+        # its credentials exist (pre-option installs keep their behavior),
+        # else iTunes. isDefault marks a derived value; saving from the UI
+        # makes the choice explicit.
+        'podcastSearchProvider': _search_provider_setting(settings),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
         'whisperBackend': _sv('whisper_backend', whisper_backend),
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
@@ -1120,8 +1131,27 @@ def _apply_positional_prior_fields(db, data):
     return
 
 
+def _search_provider_setting(settings):
+    """SettingValue for the podcast search provider: the explicit choice
+    when one is stored, else the resolver's derived value (which weighs
+    PodcastIndex credentials)."""
+    explicit = _setting_value(settings, 'podcast_search_provider', '') or ''
+    if explicit in PODCAST_SEARCH_PROVIDERS:
+        return {'value': explicit, 'isDefault': False}
+    return {'value': resolve_search_provider(), 'isDefault': True}
+
+
 def _apply_podcast_index_fields(db, data):
-    """Persist Podcast Index API credentials via the secret writer."""
+    """Persist podcast search provider choice and PodcastIndex credentials."""
+    if 'podcastSearchProvider' in data:
+        provider = data['podcastSearchProvider']
+        if provider not in PODCAST_SEARCH_PROVIDERS:
+            return json_response(
+                {'error': f'podcastSearchProvider must be one of: '
+                          f'{", ".join(PODCAST_SEARCH_PROVIDERS)}'}, 400)
+        db.set_setting('podcast_search_provider', provider, is_default=False)
+        logger.info(f"Updated podcast search provider to: {provider}")
+
     if 'podcastIndexApiKey' in data:
         try:
             set_or_clear_secret(db, 'podcast_index_api_key', data['podcastIndexApiKey'])
