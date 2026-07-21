@@ -6,6 +6,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.67.0] - 2026-07-21
+
+### Added
+
+- Per-feed chapter mode (Feed Settings > Chapters): Auto, Always
+  generate, or Off. Auto, the default, preserves the podcast's own
+  embedded chapters, remapped onto the ad-free timeline, and falls
+  back to generated chapters only when fewer than two of the
+  publisher's own chapters survive the cut (issue #560). Previously
+  MinusPod always generated its own chapters and discarded the
+  publisher's, even when they were accurate and only needed their
+  timestamps shifted. A failed chapter probe (for example a transient
+  ffprobe error) is no longer treated as "no chapters": it is now
+  distinguished from a genuinely chapterless file, and the chapter
+  step is skipped for that run instead of falling through to generate
+  and overwriting the ID3 frames the cut step already wrote correctly.
+
+### Fixed
+
+- Pass-2 auto-approval now also releases a contradiction hold when the
+  pass-2 detection agrees with the reviewer's own proposed sub-span
+  trim, not only when it covers most of the padded hold as before.
+  Agreement is measured by IoU (0.8 or higher) between the pass-2 ad
+  and the reviewer's proposed sub-span. Either way, the auto-filed
+  confirm is trimmed to the agreed sub-span, so hold padding neither
+  side attested is never cut on the detection's authority.
+
+### Documentation
+
+- The OpenVINO transcription sidecar's example compose file now runs
+  as the image's built-in `ovms` user instead of root (issue #558).
+
 ## [2.66.1] - 2026-07-21
 
 ### Fixed
