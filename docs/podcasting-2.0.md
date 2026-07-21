@@ -16,8 +16,10 @@ original audio and become wrong the moment an ad is cut. A few would
 actively break playback if passed through. This document explains
 exactly what MinusPod emits, what it deliberately drops, and why.
 
-There is nothing to configure. This behavior is automatic for every
-feed MinusPod serves.
+Almost none of this is configurable. The one exception is chapters:
+each feed can choose how its `podcast:chapters` tag is populated (see
+"Chapter modes" below). Everything else in this document is automatic
+for every feed MinusPod serves.
 
 ## The rule
 
@@ -80,8 +82,38 @@ returns 503 with a JIT-triggered processing job behind it.
 | Tag | Why it is regenerated |
 |---|---|
 | [`podcast:transcript`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) | MinusPod generates a transcript aligned to the processed audio. An upstream transcript would be offset by the length of every removed ad, and would also point subscribers at the publisher's CDN. |
-| [`podcast:chapters`](https://podcasting2.org/docs/podcast-namespace/tags/chapters) | Same reasons. Chapter markers from the original feed land in the wrong place after cutting. |
+| [`podcast:chapters`](https://podcasting2.org/docs/podcast-namespace/tags/chapters) | MinusPod always serves its own chapters JSON at its own URL, never the upstream one, because the upstream timestamps point into the original, uncut audio. What that JSON contains depends on the per-feed chapter mode; see "Chapter modes" below. |
 | `itunes:duration` | Recomputed from the processed file's actual length. |
+
+### Chapter modes
+
+Each feed has a chapter mode, set on its Feed Settings page: **Auto**
+(the default), **Always generate**, or **Off**.
+
+**Auto** preserves the podcast's own chapters when enough of them
+survive the cut. The ffmpeg cut step already remaps any embedded ID3
+chapter markers onto the cut audio's timeline, so once an episode is
+processed MinusPod probes the finished file for what made it through.
+When at least two survive, they become the served `podcast:chapters`
+JSON: the publisher's own titles and boundaries, shifted to account
+for the removed ads. With fewer than two survivors, or no embedded
+chapters at all, MinusPod falls back to AI-generated chapters. If the probe
+itself fails (for example a transient ffprobe error), MinusPod treats
+that as unknown, not as "no chapters", and skips the chapter step for
+that run rather than risk overwriting the ID3 frames the cut step
+already wrote correctly.
+
+**Always generate** skips the probe and always produces AI chapters,
+matching MinusPod's behavior before this setting existed.
+
+**Off** stops chapter work for episodes processed from then on: no
+probing, no generation, and nothing saved, so those episodes carry no
+`podcast:chapters` tag. Episodes processed before the switch keep the
+chapters they already have until they are reprocessed.
+
+Auto is the default because it keeps the publisher's chapters
+whenever they hold up across the cut; replacing accurate publisher
+chapters with generated ones is what prompted issue #560.
 
 ## What MinusPod does not support, and why
 

@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import main_app.processing as processing
-from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut
+from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
 from config import HOLD_REASON_REVIEWER_CONTRADICTION
 
 
@@ -386,11 +386,12 @@ def test_contradicted_confirmed_recovery_llm_failure_falls_back():
     assert result.accepted_after_review == []
 
 
-def test_merged_ad_contradiction_skips_trim_recovery():
+def test_legacy_merged_ad_contradiction_skips_trim_recovery():
     # Regression R3c: _review_single blocks inward shrink on
     # merged_distinct_ads, but trim recovery could still propose a sub-span
-    # that drops a still-confirmed sub-ad. A merged ad must hold WITHOUT
-    # proposed bounds and never spend the recovery LLM call.
+    # that drops a still-confirmed sub-ad. A legacy merged ad (flag set,
+    # predates member tracking, so no merged_protected_start/end keys) must
+    # hold WITHOUT proposed bounds and never spend the recovery LLM call.
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -409,7 +410,7 @@ def test_merged_ad_contradiction_skips_trim_recovery():
         pass_num=1, pass_model='claude-test',
     )
     assert reviewer._llm_client.messages_create.call_count == 1, (
-        "merged ad must not spend the recovery call"
+        "legacy merged ad must not spend the recovery call"
     )
     held = result.held_by_contradiction[0]
     assert held['held_for_review'] is True
@@ -417,6 +418,84 @@ def test_merged_ad_contradiction_skips_trim_recovery():
     assert 'reviewer_proposed_start' not in held
     assert 'reviewer_proposed_end' not in held
     assert result.accepted_after_review == []
+
+
+def test_merged_ad_with_null_protection_recovers_trim():
+    # Tracked merge of differential regions only (both protected keys null):
+    # recovery runs and its bounds pass through unclamped, since there is no
+    # transcript-anchored member to protect.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 120.0, "ad_end": 150.0}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9,
+          'merged_distinct_ads': True, 'merged_protected_start': None,
+          'merged_protected_end': None}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 2
+    assert result.verdicts[0].verdict == 'confirmed'
+    # Enrichment only: still held, never cut, boundaries untouched.
+    assert result.accepted_after_review == []
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert held['start'] == 120.0 and held['end'] == 180.0
+    assert held['reviewer_proposed_start'] == 120.0
+    assert held['reviewer_proposed_end'] == 150.0
+    # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
+    # onto the master ad.
+    assert result.verdicts[0].adjusted_start == 120.0
+    assert result.verdicts[0].adjusted_end == 150.0
+
+
+def test_merged_ad_recovery_clamped_to_protected_union():
+    # Tracked merge with a transcript-anchored member protected at
+    # 120.0-170.0 inside span 100.0-200.0. Recovery proposes a sub-span
+    # (130.0, 150.0) that would sever the protected member; the recovered
+    # bounds stored on the hold must widen back out to the protected union
+    # (120.0, 170.0) rather than offer a one-tap trim that drops it.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 100.0, "end": 200.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 130.0, "ad_end": 150.0}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+          'merged_distinct_ads': True, 'merged_protected_start': 120.0,
+          'merged_protected_end': 170.0}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 2
+    assert result.verdicts[0].verdict == 'confirmed'
+    # Enrichment only: still held, never cut, boundaries untouched.
+    assert result.accepted_after_review == []
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert held['start'] == 100.0 and held['end'] == 200.0
+    assert held['reviewer_proposed_start'] == 120.0
+    assert held['reviewer_proposed_end'] == 170.0
+    # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
+    # onto the master ad.
+    assert result.verdicts[0].adjusted_start == 120.0
+    assert result.verdicts[0].adjusted_end == 170.0
 
 
 def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
@@ -439,3 +518,186 @@ def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
     assert reviewer._llm_client.messages_create.call_count == 1
     held = result.held_by_contradiction[0]
     assert 'reviewer_proposed_start' not in held
+
+
+TOSH_REASONING = (
+    "The candidate is a genuine ad break containing three back-to-back "
+    "sponsor reads: Fabletics (837.2s-910.8s), PestEase (911.4s-956.4s), "
+    "and HIMS (956.6s-1024.6s). The original end of 1068.49s overshoots: "
+    "at 1040.9s the 'Tosh Show' bumper begins the return to programming. "
+    "That interview material is not advertising and should be excluded, "
+    "so the end is trimmed back to 1040.9s where the show resumes."
+)
+
+DTNS_OUTRO_REASONING = (
+    "The span from 2475s to ~2503.6s is the show's own outro. The rest is "
+    "a genuine ad break with a Patreon read; the outro portion is not an "
+    "ad and the start should move to 2503.6s."
+)
+
+AFFIRMED_TRIM_REASONS = [TOSH_REASONING, DTNS_OUTRO_REASONING]
+
+
+@pytest.mark.parametrize("reason", AFFIRMED_TRIM_REASONS)
+def test_affirmed_span_with_boundary_negation_is_not_contradiction(reason):
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
+
+@pytest.mark.parametrize("reason", NEGATIVE_REASONS)
+def test_whole_span_negations_still_contradict(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+AD_FREE_NEGATIONS = [
+    'This span is an ad-free segment; the discussion here is organic '
+    'conversation, not advertising',
+    'The block is an advertisement-free stretch; it contains no ad content',
+    'This is a genuine ad-free zone; it contains no advertising content',
+]
+
+
+@pytest.mark.parametrize("reason", AD_FREE_NEGATIONS)
+def test_ad_free_phrasing_is_not_affirmation(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+def test_affirms_ad_requires_assertion_shape():
+    # Bare mention of ads or sponsors is not an affirmation of THIS span.
+    assert not reasoning_affirms_ad(
+        "The host discusses how podcast ads are recorded")
+    assert not reasoning_affirms_ad(None)
+    assert not reasoning_affirms_ad("")
+
+
+NEGATED_PHRASE_REASONS = [
+    'This is not a genuine ad break; it contains no ad content and is a '
+    'false positive from the pattern matcher.',
+    'That was not back-to-back sponsor reads, just the host mentioning '
+    'past sponsors in passing. This span contains no advertising content.',
+]
+
+# Affirmation phrase present, whole-span negation present, NO trim
+# language: the negation is not a boundary note, so these must still hold.
+# Self-promo dismissals are the production shape (the review prompt tells
+# the model to keep house promos, and its reason text argues both ways).
+SELF_PROMO_DISPUTE_REASONS = [
+    "This is an advertisement for the show's own merchandise store, but "
+    "per policy self-promotion is not advertising and should not be cut.",
+    'This is an advertisement for the show itself (a house promo), which '
+    'is not a real ad and contains no ad content.',
+    "These are ads for the podcast's own merchandise; they are not "
+    'real-world advertising and this span contains no ad content.',
+]
+
+
+@pytest.mark.parametrize("reason", SELF_PROMO_DISPUTE_REASONS)
+def test_affirmed_whole_span_dispute_without_trim_still_holds(reason):
+    assert reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+def test_gerund_affirmation_with_trim_note_is_not_contradiction():
+    reason = (
+        'This is genuine advertising for the sponsor. The intro segment, '
+        'however, is not advertising and should be excluded.')
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
+
+@pytest.mark.parametrize("reason", NEGATED_PHRASE_REASONS)
+def test_negated_phrases_are_not_affirmations(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+# ---------- Affirmed confirm + trim language routes to recovery as adjust ----------
+# TOSH_REASONING affirms the span IS an ad (reasoning_affirms_ad is True) while
+# also naming a sub-span trim in prose ("trimmed back to 1040.9s"). The
+# affirmation guard keeps this out of the contradiction-hold branch entirely;
+# it must instead reach the new affirmed-confirm branch, spend one recovery
+# call, and ship as an accepted adjust rather than an unchanged confirm.
+
+def _run_affirmed_confirm(followup, reasoning=None, ad=None):
+    """Run one review whose main call yields a confirmed verdict with
+    unchanged bounds and affirming/trim reasoning (Tosh-style by default),
+    and whose follow-up recovery call yields ``followup`` (an _LLMResp or an
+    exception instance). Returns (result, llm mock)."""
+    reasoning = reasoning or TOSH_REASONING
+    if ad is None:
+        ad = {
+            'start': 837.2, 'end': 1068.5, 'confidence': 0.95,
+            'detection_stage': 'dai_differential', 'merged_distinct_ads': True,
+            'merged_protected_start': None, 'merged_protected_end': None,
+        }
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        f'[{{"start": {ad["start"]}, "end": {ad["end"]}, '
+        f'"confidence": {ad["confidence"]}, "reason": "{reasoning}"}}]'
+    )
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    return result, reviewer._llm_client
+
+
+def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
+    # Reviewer returns unchanged bounds with Tosh-style reasoning. The
+    # affirmation guard keeps it out of the hold path; the trim route
+    # recovers (837.2, 1040.9) and the ad is accepted with those bounds.
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 837.2, "ad_end": 1040.9}'))
+    assert llm.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == 837.2
+    assert accepted['end'] == pytest.approx(1040.9)
+    assert accepted['reviewer_verdict'] == 'adjust'
+    verdict = result.verdicts[0]
+    assert verdict.verdict == 'adjust'
+    assert verdict.adjusted_start == 837.2
+    assert verdict.adjusted_end == pytest.approx(1040.9)
+
+
+def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
+    # DTNS_OUTRO_REASONING affirms the span IS an ad while describing the
+    # boundary move in assertion phrasing ("should move to") rather than
+    # "trim"/"ends at". _TRIM_LANGUAGE_RE must recognize this phrasing so the
+    # affirmed-confirm branch fires the recovery call instead of shipping the
+    # unchanged span (which would cut the show's own outro).
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 2503.6, "ad_end": 2563.8}'),
+        reasoning=DTNS_OUTRO_REASONING,
+        ad={'start': 2475.0, 'end': 2563.8, 'confidence': 0.9},
+    )
+    assert llm.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == pytest.approx(2503.6)
+    assert accepted['end'] == pytest.approx(2563.8)
+    verdict = result.verdicts[0]
+    assert verdict.verdict == 'adjust'
+
+
+def test_affirmed_confirm_recovery_failure_accepts_unchanged():
+    # Same setup but the recovery call fails: the ad is accepted with its
+    # original bounds, the verdict stays 'confirmed', nothing held.
+    # A non-retryable message (unlike "timeout") keeps this test from
+    # tripping call_llm's secondary backoff retries, matching the
+    # RuntimeError('boom') convention used by the donor recovery-failure
+    # test above.
+    result, llm = _run_affirmed_confirm(RuntimeError('boom'))
+    assert llm.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == 837.2
+    assert accepted['end'] == 1068.5
+    assert result.verdicts[0].verdict == 'confirmed'

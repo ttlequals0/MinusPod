@@ -380,10 +380,13 @@ def test_low_confidence_does_not_stamp():
     assert 'pass2_corroborated' not in hold
 
 
-def test_non_differential_hold_never_stamped():
+def test_non_releasable_hold_never_stamped():
+    """no_cue_evidence is deliberately excluded from
+    PASS2_AUTOAPPROVE_HOLD_REASONS: pass-2 ads can never carry cue evidence,
+    so auto-approving them would neutralize cue gating."""
     proc = [_plain_proc(990.0, 1150.0)]
-    orig = [_orig(990.0, 1150.0, 'contra')]
-    hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_contradiction')
+    orig = [_orig(990.0, 1150.0, 'nocue')]
+    hold = _held_marker(990.0, 1150.0, hold_reason='no_cue_evidence')
 
     v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
@@ -665,3 +668,147 @@ def test_auto_approve_recut_gets_no_cancel_event(monkeypatch):
         's', 'ep1', 'Title', 'Pod', 'desc', [hold])
 
     assert recut.call_args.kwargs.get('cancel_event') is None
+
+
+# ---------- Pass-2 auto-approve across all releasable hold reasons ----------
+
+
+def _hold(start, end, reason):
+    return {'start': start, 'end': end, 'held_for_review': True,
+            'hold_reason': reason}
+
+
+def test_reviewer_contradiction_hold_is_corroborated():
+    hold = _hold(837.2, 1068.5, 'reviewer_contradiction')
+    ad = {'start': 836.1, 'end': 1067.0}
+    assert processing_mod._corroborates_hold([hold], ad, 0.9, 0.8)
+
+
+def test_no_splice_hold_is_corroborated():
+    hold = _hold(999.1, 1066.9, 'no_splice_evidence')
+    ad = {'start': 995.0, 'end': 1067.0}
+    assert processing_mod._corroborates_hold([hold], ad, 0.9, 0.8)
+
+
+def test_no_cue_hold_is_never_corroborated():
+    # Cue-gated feeds hold every pass-2 proposal by design; auto-approving
+    # them would neutralize cue gating.
+    hold = _hold(100.0, 160.0, 'no_cue_evidence')
+    ad = {'start': 100.0, 'end': 160.0}
+    assert not processing_mod._corroborates_hold([hold], ad, 0.99, 0.8)
+
+
+def test_padded_hold_tail_still_corroborates_and_records_span():
+    """tosh-show 6e9f8a115e24: a 239.9s hold with a 24.3s alignment-padding
+    tail scored 0.899 coverage and missed the old 0.9 bar; the ZocDoc break
+    shipped audible. Under the 0.75 bar it stamps, and the corroborated
+    sub-span (what pass 2 actually attested, clamped into the hold) is
+    recorded for the trimmed auto-approve confirm."""
+    proc = [_plain_proc(100.0, 317.9)]
+    orig = [_orig(835.1, 1053.0, 'pestease')]
+    hold = _diff_hold(837.4, 1077.3)
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 837.4, 'end': 1053.0}
+
+
+# ---------- Reviewer-proposed sub-span agreement ----------
+
+
+def _contradiction_hold(start, end, p_start, p_end):
+    return {'start': start, 'end': end, 'held_for_review': True,
+            'was_cut': False, 'hold_reason': 'reviewer_contradiction',
+            'reviewer_proposed_start': p_start, 'reviewer_proposed_end': p_end}
+
+
+def test_proposed_span_agreement_corroborates_despite_low_coverage():
+    # tosh-show 6e9f8a115e24 Lincoln Tech: hold 3872.9-3933.3, reviewer
+    # proposed 3895.8-3929.9, pass 2 found the same span. Coverage of the
+    # padded hold is 56 percent, but the two sub-spans agree exactly.
+    proc = [_plain_proc(100.0, 134.1)]
+    orig = [_orig(3895.8, 3929.9, 'lincoln')]
+    hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 3895.8, 'end': 3929.9}
+
+
+def test_proposed_span_disagreement_does_not_corroborate():
+    # Pass 2 found a different sub-span than the reviewer proposed: IoU low,
+    # coverage low, stays held.
+    proc = [_plain_proc(100.0, 120.0)]
+    orig = [_orig(3873.0, 3893.0, 'other')]
+    hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
+def _auto_approve_env(monkeypatch):
+    """Swap the IO seams _auto_approve_corroborated_holds touches, following
+    the file's MagicMock pattern; returns the db mock for filing asserts."""
+    db = MagicMock()
+    db.get_original_segments.return_value = [{'start': 0.0}]
+    storage = MagicMock()
+    storage.get_original_path.return_value.exists.return_value = True
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', storage)
+    monkeypatch.setattr(processing_mod, '_load_user_corrections',
+                        lambda s, e, d: ([], []))
+    monkeypatch.setattr(processing_mod, '_recut_episode',
+                        lambda *a, **kw: True)
+    return db
+
+
+def test_auto_approve_files_trimmed_confirm(monkeypatch):
+    """The auto-approve confirm carries corrected_bounds when the attested
+    span is meaningfully narrower than the hold, mirroring a human trimmed
+    approval, so the recut cuts only what pass 2 attested."""
+    hold = _diff_hold(837.4, 1077.3)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 837.4, 'end': 1053.0}
+    db = _auto_approve_env(monkeypatch)
+
+    approved = processing_mod._auto_approve_corroborated_holds(
+        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+
+    assert approved == 1
+    kwargs = db.create_pattern_correction.call_args.kwargs
+    assert kwargs['original_bounds'] == {'start': 837.4, 'end': 1077.3}
+    assert kwargs['corrected_bounds'] == {'start': 837.4, 'end': 1053.0}
+
+
+def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
+    """When the attested span matches the hold (within slack), the confirm
+    stays untrimmed, same as before."""
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 4875.9, 'end': 5025.8}
+    db = _auto_approve_env(monkeypatch)
+
+    approved = processing_mod._auto_approve_corroborated_holds(
+        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+
+    assert approved == 1
+    assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None
+
+
+def test_proposed_span_outside_hold_does_not_corroborate():
+    # Reviewer relocated the ad entirely past the hold and pass 2 found the
+    # relocated span while only touching the hold edge. Corroborating would
+    # invert the stamped span and file a degenerate confirm.
+    proc = [_plain_proc(100.0, 130.0)]
+    orig = [_orig(160.0, 190.0, 'outside')]
+    hold = _contradiction_hold(100.0, 160.0, 161.0, 190.0)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 0
+    assert 'pass2_corroborated' not in hold

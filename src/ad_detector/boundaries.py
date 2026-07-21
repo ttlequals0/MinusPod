@@ -8,6 +8,7 @@ import logging
 import re
 from typing import List, Dict, Optional
 
+from utils.markers import mark_distinct_merge, note_merged_members
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
 from sponsor_service import SponsorService
@@ -724,8 +725,8 @@ def _merge_ad_pair(current_ad: Dict, next_ad: Dict, gap_desc: str = "") -> None:
 
     ``gap_desc`` is appended to the merged reason when set (filler-gap pass).
     """
+    mark_distinct_merge(current_ad, next_ad)
     current_ad['end'] = next_ad['end']
-    current_ad['merged_distinct_ads'] = True
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
                                    next_ad.get('confidence', 0.0))
 
@@ -1031,7 +1032,12 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
             # expand-only in the reviewer; a true overlap (start < end) is the
             # same ad and stays tightenable.
             if current['start'] >= last['end']:
-                last['merged_distinct_ads'] = True
+                mark_distinct_merge(last, current)
+            elif 'merged_protected_start' in last:
+                # True overlap extending a tracked merge: fold the member in
+                # so the protected union covers audio it adds past the
+                # recorded end (else a later trim could sever it).
+                note_merged_members(last, current)
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
                 last['end'] = current['end']

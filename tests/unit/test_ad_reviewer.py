@@ -761,3 +761,49 @@ def test_resurrection_pool_skips_held_no_cue_ads():
     }
     eligible = split_resurrection_pool([held_ad], [], min_cut)
     assert eligible == []
+
+
+def _merged_ad(start, end, p_start='absent', p_end='absent'):
+    ad = {'start': start, 'end': end, 'merged_distinct_ads': True,
+          'detection_stage': 'dai_differential', 'confidence': 0.95}
+    if p_start != 'absent':
+        ad['merged_protected_start'] = p_start
+        ad['merged_protected_end'] = p_end
+    return ad
+
+
+def test_clamp_trims_differential_tail_when_no_protected_members():
+    # Tosh 6e9f8a115e24: two differential regions merged; reviewer trims
+    # the imprecise tail. Null protection means fully trimmable.
+    r = _build_reviewer()
+    ad = _merged_ad(837.2, 1068.5, p_start=None, p_end=None)
+    s, e = r._clamp_proposed_bounds(ad, 837.2, 1040.9, 837.2, 1068.5,
+                                    60.0, 'slug', 'ep')
+    assert (s, e) == (837.2, 1040.9)
+
+
+def test_clamp_cannot_sever_protected_member():
+    # Grainger case: merged claude ads; a trim past the member union is
+    # clamped back to the union edge, not to the full original span.
+    r = _build_reviewer()
+    ad = _merged_ad(100.0, 200.0, p_start=100.0, p_end=180.0)
+    s, e = r._clamp_proposed_bounds(ad, 100.0, 150.0, 100.0, 200.0,
+                                    60.0, 'slug', 'ep')
+    assert (s, e) == (100.0, 180.0)
+
+
+def test_clamp_allows_trim_beyond_protected_union():
+    r = _build_reviewer()
+    ad = _merged_ad(100.0, 200.0, p_start=100.0, p_end=180.0)
+    s, e = r._clamp_proposed_bounds(ad, 100.0, 190.0, 100.0, 200.0,
+                                    60.0, 'slug', 'ep')
+    assert (s, e) == (100.0, 190.0)
+
+
+def test_clamp_legacy_merged_marker_stays_expand_only():
+    # Marker persisted by a pre-tracking release: no protected keys.
+    r = _build_reviewer()
+    ad = _merged_ad(100.0, 200.0)
+    s, e = r._clamp_proposed_bounds(ad, 110.0, 190.0, 100.0, 200.0,
+                                    60.0, 'slug', 'ep')
+    assert (s, e) == (100.0, 200.0)

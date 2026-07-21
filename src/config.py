@@ -46,13 +46,44 @@ HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 
+# Hold reasons pass-2 auto-approval may release when the verification pass
+# independently re-detects the held span at cut confidence. Deliberate
+# allowlist, fail-closed: a new hold reason is NOT auto-approvable until
+# someone adds it here. no_cue_evidence stays out: pass-2 ads can never
+# carry cue evidence, so auto-approval would neutralize cue gating on
+# cue-gated feeds. max_duration stays out: such a hold is by definition
+# over the duration ceiling, and the auto-filed confirm would force-accept
+# it past the validator's re-check on recut, defeating the guard.
+PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_NO_SPLICE,
+    HOLD_REASON_UNCORROBORATED_TAIL,
+})
+
 # A pass-2 detection corroborates a differential hold (stamping it for
 # auto-approval) only when at least this fraction of the pass-2 span lies
 # inside the held span...
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
 # ...and the detection covers at least this fraction of the held span. A
-# short ad inside a long hold must not approve the whole hold.
-PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.9
+# short ad inside a long hold must not approve the whole hold. The bar is
+# deliberately below 0.9: differential hold tails carry alignment padding
+# the detection rightly excludes (a 240s hold with 24s of padding scored
+# 0.899 and stayed audible, tosh-show 6e9f8a115e24), and the auto-approve
+# confirm is trimmed to the corroborated span, so the uncovered remainder
+# is never cut on the strength of this threshold.
+PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
+# An auto-approve confirm is filed trimmed only when the attested span is
+# narrower than the hold by more than this per edge; smaller deltas are
+# float noise, not a meaningful trim.
+PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
+
+# Second acceptance path: a contradiction hold carries the reviewer's own
+# proposed ad sub-span. When the pass-2 detection and that proposal agree
+# (IoU of the two sub-spans at or above this bar), two independent signals
+# have named the same audio; corroborate on the agreement instead of on
+# coverage of the padded hold.
+PASS2_AUTOAPPROVE_PROPOSED_IOU = 0.8
 
 
 def is_cue_backed(ad) -> bool:
@@ -485,6 +516,34 @@ def resolve_feed_processing_mode(podcast_row):
     if podcast_row.get('detection_mode') == DETECTION_MODE_KEEP_CONTENT:
         return PROCESSING_MODE_KEEP_CONTENT
     return PROCESSING_MODE_STANDARD
+
+
+# Per-feed chapter mode (issue #560): whether to preserve publisher-embedded
+# chapters (already remapped onto the cut timeline by the ffmpeg cut step,
+# see audio_processor.py) instead of generating new ones with the chapter
+# LLM, or to skip the chapter step entirely for the feed.
+CHAPTERS_MODE_AUTO = 'auto'
+CHAPTERS_MODE_GENERATE = 'generate'
+CHAPTERS_MODE_OFF = 'off'
+VALID_CHAPTERS_MODES = frozenset({CHAPTERS_MODE_AUTO, CHAPTERS_MODE_GENERATE, CHAPTERS_MODE_OFF})
+
+# 'auto' preserves publisher chapters only when at least this many survive
+# the cut; a single surviving chapter is just "the whole episode" and is not
+# worth preserving over a generated chapter set.
+MIN_PRESERVED_CHAPTERS = 2
+
+
+def resolve_chapters_mode(podcast_row):
+    """Effective per-feed chapters mode from an already-fetched podcasts row.
+
+    NULL/absent column or an unrecognized value resolves to 'auto', which
+    matches the pre-#560 default behavior (generate chapters) while also
+    preferring intact publisher chapters when enough of them survive the cut.
+    """
+    if not podcast_row:
+        return CHAPTERS_MODE_AUTO
+    mode = podcast_row.get('chapters_mode')
+    return mode if mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
 
 
 def resolve_cue_template_score_with_source(db, podcast_id):

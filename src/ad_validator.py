@@ -19,6 +19,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     is_cue_backed,
 )
+from utils.markers import mark_distinct_merge
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -895,17 +896,22 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # #541: never merge across the held-differential boundary --
-            # the fold would hold the real ad or cut the held span.
+            # #541, generalized: never merge across a held/not-held boundary
+            # (any hold reason) -- the fold would hold the real ad or cut
+            # the held span, and on an auto-approve recut it would grow the
+            # marker past its trimmed confirm so the confirmed_span clamp
+            # never fires and trimmed-out audio gets cut.
             if (bool(last.get('differential_uncorroborated'))
-                    != bool(current.get('differential_uncorroborated'))):
+                    != bool(current.get('differential_uncorroborated'))
+                    or bool(last.get('held_for_review'))
+                    != bool(current.get('held_for_review'))):
                 merged.append(current.copy())
                 continue
 
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)
+                mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
-                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
@@ -916,8 +922,8 @@ class AdValidator:
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
+                mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
-                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):

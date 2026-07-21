@@ -29,8 +29,8 @@ from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_e
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.time import (
-    adjust_timestamp, merge_cut_spans, overlap_ratio, ranges_overlap,
-    span_inside_any_cut, utc_now_iso,
+    adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
+    ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
@@ -38,15 +38,21 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
-    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_PROPOSED_IOU,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
+    CHAPTERS_MODE_AUTO,
+    CHAPTERS_MODE_OFF,
+    MIN_PRESERVED_CHAPTERS,
     is_cue_backed, is_pending_review,
     resolve_feed_processing_mode,
+    resolve_chapters_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_tail_retranscribe_tunables,
@@ -57,7 +63,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
-from embedded_chapters import embed_chapters, MIN_CHAPTER_SECONDS
+from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -1590,24 +1596,65 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     return kept_processed, kept_original
 
 
-def _corroborates_differential_hold(overlapping, orig_ad, confidence,
-                                     min_cut_confidence):
+def _proposed_span_agrees(hold, orig_ad):
+    """True when the hold carries the reviewer's own proposed ad sub-span
+    and the pass-2 ad names essentially the same audio (IoU of the two
+    sub-spans at or above PASS2_AUTOAPPROVE_PROPOSED_IOU). Two independent
+    signals agreeing on a sub-span corroborates regardless of how much of
+    the (padded) hold either one covers."""
+    p_start = hold.get('reviewer_proposed_start')
+    p_end = hold.get('reviewer_proposed_end')
+    if p_start is None or p_end is None or p_end <= p_start:
+        return False
+    # The proposed span must actually reach into the hold: a reviewer that
+    # relocated the ad entirely outside the held span is not corroborating
+    # the hold, and intersecting a disjoint span would invert the stamped
+    # bounds and file a degenerate confirm.
+    if overlap_seconds(p_start, p_end, hold['start'], hold['end']) <= 0:
+        return False
+    inter = overlap_seconds(orig_ad['start'], orig_ad['end'], p_start, p_end)
+    union = max(orig_ad['end'], p_end) - min(orig_ad['start'], p_start)
+    return union > 0 and inter / union >= PASS2_AUTOAPPROVE_PROPOSED_IOU
+
+
+def _corroborates_hold(overlapping, orig_ad, confidence,
+                        min_cut_confidence):
     """True when a confident non-held pass-2 ad is the independent
-    corroboration a differential_uncorroborated hold was waiting for: it
-    overlaps exactly that one pending marker, sits mostly inside it, and
-    covers nearly all of it. The ad is still dropped (pending audio is never
+    corroboration a held span was waiting for: it overlaps exactly that one
+    pending marker, and either covers nearly all of it while sitting mostly
+    inside it, or agrees with the reviewer's own proposed sub-span (see
+    _proposed_span_agrees). The ad is still dropped (pending audio is never
     cut mid-pipeline); the hold is stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
-            or overlapping[0].get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED):
+            or overlapping[0].get('hold_reason')
+            not in PASS2_AUTOAPPROVE_HOLD_REASONS):
         return False
     hold = overlapping[0]
     ad_inside = overlap_ratio(hold['start'], hold['end'],
                               orig_ad['start'], orig_ad['end'])
     hold_covered = overlap_ratio(orig_ad['start'], orig_ad['end'],
                                  hold['start'], hold['end'])
-    return (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE
-            and hold_covered >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE)
+    if (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE
+            and hold_covered >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE):
+        return True
+    return _proposed_span_agrees(hold, orig_ad)
+
+
+def _corroborated_span(hold, orig_ad):
+    """The sub-span the corroboration attests, clamped inside the hold: the
+    reviewer's proposed span when that is what agreed with the pass-2 ad
+    (_proposed_span_agrees), else the hold itself. Either way intersected
+    with the pass-2 ad's own bounds, since the ad never attests audio
+    outside itself."""
+    lo, hi = hold['start'], hold['end']
+    if _proposed_span_agrees(hold, orig_ad):
+        lo = max(lo, hold['reviewer_proposed_start'])
+        hi = min(hi, hold['reviewer_proposed_end'])
+    return {
+        'start': max(lo, orig_ad['start']),
+        'end': min(hi, orig_ad['end']),
+    }
 
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
@@ -1627,7 +1674,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     coordinates). A pass-2 cut overlapping one is ALWAYS dropped -- cutting
     would destroy audio the hold protects, and a second held marker would
     double-count pending_review_count. When the dropped ad corroborates a
-    differential hold (see _corroborates_differential_hold), the hold's
+    releasable hold (see _corroborates_hold), the hold's
     marker dict is stamped pass2_corroborated in place so
     _auto_approve_corroborated_holds can approve it through the standard
     human-approval path after the episode completes. corroborated_count is
@@ -1659,18 +1706,27 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             # audio the hold protects; drop it (never cut). The pass-1 held
             # marker already represents the region, so no second held marker
             # either -- that would double-count pending_review_count.
-            if _corroborates_differential_hold(overlapping, orig_ad,
-                                               confidence, min_cut_confidence):
+            if _corroborates_hold(overlapping, orig_ad,
+                                   confidence, min_cut_confidence):
                 hold = overlapping[0]
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
+                    # The corroborated sub-span: what pass 2 actually attested
+                    # as ad, clamped inside the hold (or, when the reviewer's
+                    # own proposed span is what agreed, clamped inside that
+                    # instead). The auto-approve confirm is trimmed to this,
+                    # so hold padding the detection excluded is never cut on
+                    # the detection's authority.
+                    hold['pass2_corroborated_span'] = _corroborated_span(
+                        hold, orig_ad)
                     flags = hold.setdefault('validation', {}).setdefault('flags', [])
                     flags.append('INFO: Pass-2 independently re-detected this span as an ad')
                     corroborated_count += 1
                 audio_logger.info(
                     f"Pass-2 ad {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
-                    f"corroborates differential hold {hold['start']:.1f}s-"
-                    f"{hold['end']:.1f}s: stamping it for auto-approval")
+                    f"corroborates {hold.get('hold_reason')} hold "
+                    f"{hold['start']:.1f}s-{hold['end']:.1f}s: stamping it "
+                    f"for auto-approval")
             else:
                 audio_logger.info(
                     f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
@@ -1693,8 +1749,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
 def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                                       podcast_name, episode_description,
                                       markers):
-    """Approve pass-2-corroborated differential holds through the standard
-    human-approval path: file the same confirm correction the approve button
+    """Approve pass-2-corroborated holds through the standard human-approval
+    path: file the same confirm correction the approve button
     writes, then run the standard recut from the retained original audio.
 
     Runs only after the episode has fully completed. Pending-hold audio is
@@ -1706,7 +1762,7 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
     files. Returns the number of holds approved and recut."""
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
-             and m.get('hold_reason') == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED]
+             and m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS]
     if not holds:
         return 0
     try:
@@ -1714,13 +1770,13 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
         # original or segments a recut would fail and mark the episode FAILED.
         if not storage.get_original_path(slug, episode_id).exists():
             audio_logger.info(
-                f"[{slug}:{episode_id}] Not auto-approving differential "
-                f"hold(s): no retained original audio to recut from")
+                f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
+                f"retained original audio to recut from")
             return 0
         if not db.get_original_segments(slug, episode_id):
             audio_logger.info(
-                f"[{slug}:{episode_id}] Not auto-approving differential "
-                f"hold(s): no saved transcript segments to recut with")
+                f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
+                f"saved transcript segments to recut with")
             return 0
         # A human reject always wins: never auto-approve a span the user has
         # explicitly marked as content.
@@ -1732,8 +1788,8 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
             if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
                    for fp in fp_corrections):
                 audio_logger.info(
-                    f"[{slug}:{episode_id}] Not auto-approving differential "
-                    f"hold {m['start']:.1f}s-{m['end']:.1f}s: a user "
+                    f"[{slug}:{episode_id}] Not auto-approving hold "
+                    f"{m['start']:.1f}s-{m['end']:.1f}s: a user "
                     f"rejection covers the span")
             else:
                 approvable.append(m)
@@ -1753,18 +1809,31 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                    >= CORRECTION_MATCH_MIN_COVERAGE
                    for c in confirmed_corrections or []):
                 continue
+            # Trim the confirm to the pass-2-attested sub-span (same shape a
+            # human trimmed approval files); the validator clamps the cut to
+            # confirmed_span, so hold padding the detection excluded stays.
+            span = m.get('pass2_corroborated_span')
+            trimmed = (span and
+                       (span['start'] > m['start'] + PASS2_AUTOAPPROVE_TRIM_SLACK_S
+                        or span['end'] < m['end'] - PASS2_AUTOAPPROVE_TRIM_SLACK_S))
             db.create_pattern_correction(
                 correction_type='confirm',
                 pattern_id=m.get('pattern_id'),
                 episode_id=episode_id,
                 original_bounds={'start': m['start'], 'end': m['end']},
-                corrected_bounds=None,
-                text_snippet='auto-approved: pass-2 corroborated differential hold',
+                corrected_bounds=(
+                    {'start': span['start'], 'end': span['end']}
+                    if trimmed else None),
+                text_snippet=(
+                    f"auto-approved: pass-2 corroborated "
+                    f"{m.get('hold_reason')} hold"),
             )
             audio_logger.info(
-                f"[{slug}:{episode_id}] Auto-approving differential hold "
-                f"{m['start']:.1f}s-{m['end']:.1f}s: pass-2 independently "
-                f"re-detected the span as an ad")
+                f"[{slug}:{episode_id}] Auto-approving hold "
+                f"{m['start']:.1f}s-{m['end']:.1f}s"
+                + (f" trimmed to {span['start']:.1f}s-{span['end']:.1f}s"
+                   if trimmed else "")
+                + ": pass-2 independently re-detected the span as an ad")
         recut_ok = _recut_episode(slug, episode_id, episode_title,
                                    podcast_name, episode_description,
                                    time.time(), cancel_event=None)
@@ -2165,7 +2234,8 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
-                      previous_cuts=None, original_duration=None):
+                      previous_cuts=None, original_duration=None,
+                      podcast_row=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -2179,6 +2249,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     are also embedded into it as ID3v2 frames for players that ignore the
     podcast:chapters JSON (issue #523). audio_duration is its duration in
     seconds, saving the embed a re-probe when the caller already knows it.
+
+    podcast_row, when given, is the already-fetched podcasts row (the main
+    pipeline fetches it once for resolve_feed_processing_mode); passing it
+    avoids a second get_podcast_by_slug aggregate query just to resolve the
+    chapters mode. None (e.g. the recut call site, which never reaches the
+    chapters_mode branch since it always passes regenerate_chapters=False)
+    falls back to fetching it here.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -2214,6 +2291,56 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                    audio_path=audio_path,
                                    audio_duration=audio_duration)
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
+            if podcast_row is None:
+                podcast_row = db.get_podcast_by_slug(slug)
+            chapters_mode = resolve_chapters_mode(podcast_row)
+            if chapters_mode == CHAPTERS_MODE_OFF:
+                audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
+                return
+            # 'auto' probes the PROCESSED file: the ffmpeg cut step already
+            # remapped publisher ID3 CHAP frames onto the cut timeline
+            # (audio_processor.py), so a probe here gives the remapped list
+            # for free with no extra work. 'generate' never probes, so it
+            # always falls through to the generator below regardless of what
+            # publisher chapters exist.
+            publisher = []
+            if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
+                publisher = probe_chapters(str(audio_path))
+                if publisher is None:
+                    # Probe failed (e.g. transient ffprobe error), not "the
+                    # file definitively has no chapters" (embedded_chapters.
+                    # probe_chapters). Falling through to the generate+embed
+                    # path below would overwrite the ID3 frames the cut step
+                    # already wrote correctly, the exact failure mode issue
+                    # #500 prevents at the ffmpeg layer. Skip the chapter
+                    # step this run instead of guessing.
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Chapter probe failed after "
+                        f"cut; skipping chapter step this run")
+                    return
+            if len(publisher) >= MIN_PRESERVED_CHAPTERS:
+                chapters_json = {
+                    'version': '1.2.0',
+                    'chapters': [
+                        {
+                            # min 1 (not 0): some podcast apps require
+                            # chapters to start at 1, matching the same
+                            # floor the generator applies below.
+                            'startTime': max(1, int(round(c['start']))),
+                            'title': c.get('title') or f"Chapter {i + 1}",
+                        }
+                        for i, c in enumerate(publisher)
+                    ],
+                }
+                # Persisted in one DB write; no embed_chapters call and no
+                # LLM call happen here since the frames are already embedded
+                # by the cut step.
+                storage.save_chapters_and_applied_cuts(
+                    slug, episode_id, chapters_json, all_cuts or [])
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Preserved {len(publisher)} "
+                    f"publisher chapter(s) (no AI call)")
+                return
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
             chapters = chapters_gen.generate_chapters(
@@ -3358,7 +3485,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             all_cuts_for_assets = applied_cuts + v_cuts_for_assets
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
                               episode_description, podcast_name, episode_title,
-                              audio_path=final_path, audio_duration=new_duration)
+                              audio_path=final_path, audio_duration=new_duration,
+                              podcast_row=podcast_settings)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still

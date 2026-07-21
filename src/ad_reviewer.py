@@ -76,6 +76,27 @@ REVIEWER_CONTRADICTION_PATTERNS = (
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
 
+# Affirmation guard: reasoning that asserts the span IS an ad can never be
+# a contradiction hold, even when a negation appears later in the same
+# prose. Boundary notes like "that interview material is not advertising"
+# refer to a sub-span the reviewer wants trimmed, not the candidate
+# (tosh-show 6e9f8a115e24, daily-tech-news-show 0b79e6e6c143 both held
+# real ad breaks this way). Assertion-shaped, like the negations above.
+#
+# TODO(structural): this affirmation/negation/trim-language regex triad is a
+# growing free-text heuristic (each pattern traces to a production episode).
+# The durable fix is a structured verdict field (e.g. is_ad plus trim bounds)
+# in the review prompt contract, so intent stops hiding in prose.
+REVIEWER_AFFIRMATION_PATTERNS = (
+    r'\bis\s+an?\s+ad\s+break\b',
+    r'\bis\s+an?\s+(?:genuine\s+|real\s+|actual\s+|paid\s+|'
+    r'dynamically\s+inserted\s+)?ad(?:vertisement)?(?!-)\b',
+    r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads(?!-)\b',
+    r'\bis\s+(?:genuine\s+|real\s+|paid\s+)?advertising\b',
+)
+
+_AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
+
 # Trim-language precheck: only spend the recovery LLM call when the
 # reasoning describes a sub-span trim; plain "not an ad" skips it.
 _TRIM_LANGUAGE_RE = re.compile(
@@ -84,7 +105,10 @@ _TRIM_LANGUAGE_RE = re.compile(
     r'|\bstarts?\s+at\b'
     r'|\bbegins?\s+at\b'
     r'|\b(?:must|should)\s+be\s+removed\b'
-    r'|\bremoved?\s+from\b',
+    r'|\bremoved?\s+from\b'
+    r'|\bshould\s+move\b'
+    r'|\bmove[sd]?\s+(?:to|back|forward)\b'
+    r'|\bexcluded?\b',
     re.IGNORECASE,
 )
 
@@ -104,12 +128,49 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
 )
 
 
-def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
-    """True when reviewer reasoning asserts the span is not an ad."""
+def reasoning_affirms_ad(reasoning: Optional[str]) -> bool:
+    """True when reviewer reasoning asserts the candidate span is an ad."""
     if not reasoning:
         return False
     lowered = reasoning.lower()
+    return any(r.search(lowered) for r in _AFFIRMATION_RES)
+
+
+def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
+    """True when reviewer reasoning asserts the span is not an ad.
+
+    An affirmation wins only when the prose also describes a boundary trim:
+    that combination means the negation is a note about a sub-span, which
+    trim recovery handles. An affirmation with a negation but NO trim
+    language is a whole-span dispute ("is an ad for the show's own merch,
+    which is not advertising") and must still hold: pre-guard behavior.
+    """
+    if not reasoning:
+        return False
+    if reasoning_affirms_ad(reasoning) and _TRIM_LANGUAGE_RE.search(reasoning):
+        return False
+    lowered = reasoning.lower()
     return any(r.search(lowered) for r in _CONTRADICTION_RES)
+
+
+def _adjusted_ad_copy(ad: Dict, start: float, end: float,
+                      original_start: float, original_end: float,
+                      reasoning: Optional[str], confidence: Optional[float],
+                      model: Optional[str]) -> Dict:
+    """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping
+    fields every adjust application must stamp. Single seam so the two
+    adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
+    cannot drift on which fields they write."""
+    updated = dict(ad)
+    updated["start"] = start
+    updated["end"] = end
+    updated["reviewer_verdict"] = "adjust"
+    updated["reviewer_original_start"] = original_start
+    updated["reviewer_original_end"] = original_end
+    updated["reviewer_reasoning"] = reasoning
+    updated["reviewer_confidence"] = confidence
+    updated["reviewer_model"] = model
+    return updated
 
 
 def is_contradiction_hold(verdict: str, reasoning: Optional[str]) -> bool:
@@ -664,6 +725,52 @@ class AdReviewer:
                     f"reasoning={verdict.reasoning[:80]!r}"
                 )
                 result.held_by_contradiction.append(held)
+            elif (verdict.verdict == "confirmed"
+                  and pass_num == 1
+                  and reasoning_affirms_ad(verdict.reasoning)
+                  and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
+                # Affirmed ad whose prose describes a trim the boundary
+                # arithmetic missed (model returned the span unchanged).
+                # Recover the trim and apply it as an adjust; on any
+                # failure accept unchanged. Never a hold: the reviewer
+                # says this IS an ad. Pass 1 only: the pass-2 apply path
+                # coerces every adjust back to confirmed and discards the
+                # bounds, so spending the recovery call there buys nothing.
+                recovered = self._recover_contradiction_trim(
+                    verdict,
+                    ad=updated_ad,
+                    segments=segments,
+                    model=model,
+                    pass_num=pass_num,
+                    slug=episode_meta.get('slug'),
+                    episode_id=episode_meta.get('episode_id'),
+                )
+                if recovered is None:
+                    result.accepted_after_review.append(updated_ad)
+                else:
+                    new_start, new_end = self._clamp_proposed_bounds(
+                        updated_ad, recovered[0], recovered[1],
+                        verdict.original_start, verdict.original_end,
+                        max_shift,
+                        episode_meta.get('slug'),
+                        episode_meta.get('episode_id'))
+                    verdict.verdict = "adjust"
+                    verdict.adjusted_start = new_start
+                    verdict.adjusted_end = new_end
+                    trimmed = _adjusted_ad_copy(
+                        updated_ad, new_start, new_end,
+                        verdict.original_start, verdict.original_end,
+                        verdict.reasoning, verdict.confidence,
+                        verdict.model_used)
+                    result.accepted_after_review.append(trimmed)
+                    logger.info(
+                        f"[{episode_meta.get('slug')}:"
+                        f"{episode_meta.get('episode_id')}] Affirmed "
+                        f"confirm routed to trim recovery @ "
+                        f"{verdict.original_start:.1f}-"
+                        f"{verdict.original_end:.1f}s -> "
+                        f"{new_start:.1f}-{new_end:.1f}s (applied as adjust)"
+                    )
             else:
                 result.accepted_after_review.append(updated_ad)
 
@@ -857,49 +964,9 @@ class AdReviewer:
         except (TypeError, ValueError):
             confidence = None
 
-        # Inverted or zero-width boundaries: keep the original.
-        if new_end <= new_start:
-            logger.warning(
-                f"[{slug}:{episode_id}] Reviewer proposed inverted boundaries "
-                f"({new_start:.1f}s >= {new_end:.1f}s) @ original "
-                f"{original_start:.1f}-{original_end:.1f}s. Keeping original."
-            )
-            new_start, new_end = original_start, original_end
-
-        clamped_start = self._clamp_to_cap(new_start, original_start, max_shift)
-        clamped_end = self._clamp_to_cap(new_end, original_end, max_shift)
-        if clamped_start != new_start or clamped_end != new_end:
-            logger.info(
-                f"[{slug}:{episode_id}] Reviewer adjust clamped from "
-                f"{new_start:.1f}-{new_end:.1f} to "
-                f"{clamped_start:.1f}-{clamped_end:.1f} (cap {max_shift}s)"
-            )
-
-        # A merged ad's [start, end] is the union of multiple independently
-        # confirmed sub-ads. Every merge that joins NON-overlapping spans
-        # (adjacent distinct ads, or same-sponsor fragments) sets the canonical
-        # merged_distinct_ads flag: _merge_close_ads, merge_same_sponsor_ads,
-        # and the gap branch of deduplicate_window_ads / _merge_detection_results.
-        # The reviewer refines boundaries; it must not pull one inward and
-        # silently drop a still-confirmed sub-ad. Allow outward growth
-        # (leading/trailing CTA), forbid inward shrink.
-        #
-        # Overlap-based dedup (the same ad re-detected across windows/stages)
-        # does NOT set the flag, so ordinary single ads still tighten normally.
-        if ad.get('merged_distinct_ads'):
-            floor_start = min(clamped_start, original_start)
-            floor_end = max(clamped_end, original_end)
-            if floor_start != clamped_start or floor_end != clamped_end:
-                logger.info(
-                    f"[{slug}:{episode_id}] Reviewer inward shrink blocked on "
-                    f"merged ad @ {original_start:.1f}-{original_end:.1f}s: "
-                    f"{clamped_start:.1f}-{clamped_end:.1f} -> "
-                    f"{floor_start:.1f}-{floor_end:.1f} (expand-only)"
-                )
-            clamped_start, clamped_end = floor_start, floor_end
-
-        if clamped_end <= clamped_start:
-            clamped_start, clamped_end = original_start, original_end
+        clamped_start, clamped_end = self._clamp_proposed_bounds(
+            ad, new_start, new_end, original_start, original_end,
+            max_shift, slug, episode_id)
 
         # Verdict is derived from the boundary delta, not from the LLM.
         delta_start = clamped_start - original_start
@@ -930,15 +997,9 @@ class AdReviewer:
                 reason, clamped_start, clamped_end,
                 slug=slug, episode_id=episode_id,
             )
-            updated = dict(ad)
-            updated["start"] = clamped_start
-            updated["end"] = clamped_end
-            updated["reviewer_verdict"] = "adjust"
-            updated["reviewer_original_start"] = original_start
-            updated["reviewer_original_end"] = original_end
-            updated["reviewer_reasoning"] = reason
-            updated["reviewer_confidence"] = confidence
-            updated["reviewer_model"] = model
+            updated = _adjusted_ad_copy(
+                ad, clamped_start, clamped_end, original_start, original_end,
+                reason, confidence, model)
             return (
                 ReviewVerdict(
                     pool=pool, pass_num=pass_num, verdict="adjust",
@@ -959,6 +1020,61 @@ class AdReviewer:
             ),
             ad,
         )
+
+    def _clamp_proposed_bounds(self, ad, new_start, new_end,
+                               original_start, original_end, max_shift,
+                               slug, episode_id):
+        """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
+        shift cap, merged-span floor, final validity fallback. Single seam for
+        every path that turns reviewer prose or deltas into marker bounds."""
+        if new_end <= new_start:
+            logger.warning(
+                f"[{slug}:{episode_id}] Reviewer proposed inverted boundaries "
+                f"({new_start:.1f}s >= {new_end:.1f}s) @ original "
+                f"{original_start:.1f}-{original_end:.1f}s. Keeping original."
+            )
+            new_start, new_end = original_start, original_end
+
+        clamped_start = self._clamp_to_cap(new_start, original_start, max_shift)
+        clamped_end = self._clamp_to_cap(new_end, original_end, max_shift)
+        if clamped_start != new_start or clamped_end != new_end:
+            logger.info(
+                f"[{slug}:{episode_id}] Reviewer adjust clamped from "
+                f"{new_start:.1f}-{new_end:.1f} to "
+                f"{clamped_start:.1f}-{clamped_end:.1f} (cap {max_shift}s)"
+            )
+
+        # A merged ad's [start, end] is the union of multiple independently
+        # detected sub-ads. The reviewer must not pull a boundary inward
+        # past a transcript-anchored member (it would silently drop a
+        # confirmed sub-ad), but differential/VAD members carry
+        # alignment-derived padding whose trimming is exactly the
+        # reviewer's job. Markers persisted before member tracking carry
+        # the flag without the protected keys; those keep the old blanket
+        # expand-only rule.
+        if ad.get('merged_distinct_ads'):
+            if 'merged_protected_start' in ad:
+                p_start = ad.get('merged_protected_start')
+                p_end = ad.get('merged_protected_end')
+            else:
+                p_start, p_end = original_start, original_end
+            floor_start = (clamped_start if p_start is None
+                           else min(clamped_start, p_start))
+            floor_end = (clamped_end if p_end is None
+                         else max(clamped_end, p_end))
+            if floor_start != clamped_start or floor_end != clamped_end:
+                logger.info(
+                    f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
+                    f"to protected members on merged ad @ "
+                    f"{original_start:.1f}-{original_end:.1f}s: "
+                    f"{clamped_start:.1f}-{clamped_end:.1f} -> "
+                    f"{floor_start:.1f}-{floor_end:.1f}"
+                )
+            clamped_start, clamped_end = floor_start, floor_end
+
+        if clamped_end <= clamped_start:
+            clamped_start, clamped_end = original_start, original_end
+        return clamped_start, clamped_end
 
     def _recover_contradiction_trim(
         self,
@@ -983,18 +1099,21 @@ class AdReviewer:
         One small follow-up call through the shared call_llm seam turns the
         reasoning back into {"ad_start": float, "ad_end": float}. Returns
         (start, end) strictly inside the original span, or None on any
-        failure -- never raises into the pipeline, and the result only
-        enriches the held marker; it cannot flip the hold into a cut.
+        failure; it never raises into the pipeline.
+
+        Two call sites share this recovery: the contradiction-hold branch
+        uses the result only to enrich the held marker's proposed bounds
+        (the ad stays held either way); the affirmed-confirm branch applies
+        the result as an adjust, accepting the ad with the recovered bounds.
         """
-        # Same expand-only rule as _review_single: a merged ad's span is the
-        # union of independently confirmed sub-ads, so a recovered sub-span
-        # would offer a one-tap trim that drops a still-confirmed sub-ad.
-        # Hold without proposed bounds instead.
-        if ad.get('merged_distinct_ads'):
+        # Merged spans: recovery may trim differential/VAD padding but must
+        # not sever a transcript-anchored member. Legacy markers without
+        # member tracking keep the old skip.
+        if ad.get('merged_distinct_ads') and 'merged_protected_start' not in ad:
             logger.info(
-                f"[{slug}:{episode_id}] Trim recovery skipped on merged ad @ "
-                f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s "
-                f"(expand-only; holding without proposed bounds)"
+                f"[{slug}:{episode_id}] Trim recovery skipped on legacy "
+                f"merged ad @ {verdict.original_start:.1f}-"
+                f"{verdict.original_end:.1f}s (no member tracking)"
             )
             return None
         reasoning = verdict.reasoning or ""
@@ -1077,6 +1196,15 @@ class AdReviewer:
             f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
             f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
         )
+        # Widen back out to the protected union so a tracked merged ad's
+        # recovered trim cannot sever a transcript-anchored member.
+        if ad.get('merged_distinct_ads'):
+            p_start = ad.get('merged_protected_start')
+            p_end = ad.get('merged_protected_end')
+            if p_start is not None:
+                start = min(start, p_start)
+            if p_end is not None:
+                end = max(end, p_end)
         return start, end
 
     @staticmethod

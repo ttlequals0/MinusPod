@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.65.0
+  version: 2.67.1
   contact:
     name: MinusPod
   license:
@@ -550,6 +550,16 @@ paths:
                     - keep_content
                     - null
                   description: Per-feed ad-detection mode. 'keep_content' (experimental) has the LLM label show content and removes everything else; null or 'blacklist' is the default, which labels and removes ads.
+                chaptersMode:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - auto
+                    - generate
+                    - 'off'
+                    - null
+                  description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
                 cueTemplateScoreOverride:
                   type:
                     - number
@@ -7003,6 +7013,16 @@ components:
             - keep_content
             - null
           description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior.
+        chaptersMode:
+          type:
+            - string
+            - 'null'
+          enum:
+            - auto
+            - generate
+            - 'off'
+            - null
+          description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
         processingMode:
           type: string
           enum:

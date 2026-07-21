@@ -6,6 +6,99 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.67.1] - 2026-07-21
+
+### Changed
+
+- Bumped the frontend's transitive fast-uri dependency past advisory
+  GHSA-4c8g-83qw-93j6. Build tooling only (service worker generation);
+  the runtime bundle never included it.
+
+## [2.67.0] - 2026-07-21
+
+### Added
+
+- Per-feed chapter mode (Feed Settings > Chapters): Auto, Always
+  generate, or Off (Off applies to episodes processed after the
+  switch; earlier episodes keep their existing chapters until
+  reprocessed). Auto, the default, preserves the podcast's own
+  embedded chapters, remapped onto the ad-free timeline, and falls
+  back to generated chapters only when fewer than two of the
+  publisher's own chapters survive the cut (issue #560). Previously
+  MinusPod always generated its own chapters and discarded the
+  publisher's, even when they were accurate and only needed their
+  timestamps shifted. A failed chapter probe (for example a transient
+  ffprobe error) is no longer treated as "no chapters": it is now
+  distinguished from a genuinely chapterless file, and the chapter
+  step is skipped for that run instead of falling through to generate
+  and overwriting the ID3 frames the cut step already wrote correctly.
+
+### Fixed
+
+- Pass-2 auto-approval now also releases a contradiction hold when the
+  pass-2 detection agrees with the reviewer's own proposed sub-span
+  trim, not only when it covers most of the padded hold as before.
+  Agreement is measured by IoU (0.8 or higher) between the pass-2 ad
+  and the reviewer's proposed sub-span. Either way, the auto-filed
+  confirm is trimmed to the agreed sub-span, so hold padding neither
+  side attested is never cut on the detection's authority.
+
+### Documentation
+
+- The OpenVINO transcription sidecar's example compose file now runs
+  as the image's built-in `ovms` user instead of root (issue #558).
+
+## [2.66.1] - 2026-07-21
+
+### Fixed
+
+- Pass-2 auto-approval no longer demands the corroborating detection cover
+  90 percent of the held span. Differential hold tails carry alignment
+  padding the detection rightly excludes: a 240 second ZocDoc break on
+  tosh-show scored 89.9 percent coverage, missed the bar by 0.3 seconds,
+  and shipped audible after a reprocess. The bar drops to 75 percent, and
+  in exchange the auto-filed confirm is trimmed to the sub-span pass 2
+  actually attested (the same shape a human trimmed approval files), so
+  the uncovered padding is never cut on the detection's authority. The
+  recut clamps to the attested span through the existing confirmed_span
+  path.
+- The validator's close-gap merge no longer folds a held marker into an
+  adjacent non-held ad (any hold reason, generalizing the existing
+  held-differential guard). On an auto-approve recut such a fold grew the
+  marker past its trimmed confirm, so the confirmed_span clamp never
+  fired and trimmed-out audio was cut anyway.
+
+## [2.66.0] - 2026-07-21
+
+### Fixed
+
+- The reviewer contradiction guard no longer holds spans whose reasoning
+  affirms they are ads. The guard scanned the whole reasoning for negation
+  phrases, so a boundary note like "that interview material is not
+  advertising and should be excluded" (about a 28 second tail) held a 231
+  second block of three sponsor reads that every detection signal agreed
+  on (tosh-show, and the same shape previously on daily-tech-news-show).
+  An affirmation paired with trim language now wins, and a confirmed
+  verdict whose prose describes a trim gets the trim recovered and applied
+  as an adjust instead of a hold. An affirmation with a whole-span
+  negation and no trim description (self-promo dismissals like "an ad for
+  the show's own merch, which is not advertising") still holds as before.
+- Merged ad spans are no longer blanket expand-only in the reviewer. Merge
+  sites now record which member spans are transcript-anchored; reviewer
+  trims and trim recovery clamp to that protected union, so a trailing
+  member ad still cannot be severed (the original Grainger case) while
+  the alignment-derived padding of differential regions is trimmable
+  again. Markers persisted by earlier releases keep the old blanket rule.
+- Pass-2 auto-approval now releases every releasable hold reason
+  (reviewer_contradiction, no_splice_evidence, uncorroborated_tail)
+  instead of only differential_uncorroborated, so a pass-2 re-detection of
+  a held span converges in the same run regardless of why the span was
+  held. no_cue_evidence stays excluded: pass-2 ads can never carry cue
+  evidence, so releasing those would neutralize cue gating. max_duration
+  stays excluded: such a hold is by definition over the duration ceiling,
+  and the auto-filed confirm would force-accept it past the validator's
+  re-check on recut.
+
 ## [2.65.0] - 2026-07-20
 
 ### Added

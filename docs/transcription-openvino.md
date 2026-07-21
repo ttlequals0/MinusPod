@@ -30,7 +30,7 @@ Add a transcriber service next to your existing `minuspod` service in `docker-co
     network_mode: "container:minuspod"
     devices:
       - /dev/dri:/dev/dri          # pass through the Intel GPU
-    user: "0:0"                     # root: simplest path to the GPU and bind mount
+    user: "5000:5000"               # the image's built-in ovms user
     volumes:
       - ./openvino/models:/models:rw
     command:
@@ -45,18 +45,18 @@ Add a transcriber service next to your existing `minuspod` service in `docker-co
 
 **Container name.** `network_mode: "container:minuspod"` resolves by container name, and the shipped `docker-compose.cpu.yml` does not set one (Compose auto-generates something like `<project>-minuspod-1`). Add `container_name: minuspod` to the `minuspod` service so the reference resolves, or use one of the [other networking options](#other-networking-options) below.
 
-**GPU access.** Running the sidecar as root (`user: "0:0"`) is the simplest way to give it both the GPU and the bind-mounted model directory, and it matches the setup tested in issue #364. To run non-root instead, drop `user` and add the host's `render` group so the container can reach `/dev/dri`:
+**GPU access.** The OVMS image ships a built-in `ovms` user (UID and GID 5000), and running the sidecar as that user keeps root out of the container while still reaching the GPU. This setup was tested with GPU transcriptions in issue #558. The bind-mounted model directory has to be readable by UID 5000, so run the pull step below with the same `--user 5000:5000`. If the container cannot open `/dev/dri` on your host, add the host's `render` group:
 
 ```yaml
     group_add:
       - "993"   # GID from: getent group render | cut -d: -f3
 ```
 
-If there is no `render` group, use the device's own group: `stat -c "%g" /dev/dri/render* | head -n1`. Going non-root also means the pulled model files must be readable by that user, so run the pull step below as the same user (`-u $(id -u):$(id -g)`) rather than as root.
+If there is no `render` group, use the device's own group: `stat -c "%g" /dev/dri/render* | head -n1`. Root (`user: "0:0"`) still works as a fallback when permissions fight you, and matches the original setup from issue #364, but it gives the container more access than it needs.
 
 **Startup order.** Because the transcriber joins MinusPod's network namespace, MinusPod has to come up first. `depends_on` handles ordering; `restart: on-failure` covers the case where the transcriber starts before MinusPod has bound its socket.
 
-**Podman.** These image names assume Docker Hub. On Podman, prefix them with `docker.io/` (for example `docker.io/openvino/model_server:latest-gpu`). Rootless Podman also remaps UIDs and GIDs, so `user: "0:0"` is the reliable choice there.
+**Podman.** These image names assume Docker Hub. On Podman, prefix them with `docker.io/` (for example `docker.io/openvino/model_server:latest-gpu`). `user: "5000:5000"` works under rootless Podman too (the UID maps into your user namespace); if the remapping fights the bind mount, drop back to `user: "0:0"`.
 
 ### Other networking options
 
@@ -79,7 +79,7 @@ This downloads the pre-quantized `whisper-large-v3-turbo` weights (~1.6 GB) from
 
 ```bash
 docker run --rm -it \
-  --user 0:0 \
+  --user 5000:5000 \
   --device /dev/dri \
   -v ./openvino/models:/models:rw \
   openvino/model_server:latest-gpu \
@@ -174,7 +174,7 @@ In the MinusPod web UI, open **Settings**, expand **Transcription**, and set:
 3. **Model Name:** `whisper-large-v3-turbo` (the alias from `config.json`).
 4. **Skip FLAC Compression:** ON. MinusPod compresses chunks to FLAC by default to keep uploads small for cloud APIs. OVMS expects raw WAV and has no FLAC decoder in its audio pipeline, so transcription fails unless this is on.
 
-Before saving, click **Test connection** under the API Base URL field. It sends a one-second audio sample through the real transcription request, so it catches a wrong path or a wrong model alias without processing a full episode. This matters with OVMS in particular: the server responds on every path (a `curl` to the wrong URL still gets a `400 Bad Request`, which only proves the server is alive), but only the versioned base -- `/v3` here -- accepts transcription requests. The sample is uploaded in the format episodes will use, so if Skip FLAC Compression is still off the test fails the same way a real episode would -- flip the toggle and test again.
+Before saving, click **Test connection** under the API Base URL field. It sends a one-second audio sample through the real transcription request, so it catches a wrong path or a wrong model alias without processing a full episode. This matters with OVMS in particular: the server responds on every path (a `curl` to the wrong URL still gets a `400 Bad Request`, which only proves the server is alive), but only the versioned base (`/v3` here) accepts transcription requests. The sample is uploaded in the format episodes will use, so if Skip FLAC Compression is still off, the test fails the same way a real episode would: flip the toggle and test again.
 
 Save. The same fields can be set with `WHISPER_BACKEND`, `WHISPER_API_BASE_URL`, `WHISPER_API_MODEL`, and `SKIP_FLAC_COMPRESSION` on first boot, but the UI is the runtime source of truth.
 

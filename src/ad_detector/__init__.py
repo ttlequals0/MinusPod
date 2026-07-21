@@ -23,6 +23,7 @@ from llm_client import (
 )
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm_for_window
+from utils.markers import mark_distinct_merge, note_merged_members
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.time import overlap_ratio, ranges_overlap
 
@@ -1871,7 +1872,12 @@ class AdDetector:
                 # expand-only in the reviewer so a later inward pull can't drop
                 # a sub-ad; a true overlap (start < end) stays tightenable.
                 if current['start'] >= last['end']:
-                    last['merged_distinct_ads'] = True
+                    mark_distinct_merge(last, current)
+                elif 'merged_protected_start' in last:
+                    # True overlap extending a tracked merge: fold the member
+                    # in so the protected union covers audio it adds past the
+                    # recorded end (else a later trim could sever it).
+                    note_merged_members(last, current)
                 # Merge - prefer pattern-detected metadata
                 if current['end'] > last['end']:
                     last['end'] = current['end']
