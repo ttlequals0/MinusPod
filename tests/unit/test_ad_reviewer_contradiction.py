@@ -23,7 +23,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import main_app.processing as processing
-from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut
+from ad_reviewer import AdReviewer, ReviewVerdict, reasoning_contradicts_cut, reasoning_affirms_ad
 from config import HOLD_REASON_REVIEWER_CONTRADICTION
 
 
@@ -439,3 +439,55 @@ def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
     assert reviewer._llm_client.messages_create.call_count == 1
     held = result.held_by_contradiction[0]
     assert 'reviewer_proposed_start' not in held
+
+
+TOSH_REASONING = (
+    "The candidate is a genuine ad break containing three back-to-back "
+    "sponsor reads: Fabletics (837.2s-910.8s), PestEase (911.4s-956.4s), "
+    "and HIMS (956.6s-1024.6s). The original end of 1068.49s overshoots: "
+    "at 1040.9s the 'Tosh Show' bumper begins the return to programming. "
+    "That interview material is not advertising and should be excluded, "
+    "so the end is trimmed back to 1040.9s where the show resumes."
+)
+
+DTNS_OUTRO_REASONING = (
+    "The span from 2475s to ~2503.6s is the show's own outro. The rest is "
+    "a genuine ad break with a Patreon read; the outro portion is not an "
+    "ad and the start should move to 2503.6s."
+)
+
+AFFIRMED_TRIM_REASONS = [TOSH_REASONING, DTNS_OUTRO_REASONING]
+
+
+@pytest.mark.parametrize("reason", AFFIRMED_TRIM_REASONS)
+def test_affirmed_span_with_boundary_negation_is_not_contradiction(reason):
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
+
+@pytest.mark.parametrize("reason", NEGATIVE_REASONS)
+def test_whole_span_negations_still_contradict(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+def test_affirms_ad_requires_assertion_shape():
+    # Bare mention of ads or sponsors is not an affirmation of THIS span.
+    assert not reasoning_affirms_ad(
+        "The host discusses how podcast ads are recorded")
+    assert not reasoning_affirms_ad(None)
+    assert not reasoning_affirms_ad("")
+
+
+NEGATED_PHRASE_REASONS = [
+    'This is not a genuine ad break; it contains no ad content and is a '
+    'false positive from the pattern matcher.',
+    'That was not back-to-back sponsor reads, just the host mentioning '
+    'past sponsors in passing. This span contains no advertising content.',
+]
+
+
+@pytest.mark.parametrize("reason", NEGATED_PHRASE_REASONS)
+def test_negated_phrases_are_not_affirmations(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)

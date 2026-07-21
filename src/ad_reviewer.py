@@ -76,6 +76,22 @@ REVIEWER_CONTRADICTION_PATTERNS = (
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
 
+# Affirmation guard: reasoning that asserts the span IS an ad can never be
+# a contradiction hold, even when a negation appears later in the same
+# prose. Boundary notes like "that interview material is not advertising"
+# refer to a sub-span the reviewer wants trimmed, not the candidate
+# (tosh-show 6e9f8a115e24, daily-tech-news-show 0b79e6e6c143 both held
+# real ad breaks this way). Assertion-shaped, like the negations above.
+REVIEWER_AFFIRMATION_PATTERNS = (
+    r'\bis\s+a\s+genuine\s+ad\b',
+    r'\bis\s+an?\s+ad\s+break\b',
+    r'\bis\s+an?\s+(?:real\s+|actual\s+|paid\s+|dynamically\s+inserted\s+)?'
+    r'ad(?:vertisement)?\b',
+    r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads\b',
+)
+
+_AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
+
 # Trim-language precheck: only spend the recovery LLM call when the
 # reasoning describes a sub-span trim; plain "not an ad" skips it.
 _TRIM_LANGUAGE_RE = re.compile(
@@ -104,9 +120,23 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
 )
 
 
-def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
-    """True when reviewer reasoning asserts the span is not an ad."""
+def reasoning_affirms_ad(reasoning: Optional[str]) -> bool:
+    """True when reviewer reasoning asserts the candidate span is an ad."""
     if not reasoning:
+        return False
+    lowered = reasoning.lower()
+    return any(r.search(lowered) for r in _AFFIRMATION_RES)
+
+
+def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
+    """True when reviewer reasoning asserts the span is not an ad.
+
+    An affirmation anywhere in the prose wins: negations alongside it are
+    boundary notes about a sub-span, which trim recovery handles.
+    """
+    if not reasoning:
+        return False
+    if reasoning_affirms_ad(reasoning):
         return False
     lowered = reasoning.lower()
     return any(r.search(lowered) for r in _CONTRADICTION_RES)
