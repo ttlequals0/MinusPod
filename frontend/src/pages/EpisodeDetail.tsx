@@ -681,6 +681,25 @@ function EpisodeDetail() {
               >
                 {/* Row 1: Time, badges, jump button, confidence */}
                 <div className="flex flex-wrap items-center gap-2">
+                  {episode.hasOriginalAudio && (
+                    <AuditionPlayButton
+                      playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
+                      onClick={() => {
+                        // Play the same timeframe the row displays: for
+                        // reviewer-adjusted markers that is the reviewed
+                        // pre-trim span, not the trimmed cut bounds.
+                        const adjusted = segment.reviewer_verdict === 'adjust'
+                          && segment.reviewer_original_start !== undefined
+                          && segment.reviewer_original_end !== undefined;
+                        markerAudition.toggle(
+                          `detected-${segment.start}-${segment.end}`,
+                          markerAudioUrl,
+                          adjusted ? segment.reviewer_original_start! : segment.start,
+                          adjusted ? segment.reviewer_original_end! : segment.end,
+                        );
+                      }}
+                    />
+                  )}
                   <span className="font-mono text-sm">
                     {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
                       ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
@@ -805,10 +824,11 @@ function EpisodeDetail() {
         </div>
       )}
 
-      {/* Shared windowed player for the Held for Review and Rejected
-          Detections sections below. Gated so the element (and its metadata
-          preload) only exists when at least one section renders. */}
-      {((episode.pendingReviewMarkers?.length ?? 0) > 0 ||
+      {/* Shared windowed player for the Detected Ads, Held for Review, and
+          Rejected Detections rows. Gated so the element (and its metadata
+          preload) only exists when at least one playable row renders. */}
+      {((episode.adMarkers?.length ?? 0) > 0 ||
+        (episode.pendingReviewMarkers?.length ?? 0) > 0 ||
         (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
 
       {heldMarkers.length > 0 && (
