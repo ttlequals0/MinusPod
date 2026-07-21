@@ -896,10 +896,15 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # #541: never merge across the held-differential boundary --
-            # the fold would hold the real ad or cut the held span.
+            # #541, generalized: never merge across a held/not-held boundary
+            # (any hold reason) -- the fold would hold the real ad or cut
+            # the held span, and on an auto-approve recut it would grow the
+            # marker past its trimmed confirm so the confirmed_span clamp
+            # never fires and trimmed-out audio gets cut.
             if (bool(last.get('differential_uncorroborated'))
-                    != bool(current.get('differential_uncorroborated'))):
+                    != bool(current.get('differential_uncorroborated'))
+                    or bool(last.get('held_for_review'))
+                    != bool(current.get('held_for_review'))):
                 merged.append(current.copy())
                 continue
 

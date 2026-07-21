@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.66.1] - 2026-07-21
+
+### Fixed
+
+- Pass-2 auto-approval no longer demands the corroborating detection cover
+  90 percent of the held span. Differential hold tails carry alignment
+  padding the detection rightly excludes: a 240 second ZocDoc break on
+  tosh-show scored 89.9 percent coverage, missed the bar by 0.3 seconds,
+  and shipped audible after a reprocess. The bar drops to 75 percent, and
+  in exchange the auto-filed confirm is trimmed to the sub-span pass 2
+  actually attested (the same shape a human trimmed approval files), so
+  the uncovered padding is never cut on the detection's authority. The
+  recut clamps to the attested span through the existing confirmed_span
+  path.
+- The validator's close-gap merge no longer folds a held marker into an
+  adjacent non-held ad (any hold reason, generalizing the existing
+  held-differential guard). On an auto-approve recut such a fold grew the
+  marker past its trimmed confirm, so the confirmed_span clamp never
+  fired and trimmed-out audio was cut anyway.
+
 ## [2.66.0] - 2026-07-21
 
 ### Fixed

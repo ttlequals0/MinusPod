@@ -41,6 +41,7 @@ from config import (
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
@@ -1665,6 +1666,14 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                 hold = overlapping[0]
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
+                    # The corroborated sub-span: what pass 2 actually attested
+                    # as ad, clamped inside the hold. The auto-approve confirm
+                    # is trimmed to this, so hold padding the detection
+                    # excluded is never cut on the detection's authority.
+                    hold['pass2_corroborated_span'] = {
+                        'start': max(hold['start'], orig_ad['start']),
+                        'end': min(hold['end'], orig_ad['end']),
+                    }
                     flags = hold.setdefault('validation', {}).setdefault('flags', [])
                     flags.append('INFO: Pass-2 independently re-detected this span as an ad')
                     corroborated_count += 1
@@ -1755,20 +1764,31 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                    >= CORRECTION_MATCH_MIN_COVERAGE
                    for c in confirmed_corrections or []):
                 continue
+            # Trim the confirm to the pass-2-attested sub-span (same shape a
+            # human trimmed approval files); the validator clamps the cut to
+            # confirmed_span, so hold padding the detection excluded stays.
+            span = m.get('pass2_corroborated_span')
+            trimmed = (span and
+                       (span['start'] > m['start'] + PASS2_AUTOAPPROVE_TRIM_SLACK_S
+                        or span['end'] < m['end'] - PASS2_AUTOAPPROVE_TRIM_SLACK_S))
             db.create_pattern_correction(
                 correction_type='confirm',
                 pattern_id=m.get('pattern_id'),
                 episode_id=episode_id,
                 original_bounds={'start': m['start'], 'end': m['end']},
-                corrected_bounds=None,
+                corrected_bounds=(
+                    {'start': span['start'], 'end': span['end']}
+                    if trimmed else None),
                 text_snippet=(
                     f"auto-approved: pass-2 corroborated "
                     f"{m.get('hold_reason')} hold"),
             )
             audio_logger.info(
                 f"[{slug}:{episode_id}] Auto-approving hold "
-                f"{m['start']:.1f}s-{m['end']:.1f}s: pass-2 independently "
-                f"re-detected the span as an ad")
+                f"{m['start']:.1f}s-{m['end']:.1f}s"
+                + (f" trimmed to {span['start']:.1f}s-{span['end']:.1f}s"
+                   if trimmed else "")
+                + ": pass-2 independently re-detected the span as an ad")
         recut_ok = _recut_episode(slug, episode_id, episode_title,
                                    podcast_name, episode_description,
                                    time.time(), cancel_event=None)

@@ -696,3 +696,71 @@ def test_no_cue_hold_is_never_corroborated():
     hold = _hold(100.0, 160.0, 'no_cue_evidence')
     ad = {'start': 100.0, 'end': 160.0}
     assert not processing_mod._corroborates_hold([hold], ad, 0.99, 0.8)
+
+
+def test_padded_hold_tail_still_corroborates_and_records_span():
+    """tosh-show 6e9f8a115e24: a 239.9s hold with a 24.3s alignment-padding
+    tail scored 0.899 coverage and missed the old 0.9 bar; the ZocDoc break
+    shipped audible. Under the 0.75 bar it stamps, and the corroborated
+    sub-span (what pass 2 actually attested, clamped into the hold) is
+    recorded for the trimmed auto-approve confirm."""
+    proc = [_plain_proc(100.0, 317.9)]
+    orig = [_orig(835.1, 1053.0, 'pestease')]
+    hold = _diff_hold(837.4, 1077.3)
+
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
+    )
+
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 837.4, 'end': 1053.0}
+
+
+def _auto_approve_env(monkeypatch):
+    """Swap the IO seams _auto_approve_corroborated_holds touches, following
+    the file's MagicMock pattern; returns the db mock for filing asserts."""
+    db = MagicMock()
+    db.get_original_segments.return_value = [{'start': 0.0}]
+    storage = MagicMock()
+    storage.get_original_path.return_value.exists.return_value = True
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', storage)
+    monkeypatch.setattr(processing_mod, '_load_user_corrections',
+                        lambda s, e, d: ([], []))
+    monkeypatch.setattr(processing_mod, '_recut_episode',
+                        lambda *a, **kw: True)
+    return db
+
+
+def test_auto_approve_files_trimmed_confirm(monkeypatch):
+    """The auto-approve confirm carries corrected_bounds when the attested
+    span is meaningfully narrower than the hold, mirroring a human trimmed
+    approval, so the recut cuts only what pass 2 attested."""
+    hold = _diff_hold(837.4, 1077.3)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 837.4, 'end': 1053.0}
+    db = _auto_approve_env(monkeypatch)
+
+    approved = processing_mod._auto_approve_corroborated_holds(
+        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+
+    assert approved == 1
+    kwargs = db.create_pattern_correction.call_args.kwargs
+    assert kwargs['original_bounds'] == {'start': 837.4, 'end': 1077.3}
+    assert kwargs['corrected_bounds'] == {'start': 837.4, 'end': 1053.0}
+
+
+def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
+    """When the attested span matches the hold (within slack), the confirm
+    stays untrimmed, same as before."""
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+    hold['pass2_corroborated_span'] = {'start': 4875.9, 'end': 5025.8}
+    db = _auto_approve_env(monkeypatch)
+
+    approved = processing_mod._auto_approve_corroborated_holds(
+        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+
+    assert approved == 1
+    assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None

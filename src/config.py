@@ -66,8 +66,17 @@ PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
 # inside the held span...
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
 # ...and the detection covers at least this fraction of the held span. A
-# short ad inside a long hold must not approve the whole hold.
-PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.9
+# short ad inside a long hold must not approve the whole hold. The bar is
+# deliberately below 0.9: differential hold tails carry alignment padding
+# the detection rightly excludes (a 240s hold with 24s of padding scored
+# 0.899 and stayed audible, tosh-show 6e9f8a115e24), and the auto-approve
+# confirm is trimmed to the corroborated span, so the uncovered remainder
+# is never cut on the strength of this threshold.
+PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
+# An auto-approve confirm is filed trimmed only when the attested span is
+# narrower than the hold by more than this per edge; smaller deltas are
+# float noise, not a meaningful trim.
+PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
 
 
 def is_cue_backed(ad) -> bool:

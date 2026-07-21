@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_validator import AdValidator, Decision
+from ad_validator import AdValidator, Decision, ValidationResult
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
@@ -1297,3 +1297,19 @@ class TestMergeCloseAdsDifferentialBoundary:
         assert len(merged) == 2
         assert merged[0]['differential_uncorroborated'] is True
         assert 'differential_uncorroborated' not in merged[1]
+
+
+def test_merge_never_crosses_held_boundary():
+    """A held marker (any reason) must not merge with an adjacent non-held
+    ad: on an auto-approve recut the fold would grow the marker past its
+    trimmed confirm so the confirmed_span clamp never fires."""
+    validator = AdValidator(episode_duration=300.0)
+    result = ValidationResult(ads=[])
+    ads = [
+        {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
+         'held_for_review': True, 'hold_reason': 'reviewer_contradiction'},
+        {'start': 162.0, 'end': 192.0, 'confidence': 0.95},
+    ]
+    merged = validator._merge_close_ads(ads, result)
+    assert len(merged) == 2
+    assert merged[0]['end'] == 160.0
