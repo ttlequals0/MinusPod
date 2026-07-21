@@ -1031,15 +1031,14 @@ class AdReviewer:
         failure -- never raises into the pipeline, and the result only
         enriches the held marker; it cannot flip the hold into a cut.
         """
-        # Same expand-only rule as _review_single: a merged ad's span is the
-        # union of independently confirmed sub-ads, so a recovered sub-span
-        # would offer a one-tap trim that drops a still-confirmed sub-ad.
-        # Hold without proposed bounds instead.
-        if ad.get('merged_distinct_ads'):
+        # Merged spans: recovery may trim differential/VAD padding but must
+        # not sever a transcript-anchored member. Legacy markers without
+        # member tracking keep the old skip.
+        if ad.get('merged_distinct_ads') and 'merged_protected_start' not in ad:
             logger.info(
-                f"[{slug}:{episode_id}] Trim recovery skipped on merged ad @ "
-                f"{verdict.original_start:.1f}-{verdict.original_end:.1f}s "
-                f"(expand-only; holding without proposed bounds)"
+                f"[{slug}:{episode_id}] Trim recovery skipped on legacy "
+                f"merged ad @ {verdict.original_start:.1f}-"
+                f"{verdict.original_end:.1f}s (no member tracking)"
             )
             return None
         reasoning = verdict.reasoning or ""
@@ -1122,6 +1121,15 @@ class AdReviewer:
             f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
             f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
         )
+        # Widen back out to the protected union so a tracked merged ad's
+        # recovered trim cannot sever a transcript-anchored member.
+        if ad.get('merged_distinct_ads'):
+            p_start = ad.get('merged_protected_start')
+            p_end = ad.get('merged_protected_end')
+            if p_start is not None:
+                start = min(start, p_start)
+            if p_end is not None:
+                end = max(end, p_end)
         return start, end
 
     @staticmethod

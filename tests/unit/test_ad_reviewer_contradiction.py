@@ -386,11 +386,12 @@ def test_contradicted_confirmed_recovery_llm_failure_falls_back():
     assert result.accepted_after_review == []
 
 
-def test_merged_ad_contradiction_skips_trim_recovery():
+def test_legacy_merged_ad_contradiction_skips_trim_recovery():
     # Regression R3c: _review_single blocks inward shrink on
     # merged_distinct_ads, but trim recovery could still propose a sub-span
-    # that drops a still-confirmed sub-ad. A merged ad must hold WITHOUT
-    # proposed bounds and never spend the recovery LLM call.
+    # that drops a still-confirmed sub-ad. A legacy merged ad (flag set,
+    # predates member tracking, so no merged_protected_start/end keys) must
+    # hold WITHOUT proposed bounds and never spend the recovery LLM call.
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
@@ -409,7 +410,7 @@ def test_merged_ad_contradiction_skips_trim_recovery():
         pass_num=1, pass_model='claude-test',
     )
     assert reviewer._llm_client.messages_create.call_count == 1, (
-        "merged ad must not spend the recovery call"
+        "legacy merged ad must not spend the recovery call"
     )
     held = result.held_by_contradiction[0]
     assert held['held_for_review'] is True
@@ -417,6 +418,84 @@ def test_merged_ad_contradiction_skips_trim_recovery():
     assert 'reviewer_proposed_start' not in held
     assert 'reviewer_proposed_end' not in held
     assert result.accepted_after_review == []
+
+
+def test_merged_ad_with_null_protection_recovers_trim():
+    # Tracked merge of differential regions only (both protected keys null):
+    # recovery runs and its bounds pass through unclamped, since there is no
+    # transcript-anchored member to protect.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 120.0, "ad_end": 150.0}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9,
+          'merged_distinct_ads': True, 'merged_protected_start': None,
+          'merged_protected_end': None}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 2
+    assert result.verdicts[0].verdict == 'confirmed'
+    # Enrichment only: still held, never cut, boundaries untouched.
+    assert result.accepted_after_review == []
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert held['start'] == 120.0 and held['end'] == 180.0
+    assert held['reviewer_proposed_start'] == 120.0
+    assert held['reviewer_proposed_end'] == 150.0
+    # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
+    # onto the master ad.
+    assert result.verdicts[0].adjusted_start == 120.0
+    assert result.verdicts[0].adjusted_end == 150.0
+
+
+def test_merged_ad_recovery_clamped_to_protected_union():
+    # Tracked merge with a transcript-anchored member protected at
+    # 120.0-170.0 inside span 100.0-200.0. Recovery proposes a sub-span
+    # (130.0, 150.0) that would sever the protected member; the recovered
+    # bounds stored on the hold must widen back out to the protected union
+    # (120.0, 170.0) rather than offer a one-tap trim that drops it.
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 100.0, "end": 200.0, "confidence": 0.9, '
+        f'"reason": "{TRIM_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 130.0, "ad_end": 150.0}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+          'merged_distinct_ads': True, 'merged_protected_start': 120.0,
+          'merged_protected_end': 170.0}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 2
+    assert result.verdicts[0].verdict == 'confirmed'
+    # Enrichment only: still held, never cut, boundaries untouched.
+    assert result.accepted_after_review == []
+    held = result.held_by_contradiction[0]
+    assert held['held_for_review'] is True
+    assert held['was_cut'] is False
+    assert held['start'] == 100.0 and held['end'] == 200.0
+    assert held['reviewer_proposed_start'] == 120.0
+    assert held['reviewer_proposed_end'] == 170.0
+    # Stashed on the verdict so _apply_reviewer_verdict_to_ad mirrors it
+    # onto the master ad.
+    assert result.verdicts[0].adjusted_start == 120.0
+    assert result.verdicts[0].adjusted_end == 170.0
 
 
 def test_contradicted_confirmed_without_trim_language_skips_recovery_call():
