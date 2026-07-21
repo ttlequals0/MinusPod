@@ -488,6 +488,31 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Per-feed chapter mode */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.chaptersMode || 'auto'}
+                onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value as 'auto' | 'generate' | 'off' })}
+                disabled={updateMutation.isPending}
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                aria-label="Chapters"
+              >
+                <option value="auto">Auto</option>
+                <option value="generate">Always generate</option>
+                <option value="off">Off</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Auto keeps the podcast&apos;s own chapters, with timestamps shifted to
+                match the ad-free audio, and falls back to generated chapters when an
+                episode has too few of its own. Always generate replaces the
+                podcast&apos;s chapters with generated ones. Off leaves chapters
+                untouched.
+              </p>
+            </div>
+          </div>
+
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>

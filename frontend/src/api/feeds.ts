@@ -209,6 +209,7 @@ export interface UpdateFeedPayload {
   languageOverride?: string | null;
   titleOverride?: string | null;
   detectionMode?: string | null;
+  chaptersMode?: 'auto' | 'generate' | 'off' | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;

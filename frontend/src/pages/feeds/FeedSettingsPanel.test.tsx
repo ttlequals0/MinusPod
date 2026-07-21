@@ -142,6 +142,45 @@ describe('FeedSettingsPanel cross-fetch differential control', () => {
   });
 });
 
+describe('FeedSettingsPanel chapters mode control', () => {
+  const CHAPTERS_SELECT_NAME = 'Chapters';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders Auto when chaptersMode is unset', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('auto');
+  });
+
+  it('renders the current value when chaptersMode is set', () => {
+    renderPanel(makeFeed({ chaptersMode: 'generate' }));
+    const select = screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('generate');
+  });
+
+  it('selecting Always generate fires updateFeed with chaptersMode generate', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }), 'generate');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: 'generate' });
+  });
+
+  it('selecting Off fires updateFeed with chaptersMode off', async () => {
+    renderPanel(makeFeed({ chaptersMode: 'generate' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }), 'off');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: 'off' });
+  });
+
+  it('selecting Auto fires updateFeed with chaptersMode auto', async () => {
+    renderPanel(makeFeed({ chaptersMode: 'off' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: CHAPTERS_SELECT_NAME }), 'auto');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersMode: 'auto' });
+  });
+});
+
 describe('FeedSettingsPanel source URL row (#484)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
