@@ -717,6 +717,41 @@ def test_padded_hold_tail_still_corroborates_and_records_span():
     assert hold['pass2_corroborated_span'] == {'start': 837.4, 'end': 1053.0}
 
 
+# ---------- Reviewer-proposed sub-span agreement ----------
+
+
+def _contradiction_hold(start, end, p_start, p_end):
+    return {'start': start, 'end': end, 'held_for_review': True,
+            'was_cut': False, 'hold_reason': 'reviewer_contradiction',
+            'reviewer_proposed_start': p_start, 'reviewer_proposed_end': p_end}
+
+
+def test_proposed_span_agreement_corroborates_despite_low_coverage():
+    # tosh-show 6e9f8a115e24 Lincoln Tech: hold 3872.9-3933.3, reviewer
+    # proposed 3895.8-3929.9, pass 2 found the same span. Coverage of the
+    # padded hold is 56 percent, but the two sub-spans agree exactly.
+    proc = [_plain_proc(100.0, 134.1)]
+    orig = [_orig(3895.8, 3929.9, 'lincoln')]
+    hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 1
+    assert hold['pass2_corroborated'] is True
+    assert hold['pass2_corroborated_span'] == {'start': 3895.8, 'end': 3929.9}
+
+
+def test_proposed_span_disagreement_does_not_corroborate():
+    # Pass 2 found a different sub-span than the reviewer proposed: IoU low,
+    # coverage low, stays held.
+    proc = [_plain_proc(100.0, 120.0)]
+    orig = [_orig(3873.0, 3893.0, 'other')]
+    hold = _contradiction_hold(3872.9, 3933.3, 3895.8, 3929.9)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 0
+    assert 'pass2_corroborated' not in hold
+
+
 def _auto_approve_env(monkeypatch):
     """Swap the IO seams _auto_approve_corroborated_holds touches, following
     the file's MagicMock pattern; returns the db mock for filing asserts."""

@@ -78,6 +78,13 @@ PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
 # float noise, not a meaningful trim.
 PASS2_AUTOAPPROVE_TRIM_SLACK_S = 0.5
 
+# Second acceptance path: a contradiction hold carries the reviewer's own
+# proposed ad sub-span. When the pass-2 detection and that proposal agree
+# (IoU of the two sub-spans at or above this bar), two independent signals
+# have named the same audio; corroborate on the agreement instead of on
+# coverage of the padded hold.
+PASS2_AUTOAPPROVE_PROPOSED_IOU = 0.8
+
 
 def is_cue_backed(ad) -> bool:
     """Single source of truth for the cue gate: an ad is exempt from cue-gated

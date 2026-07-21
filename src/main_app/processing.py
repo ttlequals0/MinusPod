@@ -29,8 +29,8 @@ from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_e
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
 from utils.time import (
-    adjust_timestamp, merge_cut_spans, overlap_ratio, ranges_overlap,
-    span_inside_any_cut, utc_now_iso,
+    adjust_timestamp, merge_cut_spans, overlap_ratio, overlap_seconds,
+    ranges_overlap, span_inside_any_cut, utc_now_iso,
 )
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
@@ -41,6 +41,7 @@ from config import (
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
+    PASS2_AUTOAPPROVE_PROPOSED_IOU,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
@@ -1591,13 +1592,29 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     return kept_processed, kept_original
 
 
+def _proposed_span_agrees(hold, orig_ad):
+    """True when the hold carries the reviewer's own proposed ad sub-span
+    and the pass-2 ad names essentially the same audio (IoU of the two
+    sub-spans at or above PASS2_AUTOAPPROVE_PROPOSED_IOU). Two independent
+    signals agreeing on a sub-span corroborates regardless of how much of
+    the (padded) hold either one covers."""
+    p_start = hold.get('reviewer_proposed_start')
+    p_end = hold.get('reviewer_proposed_end')
+    if p_start is None or p_end is None or p_end <= p_start:
+        return False
+    inter = overlap_seconds(orig_ad['start'], orig_ad['end'], p_start, p_end)
+    union = max(orig_ad['end'], p_end) - min(orig_ad['start'], p_start)
+    return union > 0 and inter / union >= PASS2_AUTOAPPROVE_PROPOSED_IOU
+
+
 def _corroborates_hold(overlapping, orig_ad, confidence,
                         min_cut_confidence):
     """True when a confident non-held pass-2 ad is the independent
     corroboration a held span was waiting for: it overlaps exactly that one
-    pending marker, sits mostly inside it, and covers nearly all of it. The
-    ad is still dropped (pending audio is never cut mid-pipeline); the hold
-    is stamped for auto-approval instead."""
+    pending marker, and either covers nearly all of it while sitting mostly
+    inside it, or agrees with the reviewer's own proposed sub-span (see
+    _proposed_span_agrees). The ad is still dropped (pending audio is never
+    cut mid-pipeline); the hold is stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
             or overlapping[0].get('hold_reason')
@@ -1608,8 +1625,26 @@ def _corroborates_hold(overlapping, orig_ad, confidence,
                               orig_ad['start'], orig_ad['end'])
     hold_covered = overlap_ratio(orig_ad['start'], orig_ad['end'],
                                  hold['start'], hold['end'])
-    return (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE
-            and hold_covered >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE)
+    if (ad_inside >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE
+            and hold_covered >= PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE):
+        return True
+    return _proposed_span_agrees(hold, orig_ad)
+
+
+def _corroborated_span(hold, orig_ad):
+    """The sub-span the corroboration attests, clamped inside the hold: the
+    reviewer's proposed span when that is what agreed with the pass-2 ad
+    (_proposed_span_agrees), else the hold itself. Either way intersected
+    with the pass-2 ad's own bounds, since the ad never attests audio
+    outside itself."""
+    lo, hi = hold['start'], hold['end']
+    if _proposed_span_agrees(hold, orig_ad):
+        lo = max(lo, hold['reviewer_proposed_start'])
+        hi = min(hi, hold['reviewer_proposed_end'])
+    return {
+        'start': max(lo, orig_ad['start']),
+        'end': min(hi, orig_ad['end']),
+    }
 
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
@@ -1667,13 +1702,13 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
                     # The corroborated sub-span: what pass 2 actually attested
-                    # as ad, clamped inside the hold. The auto-approve confirm
-                    # is trimmed to this, so hold padding the detection
-                    # excluded is never cut on the detection's authority.
-                    hold['pass2_corroborated_span'] = {
-                        'start': max(hold['start'], orig_ad['start']),
-                        'end': min(hold['end'], orig_ad['end']),
-                    }
+                    # as ad, clamped inside the hold (or, when the reviewer's
+                    # own proposed span is what agreed, clamped inside that
+                    # instead). The auto-approve confirm is trimmed to this,
+                    # so hold padding the detection excluded is never cut on
+                    # the detection's authority.
+                    hold['pass2_corroborated_span'] = _corroborated_span(
+                        hold, orig_ad)
                     flags = hold.setdefault('validation', {}).setdefault('flags', [])
                     flags.append('INFO: Pass-2 independently re-detected this span as an ad')
                     corroborated_count += 1
