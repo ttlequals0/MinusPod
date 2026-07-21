@@ -694,6 +694,53 @@ class AdReviewer:
                     f"reasoning={verdict.reasoning[:80]!r}"
                 )
                 result.held_by_contradiction.append(held)
+            elif (verdict.verdict == "confirmed"
+                  and reasoning_affirms_ad(verdict.reasoning)
+                  and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
+                # Affirmed ad whose prose describes a trim the boundary
+                # arithmetic missed (model returned the span unchanged).
+                # Recover the trim and apply it as an adjust; on any
+                # failure accept unchanged. Never a hold: the reviewer
+                # says this IS an ad.
+                recovered = self._recover_contradiction_trim(
+                    verdict,
+                    ad=updated_ad,
+                    segments=segments,
+                    model=model,
+                    pass_num=pass_num,
+                    slug=episode_meta.get('slug'),
+                    episode_id=episode_meta.get('episode_id'),
+                )
+                if recovered is None:
+                    result.accepted_after_review.append(updated_ad)
+                else:
+                    new_start, new_end = self._clamp_proposed_bounds(
+                        updated_ad, recovered[0], recovered[1],
+                        verdict.original_start, verdict.original_end,
+                        max_shift,
+                        episode_meta.get('slug'),
+                        episode_meta.get('episode_id'))
+                    verdict.verdict = "adjust"
+                    verdict.adjusted_start = new_start
+                    verdict.adjusted_end = new_end
+                    trimmed = dict(updated_ad)
+                    trimmed["start"] = new_start
+                    trimmed["end"] = new_end
+                    trimmed["reviewer_verdict"] = "adjust"
+                    trimmed["reviewer_original_start"] = verdict.original_start
+                    trimmed["reviewer_original_end"] = verdict.original_end
+                    trimmed["reviewer_reasoning"] = verdict.reasoning
+                    trimmed["reviewer_confidence"] = verdict.confidence
+                    trimmed["reviewer_model"] = verdict.model_used
+                    result.accepted_after_review.append(trimmed)
+                    logger.info(
+                        f"[{episode_meta.get('slug')}:"
+                        f"{episode_meta.get('episode_id')}] Affirmed "
+                        f"confirm routed to trim recovery @ "
+                        f"{verdict.original_start:.1f}-"
+                        f"{verdict.original_end:.1f}s -> "
+                        f"{new_start:.1f}-{new_end:.1f}s (applied as adjust)"
+                    )
             else:
                 result.accepted_after_review.append(updated_ad)
 
@@ -1028,8 +1075,12 @@ class AdReviewer:
         One small follow-up call through the shared call_llm seam turns the
         reasoning back into {"ad_start": float, "ad_end": float}. Returns
         (start, end) strictly inside the original span, or None on any
-        failure -- never raises into the pipeline, and the result only
-        enriches the held marker; it cannot flip the hold into a cut.
+        failure -- never raises into the pipeline.
+
+        Two call sites share this recovery: the contradiction-hold branch
+        uses the result only to enrich the held marker's proposed bounds
+        (the ad stays held either way); the affirmed-confirm branch applies
+        the result as an adjust, accepting the ad with the recovered bounds.
         """
         # Merged spans: recovery may trim differential/VAD padding but must
         # not sever a transcript-anchored member. Legacy markers without

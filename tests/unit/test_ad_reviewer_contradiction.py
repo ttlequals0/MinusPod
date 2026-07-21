@@ -570,3 +570,71 @@ NEGATED_PHRASE_REASONS = [
 def test_negated_phrases_are_not_affirmations(reason):
     assert not reasoning_affirms_ad(reason)
     assert reasoning_contradicts_cut(reason)
+
+
+# ---------- Affirmed confirm + trim language routes to recovery as adjust ----------
+# TOSH_REASONING affirms the span IS an ad (reasoning_affirms_ad is True) while
+# also naming a sub-span trim in prose ("trimmed back to 1040.9s"). The
+# affirmation guard keeps this out of the contradiction-hold branch entirely;
+# it must instead reach the new affirmed-confirm branch, spend one recovery
+# call, and ship as an accepted adjust rather than an unchanged confirm.
+
+def _run_affirmed_confirm(followup):
+    """Run one review whose main call yields a confirmed verdict with
+    unchanged bounds and Tosh-style affirming/trim reasoning, and whose
+    follow-up recovery call yields ``followup`` (an _LLMResp or an exception
+    instance). Returns (result, llm mock)."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 837.2, "end": 1068.5, "confidence": 0.95, '
+        f'"reason": "{TOSH_REASONING}"}}]'
+    )
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {
+        'start': 837.2, 'end': 1068.5, 'confidence': 0.95,
+        'detection_stage': 'dai_differential', 'merged_distinct_ads': True,
+        'merged_protected_start': None, 'merged_protected_end': None,
+    }
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    return result, reviewer._llm_client
+
+
+def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
+    # Reviewer returns unchanged bounds with Tosh-style reasoning. The
+    # affirmation guard keeps it out of the hold path; the trim route
+    # recovers (837.2, 1040.9) and the ad is accepted with those bounds.
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 837.2, "ad_end": 1040.9}'))
+    assert llm.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == 837.2
+    assert accepted['end'] == pytest.approx(1040.9)
+    assert accepted['reviewer_verdict'] == 'adjust'
+    verdict = result.verdicts[0]
+    assert verdict.verdict == 'adjust'
+    assert verdict.adjusted_start == 837.2
+    assert verdict.adjusted_end == pytest.approx(1040.9)
+
+
+def test_affirmed_confirm_recovery_failure_accepts_unchanged():
+    # Same setup but the recovery call fails: the ad is accepted with its
+    # original bounds, the verdict stays 'confirmed', nothing held.
+    # A non-retryable message (unlike "timeout") keeps this test from
+    # tripping call_llm's secondary backoff retries, matching the
+    # RuntimeError('boom') convention used by the donor recovery-failure
+    # test above.
+    result, llm = _run_affirmed_confirm(RuntimeError('boom'))
+    assert llm.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == 837.2
+    assert accepted['end'] == 1068.5
+    assert result.verdicts[0].verdict == 'confirmed'
