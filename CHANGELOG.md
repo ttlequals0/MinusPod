@@ -6,6 +6,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.66.0] - 2026-07-21
+
+### Fixed
+
+- The reviewer contradiction guard no longer holds spans whose reasoning
+  affirms they are ads. The guard scanned the whole reasoning for negation
+  phrases, so a boundary note like "that interview material is not
+  advertising and should be excluded" (about a 28 second tail) held a 231
+  second block of three sponsor reads that every detection signal agreed
+  on (tosh-show, and the same shape previously on daily-tech-news-show).
+  An affirmation now wins; a confirmed verdict whose prose describes a
+  trim gets the trim recovered and applied as an adjust instead of a hold.
+- Merged ad spans are no longer blanket expand-only in the reviewer. Merge
+  sites now record which member spans are transcript-anchored; reviewer
+  trims and trim recovery clamp to that protected union, so a trailing
+  member ad still cannot be severed (the original Grainger case) while
+  the alignment-derived padding of differential regions is trimmable
+  again. Markers persisted by earlier releases keep the old blanket rule.
+- Pass-2 auto-approval now releases every releasable hold reason
+  (reviewer_contradiction, no_splice_evidence, uncorroborated_tail,
+  max_duration) instead of only differential_uncorroborated, so a pass-2
+  re-detection of a held span converges in the same run regardless of why
+  the span was held. no_cue_evidence stays excluded: pass-2 ads can never
+  carry cue evidence, so releasing those would neutralize cue gating.
+
 ## [2.65.0] - 2026-07-20
 
 ### Added
