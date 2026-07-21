@@ -14,7 +14,8 @@ def _protected_bounds(marker: Dict) -> Tuple[Optional[float], Optional[float]]:
     when it was merged before, its span when its stage is anchored, else
     None/None."""
     if 'merged_protected_start' in marker:
-        return marker['merged_protected_start'], marker['merged_protected_end']
+        return (marker['merged_protected_start'],
+                marker.get('merged_protected_end'))
     if marker.get('detection_stage') not in UNPROTECTED_MEMBER_STAGES:
         return marker['start'], marker['end']
     return None, None
@@ -32,11 +33,12 @@ def note_merged_members(target: Dict, other: Dict) -> None:
         target['merged_protected_start'], target['merged_protected_end'] = (
             _protected_bounds(target))
     o_lo, o_hi = _protected_bounds(other)
-    if o_lo is None:
-        return
-    lo, hi = target['merged_protected_start'], target['merged_protected_end']
-    target['merged_protected_start'] = o_lo if lo is None else min(lo, o_lo)
-    target['merged_protected_end'] = o_hi if hi is None else max(hi, o_hi)
+    if o_lo is not None:
+        lo = target['merged_protected_start']
+        target['merged_protected_start'] = o_lo if lo is None else min(lo, o_lo)
+    if o_hi is not None:
+        hi = target['merged_protected_end']
+        target['merged_protected_end'] = o_hi if hi is None else max(hi, o_hi)
 
 
 def mark_distinct_merge(target: Dict, other: Dict) -> None:

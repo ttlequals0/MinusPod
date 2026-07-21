@@ -92,6 +92,7 @@ REVIEWER_AFFIRMATION_PATTERNS = (
     r'\bis\s+an?\s+(?:genuine\s+|real\s+|actual\s+|paid\s+|'
     r'dynamically\s+inserted\s+)?ad(?:vertisement)?(?!-)\b',
     r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads(?!-)\b',
+    r'\bis\s+(?:genuine\s+|real\s+|paid\s+)?advertising\b',
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
@@ -138,12 +139,15 @@ def reasoning_affirms_ad(reasoning: Optional[str]) -> bool:
 def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
     """True when reviewer reasoning asserts the span is not an ad.
 
-    An affirmation anywhere in the prose wins: negations alongside it are
-    boundary notes about a sub-span, which trim recovery handles.
+    An affirmation wins only when the prose also describes a boundary trim:
+    that combination means the negation is a note about a sub-span, which
+    trim recovery handles. An affirmation with a negation but NO trim
+    language is a whole-span dispute ("is an ad for the show's own merch,
+    which is not advertising") and must still hold: pre-guard behavior.
     """
     if not reasoning:
         return False
-    if reasoning_affirms_ad(reasoning):
+    if reasoning_affirms_ad(reasoning) and _TRIM_LANGUAGE_RE.search(reasoning):
         return False
     lowered = reasoning.lower()
     return any(r.search(lowered) for r in _CONTRADICTION_RES)

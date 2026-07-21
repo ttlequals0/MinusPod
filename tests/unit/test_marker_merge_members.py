@@ -6,6 +6,7 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='mergemem_tes
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from ad_detector.boundaries import deduplicate_window_ads
 from utils.markers import note_merged_members
 
 
@@ -69,3 +70,35 @@ def test_unknown_stage_fails_protected():
     note_merged_members(base, _ad(131.0, 160.0, 'some_future_stage'))
     assert base['merged_protected_start'] == 131.0
     assert base['merged_protected_end'] == 160.0
+
+
+def test_protected_end_key_absent_does_not_raise():
+    # Malformed persisted marker: start key present, end key missing.
+    # _protected_bounds must degrade like the reviewer-side consumers do.
+    other = _ad(300.0, 400.0, 'dai_differential')
+    other['merged_protected_start'] = 320.0
+    base = _ad(100.0, 290.0, 'text_pattern')
+    note_merged_members(base, other)
+    assert base['merged_protected_start'] == 100.0
+    assert base['merged_protected_end'] == 290.0
+
+
+def test_overlap_extension_widens_protected_union():
+    # A distinct merge records protection, then a true-overlap detection of
+    # the trailing ad extends the span. The extension must join the
+    # protected union or a later trim could sever the added tail.
+    ads = [
+        {'start': 100.0, 'end': 130.0, 'detection_stage': 'claude',
+         'confidence': 0.9, 'reason': 'ad one'},
+        {'start': 131.0, 'end': 170.0, 'detection_stage': 'claude',
+         'confidence': 0.9, 'reason': 'ad two'},
+        {'start': 165.0, 'end': 220.0, 'detection_stage': 'claude',
+         'confidence': 0.9, 'reason': 'ad two re-detected across windows'},
+    ]
+    merged = deduplicate_window_ads(ads)
+    assert len(merged) == 1
+    m = merged[0]
+    assert m['end'] == 220.0
+    assert m['merged_distinct_ads'] is True
+    assert m['merged_protected_start'] == 100.0
+    assert m['merged_protected_end'] == 220.0

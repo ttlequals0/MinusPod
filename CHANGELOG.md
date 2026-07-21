@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   advertising and should be excluded" (about a 28 second tail) held a 231
   second block of three sponsor reads that every detection signal agreed
   on (tosh-show, and the same shape previously on daily-tech-news-show).
-  An affirmation now wins; a confirmed verdict whose prose describes a
-  trim gets the trim recovered and applied as an adjust instead of a hold.
+  An affirmation paired with trim language now wins, and a confirmed
+  verdict whose prose describes a trim gets the trim recovered and applied
+  as an adjust instead of a hold. An affirmation with a whole-span
+  negation and no trim description (self-promo dismissals like "an ad for
+  the show's own merch, which is not advertising") still holds as before.
 - Merged ad spans are no longer blanket expand-only in the reviewer. Merge
   sites now record which member spans are transcript-anchored; reviewer
   trims and trim recovery clamp to that protected union, so a trailing
@@ -25,11 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the alignment-derived padding of differential regions is trimmable
   again. Markers persisted by earlier releases keep the old blanket rule.
 - Pass-2 auto-approval now releases every releasable hold reason
-  (reviewer_contradiction, no_splice_evidence, uncorroborated_tail,
-  max_duration) instead of only differential_uncorroborated, so a pass-2
-  re-detection of a held span converges in the same run regardless of why
-  the span was held. no_cue_evidence stays excluded: pass-2 ads can never
-  carry cue evidence, so releasing those would neutralize cue gating.
+  (reviewer_contradiction, no_splice_evidence, uncorroborated_tail)
+  instead of only differential_uncorroborated, so a pass-2 re-detection of
+  a held span converges in the same run regardless of why the span was
+  held. no_cue_evidence stays excluded: pass-2 ads can never carry cue
+  evidence, so releasing those would neutralize cue gating. max_duration
+  stays excluded: such a hold is by definition over the duration ceiling,
+  and the auto-filed confirm would force-accept it past the validator's
+  re-check on recut.
 
 ## [2.65.0] - 2026-07-20
 

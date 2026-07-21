@@ -579,6 +579,33 @@ NEGATED_PHRASE_REASONS = [
     'past sponsors in passing. This span contains no advertising content.',
 ]
 
+# Affirmation phrase present, whole-span negation present, NO trim
+# language: the negation is not a boundary note, so these must still hold.
+# Self-promo dismissals are the production shape (the review prompt tells
+# the model to keep house promos, and its reason text argues both ways).
+SELF_PROMO_DISPUTE_REASONS = [
+    "This is an advertisement for the show's own merchandise store, but "
+    "per policy self-promotion is not advertising and should not be cut.",
+    'This is an advertisement for the show itself (a house promo), which '
+    'is not a real ad and contains no ad content.',
+    "These are ads for the podcast's own merchandise; they are not "
+    'real-world advertising and this span contains no ad content.',
+]
+
+
+@pytest.mark.parametrize("reason", SELF_PROMO_DISPUTE_REASONS)
+def test_affirmed_whole_span_dispute_without_trim_still_holds(reason):
+    assert reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
+def test_gerund_affirmation_with_trim_note_is_not_contradiction():
+    reason = (
+        'This is genuine advertising for the sponsor. The intro segment, '
+        'however, is not advertising and should be excluded.')
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
 
 @pytest.mark.parametrize("reason", NEGATED_PHRASE_REASONS)
 def test_negated_phrases_are_not_affirmations(reason):

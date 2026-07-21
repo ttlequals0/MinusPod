@@ -51,13 +51,14 @@ HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # allowlist, fail-closed: a new hold reason is NOT auto-approvable until
 # someone adds it here. no_cue_evidence stays out: pass-2 ads can never
 # carry cue evidence, so auto-approval would neutralize cue gating on
-# cue-gated feeds.
+# cue-gated feeds. max_duration stays out: such a hold is by definition
+# over the duration ceiling, and the auto-filed confirm would force-accept
+# it past the validator's re-check on recut, defeating the guard.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_CONTRADICTION,
     HOLD_REASON_NO_SPLICE,
     HOLD_REASON_UNCORROBORATED_TAIL,
-    HOLD_REASON_MAX_DURATION,
 })
 
 # A pass-2 detection corroborates a differential hold (stamping it for
