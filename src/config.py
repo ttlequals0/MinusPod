@@ -46,6 +46,18 @@ HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 
+# Hold reasons pass-2 auto-approval may release when the verification pass
+# independently re-detects the held span at cut confidence. no_cue_evidence
+# is excluded: pass-2 ads can never carry cue evidence, so auto-approval
+# would neutralize cue gating on cue-gated feeds.
+PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_NO_SPLICE,
+    HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_MAX_DURATION,
+})
+
 # A pass-2 detection corroborates a differential hold (stamping it for
 # auto-approval) only when at least this fraction of the pass-2 span lies
 # inside the held span...

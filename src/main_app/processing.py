@@ -38,9 +38,9 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
-    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE,
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
@@ -1590,16 +1590,17 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     return kept_processed, kept_original
 
 
-def _corroborates_differential_hold(overlapping, orig_ad, confidence,
-                                     min_cut_confidence):
+def _corroborates_hold(overlapping, orig_ad, confidence,
+                        min_cut_confidence):
     """True when a confident non-held pass-2 ad is the independent
-    corroboration a differential_uncorroborated hold was waiting for: it
-    overlaps exactly that one pending marker, sits mostly inside it, and
-    covers nearly all of it. The ad is still dropped (pending audio is never
-    cut mid-pipeline); the hold is stamped for auto-approval instead."""
+    corroboration a held span was waiting for: it overlaps exactly that one
+    pending marker, sits mostly inside it, and covers nearly all of it. The
+    ad is still dropped (pending audio is never cut mid-pipeline); the hold
+    is stamped for auto-approval instead."""
     if (confidence < min_cut_confidence
             or len(overlapping) != 1
-            or overlapping[0].get('hold_reason') != HOLD_REASON_DIFFERENTIAL_UNCORROBORATED):
+            or overlapping[0].get('hold_reason')
+            not in PASS2_AUTOAPPROVE_HOLD_REASONS):
         return False
     hold = overlapping[0]
     ad_inside = overlap_ratio(hold['start'], hold['end'],
@@ -1627,7 +1628,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     coordinates). A pass-2 cut overlapping one is ALWAYS dropped -- cutting
     would destroy audio the hold protects, and a second held marker would
     double-count pending_review_count. When the dropped ad corroborates a
-    differential hold (see _corroborates_differential_hold), the hold's
+    releasable hold (see _corroborates_hold), the hold's
     marker dict is stamped pass2_corroborated in place so
     _auto_approve_corroborated_holds can approve it through the standard
     human-approval path after the episode completes. corroborated_count is
@@ -1659,8 +1660,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             # audio the hold protects; drop it (never cut). The pass-1 held
             # marker already represents the region, so no second held marker
             # either -- that would double-count pending_review_count.
-            if _corroborates_differential_hold(overlapping, orig_ad,
-                                               confidence, min_cut_confidence):
+            if _corroborates_hold(overlapping, orig_ad,
+                                   confidence, min_cut_confidence):
                 hold = overlapping[0]
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
@@ -1669,8 +1670,9 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                     corroborated_count += 1
                 audio_logger.info(
                     f"Pass-2 ad {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s "
-                    f"corroborates differential hold {hold['start']:.1f}s-"
-                    f"{hold['end']:.1f}s: stamping it for auto-approval")
+                    f"corroborates {hold.get('hold_reason')} hold "
+                    f"{hold['start']:.1f}s-{hold['end']:.1f}s: stamping it "
+                    f"for auto-approval")
             else:
                 audio_logger.info(
                     f"Dropping pass-2 cut {orig_ad['start']:.1f}s-{orig_ad['end']:.1f}s: "
@@ -1706,7 +1708,7 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
     files. Returns the number of holds approved and recut."""
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
-             and m.get('hold_reason') == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED]
+             and m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS]
     if not holds:
         return 0
     try:

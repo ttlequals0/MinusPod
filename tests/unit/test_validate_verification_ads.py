@@ -380,10 +380,13 @@ def test_low_confidence_does_not_stamp():
     assert 'pass2_corroborated' not in hold
 
 
-def test_non_differential_hold_never_stamped():
+def test_non_releasable_hold_never_stamped():
+    """no_cue_evidence is deliberately excluded from
+    PASS2_AUTOAPPROVE_HOLD_REASONS: pass-2 ads can never carry cue evidence,
+    so auto-approving them would neutralize cue gating."""
     proc = [_plain_proc(990.0, 1150.0)]
-    orig = [_orig(990.0, 1150.0, 'contra')]
-    hold = _held_marker(990.0, 1150.0, hold_reason='reviewer_contradiction')
+    orig = [_orig(990.0, 1150.0, 'nocue')]
+    hold = _held_marker(990.0, 1150.0, hold_reason='no_cue_evidence')
 
     v_ads_to_cut, _ui, _held, n = _gate_verification_ads_by_confidence(
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold],
@@ -665,3 +668,31 @@ def test_auto_approve_recut_gets_no_cancel_event(monkeypatch):
         's', 'ep1', 'Title', 'Pod', 'desc', [hold])
 
     assert recut.call_args.kwargs.get('cancel_event') is None
+
+
+# ---------- Pass-2 auto-approve across all releasable hold reasons ----------
+
+
+def _hold(start, end, reason):
+    return {'start': start, 'end': end, 'held_for_review': True,
+            'hold_reason': reason}
+
+
+def test_reviewer_contradiction_hold_is_corroborated():
+    hold = _hold(837.2, 1068.5, 'reviewer_contradiction')
+    ad = {'start': 836.1, 'end': 1067.0}
+    assert processing_mod._corroborates_hold([hold], ad, 0.9, 0.8)
+
+
+def test_no_splice_hold_is_corroborated():
+    hold = _hold(999.1, 1066.9, 'no_splice_evidence')
+    ad = {'start': 995.0, 'end': 1067.0}
+    assert processing_mod._corroborates_hold([hold], ad, 0.9, 0.8)
+
+
+def test_no_cue_hold_is_never_corroborated():
+    # Cue-gated feeds hold every pass-2 proposal by design; auto-approving
+    # them would neutralize cue gating.
+    hold = _hold(100.0, 160.0, 'no_cue_evidence')
+    ad = {'start': 100.0, 'end': 160.0}
+    assert not processing_mod._corroborates_hold([hold], ad, 0.99, 0.8)
