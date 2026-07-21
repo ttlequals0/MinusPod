@@ -21,6 +21,7 @@ from cancel import cancel_processing
 from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
+    VALID_CHAPTERS_MODES,
     differential_fetch_effective,
     resolve_feed_processing_mode,
 )
@@ -150,6 +151,20 @@ def _normalize_detection_mode(value):
     if value in DETECTION_MODES:
         return value, None
     return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
+
+
+def _normalize_chapters_mode(value):
+    """Validate the per-feed chapters mode (issue #560).
+
+    Returns (db_value, error). None clears the override to the default
+    'auto' behavior (stored NULL). Any of VALID_CHAPTERS_MODES is stored
+    as-is. Any other value is rejected.
+    """
+    if value is None:
+        return None, None
+    if value in VALID_CHAPTERS_MODES:
+        return value, None
+    return None, f"chaptersMode must be one of: {', '.join(sorted(VALID_CHAPTERS_MODES))}"
 
 
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
@@ -283,6 +298,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
+        'chaptersMode': podcast.get('chapters_mode'),
         'processingMode': resolve_feed_processing_mode(podcast),
         **_cue_override_fields(podcast),
         'sourceUrl': podcast['source_url'],
@@ -731,6 +747,12 @@ def update_feed(slug):
         if mode_err:
             return error_response(mode_err, 400)
         updates['detection_mode'] = mode_val
+
+    if 'chaptersMode' in data:
+        chapters_val, chapters_err = _normalize_chapters_mode(data['chaptersMode'])
+        if chapters_err:
+            return error_response(chapters_err, 400)
+        updates['chapters_mode'] = chapters_val
 
     for json_key, db_col, lo, hi in _CUE_FLOAT_OVERRIDE_FIELDS:
         if json_key in data:
