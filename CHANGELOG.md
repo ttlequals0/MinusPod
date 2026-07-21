@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.69.0] - 2026-07-21
+
+### Added
+
+- Auto chapter mode now also fetches a feed's separate podcast:chapters JSON
+  file when the embedded chapter probe comes up short, remaps its timestamps
+  onto the cut audio, and preserves it the same way as embedded chapters. A
+  fetch failure falls back to generated chapters instead of skipping the
+  chapter step.
+
 ## [2.68.0] - 2026-07-21
 
 ### Added

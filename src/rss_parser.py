@@ -1333,6 +1333,19 @@ class RSSParser:
                 rss_duration = self._parse_itunes_duration(
                     entry.get('itunes_duration'))
 
+                # Upstream podcast:chapters JSON URL (issue #560 follow-up):
+                # some feeds publish chapters only as a separate file, not
+                # embedded ID3, so Auto mode fetches it at processing time
+                # (upstream_chapters.py) when the embedded probe comes up
+                # short. http(s) only; feedparser exposes the tag directly as
+                # {'url': ..., 'type': ...} when present.
+                upstream_chapters_url = None
+                raw_chapters_tag = entry.get('podcast_chapters')
+                if isinstance(raw_chapters_tag, dict):
+                    candidate = raw_chapters_tag.get('url')
+                    if candidate and urlparse(candidate).scheme in ('http', 'https'):
+                        upstream_chapters_url = candidate
+
                 # Map per-episode iTunes categories to vocabulary tags.
                 ep_tags: List[str] = []
                 try:
@@ -1356,6 +1369,7 @@ class RSSParser:
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
                     'rss_duration': rss_duration,
+                    'upstream_chapters_url': upstream_chapters_url,
                     'tags': ep_tags,
                 })
 

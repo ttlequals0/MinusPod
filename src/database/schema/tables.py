@@ -107,6 +107,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     artwork_url TEXT,
     episode_number INTEGER,
+    -- Upstream podcast:chapters JSON URL, captured at RSS discovery/refresh
+    -- (issue #560 follow-up). Auto mode fetches it when the embedded chapter
+    -- probe comes up short. NULL when the feed does not publish the tag.
+    upstream_chapters_url TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

@@ -64,6 +64,7 @@ from config import (
     VETO_MIN_CUT_SECONDS,
 )
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
+from upstream_chapters import fetch_upstream_chapters
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -2256,6 +2257,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     chapters mode. None (e.g. the recut call site, which never reaches the
     chapters_mode branch since it always passes regenerate_chapters=False)
     falls back to fetching it here.
+
+    original_duration, when given, also gates and feeds the 'auto'-mode
+    upstream podcast:chapters JSON fetch (issue #560 follow-up): with it
+    unset, that fetch is skipped and an embedded-chapter shortfall falls
+    straight through to generation, same as before this source existed.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -2341,6 +2347,49 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     f"[{slug}:{episode_id}] Preserved {len(publisher)} "
                     f"publisher chapter(s) (no AI call)")
                 return
+            # Embedded chapters came up short. Some feeds publish chapters
+            # only as a separate podcast:chapters JSON file (issue #560
+            # follow-up), captured at RSS refresh as
+            # episodes.upstream_chapters_url; try fetching that next, before
+            # falling back to generation. The probe above must not risk
+            # overwriting correctly-embedded ID3 frames on a failed read, so
+            # it skips the run instead. A fetch failure here (None) has no
+            # such risk, so it is deliberately let through to the generator: a
+            # bad or unreachable remote file must not block chapters
+            # outright, only lose the chance to preserve the publisher's own
+            # set.
+            if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
+                episode_row = db.get_episode(slug, episode_id)
+                upstream_url = (episode_row or {}).get('upstream_chapters_url')
+                if upstream_url:
+                    fetched = fetch_upstream_chapters(upstream_url)
+                    if fetched is not None:
+                        remapped = _remap_chapters_for_recut(
+                            fetched, [], all_cuts or [], replacement_duration,
+                            original_duration, audio_duration)
+                        if len(remapped) >= MIN_PRESERVED_CHAPTERS:
+                            chapters_json = {
+                                'version': '1.2.0',
+                                'chapters': [
+                                    {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
+                                    for i, ch in enumerate(remapped)
+                                ],
+                            }
+                            # Unlike the embedded-preserve path above, the
+                            # served file has no chapter frames yet (the cut
+                            # step only remapped what was already embedded),
+                            # so this mirrors the generate path's embed call
+                            # below rather than skipping it.
+                            storage.save_chapters_and_applied_cuts(
+                                slug, episode_id, chapters_json, all_cuts or [])
+                            audio_logger.info(
+                                f"[{slug}:{episode_id}] Preserved {len(remapped)} "
+                                f"upstream JSON chapter(s) (no AI call)")
+                            if audio_path:
+                                embed_chapters(str(audio_path),
+                                              chapters_json['chapters'],
+                                              duration=audio_duration)
+                            return
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
             chapters = chapters_gen.generate_chapters(
@@ -3486,7 +3535,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
                               episode_description, podcast_name, episode_title,
                               audio_path=final_path, audio_duration=new_duration,
-                              podcast_row=podcast_settings)
+                              podcast_row=podcast_settings,
+                              original_duration=original_duration)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still
