@@ -55,3 +55,17 @@ def test_folding_a_previously_merged_marker_carries_its_protection():
     note_merged_members(base, other)
     assert base['merged_protected_start'] == 100.0
     assert base['merged_protected_end'] == 360.0
+
+
+def test_keep_content_and_cue_pair_members_are_protected():
+    base = _ad(100.0, 130.0, 'keep_content')
+    note_merged_members(base, _ad(131.0, 160.0, 'cue_pair'))
+    assert base['merged_protected_start'] == 100.0
+    assert base['merged_protected_end'] == 160.0
+
+
+def test_unknown_stage_fails_protected():
+    base = _ad(100.0, 130.0, 'dai_differential')
+    note_merged_members(base, _ad(131.0, 160.0, 'some_future_stage'))
+    assert base['merged_protected_start'] == 131.0
+    assert base['merged_protected_end'] == 160.0

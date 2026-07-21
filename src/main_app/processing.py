@@ -1695,8 +1695,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
 def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                                       podcast_name, episode_description,
                                       markers):
-    """Approve pass-2-corroborated differential holds through the standard
-    human-approval path: file the same confirm correction the approve button
+    """Approve pass-2-corroborated holds through the standard human-approval
+    path: file the same confirm correction the approve button
     writes, then run the standard recut from the retained original audio.
 
     Runs only after the episode has fully completed. Pending-hold audio is
@@ -1716,13 +1716,13 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
         # original or segments a recut would fail and mark the episode FAILED.
         if not storage.get_original_path(slug, episode_id).exists():
             audio_logger.info(
-                f"[{slug}:{episode_id}] Not auto-approving differential "
-                f"hold(s): no retained original audio to recut from")
+                f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
+                f"retained original audio to recut from")
             return 0
         if not db.get_original_segments(slug, episode_id):
             audio_logger.info(
-                f"[{slug}:{episode_id}] Not auto-approving differential "
-                f"hold(s): no saved transcript segments to recut with")
+                f"[{slug}:{episode_id}] Not auto-approving hold(s): no "
+                f"saved transcript segments to recut with")
             return 0
         # A human reject always wins: never auto-approve a span the user has
         # explicitly marked as content.
@@ -1734,8 +1734,8 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
             if any(ranges_overlap(m['start'], m['end'], fp['start'], fp['end'])
                    for fp in fp_corrections):
                 audio_logger.info(
-                    f"[{slug}:{episode_id}] Not auto-approving differential "
-                    f"hold {m['start']:.1f}s-{m['end']:.1f}s: a user "
+                    f"[{slug}:{episode_id}] Not auto-approving hold "
+                    f"{m['start']:.1f}s-{m['end']:.1f}s: a user "
                     f"rejection covers the span")
             else:
                 approvable.append(m)
@@ -1761,10 +1761,12 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                 episode_id=episode_id,
                 original_bounds={'start': m['start'], 'end': m['end']},
                 corrected_bounds=None,
-                text_snippet='auto-approved: pass-2 corroborated differential hold',
+                text_snippet=(
+                    f"auto-approved: pass-2 corroborated "
+                    f"{m.get('hold_reason')} hold"),
             )
             audio_logger.info(
-                f"[{slug}:{episode_id}] Auto-approving differential hold "
+                f"[{slug}:{episode_id}] Auto-approving hold "
                 f"{m['start']:.1f}s-{m['end']:.1f}s: pass-2 independently "
                 f"re-detected the span as an ad")
         recut_ok = _recut_episode(slug, episode_id, episode_title,

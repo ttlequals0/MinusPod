@@ -83,11 +83,11 @@ _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERN
 # (tosh-show 6e9f8a115e24, daily-tech-news-show 0b79e6e6c143 both held
 # real ad breaks this way). Assertion-shaped, like the negations above.
 REVIEWER_AFFIRMATION_PATTERNS = (
-    r'\bis\s+a\s+genuine\s+ad\b',
+    r'\bis\s+a\s+genuine\s+ad(?!-)\b',
     r'\bis\s+an?\s+ad\s+break\b',
     r'\bis\s+an?\s+(?:real\s+|actual\s+|paid\s+|dynamically\s+inserted\s+)?'
-    r'ad(?:vertisement)?\b',
-    r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads\b',
+    r'ad(?:vertisement)?(?!-)\b',
+    r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads(?!-)\b',
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
@@ -100,7 +100,10 @@ _TRIM_LANGUAGE_RE = re.compile(
     r'|\bstarts?\s+at\b'
     r'|\bbegins?\s+at\b'
     r'|\b(?:must|should)\s+be\s+removed\b'
-    r'|\bremoved?\s+from\b',
+    r'|\bremoved?\s+from\b'
+    r'|\bshould\s+move\b'
+    r'|\bmove[sd]?\s+(?:to|back|forward)\b'
+    r'|\bexcluded?\b',
     re.IGNORECASE,
 )
 

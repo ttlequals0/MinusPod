@@ -550,6 +550,20 @@ def test_whole_span_negations_still_contradict(reason):
     assert reasoning_contradicts_cut(reason)
 
 
+AD_FREE_NEGATIONS = [
+    'This span is an ad-free segment; the discussion here is organic '
+    'conversation, not advertising',
+    'The block is an advertisement-free stretch; it contains no ad content',
+    'This is a genuine ad-free zone; it contains no advertising content',
+]
+
+
+@pytest.mark.parametrize("reason", AD_FREE_NEGATIONS)
+def test_ad_free_phrasing_is_not_affirmation(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
 def test_affirms_ad_requires_assertion_shape():
     # Bare mention of ads or sponsors is not an affirmation of THIS span.
     assert not reasoning_affirms_ad(
@@ -622,6 +636,37 @@ def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
     assert verdict.verdict == 'adjust'
     assert verdict.adjusted_start == 837.2
     assert verdict.adjusted_end == pytest.approx(1040.9)
+
+
+def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
+    # DTNS_OUTRO_REASONING affirms the span IS an ad while describing the
+    # boundary move in assertion phrasing ("should move to") rather than
+    # "trim"/"ends at". _TRIM_LANGUAGE_RE must recognize this phrasing so the
+    # affirmed-confirm branch fires the recovery call instead of shipping the
+    # unchanged span (which would cut the show's own outro).
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    main = _resp(
+        '[{"start": 2475.0, "end": 2563.8, "confidence": 0.9, '
+        f'"reason": "{DTNS_OUTRO_REASONING}"}}]'
+    )
+    followup = _resp('{"ad_start": 2503.6, "ad_end": 2563.8}')
+    reviewer._llm_client.messages_create.side_effect = [main, followup]
+    ad = {'start': 2475.0, 'end': 2563.8, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert reviewer._llm_client.messages_create.call_count == 2
+    assert result.held_by_contradiction == []
+    accepted = result.accepted_after_review[0]
+    assert accepted['start'] == pytest.approx(2503.6)
+    assert accepted['end'] == pytest.approx(2563.8)
+    verdict = result.verdicts[0]
+    assert verdict.verdict == 'adjust'
 
 
 def test_affirmed_confirm_recovery_failure_accepts_unchanged():
