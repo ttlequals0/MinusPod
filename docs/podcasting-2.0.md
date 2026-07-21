@@ -111,11 +111,9 @@ probing, no generation, and nothing saved, so those episodes carry no
 `podcast:chapters` tag. Episodes processed before the switch keep the
 chapters they already have until they are reprocessed.
 
-Before this setting existed, MinusPod replaced a podcast's own chapters
-with AI-generated ones on every episode, even when the publisher's
-chapters were accurate and just needed their timestamps shifted
-(issue #560). Auto is the default because it keeps the publisher's
-chapters whenever they hold up across the cut.
+Auto is the default because it keeps the publisher's chapters
+whenever they hold up across the cut; replacing accurate publisher
+chapters with generated ones is what prompted issue #560.
 
 ## What MinusPod does not support, and why
 
