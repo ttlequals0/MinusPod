@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Per-feed chapter mode (Feed Settings > Chapters): Auto, Always
-  generate, or Off. Auto, the default, preserves the podcast's own
+  generate, or Off (Off applies to episodes processed after the
+  switch; earlier episodes keep their existing chapters until
+  reprocessed). Auto, the default, preserves the podcast's own
   embedded chapters, remapped onto the ad-free timeline, and falls
   back to generated chapters only when fewer than two of the
   publisher's own chapters survive the cut (issue #560). Previously

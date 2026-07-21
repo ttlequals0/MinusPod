@@ -106,8 +106,10 @@ already wrote correctly.
 **Always generate** skips the probe and always produces AI chapters,
 matching MinusPod's behavior before this setting existed.
 
-**Off** skips chapter generation and serving entirely; the feed
-carries no `podcast:chapters` tag for that episode.
+**Off** stops chapter work for episodes processed from then on: no
+probing, no generation, and nothing saved, so those episodes carry no
+`podcast:chapters` tag. Episodes processed before the switch keep the
+chapters they already have until they are reprocessed.
 
 Before this setting existed, MinusPod replaced a podcast's own chapters
 with AI-generated ones on every episode, even when the publisher's

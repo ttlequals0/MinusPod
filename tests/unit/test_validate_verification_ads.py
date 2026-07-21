@@ -799,3 +799,16 @@ def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
 
     assert approved == 1
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None
+
+
+def test_proposed_span_outside_hold_does_not_corroborate():
+    # Reviewer relocated the ad entirely past the hold and pass 2 found the
+    # relocated span while only touching the hold edge. Corroborating would
+    # invert the stamped span and file a degenerate confirm.
+    proc = [_plain_proc(100.0, 130.0)]
+    orig = [_orig(160.0, 190.0, 'outside')]
+    hold = _contradiction_hold(100.0, 160.0, 161.0, 190.0)
+    _cut, _ui, _held, n = _gate_verification_ads_by_confidence(
+        proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
+    assert n == 0
+    assert 'pass2_corroborated' not in hold

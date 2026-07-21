@@ -156,11 +156,12 @@ def _normalize_detection_mode(value):
 def _normalize_chapters_mode(value):
     """Validate the per-feed chapters mode (issue #560).
 
-    Returns (db_value, error). None clears the override to the default
-    'auto' behavior (stored NULL). Any of VALID_CHAPTERS_MODES is stored
+    Returns (db_value, error). None or '' clears the override to the
+    default 'auto' behavior (stored NULL), mirroring
+    _normalize_detection_mode. Any of VALID_CHAPTERS_MODES is stored
     as-is. Any other value is rejected.
     """
-    if value is None:
+    if value in (None, ''):
         return None, None
     if value in VALID_CHAPTERS_MODES:
         return value, None

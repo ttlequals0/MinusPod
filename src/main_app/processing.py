@@ -1606,6 +1606,12 @@ def _proposed_span_agrees(hold, orig_ad):
     p_end = hold.get('reviewer_proposed_end')
     if p_start is None or p_end is None or p_end <= p_start:
         return False
+    # The proposed span must actually reach into the hold: a reviewer that
+    # relocated the ad entirely outside the held span is not corroborating
+    # the hold, and intersecting a disjoint span would invert the stamped
+    # bounds and file a degenerate confirm.
+    if overlap_seconds(p_start, p_end, hold['start'], hold['end']) <= 0:
+        return False
     inter = overlap_seconds(orig_ad['start'], orig_ad['end'], p_start, p_end)
     union = max(orig_ad['end'], p_end) - min(orig_ad['start'], p_start)
     return union > 0 and inter / union >= PASS2_AUTOAPPROVE_PROPOSED_IOU

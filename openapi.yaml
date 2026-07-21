@@ -557,7 +557,7 @@ paths:
                   enum:
                     - auto
                     - generate
-                    - off
+                    - 'off'
                     - null
                   description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
                 cueTemplateScoreOverride:
@@ -7020,7 +7020,7 @@ components:
           enum:
             - auto
             - generate
-            - off
+            - 'off'
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
         processingMode:
