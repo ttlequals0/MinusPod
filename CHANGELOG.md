@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.68.0] - 2026-07-21
+
+### Added
+
+- Detected ads on the episode page now have the same inline play button
+  the held and rejected rows have, so a cut span can be auditioned from
+  the retained original audio without opening the editor.
+
 ## [2.67.1] - 2026-07-21
 
 ### Changed

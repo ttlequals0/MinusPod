@@ -717,3 +717,28 @@ describe('Held for Review: apply bar guards', () => {
     expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
   });
 });
+
+describe('Detected ads: inline audition', () => {
+  it('renders a play button on each detected ad row when original audio exists', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+      hasOriginalAudio: true,
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Play this ad' })).not.toBeNull();
+    // The shared windowed player must mount for detected-only episodes
+    // (no held or rejected rows), or the button would silently no-op.
+    expect(document.querySelector('audio[preload="metadata"]')).not.toBeNull();
+  });
+
+  it('renders no play button when the original audio is gone', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
+      hasOriginalAudio: false,
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Play this ad' })).toBeNull();
+  });
+});
