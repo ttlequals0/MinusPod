@@ -974,25 +974,30 @@ class AdReviewer:
             )
 
         # A merged ad's [start, end] is the union of multiple independently
-        # confirmed sub-ads. Every merge that joins NON-overlapping spans
-        # (adjacent distinct ads, or same-sponsor fragments) sets the canonical
-        # merged_distinct_ads flag: _merge_close_ads, merge_same_sponsor_ads,
-        # and the gap branch of deduplicate_window_ads / _merge_detection_results.
-        # The reviewer refines boundaries; it must not pull one inward and
-        # silently drop a still-confirmed sub-ad. Allow outward growth
-        # (leading/trailing CTA), forbid inward shrink.
-        #
-        # Overlap-based dedup (the same ad re-detected across windows/stages)
-        # does NOT set the flag, so ordinary single ads still tighten normally.
+        # detected sub-ads. The reviewer must not pull a boundary inward
+        # past a transcript-anchored member (it would silently drop a
+        # confirmed sub-ad), but differential/VAD members carry
+        # alignment-derived padding whose trimming is exactly the
+        # reviewer's job. Markers persisted before member tracking carry
+        # the flag without the protected keys; those keep the old blanket
+        # expand-only rule.
         if ad.get('merged_distinct_ads'):
-            floor_start = min(clamped_start, original_start)
-            floor_end = max(clamped_end, original_end)
+            if 'merged_protected_start' in ad:
+                p_start = ad.get('merged_protected_start')
+                p_end = ad.get('merged_protected_end')
+            else:
+                p_start, p_end = original_start, original_end
+            floor_start = (clamped_start if p_start is None
+                           else min(clamped_start, p_start))
+            floor_end = (clamped_end if p_end is None
+                         else max(clamped_end, p_end))
             if floor_start != clamped_start or floor_end != clamped_end:
                 logger.info(
-                    f"[{slug}:{episode_id}] Reviewer inward shrink blocked on "
-                    f"merged ad @ {original_start:.1f}-{original_end:.1f}s: "
+                    f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
+                    f"to protected members on merged ad @ "
+                    f"{original_start:.1f}-{original_end:.1f}s: "
                     f"{clamped_start:.1f}-{clamped_end:.1f} -> "
-                    f"{floor_start:.1f}-{floor_end:.1f} (expand-only)"
+                    f"{floor_start:.1f}-{floor_end:.1f}"
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
