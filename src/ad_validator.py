@@ -19,7 +19,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     is_cue_backed,
 )
-from utils.markers import note_merged_members
+from utils.markers import mark_distinct_merge
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -905,9 +905,8 @@ class AdValidator:
 
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)
-                note_merged_members(last, current)
+                mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
-                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
@@ -918,9 +917,8 @@ class AdValidator:
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
-                note_merged_members(last, current)
+                mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
-                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):

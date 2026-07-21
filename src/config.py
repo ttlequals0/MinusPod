@@ -47,9 +47,11 @@ HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 
 # Hold reasons pass-2 auto-approval may release when the verification pass
-# independently re-detects the held span at cut confidence. no_cue_evidence
-# is excluded: pass-2 ads can never carry cue evidence, so auto-approval
-# would neutralize cue gating on cue-gated feeds.
+# independently re-detects the held span at cut confidence. Deliberate
+# allowlist, fail-closed: a new hold reason is NOT auto-approvable until
+# someone adds it here. no_cue_evidence stays out: pass-2 ads can never
+# carry cue evidence, so auto-approval would neutralize cue gating on
+# cue-gated feeds.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_CONTRADICTION,

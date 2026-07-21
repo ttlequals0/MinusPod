@@ -82,11 +82,15 @@ _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERN
 # refer to a sub-span the reviewer wants trimmed, not the candidate
 # (tosh-show 6e9f8a115e24, daily-tech-news-show 0b79e6e6c143 both held
 # real ad breaks this way). Assertion-shaped, like the negations above.
+#
+# TODO(structural): this affirmation/negation/trim-language regex triad is a
+# growing free-text heuristic (each pattern traces to a production episode).
+# The durable fix is a structured verdict field (e.g. is_ad plus trim bounds)
+# in the review prompt contract, so intent stops hiding in prose.
 REVIEWER_AFFIRMATION_PATTERNS = (
-    r'\bis\s+a\s+genuine\s+ad(?!-)\b',
     r'\bis\s+an?\s+ad\s+break\b',
-    r'\bis\s+an?\s+(?:real\s+|actual\s+|paid\s+|dynamically\s+inserted\s+)?'
-    r'ad(?:vertisement)?(?!-)\b',
+    r'\bis\s+an?\s+(?:genuine\s+|real\s+|actual\s+|paid\s+|'
+    r'dynamically\s+inserted\s+)?ad(?:vertisement)?(?!-)\b',
     r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads(?!-)\b',
 )
 
@@ -143,6 +147,26 @@ def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
         return False
     lowered = reasoning.lower()
     return any(r.search(lowered) for r in _CONTRADICTION_RES)
+
+
+def _adjusted_ad_copy(ad: Dict, start: float, end: float,
+                      original_start: float, original_end: float,
+                      reasoning: Optional[str], confidence: Optional[float],
+                      model: Optional[str]) -> Dict:
+    """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping
+    fields every adjust application must stamp. Single seam so the two
+    adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
+    cannot drift on which fields they write."""
+    updated = dict(ad)
+    updated["start"] = start
+    updated["end"] = end
+    updated["reviewer_verdict"] = "adjust"
+    updated["reviewer_original_start"] = original_start
+    updated["reviewer_original_end"] = original_end
+    updated["reviewer_reasoning"] = reasoning
+    updated["reviewer_confidence"] = confidence
+    updated["reviewer_model"] = model
+    return updated
 
 
 def is_contradiction_hold(verdict: str, reasoning: Optional[str]) -> bool:
@@ -698,13 +722,16 @@ class AdReviewer:
                 )
                 result.held_by_contradiction.append(held)
             elif (verdict.verdict == "confirmed"
+                  and pass_num == 1
                   and reasoning_affirms_ad(verdict.reasoning)
                   and _TRIM_LANGUAGE_RE.search(verdict.reasoning or "")):
                 # Affirmed ad whose prose describes a trim the boundary
                 # arithmetic missed (model returned the span unchanged).
                 # Recover the trim and apply it as an adjust; on any
                 # failure accept unchanged. Never a hold: the reviewer
-                # says this IS an ad.
+                # says this IS an ad. Pass 1 only: the pass-2 apply path
+                # coerces every adjust back to confirmed and discards the
+                # bounds, so spending the recovery call there buys nothing.
                 recovered = self._recover_contradiction_trim(
                     verdict,
                     ad=updated_ad,
@@ -726,15 +753,11 @@ class AdReviewer:
                     verdict.verdict = "adjust"
                     verdict.adjusted_start = new_start
                     verdict.adjusted_end = new_end
-                    trimmed = dict(updated_ad)
-                    trimmed["start"] = new_start
-                    trimmed["end"] = new_end
-                    trimmed["reviewer_verdict"] = "adjust"
-                    trimmed["reviewer_original_start"] = verdict.original_start
-                    trimmed["reviewer_original_end"] = verdict.original_end
-                    trimmed["reviewer_reasoning"] = verdict.reasoning
-                    trimmed["reviewer_confidence"] = verdict.confidence
-                    trimmed["reviewer_model"] = verdict.model_used
+                    trimmed = _adjusted_ad_copy(
+                        updated_ad, new_start, new_end,
+                        verdict.original_start, verdict.original_end,
+                        verdict.reasoning, verdict.confidence,
+                        verdict.model_used)
                     result.accepted_after_review.append(trimmed)
                     logger.info(
                         f"[{episode_meta.get('slug')}:"
@@ -970,15 +993,9 @@ class AdReviewer:
                 reason, clamped_start, clamped_end,
                 slug=slug, episode_id=episode_id,
             )
-            updated = dict(ad)
-            updated["start"] = clamped_start
-            updated["end"] = clamped_end
-            updated["reviewer_verdict"] = "adjust"
-            updated["reviewer_original_start"] = original_start
-            updated["reviewer_original_end"] = original_end
-            updated["reviewer_reasoning"] = reason
-            updated["reviewer_confidence"] = confidence
-            updated["reviewer_model"] = model
+            updated = _adjusted_ad_copy(
+                ad, clamped_start, clamped_end, original_start, original_end,
+                reason, confidence, model)
             return (
                 ReviewVerdict(
                     pool=pool, pass_num=pass_num, verdict="adjust",
@@ -1078,7 +1095,7 @@ class AdReviewer:
         One small follow-up call through the shared call_llm seam turns the
         reasoning back into {"ad_start": float, "ad_end": float}. Returns
         (start, end) strictly inside the original span, or None on any
-        failure -- never raises into the pipeline.
+        failure; it never raises into the pipeline.
 
         Two call sites share this recovery: the contradiction-hold branch
         uses the result only to enrich the held marker's proposed bounds

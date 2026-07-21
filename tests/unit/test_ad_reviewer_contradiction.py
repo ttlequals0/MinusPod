@@ -593,25 +593,27 @@ def test_negated_phrases_are_not_affirmations(reason):
 # it must instead reach the new affirmed-confirm branch, spend one recovery
 # call, and ship as an accepted adjust rather than an unchanged confirm.
 
-def _run_affirmed_confirm(followup):
+def _run_affirmed_confirm(followup, reasoning=None, ad=None):
     """Run one review whose main call yields a confirmed verdict with
-    unchanged bounds and Tosh-style affirming/trim reasoning, and whose
-    follow-up recovery call yields ``followup`` (an _LLMResp or an exception
-    instance). Returns (result, llm mock)."""
+    unchanged bounds and affirming/trim reasoning (Tosh-style by default),
+    and whose follow-up recovery call yields ``followup`` (an _LLMResp or an
+    exception instance). Returns (result, llm mock)."""
+    reasoning = reasoning or TOSH_REASONING
+    if ad is None:
+        ad = {
+            'start': 837.2, 'end': 1068.5, 'confidence': 0.95,
+            'detection_stage': 'dai_differential', 'merged_distinct_ads': True,
+            'merged_protected_start': None, 'merged_protected_end': None,
+        }
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '60',
     })
     main = _resp(
-        '[{"start": 837.2, "end": 1068.5, "confidence": 0.95, '
-        f'"reason": "{TOSH_REASONING}"}}]'
+        f'[{{"start": {ad["start"]}, "end": {ad["end"]}, '
+        f'"confidence": {ad["confidence"]}, "reason": "{reasoning}"}}]'
     )
     reviewer._llm_client.messages_create.side_effect = [main, followup]
-    ad = {
-        'start': 837.2, 'end': 1068.5, 'confidence': 0.95,
-        'detection_stage': 'dai_differential', 'merged_distinct_ads': True,
-        'merged_protected_start': None, 'merged_protected_end': None,
-    }
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
@@ -644,23 +646,12 @@ def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
     # "trim"/"ends at". _TRIM_LANGUAGE_RE must recognize this phrasing so the
     # affirmed-confirm branch fires the recovery call instead of shipping the
     # unchanged span (which would cut the show's own outro).
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
-    main = _resp(
-        '[{"start": 2475.0, "end": 2563.8, "confidence": 0.9, '
-        f'"reason": "{DTNS_OUTRO_REASONING}"}}]'
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 2503.6, "ad_end": 2563.8}'),
+        reasoning=DTNS_OUTRO_REASONING,
+        ad={'start': 2475.0, 'end': 2563.8, 'confidence': 0.9},
     )
-    followup = _resp('{"ad_start": 2503.6, "ad_end": 2563.8}')
-    reviewer._llm_client.messages_create.side_effect = [main, followup]
-    ad = {'start': 2475.0, 'end': 2563.8, 'confidence': 0.9}
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert reviewer._llm_client.messages_create.call_count == 2
+    assert llm.messages_create.call_count == 2
     assert result.held_by_contradiction == []
     accepted = result.accepted_after_review[0]
     assert accepted['start'] == pytest.approx(2503.6)
