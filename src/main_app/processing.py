@@ -47,8 +47,12 @@ from config import (
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
+    CHAPTERS_MODE_AUTO,
+    CHAPTERS_MODE_OFF,
+    MIN_PRESERVED_CHAPTERS,
     is_cue_backed, is_pending_review,
     resolve_feed_processing_mode,
+    resolve_chapters_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
     resolve_tail_retranscribe_tunables,
@@ -59,7 +63,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
-from embedded_chapters import embed_chapters, MIN_CHAPTER_SECONDS
+from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -2224,7 +2228,8 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
 def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
-                      previous_cuts=None, original_duration=None):
+                      previous_cuts=None, original_duration=None,
+                      podcast_row=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -2238,6 +2243,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     are also embedded into it as ID3v2 frames for players that ignore the
     podcast:chapters JSON (issue #523). audio_duration is its duration in
     seconds, saving the embed a re-probe when the caller already knows it.
+
+    podcast_row, when given, is the already-fetched podcasts row (the main
+    pipeline fetches it once for resolve_feed_processing_mode); passing it
+    avoids a second get_podcast_by_slug aggregate query just to resolve the
+    chapters mode. None (e.g. the recut call site, which never reaches the
+    chapters_mode branch since it always passes regenerate_chapters=False)
+    falls back to fetching it here.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -2273,6 +2285,56 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                    audio_path=audio_path,
                                    audio_duration=audio_duration)
         elif chapters_enabled is None or chapters_enabled.lower() == 'true':
+            if podcast_row is None:
+                podcast_row = db.get_podcast_by_slug(slug)
+            chapters_mode = resolve_chapters_mode(podcast_row)
+            if chapters_mode == CHAPTERS_MODE_OFF:
+                audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
+                return
+            # 'auto' probes the PROCESSED file: the ffmpeg cut step already
+            # remapped publisher ID3 CHAP frames onto the cut timeline
+            # (audio_processor.py), so a probe here gives the remapped list
+            # for free with no extra work. 'generate' never probes, so it
+            # always falls through to the generator below regardless of what
+            # publisher chapters exist.
+            publisher = []
+            if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
+                publisher = probe_chapters(str(audio_path))
+                if publisher is None:
+                    # Probe failed (e.g. transient ffprobe error), not "the
+                    # file definitively has no chapters" (embedded_chapters.
+                    # probe_chapters). Falling through to the generate+embed
+                    # path below would overwrite the ID3 frames the cut step
+                    # already wrote correctly, the exact failure mode issue
+                    # #500 prevents at the ffmpeg layer. Skip the chapter
+                    # step this run instead of guessing.
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Chapter probe failed after "
+                        f"cut; skipping chapter step this run")
+                    return
+            if len(publisher) >= MIN_PRESERVED_CHAPTERS:
+                chapters_json = {
+                    'version': '1.2.0',
+                    'chapters': [
+                        {
+                            # min 1 (not 0): some podcast apps require
+                            # chapters to start at 1, matching the same
+                            # floor the generator applies below.
+                            'startTime': max(1, int(round(c['start']))),
+                            'title': c.get('title') or f"Chapter {i + 1}",
+                        }
+                        for i, c in enumerate(publisher)
+                    ],
+                }
+                # Persisted in one DB write; no embed_chapters call and no
+                # LLM call happen here since the frames are already embedded
+                # by the cut step.
+                storage.save_chapters_and_applied_cuts(
+                    slug, episode_id, chapters_json, all_cuts or [])
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Preserved {len(publisher)} "
+                    f"publisher chapter(s) (no AI call)")
+                return
             chapters_gen = ChaptersGenerator()
             clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
             chapters = chapters_gen.generate_chapters(
@@ -3417,7 +3479,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             all_cuts_for_assets = applied_cuts + v_cuts_for_assets
             _generate_assets(slug, episode_id, segments, all_cuts_for_assets,
                               episode_description, podcast_name, episode_title,
-                              audio_path=final_path, audio_duration=new_duration)
+                              audio_path=final_path, audio_duration=new_duration,
+                              podcast_row=podcast_settings)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still

@@ -30,6 +30,10 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Skip ad detection (#538): 1 = transcribe and generate chapters only,
     -- no LLM ad detection and no cutting
     skip_ad_detection INTEGER,
+    -- Per-feed chapter mode (#560): NULL/'auto' = preserve publisher chapters
+    -- when enough survive the cut, else generate; 'generate' = always
+    -- generate; 'off' = no chapter step
+    chapters_mode TEXT,
     last_checked_at TEXT,
     -- Consecutive refresh-failure tracking (#516); cleared on success.
     -- last_refresh_error_at is the first failure of the current run,

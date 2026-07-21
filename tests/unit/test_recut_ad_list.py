@@ -536,9 +536,13 @@ def test_generate_assets_embeds_chapters_into_audio(monkeypatch):
                         lambda path, chapters, duration=None: embedded.update(
                             path=path, chapters=chapters, duration=duration) or True)
     segments = [{'start': 0.0, 'end': 30.0, 'text': 'hello world'}]
+    # chapters_mode='generate' forces the generator path deterministically:
+    # default 'auto' would probe audio_path for publisher chapters first,
+    # and this path does not exist on disk so the probe would fail (#560).
     processing._generate_assets('slug', 'ep', segments, [], '', 'Pod', 'Title',
                                 audio_path='/data/slug/episodes/ep-v1.mp3',
-                                audio_duration=1800.0)
+                                audio_duration=1800.0,
+                                podcast_row={'chapters_mode': 'generate'})
     assert embedded == {'path': '/data/slug/episodes/ep-v1.mp3',
                         'chapters': [{'startTime': 0, 'title': 'Intro'}],
                         'duration': 1800.0}

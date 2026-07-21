@@ -518,6 +518,34 @@ def resolve_feed_processing_mode(podcast_row):
     return PROCESSING_MODE_STANDARD
 
 
+# Per-feed chapter mode (issue #560): whether to preserve publisher-embedded
+# chapters (already remapped onto the cut timeline by the ffmpeg cut step,
+# see audio_processor.py) instead of generating new ones with the chapter
+# LLM, or to skip the chapter step entirely for the feed.
+CHAPTERS_MODE_AUTO = 'auto'
+CHAPTERS_MODE_GENERATE = 'generate'
+CHAPTERS_MODE_OFF = 'off'
+VALID_CHAPTERS_MODES = frozenset({CHAPTERS_MODE_AUTO, CHAPTERS_MODE_GENERATE, CHAPTERS_MODE_OFF})
+
+# 'auto' preserves publisher chapters only when at least this many survive
+# the cut; a single surviving chapter is just "the whole episode" and is not
+# worth preserving over a generated chapter set.
+MIN_PRESERVED_CHAPTERS = 2
+
+
+def resolve_chapters_mode(podcast_row):
+    """Effective per-feed chapters mode from an already-fetched podcasts row.
+
+    NULL/absent column or an unrecognized value resolves to 'auto', which
+    matches the pre-#560 default behavior (generate chapters) while also
+    preferring intact publisher chapters when enough of them survive the cut.
+    """
+    if not podcast_row:
+        return CHAPTERS_MODE_AUTO
+    mode = podcast_row.get('chapters_mode')
+    return mode if mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
+
+
 def resolve_cue_template_score_with_source(db, podcast_id):
     """Per-feed cue match threshold with source tag ('override' or 'global')."""
     try:

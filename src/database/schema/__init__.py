@@ -306,6 +306,8 @@ class SchemaMixin:
             ('passthrough_enabled', 'INTEGER'),
             # Skip ad detection (#538)
             ('skip_ad_detection', 'INTEGER'),
+            # Per-feed chapter mode (#560)
+            ('chapters_mode', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
