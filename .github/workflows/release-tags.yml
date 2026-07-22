@@ -10,6 +10,9 @@ on:
   release:
     types: [prereleased]
 
+permissions:
+  contents: read
+
 env:
   IMAGE: ttlequals0/minuspod
 
