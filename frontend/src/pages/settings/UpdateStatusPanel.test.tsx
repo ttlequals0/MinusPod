@@ -79,4 +79,12 @@ describe('UpdateStatusPanel', () => {
     const link = await screen.findByRole('link', { name: /changelog/i });
     expect(link.getAttribute('href')).toBe('https://github.com/ttlequals0/MinusPod/releases');
   });
+
+  it('shows an error message when the check fails', async () => {
+    renderPanel();
+    await screen.findByText(/up to date/i);
+    mockGetStatus.mockRejectedValueOnce(new Error('Update check failed; GitHub may be unreachable'));
+    await userEvent.click(screen.getByRole('button', { name: /check for updates/i }));
+    expect(await screen.findByText(/update check failed; github may be unreachable/i)).toBeTruthy();
+  });
 });

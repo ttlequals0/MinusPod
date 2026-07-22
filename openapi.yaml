@@ -3938,7 +3938,7 @@ paths:
         Returns the current version plus the latest stable and edge release
         info from GitHub Releases. Results are cached in-process for 6 hours;
         pass ?refresh=true to bypass the cache. Never fires the Update
-        Available notification -- that only happens on the daily background
+        Available notification. That only happens on the daily background
         check.
       operationId: getSystemUpdates
       parameters:
@@ -3976,6 +3976,12 @@ paths:
                     enum: [stable, edge]
                   updateAvailable:
                     type: boolean
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '502':
           description: GitHub unreachable or fetch failed
           content:

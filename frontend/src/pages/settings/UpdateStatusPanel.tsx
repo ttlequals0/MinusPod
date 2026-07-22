@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUpdateCheckSettings, getUpdateStatus, updateUpdateCheckSettings } from '../../api/updates';
+import { getErrorMessage } from '../../api/client';
 import type { UpdateCheckSettings } from '../../api/types';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnSecondary } from '../../components/buttonStyles';
@@ -8,6 +9,7 @@ import { btnSecondary } from '../../components/buttonStyles';
 export default function UpdateStatusPanel() {
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { data: status } = useQuery({
     queryKey: ['update-status'],
     queryFn: () => getUpdateStatus(),
@@ -20,9 +22,11 @@ export default function UpdateStatusPanel() {
   const settingsMutation = useMutation({
     mutationFn: (payload: Partial<UpdateCheckSettings>) => updateUpdateCheckSettings(payload),
     onSuccess: (data) => {
+      setError(null);
       queryClient.setQueryData(['update-check-settings'], data);
       queryClient.invalidateQueries({ queryKey: ['update-status'] });
     },
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Failed to save update settings')),
   });
 
   const checkNow = async () => {
@@ -30,6 +34,9 @@ export default function UpdateStatusPanel() {
     try {
       const fresh = await getUpdateStatus(true);
       queryClient.setQueryData(['update-status'], fresh);
+      setError(null);
+    } catch (e) {
+      setError(getErrorMessage(e, 'Update check failed'));
     } finally {
       setChecking(false);
     }
@@ -88,6 +95,7 @@ export default function UpdateStatusPanel() {
           Changelog
         </a>
       </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }
