@@ -815,3 +815,23 @@ export interface ReviewerStats {
   resurrectionCount: number;
   failureCount: number;
 }
+
+export interface ReleaseInfo {
+  version: string;
+  releaseDate: string | null;
+  url: string | null;
+  notes: string;
+}
+
+export interface UpdateStatus {
+  current: { version: string; releaseDate?: string };
+  stable: ReleaseInfo | null;
+  edge: ReleaseInfo | null;
+  channel: 'stable' | 'edge';
+  updateAvailable: boolean;
+}
+
+export interface UpdateCheckSettings {
+  enabled: boolean;
+  channel: 'stable' | 'edge';
+}

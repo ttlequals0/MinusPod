@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.74.0] - 2026-07-22
+
+### Added
+
+- In-app update checks (issue #567). Settings > System Status shows the
+  running version's release date, a channel picker (stable or edge), a
+  daily auto-check toggle, a Check for updates button, and a changelog
+  link. A dismissible banner appears under the top bar when a newer
+  release is available on the selected channel. The daily check can also
+  send the new Update Available webhook and email notification, once per
+  version. Backed by GET /api/v1/system/updates (GitHub Releases,
+  cached 6 hours) and GET/PUT /api/v1/settings/update-check.
+- The latest and cpu Docker tags now move automatically when a release
+  is published (release-tags workflow). The stable and stable-cpu tags
+  still move only when a soaked release is promoted.
+
 ## [2.73.0] - 2026-07-22
 
 ### Added

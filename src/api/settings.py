@@ -1644,6 +1644,37 @@ def update_offline_queue_settings():
     return json_response(_offline_queue_view(db))
 
 
+# ========== Update check settings ==========
+
+@api.route('/settings/update-check', methods=['GET'])
+@log_request
+def get_update_check_settings():
+    """Get update-check settings (channel + enabled/disabled)."""
+    db = get_database()
+    return json_response({
+        'enabled': db.get_setting_bool('update_check_enabled', default=True),
+        'channel': db.get_setting('update_channel') or 'stable',
+    })
+
+
+@api.route('/settings/update-check', methods=['PUT'])
+@log_request
+def put_update_check_settings():
+    """Update update-check settings. Body: {enabled?, channel?}."""
+    data = request.get_json(silent=True) or {}
+    if 'channel' in data and data['channel'] not in ('stable', 'edge'):
+        return error_response('channel must be stable or edge', 400)
+    db = get_database()
+    if 'enabled' in data:
+        db.set_setting('update_check_enabled',
+                       'true' if bool(data['enabled']) else 'false', is_default=False)
+        logger.info(f"Updated update_check_enabled to: {bool(data['enabled'])}")
+    if 'channel' in data:
+        db.set_setting('update_channel', data['channel'], is_default=False)
+        logger.info(f"Updated update_channel to: {data['channel']}")
+    return get_update_check_settings()
+
+
 @api.route('/settings/audio', methods=['GET'])
 @log_request
 def get_audio_settings():

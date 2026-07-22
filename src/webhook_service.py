@@ -28,6 +28,7 @@ EVENT_AUTH_FAILURE = 'Auth Failure'
 EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
 EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
 EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
+EVENT_UPDATE_AVAILABLE = 'Update Available'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
@@ -35,6 +36,7 @@ VALID_EVENTS = {
     EVENT_RATE_LIMIT_STRUCTURAL,
     EVENT_LIMIT_EXCEEDED,
     EVENT_FEED_REFRESH_FAILED,
+    EVENT_UPDATE_AVAILABLE,
 }
 
 _sandbox_env = SandboxedEnvironment()
@@ -394,6 +396,22 @@ def fire_structural_rate_limit_event(provider, model, limit, used, requested, er
         'requested': requested,
         'error_message': str(error_message),
     }, f"provider={provider}, limit={limit}, requested={requested}")
+
+
+def fire_update_available_event(version, channel, release_date, url):
+    """Fire an update-available webhook.
+
+    Signals that a newer MinusPod release is available on the instance's
+    selected update channel. Deduped per version so a new release always
+    gets its own alert even if the last one was recent.
+    """
+    _fire_alert_event(EVENT_UPDATE_AVAILABLE, {
+        'version': version,
+        'channel': channel,
+        'release_date': release_date,
+        'release_url': url,
+    }, f"update {version} ({channel})",
+        dedup_key=f"update:{version}")
 
 
 def render_template_preview(template_string):

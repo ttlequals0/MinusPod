@@ -1,0 +1,81 @@
+name: Float edge tags on pre-release
+
+# When scripts/publish_release.sh publishes a version's GitHub pre-release,
+# move the floating edge tags (:latest GPU, :cpu multi-arch) to that
+# version's already-pushed images. No rebuild: imagetools copies the
+# existing manifests. :stable and :stable-cpu move only on promotion
+# (scripts/promote_release.sh), never here.
+
+on:
+  release:
+    types: [prereleased]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ttlequals0/minuspod
+
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version from tag
+        id: ver
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Unexpected tag format: $TAG" >&2
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip unless this is the newest release
+        id: newest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # Guard against retroactively published pre-releases (bootstrap
+          # tags for old versions) yanking the edge tags backwards.
+          NEWEST=$(gh api "repos/${{ github.repository }}/releases?per_page=1" --jq '.[0].tag_name')
+          if [ "$NEWEST" != "$TAG" ]; then
+            echo "Newest release is $NEWEST, not this one; skipping edge retag." >&2
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.newest.outputs.skip == 'false'
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4.4.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Buildx
+        if: steps.newest.outputs.skip == 'false'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
+
+      - name: Move :latest to the GPU image
+        if: steps.newest.outputs.skip == 'false'
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          docker buildx imagetools inspect "$IMAGE:$V" >/dev/null
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$V"
+
+      - name: Move :cpu to the CPU image
+        if: steps.newest.outputs.skip == 'false'
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          # The CPU workflow may still be building; wait up to 10 minutes.
+          for i in $(seq 1 20); do
+            if docker buildx imagetools inspect "$IMAGE:$V-cpu" >/dev/null 2>&1; then
+              docker buildx imagetools create -t "$IMAGE:cpu" "$IMAGE:$V-cpu"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "$IMAGE:$V-cpu never appeared on Docker Hub; :cpu was NOT moved." >&2
+          exit 1

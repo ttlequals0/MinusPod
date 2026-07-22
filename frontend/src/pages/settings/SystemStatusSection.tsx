@@ -2,6 +2,7 @@ import type { SystemStatus } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatUptime, formatDuration, formatTokenCount, formatCost, formatStorage } from './settingsUtils';
+import UpdateStatusPanel from './UpdateStatusPanel';
 
 interface SystemStatusSectionProps {
   status: SystemStatus | undefined;
@@ -61,6 +62,7 @@ function SystemStatusSection({
           </div>
         </div>
       ) : null}
+      <UpdateStatusPanel />
     </CollapsibleSection>
   );
 }

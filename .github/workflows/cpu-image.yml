@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       promote_cpu_tag:
-        description: "Also tag and push as :cpu (post-merge floating tag)."
+        description: "Manual override: also tag as :cpu. Normally unneeded; release-tags.yml moves :cpu when the release is published."
         required: false
         type: boolean
         default: false
