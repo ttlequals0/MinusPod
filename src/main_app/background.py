@@ -74,6 +74,7 @@ def background_rss_refresh():
     from pricing_fetcher import refresh_pricing_if_stale
     from community_sync import community_pattern_sync_tick
     from db_backup_service import db_backup_tick
+    from update_checker import update_check_tick
     while not shutdown_event.is_set():
         refresh_all_feeds()
         run_cleanup()
@@ -84,6 +85,9 @@ def background_rss_refresh():
         # Scheduled DB backup -- gated by settings.db_backup_enabled and the
         # cron schedule; safe to call every tick.
         _run_tick(db_backup_tick, 'db_backup_tick')
+        # Daily update check -- gated by settings.update_check_enabled and a
+        # 24h internal timer; safe to call every tick.
+        _run_tick(update_check_tick, 'update_check_tick')
         # Guard point for issue #566: a tick that swallowed a write failure
         # may have left a transaction open. Clear it before the long sleep
         # so it cannot block other writers for the whole interval.

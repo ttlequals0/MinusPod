@@ -9,6 +9,7 @@ import json
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 
 from config import HTTP_TIMEOUT_API
 from utils.community_tags import GITHUB_REPO
@@ -133,3 +134,44 @@ def get_update_status(db, force=False):
     if channel not in ('stable', 'edge'):
         channel = 'stable'
     return build_status(get_releases(force=force), channel)
+
+
+CHECK_INTERVAL_S = 24 * 3600
+
+
+def _parse_iso(text):
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def update_check_tick(db):
+    """Daily update check. Fires the Update Available notification once
+    per newly seen version on the selected channel. Never raises."""
+    if not db.get_setting_bool('update_check_enabled', default=True):
+        return
+    last_run = _parse_iso(db.get_setting('update_check_last_run'))
+    now = datetime.now(timezone.utc)
+    if last_run is not None and (now - last_run).total_seconds() < CHECK_INTERVAL_S:
+        return
+    try:
+        status = get_update_status(db)
+    except Exception as e:
+        logger.warning(f"Update check failed: {e}")
+        return
+    db.set_setting('update_check_last_run', now.isoformat())
+    if not status['updateAvailable']:
+        return
+    target = status['stable'] if status['channel'] == 'stable' else status['edge']
+    remote = parse_version(target['version'])
+    last_notified = parse_version(db.get_setting('update_check_last_notified'))
+    if last_notified and remote and remote <= last_notified:
+        return
+    import webhook_service
+    webhook_service.fire_update_available_event(
+        target['version'], status['channel'],
+        target.get('releaseDate'), target.get('url'))
+    db.set_setting('update_check_last_notified', target['version'])

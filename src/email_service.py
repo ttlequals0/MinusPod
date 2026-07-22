@@ -194,6 +194,19 @@ def _fmt_feed_refresh_failed(ctx):
                            'detail.')
 
 
+def _fmt_update_available(ctx):
+    version = _value(ctx.get('version'))
+    subject = f"[MinusPod] Update Available: {version}"
+    rows = [
+        ('Version', version),
+        ('Channel', _value(ctx.get('channel'))),
+        ('Released', _value(ctx.get('release_date'))),
+        ('Release notes', _value(ctx.get('release_url'))),
+    ]
+    return subject, rows, ('A newer MinusPod release is available on your '
+                           'selected channel. Pull the new image to update.')
+
+
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
     'Episode Failed': _fmt_episode_failed,
@@ -201,6 +214,7 @@ FORMATTERS = {
     'Limit Exceeded': _fmt_limit_exceeded,
     'Rate Limit Structural': _fmt_rate_limit_structural,
     'Feed Refresh Failed': _fmt_feed_refresh_failed,
+    'Update Available': _fmt_update_available,
 }
 
 
