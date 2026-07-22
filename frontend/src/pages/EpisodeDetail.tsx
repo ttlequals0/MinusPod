@@ -192,6 +192,19 @@ function EpisodeDetail() {
       : 'idle';
   };
 
+  // Open (or toggle) the editor from a fresh entry point. Reopening must land
+  // on the first ad; a stale index from the last editing session would clamp
+  // to the last ad (#564). handleJumpToAd below is the one entry point that
+  // instead targets a specific ad, so it does not go through this reset.
+  const openEditorFresh = (createMode: boolean) => {
+    if (!showEditor) {
+      setSavedScrollY(window.scrollY);
+      setEditorSelectedAdIndex(0);
+    }
+    setCreateModeRequested(createMode);
+    setShowEditor(createMode ? true : !showEditor);
+  };
+
   // Jump to a specific ad in the editor. Sets the selected index so the modal
   // renders the right ad (and its own effect seeks audio to the ad start).
   // Without the index, the modal stays on whichever ad was last selected
@@ -564,11 +577,7 @@ function EpisodeDetail() {
               {/* Icon-only on mobile, full label on sm:+. Mirrors AdReviewModal. */}
               <button
                 type="button"
-                onClick={() => {
-                  setSavedScrollY(window.scrollY);
-                  setCreateModeRequested(true);
-                  setShowEditor(true);
-                }}
+                onClick={() => openEditorFresh(true)}
                 aria-label="Add new ad"
                 title="Add new ad"
                 className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${btnPrimary} transition-colors whitespace-nowrap`}
@@ -594,13 +603,7 @@ function EpisodeDetail() {
               {episode.status === 'completed' && episode.transcript && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={() => {
-                      if (!showEditor) {
-                        setSavedScrollY(window.scrollY);
-                      }
-                      setCreateModeRequested(false);
-                      setShowEditor(!showEditor);
-                    }}
+                    onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
                     className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnSecondary} rounded-md transition-colors whitespace-nowrap`}
@@ -612,11 +615,7 @@ function EpisodeDetail() {
                     <span className="hidden sm:inline">{showEditor ? 'Hide Editor' : 'Edit Ads'}</span>
                   </button>
                   <button
-                    onClick={() => {
-                      if (!showEditor) setSavedScrollY(window.scrollY);
-                      setCreateModeRequested(true);
-                      setShowEditor(true);
-                    }}
+                    onClick={() => openEditorFresh(true)}
                     aria-label="Add new ad"
                     title="Add new ad"
                     className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnPrimary} rounded-md transition-colors whitespace-nowrap`}

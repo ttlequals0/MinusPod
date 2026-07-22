@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by" nested inside "this episode is brought to you by") no longer drops the
   shared prefix into a spurious tiny segment; the split now dedupes to a single
   point and keeps the full leading phrase with its segment.
+- Reopening the ad editor now starts on the first ad. The selected-ad index
+  survived closing the editor, so a second Edit Ads session resumed on the
+  last ad worked on and made the earlier ones look gone until you left the
+  episode page entirely (issue #564).
 
 ### Added
 
