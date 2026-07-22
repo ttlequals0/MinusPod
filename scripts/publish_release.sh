@@ -8,6 +8,11 @@ REPO="ttlequals0/MinusPod"
 VERSION="${1:?usage: publish_release.sh <version> [--dry-run]}"
 DRY_RUN="${2:-}"
 
+if [ -n "$DRY_RUN" ] && [ "$DRY_RUN" != "--dry-run" ]; then
+  echo "unknown argument: $DRY_RUN (expected --dry-run)" >&2; exit 1
+fi
+[ "$#" -le 2 ] || { echo "too many arguments" >&2; exit 1; }
+
 run() {
   if [ "$DRY_RUN" = "--dry-run" ]; then
     echo "DRY-RUN: $*"
