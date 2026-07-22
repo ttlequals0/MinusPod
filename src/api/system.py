@@ -128,6 +128,21 @@ def get_system_status():
     })
 
 
+@api.route('/system/updates', methods=['GET'])
+@limiter.limit('60 per hour')
+@log_request
+def get_system_updates():
+    """Latest stable/edge release info from GitHub, cached 6h in-process."""
+    import update_checker
+    db = get_database()
+    force = request.args.get('refresh') == 'true'
+    try:
+        return json_response(update_checker.get_update_status(db, force=force))
+    except Exception as e:
+        logger.warning(f"Update check failed: {e}")
+        return error_response('Update check failed; GitHub may be unreachable', 502)
+
+
 @api.route('/system/token-usage', methods=['GET'])
 @log_request
 def get_token_usage():

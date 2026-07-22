@@ -3929,6 +3929,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/SystemStatus'
 
+  /system/updates:
+    get:
+      tags:
+        - System
+      summary: Get latest release info from GitHub
+      description: >-
+        Returns the current version plus the latest stable and edge release
+        info from GitHub Releases. Results are cached in-process for 6 hours;
+        pass ?refresh=true to bypass the cache. Never fires the Update
+        Available notification -- that only happens on the daily background
+        check.
+      operationId: getSystemUpdates
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          description: Bypass the 6-hour cache and re-fetch from GitHub
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Update status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  current:
+                    type: object
+                    properties:
+                      version:
+                        type: string
+                      releaseDate:
+                        type: string
+                        format: date
+                  stable:
+                    $ref: '#/components/schemas/ReleaseInfo'
+                    nullable: true
+                  edge:
+                    $ref: '#/components/schemas/ReleaseInfo'
+                    nullable: true
+                  channel:
+                    type: string
+                    enum: [stable, edge]
+                  updateAvailable:
+                    type: boolean
+        '502':
+          description: GitHub unreachable or fetch failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /system/token-usage:
     get:
       tags:
@@ -4368,6 +4422,68 @@ paths:
                     type: integer
                   deferredCount:
                     type: integer
+
+  /settings/update-check:
+    get:
+      tags:
+        - Settings
+      summary: Get update-check settings
+      description: >-
+        Controls the daily background check that fires the Update Available
+        notification and the manual GET /system/updates lookup's channel.
+      operationId: getUpdateCheckSettings
+      responses:
+        '200':
+          description: Update-check settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: Whether the daily background update check runs.
+                  channel:
+                    type: string
+                    enum: [stable, edge]
+    put:
+      tags:
+        - Settings
+      summary: Update update-check settings
+      operationId: updateUpdateCheckSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: Enable or disable the daily background update check.
+                channel:
+                  type: string
+                  enum: [stable, edge]
+                  description: Release channel to track for update availability.
+      responses:
+        '200':
+          description: Update-check settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  channel:
+                    type: string
+                    enum: [stable, edge]
+        '400':
+          description: Invalid channel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/audio:
     get:
@@ -8356,6 +8472,21 @@ components:
             totalLlmCost:
               type: number
               description: Estimated cumulative LLM cost in USD
+
+    ReleaseInfo:
+      type: object
+      properties:
+        version:
+          type: string
+        releaseDate:
+          type: string
+          format: date
+          nullable: true
+        url:
+          type: string
+        notes:
+          type: string
+          description: Release notes body, truncated to 2000 characters
 
     ProcessingEpisode:
       type: object
