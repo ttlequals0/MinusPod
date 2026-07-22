@@ -411,7 +411,7 @@ def fire_update_available_event(version, channel, release_date, url):
         'release_date': release_date,
         'release_url': url,
     }, f"update {version} ({channel})",
-        dedup_key=f"{EVENT_UPDATE_AVAILABLE}:{version}")
+        dedup_key=f"update:{version}")
 
 
 def render_template_preview(template_string):
