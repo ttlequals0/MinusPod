@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Alongside the standard sections, a "Breaking" section marks changes
+that require operator action; these are surfaced at the top of stable
+release notes.
+
+## [2.73.0] - 2026-07-22
+
+### Added
+
+- Formal release channels. Every release is now git-tagged and published
+  as a GitHub pre-release with its changelog section as notes
+  (scripts/publish_release.sh). Soaked releases are promoted to stable
+  (scripts/promote_release.sh), which moves the new :stable and
+  :stable-cpu Docker tags without rebuilding. docs/releasing.md
+  documents the flow and the Breaking changelog convention (issue #567
+  groundwork).
 
 ## [2.72.0] - 2026-07-22
 
