@@ -99,15 +99,16 @@ class SponsorMixin:
 
         Returns (deleted, unlinked_patterns).
         """
-        conn = self.get_connection()
-        unlinked = conn.execute(
-            "UPDATE ad_patterns SET sponsor_id = NULL WHERE sponsor_id = ?",
-            (sponsor_id,)
-        ).rowcount
-        cursor = conn.execute(
-            "DELETE FROM known_sponsors WHERE id = ?", (sponsor_id,)
-        )
-        conn.commit()
+        # immediate=True: the unlink + delete must be atomic and races with
+        # concurrent writers (issue #566); see transaction() for the why.
+        with self.transaction(immediate=True) as conn:
+            unlinked = conn.execute(
+                "UPDATE ad_patterns SET sponsor_id = NULL WHERE sponsor_id = ?",
+                (sponsor_id,)
+            ).rowcount
+            cursor = conn.execute(
+                "DELETE FROM known_sponsors WHERE id = ?", (sponsor_id,)
+            )
         return cursor.rowcount > 0, unlinked
 
     # The two stats helpers below query ad_patterns but live here because they

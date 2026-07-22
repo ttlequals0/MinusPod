@@ -562,6 +562,13 @@ def _attach_request_id():
     g.request_id = inbound[:128] if inbound else uuid.uuid4().hex[:16]
 
 
+@app.teardown_request
+def _rollback_leaked_transaction(exc):
+    """Guard point for issue #566; see Database.rollback_open_transaction."""
+    from flask import request
+    db.clear_leaked_transaction(audio_logger, f"{request.method} {request.path}")
+
+
 @app.after_request
 def _echo_request_id(response):
     from flask import g

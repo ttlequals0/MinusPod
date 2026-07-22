@@ -116,6 +116,7 @@ class SearchMixin:
             conn.commit()
             return True
         except Exception as e:
+            conn.rollback()
             logger.error(f"Failed to index episode {episode_id}: {e}")
             return False
 

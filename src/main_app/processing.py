@@ -212,6 +212,9 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
     try:
         process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event=cancel_event)
     except ProcessingCancelled:
+        # Clear any transaction the aborted run left open so the status
+        # reset below writes on a clean connection (issue #566).
+        db.clear_leaked_transaction(audio_logger, 'episode processing (cancel)')
         audio_logger.info(f"[{slug}:{episode_id}] Cancelled - cleaning up partial files")
         try:
             storage.delete_processed_file(slug, episode_id)
@@ -228,6 +231,9 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         # raises (e.g., DB unreachable during _handle_processing_failure).
         # It's a best-effort retry of failure bookkeeping.
         audio_logger.error(f"[{slug}:{episode_id}] Background processing failed: {e}")
+        # Roll back first: if the failure leaked a transaction, the
+        # bookkeeping below would otherwise fail on the same connection.
+        db.clear_leaked_transaction(audio_logger, 'episode processing (failure)')
         try:
             episode_data = db.get_episode(slug, episode_id)
             _handle_processing_failure(slug, episode_id, title, podcast_name,
@@ -235,6 +241,9 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         except Exception as handler_err:
             audio_logger.error(f"[{slug}:{episode_id}] Failed to handle failure: {handler_err}")
     finally:
+        # Backstop for swallowed write failures anywhere in the run: this
+        # thread's connection must not leave here with an open transaction.
+        db.clear_leaked_transaction(audio_logger, 'episode processing')
         queue.release()
         with _cancel_events_lock:
             _cancel_events.pop(f"{slug}:{episode_id}", None)

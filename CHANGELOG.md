@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.71.0] - 2026-07-22
+
+### Fixed
+
+- Deleting a sponsor with linked patterns could leak an open write transaction
+  when the unlink UPDATE hit a busy database, freezing every later write on
+  that worker thread ("database is locked" at 0ms) until a container restart,
+  while reads and the health check stayed green (issue #566). The delete now
+  runs in an immediate transaction, so the write lock is taken up front where
+  busy_timeout applies, and rolls back on failure. A new request teardown hook
+  also rolls back any transaction a request leaves open, so no other write
+  path can wedge its thread's connection this way. The background refresh
+  loop, queue processor, and episode processing thread got the same guard,
+  plus explicit rollbacks at four write sites that logged and swallowed
+  failures without cleaning up (queueing an episode, search indexing,
+  reviewer audit log).
+
 ## [2.70.0] - 2026-07-21
 
 ### Fixed
