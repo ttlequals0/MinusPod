@@ -1,9 +1,12 @@
 import sys
+import time
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src'))
 
 from update_checker import build_status, parse_version  # noqa: E402
+import update_checker  # noqa: E402
 
 
 def rel(tag, prerelease=True, draft=False, published='2026-07-22T20:00:00Z',
@@ -77,12 +80,6 @@ class TestBuildStatus:
         assert s['updateAvailable'] is False
 
 
-import time
-from unittest.mock import patch
-
-import update_checker
-
-
 class FakeDb:
     def __init__(self, settings=None):
         self.settings = dict(settings or {})
@@ -94,7 +91,7 @@ class FakeDb:
         v = self.settings.get(key)
         if v is None:
             return default
-        return str(v).lower() in ('true', '1', 'yes', 'on')
+        return str(v).strip().lower() in ('true', '1', 'yes', 'on')
 
     def set_setting(self, key, value, is_default=False):
         self.settings[key] = value

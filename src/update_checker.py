@@ -82,6 +82,7 @@ CACHE_TTL_S = 6 * 3600
 REFRESH_MIN_INTERVAL_S = 30
 
 _cache_lock = threading.Lock()
+_fetch_lock = threading.Lock()
 _cache = {'at': 0.0, 'releases': None}
 
 
@@ -101,18 +102,29 @@ def fetch_releases():
 def get_releases(force=False):
     """Cached releases list. force bypasses the TTL but a live fetch is
     still throttled to once per REFRESH_MIN_INTERVAL_S."""
-    now = time.time()
-    with _cache_lock:
-        have = _cache['releases'] is not None
-        age = now - _cache['at']
-        if have and (age < REFRESH_MIN_INTERVAL_S
-                     or (not force and age < CACHE_TTL_S)):
-            return _cache['releases']
-    releases = fetch_releases()
-    with _cache_lock:
-        _cache['releases'] = releases
-        _cache['at'] = time.time()
-    return releases
+
+    def _cached(force_inner):
+        with _cache_lock:
+            have = _cache['releases'] is not None
+            age = time.time() - _cache['at']
+            if have and (age < REFRESH_MIN_INTERVAL_S
+                         or (not force_inner and age < CACHE_TTL_S)):
+                return _cache['releases']
+        return None
+
+    cached = _cached(force)
+    if cached is not None:
+        return cached
+    with _fetch_lock:
+        # another thread may have fetched while we waited on the lock
+        cached = _cached(force)
+        if cached is not None:
+            return cached
+        releases = fetch_releases()
+        with _cache_lock:
+            _cache['releases'] = releases
+            _cache['at'] = time.time()
+        return releases
 
 
 def get_update_status(db, force=False):
