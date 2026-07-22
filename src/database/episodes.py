@@ -999,12 +999,13 @@ class EpisodeMixin:
                     """INSERT INTO episodes
                        (podcast_id, episode_id, original_url, title, description,
                         artwork_url, episode_number, published_at, rss_duration,
-                        tags, status)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                        upstream_chapters_url, tags, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                        ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                         episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                         published_at = COALESCE(excluded.published_at, episodes.published_at),
                         rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
+                        upstream_chapters_url = COALESCE(excluded.upstream_chapters_url, episodes.upstream_chapters_url),
                         original_url = COALESCE(episodes.original_url, excluded.original_url),
                         title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                         description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
@@ -1020,6 +1021,7 @@ class EpisodeMixin:
                         ep.get('episode_number'),
                         iso_published,
                         ep.get('rss_duration'),
+                        ep.get('upstream_chapters_url'),
                         tags_json,
                     )
                 )

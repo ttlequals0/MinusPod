@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdPattern, updatePattern, deletePattern } from '../api/patterns';
+import { AdPattern, updatePattern, deletePattern, splitPattern } from '../api/patterns';
 import { getSponsors, addSponsor } from '../api/sponsors';
+import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
-import { btnDestructive, btnPrimary } from './buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 
 interface PatternDetailModalProps {
@@ -75,6 +76,14 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
   const deleteMutation = useMutation({
     mutationFn: () => deletePattern(pattern.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patterns'] });
+      onClose();
+    },
+  });
+
+  const splitMutation = useMutation({
+    mutationFn: () => splitPattern(pattern.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patterns'] });
       onClose();
@@ -305,7 +314,16 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
       {/* Footer */}
       <div className="flex justify-between gap-2 p-4 border-t border-border">
-        <div>
+        <div className="flex items-center gap-2">
+          {pattern.is_active && (
+            <button
+              onClick={() => splitMutation.mutate()}
+              disabled={splitMutation.isPending}
+              className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50`}
+            >
+              {splitMutation.isPending ? 'Splitting...' : 'Split'}
+            </button>
+          )}
           {showDeleteConfirm ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">Delete this pattern?</span>
@@ -369,10 +387,12 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       </div>
 
       {/* Error Display */}
-      {(updateMutation.isError || deleteMutation.isError) && (
+      {(updateMutation.isError || deleteMutation.isError || splitMutation.isError) && (
         <div className="px-4 pb-4">
           <div className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 rounded p-2">
-            {deleteMutation.isError ? 'Failed to delete pattern.' : 'Failed to save changes.'} Please try again.
+            {splitMutation.isError
+              ? getErrorMessage(splitMutation.error, 'Failed to split pattern.')
+              : `${deleteMutation.isError ? 'Failed to delete pattern.' : 'Failed to save changes.'} Please try again.`}
           </div>
         </div>
       )}

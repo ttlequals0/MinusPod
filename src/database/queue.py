@@ -64,6 +64,7 @@ class QueueMixin:
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
         except Exception as e:
+            conn.rollback()
             logger.error(f"Failed to queue episode for processing: {e}")
             return None
 
@@ -109,6 +110,7 @@ class QueueMixin:
             conn.commit()
             return cursor.lastrowid if cursor.lastrowid else None
         except Exception as e:
+            conn.rollback()
             logger.error(f"Failed to upsert episode for processing: {e}")
             return None
 

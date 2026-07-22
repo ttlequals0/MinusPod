@@ -1405,6 +1405,7 @@ class AdReviewer:
             )
             for v in verdicts
         ]
+        conn = None
         try:
             conn = self.db.get_connection()
             conn.executemany(
@@ -1417,6 +1418,8 @@ class AdReviewer:
             )
             conn.commit()
         except Exception as e:
+            if conn is not None:
+                conn.rollback()
             logger.warning(f"reviewer log write failed: {e}")
 
 

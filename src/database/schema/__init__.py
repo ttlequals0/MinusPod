@@ -228,6 +228,8 @@ class SchemaMixin:
             ('deferred_service', 'TEXT'),
             # RSS-declared duration for DAI fill comparison (#519)
             ('rss_duration', 'REAL'),
+            # Upstream podcast:chapters JSON URL (issue #560 follow-up)
+            ('upstream_chapters_url', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

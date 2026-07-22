@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.68.0
+  version: 2.72.0
   contact:
     name: MinusPod
   license:
@@ -1499,6 +1499,11 @@ paths:
         - create (2.2.0+): Mark a brand-new ad on an episode the detector missed. Top-level
           start/end/sponsor/text_template required (no original_ad). Creates a new
           pattern with created_by='user' and a pattern_corrections row of type 'create'.
+          2.70.0+: if the text contains more than one ad transition phrase (a
+          contaminated multi-sponsor read), it is split at those boundaries into one
+          pattern per sponsor segment instead of a single oversized pattern; the
+          response's patternIds lists every pattern created or reused this way, and
+          pattern_id/sponsor still identify the sponsor-matched primary.
       operationId: submitCorrections
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -1535,6 +1540,16 @@ paths:
                   patternsUpdated:
                     type: integer
                     description: Existing patterns updated
+                  patternIds:
+                    type: array
+                    items:
+                      type: integer
+                    description: >-
+                      create type only (2.70.0+): every pattern created or
+                      reused for this correction, in segment order. Length 1
+                      unless the submitted text contained multiple ad
+                      transition phrases and was auto-split; pattern_id is
+                      always one of these (the sponsor-matched primary).
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':

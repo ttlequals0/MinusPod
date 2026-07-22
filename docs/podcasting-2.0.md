@@ -90,18 +90,27 @@ returns 503 with a JIT-triggered processing job behind it.
 Each feed has a chapter mode, set on its Feed Settings page: **Auto**
 (the default), **Always generate**, or **Off**.
 
-**Auto** preserves the podcast's own chapters when enough of them
-survive the cut. The ffmpeg cut step already remaps any embedded ID3
-chapter markers onto the cut audio's timeline, so once an episode is
-processed MinusPod probes the finished file for what made it through.
-When at least two survive, they become the served `podcast:chapters`
-JSON: the publisher's own titles and boundaries, shifted to account
-for the removed ads. With fewer than two survivors, or no embedded
-chapters at all, MinusPod falls back to AI-generated chapters. If the probe
-itself fails (for example a transient ffprobe error), MinusPod treats
-that as unknown, not as "no chapters", and skips the chapter step for
-that run rather than risk overwriting the ID3 frames the cut step
-already wrote correctly.
+**Auto** preserves the podcast's own chapters when enough of them survive
+the cut, checking two sources before falling back to generation. The
+ffmpeg cut step already remaps any embedded ID3 chapter markers onto the
+cut audio's timeline, so once an episode is processed MinusPod first
+probes the finished file for what made it through. When at least two
+survive, they become the served `podcast:chapters` JSON: the publisher's
+own titles and boundaries, shifted to account for the removed ads.
+
+When fewer than two embedded chapters survive, or the episode has none,
+MinusPod checks whether the feed instead declares its chapters in a
+separate podcast:chapters JSON file, captured at the last feed refresh. If
+it does, MinusPod fetches that file, remaps its timestamps the same way,
+and uses the result when at least two chapters survive. A failed or
+malformed fetch counts as unknown, not as "no chapters", and it falls
+back to generation rather than losing chapters altogether.
+
+Only when neither source yields enough survivors does MinusPod fall back
+to AI-generated chapters. If the embedded probe itself fails (for example
+a transient ffprobe error), MinusPod treats that as unknown too, and skips
+the chapter step for that run rather than risk overwriting the ID3 frames
+the cut step already wrote correctly.
 
 **Always generate** skips the probe and always produces AI chapters,
 matching MinusPod's behavior before this setting existed.

@@ -233,3 +233,108 @@ def test_case_variant_sponsor_resolves_to_existing(temp_db):
     assert resp.status_code == 200
     pattern = temp_db.get_ad_pattern_by_id(resp.get_json()['pattern_id'])
     assert pattern['sponsor_id'] == sid
+
+
+# --- Auto-split (issue #563) ----------------------------------------------
+
+THREE_SPONSOR_TEXT = (
+    "This episode is brought to you by Acme. Acme provides the best "
+    "widgets around, visit acme dot com for twenty percent off today. "
+    "This episode is sponsored by Widgetco. Widgetco has amazing "
+    "deals this week, check out widgetco dot com right now for savings. "
+    "Thanks to Spanso for supporting the show, go check out spanso dot "
+    "com slash podcast for a free trial of their new gadget service."
+)
+
+
+def test_single_sponsor_create_gains_pattern_ids_but_stays_one_pattern(temp_db):
+    """Single-segment path is byte-identical apart from the additive
+    patternIds field."""
+    slug, episode_id = _make_episode(temp_db)
+    text = 'This episode is brought to you by SpansCo, learn more today.'
+    resp = _call(temp_db, {
+        'start': 30.0, 'end': 60.5, 'sponsor': 'SpansCo',
+        'text_template': text, 'scope': 'podcast',
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['patternIds'] == [body['pattern_id']]
+
+
+def test_three_sponsor_text_template_splits_and_links_primary_to_sponsor(temp_db):
+    slug, episode_id = _make_episode(temp_db)
+    resp = _call(temp_db, {
+        'start': 0.0, 'end': 90.0, 'sponsor': 'Widgetco',
+        'text_template': THREE_SPONSOR_TEXT, 'scope': 'podcast',
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+
+    assert len(body['patternIds']) == 3
+    primary = temp_db.get_ad_pattern_by_id(body['pattern_id'])
+    assert primary['sponsor'] == 'Widgetco'
+
+    sponsors = {temp_db.get_ad_pattern_by_id(i)['sponsor'] for i in body['patternIds']}
+    assert sponsors == {'Acme', 'Widgetco', 'Spanso'}
+
+    # Marker and correction row both link to the primary (sponsor-matched).
+    episode = temp_db.get_episode(slug, episode_id)
+    markers = json.loads(episode['ad_markers_json'])
+    assert markers[0]['pattern_id'] == body['pattern_id']
+
+    row = temp_db.get_connection().execute(
+        "SELECT pattern_id FROM pattern_corrections WHERE episode_id = ?",
+        (episode_id,),
+    ).fetchone()
+    assert row['pattern_id'] == body['pattern_id']
+
+
+def test_dedupe_reuses_existing_pattern_for_a_segment(temp_db):
+    slug, episode_id = _make_episode(temp_db)
+    from text_pattern_matcher import split_template_text
+    segments = split_template_text(THREE_SPONSOR_TEXT)
+    acme_segment = next(s for s in segments if s['sponsor'] == 'Acme')
+    existing_id = temp_db.create_ad_pattern(
+        scope='podcast', text_template=acme_segment['text'], podcast_id=slug,
+    )
+
+    resp = _call(temp_db, {
+        'start': 0.0, 'end': 90.0, 'sponsor': 'Acme',
+        'text_template': THREE_SPONSOR_TEXT, 'scope': 'podcast',
+    })
+    assert resp.status_code == 200
+    body = resp.get_json()
+
+    assert existing_id in body['patternIds']
+    assert len(body['patternIds']) == 3
+    dup = temp_db.get_connection().execute(
+        "SELECT COUNT(*) as c FROM ad_patterns WHERE text_template = ?",
+        (acme_segment['text'],),
+    ).fetchone()
+    assert dup['c'] == 1
+
+
+def test_oversized_segment_is_skipped_with_warning(temp_db, caplog):
+    import logging
+    from text_pattern_matcher import MAX_PATTERN_CHARS
+
+    slug, episode_id = _make_episode(temp_db)
+    oversized_filler = "blah blah blah filler content here. " * 120
+    text = (
+        f"This episode is brought to you by Acme. {oversized_filler}"
+        f"Thanks to Widgetco for sponsoring too, check widgetco dot com "
+        f"out today for their amazing new gadget deals available everywhere."
+    )
+    assert len(text) > MAX_PATTERN_CHARS
+
+    with caplog.at_level(logging.WARNING):
+        resp = _call(temp_db, {
+            'start': 0.0, 'end': 90.0, 'sponsor': 'Widgetco',
+            'text_template': text, 'scope': 'podcast',
+        })
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert len(body['patternIds']) == 1
+    only = temp_db.get_ad_pattern_by_id(body['patternIds'][0])
+    assert only['sponsor'] == 'Widgetco'
+    assert any('exceeds' in r.message for r in caplog.records)

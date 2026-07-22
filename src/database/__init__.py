@@ -348,9 +348,12 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
 
     class _TransactionContext:
         """Context manager for database transactions with automatic commit/rollback."""
-        def __init__(self, conn):
+        def __init__(self, conn, immediate=False):
             self.conn = conn
+            self.immediate = immediate
         def __enter__(self):
+            if self.immediate:
+                self.conn.execute("BEGIN IMMEDIATE")
             return self.conn
         def __exit__(self, exc_type, exc_val, exc_tb):
             if exc_type is None:
@@ -359,7 +362,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                 self.conn.rollback()
             return False
 
-    def transaction(self):
+    def transaction(self, immediate: bool = False):
         """Context manager for database transactions.
 
         Usage:
@@ -367,5 +370,39 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                 conn.execute("INSERT ...")
                 conn.execute("UPDATE ...")
             # Auto-commits on success, auto-rolls back on exception
+
+        immediate=True issues BEGIN IMMEDIATE so the write lock is taken
+        up front, where busy_timeout applies. The default deferred begin
+        upgrades to a write lock at the first DML statement, and that
+        upgrade fails instantly with "database is locked" when the
+        snapshot is stale (SQLITE_BUSY_SNAPSHOT is not retried by
+        busy_timeout). Use it for multi-statement writes that can run
+        alongside other writers (issue #566).
         """
-        return self._TransactionContext(self.get_connection())
+        return self._TransactionContext(self.get_connection(), immediate=immediate)
+
+    def rollback_open_transaction(self) -> bool:
+        """Roll back a transaction left open on this thread's connection.
+
+        Returns True when there was one. Connections are thread-local and
+        live for the worker thread's lifetime, so a write path that raises
+        between BEGIN and commit without rolling back would otherwise hold
+        its lock forever and fail every later write on the thread with
+        "database is locked" (issue #566). Does not create a connection.
+        """
+        conn = getattr(self._local, 'connection', None)
+        if conn is not None and conn.in_transaction:
+            conn.rollback()
+            return True
+        return False
+
+    def clear_leaked_transaction(self, log, where: str) -> None:
+        """Logged, never-raising rollback_open_transaction. Called from the
+        guard points that bound a leaked transaction's lifetime: request
+        teardown, background loop iterations, and the episode processing
+        thread."""
+        try:
+            if self.rollback_open_transaction():
+                log.warning(f"Rolled back a leaked transaction ({where})")
+        except Exception as e:
+            log.error(f"Leaked-transaction rollback failed ({where}): {e}")

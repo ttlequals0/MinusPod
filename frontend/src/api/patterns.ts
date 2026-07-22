@@ -276,3 +276,14 @@ export async function protectPattern(id: number): Promise<void> {
 export async function unprotectPattern(id: number): Promise<void> {
   await apiRequest(`/patterns/${id}/protect`, { method: 'DELETE' });
 }
+
+export interface SplitPatternResult {
+  success: boolean;
+  original_pattern_id: number;
+  new_pattern_ids: number[];
+  message: string;
+}
+
+export async function splitPattern(id: number): Promise<SplitPatternResult> {
+  return apiRequest<SplitPatternResult>(`/patterns/${id}/split`, { method: 'POST' });
+}

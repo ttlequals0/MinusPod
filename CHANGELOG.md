@@ -6,6 +6,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.72.0] - 2026-07-22
+
+### Added
+
+- Held for Review and Detections Not Cut rows can open in the waveform
+  editor (issue #563). A pencil button next to each row's play button opens
+  the same scrub-and-drag editor the Detected Ads list uses, playing the
+  original audio. Confirming with moved boundaries files a trimmed confirm,
+  so only the span inside the pins is cut; the plain confirm and Not an ad
+  actions match the row buttons, including the one-tap recut when a held
+  confirm completes the review set.
+
+## [2.71.0] - 2026-07-22
+
+### Fixed
+
+- Deleting a sponsor with linked patterns could leak an open write transaction
+  when the unlink UPDATE hit a busy database, freezing every later write on
+  that worker thread ("database is locked" at 0ms) until a container restart,
+  while reads and the health check stayed green (issue #566). The delete now
+  runs in an immediate transaction, so the write lock is taken up front where
+  busy_timeout applies, and rolls back on failure. A new request teardown hook
+  also rolls back any transaction a request leaves open, so no other write
+  path can wedge its thread's connection this way. The background refresh
+  loop, queue processor, and episode processing thread got the same guard,
+  plus explicit rollbacks at four write sites that logged and swallowed
+  failures without cleaning up (queueing an episode, search indexing,
+  reviewer audit log).
+
+## [2.70.0] - 2026-07-21
+
+### Fixed
+
+- Manual pattern creation (confirm, adjust, and create corrections) now runs the
+  ad text through the same multi-sponsor split as the pattern-split tool before
+  writing to the database. These paths previously called create_ad_pattern
+  directly and skipped its guards, so a contaminated read spanning several
+  sponsors (the reporter's 3505-character example in issue #563) became one
+  oversized pattern instead of one per sponsor.
+- Splitting a pattern at overlapping ad-transition phrases (e.g. "brought to you
+  by" nested inside "this episode is brought to you by") no longer drops the
+  shared prefix into a spurious tiny segment; the split now dedupes to a single
+  point and keeps the full leading phrase with its segment.
+- Reopening the ad editor now starts on the first ad. The selected-ad index
+  survived closing the editor, so a second Edit Ads session resumed on the
+  last ad worked on and made the earlier ones look gone until you left the
+  episode page entirely (issue #564).
+
+### Added
+
+- Split button on the pattern detail view for active patterns, calling the
+  existing split endpoint and showing the API's error text inline if the
+  pattern has no split points.
+- Correction responses for the create type now include `patternIds`, listing
+  every pattern created or reused when the submitted text auto-split into
+  several sponsor segments.
+
+## [2.69.0] - 2026-07-21
+
+### Added
+
+- Auto chapter mode now also fetches a feed's separate podcast:chapters JSON
+  file when the embedded chapter probe comes up short, remaps its timestamps
+  onto the cut audio, and preserves it the same way as embedded chapters. A
+  fetch failure falls back to generated chapters instead of skipping the
+  chapter step.
+
 ## [2.68.0] - 2026-07-21
 
 ### Added

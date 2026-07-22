@@ -21,6 +21,10 @@ def _run_tick(tick_fn, name):
         tick_fn(db)
     except Exception as e:
         refresh_logger.warning(f"{name} failed: {e}")
+        # A tick that died mid-write may have left a transaction open; clear
+        # it here so the next write in this iteration cannot commit the
+        # tick's partial work (issue #566).
+        db.clear_leaked_transaction(refresh_logger, name)
 
 
 def run_cleanup():
@@ -31,6 +35,7 @@ def run_cleanup():
             refresh_logger.info(f"Cleanup: reset {reset_count} episodes to discovered, freed {freed_mb:.1f} MB")
     except Exception as e:
         refresh_logger.error(f"Cleanup failed: {e}")
+        db.clear_leaked_transaction(refresh_logger, 'cleanup')
 
     # Clean orphan podcast directories (podcasts deleted from DB but directories remain)
     try:
@@ -56,6 +61,7 @@ def run_cleanup():
             run_cleanup._last_index_rebuild = time.time()
     except Exception as e:
         refresh_logger.error(f"Search index rebuild failed: {e}")
+        db.clear_leaked_transaction(refresh_logger, 'search index rebuild')
 
 
 def background_rss_refresh():
@@ -78,6 +84,10 @@ def background_rss_refresh():
         # Scheduled DB backup -- gated by settings.db_backup_enabled and the
         # cron schedule; safe to call every tick.
         _run_tick(db_backup_tick, 'db_backup_tick')
+        # Guard point for issue #566: a tick that swallowed a write failure
+        # may have left a transaction open. Clear it before the long sleep
+        # so it cannot block other writers for the whole interval.
+        db.clear_leaked_transaction(refresh_logger, 'refresh loop')
         # Wait 15 minutes, but allow early exit on shutdown
         shutdown_event.wait(timeout=900)
 
@@ -93,6 +103,8 @@ def background_queue_processor():
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
     while not shutdown_event.is_set():
+        # Guard point for issue #566 (see Database.rollback_open_transaction).
+        db.clear_leaked_transaction(refresh_logger, 'queue processor')
         try:
             # Periodically check for orphaned queue items (every ~5 minutes)
             orphan_check_interval += 1
@@ -204,6 +216,9 @@ def background_queue_processor():
                         backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes
 
                 except Exception as e:
+                    # Clear any leaked transaction before the status write so
+                    # the bookkeeping cannot commit partial work (issue #566).
+                    db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
                     db.update_queue_status(queue_id, 'failed', str(e))
                     refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
 
@@ -216,6 +231,7 @@ def background_queue_processor():
 
         except Exception as e:
             refresh_logger.error(f"Queue processor error: {e}")
+            db.clear_leaked_transaction(refresh_logger, 'queue processor error path')
             shutdown_event.wait(timeout=60)  # Wait before retrying on error
 
 

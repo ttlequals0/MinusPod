@@ -44,6 +44,16 @@ AD_TRANSITION_PHRASES = [
     "thanks to",
 ]
 
+# Sanity check on ad text / segment length; longer implies contamination with
+# multiple ads. ~230s at 15 chars/sec for the single-ad guard in
+# create_pattern_from_ad. Also used as the per-segment cap for the manual
+# correction paths that call split_template_text.
+MAX_PATTERN_CHARS = 3500
+
+# Words a sponsor-name guess after a transition phrase should never be (the
+# first word is usually an article or filler, not the brand).
+_SPONSOR_GUESS_SKIP_WORDS = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
+
 # Base vocabulary for TF-IDF - common terms in podcast ads
 # These ensure the vectorizer recognizes ad-related words even without patterns
 BASE_AD_VOCABULARY = [
@@ -115,6 +125,85 @@ def _extract_outro_phrase(text: str, min_words: int = 15, max_words: int = 40) -
             break
     result_sentences.reverse()
     return " ".join(result_sentences).strip()
+
+
+def _guess_sponsor_from_segment(segment: str) -> Optional[str]:
+    """Guess a sponsor name from the first word following a matched ad
+    transition phrase in `segment`. Returns None if no phrase matches or the
+    following word is filler (an article, "today", etc)."""
+    segment_lower = segment.lower()
+    for phrase in AD_TRANSITION_PHRASES:
+        if phrase in segment_lower:
+            idx = segment_lower.find(phrase)
+            after = segment[idx + len(phrase):idx + len(phrase) + 30]
+            words = after.strip().split()
+            if words:
+                candidate = words[0].strip('.,!?:')
+                if candidate and candidate not in _SPONSOR_GUESS_SKIP_WORDS:
+                    return candidate.title()
+    return None
+
+
+def split_template_text(text: str) -> List[Dict]:
+    """Segment ad template text at AD_TRANSITION_PHRASES boundaries.
+
+    Returns a list of {'text': str, 'sponsor': Optional[str]} segments, one
+    per detected sponsor block. Overlapping/nested phrase matches (e.g.
+    "brought to you by" inside "this episode is brought to you by") are
+    deduped to a single split point: the earliest offset, extending the
+    matched span to cover the longest phrase found there so a nested hit
+    doesn't register as a second split point.
+
+    Fewer than 2 distinct split points means no split is needed: the whole
+    text comes back as a single segment with sponsor=None. Segments below
+    MIN_TEXT_LENGTH are dropped (falling back to a single whole-text segment
+    if that drops everything).
+    """
+    text_lower = text.lower()
+
+    hits = []
+    for phrase in AD_TRANSITION_PHRASES:
+        idx = text_lower.find(phrase)
+        while idx != -1:
+            hits.append((idx, len(phrase)))
+            idx = text_lower.find(phrase, idx + 1)
+
+    # Earliest offset first; longest phrase first among ties, so the first
+    # kept hit at a given start position is the one whose span is used to
+    # absorb any nested/overlapping hits that follow.
+    hits.sort(key=lambda h: (h[0], -h[1]))
+
+    clusters: List[Tuple[int, int]] = []
+    for offset, length in hits:
+        if clusters and offset < clusters[-1][1]:
+            start, end = clusters[-1]
+            clusters[-1] = (start, max(end, offset + length))
+        else:
+            clusters.append((offset, offset + length))
+
+    split_offsets = [start for start, _ in clusters]
+
+    if len(split_offsets) < 2:
+        return [{'text': text, 'sponsor': None}]
+
+    segments = []
+    for i, offset in enumerate(split_offsets):
+        start = 0 if i == 0 else offset
+        end = split_offsets[i + 1] if i + 1 < len(split_offsets) else len(text)
+        segment_text = text[start:end].strip()
+
+        if len(segment_text) < MIN_TEXT_LENGTH:
+            continue
+
+        segments.append({
+            'text': segment_text,
+            'sponsor': _guess_sponsor_from_segment(segment_text),
+        })
+
+    if not segments:
+        return [{'text': text, 'sponsor': None}]
+
+    return segments
 
 
 @dataclass
@@ -1099,7 +1188,6 @@ class TextPatternMatcher:
             return None
 
         # Sanity check on extracted text length to catch contaminated patterns
-        MAX_PATTERN_CHARS = 3500  # ~230 seconds at 15 chars/sec
         if len(ad_text) > MAX_PATTERN_CHARS:
             logger.warning(
                 f"Skipping pattern creation: text length {len(ad_text)} exceeds "
@@ -1210,50 +1298,20 @@ class TextPatternMatcher:
             logger.warning(f"Pattern {pattern_id} has no text_template")
             return []
 
-        text_lower = text.lower()
         new_ids = []
+        segments = split_template_text(text)
 
-        # Find split points at ad transitions
-        split_points = []
-        for phrase in AD_TRANSITION_PHRASES:
-            idx = text_lower.find(phrase)
-            while idx != -1:
-                split_points.append(idx)
-                idx = text_lower.find(phrase, idx + 1)
-
-        split_points = sorted(set(split_points))
-
-        if len(split_points) < 2:
+        if len(segments) < 2:
             logger.info(f"Pattern {pattern_id} doesn't need splitting "
-                       f"(only {len(split_points)} transition phrase found)")
+                       f"(only {len(segments)} segment found)")
             return []
 
-        logger.info(f"Pattern {pattern_id}: found {len(split_points)} ad transitions, "
-                   f"splitting into separate patterns")
+        logger.info(f"Pattern {pattern_id}: splitting into {len(segments)} separate patterns")
 
         # Create new patterns for each segment
-        for i, start in enumerate(split_points):
-            end = split_points[i + 1] if i + 1 < len(split_points) else len(text)
-            segment = text[start:end].strip()
-
-            if len(segment) < MIN_TEXT_LENGTH:
-                logger.debug(f"Skipping segment {i}: too short ({len(segment)} chars)")
-                continue
-
-            # Extract sponsor from segment
-            segment_lower = segment.lower()
-            sponsor = None
-            for phrase in AD_TRANSITION_PHRASES:
-                if phrase in segment_lower:
-                    idx = segment_lower.find(phrase)
-                    after = segment[idx + len(phrase):idx + len(phrase) + 30]
-                    words = after.strip().split()
-                    if words:
-                        candidate = words[0].strip('.,!?:')
-                        skip_words = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
-                        if candidate and candidate not in skip_words:
-                            sponsor = candidate.title()
-                            break
+        for seg in segments:
+            segment = seg['text']
+            sponsor = seg['sponsor']
 
             # Create intro/outro for new pattern
             intro = _extract_intro_phrase(segment)
