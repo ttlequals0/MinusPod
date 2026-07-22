@@ -21,6 +21,9 @@ release notes.
   send the new Update Available webhook and email notification, once per
   version. Backed by GET /api/v1/system/updates (GitHub Releases,
   cached 6 hours) and GET/PUT /api/v1/settings/update-check.
+- The latest and cpu Docker tags now move automatically when a release
+  is published (release-tags workflow). The stable and stable-cpu tags
+  still move only when a soaked release is promoted.
 
 ## [2.73.0] - 2026-07-22
 

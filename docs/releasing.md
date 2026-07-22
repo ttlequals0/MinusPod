@@ -21,6 +21,12 @@ carry curated, operator-facing notes.
    (`gh workflow run cpu-image.yml -f version=X.Y.Z`).
 3. On up-to-date main: `scripts/publish_release.sh X.Y.Z`. This creates
    the annotated tag and the GitHub pre-release.
+4. Publishing the pre-release triggers the release-tags workflow
+   (`.github/workflows/release-tags.yml`), which moves `latest` to the
+   new GPU image and `cpu` to the new CPU image (waiting up to 10
+   minutes for the CPU build to finish). The workflow skips itself when
+   the published release is not the newest one, so retroactively
+   publishing an old version never moves the edge tags backwards.
 
 ## Promotion to stable (maintainer)
 
