@@ -120,12 +120,18 @@ In the ad editor, you can confirm, reject, or adjust detected ads:
 - **Adjust Boundaries** - Corrects start/end times for an ad; also creates patterns from adjusted boundaries (like confirm), so the learned pattern text matches the corrected range
 - **Mark as Not Ad** - Flags as false positive and stores the transcript text. Similar text is automatically excluded in future episodes of the same podcast using TF-IDF similarity matching (cross-episode false positive learning)
 
+Confirm, Adjust, and the manual "create" flow all check the marked text for
+multiple ad-transition phrases (e.g. two sponsors read back to back) and split
+it into one pattern per sponsor instead of a single contaminated pattern.
+
 **Pattern Management:**
 Access the Patterns page from the navigation bar to:
 - View all patterns with their scope, sponsor, and statistics
 - Filter by scope (Global, Network, Podcast) or search by sponsor name
 - Toggle patterns active/inactive
 - View confirmation and false positive counts
+- Split a pattern that already covers multiple sponsors into one pattern per
+  sponsor from its detail view
 
 ### Real-Time Processing Status
 

@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.70.0] - 2026-07-21
+
+### Fixed
+
+- Manual pattern creation (confirm, adjust, and create corrections) now runs the
+  ad text through the same multi-sponsor split as the pattern-split tool before
+  writing to the database. These paths previously called create_ad_pattern
+  directly and skipped its guards, so a contaminated read spanning several
+  sponsors (the reporter's 3505-character example in issue #563) became one
+  oversized pattern instead of one per sponsor.
+- Splitting a pattern at overlapping ad-transition phrases (e.g. "brought to you
+  by" nested inside "this episode is brought to you by") no longer drops the
+  shared prefix into a spurious tiny segment; the split now dedupes to a single
+  point and keeps the full leading phrase with its segment.
+
+### Added
+
+- Split button on the pattern detail view for active patterns, calling the
+  existing split endpoint and showing the API's error text inline if the
+  pattern has no split points.
+- Correction responses for the create type now include `patternIds`, listing
+  every pattern created or reused when the submitted text auto-split into
+  several sponsor segments.
+
 ## [2.69.0] - 2026-07-21
 
 ### Added

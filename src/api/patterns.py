@@ -12,6 +12,7 @@ from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
 from utils.text import BOUNDARY_SNAP_TOLERANCE_S, parse_transcript_segments
+from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS
 
 from flask import Response, request
 
@@ -577,6 +578,95 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason):
     return markers
 
 
+def _create_patterns_from_segments(
+    db, segments, *, scope, podcast_id_str, network_id, episode_id,
+    primary_sponsor, primary_sponsor_id=None, created_by=None,
+    pattern_service=None, log_context,
+):
+    """Create (or dedupe-reuse) one ad_pattern per segment from
+    split_template_text. Shared by the two manual-correction paths that
+    guard against multi-sponsor text (issue #563): _submit_correction_create
+    and _resolve_or_create_pattern_from_text.
+
+    The segment whose text contains `primary_sponsor` (case-insensitive)
+    becomes primary; `primary_sponsor_id` is reused for it if already
+    resolved by the caller (skips a redundant sponsor lookup), otherwise it's
+    resolved here. Other segments use their own heuristic-guessed sponsor.
+    Segments over MAX_PATTERN_CHARS are skipped with a warning. Segments
+    already matching an existing pattern (find_pattern_by_text) are reused
+    instead of duplicated; `pattern_service`, if given, records the match.
+
+    Returns (primary_id, all_ids), in segment order; (None, []) if every
+    segment was skipped (oversized).
+    """
+    primary_sponsor_lower = primary_sponsor.lower()
+    all_ids = []
+    primary_id = None
+
+    for seg in segments:
+        seg_text = seg['text']
+        if len(seg_text) > MAX_PATTERN_CHARS:
+            logger.warning(
+                f"Skipping auto-split segment: text length {len(seg_text)} "
+                f"exceeds max {MAX_PATTERN_CHARS} chars for {log_context}"
+            )
+            continue
+
+        is_primary_segment = primary_sponsor_lower in seg_text.lower()
+
+        existing = db.find_pattern_by_text(seg_text, podcast_id_str)
+        if existing:
+            pid = existing['id']
+            if pattern_service:
+                pattern_service.record_pattern_match(pid, episode_id)
+        else:
+            if is_primary_segment:
+                seg_sponsor = primary_sponsor
+                seg_sponsor_id = (
+                    primary_sponsor_id if primary_sponsor_id is not None
+                    else get_or_create_known_sponsor(db, seg_sponsor)
+                )
+            else:
+                seg_sponsor = seg['sponsor']
+                seg_sponsor_id = (
+                    get_or_create_known_sponsor(db, seg_sponsor) if seg_sponsor else None
+                )
+            seg_intro, seg_outro = derive_intro_outro(seg_text)
+            create_kwargs = dict(
+                scope=scope,
+                text_template=seg_text,
+                sponsor_id=seg_sponsor_id,
+                podcast_id=podcast_id_str,
+                network_id=network_id,
+                intro_variants=seg_intro,
+                outro_variants=seg_outro,
+                created_from_episode_id=episode_id,
+            )
+            if created_by:
+                create_kwargs['created_by'] = created_by
+            pid = db.create_ad_pattern(**create_kwargs)
+            logger.info(
+                f"Created new pattern {pid} (sponsor: {seg_sponsor}) from "
+                f"auto-split {log_context}"
+            )
+
+        all_ids.append(pid)
+        if primary_id is None and is_primary_segment:
+            primary_id = pid
+
+    if not all_ids:
+        return None, []
+
+    if primary_id is None:
+        primary_id = all_ids[0]
+
+    extra = len(all_ids) - 1
+    if extra > 0:
+        logger.info(f"auto-split: created {extra} single-sponsor patterns")
+
+    return primary_id, all_ids
+
+
 def _submit_correction_create(db, slug, episode_id, data):
     """Handle a `create` correction: user marked a brand-new ad on an
     episode the detector missed. Writes a marker to episode_details and
@@ -611,26 +701,41 @@ def _submit_correction_create(db, slug, episode_id, data):
         episode, start, end, canonical_sponsor_name, reason
     )
 
-    # Create the pattern; figure out podcast scope params from the episode row.
+    # Create the pattern(s); figure out podcast scope params from the episode row.
     podcast_id_str = episode.get('slug') if scope == 'podcast' else None
     network_id = episode.get('network_id') if scope == 'global' else None
-    # Manual patterns were born with empty variant arrays, giving them worse
-    # boundary placement than auto-created ones; derive intro/outro up front.
-    intro_variants, outro_variants = derive_intro_outro(text_template)
-    new_pattern_id = db.create_ad_pattern(
-        scope=scope,
-        text_template=text_template,
-        sponsor_id=sponsor_id,
-        podcast_id=podcast_id_str,
-        network_id=network_id,
-        intro_variants=intro_variants,
-        outro_variants=outro_variants,
-        created_from_episode_id=episode_id,
-        duration=end - start,
-        created_by='user',
-    )
 
-    # Stamp the new pattern_id onto the just-inserted marker, then persist.
+    segments = split_template_text(text_template)
+
+    if len(segments) == 1:
+        # Single-segment path is byte-identical to pre-#563 behavior: manual
+        # patterns were born with empty variant arrays, giving them worse
+        # boundary placement than auto-created ones; derive intro/outro up
+        # front, and never dedupe (this function never has).
+        intro_variants, outro_variants = derive_intro_outro(text_template)
+        new_pattern_id = db.create_ad_pattern(
+            scope=scope,
+            text_template=text_template,
+            sponsor_id=sponsor_id,
+            podcast_id=podcast_id_str,
+            network_id=network_id,
+            intro_variants=intro_variants,
+            outro_variants=outro_variants,
+            created_from_episode_id=episode_id,
+            duration=end - start,
+            created_by='user',
+        )
+        pattern_ids = [new_pattern_id]
+    else:
+        new_pattern_id, pattern_ids = _create_patterns_from_segments(
+            db, segments, scope=scope, podcast_id_str=podcast_id_str,
+            network_id=network_id, episode_id=episode_id,
+            primary_sponsor=canonical_sponsor_name, primary_sponsor_id=sponsor_id,
+            created_by='user',
+            log_context=f"create correction in {slug}/{episode_id}",
+        )
+
+    # Stamp the primary pattern_id onto the just-inserted marker, then persist.
     for m in markers:
         if (m.get('start') == start and m.get('end') == end
                 and m.get('detection_stage') == 'manual'
@@ -659,6 +764,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         'message': 'New ad marker created',
         'pattern_id': new_pattern_id,
         'sponsor': canonical_sponsor_name,
+        'patternIds': pattern_ids,
     })
 
 
@@ -666,8 +772,18 @@ def _resolve_or_create_pattern_from_text(
     db, pattern_service, slug, episode_id, ad_text, original_ad, *, label
 ):
     """Shared dedup + create-or-link path used by confirm and adjust when
-    no pattern_id is provided. Returns the resolved pattern_id (or None if
-    no sponsor was identifiable and creation was skipped).
+    no pattern_id is provided. Returns (primary_id, all_ids): primary_id is
+    None if no sponsor was identifiable and creation was skipped, else the
+    pattern to link the correction row to; all_ids is every pattern touched
+    (created or reused via dedup), in segment order.
+
+    This is the path that bypasses create_pattern_from_ad's guards (duration,
+    char cap, single-transition-phrase check), so contaminated multi-sponsor
+    text used to become one oversized pattern (issue #563). ad_text is now
+    run through split_template_text first: a single segment behaves exactly
+    as before; multiple segments each get their own pattern (deduped and
+    capped like the auto path), and only the sponsor-matched segment (or the
+    first created, if none match) becomes primary.
 
     `label` is 'confirmed' or 'adjusted', for log messages.
     """
@@ -682,7 +798,7 @@ def _resolve_or_create_pattern_from_text(
             logger.info(f"Linked to existing pattern {pid} for confirmed ad in {slug}/{episode_id}")
         else:
             logger.info(f"Linked adjustment to existing pattern {pid}")
-        return pid
+        return pid, [pid]
 
     sponsor = original_ad.get('sponsor')
     if not sponsor and label == 'confirmed':
@@ -695,23 +811,34 @@ def _resolve_or_create_pattern_from_text(
         logger.info(
             f"Skipped pattern creation (no sponsor detected) for {label} ad in {slug}/{episode_id}"
         )
-        return None
+        return None, []
 
-    sponsor_id = get_or_create_known_sponsor(db, sponsor)
-    intro_variants, outro_variants = derive_intro_outro(ad_text)
-    new_pattern_id = db.create_ad_pattern(
-        scope='podcast',
-        podcast_id=podcast_id_str,
-        text_template=ad_text,
-        sponsor_id=sponsor_id,
-        intro_variants=intro_variants,
-        outro_variants=outro_variants,
-        created_from_episode_id=episode_id,
+    segments = split_template_text(ad_text)
+
+    if len(segments) == 1:
+        # Single-segment path is byte-identical to pre-#563 behavior.
+        sponsor_id = get_or_create_known_sponsor(db, sponsor)
+        intro_variants, outro_variants = derive_intro_outro(ad_text)
+        new_pattern_id = db.create_ad_pattern(
+            scope='podcast',
+            podcast_id=podcast_id_str,
+            text_template=ad_text,
+            sponsor_id=sponsor_id,
+            intro_variants=intro_variants,
+            outro_variants=outro_variants,
+            created_from_episode_id=episode_id,
+        )
+        logger.info(
+            f"Created new pattern {new_pattern_id} (sponsor: {sponsor}) from {label} ad in {slug}/{episode_id}"
+        )
+        return new_pattern_id, [new_pattern_id]
+
+    return _create_patterns_from_segments(
+        db, segments, scope='podcast', podcast_id_str=podcast_id_str,
+        network_id=None, episode_id=episode_id, primary_sponsor=sponsor,
+        pattern_service=pattern_service,
+        log_context=f"{label} ad in {slug}/{episode_id}",
     )
-    logger.info(
-        f"Created new pattern {new_pattern_id} (sponsor: {sponsor}) from {label} ad in {slug}/{episode_id}"
-    )
-    return new_pattern_id
 
 
 def _handle_confirm_correction(
@@ -768,7 +895,7 @@ def _handle_confirm_correction(
         if transcript:
             ad_text = extract_transcript_segment(transcript, eff_start, eff_end)
             if ad_text and len(ad_text) >= 50:
-                pattern_id = _resolve_or_create_pattern_from_text(
+                pattern_id, _ = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
                     original_ad, label='confirmed',
                 )
@@ -1022,7 +1149,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             original_start, original_end, adjusted_start, adjusted_end,
         )
     elif adjusted_text and len(adjusted_text) >= 50:
-        pattern_id = _resolve_or_create_pattern_from_text(
+        pattern_id, _ = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
         )
