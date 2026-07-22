@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { btnGhost } from './buttonStyles';
+import UpdateBanner from './UpdateBanner';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -180,6 +181,7 @@ function Layout() {
         )}
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <UpdateBanner />
         <Outlet />
       </main>
     </div>
