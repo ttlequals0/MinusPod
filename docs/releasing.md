@@ -31,10 +31,10 @@ against it.
 1. Write curated notes covering everything since the previous stable
    (grouped Breaking changes, New features, Fixes, Upgrade notes) and
    apply them to the release body.
-2. `scripts/promote_release.sh X.Y.Z`. This flips the pre-release flag
-   and moves the `stable` and `stable-cpu` Docker tags with
-   `docker buildx imagetools create` (no rebuild; the CPU multi-arch
-   manifest is preserved).
+2. `scripts/promote_release.sh X.Y.Z`. This moves the `stable` and
+   `stable-cpu` Docker tags with `docker buildx imagetools create` (no
+   rebuild; the CPU multi-arch manifest is preserved), then flips the
+   pre-release flag.
 
 ## Changelog conventions
 

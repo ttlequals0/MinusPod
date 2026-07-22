@@ -33,11 +33,11 @@ echo "Checking both image variants exist on Docker Hub..."
 docker manifest inspect "$IMAGE:$VERSION" >/dev/null
 docker manifest inspect "$IMAGE:$VERSION-cpu" >/dev/null
 
-run gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID" -F prerelease=false
 run docker buildx imagetools create -t "$IMAGE:stable" "$IMAGE:$VERSION"
 run docker buildx imagetools create -t "$IMAGE:stable-cpu" "$IMAGE:$VERSION-cpu"
+run gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID" -F prerelease=false
 
 echo "Promoted v$VERSION to stable."
 if [ "$DRY_RUN" != "--dry-run" ]; then
-  docker buildx imagetools inspect "$IMAGE:stable-cpu" | head -12
+  docker buildx imagetools inspect "$IMAGE:stable-cpu" | head -12 || true
 fi

@@ -19,5 +19,6 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Podcasting 2.0](podcasting-2.0.md) - what MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why
 - [Glossary](glossary.md) - every term the app uses, defined and linked to the docs that cover it
 - [Deployment Runbook](DEPLOYMENT.md) - operational runbook
+- [Releasing & Channels](releasing.md) - stable vs edge channels, how releases are tagged and promoted
 
 [< Project README](../README.md)
