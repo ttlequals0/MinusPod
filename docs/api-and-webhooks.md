@@ -54,6 +54,7 @@ Key endpoints:
 - `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
 - `GET /api/v1/status` - Current processing status
 - `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
+- `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
@@ -66,6 +67,7 @@ Key endpoints:
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` (added in 2.5.14) controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
+- `GET/PUT /api/v1/settings/update-check` - Get or update the update-check settings (`enabled` for the daily auto-check, `channel`: `stable` or `edge`)
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config (model, provider, prompts)
 - `GET /api/v1/settings/models` - List available AI models from current provider
@@ -93,6 +95,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Auth Failure` | LLM provider rejects the API key as invalid or expired (401/403 without billing markers; rate-limited to one per 5 minutes) |
 | `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
 | `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
+| `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 
 ### Template Variables
 
@@ -100,7 +103,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, or `Rate Limit Structural` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, or `Update Available` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -152,6 +155,17 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `used` | int | Tokens already consumed in the current minute |
 | `requested` | int | Tokens this request asked for (greater than `limit` means the request structurally cannot fit) |
 | `error_message` | string | Raw error details from the provider |
+
+**Update Available events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Update Available` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `version` | string | Version number of the newer release |
+| `channel` | string | Channel the release was found on: `stable` or `edge` |
+| `release_date` | string/null | Release date (`YYYY-MM-DD`) |
+| `release_url` | string/null | GitHub release page URL |
 
 ### Default Payloads
 
@@ -249,6 +263,19 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "used": 2400,
   "requested": 8500,
   "error_message": "rate_limit_exceeded: Request too large for model on tokens per minute"
+}
+```
+
+**Update Available:**
+
+```json
+{
+  "event": "Update Available",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "version": "2.74.0",
+  "channel": "stable",
+  "release_date": "2026-07-22",
+  "release_url": "https://github.com/ttlequals0/MinusPod/releases/tag/v2.74.0"
 }
 ```
 
