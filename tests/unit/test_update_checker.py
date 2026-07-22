@@ -75,3 +75,80 @@ class TestBuildStatus:
     def test_unparseable_remote_version_never_flags(self):
         s = build_status([rel('vNext', prerelease=False)], 'stable', '2.73.0')
         assert s['updateAvailable'] is False
+
+
+import time
+from unittest.mock import patch
+
+import update_checker
+
+
+class FakeDb:
+    def __init__(self, settings=None):
+        self.settings = dict(settings or {})
+
+    def get_setting(self, key):
+        return self.settings.get(key)
+
+    def get_setting_bool(self, key, default=False):
+        v = self.settings.get(key)
+        if v is None:
+            return default
+        return str(v).lower() in ('true', '1', 'yes', 'on')
+
+    def set_setting(self, key, value, is_default=False):
+        self.settings[key] = value
+
+
+def reset_cache():
+    update_checker._cache = {'at': 0.0, 'releases': None}
+
+
+class TestGetReleasesCache:
+    def setup_method(self):
+        reset_cache()
+
+    def test_caches_within_ttl(self):
+        with patch.object(update_checker, 'fetch_releases',
+                          return_value=RELEASES) as f:
+            update_checker.get_releases()
+            update_checker.get_releases()
+        assert f.call_count == 1
+
+    def test_force_bypasses_ttl_but_not_throttle(self):
+        with patch.object(update_checker, 'fetch_releases',
+                          return_value=RELEASES) as f:
+            update_checker.get_releases()
+            update_checker.get_releases(force=True)   # within 30s of fetch
+        assert f.call_count == 1
+
+    def test_force_refetches_after_throttle_window(self):
+        with patch.object(update_checker, 'fetch_releases',
+                          return_value=RELEASES) as f:
+            update_checker.get_releases()
+            update_checker._cache['at'] = time.time() - 60
+            update_checker.get_releases(force=True)
+        assert f.call_count == 2
+
+    def test_expired_cache_refetches(self):
+        with patch.object(update_checker, 'fetch_releases',
+                          return_value=RELEASES) as f:
+            update_checker.get_releases()
+            update_checker._cache['at'] = time.time() - update_checker.CACHE_TTL_S - 1
+            update_checker.get_releases()
+        assert f.call_count == 2
+
+
+class TestGetUpdateStatus:
+    def setup_method(self):
+        reset_cache()
+
+    def test_reads_channel_setting_and_defaults_stable(self):
+        with patch.object(update_checker, 'fetch_releases', return_value=RELEASES):
+            assert update_checker.get_update_status(FakeDb())['channel'] == 'stable'
+            reset_cache()
+            db = FakeDb({'update_channel': 'edge'})
+            assert update_checker.get_update_status(db)['channel'] == 'edge'
+            reset_cache()
+            db = FakeDb({'update_channel': 'bogus'})
+            assert update_checker.get_update_status(db)['channel'] == 'stable'

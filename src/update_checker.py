@@ -5,8 +5,14 @@ any kind). Drafts are ignored. This module owns the release fetch, an
 in-process cache, version comparison, the /system/updates payload, and
 the daily background tick that notifies once per newly seen version.
 """
+import json
 import logging
+import threading
+import time
 
+from config import HTTP_TIMEOUT_API
+from utils.community_tags import GITHUB_REPO
+from utils.safe_http import URLTrust, get_capped
 from version import __version__
 
 logger = logging.getLogger('update_checker')
@@ -68,3 +74,50 @@ def build_status(releases, channel, current_version=__version__):
         if remote and remote > cur:
             status['updateAvailable'] = True
     return status
+
+
+RELEASES_URL = f'https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=100'
+RELEASES_MAX_BYTES = 2 * 1024 * 1024
+CACHE_TTL_S = 6 * 3600
+REFRESH_MIN_INTERVAL_S = 30
+
+_cache_lock = threading.Lock()
+_cache = {'at': 0.0, 'releases': None}
+
+
+def fetch_releases():
+    """Fetch the releases list from the GitHub API (newest first)."""
+    body = get_capped(
+        RELEASES_URL, URLTrust.OPERATOR_CONFIGURED, RELEASES_MAX_BYTES,
+        timeout=HTTP_TIMEOUT_API,
+        headers={'Accept': 'application/vnd.github+json',
+                 'User-Agent': f'MinusPod/{__version__}'})
+    releases = json.loads(body.decode('utf-8'))
+    if not isinstance(releases, list):
+        raise ValueError('unexpected GitHub releases payload')
+    return releases
+
+
+def get_releases(force=False):
+    """Cached releases list. force bypasses the TTL but a live fetch is
+    still throttled to once per REFRESH_MIN_INTERVAL_S."""
+    now = time.time()
+    with _cache_lock:
+        have = _cache['releases'] is not None
+        age = now - _cache['at']
+        if have and (age < REFRESH_MIN_INTERVAL_S
+                     or (not force and age < CACHE_TTL_S)):
+            return _cache['releases']
+    releases = fetch_releases()
+    with _cache_lock:
+        _cache['releases'] = releases
+        _cache['at'] = time.time()
+    return releases
+
+
+def get_update_status(db, force=False):
+    """The /system/updates payload for this instance's channel setting."""
+    channel = db.get_setting('update_channel') or 'stable'
+    if channel not in ('stable', 'edge'):
+        channel = 'stable'
+    return build_status(get_releases(force=force), channel)
