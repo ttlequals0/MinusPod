@@ -12,6 +12,8 @@ import { CORROBORATION_META } from '../utils/corroboration';
 import { stripHtml } from '../utils/stripHtml';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
+import AdReviewModal from '../components/AdReviewModal';
+import type { AdSegment } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection, { useCollapsibleOpen } from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
@@ -48,6 +50,37 @@ function TranscriptBlock({ text }: { text: string }) {
   );
 }
 
+// Row-identity payload the corrections API keys on. One builder so the
+// reason coercion stays consistent across the modal and the row buttons.
+function toOriginalAd(segment: AdSegment) {
+  return {
+    start: segment.start,
+    end: segment.end,
+    confidence: segment.confidence,
+    reason: segment.reason || '',
+  };
+}
+
+// Pencil icon button that opens a held/rejected row in the waveform
+// editor (issue #563). Callers own the gating.
+function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Open in editor"
+      title="Open in editor"
+      data-testid={testId}
+      className={`p-1.5 rounded-full ${btnSecondary} transition-colors shrink-0 touch-manipulation`}
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    </button>
+  );
+}
+
 // Save status type for visual feedback
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 
@@ -58,6 +91,9 @@ function EpisodeDetail() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
+  // Held/rejected row currently open in the standalone waveform editor
+  // (issue #563). Independent of showEditor/AdEditor state.
+  const [reviewMarker, setReviewMarker] = useState<{ segment: AdSegment; key: string; fromHeld: boolean } | null>(null);
   const [savedScrollY, setSavedScrollY] = useState<number | null>(null);
   const [reviewMode, setReviewMode] = useLocalStorageState<'processed' | 'original'>(
     'ad-editor-review-mode',
@@ -830,6 +866,74 @@ function EpisodeDetail() {
         (episode.pendingReviewMarkers?.length ?? 0) > 0 ||
         (episode.rejectedAdMarkers?.length ?? 0) > 0) && markerAudition.audioElement}
 
+      {/* Standalone waveform editor for one held/rejected marker (issue
+          #563). Deliberately NOT routed through AdEditor: its moved-boundary
+          submits map to type 'adjust', which does not approve a held marker.
+          Here moved boundaries become confirm + adjusted bounds (the 2.60.0
+          trimmed-approve flow), matching what the row buttons file. Bounds
+          are in the original-audio timeline, so the modal is pinned to
+          original audio (no mode toggle, no processed URL). */}
+      {reviewMarker && (() => {
+        const seg = reviewMarker.segment;
+        const fromHeld = reviewMarker.fromHeld;
+        const originalAd = toOriginalAd(seg);
+        return (
+          <AdReviewModal
+            key={reviewMarker.key}
+            mode="review"
+            hasNext={false}
+            item={{
+              podcastSlug: slug!,
+              episodeId: episodeId!,
+              start: seg.start,
+              end: seg.end,
+              sponsor: seg.sponsor ?? null,
+              reason: seg.reason || '',
+              confidence: seg.confidence,
+              detectionStage: seg.detection_stage || 'first_pass',
+              patternId: null,
+              correctedBounds:
+                seg.reviewer_proposed_start != null && seg.reviewer_proposed_end != null
+                  ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }
+                  : null,
+            }}
+            audioMode="original"
+            hasOriginal={!!episode.hasOriginalAudio}
+            episodeDuration={episode.originalDuration ?? 0}
+            boundsWindow={{ min: seg.start - 0.5, max: seg.end + 0.5 }}
+            onSubmit={(s) => {
+              if (s.kind === 'reject') {
+                handleCorrection({ type: 'reject', originalAd });
+              } else {
+                // Mirror the held-row Confirm buttons: a confirm that
+                // completes the review set chains a one-tap recut.
+                // Rejected-row confirms never recut.
+                if (fromHeld && oneTapRecut) {
+                  pendingRecutRef.current = true;
+                }
+                if (s.kind === 'adjust') {
+                  // boundsWindow keeps the modal's selection inside the
+                  // window the backend accepts; this clamp is only a
+                  // backstop against float edges.
+                  handleCorrection({
+                    type: 'confirm',
+                    originalAd,
+                    adjustedStart: Math.max(s.adjustedStart!, seg.start - 0.5),
+                    adjustedEnd: Math.min(s.adjustedEnd!, seg.end + 0.5),
+                    sponsor: s.sponsor,
+                  });
+                } else {
+                  handleCorrection({ type: 'confirm', originalAd, sponsor: s.sponsor });
+                }
+              }
+              setReviewMarker(null);
+            }}
+            onSkip={() => setReviewMarker(null)}
+            onClose={() => setReviewMarker(null)}
+          />
+        );
+      })()}
+
       {heldMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-amber-500/30 p-6 mb-6" data-testid="held-for-review-section">
           <h2 className="text-xl font-semibold text-foreground mb-4">
@@ -852,12 +956,7 @@ function EpisodeDetail() {
               const rowStatus = rowSaveStatus(segment);
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
-              const originalAd = {
-                start: segment.start,
-                end: segment.end,
-                confidence: segment.confidence,
-                reason: segment.reason || '',
-              };
+              const originalAd = toOriginalAd(segment);
               return (
                 <div
                   key={index}
@@ -869,6 +968,14 @@ function EpisodeDetail() {
                         <AuditionPlayButton
                           playing={heldPlaying}
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
+                        />
+                      )}
+                      {/* Decision surface: hidden once the row is decided,
+                          matching the Confirm / Not an ad buttons. */}
+                      {episode.hasOriginalAudio && !correction && !segment.approved && (
+                        <OpenEditorButton
+                          onClick={() => setReviewMarker({ segment, key: heldKey, fromHeld: true })}
+                          testId={`open-editor-held-${index}`}
                         />
                       )}
                       <span className="font-mono text-sm">
@@ -1017,12 +1124,7 @@ function EpisodeDetail() {
                   const correction = getAdCorrection(segment.start, segment.end);
                   const rowStatus = rowSaveStatus(segment);
                   const rejectedKey = `rejected-${segment.start}-${segment.end}`;
-                  const originalAd = {
-                    start: segment.start,
-                    end: segment.end,
-                    confidence: segment.confidence,
-                    reason: segment.reason || '',
-                  };
+                  const originalAd = toOriginalAd(segment);
                   const rejectedPlaying = markerAudition.playingKey === rejectedKey;
                   return (
                     <>
@@ -1032,6 +1134,12 @@ function EpisodeDetail() {
                             <AuditionPlayButton
                               playing={rejectedPlaying}
                               onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
+                            />
+                          )}
+                          {episode.hasOriginalAudio && !correction && (
+                            <OpenEditorButton
+                              onClick={() => setReviewMarker({ segment, key: rejectedKey, fromHeld: false })}
+                              testId={`open-editor-rejected-${index}`}
                             />
                           )}
                           <span className="font-mono text-sm">

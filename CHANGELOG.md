@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.72.0] - 2026-07-22
+
+### Added
+
+- Held for Review and Detections Not Cut rows can open in the waveform
+  editor (issue #563). A pencil button next to each row's play button opens
+  the same scrub-and-drag editor the Detected Ads list uses, playing the
+  original audio. Confirming with moved boundaries files a trimmed confirm,
+  so only the span inside the pins is cut; the plain confirm and Not an ad
+  actions match the row buttons, including the one-tap recut when a held
+  confirm completes the review set.
+
 ## [2.71.0] - 2026-07-22
 
 ### Fixed

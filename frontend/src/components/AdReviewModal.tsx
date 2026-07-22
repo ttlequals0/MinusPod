@@ -87,6 +87,11 @@ interface Props {
   // Optional: surface a "+ Add new ad" entry inside the modal so the
   // user can switch into create mode without closing the modal first.
   onAddNew?: () => void;
+  // Optional hard window for the selection. Held/not-cut review files a
+  // trimmed confirm, and the corrections API rejects bounds outside the
+  // detected span (plus 0.5s tolerance); enforcing it here keeps the
+  // display honest instead of silently clamping at submit.
+  boundsWindow?: { min: number; max: number };
 }
 
 // Cap the default visible window. Some heuristic detections (notably
@@ -115,7 +120,7 @@ function AdReviewModal({
   item, onClose, onSubmit, onSkip, hasNext = false,
   audioMode = 'original', onAudioModeChange, hasOriginal = true,
   processedAudioUrl, episodeDuration,
-  mode = 'review', onCreate, onAddNew,
+  mode = 'review', onCreate, onAddNew, boundsWindow,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
@@ -697,7 +702,9 @@ function AdReviewModal({
         ? 'Start must be before End'
         : adEnd - adStart < MIN_AD_DURATION
           ? `Selection must be at least ${MIN_AD_DURATION}s long`
-          : null;
+          : boundsWindow && (adStart < boundsWindow.min || adEnd > boundsWindow.max)
+            ? `Selection must stay within the detected span (${formatTime(boundsWindow.min)} - ${formatTime(boundsWindow.max)})`
+            : null;
   const inputBorderClass = boundaryError ? 'border-rose-500' : 'border-border';
 
   const handleConfirm = () => {
