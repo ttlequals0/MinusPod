@@ -31,7 +31,7 @@ SMTP_TIMEOUT_SECONDS = 10
 VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
-    'Feed Refresh Failed',
+    'Feed Refresh Failed', 'Update Available',
 ]
 # Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
