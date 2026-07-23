@@ -479,13 +479,18 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
         refetch_cues = None
         anchor_pairs = None
         if cue_scan is not None:
-            refetch_cues = []
             try:
                 refetch_cues = list(cue_scan(refetch_path))
+                anchor_pairs = match_cue_anchor_pairs(
+                    primary_cues or [], refetch_cues)
             except Exception as e:
+                # Covers both a scan hook raising and a scan hook returning
+                # malformed cue dicts (match_cue_anchor_pairs sorts/indexes
+                # on 'time'/'template_id'); either degrades to no anchors
+                # instead of failing the whole differential.
                 logger.warning('Refetch cue scan failed (non-fatal): %s', e)
-            anchor_pairs = match_cue_anchor_pairs(
-                primary_cues or [], refetch_cues)
+                refetch_cues = []
+                anchor_pairs = []
         aligned = align_and_diff(run_file_path, refetch_path, work_dir,
                                  anchor_pairs=anchor_pairs)
         result = {'status': aligned['status'], 'regions': aligned['regions'],

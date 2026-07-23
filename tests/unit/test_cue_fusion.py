@@ -192,6 +192,55 @@ def test_stage25_dict_analysis_is_tolerated():
     assert captured['cue_marks'] == []
 
 
+def test_stage25_non_ad_role_cue_excluded_from_marks():
+    # A non_ad-role cue (show_intro/show_outro/content_transition) must
+    # never corroborate a differential edge -- same role gate
+    # cue_boundary_snap and cue_pair_ads honor. Only the role differs from
+    # test_stage25_passes_template_cue_marks's confident template cue.
+    analysis = _analysis(
+        _cue(101.5, confidence=0.9, role='non_ad'),
+    )
+    captured = _capture_stage25(analysis, _diff(_region(10.0, 40.0, 0.2)))
+    assert captured['cue_marks'] == []
+
+
+def test_stage25_start_and_end_role_cues_are_included():
+    # Ad-edge roles ('start', 'end', and by extension 'boundary') still
+    # corroborate -- pins existing behavior alongside the non_ad exclusion.
+    analysis = _analysis(
+        _cue(101.5, confidence=0.9, role='start', template_id=1),
+        _cue(200.0, confidence=0.9, role='end', template_id=2),
+    )
+    captured = _capture_stage25(analysis, _diff(_region(10.0, 40.0, 0.2)))
+    assert captured['cue_marks'] == [101.5, 200.0]
+
+
+def test_stage25_non_ad_cue_at_edge_leaves_candidate_held():
+    # End-to-end: a non_ad-role cue sitting right at the differential
+    # region's edge must not corroborate it -- the candidate stays held
+    # for review, unlike an ad-role cue at the same position (contrast
+    # test_differential_inside_cue_pair_is_cut_not_held).
+    analysis = _analysis(_cue(138.0, confidence=0.9, role='non_ad'))
+    detector = AdDetector(api_key='test-key')
+    detector.db = MagicMock()
+    detector.db.get_setting_float.side_effect = (
+        lambda key, default=0.0: default)
+    with patch.object(detector, 'initialize_client'), \
+         patch.object(detector, 'detect_ads',
+                      return_value={'ads': [], 'status': 'success',
+                                    'raw_response': '', 'model': 'm'}):
+        result = detector.process_transcript(
+            [{'start': 0.0, 'end': 300.0, 'text': 'hello'}],
+            slug='s', episode_id='e1', skip_patterns=True,
+            audio_analysis=analysis,
+            dai_differential=_diff(_region(100.0, 140.0, 0.2)),
+            keep_content=False)
+    dd = [a for a in result['ads']
+          if a.get('detection_stage') == 'dai_differential']
+    assert len(dd) == 1
+    assert dd[0].get('held_for_review') is True
+
+
 def test_differential_inside_cue_pair_is_cut_not_held():
     # End-to-end through the real dai_differential_ads: a measured-different
     # candidate bracketed by a cue pair is corroborated -> cut, not held.
@@ -295,6 +344,29 @@ def test_fetch_and_diff_cue_scan_failure_is_nonfatal(tmp_path):
 
     assert result['status'] == 'ok'
     assert result['refetch_cues'] == []
+    assert mock_align.call_args.kwargs['anchor_pairs'] == []
+
+
+def test_fetch_and_diff_cue_scan_malformed_result_is_nonfatal(tmp_path):
+    run_file = _run_file(tmp_path)
+
+    def cue_scan(path):
+        # Malformed: missing the required 'time' key that
+        # match_cue_anchor_pairs sorts on.
+        return [{'template_id': 5}]
+
+    with patch('differential_fetcher.safe_get',
+               return_value=_FakeResponse([b'x' * 100])), \
+         patch('differential_fetcher.get_audio_duration', return_value=42.0), \
+         patch('differential_fetcher.align_and_diff',
+               return_value=_ALIGNED) as mock_align:
+        result = df.fetch_and_diff('https://traffic.megaphone.fm/e.mp3',
+                                   run_file, str(tmp_path),
+                                   cue_scan=cue_scan,
+                                   primary_cues=[{'time': 1.0, 'template_id': 5}])
+
+    assert result['status'] == 'ok'
+    assert result.get('refetch_cues', []) == []
     assert mock_align.call_args.kwargs['anchor_pairs'] == []
 
 

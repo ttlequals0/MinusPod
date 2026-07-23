@@ -31,6 +31,8 @@ from config import (
     AUDIO_CUE_SNAP_CONFIDENCE,
     AUDIO_CUE_SNAP_LEAD_SECONDS,
     AUDIO_CUE_SNAP_LAG_SECONDS,
+    AUDIO_CUE_START_EDGE_ROLES,
+    AUDIO_CUE_END_EDGE_ROLES,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_cue_backed,
     is_template_cue,
@@ -54,6 +56,7 @@ from config import (
     KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
     KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
 )
+from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from database.settings import registry_get_default
@@ -369,15 +372,26 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     return ads
 
 
+# Roles eligible to corroborate a differential candidate's edge. Fusion
+# checks both edges against the same cue_marks list (dai_differential_ads
+# has no notion of which edge a mark backs), so the eligible set is the
+# union of the start-edge and end-edge role sets -- mirroring the role gate
+# cue_boundary_snap and cue_pair_ads apply per-edge. This excludes 'non_ad'
+# (show_intro/show_outro/content_transition) entirely: those cues never
+# snap or pair either, per config.py's role documentation.
+_CUE_FUSION_ELIGIBLE_ROLES = frozenset(AUDIO_CUE_START_EDGE_ROLES) | frozenset(AUDIO_CUE_END_EDGE_ROLES)
+
+
 def _cue_fusion_inputs(audio_analysis, segments):
     """(cue_marks, pair_spans) for stage 2.5 cue fusion (2.77.0).
 
     cue_marks: start times of confident template cues (>= the snap
-    confidence floor; the same filter cue_boundary_snap trusts to move ad
-    edges). pair_spans: (start, end) spans a bracketing cue pair would
-    synthesize (cue_pair_ads defaults, empty existing-ads list) -- used as
-    corroboration only, never added to the ad list here; the opt-in
-    synthesis in processing still owns marker creation.
+    confidence floor, an edge-appropriate ad role; the same filters
+    cue_boundary_snap trusts to move ad edges). pair_spans: (start, end)
+    spans a bracketing cue pair would synthesize (cue_pair_ads defaults,
+    empty existing-ads list) -- used as corroboration only, never added to
+    the ad list here; the opt-in synthesis in processing still owns marker
+    creation.
 
     audio_analysis is the AudioAnalysisResult the pipeline passes; a
     serialized dict or None yields empty inputs (defensive: recut/API paths
@@ -389,6 +403,7 @@ def _cue_fusion_inputs(audio_analysis, segments):
         float(c.start)
         for c in audio_analysis.get_signals_by_type('audio_cue')
         if c.confidence >= AUDIO_CUE_SNAP_CONFIDENCE and is_template_cue(c.details)
+        and _cue_role(c) in _CUE_FUSION_ELIGIBLE_ROLES
     ]
     total_duration = float(segments[-1]['end']) if segments else 0.0
     pair_ads, _ = synthesize_ads_from_cue_pairs(
