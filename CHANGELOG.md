@@ -23,6 +23,14 @@ release notes.
   minutes later would detect normally. Dependencies are now built at
   the start of every detection run, before the stage gates.
 
+### Added
+
+- Startup now logs the MinusPod logo as an ASCII banner (waveform,
+  strikethrough, and wordmark) with the running version and repo link
+  under it, so the version is easy to spot when scrolling container
+  logs (suggested in issue #567's discussion). The plain
+  "MinusPod vX.Y.Z starting..." line is unchanged for log queries.
+
 ## [2.74.0] - 2026-07-22
 
 ### Added
