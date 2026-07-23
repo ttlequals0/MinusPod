@@ -174,7 +174,7 @@ processing_queue = ProcessingQueue()
 # commit that touched these features; the guard avoids that churn on
 # deployments that already ran the backfill.
 _BACKFILL_VERSION_KEY = 'startup_backfills_version'
-_BACKFILL_VERSION = '2.0.0'
+_BACKFILL_VERSION = '2.76.0'
 _stored_backfill_version = None
 try:
     _stored_backfill_version = db.get_system_setting(_BACKFILL_VERSION_KEY)
@@ -209,6 +209,17 @@ if _stored_backfill_version != _BACKFILL_VERSION:
             audio_logger.info(f"Extracted sponsors for {sponsors_extracted} patterns")
     except Exception as e:
         audio_logger.warning(f"Sponsor extraction failed: {e}")
+
+    try:
+        from database.patterns import suppress_differential_fp_texts
+        fp_suppressed = suppress_differential_fp_texts(db)
+        if fp_suppressed > 0:
+            audio_logger.info(
+                f"Suppressed {fp_suppressed} differential-hold false-positive "
+                f"texts from cross-episode matching"
+            )
+    except Exception as e:
+        audio_logger.warning(f"Differential FP-text suppression backfill failed: {e}")
 
     try:
         db.set_system_setting(_BACKFILL_VERSION_KEY, _BACKFILL_VERSION)
