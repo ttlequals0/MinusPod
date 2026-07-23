@@ -191,6 +191,15 @@ describe('Held for Review section: rendering', () => {
     });
     expect(screen.getByTitle('No audio-cue evidence')).toBeDefined();
   });
+
+  it('labels a verification_miss marker "Verification catch" instead of the generic Held chip', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'verification_miss' }] }));
+    await waitFor(() => {
+      expect(screen.getByTestId('held-for-review-section')).toBeDefined();
+    });
+    const chip = screen.getByTitle('A standalone catch from the verification pass, held for a second opinion');
+    expect(chip.textContent).toBe('Verification catch');
+  });
 });
 
 describe('Held for Review: Approve & Recut (hasOriginalAudio=true)', () => {

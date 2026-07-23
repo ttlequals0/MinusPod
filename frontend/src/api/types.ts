@@ -284,7 +284,8 @@ export interface AdSegment {
     | 'no_cue_evidence'
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
-    | 'no_splice_evidence';
+    | 'no_splice_evidence'
+    | 'verification_miss';
   // Set when a confirm correction matched this held marker (issue #509);
   // approved holds wait for a recut to apply.
   approved?: boolean;
@@ -388,6 +389,12 @@ export interface Settings {
   silenceSnapMaxDistanceSeconds: SettingValueNumber;
   minContentBetweenAdsSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
+  verificationMissHoldMinConfidence: SettingValueNumber;
+  verificationMissAutocutMinConfidence: SettingValueNumber;
+  learningMinConfidence: SettingValueNumber;
+  learningMinConfidenceLong: SettingValueNumber;
+  differentialMeasuredCorrMax: SettingValueNumber;
+  differentialHoldMinSeconds: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
@@ -472,6 +479,12 @@ export interface Settings {
     silenceSnapMaxDistanceSeconds: number;
     minContentBetweenAdsSeconds: number;
     positionalPriorEnabled: boolean;
+    verificationMissHoldMinConfidence: number;
+    verificationMissAutocutMinConfidence: number;
+    learningMinConfidence: number;
+    learningMinConfidenceLong: number;
+    differentialMeasuredCorrMax: number;
+    differentialHoldMinSeconds: number;
   };
 }
 
@@ -531,6 +544,12 @@ export interface UpdateSettingsPayload {
   silenceSnapMaxDistanceSeconds?: number;
   minContentBetweenAdsSeconds?: number;
   positionalPriorEnabled?: boolean;
+  verificationMissHoldMinConfidence?: number;
+  verificationMissAutocutMinConfidence?: number;
+  learningMinConfidence?: number;
+  learningMinConfidenceLong?: number;
+  differentialMeasuredCorrMax?: number;
+  differentialHoldMinSeconds?: number;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersModel?: string;
