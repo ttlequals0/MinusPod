@@ -9,8 +9,29 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('fp_text_scoping_test_')
 
-from main_app import db
+from main_app import app, db
 from database.patterns import suppress_differential_fp_texts
+from api.patterns import _handle_reject_correction
+
+
+TRANSCRIPT_TEXT = (
+    "[00:00:00.000 --> 00:01:00.000] This episode is brought to you by "
+    "ExampleSponsor. Visit examplesponsor.com slash podcast for fifty percent "
+    "off your first month. ExampleSponsor makes everything better and faster "
+    "than the competition."
+)
+
+
+def _held_marker(start, end, hold_reason=None, detection_stage='claude'):
+    marker = {
+        'start': start, 'end': end, 'confidence': 0.9,
+        'reason': 'sponsor read', 'was_cut': False,
+        'held_for_review': True, 'detection_stage': detection_stage,
+        'validation': {'decision': 'REVIEW', 'adjusted_confidence': 0.9},
+    }
+    if hold_reason is not None:
+        marker['hold_reason'] = hold_reason
+    return marker
 
 
 def _make_episode(slug='fp-scope-test', episode_id='ep-fp-scope-001'):
@@ -161,3 +182,90 @@ def test_backfill_skips_ambiguous_cross_podcast_episode_id():
         (correction_id,),
     ).fetchone()
     assert row['fp_suppressed'] in (0, None)
+
+
+def test_reject_differential_hold_writes_null_text_and_source_hold_reason():
+    """Rejecting a held marker whose hold_reason is differential_uncorroborated
+    must not mint cross-episode FP text: text_snippet is NULL, source_hold_reason
+    is stamped, and the same-episode region is still recorded."""
+    slug, episode_id = _make_episode('fp-scope-diff', 'ep-fp-scope-diff')
+    db.save_episode_details(
+        slug, episode_id, transcript_text=TRANSCRIPT_TEXT,
+        ad_markers=[_held_marker(0.0, 60.0,
+                                  hold_reason='differential_uncorroborated',
+                                  detection_stage='dai_differential')],
+        pending_review_count=1,
+    )
+
+    with app.test_request_context():
+        _handle_reject_correction(db, slug, episode_id, {'start': 0.0, 'end': 60.0})
+
+    row = db.get_connection().execute(
+        """SELECT text_snippet, source_hold_reason FROM pattern_corrections
+           WHERE episode_id = ? AND correction_type = 'false_positive'""",
+        (episode_id,),
+    ).fetchone()
+    assert row['text_snippet'] is None
+    assert row['source_hold_reason'] == 'differential_uncorroborated'
+
+    assert db.get_podcast_false_positive_texts(slug) == []
+
+    region = db.get_false_positive_corrections(episode_id)
+    assert any(r['start'] == 0.0 and r['end'] == 60.0 for r in region)
+
+
+def test_reject_dai_differential_stage_without_hold_reason_field_still_nulls_text():
+    """detection_stage=='dai_differential' alone (hold_reason field absent,
+    e.g. already popped or never set) must independently trigger the same
+    null-text, stamped-source_hold_reason behavior as an explicit
+    hold_reason=='differential_uncorroborated'."""
+    slug, episode_id = _make_episode('fp-scope-diff-stage', 'ep-fp-scope-diff-stage')
+    db.save_episode_details(
+        slug, episode_id, transcript_text=TRANSCRIPT_TEXT,
+        ad_markers=[_held_marker(0.0, 60.0, hold_reason=None,
+                                  detection_stage='dai_differential')],
+        pending_review_count=1,
+    )
+
+    with app.test_request_context():
+        _handle_reject_correction(db, slug, episode_id, {'start': 0.0, 'end': 60.0})
+
+    row = db.get_connection().execute(
+        """SELECT text_snippet, source_hold_reason FROM pattern_corrections
+           WHERE episode_id = ? AND correction_type = 'false_positive'""",
+        (episode_id,),
+    ).fetchone()
+    assert row['text_snippet'] is None
+    assert row['source_hold_reason'] == 'differential_uncorroborated'
+
+
+def test_reject_claude_stage_hold_still_writes_text_snippet():
+    """A claude-stage hold (e.g. reviewer_contradiction) is unaffected: reject
+    still writes the extracted text_snippet, now also stamped with
+    source_hold_reason, and the same-episode region is unchanged."""
+    slug, episode_id = _make_episode('fp-scope-claude', 'ep-fp-scope-claude')
+    db.save_episode_details(
+        slug, episode_id, transcript_text=TRANSCRIPT_TEXT,
+        ad_markers=[_held_marker(0.0, 60.0,
+                                  hold_reason='reviewer_contradiction',
+                                  detection_stage='claude')],
+        pending_review_count=1,
+    )
+
+    with app.test_request_context():
+        _handle_reject_correction(db, slug, episode_id, {'start': 0.0, 'end': 60.0})
+
+    row = db.get_connection().execute(
+        """SELECT text_snippet, source_hold_reason FROM pattern_corrections
+           WHERE episode_id = ? AND correction_type = 'false_positive'""",
+        (episode_id,),
+    ).fetchone()
+    assert row['text_snippet'] is not None
+    assert len(row['text_snippet']) >= 50
+    assert row['source_hold_reason'] == 'reviewer_contradiction'
+
+    texts = db.get_podcast_false_positive_texts(slug)
+    assert any(t['text'] == row['text_snippet'] for t in texts)
+
+    region = db.get_false_positive_corrections(episode_id)
+    assert any(r['start'] == 0.0 and r['end'] == 60.0 for r in region)
