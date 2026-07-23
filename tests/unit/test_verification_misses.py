@@ -6,7 +6,9 @@ from pattern_service import PatternService
 
 def _make_service(patterns=None):
     """Create a PatternService with mocked DB and pattern lookup."""
-    svc = PatternService(db=MagicMock())
+    db = MagicMock()
+    db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
+    svc = PatternService(db=db)
     svc.get_patterns_for_podcast = MagicMock(return_value=patterns or [])
     svc.record_pattern_match = MagicMock()
     return svc

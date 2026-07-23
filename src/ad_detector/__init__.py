@@ -1598,11 +1598,19 @@ class AdDetector:
         # from merged multi-ad spans which contaminate patterns
         duration = ad['end'] - ad['start']
         if duration > LEARNING_LONG_DURATION_THRESHOLD:
-            if confidence < LEARNING_MIN_CONFIDENCE_LONG:
+            # Read at call time (not cached) so settings changes apply on
+            # the next run without a restart.
+            min_confidence_long = (
+                self.db.get_setting_float(
+                    'learning_min_confidence_long', LEARNING_MIN_CONFIDENCE_LONG
+                )
+                if self.db else LEARNING_MIN_CONFIDENCE_LONG
+            )
+            if confidence < min_confidence_long:
                 logger.debug(
                     f"Skipping pattern for long ad ({duration:.0f}s) with "
                     f"confidence {confidence:.2f} (threshold "
-                    f"{LEARNING_MIN_CONFIDENCE_LONG} for "
+                    f"{min_confidence_long} for "
                     f">{LEARNING_LONG_DURATION_THRESHOLD:.0f}s ads)"
                 )
                 return False
@@ -1744,7 +1752,12 @@ class AdDetector:
             return 0
 
         patterns_created = 0
-        min_confidence = LEARNING_MIN_CONFIDENCE
+        # Read at call time (not cached) so settings changes apply on the
+        # next run without a restart.
+        min_confidence = (
+            self.db.get_setting_float('learning_min_confidence', LEARNING_MIN_CONFIDENCE)
+            if self.db else LEARNING_MIN_CONFIDENCE
+        )
 
         # Preload active pattern sponsors once so Gate B doesn't do N queries.
         try:
