@@ -639,6 +639,19 @@ from main_app.processing import start_background_processing
 from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
 from status_service import reconcile_startup_state
 
+# The logo as ASCII: mirrored waveform with the strikethrough (the minus)
+# and the wordmark. Logged once at leader startup so the running version
+# is easy to spot in container logs.
+_BANNER = r"""
+        |
+  |   |   |   |
+| | | | | | | | |     _______ __                     ______           __
+-------------------  |   |   |__|.-----.--.--.-----.|   __ \.-----.--|  |
+| | | | | | | | |    |       |  ||     |  |  |__ --||    __/|  _  |  _  |
+  |   |   |   |      |__|_|__|__||__|__|_____|_____||___|   |_____|_____|
+        |
+"""
+
 
 # Startup initialization (runs when module is imported by gunicorn)
 def _startup():
@@ -670,6 +683,8 @@ def _startup():
         try:
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from version import __version__
+            logger.info("%s                     v%s  https://github.com/ttlequals0/minuspod",
+                        _BANNER, __version__)
             logger.info(f"MinusPod v{__version__} starting...")
         except ImportError:
             logger.warning("Could not import version")
