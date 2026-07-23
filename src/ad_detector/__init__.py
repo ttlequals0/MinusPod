@@ -67,6 +67,7 @@ from utils.constants import (
     KNOWN_SHORT_BRANDS, canonical_sponsor,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
+    sanitize_sponsor_label,
 )
 
 # Re-exports: every symbol the pre-split ``ad_detector`` module exposed at
@@ -257,6 +258,12 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
 # overlap may upgrade it to a cut (#541): tolerates segment edge bleed,
 # while a transcribed ad read covers far more of its span.
 DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
+
+# Duplicate-marker overlap merge (task 8): two ACCEPTED markers describing
+# the same ad read (e.g. one Claude response emitting both 'Xbox segment'
+# and 'CiraSync' for a single Windows Weekly ad) fold into one when their
+# overlap covers this much of the SHORTER span.
+DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
 
 
 def _span_transcript_coverage(segments, start, end):
@@ -2003,6 +2010,8 @@ class AdDetector:
                 # differential and the hold survives its own corroboration
                 # (DTNS 5313: 0.24s of sort order decided cut vs held).
                 last_stage_before_merge = last.get('detection_stage')
+                last_sponsor_before_merge = last.get('sponsor')
+                last_confidence_before_merge = last.get('confidence', 0)
                 # Adjacency is not corroboration (#541): a held differential
                 # only merges with a non-differential marker on true overlap.
                 if (bool(last.get('differential_uncorroborated'))
@@ -2052,6 +2061,25 @@ class AdDetector:
                     last['reason'] = cur_reason
                     last['sponsor'] = current.get('sponsor')
 
+                # Recover from a junk primary sponsor (segment name /
+                # reasoning prose) picked by the reason-length rule above:
+                # try the OTHER member's sponsor, preferring whichever had
+                # higher confidence, before giving up to None (Windows
+                # Weekly: 'Xbox segment' 0.8 discarded for 'CiraSync' 0.9's
+                # clean label). Skipped when the primary sponsor is already
+                # None -- that is a real "no sponsor" read, not junk.
+                primary_sponsor = last.get('sponsor')
+                if primary_sponsor and not sanitize_sponsor_label(primary_sponsor):
+                    candidates = sorted(
+                        [(last_sponsor_before_merge, last_confidence_before_merge),
+                         (current.get('sponsor'), current.get('confidence', 0))],
+                        key=lambda c: c[1], reverse=True
+                    )
+                    last['sponsor'] = next(
+                        (s for s in (sanitize_sponsor_label(c[0]) for c in candidates) if s),
+                        None
+                    )
+
                 # #541 hold upgrade: independent-stage overlap always
                 # corroborates; a claude overlap only counts with real
                 # transcript coverage (claude saw the region as a prompt
@@ -2084,7 +2112,77 @@ class AdDetector:
             else:
                 merged.append(current.copy())
 
+        merged = self._merge_overlapping_accepted_duplicates(merged)
+
+        # Sanitize every surviving marker's sponsor: strips reasoning prose
+        # and bare segment names the merge above didn't already clean up
+        # (e.g. a marker that never went through either merge pass).
+        for marker in merged:
+            marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
+
         return merged
+
+    def _merge_overlapping_accepted_duplicates(self, markers: List[Dict]) -> List[Dict]:
+        """Second pass: fold duplicate ACCEPTED (non-held) markers describing
+        the same ad read into one union-span marker.
+
+        The main sweep above only ever compares a `current` ad against the
+        most recently accumulated `last` entry, so two markers that survive
+        it as separate entries but still overlap heavily (one Claude window
+        response split a single ad read into two objects, e.g. Windows
+        Weekly's 'Xbox segment' + 'CiraSync' pair) can still slip through as
+        duplicates. Fold any pair overlapping >= DUPLICATE_MARKER_OVERLAP_MIN_RATIO
+        of the shorter span's duration into one marker spanning their union;
+        sponsor is the sanitized label of the higher-confidence contributor,
+        falling back to the other's sanitized label, else None.
+
+        Held/pending markers are never touched here: a hold means a human
+        still needs to see that exact span, and folding it into a cut marker
+        or another hold would destroy the review context.
+        """
+        if len(markers) < 2:
+            return markers
+
+        result = list(markers)
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(result)):
+                a = result[i]
+                if a.get('held_for_review'):
+                    continue
+                for j in range(i + 1, len(result)):
+                    b = result[j]
+                    if b.get('held_for_review'):
+                        continue
+                    a_dur = a['end'] - a['start']
+                    b_dur = b['end'] - b['start']
+                    shorter = min(a_dur, b_dur)
+                    if shorter <= 0:
+                        continue
+                    overlap = max(0.0, min(a['end'], b['end']) - max(a['start'], b['start']))
+                    if overlap / shorter < DUPLICATE_MARKER_OVERLAP_MIN_RATIO:
+                        continue
+
+                    a_conf = a.get('confidence', 0)
+                    b_conf = b.get('confidence', 0)
+                    primary, other = (a, b) if a_conf >= b_conf else (b, a)
+                    sponsor = (sanitize_sponsor_label(primary.get('sponsor'))
+                               or sanitize_sponsor_label(other.get('sponsor')))
+
+                    combined = a.copy()
+                    combined['start'] = min(a['start'], b['start'])
+                    combined['end'] = max(a['end'], b['end'])
+                    combined['confidence'] = max(a_conf, b_conf)
+                    combined['sponsor'] = sponsor
+                    result[i] = combined
+                    del result[j]
+                    changed = True
+                    break
+                if changed:
+                    break
+
+        return sorted(result, key=lambda x: x['start'])
 
     def run_verification_detection(self, segments: List[Dict],
                                     podcast_name: str = "Unknown",
