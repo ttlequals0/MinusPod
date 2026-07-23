@@ -48,7 +48,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
-**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. Rejecting an uncorroborated differential hold does not create this text (that region was only ever a hold candidate, never a confirmed false positive), though the same-episode region is still blocked from resurfacing. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. Rejecting a differential detection, held or not, does not create this text (it was only ever a candidate, never a confirmed false positive from a real detector), though the same-episode region is still blocked from resurfacing. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 

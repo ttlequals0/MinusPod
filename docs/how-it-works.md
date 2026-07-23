@@ -174,7 +174,7 @@ A 5-minute safety cap prevents merging when the resulting span would exceed it, 
 
 ### Boundary Sweeps After the Reviewer
 
-When the [ad reviewer](configuration.md#ad-reviewer) is enabled, two more passes run on pass 1's ads right after it, both before the audio is cut. A reviewer "adjust" log line is therefore not always an ad's final boundary; either sweep can move it further before the cut happens.
+Two more passes can run on pass 1's ads after the reviewer step, both before the audio is cut. The terminal-start snap runs whenever there are cuts with splice evidence, whether or not the [ad reviewer](configuration.md#ad-reviewer) is enabled; tail completion only runs when the reviewer is enabled. A reviewer "adjust" log line is therefore not always an ad's final boundary: either sweep can still move it before the cut happens.
 
 A terminal-start snap pulls a terminal cut's start to the nearest deep-silence splice point. A tail completion sweep pushes a cut's end forward again when the transcript right after the reviewer-adjusted end still reads as ad content: a sponsor name, a URL, or a call-to-action. Tail completion exists specifically to counteract the reviewer pulling an end back to, or inside, the detector's original boundary and stranding a trailing CTA in the cut audio. It only runs when the reviewer is enabled; without a reviewer, the boundary-extension pass earlier in the pipeline already does this work.
 
@@ -194,7 +194,7 @@ The per-feed setting (Feed page > Settings > Cross-fetch diff) has three positio
 
 Each detection found this way is tagged with the cross-fetch stage in the ad list, and the episode header shows a "Cross-fetch: N inserted" badge when the comparison found differing regions.
 
-Rejecting an uncorroborated differential hold as not an ad still blocks that same episode-region from re-surfacing, but no longer seeds cross-episode false-positive text: the region was only ever a hold candidate, never a confirmed false positive from a real detector, so it does not suppress future matching on other episodes of the feed.
+Rejecting a differential detection as not an ad, held or not, still blocks that same episode-region from re-surfacing, but no longer seeds cross-episode false-positive text: it was only ever a candidate, never a confirmed false positive from a real detector, so it does not suppress future matching on other episodes of the feed.
 
 ### Keep Content Only
 

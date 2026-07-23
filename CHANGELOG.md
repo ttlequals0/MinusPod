@@ -55,16 +55,16 @@ release notes.
 - An uncorroborated differential candidate shorter than the new
   hold-minimum-length setting is dropped instead of held for review;
   corroborated candidates are unaffected regardless of length.
-- Rejecting a differential hold as not an ad still blocks that same
+- Rejecting a differential detection, held or not, still blocks that same
   episode-region from resurfacing, but no longer creates cross-episode
-  false-positive text: previously, rejecting one of these holds could
-  suppress legitimate future matches feed-wide, since the text was only
-  ever a hold candidate and never a confirmed false positive from a real
-  detector. A one-time startup backfill deactivates existing cross-episode
-  false-positive text traceable to a differential-hold rejection (episodes
-  with an ambiguous id are skipped rather than guessed at); nothing is
-  deleted. Corrections now also carry a `source_hold_reason` field
-  recording which hold reason, if any, produced them.
+  false-positive text: previously, rejecting one of these could
+  suppress legitimate future matches feed-wide, since the detection was
+  never a confirmed false positive from a real detector. A one-time
+  startup backfill deactivates existing cross-episode false-positive text
+  traceable to a differential rejection (episodes with an ambiguous id
+  are skipped rather than guessed at); nothing is deleted. Corrections
+  now also carry a `source_hold_reason` field recording which hold
+  reason, if any, produced them.
 
 ### Fixed
 
