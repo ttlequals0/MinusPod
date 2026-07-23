@@ -28,8 +28,12 @@ from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
+    AUDIO_CUE_SNAP_CONFIDENCE,
+    AUDIO_CUE_SNAP_LEAD_SECONDS,
+    AUDIO_CUE_SNAP_LAG_SECONDS,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_cue_backed,
+    is_template_cue,
     MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
@@ -50,6 +54,7 @@ from config import (
     KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
     KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
 )
+from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from database.settings import registry_get_default
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
@@ -289,14 +294,23 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     differentials are re-roll noise, not fills, and would flood review.
     Corroborated candidates cut regardless of duration.
 
+    2.77.0 cue fusion: ``cue_marks`` are primary-audio template-cue times.
+    An uncorroborated merged candidate whose start OR end lies within
+    [-AUDIO_CUE_SNAP_LEAD_SECONDS, +AUDIO_CUE_SNAP_LAG_SECONDS] of a cue
+    mark (cue at t backs edge e when t - lead <= e <= t + lag) cuts like a
+    stage-corroborated candidate -- the show's own ad-break stinger at the
+    edge is independent evidence the differential is a real break -- and
+    carries ``cue_snap`` so the validator's cue gate (is_cue_backed)
+    passes. Like stage corroboration, a cue-backed cut ignores the
+    uncorroborated hold floor.
+
     fp_pairs: (start, end) false-positive spans to exclude.
     corroborating_spans: (start, end) ad spans from other stages.
-    cue_marks: accepted but UNUSED in this task; Task 7 consumes it for
-        boundary snapping. Documented here so the call-site plumbing can
-        land ahead of the consumer.
+    cue_marks: primary-audio template-cue times (floats).
     """
     ads = []
     corroborating_spans = corroborating_spans or []
+    cue_marks = [float(t) for t in (cue_marks or [])]
 
     candidates = []
     for region in (dai_differential or {}).get('regions', []):
@@ -325,33 +339,62 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
 
         stage_overlap = any(ranges_overlap(cs, ce, start, end)
                             for cs, ce in corroborating_spans)
+        ad = {
+            'start': start,
+            'end': end,
+            'confidence': 0.95,
+            'sponsor': None,
+            'detection_stage': 'dai_differential',
+        }
         if stage_overlap:
-            ads.append({
-                'start': start,
-                'end': end,
-                'confidence': 0.95,
-                'reason': ('Dynamically inserted: audio differs across fetches '
-                           '(corroborated by overlapping ad marker)'),
-                'sponsor': None,
-                'detection_stage': 'dai_differential',
-            })
+            ad['reason'] = ('Dynamically inserted: audio differs across '
+                            'fetches (corroborated by overlapping ad marker)')
+        elif any(t - AUDIO_CUE_SNAP_LEAD_SECONDS <= edge <= t + AUDIO_CUE_SNAP_LAG_SECONDS
+                 for t in cue_marks for edge in (start, end)):
+            ad['reason'] = ('Dynamically inserted: audio differs across '
+                            'fetches (edge matches an ad-break cue)')
+            ad['cue_snap'] = {'source': 'differential_cue_fusion'}
         else:
             if hold_min_seconds > 0 and (end - start) < hold_min_seconds:
                 continue
-            ads.append({
-                'start': start,
-                'end': end,
-                'confidence': 0.95,
+            ad.update({
                 'reason': ('Audio differs across fetches; no other ad signal '
                            '-- review'),
-                'sponsor': None,
-                'detection_stage': 'dai_differential',
                 'held_for_review': True,
                 'was_cut': False,
                 'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
                 'differential_uncorroborated': True,
             })
+        ads.append(ad)
     return ads
+
+
+def _cue_fusion_inputs(audio_analysis, segments):
+    """(cue_marks, pair_spans) for stage 2.5 cue fusion (2.77.0).
+
+    cue_marks: start times of confident template cues (>= the snap
+    confidence floor; the same filter cue_boundary_snap trusts to move ad
+    edges). pair_spans: (start, end) spans a bracketing cue pair would
+    synthesize (cue_pair_ads defaults, empty existing-ads list) -- used as
+    corroboration only, never added to the ad list here; the opt-in
+    synthesis in processing still owns marker creation.
+
+    audio_analysis is the AudioAnalysisResult the pipeline passes; a
+    serialized dict or None yields empty inputs (defensive: recut/API paths
+    do not pass an analysis object).
+    """
+    if audio_analysis is None or not hasattr(audio_analysis, 'get_signals_by_type'):
+        return [], []
+    cue_marks = [
+        float(c.start)
+        for c in audio_analysis.get_signals_by_type('audio_cue')
+        if c.confidence >= AUDIO_CUE_SNAP_CONFIDENCE and is_template_cue(c.details)
+    ]
+    total_duration = float(segments[-1]['end']) if segments else 0.0
+    pair_ads, _ = synthesize_ads_from_cue_pairs(
+        [], audio_analysis, total_duration=total_duration)
+    pair_spans = [(a['start'], a['end']) for a in pair_ads]
+    return cue_marks, pair_spans
 
 
 class AdDetector:
@@ -1358,6 +1401,18 @@ class AdDetector:
         # it is still corroborated via the validator's audio-corroboration path.
         if dai_differential:
             corroborating_spans = [(a['start'], a['end']) for a in all_ads]
+            # Cue fusion (2.77.0): template cues corroborate differential
+            # candidates directly (cue_marks) and via bracketing pair spans.
+            # Pair spans join corroborating_spans only -- no cue_pair ads are
+            # minted here (synthesis stays the opt-in pass in processing).
+            try:
+                cue_marks, pair_spans = _cue_fusion_inputs(
+                    audio_analysis, segments)
+            except Exception as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Cue fusion extraction failed: {e}")
+                cue_marks, pair_spans = [], []
+            corroborating_spans.extend(pair_spans)
             # Thresholds read at detection time so settings changes apply on
             # the next run without a restart; registry defaults when the
             # detector has no DB (test-only construction).
@@ -1368,6 +1423,7 @@ class AdDetector:
             dd_ads = dai_differential_ads(
                 dai_differential, fp_pairs,
                 corroborating_spans=corroborating_spans,
+                cue_marks=cue_marks,
                 measured_corr_max=(
                     self.db.get_setting_float(
                         'differential_measured_corr_max', corr_max_default)

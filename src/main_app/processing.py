@@ -24,6 +24,7 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, is_contradiction_hold,
     split_resurrection_pool,
 )
+from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
@@ -51,7 +52,7 @@ from config import (
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
-    is_cue_backed, is_pending_review,
+    is_cue_backed, is_pending_review, is_template_cue,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
@@ -533,6 +534,35 @@ def _make_validator_audio_analysis(audio_analysis_result, dai_differential):
     return None
 
 
+def _feed_cue_matcher(podcast_id):
+    """The feed's template cue matcher for differential cue fusion, or None.
+
+    Reuses the analyzer's resolver (master toggle, per-feed templates, score
+    threshold, formant profile) so both scans agree on what counts as a cue;
+    the spectral fallback detector is deliberately excluded -- only precise
+    template matches may anchor alignment or corroborate a differential.
+    Never raises.
+    """
+    if podcast_id is None:
+        return None
+    try:
+        _enabled, detector = audio_analyzer._load_cue_config(podcast_id)
+    except Exception as e:
+        audio_logger.warning(f"Cue matcher resolve failed (non-fatal): {e}")
+        return None
+    return detector if isinstance(detector, AudioCueTemplateMatcher) else None
+
+
+def _template_cue_scan(matcher, path):
+    """Template cue marks [{'time', 'template_id'}] found in one audio file."""
+    return [
+        {'time': float(s.start),
+         'template_id': (s.details or {}).get('template_id')}
+        for s in matcher.detect(path)
+        if is_template_cue(s.details)
+    ]
+
+
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
                             dai_platform=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
@@ -561,9 +591,30 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         audio_logger.info(
             f"[{slug}:{episode_id}] Differential fetch: starting"
             f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
+        # Cue fusion (2.77.0): when the feed has cue templates, scan the
+        # primary audio here on the worker (audio analysis runs concurrently
+        # on the main thread, so its cue signals are not available yet) and
+        # hand fetch_and_diff a refetch scan hook. The refetch scan runs
+        # between download and alignment so the refetch cues both persist in
+        # the stored result (refetch_cues) and anchor the probe offsets of
+        # the same alignment pass. Both scans are non-fatal.
+        matcher = _feed_cue_matcher(podcast_id)
+        primary_cues = []
+        cue_scan = None
+        if matcher is not None:
+            try:
+                primary_cues = _template_cue_scan(matcher, audio_path)
+            except Exception as e:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Primary cue scan failed "
+                    f"(non-fatal): {e}")
+            def cue_scan(path):
+                return _template_cue_scan(matcher, path)
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
         try:
-            result = fetch_and_diff(episode_url, audio_path, work_dir)
+            result = fetch_and_diff(episode_url, audio_path, work_dir,
+                                    cue_scan=cue_scan,
+                                    primary_cues=primary_cues)
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")

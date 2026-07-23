@@ -117,11 +117,11 @@ def test_non_touching_qualifying_blocks_stay_separate():
     assert dai_differential_ads(diff, [], hold_min_seconds=10.0) == []
 
 
-def test_cue_marks_accepted_but_unused():
-    # Task 7 will consume cue_marks for boundary snapping; this task only
-    # pins that passing it neither errors nor changes the output.
+def test_cue_marks_outside_snap_window_leave_output_unchanged():
+    # Task 7 consumes cue_marks for corroboration (see test_cue_fusion.py);
+    # marks outside the snap window of both edges must not change anything.
     diff = _diff(_region(100.0, 130.0, 0.2))
-    with_marks = dai_differential_ads(diff, [], cue_marks=[101.5, 128.0])
+    with_marks = dai_differential_ads(diff, [], cue_marks=[50.0, 300.0])
     without = dai_differential_ads(diff, [])
     assert with_marks == without
 

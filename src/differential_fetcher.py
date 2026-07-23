@@ -248,8 +248,32 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     return kind, corr
 
 
+def _anchor_offset(anchor_pairs: list, t: float) -> float:
+    """Coarse offset at run time ``t`` interpolated from cue anchor pairs.
+
+    Each anchor is (primary_time, refetch_time) for the same template cue;
+    its delta (refetch - primary) is the true offset at that instant.
+    Between consecutive anchors the delta is linearly interpolated; outside
+    the anchored range it clamps to the nearest anchor's delta (a single
+    anchor is a constant offset). Caller guarantees a non-empty list.
+    """
+    anchors = sorted(anchor_pairs)
+    if t <= anchors[0][0]:
+        return anchors[0][1] - anchors[0][0]
+    if t >= anchors[-1][0]:
+        return anchors[-1][1] - anchors[-1][0]
+    for (p0, r0), (p1, r1) in zip(anchors, anchors[1:]):
+        if p0 <= t <= p1:
+            d0, d1 = r0 - p0, r1 - p1
+            if p1 - p0 <= 0:
+                return d1
+            return d0 + (t - p0) / (p1 - p0) * (d1 - d0)
+    return anchors[-1][1] - anchors[-1][0]
+
+
 def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
-                        run_marks: list, ref_marks: list) -> dict:
+                        run_marks: list, ref_marks: list,
+                        anchor_pairs: list | None = None) -> dict:
     """Diff two decoded fetches given their silence marks (see align_and_diff).
 
     Probes EVERY silence-delimited run block, so every emitted region
@@ -257,7 +281,11 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
     NCC of the block's own probe, 'unknown' (corr None) when the block
     could not be measured. Unmatched blocks (no duration-matched refetch
     counterpart -- typically DAI fills of differing length) are probed at
-    the nearest matched block's offset.
+    the nearest matched block's offset; with ``anchor_pairs`` (2.77.0) they
+    are probed at the cue-anchored interpolated offset instead, so an
+    inherited offset staler than the search window no longer needs the
+    doubled-window drift retry to score identical audio identical.
+    Chain-matched blocks keep their own exact offsets either way.
     """
     pairs = _chain_marks(run_marks, ref_marks)
     offsets = {i: ref_marks[j] - run_marks[i] for i, j in pairs}
@@ -280,6 +308,8 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
         if i in offsets:
             last_offset = offsets[i]
             offset = last_offset
+        elif anchor_pairs:
+            offset = _anchor_offset(anchor_pairs, start)
         else:
             offset = last_offset if last_offset is not None else next_offset[i]
         if offset is None:
@@ -342,7 +372,8 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
             'regions': regions}
 
 
-def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
+def align_and_diff(run_file: str, refetch_file: str, work_dir: str,
+                   anchor_pairs: list | None = None) -> dict:
     """Align two fetches of one episode and diff them.
 
     Pure over file paths (ffmpeg + numpy, no network). Returns
@@ -355,13 +386,18 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
     re-rolls are a known false negative. unreliable_reencode means alignment
     failed wholesale (e.g. the CDN re-encoded the whole file on refetch);
     regions is empty so downstream treats it as no differential (#541).
+
+    anchor_pairs (2.77.0): (primary_time, refetch_time) template-cue anchor
+    pairs; the probe offset for chain-unmatched blocks is interpolated
+    between anchors instead of inherited. Empty/None keeps prior behavior.
     """
     run_pcm = _decode_pcm(run_file, work_dir, 'run')
     ref_pcm = _decode_pcm(refetch_file, work_dir, 'refetch')
 
     run_marks = _silence_marks(run_file, len(run_pcm) / PCM_RATE)
     ref_marks = _silence_marks(refetch_file, len(ref_pcm) / PCM_RATE)
-    result = _align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
+    result = _align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks,
+                                 anchor_pairs=anchor_pairs)
     if result['status'] == 'unreliable_reencode':
         logger.warning('Discarded differential regions for %s',
                        os.path.basename(run_file))
@@ -374,14 +410,49 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
 REFETCH_SIZE_FACTOR = 1.5
 
 
+def match_cue_anchor_pairs(primary_cues: list, refetch_cues: list) -> list:
+    """Greedy in-order pairing of same-template cues across the two fetches.
+
+    Both inputs are [{'time': float, 'template_id': ...}]. Each primary cue
+    (in time order) pairs with the first unused refetch cue of the same
+    template_id whose time keeps the refetch sequence monotonic, so DAI
+    length changes between breaks cannot cross-pair cues out of order.
+    Returns [(primary_time, refetch_time), ...].
+    """
+    pairs = []
+    remaining = sorted(refetch_cues, key=lambda c: c['time'])
+    used = [False] * len(remaining)
+    last_refetch_t = float('-inf')
+    for cue in sorted(primary_cues, key=lambda c: c['time']):
+        for j, ref_cue in enumerate(remaining):
+            if used[j] or ref_cue['template_id'] != cue['template_id']:
+                continue
+            if ref_cue['time'] <= last_refetch_t:
+                continue
+            pairs.append((float(cue['time']), float(ref_cue['time'])))
+            used[j] = True
+            last_refetch_t = ref_cue['time']
+            break
+    return pairs
+
+
 def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
-                   timeout_s: int = 300) -> dict:
+                   timeout_s: int = 300, cue_scan=None,
+                   primary_cues: list | None = None) -> dict:
     """Refetch the enclosure with a rotated podcast-client UA and diff it
     against the run file.
 
     Never raises: every failure returns status 'error' so the pipeline can
     record it and continue. timeout_s is the per-read timeout passed to
     safe_get; matched to the primary download's 300s cap.
+
+    Cue fusion (2.77.0): ``cue_scan`` is an optional callable
+    (refetch_path) -> [{'time', 'template_id'}] run after the download and
+    BEFORE alignment, so the refetch's template cues can both persist in
+    the result ('refetch_cues') and anchor the probe offsets of the same
+    alignment pass (paired against ``primary_cues`` by template_id and
+    order). A scan failure logs and degrades to no cues -- it never fails
+    the differential. The refetch file is still deleted here in all cases.
     """
     ua = pick_refetch_user_agent(BROWSER_USER_AGENT)
     meta = {'ua': ua, 'size': None, 'duration': None}
@@ -405,9 +476,23 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
             response.close()
         meta['size'] = os.path.getsize(refetch_path)
         meta['duration'] = get_audio_duration(refetch_path)
-        aligned = align_and_diff(run_file_path, refetch_path, work_dir)
-        return {'status': aligned['status'], 'regions': aligned['regions'],
-                'refetch_meta': meta, 'error': None}
+        refetch_cues = None
+        anchor_pairs = None
+        if cue_scan is not None:
+            refetch_cues = []
+            try:
+                refetch_cues = list(cue_scan(refetch_path))
+            except Exception as e:
+                logger.warning('Refetch cue scan failed (non-fatal): %s', e)
+            anchor_pairs = match_cue_anchor_pairs(
+                primary_cues or [], refetch_cues)
+        aligned = align_and_diff(run_file_path, refetch_path, work_dir,
+                                 anchor_pairs=anchor_pairs)
+        result = {'status': aligned['status'], 'regions': aligned['regions'],
+                  'refetch_meta': meta, 'error': None}
+        if refetch_cues is not None:
+            result['refetch_cues'] = refetch_cues
+        return result
     except Exception as e:
         # Never-raises boundary: any failure (network, decode, numpy internals)
         # degrades to 'error' so the pipeline records it and continues.
