@@ -281,7 +281,7 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
     NCC of the block's own probe, 'unknown' (corr None) when the block
     could not be measured. Unmatched blocks (no duration-matched refetch
     counterpart -- typically DAI fills of differing length) are probed at
-    the nearest matched block's offset; with ``anchor_pairs`` (2.77.0) they
+    the nearest matched block's offset; with ``anchor_pairs`` (2.76.0) they
     are probed at the cue-anchored interpolated offset instead, so an
     inherited offset staler than the search window no longer needs the
     doubled-window drift retry to score identical audio identical.
@@ -387,7 +387,7 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str,
     failed wholesale (e.g. the CDN re-encoded the whole file on refetch);
     regions is empty so downstream treats it as no differential (#541).
 
-    anchor_pairs (2.77.0): (primary_time, refetch_time) template-cue anchor
+    anchor_pairs (2.76.0): (primary_time, refetch_time) template-cue anchor
     pairs; the probe offset for chain-unmatched blocks is interpolated
     between anchors instead of inherited. Empty/None keeps prior behavior.
     """
@@ -446,7 +446,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
     record it and continue. timeout_s is the per-read timeout passed to
     safe_get; matched to the primary download's 300s cap.
 
-    Cue fusion (2.77.0): ``cue_scan`` is an optional callable
+    Cue fusion (2.76.0): ``cue_scan`` is an optional callable
     (refetch_path) -> [{'time', 'template_id'}] run after the download and
     BEFORE alignment, so the refetch's template cues can both persist in
     the result ('refetch_cues') and anchor the probe offsets of the same

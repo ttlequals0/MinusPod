@@ -591,7 +591,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         audio_logger.info(
             f"[{slug}:{episode_id}] Differential fetch: starting"
             f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
-        # Cue fusion (2.77.0): when the feed has cue templates, scan the
+        # Cue fusion (2.76.0): when the feed has cue templates, scan the
         # primary audio here on the worker (audio analysis runs concurrently
         # on the main thread, so its cue signals are not available yet) and
         # hand fetch_and_diff a refetch scan hook. The refetch scan runs

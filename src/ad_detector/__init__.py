@@ -304,7 +304,7 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     differentials are re-roll noise, not fills, and would flood review.
     Corroborated candidates cut regardless of duration.
 
-    2.77.0 cue fusion: ``cue_marks`` are primary-audio template-cue times.
+    2.76.0 cue fusion: ``cue_marks`` are primary-audio template-cue times.
     An uncorroborated merged candidate whose start OR end lies within
     [-AUDIO_CUE_SNAP_LEAD_SECONDS, +AUDIO_CUE_SNAP_LAG_SECONDS] of a cue
     mark (cue at t backs edge e when t - lead <= e <= t + lag) cuts like a
@@ -390,7 +390,7 @@ _CUE_FUSION_ELIGIBLE_ROLES = frozenset(AUDIO_CUE_START_EDGE_ROLES) | frozenset(A
 
 
 def _cue_fusion_inputs(audio_analysis, segments):
-    """(cue_marks, pair_spans) for stage 2.5 cue fusion (2.77.0).
+    """(cue_marks, pair_spans) for stage 2.5 cue fusion (2.76.0).
 
     cue_marks: start times of confident template cues (>= the snap
     confidence floor, an edge-appropriate ad role; the same filters
@@ -1423,7 +1423,7 @@ class AdDetector:
         # it is still corroborated via the validator's audio-corroboration path.
         if dai_differential:
             corroborating_spans = [(a['start'], a['end']) for a in all_ads]
-            # Cue fusion (2.77.0): template cues corroborate differential
+            # Cue fusion (2.76.0): template cues corroborate differential
             # candidates directly (cue_marks) and via bracketing pair spans.
             # Pair spans join corroborating_spans only -- no cue_pair ads are
             # minted here (synthesis stays the opt-in pass in processing).
