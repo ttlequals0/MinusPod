@@ -263,6 +263,16 @@ class TestSendEventEmail:
              patch('email_service._send', side_effect=OSError('boom')):
             send_event_email('Limit Exceeded', ALERT_CTX)  # must not raise
 
+    def test_smtp_failure_logs_traceback(self, caplog):
+        with patch('email_service.load_email_config', return_value=_cfg()), \
+             patch('email_service._send', side_effect=OSError('boom')):
+            with caplog.at_level('ERROR', logger='podcast.email'):
+                send_event_email('Limit Exceeded', ALERT_CTX)  # must not raise
+        records = [r for r in caplog.records if r.name == 'podcast.email']
+        assert len(records) == 1
+        assert records[0].exc_info is not None
+        assert 'OSError' in caplog.text and 'boom' in caplog.text
+
     def test_never_raises_on_config_failure(self):
         with patch('email_service.load_email_config', side_effect=RuntimeError('db down')):
             send_event_email('Limit Exceeded', ALERT_CTX)  # must not raise
@@ -312,3 +322,19 @@ class TestSendTestEmail:
             success, message = send_test_email(db)
         assert success is False
         assert 'connection refused' in message
+
+    def test_failure_logs_traceback(self, caplog):
+        db = _mock_db({
+            'email_enabled': 'true',
+            'email_smtp_host': 'mail.example.com',
+            'email_smtp_from': 'from@example.com',
+            'email_recipients': 'a@b.c',
+        })
+        with patch('email_service._send', side_effect=OSError('connection refused')):
+            with caplog.at_level('ERROR', logger='podcast.email'):
+                success, message = send_test_email(db)
+        assert success is False
+        records = [r for r in caplog.records if r.name == 'podcast.email']
+        assert len(records) == 1
+        assert records[0].exc_info is not None
+        assert 'OSError' in caplog.text and 'connection refused' in caplog.text

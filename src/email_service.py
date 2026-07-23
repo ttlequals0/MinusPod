@@ -331,8 +331,8 @@ def send_event_email(event: str, context: dict) -> None:
         _send(cfg, msg)
         logger.info("Notification email sent (%s) to %d recipient(s)",
                     event, len(cfg.recipients))
-    except Exception as e:
-        logger.warning("Notification email failed (%s): %s", event, e)
+    except Exception:
+        logger.exception("Notification email failed (%s)", event)
 
 
 def send_test_email(db=None):
@@ -363,5 +363,5 @@ def send_test_email(db=None):
         _send(cfg, msg)
         return True, f"Test email sent to {len(cfg.recipients)} recipient(s)"
     except Exception as e:
-        logger.warning("Test email failed: %s", e)
+        logger.exception("Test email failed")
         return False, f"Sending failed: {e}"
