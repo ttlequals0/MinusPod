@@ -24,6 +24,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Correction** - Your verdict on a detection: "Confirm ad" or "Not an ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
+**Corroboration** - Independent evidence from another detection stage, an overlapping marker, or a matched audio cue that backs an otherwise-uncertain detection, letting it cut instead of hold. Used by the cross-fetch differential stage to decide which candidates cut and which hold. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+
 **Cover art badge** - The small mark MinusPod adds to a feed's artwork so you can tell the processed feed apart from the original in a podcast app. [Configuration > Cover art badge](configuration.md#cover-art-badge)
 
 **Cross-fetch differential** - Downloading an episode twice and comparing the copies; audio that differs between fetches was inserted by an ad server, not part of the show. Runs automatically on feeds that look DAI-served. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
@@ -38,11 +40,15 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
 
+**Differential hold** - An uncorroborated cross-fetch differential candidate: the two fetches measurably differ, but no other stage, overlap, or matched audio cue backs it as an ad. Held for review rather than cut, unless it is shorter than the differential hold-minimum-length setting, in which case it is dropped instead. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+
 ## E
 
 **Episode statuses** - *Discovered* (seen in the feed, not processed), *Pending* (queued), *Processing* (running now), *Completed* (processed and in your feed), *Failed* (will retry), *Permanently failed* (out of retries), *Deferred* (waiting on an offline endpoint). [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 ## F
+
+**False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. Rejecting an uncorroborated differential hold does not create this text (that region was only ever a hold candidate, never a confirmed false positive), though the same-episode region is still blocked from resurfacing. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
 **Fingerprint** - An acoustic signature of a known ad, matched against new episodes without any transcript. One of the pattern types MinusPod learns from confirmed cuts. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
@@ -99,6 +105,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## V
 
 **Validation** - The rule-based gate every detection passes before cutting: duration limits, confidence, overlap with your corrections, cue evidence, splice checks. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
+
+**Verification miss** - A standalone pass-2 detection (an ad the verification pass found but the first pass missed) that overlaps no pass-1 marker. Above a confidence floor it holds for review, or cuts automatically when autocut is enabled; below the floor it is dropped and logged rather than surfacing silently. [Configuration > Detection Tuning](configuration.md#detection-tuning)
 
 **Verification pass (Pass 2)** - After cutting, MinusPod re-transcribes the output audio and runs detection again to catch anything the first pass missed. "Clean" means the second scan found nothing left. [How It Works > Verification Pass](how-it-works.md#verification-pass)
 
