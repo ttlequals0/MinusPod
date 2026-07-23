@@ -1880,6 +1880,8 @@ class AdDetector:
         Returns:
             Number of patterns created
         """
+        self.initialize_client()
+
         if not self.text_pattern_matcher:
             return 0
 
