@@ -278,7 +278,11 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     2.76.0: a region is a candidate only when its measured ``corr`` is a
     number <= measured_corr_max -- a high-corr "differential" mostly matched
     across fetches and is alignment noise; corr None (kind 'unknown') was
-    never measured. Legacy stored differentials (pre-2.76.0) hard-coded
+    never measured. The gate is PER REGION (the fetcher emits differential
+    regions per silence-delimited block); qualifying regions that touch are
+    then merged into one candidate span, so a multi-block break jointly
+    beats the hold floor while a borderline member neither vetoes the break
+    nor rides along. Legacy stored differentials (pre-2.76.0) hard-coded
     corr 0.0 on every differential region, which still qualifies, so recuts
     of old episodes behave as before. Uncorroborated candidates shorter
     than hold_min_seconds (when > 0) are skipped entirely: sub-floor
@@ -293,14 +297,28 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
     """
     ads = []
     corroborating_spans = corroborating_spans or []
+
+    candidates = []
     for region in (dai_differential or {}).get('regions', []):
         if region.get('kind') != 'differential':
             continue
         corr = region.get('corr')
         if not isinstance(corr, (int, float)) or corr > measured_corr_max:
             continue
-        start = float(region['start_s'])
-        end = float(region['end_s'])
+        candidates.append((float(region['start_s']), float(region['end_s'])))
+    candidates.sort()
+
+    # Merge touching qualifying regions (end == next start within 0.05s,
+    # covering the fetcher's 2-decimal rounding). Any non-candidate gap
+    # keeps spans separate.
+    spans = []
+    for c_start, c_end in candidates:
+        if spans and abs(c_start - spans[-1][1]) <= 0.05:
+            spans[-1][1] = c_end
+        else:
+            spans.append([c_start, c_end])
+
+    for start, end in spans:
         if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
                for fp_start, fp_end in fp_pairs):
             continue

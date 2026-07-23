@@ -86,6 +86,37 @@ def test_measured_corr_max_is_tunable():
     assert len(ads) == 1
 
 
+def test_borderline_adjacent_block_does_not_veto_qualifying_block():
+    # Per-block gating: a break spanning two blocks where one member is
+    # borderline (0.65 > threshold 0.60) still mints a candidate for the
+    # qualifying block, and the borderline block does not ride along.
+    diff = _diff(_region(100.0, 112.0, 0.2), _region(112.0, 120.0, 0.65))
+    ads = dai_differential_ads(diff, [], measured_corr_max=0.60)
+    assert len(ads) == 1
+    assert ads[0]['start'] == 100.0
+    assert ads[0]['end'] == 112.0
+
+
+def test_touching_qualifying_blocks_merge_and_jointly_beat_floor():
+    # Two sub-floor qualifying blocks (6s each) that touch merge into one
+    # 12s span that beats the 10s hold floor jointly.
+    diff = _diff(_region(100.0, 106.0, 0.2), _region(106.0, 112.0, 0.3))
+    ads = dai_differential_ads(diff, [], hold_min_seconds=10.0)
+    assert len(ads) == 1
+    assert ads[0]['start'] == 100.0
+    assert ads[0]['end'] == 112.0
+    assert ads[0]['held_for_review'] is True
+
+
+def test_non_touching_qualifying_blocks_stay_separate():
+    # A non-candidate block between qualifying blocks keeps them separate;
+    # each falls under the floor alone and is skipped.
+    diff = _diff(_region(100.0, 106.0, 0.2),
+                 _region(106.0, 130.0, 0.9, kind='identical'),
+                 _region(130.0, 136.0, 0.3))
+    assert dai_differential_ads(diff, [], hold_min_seconds=10.0) == []
+
+
 def test_cue_marks_accepted_but_unused():
     # Task 7 will consume cue_marks for boundary snapping; this task only
     # pins that passing it neither errors nor changes the output.

@@ -7395,9 +7395,11 @@ components:
                         type: number
                       kind:
                         type: string
-                        enum: [differential, identical]
+                        enum: [differential, identical, unknown]
                       corr:
-                        type: number
+                        type:
+                          - number
+                          - 'null'
                 refetch_meta:
                   type: object
                 error:

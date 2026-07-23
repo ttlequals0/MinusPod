@@ -214,18 +214,21 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
 
 
 def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
-                 end: float, offset: float):
+                 end: float, offset: float, *, allow_retry: bool = False):
     """Measure one silence-delimited run block against the refetch.
 
     Returns (kind, corr): ('identical'|'differential', float) for a usable
     probe, ('unknown', None) when the block is too short to probe or the
     probe window is unusable (silent template, window outside either file).
 
-    A block scoring below XCORR_MIN_CORR gets ONE retry with a doubled
-    search window (drift re-probe): a coarse offset that is stale by more
-    than XCORR_SEARCH_S -- e.g. silencedetect missed a mark on the refetch
-    -- would otherwise mislabel identical audio as differential. The
-    measured corr is the best of the probes.
+    With allow_retry (unmatched blocks probed at an inherited neighbor
+    offset), a block scoring below XCORR_MIN_CORR gets ONE retry with a
+    doubled search window (drift re-probe): an inherited offset that is
+    stale by more than XCORR_SEARCH_S -- e.g. silencedetect missed a mark
+    on the refetch -- would otherwise mislabel identical audio as
+    differential. The measured corr is the best of the probes.
+    Chain-matched blocks carry their own exact offset, so they are never
+    retried: a low score there is a real difference, not drift.
     """
     block_len = end - start
     if block_len < MIN_REGION_S:
@@ -236,7 +239,7 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
     corr = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
     if corr is None:
         return 'unknown', None
-    if corr < XCORR_MIN_CORR:
+    if corr < XCORR_MIN_CORR and allow_retry:
         retry = _block_correlation(run_pcm, ref_pcm, run_t, offset,
                                    ref_s=ref_s, search_s=XCORR_SEARCH_S * 2)
         if retry is not None:
@@ -282,24 +285,26 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
         if offset is None:
             kind, corr = 'unknown', None
         else:
-            kind, corr = _probe_block(run_pcm, ref_pcm, start, end, offset)
+            kind, corr = _probe_block(run_pcm, ref_pcm, start, end, offset,
+                                      allow_retry=i not in offsets)
         blocks.append({'start_s': start, 'end_s': end,
                        'kind': kind, 'corr': corr})
 
-    # Blocks tile the run file, so adjacent same-kind blocks merge into one
-    # region. A multi-ad break spanning several silence-delimited blocks
-    # must come out as ONE differential region or each sub-block could fall
-    # under the downstream hold duration floor. Merged corr: max for
-    # differential (the least-different member gates candidacy), min for
-    # identical (the weakest member still cleared XCORR_MIN_CORR).
+    # Blocks tile the run file. Adjacent 'identical' (and 'unknown') blocks
+    # merge into one region; merged identical corr is the min (the weakest
+    # member still cleared XCORR_MIN_CORR). Differential blocks are emitted
+    # PER BLOCK, each with its own measured corr: aggregating corr across a
+    # multi-block break would let one borderline member veto the whole
+    # break at the downstream corr gate. Qualifying candidates are merged
+    # after gating in ad_detector.dai_differential_ads.
     merged = []
     for block in blocks:
-        if merged and merged[-1]['kind'] == block['kind']:
+        if (merged and block['kind'] != 'differential'
+                and merged[-1]['kind'] == block['kind']):
             prev = merged[-1]
             prev['end_s'] = block['end_s']
             if block['corr'] is not None:
-                pick = max if block['kind'] == 'differential' else min
-                prev['corr'] = pick(prev['corr'], block['corr'])
+                prev['corr'] = min(prev['corr'], block['corr'])
         else:
             merged.append(dict(block))
     regions = [{'start_s': round(r['start_s'], 2),

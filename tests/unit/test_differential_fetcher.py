@@ -356,11 +356,11 @@ def test_reencode_guard_fractions_computed_over_measured_regions(monkeypatch):
     assert result['regions'] == []
 
 
-def test_adjacent_differential_blocks_merge_into_one_region(monkeypatch):
-    # A multi-ad break spanning several silence-delimited blocks must come
-    # out as ONE differential region (otherwise each sub-block could fall
-    # under the hold duration floor downstream). Merged corr is the max of
-    # the members: the least-different block gates candidacy.
+def test_adjacent_differential_blocks_emitted_per_block(monkeypatch):
+    # Differential blocks are NOT merged at diff time: each region carries
+    # its own measured corr so the downstream per-block gate cannot be
+    # vetoed by one borderline member of a multi-block break (candidates
+    # merge after gating in dai_differential_ads).
     marks = [0.0, 8.0, 14.0, 20.0, 28.0]
 
     def scripted(run_pcm, ref_pcm, run_t, offset, **kwargs):
@@ -378,7 +378,27 @@ def test_adjacent_differential_blocks_merge_into_one_region(monkeypatch):
 
     assert result['status'] == 'ok'
     diffs = [r for r in result['regions'] if r['kind'] == 'differential']
+    assert [(r['start_s'], r['end_s'], r['corr']) for r in diffs] == [
+        (8.0, 14.0, 0.2), (14.0, 20.0, 0.4)]
+
+
+def test_matched_block_low_corr_is_not_retried(monkeypatch):
+    # Chain-matched blocks carry exact offsets, so the widened drift
+    # re-probe only runs for unmatched blocks probed with an inherited
+    # (possibly stale) offset. A matched block scoring low is simply
+    # differential: no second probe.
+    marks = [0.0, 8.0, 16.0]
+    searches = []
+
+    def scripted(run_pcm, ref_pcm, run_t, offset, **kwargs):
+        searches.append(kwargs.get('search_s', df.XCORR_SEARCH_S))
+        return 0.9 if run_t < 8.0 else 0.2
+
+    pcm = np.zeros(int(16.0 * RATE), dtype=np.float32)
+    monkeypatch.setattr(df, '_block_correlation', scripted)
+    result = df._align_and_diff_pcm(pcm, pcm, marks, marks)
+
+    assert df.XCORR_SEARCH_S * 2 not in searches
+    diffs = [r for r in result['regions'] if r['kind'] == 'differential']
     assert len(diffs) == 1
-    assert diffs[0]['start_s'] == 8.0
-    assert diffs[0]['end_s'] == 20.0
-    assert diffs[0]['corr'] == 0.4
+    assert diffs[0]['corr'] == 0.2

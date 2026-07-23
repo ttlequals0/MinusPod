@@ -120,8 +120,8 @@ export interface EpisodeNeighbor {
 export interface DaiDifferentialRegion {
   start_s: number;
   end_s: number;
-  kind: 'differential' | 'identical';
-  corr: number;
+  kind: 'differential' | 'identical' | 'unknown';
+  corr: number | null;
 }
 
 export interface DaiDifferential {
