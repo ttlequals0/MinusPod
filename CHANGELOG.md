@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.75.0] - 2026-07-23
+
+### Fixed
+
+- The first episode processed after a container start silently skipped
+  the fingerprint and text-pattern detection stages, so known-sponsor
+  ads with existing patterns went uncut whenever an episode was the
+  first to reach detection in a fresh process (frequent lately given
+  the release cadence: every deploy restarts the container). The stage
+  gates checked matcher objects that are only built later in the run,
+  at stage 3, which also explains why reprocessing the same episode
+  minutes later would detect normally. Dependencies are now built at
+  the start of every detection run, before the stage gates.
+
 ## [2.74.0] - 2026-07-22
 
 ### Added

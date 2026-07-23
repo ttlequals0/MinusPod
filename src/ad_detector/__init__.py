@@ -1191,6 +1191,12 @@ class AdDetector:
         Returns:
             Dict with ads, status, and detection metadata
         """
+        # Build db/matcher dependencies BEFORE the stage 1/2 gates below:
+        # they silently short-circuit on None matchers, so a cold detector
+        # (first run in a fresh process) would skip fingerprint and text
+        # pattern matching entirely if deps were only built at stage 3.
+        self.initialize_client()
+
         if ctx is not None:
             slug = ctx.slug
             episode_id = ctx.episode_id
@@ -1335,10 +1341,10 @@ class AdDetector:
         if keep_content is None:
             # Backward-compatible default for callers that don't pass the
             # orchestrator-resolved mode (e.g. the retry-detection API):
-            # resolve per-feed from the DB as before. Ensure self.db is built
-            # first -- on the first run after a worker restart it is still
-            # None, which would silently resolve every feed to blacklist.
-            # _ensure_deps is idempotent and preserves test stubs.
+            # resolve per-feed from the DB as before. self.db is already
+            # built by the initialize_client() call at the top of this
+            # method; this idempotent call is only a belt-and-suspenders
+            # guard that also preserves test stubs.
             self._ensure_deps()
             keep_content = (resolve_detection_mode(self.db, slug)
                             == DETECTION_MODE_KEEP_CONTENT)
