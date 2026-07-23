@@ -670,11 +670,25 @@ def suppress_differential_fp_texts(db) -> int:
         if not bounds or not row['episode_id']:
             continue
 
-        episode_row = conn.execute(
-            """SELECT ed.ad_markers_json FROM episodes e
-               JOIN episode_details ed ON e.id = ed.episode_id
-               WHERE e.episode_id = ?""",
+        episode_matches = conn.execute(
+            "SELECT id FROM episodes WHERE episode_id = ?",
             (row['episode_id'],)
+        ).fetchall()
+        if len(episode_matches) > 1:
+            # episode_id is only unique per podcast; more than one match
+            # means we can't tell which episode this correction belongs to.
+            # Skip suppression rather than risk matching the wrong podcast.
+            logger.debug(
+                "Skipping FP suppression for ambiguous episode_id=%r (%d matches)",
+                row['episode_id'], len(episode_matches)
+            )
+            continue
+        if not episode_matches:
+            continue
+
+        episode_row = conn.execute(
+            "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+            (episode_matches[0]['id'],)
         ).fetchone()
         if not episode_row or not episode_row['ad_markers_json']:
             continue
