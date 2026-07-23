@@ -1541,6 +1541,7 @@ def backfill_false_positive_texts():
         JOIN podcasts p ON e.podcast_id = p.id
         WHERE pc.correction_type = 'false_positive'
         AND (pc.text_snippet IS NULL OR pc.text_snippet = '')
+        AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
     ''')
 
     rows = cursor.fetchall()

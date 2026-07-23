@@ -615,6 +615,7 @@ class PatternMixin:
             AND pc.text_snippet IS NOT NULL
             AND length(pc.text_snippet) >= 50
             AND COALESCE(pc.fp_suppressed, 0) = 0
+            AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
             ORDER BY pc.created_at DESC
             LIMIT ?
         ''', (podcast_slug, limit))

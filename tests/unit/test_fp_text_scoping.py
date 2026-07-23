@@ -11,7 +11,7 @@ _test_data_dir = bootstrap('fp_text_scoping_test_')
 
 from main_app import app, db
 from database.patterns import suppress_differential_fp_texts
-from api.patterns import _handle_reject_correction
+from api.patterns import _handle_reject_correction, backfill_false_positive_texts
 
 
 TRANSCRIPT_TEXT = (
@@ -34,9 +34,10 @@ def _held_marker(start, end, hold_reason=None, detection_stage='claude'):
     return marker
 
 
-def _make_episode(slug='fp-scope-test', episode_id='ep-fp-scope-001'):
-    db.create_podcast(slug, 'https://example.com/feed.xml', 'FP Scope Test')
-    db.upsert_episode(
+def _make_episode(slug='fp-scope-test', episode_id='ep-fp-scope-001', database=None):
+    database = database or db
+    database.create_podcast(slug, 'https://example.com/feed.xml', 'FP Scope Test')
+    database.upsert_episode(
         slug=slug,
         episode_id=episode_id,
         original_url='https://example.com/ep.mp3',
@@ -269,3 +270,77 @@ def test_reject_claude_stage_hold_still_writes_text_snippet():
 
     region = db.get_false_positive_corrections(episode_id)
     assert any(r['start'] == 0.0 and r['end'] == 60.0 for r in region)
+
+
+def test_get_false_positive_texts_excludes_differential_provenance_even_if_snippet_present():
+    """A false_positive correction stamped source_hold_reason=
+    differential_uncorroborated must never surface via cross-episode FP
+    matching, even if some writer misbehavior populated text_snippet."""
+    slug, episode_id = _make_episode('fp-scope-diff-reader', 'ep-fp-scope-diff-reader')
+
+    db.create_pattern_correction(
+        correction_type='false_positive',
+        episode_id=episode_id,
+        podcast_title='FP Scope Test',
+        original_bounds={'start': 10.0, 'end': 20.0},
+        text_snippet='differential leaked text ' * 3,
+        source_hold_reason='differential_uncorroborated',
+    )
+    db.create_pattern_correction(
+        correction_type='false_positive',
+        episode_id=episode_id,
+        podcast_title='FP Scope Test',
+        original_bounds={'start': 200.0, 'end': 220.0},
+        text_snippet='normal fp text ' * 5,
+    )
+
+    texts = db.get_podcast_false_positive_texts(slug)
+    snippets = [t['text'] for t in texts]
+    assert 'differential leaked text ' * 3 not in snippets
+    assert 'normal fp text ' * 5 in snippets
+
+
+def test_backfill_endpoint_skips_differential_provenance_rows():
+    """The backfill-false-positives endpoint must not populate text_snippet
+    for corrections stamped source_hold_reason=differential_uncorroborated,
+    while it still fills a normal false_positive row with a NULL snippet.
+
+    Uses api.get_database() throughout (not the module-level `db`) so setup,
+    the endpoint call, and assertions all see the same Database singleton
+    that backfill_false_positive_texts() resolves internally at call time.
+    """
+    from api import get_database
+    gdb = get_database()
+
+    slug, episode_id = _make_episode('fp-scope-backfill', 'ep-fp-scope-backfill', database=gdb)
+    gdb.save_episode_details(slug, episode_id, transcript_text=TRANSCRIPT_TEXT)
+
+    differential_id = gdb.create_pattern_correction(
+        correction_type='false_positive',
+        episode_id=episode_id,
+        podcast_title='FP Scope Test',
+        original_bounds={'start': 0.0, 'end': 60.0},
+        text_snippet=None,
+        source_hold_reason='differential_uncorroborated',
+    )
+    normal_id = gdb.create_pattern_correction(
+        correction_type='false_positive',
+        episode_id=episode_id,
+        podcast_title='FP Scope Test',
+        original_bounds={'start': 0.0, 'end': 60.0},
+        text_snippet=None,
+    )
+
+    with app.test_request_context('/api/v1/patterns/backfill-false-positives', method='POST'):
+        backfill_false_positive_texts()
+
+    rows = {
+        r['id']: r['text_snippet']
+        for r in gdb.get_connection().execute(
+            "SELECT id, text_snippet FROM pattern_corrections WHERE id IN (?, ?)",
+            (differential_id, normal_id),
+        ).fetchall()
+    }
+    assert rows[differential_id] is None
+    assert rows[normal_id] is not None
+    assert len(rows[normal_id]) >= 50
