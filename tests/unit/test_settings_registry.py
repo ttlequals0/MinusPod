@@ -48,8 +48,12 @@ SEED_SNAPSHOT = {
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
     'chapters_model': 'claude-haiku-4-5-20251001',
+    'differential_hold_min_seconds': '10',
+    'differential_measured_corr_max': '0.60',
     'enable_ad_review': 'false',
     'keep_original_audio': 'true',
+    'learning_min_confidence': '0.85',
+    'learning_min_confidence_long': '0.92',
     'llm_provider': 'anthropic',
     'max_feed_episodes': '300',
     'min_cut_confidence': '0.80',
@@ -69,6 +73,8 @@ SEED_SNAPSHOT = {
     'transcribe_concurrent_chunks': '4',
     'transcribe_max_chunk_seconds': '600',
     'transition_threshold_db': '3.5',
+    'verification_miss_autocut_min_confidence': '0',
+    'verification_miss_hold_min_confidence': '0.60',
     'verification_model': 'claude-sonnet-4-5-20250929',
     'verification_prompt': ('sha256', 'a98e9c2003033a8f3671d7b01b1d0a6f348db95c753a3addff15eb0258f8ebd5'),
     'volume_threshold_db': '3.0',
@@ -78,7 +84,7 @@ SEED_SNAPSHOT = {
 }
 
 # The pre-registry bulk reset endpoint reset exactly these keys
-# (56 hand-enumerated + 23 stage tunables via STAGE_TUNABLE_PAYLOAD_KEYS).
+# (62 hand-enumerated + 23 stage tunables via STAGE_TUNABLE_PAYLOAD_KEYS).
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
@@ -118,6 +124,10 @@ EXPECTED_AD_RESET_KEYS = {
     'chapter_title_temperature', 'chapter_title_max_tokens',
     'chapter_title_reasoning_budget', 'chapter_title_reasoning_level',
     'ollama_num_ctx', 'window_size_seconds', 'window_overlap_seconds',
+    'verification_miss_hold_min_confidence',
+    'verification_miss_autocut_min_confidence',
+    'learning_min_confidence', 'learning_min_confidence_long',
+    'differential_measured_corr_max', 'differential_hold_min_seconds',
 }
 
 # Keys reset_setting() must refuse (return False). Membership captured from
@@ -331,12 +341,13 @@ class TestGetDefaults:
         # The pre-registry defaults block had 68 entries: 67 per-setting
         # defaults plus openrouterBaseUrl (a constant the endpoint adds
         # separately). Notably audioCuePairOrientWindowSeconds was absent
-        # from it -- preserve that.
+        # from it -- preserve that. 2.76.0 added six detection-tuning
+        # payload keys (67 -> 73).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 67
+        assert len(payload_keys) == 73
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
