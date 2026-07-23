@@ -954,8 +954,14 @@ function EpisodeDetail() {
                 ? 'No splice artifact found at either edge'
                 : segment.hold_reason === 'verification_miss'
                 ? 'A standalone catch from the verification pass, held for a second opinion'
+                : segment.hold_reason === 'differential_uncorroborated'
+                ? 'Audio differs across fetches with no corroborating signal'
                 : 'Held for manual review';
-              const holdLabel = segment.hold_reason === 'verification_miss' ? 'Verification catch' : 'Held';
+              const holdLabel = segment.hold_reason === 'verification_miss'
+                ? 'Verification catch'
+                : segment.hold_reason === 'differential_uncorroborated'
+                ? 'Differential hold'
+                : 'Held';
               const rowStatus = rowSaveStatus(segment);
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;

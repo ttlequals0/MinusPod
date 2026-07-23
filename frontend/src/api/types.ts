@@ -285,7 +285,8 @@ export interface AdSegment {
     | 'uncorroborated_tail'
     | 'reviewer_contradiction'
     | 'no_splice_evidence'
-    | 'verification_miss';
+    | 'verification_miss'
+    | 'differential_uncorroborated';
   // Set when a confirm correction matched this held marker (issue #509);
   // approved holds wait for a recut to apply.
   approved?: boolean;
