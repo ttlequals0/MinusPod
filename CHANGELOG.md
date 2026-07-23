@@ -9,6 +9,15 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.76.1] - 2026-07-23
+
+### Changed
+
+- The update panel in Settings shows the release channel next to the
+  running version ("Running 2.76.1 (edge)") and tucks the channel
+  selector, daily-check toggle, check button, and changelog link behind
+  an "Update settings" disclosure, collapsed by default.
+
 ## [2.76.0] - 2026-07-23
 
 ### Added
@@ -42,11 +51,6 @@ release notes.
   cut" row only when either is nonzero.
 
 ### Changed
-
-- The update panel in Settings shows the release channel next to the
-  running version ("Running 2.76.0 (edge)") and tucks the channel
-  selector, daily-check toggle, check button, and changelog link behind
-  an "Update settings" disclosure, collapsed by default.
 
 - The cross-fetch differential stage now measures rather than assumes:
   every silence-delimited block in the run file is probed against the
