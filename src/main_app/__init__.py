@@ -694,8 +694,10 @@ def _startup():
         try:
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from version import __version__
+            # lstrip: journald-backed log drivers (podman) drop records whose
+            # first line is blank, eating the whole banner (#567 discussion).
             logger.info("%s                     v%s  https://github.com/ttlequals0/minuspod",
-                        _BANNER, __version__)
+                        _BANNER.lstrip('\n'), __version__)
             logger.info(f"MinusPod v{__version__} starting...")
         except ImportError:
             logger.warning("Could not import version")
