@@ -51,6 +51,7 @@ from config import (
     KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
 )
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
+from database.settings import registry_get_default
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from utils.constants import (
@@ -262,7 +263,9 @@ def _span_transcript_coverage(segments, start, end):
     return min(1.0, covered / span)
 
 
-def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
+def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *,
+                         measured_corr_max=0.60, hold_min_seconds=10.0,
+                         cue_marks=None):
     """Detection candidates from cross-fetch differential regions (Layer 3).
 
     #541: a region overlapping ``corroborating_spans`` (markers from other
@@ -272,13 +275,29 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
     validator re-derives the hold from ``differential_uncorroborated`` and
     ``_merge_detection_results`` clears it on genuine overlap.
 
+    2.76.0: a region is a candidate only when its measured ``corr`` is a
+    number <= measured_corr_max -- a high-corr "differential" mostly matched
+    across fetches and is alignment noise; corr None (kind 'unknown') was
+    never measured. Legacy stored differentials (pre-2.76.0) hard-coded
+    corr 0.0 on every differential region, which still qualifies, so recuts
+    of old episodes behave as before. Uncorroborated candidates shorter
+    than hold_min_seconds (when > 0) are skipped entirely: sub-floor
+    differentials are re-roll noise, not fills, and would flood review.
+    Corroborated candidates cut regardless of duration.
+
     fp_pairs: (start, end) false-positive spans to exclude.
     corroborating_spans: (start, end) ad spans from other stages.
+    cue_marks: accepted but UNUSED in this task; Task 7 consumes it for
+        boundary snapping. Documented here so the call-site plumbing can
+        land ahead of the consumer.
     """
     ads = []
     corroborating_spans = corroborating_spans or []
     for region in (dai_differential or {}).get('regions', []):
         if region.get('kind') != 'differential':
+            continue
+        corr = region.get('corr')
+        if not isinstance(corr, (int, float)) or corr > measured_corr_max:
             continue
         start = float(region['start_s'])
         end = float(region['end_s'])
@@ -299,6 +318,8 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
                 'detection_stage': 'dai_differential',
             })
         else:
+            if hold_min_seconds > 0 and (end - start) < hold_min_seconds:
+                continue
             ads.append({
                 'start': start,
                 'end': end,
@@ -1319,9 +1340,24 @@ class AdDetector:
         # it is still corroborated via the validator's audio-corroboration path.
         if dai_differential:
             corroborating_spans = [(a['start'], a['end']) for a in all_ads]
+            # Thresholds read at detection time so settings changes apply on
+            # the next run without a restart; registry defaults when the
+            # detector has no DB (test-only construction).
+            corr_max_default = registry_get_default(
+                'differential_measured_corr_max')
+            hold_min_default = registry_get_default(
+                'differential_hold_min_seconds')
             dd_ads = dai_differential_ads(
                 dai_differential, fp_pairs,
-                corroborating_spans=corroborating_spans)
+                corroborating_spans=corroborating_spans,
+                measured_corr_max=(
+                    self.db.get_setting_float(
+                        'differential_measured_corr_max', corr_max_default)
+                    if self.db else corr_max_default),
+                hold_min_seconds=(
+                    self.db.get_setting_float(
+                        'differential_hold_min_seconds', hold_min_default)
+                    if self.db else hold_min_default))
             all_ads.extend(dd_ads)
             detection_stats['dai_differential_matches'] = len(dd_ads)
             if dd_ads:

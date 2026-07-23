@@ -80,8 +80,6 @@ SILENCE_MIN_S = 0.2
 MAX_SILENCE_MARKS = 400
 # Interval tolerance for duration-matched chaining.
 CHAIN_TOLERANCE_S = 0.5
-# Consecutive matched blocks within this offset delta share one offset group.
-OFFSET_GROUP_TOL_S = 0.25
 # Normalized cross-correlation: reference length and search radius.
 XCORR_REF_S = 4.0
 XCORR_SEARCH_S = 2.0
@@ -167,12 +165,13 @@ def _chain_marks(run_marks: list, ref_marks: list) -> list:
 
 
 def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
-                       coarse_offset: float):
+                       coarse_offset: float, *, ref_s: float = XCORR_REF_S,
+                       search_s: float = XCORR_SEARCH_S):
     """Peak normalized cross-correlation of one run block against the refetch.
 
-    Correlates a XCORR_REF_S reference from the run file at run_t against
-    the refetch file within +-XCORR_SEARCH_S of the coarse silence-chain
-    offset. FFT-based so a 4s reference over an 8s search span stays cheap.
+    Correlates a ref_s reference from the run file at run_t against the
+    refetch file within +-search_s of the coarse silence-chain offset.
+    FFT-based so a 4s reference over an 8s search span stays cheap.
     Returns the peak NCC in [-1, 1], or None when a window falls outside
     either file or the reference is silent.
 
@@ -181,13 +180,13 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
     corroboration, so the sub-sample peak lag is not fed back into region
     boundaries and is not returned.
     """
-    ref_len = int(XCORR_REF_S * PCM_RATE)
+    ref_len = int(ref_s * PCM_RATE)
     a0 = int(run_t * PCM_RATE)
     template = run_pcm[a0:a0 + ref_len].astype(np.float64)
     if len(template) < ref_len:
         return None
-    b0 = max(0, int((run_t + coarse_offset - XCORR_SEARCH_S) * PCM_RATE))
-    b1 = int((run_t + coarse_offset + XCORR_SEARCH_S) * PCM_RATE) + ref_len
+    b0 = max(0, int((run_t + coarse_offset - search_s) * PCM_RATE))
+    b1 = int((run_t + coarse_offset + search_s) * PCM_RATE) + ref_len
     haystack = ref_pcm[b0:b1].astype(np.float64)
     if len(haystack) < ref_len:
         return None
@@ -214,6 +213,130 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
     return float(np.max(ncc))
 
 
+def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
+                 end: float, offset: float):
+    """Measure one silence-delimited run block against the refetch.
+
+    Returns (kind, corr): ('identical'|'differential', float) for a usable
+    probe, ('unknown', None) when the block is too short to probe or the
+    probe window is unusable (silent template, window outside either file).
+
+    A block scoring below XCORR_MIN_CORR gets ONE retry with a doubled
+    search window (drift re-probe): a coarse offset that is stale by more
+    than XCORR_SEARCH_S -- e.g. silencedetect missed a mark on the refetch
+    -- would otherwise mislabel identical audio as differential. The
+    measured corr is the best of the probes.
+    """
+    block_len = end - start
+    if block_len < MIN_REGION_S:
+        return 'unknown', None
+    ref_s = min(XCORR_REF_S, block_len)
+    # Lead past the half-silence at the block edge when there is room.
+    run_t = start + min(0.5, block_len - ref_s)
+    corr = _block_correlation(run_pcm, ref_pcm, run_t, offset, ref_s=ref_s)
+    if corr is None:
+        return 'unknown', None
+    if corr < XCORR_MIN_CORR:
+        retry = _block_correlation(run_pcm, ref_pcm, run_t, offset,
+                                   ref_s=ref_s, search_s=XCORR_SEARCH_S * 2)
+        if retry is not None:
+            corr = max(corr, retry)
+    kind = 'identical' if corr >= XCORR_MIN_CORR else 'differential'
+    return kind, corr
+
+
+def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
+                        run_marks: list, ref_marks: list) -> dict:
+    """Diff two decoded fetches given their silence marks (see align_and_diff).
+
+    Probes EVERY silence-delimited run block, so every emitted region
+    carries a measured corr: 'identical' and 'differential' from the peak
+    NCC of the block's own probe, 'unknown' (corr None) when the block
+    could not be measured. Unmatched blocks (no duration-matched refetch
+    counterpart -- typically DAI fills of differing length) are probed at
+    the nearest matched block's offset.
+    """
+    pairs = _chain_marks(run_marks, ref_marks)
+    offsets = {i: ref_marks[j] - run_marks[i] for i, j in pairs}
+    n_blocks = len(run_marks) - 1
+
+    # Nearest matched offset for unmatched blocks: prefer the previous
+    # matched block (same piecewise-constant offset segment), fall back to
+    # the next one at the file head.
+    next_offset = [None] * n_blocks
+    upcoming = None
+    for i in range(n_blocks - 1, -1, -1):
+        if i in offsets:
+            upcoming = offsets[i]
+        next_offset[i] = upcoming
+
+    blocks = []
+    last_offset = None
+    for i in range(n_blocks):
+        start, end = run_marks[i], run_marks[i + 1]
+        if i in offsets:
+            last_offset = offsets[i]
+            offset = last_offset
+        else:
+            offset = last_offset if last_offset is not None else next_offset[i]
+        if offset is None:
+            kind, corr = 'unknown', None
+        else:
+            kind, corr = _probe_block(run_pcm, ref_pcm, start, end, offset)
+        blocks.append({'start_s': start, 'end_s': end,
+                       'kind': kind, 'corr': corr})
+
+    # Blocks tile the run file, so adjacent same-kind blocks merge into one
+    # region. A multi-ad break spanning several silence-delimited blocks
+    # must come out as ONE differential region or each sub-block could fall
+    # under the downstream hold duration floor. Merged corr: max for
+    # differential (the least-different member gates candidacy), min for
+    # identical (the weakest member still cleared XCORR_MIN_CORR).
+    merged = []
+    for block in blocks:
+        if merged and merged[-1]['kind'] == block['kind']:
+            prev = merged[-1]
+            prev['end_s'] = block['end_s']
+            if block['corr'] is not None:
+                pick = max if block['kind'] == 'differential' else min
+                prev['corr'] = pick(prev['corr'], block['corr'])
+        else:
+            merged.append(dict(block))
+    regions = [{'start_s': round(r['start_s'], 2),
+                'end_s': round(r['end_s'], 2),
+                'kind': r['kind'],
+                'corr': None if r['corr'] is None else round(r['corr'], 3)}
+               for r in merged]
+
+    # Re-encode guard (#541): see the constants above for the rationale.
+    # Fractions are computed over the MEASURED duration (identical +
+    # differential): 'unknown' regions are unmeasured, so counting them in
+    # the denominator would dilute the differential fraction and let a
+    # whole-file re-encode slip past the guard on a chatty file.
+    differential_dur = sum(r['end_s'] - r['start_s']
+                           for r in regions if r['kind'] == 'differential')
+    identical_dur = sum(r['end_s'] - r['start_s']
+                        for r in regions if r['kind'] == 'identical')
+    measured_dur = differential_dur + identical_dur
+    if measured_dur > 0:
+        differential_fraction = differential_dur / measured_dur
+        identical_fraction = identical_dur / measured_dur
+        if (differential_fraction > DIFFERENTIAL_MAX_FRACTION
+                and identical_fraction < IDENTICAL_MIN_FRACTION):
+            logger.warning(
+                'Differential alignment unreliable: differential_fraction'
+                '=%.2f (max %.2f), identical_fraction=%.2f (min %.2f) over '
+                '%.0fs measured; discarding regions as likely whole-file '
+                're-encode',
+                differential_fraction, DIFFERENTIAL_MAX_FRACTION,
+                identical_fraction, IDENTICAL_MIN_FRACTION, measured_dur)
+            return {'status': 'unreliable_reencode', 'regions': []}
+
+    has_diff = any(r['kind'] == 'differential' for r in regions)
+    return {'status': 'ok' if has_diff else 'no_differential',
+            'regions': regions}
+
+
 def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
     """Align two fetches of one episode and diff them.
 
@@ -221,87 +344,23 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str) -> dict:
     {'status': 'ok' | 'no_differential' | 'unreliable_reencode',
     'regions': [...]} with regions in RUN-file coordinates. kind 'identical'
     means the audio matches across fetches (content or baked-in ad);
-    'differential' means it differs (dynamically inserted). no_differential
-    means "no differential found", NOT "no DAI" -- same-fill re-rolls are a
-    known false negative. unreliable_reencode means alignment failed wholesale
-    (e.g. the CDN re-encoded the whole file on refetch); regions is empty so
-    downstream treats it as no differential (#541).
+    'differential' means it differs (dynamically inserted); 'unknown' means
+    the block could not be measured (corr None) and is never a candidate.
+    no_differential means "no differential found", NOT "no DAI" -- same-fill
+    re-rolls are a known false negative. unreliable_reencode means alignment
+    failed wholesale (e.g. the CDN re-encoded the whole file on refetch);
+    regions is empty so downstream treats it as no differential (#541).
     """
     run_pcm = _decode_pcm(run_file, work_dir, 'run')
     ref_pcm = _decode_pcm(refetch_file, work_dir, 'refetch')
-    run_dur = len(run_pcm) / PCM_RATE
 
-    run_marks = _silence_marks(run_file, run_dur)
+    run_marks = _silence_marks(run_file, len(run_pcm) / PCM_RATE)
     ref_marks = _silence_marks(refetch_file, len(ref_pcm) / PCM_RATE)
-    pairs = _chain_marks(run_marks, ref_marks)
-
-    # Collapse contiguous matched blocks into piecewise-constant offset groups.
-    groups = []
-    for i, j in pairs:
-        start, end = run_marks[i], run_marks[i + 1]
-        offset = ref_marks[j] - run_marks[i]
-        if (groups
-                and abs(groups[-1]['offset'] - offset) <= OFFSET_GROUP_TOL_S
-                and abs(groups[-1]['end'] - start) <= OFFSET_GROUP_TOL_S):
-            groups[-1]['end'] = end
-            groups[-1]['blocks'].append((start, end))
-        else:
-            groups.append({'start': start, 'end': end, 'offset': offset,
-                           'blocks': [(start, end)]})
-
-    # One correlation probe per group, inside its longest block.
-    identical = []
-    for group in groups:
-        longest = max(group['blocks'], key=lambda b: b[1] - b[0])
-        if longest[1] - longest[0] < XCORR_REF_S + 1.0:
-            continue
-        corr = _block_correlation(
-            run_pcm, ref_pcm, longest[0] + 0.5, group['offset'])
-        if corr is None or corr < XCORR_MIN_CORR:
-            continue
-        identical.append({
-            'start_s': round(group['start'], 2),
-            'end_s': round(group['end'], 2),
-            'kind': 'identical',
-            'corr': round(corr, 3),
-        })
-
-    # Differential regions are the complement of identical coverage.
-    regions = list(identical)
-    cursor = 0.0
-    for region in identical:
-        if region['start_s'] - cursor >= MIN_REGION_S:
-            regions.append({'start_s': round(cursor, 2),
-                            'end_s': region['start_s'],
-                            'kind': 'differential', 'corr': 0.0})
-        cursor = max(cursor, region['end_s'])
-    if run_dur - cursor >= MIN_REGION_S:
-        regions.append({'start_s': round(cursor, 2),
-                        'end_s': round(run_dur, 2),
-                        'kind': 'differential', 'corr': 0.0})
-    regions.sort(key=lambda r: r['start_s'])
-
-    # Re-encode guard (#541): see the constants above for the rationale.
-    run_dur_safe = run_dur if run_dur > 0 else 1.0
-    differential_dur = sum(r['end_s'] - r['start_s']
-                           for r in regions if r['kind'] == 'differential')
-    identical_dur = sum(r['end_s'] - r['start_s']
-                        for r in regions if r['kind'] == 'identical')
-    differential_fraction = differential_dur / run_dur_safe
-    identical_fraction = identical_dur / run_dur_safe
-    if (differential_fraction > DIFFERENTIAL_MAX_FRACTION
-            and identical_fraction < IDENTICAL_MIN_FRACTION):
-        logger.warning(
-            'Differential alignment unreliable for %s: differential_fraction'
-            '=%.2f (max %.2f), identical_fraction=%.2f (min %.2f); discarding '
-            'regions as likely whole-file re-encode',
-            os.path.basename(run_file), differential_fraction,
-            DIFFERENTIAL_MAX_FRACTION, identical_fraction, IDENTICAL_MIN_FRACTION)
-        return {'status': 'unreliable_reencode', 'regions': []}
-
-    has_diff = any(r['kind'] == 'differential' for r in regions)
-    return {'status': 'ok' if has_diff else 'no_differential',
-            'regions': regions}
+    result = _align_and_diff_pcm(run_pcm, ref_pcm, run_marks, ref_marks)
+    if result['status'] == 'unreliable_reencode':
+        logger.warning('Discarded differential regions for %s',
+                       os.path.basename(run_file))
+    return result
 
 
 # --- Refetch ---------------------------------------------------------------
