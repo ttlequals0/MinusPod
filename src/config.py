@@ -45,6 +45,10 @@ HOLD_REASON_NO_SPLICE = 'no_splice_evidence'
 HOLD_REASON_REVIEWER_CONTRADICTION = 'reviewer_contradiction'
 HOLD_REASON_UNCORROBORATED_TAIL = 'uncorroborated_tail'
 HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
+# A standalone pass-2 detection that overlaps no pass-1 marker: too low a
+# confidence to auto-cut, too high to silently discard (see
+# _gate_verification_ads_by_confidence's fall-through in processing.py).
+HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
 
 # Hold reasons pass-2 auto-approval may release when the verification pass
 # independently re-detects the held span at cut confidence. Deliberate
@@ -54,6 +58,9 @@ HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # cue-gated feeds. max_duration stays out: such a hold is by definition
 # over the duration ceiling, and the auto-filed confirm would force-accept
 # it past the validator's re-check on recut, defeating the guard.
+# verification_miss stays out deliberately: pass 2 is the source of these
+# holds, and auto-approving them on a later pass-2 corroboration would let
+# pass 2 approve its own products with no independent second opinion.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_CONTRADICTION,

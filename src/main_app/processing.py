@@ -40,6 +40,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
@@ -63,6 +64,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
+from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from upstream_chapters import fetch_upstream_chapters
 from llm_capabilities import (
@@ -1670,7 +1672,9 @@ def _corroborated_span(hold, orig_ad):
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
-                                          pass1_held_markers=None):
+                                          pass1_held_markers=None,
+                                          verification_miss_hold_min_confidence=None,
+                                          verification_miss_autocut_min_confidence=None):
     """Confidence gate pass-2 ads.
 
     Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count).
@@ -1693,7 +1697,25 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     Note: verification ads can never carry cue evidence (snap is pass-1 only),
     so on a cue-gated feed every pass-2 proposal is held -- intended
     conservative behavior, documented here.
+
+    A standalone miss (below min_cut_confidence, overlapping no pass-1
+    marker) used to be silently discarded. It now either auto-cuts (when
+    ``verification_miss_autocut_min_confidence`` is enabled, i.e. > 0, and
+    the ad clears it -- routed into v_ads_to_cut exactly like a gated cut
+    ad) or, failing that, is held for review when it clears
+    ``verification_miss_hold_min_confidence`` (HOLD_REASON_VERIFICATION_MISS,
+    diverted to v_ads_held same as any other held ad). Below both floors it
+    is still discarded, now with a log line naming what was dropped and why.
+    Missing kwargs fall back to the settings-registry defaults so direct
+    callers (tests, ad-hoc gate invocations) get the same behavior as an
+    unconfigured install.
     """
+    if verification_miss_hold_min_confidence is None:
+        verification_miss_hold_min_confidence = registry_get_default(
+            'verification_miss_hold_min_confidence')
+    if verification_miss_autocut_min_confidence is None:
+        verification_miss_autocut_min_confidence = registry_get_default(
+            'verification_miss_autocut_min_confidence')
     pass1_held_markers = pass1_held_markers or []
     v_ads_to_cut = []
     v_ads_for_ui = []
@@ -1751,8 +1773,36 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             orig_ad['was_cut'] = True
             orig_ad['detection_stage'] = 'verification'
             v_ads_for_ui.append(orig_ad)
+            continue
+        # Standalone miss: below min_cut_confidence, overlaps no pass-1
+        # marker. Deliberately re-reads raw confidence rather than reusing
+        # ``confidence`` (which prefers the validator's adjusted_confidence)
+        # -- this bucketing is a distinct, more conservative decision from
+        # the primary cut gate above.
+        conf = float(ad.get('confidence') or 0.0)
+        if (verification_miss_autocut_min_confidence > 0
+                and conf >= verification_miss_autocut_min_confidence):
+            ad['was_cut'] = True
+            ad['detection_stage'] = 'verification_miss'
+            v_ads_to_cut.append(ad)
+            orig_ad['was_cut'] = True
+            orig_ad['detection_stage'] = 'verification_miss'
+            v_ads_for_ui.append(orig_ad)
+        elif conf >= verification_miss_hold_min_confidence:
+            ad['was_cut'] = False
+            orig_ad['was_cut'] = False
+            orig_ad['held_for_review'] = True
+            orig_ad['hold_reason'] = HOLD_REASON_VERIFICATION_MISS
+            orig_ad['detection_stage'] = 'verification_miss'
+            v_ads_held.append(orig_ad)
         else:
             ad['was_cut'] = False
+            audio_logger.info(
+                f"Dropping standalone pass-2 miss {orig_ad['start']:.1f}s-"
+                f"{orig_ad['end']:.1f}s (sponsor={orig_ad.get('sponsor')!r}, "
+                f"confidence={conf:.2f}, below verification-miss hold floor "
+                f"{verification_miss_hold_min_confidence:.2f})"
+            )
     return v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count
 
 
@@ -1980,6 +2030,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     v_corroborated_count = 0
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
+    # Read once per verification pass: standalone-miss hold/autocut floors
+    # for _gate_verification_ads_by_confidence (registry defaults when unset).
+    verification_miss_hold_min_confidence = db.get_setting_float(
+        'verification_miss_hold_min_confidence',
+        registry_get_default('verification_miss_hold_min_confidence'))
+    verification_miss_autocut_min_confidence = db.get_setting_float(
+        'verification_miss_autocut_min_confidence',
+        registry_get_default('verification_miss_autocut_min_confidence'))
+
     try:
         from verification_pass import VerificationPass
         verifier = VerificationPass(
@@ -2043,6 +2102,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
                     pass1_held_markers=pass1_held_markers,
+                    verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
+                    verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
                 )
 
                 # Pass 2 reviewer operates on original-coord ads (the prompt
