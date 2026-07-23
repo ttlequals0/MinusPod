@@ -52,7 +52,7 @@ from config import (
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
-    is_cue_backed, is_pending_review, is_template_cue,
+    count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
@@ -2668,7 +2668,8 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count,
                                original_duration, new_duration,
                                processing_time, token_totals, db,
-                               audio_cue_detections=0, run_stats=None):
+                               audio_cue_detections=0, run_stats=None,
+                               ads_held=0, ads_not_cut=0):
     """Record processing history row and fire the episode-processed webhook.
 
     The webhook fires whenever the episode pipeline completed, including
@@ -2704,6 +2705,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
             episode_id=episode_id, slug=slug, episode_title=episode_title,
             processing_time=processing_time, llm_cost=token_totals['cost'],
             ads_removed=ads_removed_total,
+            ads_held=ads_held, ads_not_cut=ads_not_cut,
             original_duration=original_duration, new_duration=new_duration,
             podcast_name=podcast_name,
         )
@@ -2715,7 +2717,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        pass1_cut_count, verification_count, first_pass_count,
                        original_duration, new_duration, start_time,
                        processed_version=0, audio_cue_detections=0,
-                       run_stats=None):
+                       run_stats=None, ads_held=0, ads_not_cut=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
@@ -2740,6 +2742,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         processing_time, token_totals, db,
         audio_cue_detections=audio_cue_detections,
         run_stats=run_stats,
+        ads_held=ads_held, ads_not_cut=ads_not_cut,
     )
 
 
@@ -3103,13 +3106,16 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             1 for ad in ads_to_remove
             if _covered_by_cuts(ad, applied_cuts, original_duration)
         )
+        held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
+        not_cut_count = count_not_cut(all_ads_with_validation)
         _finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count, verification_count=0,
                            first_pass_count=pass1_cut_count,
                            original_duration=original_duration,
                            new_duration=new_duration, start_time=start_time,
                            processed_version=new_version,
-                           audio_cue_detections=0)
+                           audio_cue_detections=0,
+                           ads_held=held_count, ads_not_cut=not_cut_count)
         status_service.complete_job()
         return True
 
@@ -3673,6 +3679,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # a human, and what stayed in the audio.
             held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
             cut_count = sum(1 for m in all_ads_with_validation if m.get('was_cut'))
+            not_cut_count = count_not_cut(all_ads_with_validation)
             run_stats['markers'] = {
                 'cut': cut_count,
                 'held': held_count,
@@ -3690,7 +3697,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                original_duration, new_duration, start_time,
                                processed_version=new_version,
                                audio_cue_detections=audio_cue_count,
-                               run_stats=run_stats)
+                               run_stats=run_stats,
+                               ads_held=held_count, ads_not_cut=not_cut_count)
 
             status_service.complete_job()
 

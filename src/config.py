@@ -114,6 +114,14 @@ def count_pending_review(markers) -> int:
     """Number of markers awaiting review; persisted as pending_review_count."""
     return sum(1 for m in markers if is_pending_review(m))
 
+
+def count_not_cut(markers) -> int:
+    """Number of markers that stayed in the audio and are not pending review
+    (e.g. a rejected correction). Missing was_cut defaults to True (cut),
+    matching is_pending_review's convention."""
+    return sum(1 for m in markers
+               if not m.get('was_cut', True) and not is_pending_review(m))
+
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
 LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence

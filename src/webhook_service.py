@@ -52,6 +52,8 @@ class WebhookPayload:
     processing_time: Optional[float] = None
     llm_cost: Optional[float] = None
     ads_removed: int = 0
+    ads_held: int = 0
+    ads_not_cut: int = 0
     error_message: Optional[str] = None
     original_duration: Optional[float] = None
     new_duration: Optional[float] = None
@@ -85,6 +87,8 @@ _DUMMY_CONTEXT = {
         'slug': 'example-podcast',
         'url': 'http://your-server:8000/ui/feeds/example-podcast/episodes/abc123',
         'ads_removed': 3,
+        'ads_held': 1,
+        'ads_not_cut': 1,
         'processing_time_secs': 42.5,
         'processing_time': _format_duration(42.5),
         'llm_cost': 0.0035,
@@ -122,6 +126,8 @@ def _build_context(payload: WebhookPayload) -> dict:
             'slug': payload.slug,
             'url': episode_url,
             'ads_removed': payload.ads_removed,
+            'ads_held': payload.ads_held,
+            'ads_not_cut': payload.ads_not_cut,
             'processing_time_secs': rounded_processing,
             'processing_time': _format_duration(rounded_processing),
             'llm_cost': rounded_cost,
@@ -251,8 +257,8 @@ def _fire_event_sync(payload: WebhookPayload):
 
 
 def fire_event(event, episode_id, slug, episode_title, processing_time,
-               llm_cost, ads_removed=0, error_message=None,
-               original_duration=None, new_duration=None,
+               llm_cost, ads_removed=0, ads_held=0, ads_not_cut=0,
+               error_message=None, original_duration=None, new_duration=None,
                podcast_name=None):
     """Load webhooks from DB and dispatch to all matching subscribers.
 
@@ -270,6 +276,8 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
         processing_time=processing_time,
         llm_cost=llm_cost,
         ads_removed=ads_removed,
+        ads_held=ads_held,
+        ads_not_cut=ads_not_cut,
         error_message=error_message,
         original_duration=original_duration,
         new_duration=new_duration,

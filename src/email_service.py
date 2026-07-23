@@ -113,6 +113,12 @@ def _fmt_episode_processed(ctx):
         ('Time saved', _value(episode.get('time_saved'))),
         ('Processing time', _value(episode.get('processing_time'))),
         ('LLM cost', _value(episode.get('llm_cost_display'))),
+    ]
+    if episode.get('ads_held'):
+        rows.append(('Ads held for review', _value(episode.get('ads_held'))))
+    if episode.get('ads_not_cut'):
+        rows.append(('Detections not cut', _value(episode.get('ads_not_cut'))))
+    rows += [
         ('URL', _value(episode.get('url'))),
         ('Timestamp', _value(ctx.get('timestamp'))),
     ]
