@@ -43,6 +43,11 @@ release notes.
 
 ### Changed
 
+- The update panel in Settings shows the release channel next to the
+  running version ("Running 2.76.0 (edge)") and tucks the channel
+  selector, daily-check toggle, check button, and changelog link behind
+  an "Update settings" disclosure, collapsed by default.
+
 - The cross-fetch differential stage now measures rather than assumes:
   every silence-delimited block in the run file is probed against the
   refetch and carries its own measured correlation, replacing the previous
