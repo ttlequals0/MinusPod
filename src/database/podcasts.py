@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Dict, List
 
 from utils.constants import EpisodeStatus
+from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,7 @@ class PodcastMixin:
                 'refresh_failure_count', 'last_refresh_error',
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
+                'last_podping_at',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)
@@ -362,6 +364,10 @@ class PodcastMixin:
             True if update succeeded
         """
         return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
+
+    def set_last_podping_at(self, slug: str) -> None:
+        """Stamp the last received podping for a feed (UTC ISO)."""
+        self.update_podcast(slug, last_podping_at=utc_now_iso())
 
     def clear_all_podcast_etags(self) -> int:
         """Null every podcast's conditional-GET validators in one statement.
