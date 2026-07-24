@@ -152,7 +152,7 @@ but it never sends any of its own.
 
 ### MinusPod listens (opt-in)
 
-Settings > Podcasting 2.0 has a **Podping notifications**
+Settings > Global Defaults has a **Podping notifications**
 toggle, off by default. When enabled, MinusPod runs a background
 thread that polls public Hive API nodes roughly every 3 seconds for
 new blocks, reads the `podping` and `pp_`-prefixed custom JSON

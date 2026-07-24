@@ -7,6 +7,8 @@ interface GlobalDefaultsSectionProps {
   onAutoProcessEnabledChange: (enabled: boolean) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
+  podpingEnabled: boolean;
+  onPodpingEnabledChange: (enabled: boolean) => void;
   maxFeedEpisodes: number;
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
@@ -18,6 +20,8 @@ function GlobalDefaultsSection({
   onAutoProcessEnabledChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
+  podpingEnabled,
+  onPodpingEnabledChange,
   maxFeedEpisodes,
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
@@ -65,6 +69,23 @@ function GlobalDefaultsSection({
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Minutes between background RSS refresh passes. Default 15.
+          </p>
+        </div>
+
+        {/* Podping notifications */}
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={podpingEnabled}
+              onChange={onPodpingEnabledChange}
+              ariaLabel="Podping notifications"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Podping notifications
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Listen for Podping publish notifications and refresh a feed as soon as its host announces a new episode. Only some hosts send Podping; feeds keep refreshing on the normal schedule either way.
           </p>
         </div>
 

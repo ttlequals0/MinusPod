@@ -817,6 +817,8 @@ function Settings() {
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
+        podpingEnabled={podpingEnabled}
+        onPodpingEnabledChange={setPodpingEnabled}
         maxFeedEpisodes={maxFeedEpisodes}
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
@@ -980,10 +982,8 @@ function Settings() {
       <Podcasting20Section
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
-        podpingEnabled={podpingEnabled}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
-        onPodpingEnabledChange={setPodpingEnabled}
       />
 
       <CoverArtSection

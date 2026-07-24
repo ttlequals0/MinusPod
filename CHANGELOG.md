@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.77.1] - 2026-07-24
+
+### Changed
+
+- The Podping toggle now lives in Settings > Global Defaults, directly under
+  the feed refresh interval, and the "Podcasting 2.0" settings section is
+  titled "Transcripts & Chapters" again.
+
 ## [2.77.0] - 2026-07-24
 
 ### Added
