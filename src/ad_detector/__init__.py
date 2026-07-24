@@ -69,6 +69,7 @@ from utils.constants import (
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
     sanitize_sponsor_label,
+    SHOW_SEGMENTS_PROMPT_SECTION,
 )
 
 # Re-exports: every symbol the pre-split ``ad_detector`` module exposed at
@@ -651,6 +652,36 @@ class AdDetector:
         sponsor_block = format_sponsor_block(self._get_sponsor_list_safely())
         return render_prompt(prompt, sponsor_database=sponsor_block)
 
+    def _podcast_wants_show_segments(self, slug: str) -> bool:
+        """Return whether this podcast opted into intro/outro/recap detection.
+
+        Reads the podcasts.detect_show_segments column, same DB-per-call
+        pattern as _get_podcast_sponsor_history: one lookup for the whole
+        detect_ads() call, not per window.
+        """
+        if not slug or not self.db:
+            return False
+        try:
+            podcast = self.db.get_podcast_by_slug(slug)
+        except Exception as e:
+            logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
+            return False
+        return bool(podcast and podcast.get('detect_show_segments'))
+
+    def _build_detection_system_prompt(self, slug: str) -> str:
+        """Compose the system prompt used for detection window calls.
+
+        Starts from get_system_prompt() (default or the operator's override,
+        with sponsors substituted), then appends SHOW_SEGMENTS_PROMPT_SECTION
+        when the podcast has opted in. The append happens AFTER override
+        resolution, so an opted-in feed gets the show-segments instructions
+        even when the operator has customized system_prompt.
+        """
+        prompt = self.get_system_prompt()
+        if self._podcast_wants_show_segments(slug):
+            prompt = f"{prompt}\n\n{SHOW_SEGMENTS_PROMPT_SECTION}"
+        return prompt
+
     def _get_podcast_sponsor_history(self, podcast_slug: str) -> str:
         """Get previously detected sponsor names for a podcast from ad_patterns.
 
@@ -1038,7 +1069,7 @@ class AdDetector:
                        f"for {total_duration/60:.1f}min episode")
 
             # Get prompts and model
-            system_prompt = self.get_system_prompt()
+            system_prompt = self._build_detection_system_prompt(slug)
             model = self.get_model()
 
             logger.info(f"[{slug}:{episode_id}] Using model: {model}")

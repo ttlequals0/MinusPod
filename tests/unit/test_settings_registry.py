@@ -72,7 +72,7 @@ SEED_SNAPSHOT = {
     'review_prompt': ('sha256', '897102def672fcfffdfd2500e43cfdb6699aebf650606aee18549a4c033758d3'),
     'rss_refresh_interval_minutes': '15',
     'segment_category_actions': '{}',
-    'system_prompt': ('sha256', 'df48d3c574c5998459ec470905b2518d21dc6da7f014f348d6c92ccc5f358187'),
+    'system_prompt': ('sha256', 'dcc7b726296f107e6fdf387064ba12d35537205d66734c230d81f2a4c7d08a58'),
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',
     'transcribe_max_chunk_seconds': '600',

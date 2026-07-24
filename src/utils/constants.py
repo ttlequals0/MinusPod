@@ -908,9 +908,17 @@ Do not interpolate or estimate times between segments.
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description", "end_text": "last 3-5 words"}}
+Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}}
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
+
+CATEGORY:
+Every ad object MUST also include "category", set to exactly one of:
+- sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad (hosting platform pre/post-rolls, etc.)
+- cross_promo: a produced segment promoting a different show, inserted by the platform or network
+- self_promo: a produced or inserted segment where the show promotes its own other content (another show, Patreon, merch, mailing list)
+- interaction: a produced or inserted segment asking listeners to subscribe, rate, review, or follow the show
+Three more categories exist -- intro, outro, recap -- but use them only when this prompt also contains a SHOW SEGMENTS section below. Without that section, always pick one of the four categories above.
 
 EXAMPLE:
 [45.0s - 48.0s] That's a great point. Let's take a quick break.
@@ -919,7 +927,7 @@ EXAMPLE:
 [78.5s - 82.0s] That's athleticgreens.com/podcast.
 [82.5s - 86.0s] Now, back to our conversation.
 
-Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]
+Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "category": "sponsor", "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]
 
 NOT AN AD EXAMPLE (silence/content gap):
 [290.0s - 293.0s] So that's really the core of what GPT-4 can do.
@@ -934,7 +942,25 @@ SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
 [886.0s - 893.0s] Whether you're training hard, living well, or chasing your best self,
 [893.0s - 898.5s] FreshField Market is where the future of wellness begins. Explore more at FreshField.
 
-Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
+Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "category": "sponsor", "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
 
 Note: No promo code, no call to action -- but this is concentrated marketing copy
 for a brand with product positioning language. It is not editorial content.{sponsor_database}"""
+
+# Opt-in addition to DEFAULT_SYSTEM_PROMPT (issue #565): appended when a
+# podcast has detect_show_segments enabled, so intro/outro/recap detection
+# stays off by default and only runs for feeds that asked for it. See
+# ad_detector.AdDetector for the append point -- it runs after any operator
+# override of system_prompt, so an opted-in feed gets this section even when
+# system_prompt has been customized.
+SHOW_SEGMENTS_PROMPT_SECTION = """SHOW SEGMENTS:
+This podcast has also asked for its show-structure segments to be identified. In addition to ads, look for these and return them in the same JSON array, each with its own category:
+- intro: the show's opening theme music and/or host introduction, before the actual episode content starts
+- outro: the show's closing credits, sign-off, or theme music, after the episode content ends
+- recap: a produced "coming up" preview, a headline bumper, or a "listen to this next" segment -- something that previews or summarizes content rather than being the content itself
+
+RULES FOR SHOW SEGMENTS:
+- A cold open is content, not intro. If the host starts the episode with a quote, a story, or a hook before the theme music, that is content -- do not flag it.
+- Only flag a span that is clearly theme music, closing credits, or housekeeping. If you are unsure whether something is a show segment, do not flag it.
+- Use the same timestamp discipline as ads: use the exact [Xs] marker timestamps from the transcript, do not interpolate or estimate.
+"""
