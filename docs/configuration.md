@@ -133,7 +133,7 @@ Each feed's settings page has a **Pass-through** toggle. When it is on, MinusPod
 
 The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and turning the toggle off resumes full processing for new episodes. Two caveats: enclosures that are not MP3 get converted to MP3 (the serving stack requires it), and the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the toggle is on, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
 
-### Segment Categories
+### Segment categories
 
 Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
