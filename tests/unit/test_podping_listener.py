@@ -298,3 +298,44 @@ class TestPodpingListenerLoop:
         podping_listener_loop()
 
         assert fake_event.wait_calls == [30]
+
+    def test_enabled_loop_paces_ticks_with_3s_wait(self, monkeypatch):
+        import main_app.background as background_module
+        from unittest.mock import Mock
+
+        class CountingShutdownEvent(_FakeShutdownEvent):
+            """Countdown event that allows N iterations before stopping."""
+
+            def __init__(self, max_iterations):
+                super().__init__()
+                self.iteration_count = 0
+                self.max_iterations = max_iterations
+
+            def is_set(self):
+                return self.iteration_count >= self.max_iterations
+
+            def wait(self, timeout=None):
+                self.wait_calls.append(timeout)
+                self.iteration_count += 1
+                return True
+
+        fake_event = CountingShutdownEvent(max_iterations=3)
+        monkeypatch.setattr(background_module, 'shutdown_event', fake_event)
+
+        # Mock db to always return enabled=True and provide stub methods.
+        fake_db = Mock()
+        fake_db.get_setting_bool.side_effect = lambda k, default=False: True if k == 'podping_enabled' else default
+        fake_db.clear_leaked_transaction.return_value = None
+        monkeypatch.setattr(background_module, 'db', fake_db)
+
+        # Mock PodpingListener.tick to succeed without network calls.
+        monkeypatch.setattr(PodpingListener, 'tick', Mock())
+
+        # Mock refresh function to prevent any side effects.
+        refresh_mock = Mock()
+        monkeypatch.setattr('main_app.feeds.refresh_single_feed', refresh_mock)
+
+        podping_listener_loop()
+
+        # After each of 3 successful ticks, wait(timeout=3) should be called.
+        assert fake_event.wait_calls == [3, 3, 3]

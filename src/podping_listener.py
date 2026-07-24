@@ -30,6 +30,16 @@ FEED_MAP_REFRESH_SECONDS = 60
 NODE_BACKOFF_SCHEDULE = (5, 15, 60)
 
 
+def _default_sleep_shutdown_aware(seconds):
+    """Default sleep that is interruptible by shutdown_event.
+
+    Used for node failure backoff in PodpingListener; imported lazily
+    so this module remains dependency-free at load time.
+    """
+    import main_app.background as background_module
+    background_module.shutdown_event.wait(timeout=seconds)
+
+
 def normalize_feed_url(url: str) -> str:
     """Normalize a feed URL: lowercase scheme+host, strip one trailing slash, preserve path case/query.
 
@@ -176,7 +186,7 @@ class PodpingListener:
         self.rpc = rpc or self._default_rpc
         self.db = db
         self.refresh = refresh
-        self.sleep = sleep or time.sleep
+        self.sleep = sleep or _default_sleep_shutdown_aware
 
         self.node_index = 0
         self._backoff_step = 0
@@ -355,6 +365,7 @@ def podping_listener_loop():
 
             if enabled:
                 listener.tick()
+                background_module.shutdown_event.wait(timeout=3)
             else:
                 background_module.shutdown_event.wait(timeout=30)
         except Exception:
