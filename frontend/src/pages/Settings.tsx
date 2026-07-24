@@ -852,6 +852,9 @@ function Settings() {
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+        segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
+        onSegmentCategoryActionChange={(category, action) =>
+          tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
       />
 
       <LLMProviderSection

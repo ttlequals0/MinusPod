@@ -1,5 +1,6 @@
 import { apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution } from './types';
+import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
 export const CUE_SCORE_MAX = 0.99;
@@ -227,6 +228,11 @@ export interface UpdateFeedPayload {
   skipAdDetection?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  // Per-feed segment-action overrides (issue #565). The backend replaces
+  // the stored map outright, so callers must send the full desired partial
+  // map (not just the changed key); null clears every override.
+  segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
+  detectShowSegments?: boolean | null;
 }
 
 export interface Network {
@@ -308,6 +314,20 @@ export async function regenerateChapters(
     `/feeds/${slug}/episodes/${episodeId}/regenerate-chapters`,
     { method: 'POST' }
   );
+}
+
+export interface RerenderSegmentsResult {
+  queued: number;
+  skipped: number;
+}
+
+// Re-cut every processed episode of a feed against the current segment-
+// category action maps (issue #565 Task 8). Reuses the recut queue, so the
+// result shape mirrors reprocessAllEpisodes/bulkEpisodeAction.
+export async function rerenderSegments(slug: string): Promise<RerenderSegmentsResult> {
+  return apiRequest<RerenderSegmentsResult>(`/feeds/${slug}/rerender-segments`, {
+    method: 'POST',
+  });
 }
 
 export type BulkAction = 'process' | 'reprocess' | 'reprocess_full' | 'reprocess_llm' | 'delete';

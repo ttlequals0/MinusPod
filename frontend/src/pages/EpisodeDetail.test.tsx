@@ -760,3 +760,92 @@ describe('Detected ads: inline audition', () => {
     expect(screen.queryByRole('button', { name: 'Play this ad' })).toBeNull();
   });
 });
+
+describe('Segment category chips (#565)', () => {
+  it('shows the category label on a detected ad marker', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'cross_promo' }],
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.getByText('Cross-promo')).not.toBeNull();
+  });
+
+  it('shows a muted Kept badge when actionApplied is keep', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'keep' }],
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('omits the Kept badge when actionApplied is remove', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'remove' }],
+    }));
+    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(screen.queryByText('Kept')).toBeNull();
+  });
+
+  it('shows the category label on a Held for Review row', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [{ ...heldMarker, category: 'self_promo' }],
+    }));
+    expect(await screen.findByTestId('held-for-review-section')).not.toBeNull();
+    expect(screen.getByText('Self-promo')).not.toBeNull();
+  });
+
+  it('shows the category label and Kept badge on a Detections Not Cut row', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{
+        start: 5, end: 20, confidence: 0.4, category: 'interaction', actionApplied: 'keep',
+      }],
+    }));
+    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    expect(screen.getByText('Interaction')).not.toBeNull();
+    expect(screen.getByText('Kept')).not.toBeNull();
+  });
+});
+
+describe('Correction submit error toast (#565)', () => {
+  beforeEach(() => {
+    mockSubmitCorrection.mockReset();
+    mockReprocessEpisode.mockReset();
+  });
+
+  it('surfaces the backend 409 message when a kept marker is corrected', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ hasOriginalAudio: true }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dismiss-0')).toBeDefined();
+    });
+
+    mockSubmitCorrection.mockRejectedValueOnce(
+      new Error('This segment is kept for this feed and cannot be corrected'),
+    );
+    await user.click(screen.getByTestId('dismiss-0'));
+
+    expect(await screen.findByText(
+      'This segment is kept for this feed and cannot be corrected',
+    )).not.toBeNull();
+  });
+
+  it('dismissing the toast clears it', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ hasOriginalAudio: true }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dismiss-0')).toBeDefined();
+    });
+    mockSubmitCorrection.mockRejectedValueOnce(new Error('Conflict'));
+    await user.click(screen.getByTestId('dismiss-0'));
+    await screen.findByText('Conflict');
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Conflict')).toBeNull();
+  });
+});

@@ -1,6 +1,11 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import SegmentActionToggle from '../../components/SegmentActionToggle';
+import {
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, DEFAULT_SEGMENT_ACTION,
+  type SegmentCategory, type SegmentAction,
+} from '../../utils/segmentCategory';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
@@ -13,6 +18,8 @@ interface GlobalDefaultsSectionProps {
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
+  segmentCategoryActions: Partial<Record<SegmentCategory, SegmentAction>>;
+  onSegmentCategoryActionChange: (category: SegmentCategory, action: SegmentAction) => void;
 }
 
 function GlobalDefaultsSection({
@@ -26,6 +33,8 @@ function GlobalDefaultsSection({
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
   onOnlyExposeProcessedDefaultChange,
+  segmentCategoryActions,
+  onSegmentCategoryActionChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -129,6 +138,32 @@ function GlobalDefaultsSection({
           <p className="mt-2 text-sm text-muted-foreground">
             Hides upstream episodes that haven't finished processing from served RSS feeds, so podcast apps don't auto-download an episode that would 503. Per-feed override is available on each feed's settings.
           </p>
+        </div>
+
+        {/* Segment actions (issue #565): per-category remove/beep/keep matrix. */}
+        <div className="pt-4 border-t border-border">
+          <details className="group">
+            <summary className="text-sm text-primary hover:underline cursor-pointer list-none">
+              Segment actions
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Choose what happens to each kind of detected segment. Remove cuts it out, Beep replaces it with a tone, Keep leaves it in.
+              </p>
+              <div className="space-y-2">
+                {SEGMENT_CATEGORIES.map((category) => (
+                  <div key={category} className="flex items-center justify-between gap-3 flex-wrap">
+                    <span className="text-sm text-foreground">{SEGMENT_CATEGORY_LABELS[category]}</span>
+                    <SegmentActionToggle
+                      value={segmentCategoryActions[category] ?? DEFAULT_SEGMENT_ACTION}
+                      onChange={(action) => onSegmentCategoryActionChange(category, action)}
+                      ariaLabel={`${SEGMENT_CATEGORY_LABELS[category]} action`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </CollapsibleSection>

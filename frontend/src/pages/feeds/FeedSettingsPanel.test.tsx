@@ -9,7 +9,7 @@
  *   - DAI-likely badge + hint render only when feed.daiLikely is true.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FeedSettingsPanel from './FeedSettingsPanel';
@@ -25,16 +25,20 @@ vi.mock('../../components/CollapsibleSection', async (importOriginal) => {
 });
 
 const mockUpdateFeed = vi.fn();
+const mockRerenderSegments = vi.fn();
 
 vi.mock('../../api/feeds', () => ({
   getNetworks: vi.fn().mockResolvedValue([]),
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
+  rerenderSegments: (...args: unknown[]) => mockRerenderSegments(...args),
   CUE_SCORE_MIN: 0.30,
   CUE_SCORE_MAX: 0.99,
 }));
 
+const mockGetSettings = vi.fn();
+
 vi.mock('../../api/settings', () => ({
-  getSettings: vi.fn().mockResolvedValue({}),
+  getSettings: (...args: unknown[]) => mockGetSettings(...args),
 }));
 
 // FeedTagsEditor queries api/community internally; not under test here.
@@ -52,6 +56,8 @@ function makeFeed(overrides: Partial<Feed> = {}): Feed {
     ...overrides,
   };
 }
+
+mockGetSettings.mockResolvedValue({});
 
 function renderPanel(feed: Feed) {
   const client = new QueryClient({
@@ -232,5 +238,102 @@ describe('FeedSettingsPanel source URL row (#484)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Could not fetch a valid RSS feed from this URL')).toBeDefined();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDefined();
+  });
+});
+
+describe('FeedSettingsPanel segment action overrides (#565)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({
+      segmentCategoryActions: { value: { cross_promo: 'beep' } },
+    });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows Inherit and the resolved global value for an unoverridden category', async () => {
+    renderPanel(makeFeed());
+    await waitFor(() => {
+      const group = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
+      expect(within(group).getByRole('radio', { name: 'Beep' }).getAttribute('aria-checked')).toBe('true');
+    });
+    expect(screen.getAllByText('Inherit').length).toBeGreaterThan(0);
+  });
+
+  it('picking an action fires updateFeed with the full partial override map', async () => {
+    renderPanel(makeFeed({ segmentCategoryActions: { sponsor: 'keep' } }));
+    const group = await screen.findByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Keep' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      segmentCategoryActions: { sponsor: 'keep', cross_promo: 'keep' },
+    });
+  });
+
+  it('clearing the only override sends segmentCategoryActions null', async () => {
+    renderPanel(makeFeed({ segmentCategoryActions: { cross_promo: 'keep' } }));
+    await screen.findByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { segmentCategoryActions: null });
+  });
+
+  it('clearing one of several overrides keeps the rest', async () => {
+    renderPanel(makeFeed({ segmentCategoryActions: { sponsor: 'keep', cross_promo: 'beep' } }));
+    await screen.findByRole('radiogroup', { name: 'Cross-promo action' });
+    const clearButtons = screen.getAllByRole('button', { name: 'Clear' });
+    // Sponsor is the first category row.
+    await userEvent.click(clearButtons[0]);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      segmentCategoryActions: { cross_promo: 'beep' },
+    });
+  });
+});
+
+describe('FeedSettingsPanel show-segments toggle (#565)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders off by default', () => {
+    renderPanel(makeFeed());
+    const toggle = screen.getByRole('switch', { name: 'Detect intro, outro, and housekeeping segments' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('enabling fires updateFeed with detectShowSegments true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('switch', { name: 'Detect intro, outro, and housekeeping segments' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: true });
+  });
+});
+
+describe('FeedSettingsPanel re-render segments (#565 Task 8)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+  });
+
+  it('does nothing when the confirm dialog is dismissed', async () => {
+    window.confirm = vi.fn().mockReturnValue(false);
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    expect(mockRerenderSegments).not.toHaveBeenCalled();
+  });
+
+  it('confirming posts the rerender request and shows the queued/skipped result', async () => {
+    window.confirm = vi.fn().mockReturnValue(true);
+    mockRerenderSegments.mockResolvedValue({ queued: 3, skipped: 1 });
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    expect(mockRerenderSegments).toHaveBeenCalledWith('test-feed');
+    expect(await screen.findByText('3 episodes queued, 1 skipped.')).toBeDefined();
+  });
+
+  it('shows the backend error message when the request fails', async () => {
+    window.confirm = vi.fn().mockReturnValue(true);
+    mockRerenderSegments.mockRejectedValue(new Error('Feed not found'));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    expect(await screen.findByText('Feed not found')).toBeDefined();
   });
 });

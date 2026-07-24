@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
 
@@ -24,6 +24,8 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        segmentCategoryActions={{}}
+        onSegmentCategoryActionChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -49,9 +51,39 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        segmentCategoryActions={{}}
+        onSegmentCategoryActionChange={() => {}}
       />
       <button onClick={() => onCommit({ podpingEnabled })}>Commit</button>
     </>
+  );
+}
+
+// Mirrors the "matrix PUT payload" saved immediately per row -- the harness
+// builds the same partial-map shape the real Settings.tsx page sends
+// through updateSettings({ segmentCategoryActions: { [category]: action } }).
+function SegmentActionsHarness({ onCommit }: {
+  onCommit: (payload: { segmentCategoryActions: Record<string, string> }) => void;
+}) {
+  const [actions, setActions] = useState<Record<string, string>>({});
+  return (
+    <GlobalDefaultsSection
+      autoProcessEnabled={false}
+      onAutoProcessEnabledChange={() => {}}
+      rssRefreshIntervalMinutes={15}
+      onRssRefreshIntervalMinutesChange={() => {}}
+      podpingEnabled={false}
+      onPodpingEnabledChange={() => {}}
+      maxFeedEpisodes={10}
+      onMaxFeedEpisodesChange={() => {}}
+      onlyExposeProcessedDefault={false}
+      onOnlyExposeProcessedDefaultChange={() => {}}
+      segmentCategoryActions={actions}
+      onSegmentCategoryActionChange={(category, action) => {
+        setActions((prev) => ({ ...prev, [category]: action }));
+        onCommit({ segmentCategoryActions: { [category]: action } });
+      }}
+    />
   );
 }
 
@@ -140,5 +172,50 @@ describe('GlobalDefaultsSection: Podping notifications toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({ podpingEnabled: false });
+  });
+});
+
+describe('GlobalDefaultsSection: Segment actions matrix', () => {
+  it('collapses the matrix by default and expands on click', async () => {
+    const { container } = render(<SegmentActionsHarness onCommit={() => {}} />);
+    const details = container.querySelector('details');
+    expect(details).toBeTruthy();
+    expect(details!.open).toBe(false);
+    await userEvent.click(screen.getByText('Segment actions'));
+    expect(details!.open).toBe(true);
+  });
+
+  it('renders all seven category rows with Remove selected by default', async () => {
+    render(<SegmentActionsHarness onCommit={() => {}} />);
+    await userEvent.click(screen.getByText('Segment actions'));
+    for (const label of ['Sponsor', 'Cross-promo', 'Self-promo', 'Interaction', 'Intro', 'Outro', 'Recap']) {
+      const group = screen.getByRole('radiogroup', { name: `${label} action` });
+      const removeBtn = within(group).getByRole('radio', { name: 'Remove' });
+      expect(removeBtn.getAttribute('aria-checked')).toBe('true');
+    }
+  });
+
+  it('clicking Keep on Cross-promo commits { segmentCategoryActions: { cross_promo: "keep" } }', async () => {
+    let committed: { segmentCategoryActions: Record<string, string> } | null = null;
+    render(<SegmentActionsHarness onCommit={(payload) => { committed = payload; }} />);
+    await userEvent.click(screen.getByText('Segment actions'));
+
+    const group = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Keep' }));
+
+    expect(committed).toEqual({ segmentCategoryActions: { cross_promo: 'keep' } });
+  });
+
+  it('clicking Beep on Intro commits { segmentCategoryActions: { intro: "beep" } } and leaves other rows untouched', async () => {
+    const commits: Array<{ segmentCategoryActions: Record<string, string> }> = [];
+    render(<SegmentActionsHarness onCommit={(payload) => commits.push(payload)} />);
+    await userEvent.click(screen.getByText('Segment actions'));
+
+    const introGroup = screen.getByRole('radiogroup', { name: 'Intro action' });
+    await userEvent.click(within(introGroup).getByRole('radio', { name: 'Beep' }));
+
+    expect(commits).toEqual([{ segmentCategoryActions: { intro: 'beep' } }]);
+    const sponsorGroup = screen.getByRole('radiogroup', { name: 'Sponsor action' });
+    expect(within(sponsorGroup).getByRole('radio', { name: 'Remove' }).getAttribute('aria-checked')).toBe('true');
   });
 });
