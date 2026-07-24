@@ -8,7 +8,10 @@ MinusPod ships on two channels from the same version line.
 | Stable  | `stable` (GPU), `stable-cpu` (CPU multi-arch) | An edge release that has soaked in production and been promoted |
 
 Every release is tagged `v<version>` and published as a GitHub
-pre-release whose notes are that version's CHANGELOG.md section. The
+pre-release whose notes cover every CHANGELOG.md section shipped since
+the previous release. Usually that is one section; when a PR bumped the
+version more than once before merging, the notes roll up all of its
+sections so nothing ships undocumented. The
 [releases page](https://github.com/ttlequals0/MinusPod/releases) shows
 the full stream; stable releases are the non-pre-release entries and
 carry curated, operator-facing notes.

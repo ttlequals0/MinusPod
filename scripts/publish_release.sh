@@ -36,7 +36,14 @@ FILE_VERSION=$(python3 -c "import re; print(re.search(r'\"([^\"]+)\"', open('ver
 git rev-parse "v$VERSION" >/dev/null 2>&1 \
   && { echo "tag v$VERSION already exists" >&2; exit 1; }
 
-NOTES=$(python3 scripts/changelog_section.py "$VERSION")
+# Roll up every changelog section shipped since the previous release, so a
+# PR that bumped the version more than once publishes all of its sections.
+PREV_TAG=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+if [ -n "$PREV_TAG" ]; then
+  NOTES=$(python3 scripts/changelog_section.py "$VERSION" --rollup-since "${PREV_TAG#v}")
+else
+  NOTES=$(python3 scripts/changelog_section.py "$VERSION")
+fi
 
 run git tag -a "v$VERSION" -m "Release $VERSION"
 run git push origin "v$VERSION"
