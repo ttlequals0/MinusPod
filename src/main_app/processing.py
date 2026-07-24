@@ -53,6 +53,7 @@ from config import (
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
     count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
+    normalize_segment_category,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
@@ -988,6 +989,34 @@ def _build_validator(episode_duration, segments, episode_description, *,
             registry_get_default('differential_measured_corr_max')),
         **splice_kwargs,
     )
+
+
+def _partition_keep_ads(all_ads, actions_map):
+    """Split first-pass markers by resolved segment-category action.
+
+    A marker whose category resolves to 'keep' bypasses the validator,
+    reviewer, and cut entirely: it is stamped was_cut=False and
+    action_applied='keep' here and pulled out of the list. 'remove'/'beep'
+    markers pass through unmodified -- no action_applied stamp; Task 5
+    stamps that at cut time.
+
+    Returns (keep_ads, remove_ads). When no category resolves to 'keep',
+    remove_ads is all_ads unchanged (same objects, same order) and keep_ads
+    is empty, so the rest of the pipeline is untouched.
+    """
+    if not any(action == 'keep' for action in actions_map.values()):
+        return [], all_ads
+    keep_ads = []
+    remove_ads = []
+    for ad in all_ads:
+        category = normalize_segment_category(ad.get('category'))
+        if actions_map.get(category) == 'keep':
+            ad['was_cut'] = False
+            ad['action_applied'] = 'keep'
+            keep_ads.append(ad)
+        else:
+            remove_ads.append(ad)
+    return keep_ads, remove_ads
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -3449,6 +3478,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 first_pass_count = 0
                 max_ad_duration_override, cue_gate_enabled = None, False
                 ads_to_remove, all_ads_with_validation = [], []
+                keep_ads = []
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -3486,6 +3516,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 all_ads = first_pass_ads.copy()
 
+                # Keep-action bypass: resolve the per-feed segment-category
+                # action map once and pull 'keep' markers out before the
+                # validator/reviewer ever see them. They are stamped
+                # was_cut=False/action_applied='keep' now and merged back into
+                # the saved marker list after the reviewer runs below, so the
+                # resurrection pool (which iterates all_ads_with_validation)
+                # never gets a chance to resurrect one.
+                segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
+                keep_ads, all_ads = _partition_keep_ads(all_ads, segment_actions)
+
                 # Resolve per-feed hold settings once for the full pipeline.
                 max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
                 cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
@@ -3512,6 +3552,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 cue_gate_enabled=cue_gate_enabled,
             )
             _check_cancel(cancel_event, slug, episode_id)
+
+            # Fold keep-action markers back into the saved marker list now
+            # that the validator and reviewer are done with pass 1; they were
+            # withheld above so neither stage could hold, cut, or resurrect them.
+            if keep_ads:
+                all_ads_with_validation = list(all_ads_with_validation) + keep_ads
+                all_ads_with_validation.sort(key=lambda x: x['start'])
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             # Terminal boundary snap (spec 2.3b): after the reviewer so a
             # reviewer-adjusted start can be pulled back to the splice point.
