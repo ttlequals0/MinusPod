@@ -10,6 +10,7 @@ Task 4 -- this is the byte-identical regression case.
 import os
 import sys
 import tempfile
+import types
 from contextlib import ExitStack
 
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='keepbypass_test_'))
@@ -164,3 +165,84 @@ class TestKeepBypass:
         m['storage'].save_combined_ads.assert_not_called()
         for ad in first_pass_ads:
             assert 'action_applied' not in ad
+
+
+class TestKeepMarkersBlockTerminalSnap:
+    """Regression: _snap_terminal_starts must not treat a kept marker as
+    safe coverage. Calls the real _snap_terminal_starts and the real
+    snap_terminal_ad_to_splice/_span_blocked_by_content underneath it --
+    neither sweep is patched, so this exercises the actual production
+    coverage-filtering logic, not a mock's promise to call it correctly.
+    """
+
+    def test_terminal_snap_does_not_sweep_across_kept_marker(self):
+        # A kept recap ends at 85.0, 5s before a terminal ad starting at
+        # 90.0. A digital-silence event at 72.0 sits inside the 30s scan-back
+        # window and, if the kept marker were misread as safe coverage,
+        # would let the sweep pull the ad's start back to 72.0 -- eating the
+        # 72.0-85.0 slice of the kept recap into the cut.
+        segments = [{'start': 70.0, 'end': 85.0,
+                    'text': 'and that wraps up this segment for today'}]
+        kept_marker = {'start': 70.0, 'end': 85.0, 'category': 'recap',
+                       'action_applied': 'keep', 'was_cut': False,
+                       'confidence': 0.9, 'detection_stage': 'llm'}
+        terminal_ad = {'start': 90.0, 'end': 99.0, 'confidence': 0.9,
+                       'reason': 'terminal block', 'detection_stage': 'text_pattern',
+                       'was_cut': True}
+        all_ads_with_validation = [kept_marker, terminal_ad]
+        ads_to_remove = [terminal_ad]
+        splice_evidence = {'events': [
+            {'time': 72.0, 'end_time': 73.4, 'type': 'digital_silence',
+             'depth_dbfs': -90.0, 'duration_s': 1.4, 'loudness_step_lu': None,
+             'centroid_step_hz': None, 'flatness_step': None},
+        ]}
+        audio_analysis_result = types.SimpleNamespace(splice_evidence=splice_evidence)
+
+        with patch.object(processing, 'db') as db, \
+                patch.object(processing, 'storage'):
+            db.get_setting_float.return_value = 30.0
+            result = processing._snap_terminal_starts(
+                'keep-feed', 'ep1', ads_to_remove, all_ads_with_validation,
+                segments, audio_analysis_result, 100.0)
+
+        assert result[0]['start'] == 90.0
+        assert 'terminal_snap' not in terminal_ad
+        # The kept marker itself must never be touched by the sweep.
+        assert kept_marker['start'] == 70.0
+        assert kept_marker['action_applied'] == 'keep'
+
+    def test_tail_completion_clamp_still_stops_at_kept_marker(self):
+        # Unlike the snap-coverage list, _complete_cut_tails' next_start
+        # clamp treats every marker in all_ads_with_validation (kept or not)
+        # as a hard stop -- confirming that behavior stays correct now that
+        # kept markers are folded into that list. Promo-phrase segments after
+        # the cut would otherwise extend its end to 45.0; the kept marker's
+        # start at 35.0 must cap it there instead.
+        segments = [
+            {'start': 20.0, 'end': 25.0, 'text': 'use promo code SAVE10 today'},
+            {'start': 25.0, 'end': 45.0,
+             'text': 'use promo code SAVE10 again and again'},
+        ]
+        terminal_ad = {'start': 10.0, 'end': 20.0, 'reason': 'Acme sponsor read',
+                       'detection_stage': 'text_pattern', 'confidence': 0.9,
+                       'was_cut': True}
+        kept_marker = {'start': 35.0, 'end': 48.0, 'category': 'outro',
+                       'action_applied': 'keep', 'was_cut': False,
+                       'confidence': 0.9, 'detection_stage': 'llm'}
+        all_ads_with_validation = [terminal_ad, kept_marker]
+        ads_to_remove = [terminal_ad]
+
+        with patch.object(processing, 'db') as db, \
+                patch.object(processing, 'storage'):
+            db.get_setting.return_value = 'true'
+            result = processing._complete_cut_tails(
+                'keep-feed', 'ep1', ads_to_remove, all_ads_with_validation,
+                segments)
+
+        assert result[0]['end'] == 35.0
+        assert terminal_ad['end'] == 35.0
+        assert terminal_ad.get('tail_completed') is True
+        # The kept marker itself must never be touched.
+        assert kept_marker['start'] == 35.0
+        assert kept_marker['end'] == 48.0
+        assert kept_marker['action_applied'] == 'keep'

@@ -1479,9 +1479,15 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
         return ads_to_remove
     window_s = db.get_setting_float('terminal_snap_window_seconds',
                                     TERMINAL_SNAP_WINDOW_SECONDS)
+    # Coverage tells the sweep "this span is already explained, safe to cross".
+    # A kept marker is the opposite of that: it is content the pipeline has
+    # promised to leave alone, so it must read as blocking, not as coverage,
+    # or the sweep can pull a terminal cut's start back into kept audio.
+    coverage_ads = [m for m in all_ads_with_validation
+                    if m.get('action_applied') != 'keep']
     snapped = snap_terminal_ad_to_splice(
         ads_to_remove, segments, events, episode_duration, window_s,
-        coverage_ads=all_ads_with_validation,
+        coverage_ads=coverage_ads,
     )
     changed = False
     for old, new in zip(ads_to_remove, snapped):
