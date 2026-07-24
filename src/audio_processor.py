@@ -247,11 +247,15 @@ class AudioProcessor:
 
         sorted_segments = sorted(clamped, key=lambda x: x['start'])
 
-        # Merge segments with < 1 second gaps
+        # Merge segments with < 1 second gaps. Remove and beep spans never
+        # merge into each other -- they render differently below -- so the
+        # gap check also requires matching 'beep' status.
         merged_ads = []
         current_segment = None
         for ad in sorted_segments:
-            if current_segment and ad['start'] - current_segment['end'] < MERGE_GAP_SECONDS:
+            if (current_segment
+                    and ad['start'] - current_segment['end'] < MERGE_GAP_SECONDS
+                    and ad.get('beep', False) == current_segment.get('beep', False)):
                 # Extend current segment (use max to handle overlapping/contained ads)
                 current_segment['end'] = max(current_segment['end'], ad['end'])
                 if 'reason' in ad:
@@ -266,7 +270,7 @@ class AudioProcessor:
                 if current_segment:
                     merged_ads.append(current_segment)
                 current_segment = {'start': ad['start'], 'end': ad['end']}
-                for key in ('reason', 'confidence', 'detection_stage'):
+                for key in ('reason', 'confidence', 'detection_stage', 'beep'):
                     if key in ad:
                         current_segment[key] = ad[key]
         if current_segment:
@@ -361,10 +365,21 @@ class AudioProcessor:
             fade_in_duration = 0.8   # Content fade-in after beep (longer ease back)
             beep_fade_duration = 0.5  # Beep fades stay short
             beep_duration = self.get_beep_duration()
-            # Render model: every applied cut is replaced by one beep. The
-            # chapter remap and the post-render drift check share this.
+            # Render model: a 'remove' cut is replaced by one fixed-length
+            # beep clip (today's behavior, byte-identical). A 'beep' cut is
+            # replaced by that same clip padded with silence to the span's
+            # own length, so its filler exactly backfills what was removed
+            # and total duration does not shrink for that span. The chapter
+            # remap and the post-render drift check share this per-ad model.
             cut_total = sum(a['end'] - a['start'] for a in ads)
-            expected_duration = total_duration - cut_total + len(ads) * beep_duration
+
+            def _filler_length(ad):
+                span_len = ad['end'] - ad['start']
+                if ad.get('beep') and span_len > beep_duration:
+                    return span_len
+                return beep_duration
+
+            expected_duration = total_duration - cut_total + sum(_filler_length(a) for a in ads)
 
             # Split beep input into N copies (one per ad) - ffmpeg streams can only be used once
             num_ads = len(ads)
@@ -401,7 +416,19 @@ class AudioProcessor:
                 beep_fade_out_start = max(0, beep_duration - beep_fade_duration)
                 # Use split copy if multiple ads, otherwise use original input
                 beep_input = f"[beep_in{i}]" if num_ads > 1 else "[1:a]"
-                filter_parts.append(f"{beep_input}afade=t=in:d={beep_fade_duration},afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},volume=0.4[beep{segment_idx}]")
+                beep_chain = (f"{beep_input}afade=t=in:d={beep_fade_duration},"
+                             f"afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},"
+                             f"volume=0.4")
+                # 'beep' action: pad the clip with silence to the ad's own
+                # duration (same _filler_length the drift check uses) so the
+                # span's total length is unchanged (the fades above are
+                # reused exactly, unmodified). 'remove' keeps the
+                # fixed-length clip -- today's behavior.
+                if ad.get('beep'):
+                    filler = _filler_length(ad)
+                    if filler > beep_duration:
+                        beep_chain += f",apad=whole_dur={filler:.3f}"
+                filter_parts.append(f"{beep_chain}[beep{segment_idx}]")
                 concat_parts.append(f"[beep{segment_idx}]")
 
                 current_time = ad_end
@@ -482,18 +509,21 @@ class AudioProcessor:
                 logger.error(f"FFMPEG failed: {stderr_text}")
                 return None
 
-            # Verify output. Each applied cut is REPLACED by the beep, so the
-            # exact expectation is input - cuts + n*beep; drift beyond
-            # RENDER_DRIFT_WARN_SECONDS means the render diverged from marker
-            # arithmetic (spec 1.5 overshoot forensics).
+            # Verify output. Each applied cut is REPLACED by its filler (see
+            # _filler_length above), so the exact expectation is
+            # input - cuts + sum(filler); drift beyond RENDER_DRIFT_WARN_SECONDS
+            # means the render diverged from marker arithmetic (spec 1.5
+            # overshoot forensics).
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 removed_time = total_duration - new_duration
                 drift = new_duration - expected_duration
+                beep_action_count = sum(1 for a in ads if a.get('beep'))
                 logger.info(
                     f"FFMPEG processing complete: {total_duration:.1f}s -> "
                     f"{new_duration:.1f}s (removed {removed_time:.1f}s; cuts "
-                    f"{cut_total:.1f}s, beeps {len(ads)}x{beep_duration:.2f}s, "
+                    f"{cut_total:.1f}s, {len(ads)} span(s) "
+                    f"({beep_action_count} beep-action, {beep_duration:.2f}s clip), "
                     f"render drift {drift:+.2f}s)")
                 if abs(drift) > RENDER_DRIFT_WARN_SECONDS:
                     logger.warning(

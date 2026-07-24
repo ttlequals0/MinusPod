@@ -110,7 +110,8 @@ def _run_pipeline(first_pass_ads, segment_actions):
 
     return {'result': result, 'db': db, 'storage': storage,
             'detect': detect, 'refine': refine, 'reviewer': reviewer,
-            'generate_assets': generate_assets, 'finalize': finalize}
+            'generate_assets': generate_assets, 'finalize': finalize,
+            'local_ap': local_ap}
 
 
 class TestKeepBypass:
@@ -141,7 +142,8 @@ class TestKeepBypass:
         assert keep_marker['action_applied'] == 'keep'
         sponsor_marker = by_span[(sponsor['start'], sponsor['end'])]
         assert sponsor_marker['was_cut'] is True
-        assert 'action_applied' not in sponsor_marker
+        # Task 5 stamps the remove/beep split on every cut marker.
+        assert sponsor_marker['action_applied'] == 'remove'
 
     def test_all_remove_is_byte_identical(self):
         sponsor = _sponsor_ad()
@@ -159,12 +161,18 @@ class TestKeepBypass:
         assert refine_all_ads == first_pass_ads
         assert [id(a) for a in refine_all_ads] == [id(a) for a in first_pass_ads]
 
-        # No action_applied key anywhere; the keep-fold path never ran, so
-        # storage.save_combined_ads is never called by processing.py itself
-        # (only by the mocked-out stage functions, which record no calls).
-        m['storage'].save_combined_ads.assert_not_called()
-        for ad in first_pass_ads:
-            assert 'action_applied' not in ad
+        # Keep-fold path never ran (no keep action in the map). Task 5's cut
+        # partition still runs on the (all-remove) cut list: every cut
+        # marker gets action_applied='remove' -- an allowed addition beyond
+        # Task 4's contract -- and the audio-processor 'beep' flag is False
+        # for all of them, so the audio path stays byte-identical.
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        assert {(a['start'], a['end']): a['action_applied'] for a in saved} == {
+            (sponsor['start'], sponsor['end']): 'remove',
+            (cross_promo['start'], cross_promo['end']): 'remove',
+        }
+        audio_segments = m['local_ap'].process_episode.call_args.args[1]
+        assert all(s['beep'] is False for s in audio_segments)
 
 
 class TestKeepMarkersBlockTerminalSnap:

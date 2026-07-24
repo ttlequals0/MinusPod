@@ -54,6 +54,7 @@ from config import (
     MIN_PRESERVED_CHAPTERS,
     count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
     normalize_segment_category,
+    DEFAULT_SEGMENT_ACTION,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
@@ -1017,6 +1018,36 @@ def _partition_keep_ads(all_ads, actions_map):
         else:
             remove_ads.append(ad)
     return keep_ads, remove_ads
+
+
+def _partition_cut_actions(ads_to_remove, actions_map):
+    """Stamp each cut-list marker with its resolved remove/beep action.
+
+    'keep' is owned end-to-end by _partition_keep_ads (called before the
+    validator/reviewer on pass-1 markers); this function runs on the final
+    cut list, after boundary sweeps, and only distinguishes remove from
+    beep. A marker with no category key (heuristic pre/post-roll or
+    VAD-gap ads, added after the keep partition ran; pass-2 verification
+    ads, which never route through the category-stamping merge seam)
+    normalizes to 'sponsor' here, same as everywhere else category is read.
+    If that resolves to 'keep' -- only reachable via a category-less
+    marker when sponsor itself is set to keep -- it falls back to
+    DEFAULT_SEGMENT_ACTION rather than being pulled out of the list this
+    late; the segment still cuts.
+
+    Sets ad['action_applied'] on every marker in place. Returns
+    ads_to_remove unchanged (same list/objects) for chaining. The
+    audio-processor-facing 'beep' bool is derived from action_applied at
+    the call site, not stored here, so persisted marker dicts never carry
+    that transient flag.
+    """
+    for ad in ads_to_remove:
+        category = normalize_segment_category(ad.get('category'))
+        action = actions_map.get(category, DEFAULT_SEGMENT_ACTION)
+        if action not in ('remove', 'beep'):
+            action = DEFAULT_SEGMENT_ACTION
+        ad['action_applied'] = action
+    return ads_to_remove
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -3485,6 +3516,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 max_ad_duration_override, cue_gate_enabled = None, False
                 ads_to_remove, all_ads_with_validation = [], []
                 keep_ads = []
+                segment_actions = {}
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -3581,6 +3613,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation, segments
             )
 
+            # Cut partition (remove vs beep): resolved once above as
+            # segment_actions, reused here rather than re-querying the DB.
+            # Stamps ad['action_applied'] on every marker in the final cut
+            # list, then syncs it into the master list the same way the
+            # tail-completion sweep syncs start/end (reviewer/sweep
+            # adjustments rebuild dicts, so ads_to_remove entries are not
+            # always the same object as their master).
+            ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
+            for ad in ads_to_remove:
+                master = _find_master(all_ads_with_validation, ad)
+                if master is not None:
+                    master['action_applied'] = ad['action_applied']
+            if ads_to_remove:
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
             # Stage 5: Process audio
             status_service.update_job_stage("pass1:processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
@@ -3591,8 +3638,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must
-            # use that list, not the requested one.
-            result = local_audio_processor.process_episode(audio_path, ads_to_remove)
+            # use that list, not the requested one. 'beep' is derived here,
+            # not stored on ads_to_remove/all_ads_with_validation, so the
+            # persisted marker dicts never carry the audio-processor-only flag.
+            audio_segments = [dict(ad, beep=(ad['action_applied'] == 'beep'))
+                              for ad in ads_to_remove]
+            result = local_audio_processor.process_episode(audio_path, audio_segments)
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "
