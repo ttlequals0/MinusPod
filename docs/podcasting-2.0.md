@@ -164,9 +164,9 @@ instead of waiting for the next scheduled RSS poll.
 No Hive account, keys, or wallet are required. The listener only
 reads the public chain; it never writes to it. Requests go to a small,
 built-in list of public Hive API nodes over outbound HTTPS, roughly
-one request every 3 seconds while the toggle is on, and none while it
-is off. If a node is unreachable, the listener rotates to the next one
-and backs off.
+two requests every 3 seconds while the toggle is on (a head poll plus
+a block fetch each tick), and none while it is off. If a node is
+unreachable, the listener rotates to the next one and backs off.
 
 Podping is an accelerator, not a replacement for polling. The
 scheduled RSS refresh (see [How It Works > Processing

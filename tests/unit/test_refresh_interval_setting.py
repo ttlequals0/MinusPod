@@ -112,6 +112,26 @@ class TestPutValidation:
         assert 'rssRefreshIntervalMinutes' in json.loads(resp.data)['error']
 
 
+class TestGetRoundTrip:
+    def test_put_then_get_reflects_podping_and_refresh_interval(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'podpingEnabled': True,
+                'rssRefreshIntervalMinutes': 60,
+            }),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200, resp.data
+
+        data = _get_settings(client)
+
+        assert data['podpingEnabled']['value'] is True
+        assert data['podpingEnabled']['isDefault'] is False
+        assert data['rssRefreshIntervalMinutes']['value'] == 60
+        assert data['rssRefreshIntervalMinutes']['isDefault'] is False
+
+
 class TestBackgroundRefreshLoop:
     def test_refresh_loop_reads_interval(self, monkeypatch):
         main_db.set_setting('rss_refresh_interval_minutes', '30', is_default=False)

@@ -220,6 +220,16 @@ def get_settings():
     except (ValueError, TypeError):
         max_feed_episodes = registry_get_default('max_feed_episodes')
 
+    try:
+        rss_refresh_interval_minutes = int(_setting_value(
+            settings, 'rss_refresh_interval_minutes',
+            registry_default('rss_refresh_interval_minutes')))
+    except (ValueError, TypeError):
+        rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
+
+    podping_enabled = coerce_bool_setting(_setting_value(
+        settings, 'podping_enabled', registry_default('podping_enabled')))
+
     # Get min cut confidence (ad detection aggressiveness)
     try:
         min_cut_confidence = float(_setting_value(
@@ -454,6 +464,9 @@ def get_settings():
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
+        'rssRefreshIntervalMinutes': _sv(
+            'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
+        'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(

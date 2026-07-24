@@ -296,6 +296,11 @@ class PodpingListener:
                 slug, reason)
             if self.refresh is not None:
                 self.refresh(slug)
+        else:
+            logger.debug(
+                "[%s] Podping received (reason=%s), skipping refresh: "
+                "cooldown active (%.0fs remaining)",
+                slug, reason, COOLDOWN_SECONDS - (now - last))
 
     def tick(self) -> None:
         """One polling iteration: refresh allow-list/feed map as needed,

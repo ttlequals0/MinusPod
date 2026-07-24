@@ -139,9 +139,10 @@ EXPECTED_AD_RESET_KEYS = {
 NON_RESETTABLE_KEYS = (
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
     'max_feed_episodes', 'offline_queue_enabled', 'offline_queue_ttl_hours',
-    'only_expose_processed_default', 'positional_prior_enabled',
+    'only_expose_processed_default', 'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
+    'rss_refresh_interval_minutes',
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
     'transition_threshold_db', 'volume_threshold_db',

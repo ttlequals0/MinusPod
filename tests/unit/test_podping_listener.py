@@ -230,6 +230,36 @@ class TestTick:
         refresh_mock.assert_not_called()
         assert fake_db.stamped_slugs == []
 
+    def test_block_fetch_failure_does_not_advance_cursor(self):
+        def get_block_side_effect(params):
+            if params[0] == 3:
+                raise requests.RequestException('boom')
+            return {'transactions': []}
+
+        rpc = ScriptedRpc({
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': 5},
+            'condenser_api.get_block': get_block_side_effect,
+        })
+        fake_db = FakeDb()
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(), sleep=lambda s: None)
+        listener.allowed_accounts = {'podping'}
+        listener.allowed_accounts_fetched_at = time.time()
+        listener.feed_map = {}
+        listener.feed_map_fetched_at = time.time()
+        listener.current_block = 2  # next block to fetch is 3, which fails
+
+        listener.tick()
+
+        # Cursor must not advance past the block that failed to fetch.
+        assert listener.current_block == 2
+
+        # Next tick retries the same block instead of skipping it.
+        listener.tick()
+
+        block_call_params = [c[1] for c in rpc.calls if c[0] == 'condenser_api.get_block']
+        assert block_call_params == [[3], [3]]
+        assert listener.current_block == 2
+
     def test_catchup_skip_jumps_to_head_minus_one(self, caplog):
         head = 100 + MAX_CATCHUP_BLOCKS + 50
         rpc = ScriptedRpc({
@@ -264,6 +294,20 @@ class TestCooldown:
 
         assert fake_db.stamped_slugs == ['my-show', 'my-show']
         assert refresh_mock.call_count == 1
+
+    def test_second_ping_within_cooldown_logs_debug_skip(self, caplog):
+        fake_db = FakeDb()
+        listener = PodpingListener(db=fake_db, refresh=Mock(), sleep=lambda s: None)
+
+        with caplog.at_level('DEBUG', logger='podcast.podping'):
+            listener._handle_match('my-show', 'update')
+            listener._handle_match('my-show', 'update')
+
+        debug_records = [r for r in caplog.records if r.levelname == 'DEBUG']
+        assert len(debug_records) == 1
+        message = debug_records[0].getMessage()
+        assert 'my-show' in message
+        assert 'cooldown' in message.lower()
 
 
 class _FakeShutdownEvent:
@@ -339,3 +383,47 @@ class TestPodpingListenerLoop:
 
         # After each of 3 successful ticks, wait(timeout=3) should be called.
         assert fake_event.wait_calls == [3, 3, 3]
+
+    def test_tick_exception_is_caught_and_loop_continues(self, monkeypatch, caplog):
+        """A tick() that raises must not kill the loop: log via
+        logger.exception, back off 60s, and proceed to the next iteration."""
+        import main_app.background as background_module
+        from unittest.mock import Mock
+
+        class CountingShutdownEvent(_FakeShutdownEvent):
+            def __init__(self, max_iterations):
+                super().__init__()
+                self.iteration_count = 0
+                self.max_iterations = max_iterations
+
+            def is_set(self):
+                return self.iteration_count >= self.max_iterations
+
+            def wait(self, timeout=None):
+                self.wait_calls.append(timeout)
+                self.iteration_count += 1
+                return True
+
+        fake_event = CountingShutdownEvent(max_iterations=2)
+        monkeypatch.setattr(background_module, 'shutdown_event', fake_event)
+
+        fake_db = Mock()
+        fake_db.get_setting_bool.side_effect = (
+            lambda k, default=False: True if k == 'podping_enabled' else default)
+        fake_db.clear_leaked_transaction.return_value = None
+        monkeypatch.setattr(background_module, 'db', fake_db)
+
+        tick_mock = Mock(side_effect=RuntimeError('boom'))
+        monkeypatch.setattr(PodpingListener, 'tick', tick_mock)
+        monkeypatch.setattr('main_app.feeds.refresh_single_feed', Mock())
+
+        with caplog.at_level('ERROR', logger='podcast.podping'):
+            podping_listener_loop()  # must return normally, not raise
+
+        # Both iterations hit the exception path and backed off 60s each --
+        # the loop reached a second iteration rather than dying on the first.
+        assert fake_event.wait_calls == [60, 60]
+        assert tick_mock.call_count == 2
+        assert 'Podping listener loop iteration failed' in caplog.text
+        exc_records = [r for r in caplog.records if r.exc_info is not None]
+        assert len(exc_records) == 2
