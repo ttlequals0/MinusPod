@@ -157,18 +157,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         setSegmentActionError(null);
       }
     },
-    // The onSettled refetch below reverts a failed PATCH's optimistic state
-    // eventually, but only once the invalidated query refetches -- a second
-    // segment-action edit fired before that refetch lands would otherwise
-    // build off `segmentOverrides` while it still carries the failed first
-    // edit and resend it. Reseed segmentOverrides from the feed prop (the
-    // last server-known value) synchronously here instead of waiting.
-    onError: (e: unknown, variables) => {
-      if (variables && 'segmentCategoryActions' in variables) {
-        setSegmentOverrides(feed.segmentCategoryActions ?? {});
-        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
-      }
-    },
+    // No mutation-level onError: a segment-action edit's rollback must
+    // restore the local segmentOverrides snapshot from immediately before
+    // THAT edit, not the `feed` prop -- the prop is stale until the
+    // invalidated query below refetches, so if it lagged behind an earlier
+    // *successful* edit, reseeding from it here would silently erase that
+    // edit from both the display and the next PATCH's payload. Each
+    // mutate() call below supplies its own per-call onError with the
+    // correct snapshot captured in its closure (react-query v5 runs
+    // per-call callbacks in addition to these mutation-level ones).
+    //
     // onSettled (not onSuccess-only): a failed PATCH must still refetch so
     // every other field synced off the feed prop reverts to server truth
     // instead of showing an edit that never actually persisted.
@@ -203,20 +201,40 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // request, makes consecutive edits compose regardless of request timing.
   // Clearing the last remaining override sends null instead of an empty
   // object so the feed response comes back with no overrides at all.
+  //
+  // Standard optimistic-rollback pattern: `prev` snapshots segmentOverrides
+  // as it stood immediately before THIS edit's optimistic update, captured
+  // in the closure passed to mutate()'s per-call onError. On failure this
+  // restores exactly that snapshot -- which still carries any edit that
+  // already succeeded before this one -- instead of the `feed` prop, which
+  // can lag behind a just-succeeded edit until its refetch lands and would
+  // otherwise erase that edit from both the display and the next PATCH.
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
+    const prev = segmentOverrides;
     const next = { ...segmentOverrides, [category]: action };
     setSegmentOverrides(next);
     setSegmentActionError(null);
-    updateMutation.mutate({ segmentCategoryActions: next });
+    updateMutation.mutate({ segmentCategoryActions: next }, {
+      onError: (e) => {
+        setSegmentOverrides(prev);
+        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
+      },
+    });
   };
 
   const clearSegmentActionOverride = (category: SegmentCategory) => {
+    const prev = segmentOverrides;
     const next = { ...segmentOverrides };
     delete next[category];
     setSegmentOverrides(next);
     setSegmentActionError(null);
     updateMutation.mutate({
       segmentCategoryActions: Object.keys(next).length > 0 ? next : null,
+    }, {
+      onError: (e) => {
+        setSegmentOverrides(prev);
+        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
+      },
     });
   };
 

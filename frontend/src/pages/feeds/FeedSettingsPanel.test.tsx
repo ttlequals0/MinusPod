@@ -344,6 +344,55 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
       expect(screen.queryByText('Network error')).toBeNull();
     });
   });
+
+  it('a later failed edit does not erase an earlier successful edit (Lens B)', async () => {
+    // Regression test: reseeding segmentOverrides from the `feed` PROP on
+    // error is itself buggy, because the prop lags behind a just-succeeded
+    // edit until its invalidated ['feed', slug] query refetches. Sequence:
+    // edit A (sponsor -> keep) succeeds, edit B (cross_promo -> beep)
+    // fails. A prop-based rollback would restore the PRE-A prop value,
+    // silently erasing A from the display AND from a third edit's PATCH
+    // payload. The correct rollback restores the per-edit snapshot taken
+    // immediately before B's own optimistic update, which still carries A.
+    // The `feed` prop here never changes across the three clicks (no
+    // ['feed', slug] query observer exists to refetch it), so nothing but
+    // that snapshot-based rollback can be what preserves A.
+    mockUpdateFeed.mockResolvedValueOnce(makeFeed());
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
+    mockUpdateFeed.mockResolvedValueOnce(makeFeed());
+    renderPanel(makeFeed());
+
+    // Edit A: sponsor -> keep. Succeeds.
+    const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
+    await userEvent.click(within(sponsorGroup).getByRole('radio', { name: 'Keep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(1, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep' },
+    });
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledTimes(1));
+
+    // Edit B: cross_promo -> beep. Its payload correctly carries A. Fails.
+    const crossPromoGroup = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(within(crossPromoGroup).getByRole('radio', { name: 'Beep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(2, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep', cross_promo: 'beep' },
+    });
+    await screen.findByText('Network error');
+
+    // A must still be reflected in the UI: Sponsor still shows Keep
+    // selected, with a live override (Clear button, not Inherit).
+    expect(within(sponsorGroup).getByRole('radio', { name: 'Keep' }).getAttribute('aria-checked')).toBe('true');
+    expect(within(sponsorGroup.parentElement as HTMLElement).getByRole('button', { name: 'Clear' })).toBeDefined();
+
+    // B must have rolled back: Cross-promo has no override of its own.
+    expect(within(crossPromoGroup.parentElement as HTMLElement).queryByRole('button', { name: 'Clear' })).toBeNull();
+
+    // Edit C: a third edit's PATCH body must still carry A, not just C.
+    const selfPromoGroup = screen.getByRole('radiogroup', { name: 'Self-promo action' });
+    await userEvent.click(within(selfPromoGroup).getByRole('radio', { name: 'Beep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(3, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep', self_promo: 'beep' },
+    });
+  });
 });
 
 describe('FeedSettingsPanel show-segments toggle (#565)', () => {
