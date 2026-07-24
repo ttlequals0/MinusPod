@@ -4,7 +4,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
-from config import count_pending_review, is_pending_review
+from config import (
+    count_pending_review, is_pending_review,
+    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+)
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService
@@ -938,6 +941,35 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         if rejected_text:
             logger.debug(f"Extracted {len(rejected_text)} chars of rejected text for cross-episode matching")
 
+    # Resolve the matched held marker's hold_reason server-side, before
+    # _clear_held_marker_on_reject pops it below -- the client payload
+    # carries no hold_reason of its own. A differential-uncorroborated hold
+    # (by hold_reason or detection_stage) was only ever a hold candidate,
+    # never a confirmed false positive of a real detector, so its text must
+    # not seed cross-episode FP matching on other episodes.
+    markers = _load_markers(db, slug, episode_id)
+    matched_marker = None
+    if markers:
+        for m in markers:
+            if _matches_held_marker(m, original_start, original_end, 0.5):
+                matched_marker = m
+                break
+
+    source_hold_reason = None
+    is_differential_hold = False
+    if matched_marker is not None:
+        marker_hold_reason = matched_marker.get('hold_reason')
+        is_differential_hold = (
+            marker_hold_reason == HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
+            or matched_marker.get('detection_stage') == 'dai_differential'
+        )
+        source_hold_reason = (
+            HOLD_REASON_DIFFERENTIAL_UNCORROBORATED if is_differential_hold
+            else marker_hold_reason
+        )
+
+    text_snippet = None if is_differential_hold else rejected_text
+
     if pattern_id:
         pattern = db.get_ad_pattern_by_id(pattern_id)
         if pattern:
@@ -954,10 +986,12 @@ def _handle_reject_correction(db, slug, episode_id, original_ad):
         pattern_id=pattern_id,
         episode_id=episode_id,
         original_bounds={'start': original_start, 'end': original_end},
-        text_snippet=rejected_text
+        text_snippet=text_snippet,
+        source_hold_reason=source_hold_reason,
     )
 
-    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end)
+    _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
+                                 markers=markers)
 
     return json_response({'message': 'False positive recorded'})
 
@@ -984,11 +1018,17 @@ def _load_markers(db, slug, episode_id):
         return None
 
 
-def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5):
+def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
+                                 markers=None):
     """When the rejected range matches a held marker, demote it to a plain
     rejected marker and recompute pending_review_count. Without this the amber
-    review chip never clears by reviewing (the held state persists)."""
-    markers = _load_markers(db, slug, episode_id)
+    review chip never clears by reviewing (the held state persists).
+
+    markers, when given, is reused instead of re-fetching episode_details --
+    the reject path already loads it to resolve source_hold_reason before
+    calling here."""
+    if markers is None:
+        markers = _load_markers(db, slug, episode_id)
     if markers is None:
         return
 
@@ -1501,6 +1541,7 @@ def backfill_false_positive_texts():
         JOIN podcasts p ON e.podcast_id = p.id
         WHERE pc.correction_type = 'false_positive'
         AND (pc.text_snippet IS NULL OR pc.text_snippet = '')
+        AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
     ''')
 
     rows = cursor.fetchall()

@@ -201,7 +201,9 @@ TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_correct
     corrected_bounds TEXT,
     text_snippet TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    sponsor_id INTEGER REFERENCES known_sponsors(id)
+    sponsor_id INTEGER REFERENCES known_sponsors(id),
+    source_hold_reason TEXT,
+    fp_suppressed INTEGER DEFAULT 0
 )"""
 
 TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprints (

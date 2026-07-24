@@ -362,18 +362,25 @@ class PatternMixin:
                                    episode_id: str = None, podcast_title: str = None,
                                    episode_title: str = None, original_bounds: Dict = None,
                                    corrected_bounds: Dict = None, text_snippet: str = None,
-                                   sponsor_id: int = None) -> int:
-        """Create a pattern correction record. Returns correction ID."""
+                                   sponsor_id: int = None,
+                                   source_hold_reason: str = None) -> int:
+        """Create a pattern correction record. Returns correction ID.
+
+        source_hold_reason records which hold gate produced a
+        false_positive correction (e.g. 'differential_uncorroborated'), so
+        the text can later be excluded from cross-episode FP matching.
+        """
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
-                original_bounds, corrected_bounds, text_snippet, sponsor_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                original_bounds, corrected_bounds, text_snippet, sponsor_id,
+                source_hold_reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet, sponsor_id)
+             text_snippet, sponsor_id, source_hold_reason)
         )
         conn.commit()
         return cursor.lastrowid
@@ -607,6 +614,8 @@ class PatternMixin:
             AND pc.correction_type = 'false_positive'
             AND pc.text_snippet IS NOT NULL
             AND length(pc.text_snippet) >= 50
+            AND COALESCE(pc.fp_suppressed, 0) = 0
+            AND (pc.source_hold_reason IS NULL OR pc.source_hold_reason != 'differential_uncorroborated')
             ORDER BY pc.created_at DESC
             LIMIT ?
         ''', (podcast_slug, limit))
@@ -627,3 +636,90 @@ class PatternMixin:
                 'created_at': row['created_at']
             })
         return results
+
+
+def suppress_differential_fp_texts(db) -> int:
+    """One-shot backfill (2.76.0): suppress false-positive correction text
+    that came from a rejected dai_differential hold.
+
+    Rejecting a differential-hold marker (the user or an auto-reject
+    confirming it was not an ad) still leaves the marker in
+    episode_details.ad_markers_json with detection_stage=='dai_differential'
+    even after hold_reason is popped. Before this backfill, that rejection's
+    text_snippet was scraped into cross-episode FP text matching the same
+    as any other false_positive correction, poisoning future differential
+    matching on other episodes with text that was only ever a hold
+    candidate, not a confirmed false positive of a real detector.
+
+    For every false_positive correction with a text_snippet, loads the
+    correction's episode markers and sets fp_suppressed=1 when
+    original_bounds match (tolerance 0.5s on both edges) a marker whose
+    detection_stage == 'dai_differential'. Never deletes rows. Returns the
+    count suppressed.
+    """
+    conn = db.get_connection()
+    rows = conn.execute(
+        """SELECT id, episode_id, original_bounds FROM pattern_corrections
+           WHERE correction_type = 'false_positive'
+             AND text_snippet IS NOT NULL
+             AND COALESCE(fp_suppressed, 0) = 0"""
+    ).fetchall()
+
+    suppressed = 0
+    for row in rows:
+        bounds = _parse_bounds(row['original_bounds'])
+        if not bounds or not row['episode_id']:
+            continue
+
+        episode_matches = conn.execute(
+            "SELECT id FROM episodes WHERE episode_id = ?",
+            (row['episode_id'],)
+        ).fetchall()
+        if len(episode_matches) > 1:
+            # episode_id is only unique per podcast; more than one match
+            # means we can't tell which episode this correction belongs to.
+            # Skip suppression rather than risk matching the wrong podcast.
+            logger.debug(
+                "Skipping FP suppression for ambiguous episode_id=%r (%d matches)",
+                row['episode_id'], len(episode_matches)
+            )
+            continue
+        if not episode_matches:
+            continue
+
+        episode_row = conn.execute(
+            "SELECT ad_markers_json FROM episode_details WHERE episode_id = ?",
+            (episode_matches[0]['id'],)
+        ).fetchone()
+        if not episode_row or not episode_row['ad_markers_json']:
+            continue
+
+        try:
+            markers = json.loads(episode_row['ad_markers_json'])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if not isinstance(markers, list):
+            continue
+
+        matched = False
+        for m in markers:
+            if not isinstance(m, dict) or m.get('detection_stage') != 'dai_differential':
+                continue
+            try:
+                m_start = float(m.get('start'))
+                m_end = float(m.get('end'))
+            except (TypeError, ValueError):
+                continue
+            if abs(m_start - bounds['start']) <= 0.5 and abs(m_end - bounds['end']) <= 0.5:
+                matched = True
+                break
+        if matched:
+            conn.execute(
+                "UPDATE pattern_corrections SET fp_suppressed = 1 WHERE id = ?",
+                (row['id'],)
+            )
+            suppressed += 1
+
+    if suppressed:
+        conn.commit()
+    return suppressed

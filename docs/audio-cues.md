@@ -14,6 +14,15 @@ reviewer to evaluate.
 Audio cue detection is off by default. Turn it on under Settings > Experiments >
 Audio Cue Detection. It applies only to episodes processed after you enable it.
 
+**Cross-fetch differential detection is significantly more accurate on feeds
+with cue templates configured.** A matched cue corroborates a differential
+region so it cuts instead of holding for review, helps bound DAI slots, and
+anchors the comparison timeline against fetch-to-fetch timing drift. If a
+feed carries heavy dynamic ad insertion, setting up a cue template is the
+recommended first step, before tuning the differential thresholds
+themselves. See [Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
+for how the two stages combine.
+
 ## How it finds the cue
 
 There are two ways to find a cue, both gated by the master toggle.

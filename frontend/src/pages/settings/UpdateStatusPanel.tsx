@@ -48,53 +48,60 @@ export default function UpdateStatusPanel() {
 
   return (
     <div className="mt-4 border-t border-border pt-4 space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Running {status.current.version}
-        {status.current.releaseDate ? ` (released ${status.current.releaseDate})` : ''}
+      <p className="text-sm font-medium text-foreground">
+        Running {status.current.version} ({status.channel})
+        {status.current.releaseDate ? (
+          <span className="font-normal text-muted-foreground"> released {status.current.releaseDate}</span>
+        ) : null}
       </p>
       <p className="text-sm text-foreground">
         {status.updateAvailable && target
           ? `${target.version} is available on the ${status.channel} channel.`
           : 'Up to date on the selected channel.'}
       </p>
-      <div className="flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          Channel
-          <select
-            aria-label="Channel"
-            className="rounded border border-input bg-background px-2 py-1 text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-            value={settings.channel}
-            onChange={(e) => settingsMutation.mutate({ channel: e.target.value as 'stable' | 'edge' })}
+      <details className="group">
+        <summary className="text-sm text-primary hover:underline cursor-pointer list-none">
+          Update settings
+        </summary>
+        <div className="mt-3 flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            Channel
+            <select
+              aria-label="Channel"
+              className="rounded border border-input bg-background px-2 py-1 text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              value={settings.channel}
+              onChange={(e) => settingsMutation.mutate({ channel: e.target.value as 'stable' | 'edge' })}
+            >
+              <option value="stable">Stable</option>
+              <option value="edge">Edge</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+            <ToggleSwitch
+              checked={settings.enabled}
+              onChange={(v: boolean) => settingsMutation.mutate({ enabled: v })}
+              ariaLabel="Check for updates daily"
+            />
+            Check for updates daily
+          </label>
+          <button
+            type="button"
+            className={`px-3 py-1 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+            onClick={checkNow}
+            disabled={checking}
           >
-            <option value="stable">Stable</option>
-            <option value="edge">Edge</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-          <ToggleSwitch
-            checked={settings.enabled}
-            onChange={(v: boolean) => settingsMutation.mutate({ enabled: v })}
-            ariaLabel="Check for updates daily"
-          />
-          Check for updates daily
-        </label>
-        <button
-          type="button"
-          className={`px-3 py-1 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
-          onClick={checkNow}
-          disabled={checking}
-        >
-          {checking ? 'Checking...' : 'Check for updates'}
-        </button>
-        <a
-          href="https://github.com/ttlequals0/MinusPod/releases"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-primary hover:underline"
-        >
-          Changelog
-        </a>
-      </div>
+            {checking ? 'Checking...' : 'Check for updates'}
+          </button>
+          <a
+            href="https://github.com/ttlequals0/MinusPod/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary hover:underline"
+          >
+            Changelog
+          </a>
+        </div>
+      </details>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );

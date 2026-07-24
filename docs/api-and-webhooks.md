@@ -112,6 +112,8 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `episode.slug` | string | Feed slug |
 | `episode.url` | string | Full UI URL to episode |
 | `episode.ads_removed` | int | Number of ads removed |
+| `episode.ads_held` | int | Number of ads held for review (not cut) |
+| `episode.ads_not_cut` | int | Number of detections not cut (rejected by validation, below threshold, or vetoed by the reviewer) |
 | `episode.processing_time_secs` | float | Processing duration in seconds |
 | `episode.processing_time` | string | Processing duration formatted as M:SS or H:MM:SS |
 | `episode.llm_cost` | float | LLM cost in USD |
@@ -187,6 +189,8 @@ When no custom template is configured, MinusPod sends these JSON payloads.
     "slug": "my-favorite-podcast",
     "url": "http://your-server:8000/ui/feeds/my-favorite-podcast/episodes/a1b2c3d4e5f6",
     "ads_removed": 3,
+    "ads_held": 1,
+    "ads_not_cut": 1,
     "processing_time_secs": 42.5,
     "processing_time": "0:42",
     "llm_cost": 0.0035,
@@ -214,6 +218,8 @@ When no custom template is configured, MinusPod sends these JSON payloads.
     "slug": "my-favorite-podcast",
     "url": "http://your-server:8000/ui/feeds/my-favorite-podcast/episodes/a1b2c3d4e5f6",
     "ads_removed": 0,
+    "ads_held": 0,
+    "ads_not_cut": 0,
     "processing_time_secs": 12.3,
     "processing_time": "0:12",
     "llm_cost": 0.001,
@@ -285,7 +291,7 @@ Point MinusPod at an SMTP server and it emails you for the events you pick. Comm
 
 Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
-By default the failure and alert events are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing.
+By default the failure and alert events are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
 
 ### Example: Pushover
 

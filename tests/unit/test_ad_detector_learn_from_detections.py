@@ -12,6 +12,7 @@ def detector():
     det = AdDetector(api_key="test-key")
     det.db = MagicMock()
     det.db.get_active_pattern_sponsors = MagicMock(return_value=set())
+    det.db.get_setting_float = MagicMock(side_effect=lambda key, default: default)
     det.text_pattern_matcher = MagicMock()
     det.text_pattern_matcher.create_pattern_from_ad = MagicMock(return_value=None)
     det.sponsor_service = MagicMock()

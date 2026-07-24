@@ -821,6 +821,15 @@ class PatternService:
         patterns = self.get_patterns_for_podcast(slug)
         matcher = self._get_text_pattern_matcher() if segments else None
 
+        # Read at call time (not cached) so settings changes apply on the
+        # next run without a restart.
+        min_confidence_short = self.db.get_setting_float(
+            'learning_min_confidence', LEARNING_MIN_CONFIDENCE
+        )
+        min_confidence_long = self.db.get_setting_float(
+            'learning_min_confidence_long', LEARNING_MIN_CONFIDENCE_LONG
+        )
+
         for ad in missed_ads:
             sponsor = ad.get('sponsor')
             if not sponsor or sponsor.lower() in ('unknown', 'n/a', ''):
@@ -833,9 +842,9 @@ class PatternService:
             confidence = float(ad.get('confidence') or 0.0)
             duration = float(ad.get('end') or 0.0) - float(ad.get('start') or 0.0)
             min_confidence = (
-                LEARNING_MIN_CONFIDENCE_LONG
+                min_confidence_long
                 if duration > LEARNING_LONG_DURATION_THRESHOLD
-                else LEARNING_MIN_CONFIDENCE
+                else min_confidence_short
             )
             if confidence < min_confidence:
                 logger.info(

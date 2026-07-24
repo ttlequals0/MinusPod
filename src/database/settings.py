@@ -462,6 +462,26 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'silence_snap_max_distance_seconds': SettingSpec(
         default=str(SILENCE_SNAP_MAX_DISTANCE_SECONDS),
         payload_key='silenceSnapMaxDistanceSeconds', payload_kind='float'),
+
+    # -- Detection tuning (verification miss, learning, differential; 2.76.0) --
+    'verification_miss_hold_min_confidence': SettingSpec(
+        default='0.60', seeded=True, in_ad_reset=True,
+        payload_key='verificationMissHoldMinConfidence', payload_kind='float'),
+    'verification_miss_autocut_min_confidence': SettingSpec(
+        default='0', seeded=True, in_ad_reset=True,
+        payload_key='verificationMissAutocutMinConfidence', payload_kind='float'),
+    'learning_min_confidence': SettingSpec(
+        default='0.85', seeded=True, in_ad_reset=True,
+        payload_key='learningMinConfidence', payload_kind='float'),
+    'learning_min_confidence_long': SettingSpec(
+        default='0.92', seeded=True, in_ad_reset=True,
+        payload_key='learningMinConfidenceLong', payload_kind='float'),
+    'differential_measured_corr_max': SettingSpec(
+        default='0.60', seeded=True, in_ad_reset=True,
+        payload_key='differentialMeasuredCorrMax', payload_kind='float'),
+    'differential_hold_min_seconds': SettingSpec(
+        default='10', seeded=True, in_ad_reset=True,
+        payload_key='differentialHoldMinSeconds', payload_kind='float'),
 }
 
 # Secrets: reset clears the row so env-var fallback takes over. Only the

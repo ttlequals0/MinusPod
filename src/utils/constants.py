@@ -4,7 +4,9 @@ Centralizes field name sets and classification values that were previously
 duplicated across ad_detector.py and text_pattern_matcher.py.
 """
 
+import re
 from enum import Enum
+from typing import Optional
 
 
 class EpisodeStatus(str, Enum):
@@ -59,7 +61,7 @@ INVALID_SPONSOR_VALUES = frozenset({
 SPONSOR_REASONING_PREFIXES = (
     'inferred from', 'inferred', 'based on', 'according to',
     'likely ', 'possibly ', 'may be ', 'appears to ', 'seems to ',
-    'detected as ', 'classified as ',
+    'detected as ', 'classified as ', 'regular discussion',
 )
 SPONSOR_REASONING_SUBSTRINGS = (
     ' in transcript', 'audio signal', 'no spoken content',
@@ -85,6 +87,26 @@ def is_sponsor_reasoning_rationale(text) -> bool:
     if any(s in lowered for s in SPONSOR_REASONING_SUBSTRINGS):
         return True
     return False
+
+
+def sanitize_sponsor_label(text) -> Optional[str]:
+    """Reject an LLM-mislabeled sponsor slot before it reaches a marker.
+
+    Returns None when `text` is falsy, is reasoning prose caught by
+    is_sponsor_reasoning_rationale, or is a bare segment name (Claude
+    sometimes echoes the show-segment title into the sponsor slot for one ad
+    read, e.g. 'Xbox segment' instead of the actual advertiser -- matched by
+    a trailing "segment" word, case-insensitive). Otherwise returns `text`
+    unchanged. Used by ad_detector._merge_detection_results to keep junk
+    sponsor labels out of merged markers.
+    """
+    if not text:
+        return None
+    if is_sponsor_reasoning_rationale(text):
+        return None
+    if re.search(r'\bsegment$', str(text).strip(), re.I):
+        return None
+    return text
 
 
 # First-pass-learning and verification-miss confidence floors. Single source

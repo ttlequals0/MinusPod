@@ -322,6 +322,21 @@ class SchemaMixin:
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
 
+        # -- pattern_corrections table columns --
+        # Provenance + suppression for false-positive text used in
+        # cross-episode text-pattern matching (2.76.0). source_hold_reason
+        # records which hold gate produced a false_positive correction;
+        # fp_suppressed excludes a correction's text_snippet from
+        # get_podcast_false_positive_texts (see suppress_differential_fp_texts
+        # backfill).
+        pcorr_cols = self._get_table_columns(conn, 'pattern_corrections')
+        pcorr_migrations = [
+            ('source_hold_reason', 'TEXT'),
+            ('fp_suppressed', 'INTEGER DEFAULT 0'),
+        ]
+        for col, definition in pcorr_migrations:
+            self._add_column_if_missing(conn, 'pattern_corrections', col, definition, pcorr_cols)
+
         # 2.0.19 -> 2.0.20: convert only_expose_processed_episodes from
         # INTEGER DEFAULT 0 to plain nullable INTEGER, treating the previous
         # 0 default as "use global default" (NULL). Explicit per-feed 1

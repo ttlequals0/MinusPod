@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.75.0
+  version: 2.76.1
   contact:
     name: MinusPod
   license:
@@ -3713,6 +3713,64 @@ paths:
                   minimum: 0
                   maximum: 1770
                   description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
+                verificationMissHoldMinConfidence:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: >-
+                    Confidence floor for a standalone pass-2 verification
+                    miss (a catch overlapping no pass-1 marker) to hold for
+                    review instead of being dropped (default 0.60).
+                  example: 0.60
+                verificationMissAutocutMinConfidence:
+                  type: number
+                  format: float
+                  description: >-
+                    Confidence floor for a standalone verification miss to
+                    cut automatically instead of holding for review. 0
+                    disables autocut (default); otherwise must be between
+                    0.5 and 1.0.
+                  example: 0
+                learningMinConfidence:
+                  type: number
+                  format: float
+                  minimum: 0.5
+                  maximum: 1
+                  description: >-
+                    Minimum confidence for a detection to teach the pattern
+                    matcher a new sponsor, for ads up to 90 seconds (default
+                    0.85).
+                  example: 0.85
+                learningMinConfidenceLong:
+                  type: number
+                  format: float
+                  minimum: 0.5
+                  maximum: 1
+                  description: >-
+                    Same floor as learningMinConfidence for ads longer than
+                    90 seconds (default 0.92).
+                  example: 0.92
+                differentialMeasuredCorrMax:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: >-
+                    A cross-fetch region becomes a differential candidate
+                    only when its measured correlation is at or below this
+                    value (default 0.60).
+                  example: 0.60
+                differentialHoldMinSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 120
+                  description: >-
+                    Shortest uncorroborated differential candidate that may
+                    hold for review; shorter candidates are dropped. 0
+                    disables the floor (default 10).
+                  example: 10
       responses:
         '200':
           description: Settings updated
@@ -7395,9 +7453,11 @@ components:
                         type: number
                       kind:
                         type: string
-                        enum: [differential, identical]
+                        enum: [differential, identical, unknown]
                       corr:
-                        type: number
+                        type:
+                          - number
+                          - 'null'
                 refetch_meta:
                   type: object
                 error:
@@ -8102,6 +8162,72 @@ components:
           properties:
             value:
               type: number
+            isDefault:
+              type: boolean
+        verificationMissHoldMinConfidence:
+          type: object
+          description: >-
+            Confidence floor for a standalone pass-2 verification miss to
+            hold for review instead of being dropped (default 0.60).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        verificationMissAutocutMinConfidence:
+          type: object
+          description: >-
+            Confidence floor for a standalone verification miss to cut
+            automatically instead of holding for review. 0 disables autocut
+            (default).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        learningMinConfidence:
+          type: object
+          description: >-
+            Minimum confidence for a detection to teach the pattern matcher
+            a new sponsor, for ads up to 90 seconds (default 0.85).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        learningMinConfidenceLong:
+          type: object
+          description: Same floor as learningMinConfidence for ads longer than 90 seconds (default 0.92).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        differentialMeasuredCorrMax:
+          type: object
+          description: >-
+            A cross-fetch region becomes a differential candidate only when
+            its measured correlation is at or below this value (default 0.60).
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        differentialHoldMinSeconds:
+          type: object
+          description: >-
+            Shortest uncorroborated differential candidate that may hold
+            for review; shorter candidates are dropped. 0 disables the
+            floor (default 10).
+          properties:
+            value:
+              type: number
+              format: float
             isDefault:
               type: boolean
         positionalPriorEnabled:

@@ -952,7 +952,16 @@ function EpisodeDetail() {
                 ? 'The reviewer disagreed with the detected boundaries'
                 : segment.hold_reason === 'no_splice_evidence'
                 ? 'No splice artifact found at either edge'
+                : segment.hold_reason === 'verification_miss'
+                ? 'A standalone catch from the verification pass, held for a second opinion'
+                : segment.hold_reason === 'differential_uncorroborated'
+                ? 'Audio differs across fetches with no corroborating signal'
                 : 'Held for manual review';
+              const holdLabel = segment.hold_reason === 'verification_miss'
+                ? 'Verification catch'
+                : segment.hold_reason === 'differential_uncorroborated'
+                ? 'Differential hold'
+                : 'Held';
               const rowStatus = rowSaveStatus(segment);
               const heldKey = `held-${segment.start}-${segment.end}`;
               const heldPlaying = markerAudition.playingKey === heldKey;
@@ -996,7 +1005,7 @@ function EpisodeDetail() {
                         className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning"
                         title={holdTitle}
                       >
-                        Held
+                        {holdLabel}
                       </span>
                       {(correction || segment.approved) && (
                         <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${

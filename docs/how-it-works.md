@@ -43,6 +43,14 @@ Each detected ad shows a badge indicating which stage found it:
 
 The verification model can be configured separately from the first pass model in Settings.
 
+A pass-2 detection that overlaps an already-accepted ad is folded into the recut at step 5 above. A **standalone miss** - one that overlaps no pass-1 marker - goes through a separate confidence gate instead of being silently discarded:
+
+- Above the autocut floor (Settings > Ad Detection, off by default): cuts automatically, the same as any other gated cut.
+- Otherwise, once it clears the hold floor (default 0.60): holds for review with hold reason `verification_miss`, shown as a "Verification catch" chip in [Held for Review](#held-for-review).
+- Below the hold floor: dropped, with a log line naming what was dropped and why. Never silent.
+
+See [Configuration > Detection Tuning](configuration.md#detection-tuning) for both floors.
+
 ### Sliding Window Processing
 
 For long episodes, transcripts are processed in overlapping windows:
@@ -89,10 +97,12 @@ Rejected ads appear in a separate "Rejected Detections" section in the UI so you
 
 #### Held for Review
 
-A fourth outcome is **held for review**. An ad is held when a per-feed rule blocks the automatic cut (both rules are off by default, set on the feed settings page):
+A fourth outcome is **held for review**. An ad is held when one of these rules blocks the automatic cut:
 
-- **Max ad duration** - the detection exceeds the feed's cap, even if the model was highly confident.
-- **Cue gating** - the feed has cue-gated approval on and the detection has no audio-cue evidence. Manual markers are exempt from cue gating (the duration cap still applies to them). On cue-gated feeds, verification-pass (pass 2) proposals are always held because they cannot carry cue evidence.
+- **Max ad duration** - per-feed rule, off by default (feed settings page). The detection exceeds the feed's cap, even if the model was highly confident.
+- **Cue gating** - per-feed rule, off by default. The feed has cue-gated approval on and the detection has no audio-cue evidence. Manual markers are exempt from cue gating (the duration cap still applies to them). On cue-gated feeds, verification-pass (pass 2) proposals are always held because they cannot carry cue evidence.
+- **Standalone verification-pass miss** - global tunable (Settings > Ad Detection, default 0.60 confidence). A pass-2 detection overlapping no pass-1 marker clears the verification-miss hold floor but not the (off-by-default) autocut floor. Shown with a "Verification catch" chip. See [Verification Pass](#verification-pass).
+- **Uncorroborated cross-fetch differential region** - global tunable. The two fetches measurably differ, but no other stage, overlap, or matched audio cue backs the region as an ad. See [Cross-Fetch Differential](#cross-fetch-differential).
 
 Held ads stay in the audio. The episode publishes with them intact. The episode page shows held ads in an amber "Held for Review (N)" section with Approve & Recut and Dismiss buttons. Approve & Recut stores a confirm correction and immediately re-cuts via the Recut Audio mode (no LLM re-run) if the original audio is still retained; without it, the button reads Approve and the cut applies on the next reprocess. Dismiss records a rejection and leaves the audio unchanged. The episode list shows an "N held" chip on any episode with held ads.
 
@@ -162,13 +172,29 @@ The gap is measured in speech content from the transcript, not wall-clock time. 
 
 A 5-minute safety cap prevents merging when the resulting span would exceed it, regardless of how little speech is in the gap. A merge is also skipped when either ad or the merged span overlaps a user false-positive correction, so a marked "not an ad" range keeps its say in the validator. Audio-cue evidence on the merged ads is carried onto the combined span.
 
+### Boundary Sweeps After the Reviewer
+
+Two more passes can run on pass 1's ads after the reviewer step, both before the audio is cut. The terminal-start snap runs whenever there are cuts with splice evidence, whether or not the [ad reviewer](configuration.md#ad-reviewer) is enabled; tail completion only runs when the reviewer is enabled. A reviewer "adjust" log line is therefore not always an ad's final boundary: either sweep can still move it before the cut happens.
+
+A terminal-start snap pulls a terminal cut's start to the nearest deep-silence splice point. A tail completion sweep pushes a cut's end forward again when the transcript right after the reviewer-adjusted end still reads as ad content: a sponsor name, a URL, or a call-to-action. Tail completion exists specifically to counteract the reviewer pulling an end back to, or inside, the detector's original boundary and stranding a trailing CTA in the cut audio. It only runs when the reviewer is enabled; without a reviewer, the boundary-extension pass earlier in the pipeline already does this work.
+
+Both sweeps update the persisted marker and the active cut list together, so the two never drift apart. An adjusted marker's `reviewer_original_start` / `reviewer_original_end` fields hold the pre-adjust detector bounds, and its live `start` / `end` reflect whichever sweep touched it last: the `terminal_snap` and `tail_completed` flags note which ones ran.
+
 ### Cross-Fetch Differential
 
 Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads -- or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
 
+Every silence-delimited block in the run file is probed against the refetch and carries its own measured correlation. A region only becomes an ad candidate when that correlation is at or below the **Correlation ceiling** setting (default 0.60): a high correlation means the two fetches matched too closely to be a real ad swap, not proof the region is untouched. Qualifying blocks that touch are merged into one candidate span, and a candidate too stale to score cleanly (e.g. after a different-length ad swap shifted the rest of the file) gets one retry with a widened search window before it is judged.
+
+A candidate cuts outright when it overlaps a marker another stage already found. Otherwise it holds for review instead of cutting on differential evidence alone, unless it is shorter than the **Hold minimum length** setting (default 10 seconds, 0 disables the floor), in which case it is dropped instead of surfacing a sub-floor, likely re-roll-noise slice. See [Configuration > Detection Tuning](configuration.md#detection-tuning) for both controls.
+
+On a feed with cue templates configured, a matched audio cue also corroborates a candidate: one whose start or end lands within the normal cue-snap window of a template cue cuts instead of holding, and a candidate bracketed by a break-start/break-end cue pair corroborates the same way. The refetch is scanned for the same template cues as the primary download, and when the same cue is found in both, the offset between the two positions re-anchors the comparison timeline, absorbing fetch-to-fetch timing drift at its source. **Cross-fetch differential detection is significantly more accurate on feeds with cue templates configured**: cues corroborate differential regions, help bound DAI slots, and anchor the comparison timeline. Setting up a cue template (see [Audio Cue Detection](audio-cues.md)) is the recommended first step on any feed with heavy dynamic ad insertion, before tuning the differential thresholds themselves.
+
 The per-feed setting (Feed page > Settings > Cross-fetch diff) has three positions. **Auto** (the default since 2.53.0) runs the stage when the feed looks DAI-served -- a detected ad platform, or an episode audio URL that routes through a known DAI prefix domain. **On** always runs it; **Off** never does. The settings panel shows whether the stage currently runs on the feed. The trade-off is bandwidth: every new episode is downloaded twice, which also doubles the feed's download count in the publisher's stats.
 
 Each detection found this way is tagged with the cross-fetch stage in the ad list, and the episode header shows a "Cross-fetch: N inserted" badge when the comparison found differing regions.
+
+Rejecting a differential detection as not an ad, held or not, still blocks that same episode-region from re-surfacing, but no longer seeds cross-episode false-positive text: it was only ever a candidate, never a confirmed false positive from a real detector, so it does not suppress future matching on other episodes of the feed.
 
 ### Keep Content Only
 

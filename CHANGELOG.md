@@ -9,6 +9,92 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.76.1] - 2026-07-23
+
+### Changed
+
+- The update panel in Settings shows the release channel next to the
+  running version ("Running 2.76.1 (edge)") and tucks the channel
+  selector, daily-check toggle, check button, and changelog link behind
+  an "Update settings" disclosure, collapsed by default.
+
+## [2.76.0] - 2026-07-23
+
+### Added
+
+- Six ad-detection tunables in Settings > Ad Detection: a verification-pass
+  miss hold floor (default 0.60) and autocut threshold (off by default),
+  pattern-learning confidence floors for short and long ads (default 0.85 /
+  0.92), and a differential correlation ceiling (default 0.60) plus a
+  differential hold minimum length (default 10s, 0 disables it). See
+  [Configuration > Detection Tuning](docs/configuration.md#detection-tuning).
+- Standalone pass-2 verification misses (ads pass 2 finds that overlap no
+  pass-1 marker) are no longer silently discarded. They now hold for review
+  with hold reason `verification_miss` (a "Verification catch" chip in Held
+  for Review) once they clear the new hold floor, or cut automatically when
+  the opt-in autocut floor is enabled and cleared. Below both floors the
+  miss is still dropped, but the drop is now logged with the sponsor,
+  confidence, and floor it fell short of.
+- Cue fusion joins the cross-fetch differential stage on feeds with cue
+  templates configured. A matched template cue on either edge of an
+  otherwise-uncorroborated differential candidate now corroborates it (cuts
+  instead of holding), a candidate bracketed by a break-start/break-end cue
+  pair corroborates the same way, and the refetch is scanned for the same
+  cues as the primary download so a shared cue re-anchors the comparison
+  timeline against fetch-to-fetch drift. Cross-fetch differential detection
+  is now significantly more accurate on cue-templated feeds; see [Audio Cue
+  Detection](docs/audio-cues.md) and [How It Works > Cross-Fetch
+  Differential](docs/how-it-works.md#cross-fetch-differential).
+- Episode Processed webhooks and emails now carry `ads_held` and
+  `ads_not_cut` counts (`episode.ads_held` / `episode.ads_not_cut` template
+  fields); the email adds an "Ads held for review" and/or "Detections not
+  cut" row only when either is nonzero.
+
+### Changed
+
+- The cross-fetch differential stage now measures rather than assumes:
+  every silence-delimited block in the run file is probed against the
+  refetch and carries its own measured correlation, replacing the previous
+  hard-coded 0.0 for unprobed gaps. A region only becomes a differential
+  candidate when its measured correlation is at or below the new
+  correlation-ceiling setting, and a candidate close to the boundary gets
+  one retry with a widened search window before being judged. Old stored
+  differentials (which hard-coded corr 0.0) still qualify, so recuts of
+  previously-processed episodes behave the same as before.
+- An uncorroborated differential candidate shorter than the new
+  hold-minimum-length setting is dropped instead of held for review;
+  corroborated candidates are unaffected regardless of length.
+- Rejecting a differential detection, held or not, still blocks that same
+  episode-region from resurfacing, but no longer creates cross-episode
+  false-positive text: previously, rejecting one of these could
+  suppress legitimate future matches feed-wide, since the detection was
+  never a confirmed false positive from a real detector. A one-time
+  startup backfill deactivates existing cross-episode false-positive text
+  traceable to a differential rejection (episodes with an ambiguous id
+  are skipped rather than guessed at); nothing is deleted. Corrections
+  now also carry a `source_hold_reason` field recording which hold
+  reason, if any, produced them.
+
+### Fixed
+
+- Sponsor labels no longer pick up LLM reasoning prose or a bare "...
+  segment" name instead of the actual advertiser; a sanitizer strips both
+  before a label reaches a marker. Two accepted markers describing the same
+  ad read that overlap by 80% or more of the shorter span's duration now
+  merge into one marker spanning their union, instead of showing up as
+  separate, duplicate detections.
+- `AdDetector.learn_from_detections` now initializes its dependencies on a
+  cold detector, matching its three sibling methods; previously a cold
+  detector (one that had not yet processed anything) silently no-opped
+  instead of learning from the detection it was given.
+- SMTP send failures now log the full exception traceback instead of just
+  the message, for easier troubleshooting from container logs (issue
+  #571).
+- The startup banner's ASCII art no longer gets dropped by journald-backed
+  log drivers (podman): the banner record now starts on its first art line
+  instead of a leading blank line, which some drivers treat as an empty
+  record and discard (issue #567 discussion).
+
 ## [2.75.0] - 2026-07-23
 
 ### Fixed

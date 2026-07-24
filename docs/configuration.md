@@ -27,6 +27,30 @@ Customize ad detection in Settings:
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **LLM Tunables** - See below
 
+### Detection Tuning
+
+Settings > Ad Detection has two grouped subsections for tuning how aggressively the verification pass and the cross-fetch differential stage act on what they find. All six controls are database settings; API: `PUT /api/v1/settings/ad-detection` (see `openapi.yaml`).
+
+**Verification pass** - governs standalone catches: ads pass 2 finds that pass 1 missed and that overlap no pass-1 marker.
+
+| Control | Default | Range | Notes |
+|---|---|---|---|
+| Hold floor | 0.60 | 0.0 - 1.0 | Confidence a standalone verification catch must reach to hold for review. Below it, the catch is dropped and logged instead of surfacing. |
+| Autocut | off (0) | 0.5 - 1.0, or off | When enabled, cuts a standalone catch automatically once it reaches this confidence, instead of holding it for review. Off by default, so catches only ever hold or drop. |
+| Pattern-learning floor | 0.85 | 0.5 - 1.0 | Minimum confidence before a detection can teach the pattern matcher a new sponsor. Applies to ads up to 90 seconds. |
+| Pattern-learning floor, long ads | 0.92 | 0.5 - 1.0 | Same floor for ads longer than 90 seconds. Higher by default, since a long span is costlier to learn wrong. |
+
+A held standalone catch carries a `verification_miss` hold reason and shows a "Verification catch" chip in the Held for Review section; it gets the same waveform editor and approve/dismiss flow as any other held ad. See [Held for Review](how-it-works.md#held-for-review) and [Verification Pass](how-it-works.md#verification-pass).
+
+**Differential detection** - governs the cross-fetch stage's candidate and hold gates.
+
+| Control | Default | Range | Notes |
+|---|---|---|---|
+| Correlation ceiling | 0.60 | 0.0 - 1.0 | A cross-fetch region becomes a differential candidate only when its measured correlation is at or below this value. A higher correlation means the two fetches matched too closely to be a real ad swap. |
+| Hold minimum length | 10s | 0 - 120s | An uncorroborated differential candidate shorter than this is dropped instead of held for review. Set to 0 to hold a candidate of any length. |
+
+Raise the correlation ceiling if genuine ad swaps are being missed as alignment noise, or lower it if identical-content regions are surfacing as false differential candidates. Raise the hold minimum length if short re-roll noise is showing up as holds; lower it (or disable it) if a feed's shortest DAI fills are being dropped before you get a chance to review them. See [Cross-Fetch Differential](how-it-works.md#cross-fetch-differential) for how these gates fit into the stage, including how audio cue templates corroborate candidates independently of both settings.
+
 ### Tuning LLM behavior per stage
 
 Each LLM pass can be tuned independently from Settings. The five passes:

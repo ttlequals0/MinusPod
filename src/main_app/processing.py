@@ -24,6 +24,7 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, is_contradiction_hold,
     split_resurrection_pool,
 )
+from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
@@ -40,6 +41,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
@@ -50,7 +52,7 @@ from config import (
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
-    is_cue_backed, is_pending_review,
+    count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
@@ -63,6 +65,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
 )
+from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from upstream_chapters import fetch_upstream_chapters
 from llm_capabilities import (
@@ -531,6 +534,35 @@ def _make_validator_audio_analysis(audio_analysis_result, dai_differential):
     return None
 
 
+def _feed_cue_matcher(podcast_id):
+    """The feed's template cue matcher for differential cue fusion, or None.
+
+    Reuses the analyzer's resolver (master toggle, per-feed templates, score
+    threshold, formant profile) so both scans agree on what counts as a cue;
+    the spectral fallback detector is deliberately excluded -- only precise
+    template matches may anchor alignment or corroborate a differential.
+    Never raises.
+    """
+    if podcast_id is None:
+        return None
+    try:
+        _enabled, detector = audio_analyzer._load_cue_config(podcast_id)
+    except Exception as e:
+        audio_logger.warning(f"Cue matcher resolve failed (non-fatal): {e}")
+        return None
+    return detector if isinstance(detector, AudioCueTemplateMatcher) else None
+
+
+def _template_cue_scan(matcher, path):
+    """Template cue marks [{'time', 'template_id'}] found in one audio file."""
+    return [
+        {'time': float(s.start),
+         'template_id': (s.details or {}).get('template_id')}
+        for s in matcher.detect(path)
+        if is_template_cue(s.details)
+    ]
+
+
 def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_id,
                             dai_platform=None):
     """Pipeline stage: cross-fetch differential (Layer 3).
@@ -559,9 +591,30 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
         audio_logger.info(
             f"[{slug}:{episode_id}] Differential fetch: starting"
             f"{' (auto: DAI-likely feed)' if explicit is None else ''}")
+        # Cue fusion (2.76.0): when the feed has cue templates, scan the
+        # primary audio here on the worker (audio analysis runs concurrently
+        # on the main thread, so its cue signals are not available yet) and
+        # hand fetch_and_diff a refetch scan hook. The refetch scan runs
+        # between download and alignment so the refetch cues both persist in
+        # the stored result (refetch_cues) and anchor the probe offsets of
+        # the same alignment pass. Both scans are non-fatal.
+        matcher = _feed_cue_matcher(podcast_id)
+        primary_cues = []
+        cue_scan = None
+        if matcher is not None:
+            try:
+                primary_cues = _template_cue_scan(matcher, audio_path)
+            except Exception as e:
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Primary cue scan failed "
+                    f"(non-fatal): {e}")
+            def cue_scan(path):
+                return _template_cue_scan(matcher, path)
         work_dir = tempfile.mkdtemp(prefix='dai_diff_')
         try:
-            result = fetch_and_diff(episode_url, audio_path, work_dir)
+            result = fetch_and_diff(episode_url, audio_path, work_dir,
+                                    cue_scan=cue_scan,
+                                    primary_cues=primary_cues)
         except Exception as e:
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
@@ -930,6 +983,9 @@ def _build_validator(episode_duration, segments, episode_description, *,
         positional_prior=positional_prior,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
+        differential_corr_max=db.get_setting_float(
+            'differential_measured_corr_max',
+            registry_get_default('differential_measured_corr_max')),
         **splice_kwargs,
     )
 
@@ -1670,7 +1726,9 @@ def _corroborated_span(hold, orig_ad):
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
-                                          pass1_held_markers=None):
+                                          pass1_held_markers=None,
+                                          verification_miss_hold_min_confidence=None,
+                                          verification_miss_autocut_min_confidence=None):
     """Confidence gate pass-2 ads.
 
     Returns (v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count).
@@ -1693,7 +1751,25 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     Note: verification ads can never carry cue evidence (snap is pass-1 only),
     so on a cue-gated feed every pass-2 proposal is held -- intended
     conservative behavior, documented here.
+
+    A standalone miss (below min_cut_confidence, overlapping no pass-1
+    marker) used to be silently discarded. It now either auto-cuts (when
+    ``verification_miss_autocut_min_confidence`` is enabled, i.e. > 0, and
+    the ad clears it -- routed into v_ads_to_cut exactly like a gated cut
+    ad) or, failing that, is held for review when it clears
+    ``verification_miss_hold_min_confidence`` (HOLD_REASON_VERIFICATION_MISS,
+    diverted to v_ads_held same as any other held ad). Below both floors it
+    is still discarded, now with a log line naming what was dropped and why.
+    Missing kwargs fall back to the settings-registry defaults so direct
+    callers (tests, ad-hoc gate invocations) get the same behavior as an
+    unconfigured install.
     """
+    if verification_miss_hold_min_confidence is None:
+        verification_miss_hold_min_confidence = registry_get_default(
+            'verification_miss_hold_min_confidence')
+    if verification_miss_autocut_min_confidence is None:
+        verification_miss_autocut_min_confidence = registry_get_default(
+            'verification_miss_autocut_min_confidence')
     pass1_held_markers = pass1_held_markers or []
     v_ads_to_cut = []
     v_ads_for_ui = []
@@ -1751,8 +1827,36 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             orig_ad['was_cut'] = True
             orig_ad['detection_stage'] = 'verification'
             v_ads_for_ui.append(orig_ad)
+            continue
+        # Standalone miss: below min_cut_confidence, overlaps no pass-1
+        # marker. Deliberately re-reads raw confidence rather than reusing
+        # ``confidence`` (which prefers the validator's adjusted_confidence)
+        # -- this bucketing is a distinct, more conservative decision from
+        # the primary cut gate above.
+        conf = float(ad.get('confidence') or 0.0)
+        if (verification_miss_autocut_min_confidence > 0
+                and conf >= verification_miss_autocut_min_confidence):
+            ad['was_cut'] = True
+            ad['detection_stage'] = 'verification_miss'
+            v_ads_to_cut.append(ad)
+            orig_ad['was_cut'] = True
+            orig_ad['detection_stage'] = 'verification_miss'
+            v_ads_for_ui.append(orig_ad)
+        elif conf >= verification_miss_hold_min_confidence:
+            ad['was_cut'] = False
+            orig_ad['was_cut'] = False
+            orig_ad['held_for_review'] = True
+            orig_ad['hold_reason'] = HOLD_REASON_VERIFICATION_MISS
+            orig_ad['detection_stage'] = 'verification_miss'
+            v_ads_held.append(orig_ad)
         else:
             ad['was_cut'] = False
+            audio_logger.info(
+                f"Dropping standalone pass-2 miss {orig_ad['start']:.1f}s-"
+                f"{orig_ad['end']:.1f}s (sponsor={orig_ad.get('sponsor')!r}, "
+                f"confidence={conf:.2f}, below verification-miss hold floor "
+                f"{verification_miss_hold_min_confidence:.2f})"
+            )
     return v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count
 
 
@@ -1980,6 +2084,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     v_corroborated_count = 0
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
+    # Read once per verification pass: standalone-miss hold/autocut floors
+    # for _gate_verification_ads_by_confidence (registry defaults when unset).
+    verification_miss_hold_min_confidence = db.get_setting_float(
+        'verification_miss_hold_min_confidence',
+        registry_get_default('verification_miss_hold_min_confidence'))
+    verification_miss_autocut_min_confidence = db.get_setting_float(
+        'verification_miss_autocut_min_confidence',
+        registry_get_default('verification_miss_autocut_min_confidence'))
+
     try:
         from verification_pass import VerificationPass
         verifier = VerificationPass(
@@ -2043,6 +2156,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     verification_ads_processed, verification_ads_original,
                     min_cut_confidence,
                     pass1_held_markers=pass1_held_markers,
+                    verification_miss_hold_min_confidence=verification_miss_hold_min_confidence,
+                    verification_miss_autocut_min_confidence=verification_miss_autocut_min_confidence,
                 )
 
                 # Pass 2 reviewer operates on original-coord ads (the prompt
@@ -2553,7 +2668,8 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count,
                                original_duration, new_duration,
                                processing_time, token_totals, db,
-                               audio_cue_detections=0, run_stats=None):
+                               audio_cue_detections=0, run_stats=None,
+                               ads_held=0, ads_not_cut=0):
     """Record processing history row and fire the episode-processed webhook.
 
     The webhook fires whenever the episode pipeline completed, including
@@ -2589,6 +2705,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
             episode_id=episode_id, slug=slug, episode_title=episode_title,
             processing_time=processing_time, llm_cost=token_totals['cost'],
             ads_removed=ads_removed_total,
+            ads_held=ads_held, ads_not_cut=ads_not_cut,
             original_duration=original_duration, new_duration=new_duration,
             podcast_name=podcast_name,
         )
@@ -2600,7 +2717,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        pass1_cut_count, verification_count, first_pass_count,
                        original_duration, new_duration, start_time,
                        processed_version=0, audio_cue_detections=0,
-                       run_stats=None):
+                       run_stats=None, ads_held=0, ads_not_cut=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
@@ -2625,6 +2742,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         processing_time, token_totals, db,
         audio_cue_detections=audio_cue_detections,
         run_stats=run_stats,
+        ads_held=ads_held, ads_not_cut=ads_not_cut,
     )
 
 
@@ -2988,13 +3106,16 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             1 for ad in ads_to_remove
             if _covered_by_cuts(ad, applied_cuts, original_duration)
         )
+        held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
+        not_cut_count = count_not_cut(all_ads_with_validation)
         _finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count, verification_count=0,
                            first_pass_count=pass1_cut_count,
                            original_duration=original_duration,
                            new_duration=new_duration, start_time=start_time,
                            processed_version=new_version,
-                           audio_cue_detections=0)
+                           audio_cue_detections=0,
+                           ads_held=held_count, ads_not_cut=not_cut_count)
         status_service.complete_job()
         return True
 
@@ -3558,6 +3679,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # a human, and what stayed in the audio.
             held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
             cut_count = sum(1 for m in all_ads_with_validation if m.get('was_cut'))
+            not_cut_count = count_not_cut(all_ads_with_validation)
             run_stats['markers'] = {
                 'cut': cut_count,
                 'held': held_count,
@@ -3575,7 +3697,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                original_duration, new_duration, start_time,
                                processed_version=new_version,
                                audio_cue_detections=audio_cue_count,
-                               run_stats=run_stats)
+                               run_stats=run_stats,
+                               ads_held=held_count, ads_not_cut=not_cut_count)
 
             status_service.complete_job()
 

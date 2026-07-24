@@ -270,6 +270,23 @@ def get_settings():
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
     min_content_between_ads = _db_float('min_content_between_ads_seconds', MIN_CONTENT_BETWEEN_ADS_SECONDS)
 
+    # Detection tuning (2.76.0): verification-miss hold/autocut confidence,
+    # learning confidence floors, differential correlation/hold thresholds.
+    verification_miss_hold_min_confidence = _db_float(
+        'verification_miss_hold_min_confidence',
+        registry_get_default('verification_miss_hold_min_confidence'))
+    verification_miss_autocut_min_confidence = _db_float(
+        'verification_miss_autocut_min_confidence',
+        registry_get_default('verification_miss_autocut_min_confidence'))
+    learning_min_confidence = _db_float(
+        'learning_min_confidence', registry_get_default('learning_min_confidence'))
+    learning_min_confidence_long = _db_float(
+        'learning_min_confidence_long', registry_get_default('learning_min_confidence_long'))
+    differential_measured_corr_max = _db_float(
+        'differential_measured_corr_max', registry_get_default('differential_measured_corr_max'))
+    differential_hold_min_seconds = _db_float(
+        'differential_hold_min_seconds', registry_get_default('differential_hold_min_seconds'))
+
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
     audio_normalize_enabled_raw = _setting_value(
         settings, 'audio_normalize_enabled', registry_default('audio_normalize_enabled'))
@@ -494,6 +511,14 @@ def get_settings():
         'silenceSnapNoiseDb': _sv('silence_snap_noise_db', silence_snap_noise_db),
         'silenceSnapMinDurationSeconds': _sv('silence_snap_min_duration_seconds', silence_snap_min_duration),
         'silenceSnapMaxDistanceSeconds': _sv('silence_snap_max_distance_seconds', silence_snap_max_distance),
+        'verificationMissHoldMinConfidence': _sv(
+            'verification_miss_hold_min_confidence', verification_miss_hold_min_confidence),
+        'verificationMissAutocutMinConfidence': _sv(
+            'verification_miss_autocut_min_confidence', verification_miss_autocut_min_confidence),
+        'learningMinConfidence': _sv('learning_min_confidence', learning_min_confidence),
+        'learningMinConfidenceLong': _sv('learning_min_confidence_long', learning_min_confidence_long),
+        'differentialMeasuredCorrMax': _sv('differential_measured_corr_max', differential_measured_corr_max),
+        'differentialHoldMinSeconds': _sv('differential_hold_min_seconds', differential_hold_min_seconds),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -558,6 +583,7 @@ def update_ad_detection_settings():
         _apply_transcribe_chunk_fields,
         _apply_stage_tunables,
         _apply_ad_merge_fields,
+        _apply_detection_tuning_fields,
     )
     for phase in phases:
         err = phase(db, data)
@@ -1115,6 +1141,53 @@ def _apply_audio_cue_fields(db, data):
             fmax = float(db.get_setting('audio_cue_freq_max_hz') or AUDIO_CUE_FREQ_MAX_HZ)
         if fmin >= fmax:
             return json_response({'error': 'audioCueFreqMinHz must be below audioCueFreqMaxHz'}, 400)
+
+    for db_key, str_value in writes:
+        db.set_setting(db_key, str_value, is_default=False)
+        logger.info(f"Updated {db_key} to: {str_value}")
+    return None
+
+
+def _apply_detection_tuning_fields(db, data):
+    """Persist the six detection-tuning tunables (2.76.0): verification-miss
+    hold/autocut confidence, learning confidence floors, and differential
+    correlation/hold thresholds.
+
+    Validates every field (ranges and the autocut disable-or-range special
+    case) BEFORE writing anything, so an invalid field cannot leave a
+    half-applied set.
+    """
+    writes = []  # (db_key, str_value) applied only after all validation passes
+
+    if 'verificationMissAutocutMinConfidence' in data:
+        try:
+            value = float(data['verificationMissAutocutMinConfidence'])
+        except (TypeError, ValueError):
+            return json_response(
+                {'error': 'verificationMissAutocutMinConfidence must be a number'}, 400)
+        if not math.isfinite(value) or (value != 0 and not (0.5 <= value <= 1.0)):
+            return json_response(
+                {'error': 'verificationMissAutocutMinConfidence must be 0 or between 0.5 and 1.0'}, 400)
+        writes.append(('verification_miss_autocut_min_confidence', str(value)))
+
+    for field_name, db_key, lo, hi in (
+        ('verificationMissHoldMinConfidence', 'verification_miss_hold_min_confidence', 0.0, 1.0),
+        ('learningMinConfidence', 'learning_min_confidence', 0.5, 1.0),
+        ('learningMinConfidenceLong', 'learning_min_confidence_long', 0.5, 1.0),
+        ('differentialMeasuredCorrMax', 'differential_measured_corr_max', 0.0, 1.0),
+        ('differentialHoldMinSeconds', 'differential_hold_min_seconds', 0.0, 120.0),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            value = float(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be a number'}, 400)
+        # JSON parsing accepts NaN/Infinity; NaN slips past the range check below
+        # (nan < lo and nan > hi are both False), so reject non-finite explicitly.
+        if not math.isfinite(value) or value < lo or value > hi:
+            return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
+        writes.append((db_key, str(value)))
 
     for db_key, str_value in writes:
         db.set_setting(db_key, str_value, is_default=False)

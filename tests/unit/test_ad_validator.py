@@ -1249,6 +1249,30 @@ class TestDaiDifferentialCorroboration:
             {'start_s': 100.0, 'end_s': 160.0, 'kind': 'differential', 'corr': 0.0}]}}
         assert validator._audio_corroboration_source(self._marker()) is None
 
+    def test_high_corr_region_does_not_corroborate(self):
+        # 2.76.0: corroboration learns the measured-corr gate. corr 0.72 >
+        # the 0.60 threshold means the audio mostly matched across fetches:
+        # alignment noise, not proof of insertion.
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
+        validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [
+            {'start_s': 3500.0, 'end_s': 3552.0, 'kind': 'differential', 'corr': 0.72}]}}
+        assert validator._audio_corroboration_source(self._marker()) is None
+
+    def test_low_corr_region_corroborates(self):
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
+        validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [
+            {'start_s': 3500.0, 'end_s': 3552.0, 'kind': 'differential', 'corr': 0.3}]}}
+        assert validator._audio_corroboration_source(self._marker()) == 'dai_differential'
+
+    def test_corr_gate_threshold_is_threaded(self):
+        # The caller threads the resolved differential_measured_corr_max
+        # setting; a raised threshold admits a region the default rejects.
+        validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS,
+                                differential_corr_max=0.75)
+        validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [
+            {'start_s': 3500.0, 'end_s': 3552.0, 'kind': 'differential', 'corr': 0.72}]}}
+        assert validator._audio_corroboration_source(self._marker()) == 'dai_differential'
+
     def test_identical_regions_do_not_corroborate(self):
         validator = AdValidator(episode_duration=3600.0, segments=self._SEGMENTS)
         validator._audio_analysis = {'dai_differential': {'status': 'ok', 'regions': [

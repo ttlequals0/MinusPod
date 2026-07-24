@@ -115,7 +115,8 @@ class AdValidator:
                  max_ad_duration_override: float = None,
                  cue_gate_enabled: bool = False,
                  splice_veto_enabled: bool = True,
-                 veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS):
+                 veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS,
+                 differential_corr_max: float = 0.60):
         """Initialize validator.
 
         Args:
@@ -131,6 +132,10 @@ class AdValidator:
                               ad-break zones; replaces the global position boosts
             max_ad_duration_override: Per-feed cap in seconds; None = no cap
             cue_gate_enabled: When True, ads without cue evidence are held for review
+            differential_corr_max: Resolved differential_measured_corr_max
+                setting (threaded by the caller; the validator has no db
+                handle). A differential region corroborates a marker only
+                when its measured corr is <= this value.
         """
         self.episode_duration = episode_duration
         self.segments = segments or []
@@ -144,6 +149,7 @@ class AdValidator:
         self.cue_gate_enabled = cue_gate_enabled
         self.splice_veto_enabled = splice_veto_enabled
         self.veto_min_cut_seconds = veto_min_cut_seconds
+        self.differential_corr_max = differential_corr_max
         self._audio_analysis = None
 
         if self.false_positive_corrections:
@@ -669,10 +675,17 @@ class AdValidator:
                     return 'splice_evidence'
 
         # Layer 3: a cross-fetch differential region overlapping the marker is
-        # the strongest corroboration class (audio proven to differ).
+        # the strongest corroboration class (audio proven to differ). Same
+        # measured-corr gate as candidate minting (2.76.0): a high-corr
+        # "differential" mostly matched across fetches and proves nothing;
+        # legacy stored regions (corr hard-coded 0.0) still corroborate.
         diff = (self._audio_analysis or {}).get('dai_differential') or {}
         for region in diff.get('regions', []):
             if region.get('kind') != 'differential':
+                continue
+            corr = region.get('corr')
+            if (not isinstance(corr, (int, float))
+                    or corr > self.differential_corr_max):
                 continue
             if (float(region['start_s']) < float(ad.get('end', 0.0))
                     and float(region['end_s']) > float(ad.get('start', 0.0))):

@@ -113,6 +113,12 @@ def _fmt_episode_processed(ctx):
         ('Time saved', _value(episode.get('time_saved'))),
         ('Processing time', _value(episode.get('processing_time'))),
         ('LLM cost', _value(episode.get('llm_cost_display'))),
+    ]
+    if episode.get('ads_held'):
+        rows.append(('Ads held for review', _value(episode.get('ads_held'))))
+    if episode.get('ads_not_cut'):
+        rows.append(('Detections not cut', _value(episode.get('ads_not_cut'))))
+    rows += [
         ('URL', _value(episode.get('url'))),
         ('Timestamp', _value(ctx.get('timestamp'))),
     ]
@@ -325,8 +331,8 @@ def send_event_email(event: str, context: dict) -> None:
         _send(cfg, msg)
         logger.info("Notification email sent (%s) to %d recipient(s)",
                     event, len(cfg.recipients))
-    except Exception as e:
-        logger.warning("Notification email failed (%s): %s", event, e)
+    except Exception:
+        logger.exception("Notification email failed (%s)", event)
 
 
 def send_test_email(db=None):
@@ -357,5 +363,5 @@ def send_test_email(db=None):
         _send(cfg, msg)
         return True, f"Test email sent to {len(cfg.recipients)} recipient(s)"
     except Exception as e:
-        logger.warning("Test email failed: %s", e)
+        logger.exception("Test email failed")
         return False, f"Sending failed: {e}"

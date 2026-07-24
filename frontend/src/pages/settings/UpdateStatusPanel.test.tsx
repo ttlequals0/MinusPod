@@ -45,6 +45,21 @@ describe('UpdateStatusPanel', () => {
     expect(screen.getByText(/up to date/i)).toBeTruthy();
   });
 
+  it('shows the running version with its channel', async () => {
+    renderPanel();
+    expect(await screen.findByText(/Running 2\.74\.0 \(stable\)/)).toBeTruthy();
+  });
+
+  it('collapses update settings by default and expands on click', async () => {
+    const { container } = renderPanel();
+    await screen.findByText(/up to date/i);
+    const details = container.querySelector('details');
+    expect(details).toBeTruthy();
+    expect(details!.open).toBe(false);
+    await userEvent.click(screen.getByText('Update settings'));
+    expect(details!.open).toBe(true);
+  });
+
   it('shows the available update on the selected channel', async () => {
     mockGetStatus.mockResolvedValue({ ...STATUS, channel: 'edge', updateAvailable: true });
     renderPanel();

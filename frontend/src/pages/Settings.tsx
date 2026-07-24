@@ -231,6 +231,12 @@ function Settings() {
   const [chaptersModel, setChaptersModel] = useState('');
   const [minCutConfidence, setMinCutConfidence] = useState(0);
   const [minContentBetweenAdsSeconds, setMinContentBetweenAdsSeconds] = useState(12);
+  const [verificationMissHoldMinConfidence, setVerificationMissHoldMinConfidence] = useState(0.6);
+  const [verificationMissAutocutMinConfidence, setVerificationMissAutocutMinConfidence] = useState(0);
+  const [learningMinConfidence, setLearningMinConfidence] = useState(0.85);
+  const [learningMinConfidenceLong, setLearningMinConfidenceLong] = useState(0.92);
+  const [differentialMeasuredCorrMax, setDifferentialMeasuredCorrMax] = useState(0.6);
+  const [differentialHoldMinSeconds, setDifferentialHoldMinSeconds] = useState(10);
   // Neutral placeholder (cast); replaced by hydration before the form renders.
   const [llmProvider, setLlmProvider] = useState<LlmProvider>('' as LlmProvider);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
@@ -468,6 +474,12 @@ function Settings() {
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
     { key: 'positionalPriorEnabled', kind: 'val', useDefault: true, value: positionalPriorEnabled, set: setPositionalPriorEnabled },
+    { key: 'verificationMissHoldMinConfidence', kind: 'val', useDefault: true, literal: 0.6, value: verificationMissHoldMinConfidence, set: setVerificationMissHoldMinConfidence },
+    { key: 'verificationMissAutocutMinConfidence', kind: 'val', useDefault: true, literal: 0, value: verificationMissAutocutMinConfidence, set: setVerificationMissAutocutMinConfidence },
+    { key: 'learningMinConfidence', kind: 'val', useDefault: true, literal: 0.85, value: learningMinConfidence, set: setLearningMinConfidence },
+    { key: 'learningMinConfidenceLong', kind: 'val', useDefault: true, literal: 0.92, value: learningMinConfidenceLong, set: setLearningMinConfidenceLong },
+    { key: 'differentialMeasuredCorrMax', kind: 'val', useDefault: true, literal: 0.6, value: differentialMeasuredCorrMax, set: setDifferentialMeasuredCorrMax },
+    { key: 'differentialHoldMinSeconds', kind: 'val', useDefault: true, literal: 10, value: differentialHoldMinSeconds, set: setDifferentialHoldMinSeconds },
     // Audio cue detection (nested `audioCue` state)
     { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
     { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
@@ -900,6 +912,18 @@ function Settings() {
         onMinCutConfidenceChange={setMinCutConfidence}
         minContentBetweenAdsSeconds={minContentBetweenAdsSeconds}
         onMinContentBetweenAdsSecondsChange={setMinContentBetweenAdsSeconds}
+        verificationMissHoldMinConfidence={verificationMissHoldMinConfidence}
+        onVerificationMissHoldMinConfidenceChange={setVerificationMissHoldMinConfidence}
+        verificationMissAutocutMinConfidence={verificationMissAutocutMinConfidence}
+        onVerificationMissAutocutMinConfidenceChange={setVerificationMissAutocutMinConfidence}
+        learningMinConfidence={learningMinConfidence}
+        onLearningMinConfidenceChange={setLearningMinConfidence}
+        learningMinConfidenceLong={learningMinConfidenceLong}
+        onLearningMinConfidenceLongChange={setLearningMinConfidenceLong}
+        differentialMeasuredCorrMax={differentialMeasuredCorrMax}
+        onDifferentialMeasuredCorrMaxChange={setDifferentialMeasuredCorrMax}
+        differentialHoldMinSeconds={differentialHoldMinSeconds}
+        onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
       />
 
       <PromptsSection

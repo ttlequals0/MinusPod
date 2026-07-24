@@ -28,8 +28,14 @@ from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
+    AUDIO_CUE_SNAP_CONFIDENCE,
+    AUDIO_CUE_SNAP_LEAD_SECONDS,
+    AUDIO_CUE_SNAP_LAG_SECONDS,
+    AUDIO_CUE_START_EDGE_ROLES,
+    AUDIO_CUE_END_EDGE_ROLES,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     is_cue_backed,
+    is_template_cue,
     MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
@@ -50,7 +56,10 @@ from config import (
     KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
     KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
 )
+from ad_detector.cue_boundary_snap import _cue_role
+from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
+from database.settings import registry_get_default
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from utils.constants import (
@@ -58,6 +67,7 @@ from utils.constants import (
     KNOWN_SHORT_BRANDS, canonical_sponsor,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
+    sanitize_sponsor_label,
 )
 
 # Re-exports: every symbol the pre-split ``ad_detector`` module exposed at
@@ -249,6 +259,12 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
 # while a transcribed ad read covers far more of its span.
 DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 
+# Duplicate-marker overlap merge (task 8): two ACCEPTED markers describing
+# the same ad read (e.g. one Claude response emitting both 'Xbox segment'
+# and 'CiraSync' for a single Windows Weekly ad) fold into one when their
+# overlap covers this much of the SHORTER span.
+DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
+
 
 def _span_transcript_coverage(segments, start, end):
     """Fraction (0.0-1.0) of [start, end] covered by transcript segments."""
@@ -262,7 +278,9 @@ def _span_transcript_coverage(segments, start, end):
     return min(1.0, covered / span)
 
 
-def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
+def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *,
+                         measured_corr_max=0.60, hold_min_seconds=10.0,
+                         cue_marks=None):
     """Detection candidates from cross-fetch differential regions (Layer 3).
 
     #541: a region overlapping ``corroborating_spans`` (markers from other
@@ -272,47 +290,133 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None):
     validator re-derives the hold from ``differential_uncorroborated`` and
     ``_merge_detection_results`` clears it on genuine overlap.
 
+    2.76.0: a region is a candidate only when its measured ``corr`` is a
+    number <= measured_corr_max -- a high-corr "differential" mostly matched
+    across fetches and is alignment noise; corr None (kind 'unknown') was
+    never measured. The gate is PER REGION (the fetcher emits differential
+    regions per silence-delimited block); qualifying regions that touch are
+    then merged into one candidate span, so a multi-block break jointly
+    beats the hold floor while a borderline member neither vetoes the break
+    nor rides along. Legacy stored differentials (pre-2.76.0) hard-coded
+    corr 0.0 on every differential region, which still qualifies, so recuts
+    of old episodes behave as before. Uncorroborated candidates shorter
+    than hold_min_seconds (when > 0) are skipped entirely: sub-floor
+    differentials are re-roll noise, not fills, and would flood review.
+    Corroborated candidates cut regardless of duration.
+
+    2.76.0 cue fusion: ``cue_marks`` are primary-audio template-cue times.
+    An uncorroborated merged candidate whose start OR end lies within
+    [-AUDIO_CUE_SNAP_LEAD_SECONDS, +AUDIO_CUE_SNAP_LAG_SECONDS] of a cue
+    mark (cue at t backs edge e when t - lead <= e <= t + lag) cuts like a
+    stage-corroborated candidate -- the show's own ad-break stinger at the
+    edge is independent evidence the differential is a real break -- and
+    carries ``cue_snap`` so the validator's cue gate (is_cue_backed)
+    passes. Like stage corroboration, a cue-backed cut ignores the
+    uncorroborated hold floor.
+
     fp_pairs: (start, end) false-positive spans to exclude.
     corroborating_spans: (start, end) ad spans from other stages.
+    cue_marks: primary-audio template-cue times (floats).
     """
     ads = []
     corroborating_spans = corroborating_spans or []
+    cue_marks = [float(t) for t in (cue_marks or [])]
+
+    candidates = []
     for region in (dai_differential or {}).get('regions', []):
         if region.get('kind') != 'differential':
             continue
-        start = float(region['start_s'])
-        end = float(region['end_s'])
+        corr = region.get('corr')
+        if not isinstance(corr, (int, float)) or corr > measured_corr_max:
+            continue
+        candidates.append((float(region['start_s']), float(region['end_s'])))
+    candidates.sort()
+
+    # Merge touching qualifying regions (end == next start within 0.05s,
+    # covering the fetcher's 2-decimal rounding). Any non-candidate gap
+    # keeps spans separate.
+    spans = []
+    for c_start, c_end in candidates:
+        if spans and abs(c_start - spans[-1][1]) <= 0.05:
+            spans[-1][1] = c_end
+        else:
+            spans.append([c_start, c_end])
+
+    for start, end in spans:
         if any(overlap_ratio(fp_start, fp_end, start, end) > 0.5
                for fp_start, fp_end in fp_pairs):
             continue
 
         stage_overlap = any(ranges_overlap(cs, ce, start, end)
                             for cs, ce in corroborating_spans)
+        ad = {
+            'start': start,
+            'end': end,
+            'confidence': 0.95,
+            'sponsor': None,
+            'detection_stage': 'dai_differential',
+        }
         if stage_overlap:
-            ads.append({
-                'start': start,
-                'end': end,
-                'confidence': 0.95,
-                'reason': ('Dynamically inserted: audio differs across fetches '
-                           '(corroborated by overlapping ad marker)'),
-                'sponsor': None,
-                'detection_stage': 'dai_differential',
-            })
+            ad['reason'] = ('Dynamically inserted: audio differs across '
+                            'fetches (corroborated by overlapping ad marker)')
+        elif any(t - AUDIO_CUE_SNAP_LEAD_SECONDS <= edge <= t + AUDIO_CUE_SNAP_LAG_SECONDS
+                 for t in cue_marks for edge in (start, end)):
+            ad['reason'] = ('Dynamically inserted: audio differs across '
+                            'fetches (edge matches an ad-break cue)')
+            ad['cue_snap'] = {'source': 'differential_cue_fusion'}
         else:
-            ads.append({
-                'start': start,
-                'end': end,
-                'confidence': 0.95,
+            if hold_min_seconds > 0 and (end - start) < hold_min_seconds:
+                continue
+            ad.update({
                 'reason': ('Audio differs across fetches; no other ad signal '
                            '-- review'),
-                'sponsor': None,
-                'detection_stage': 'dai_differential',
                 'held_for_review': True,
                 'was_cut': False,
                 'hold_reason': HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
                 'differential_uncorroborated': True,
             })
+        ads.append(ad)
     return ads
+
+
+# Roles eligible to corroborate a differential candidate's edge. Fusion
+# checks both edges against the same cue_marks list (dai_differential_ads
+# has no notion of which edge a mark backs), so the eligible set is the
+# union of the start-edge and end-edge role sets -- mirroring the role gate
+# cue_boundary_snap and cue_pair_ads apply per-edge. This excludes 'non_ad'
+# (show_intro/show_outro/content_transition) entirely: those cues never
+# snap or pair either, per config.py's role documentation.
+_CUE_FUSION_ELIGIBLE_ROLES = frozenset(AUDIO_CUE_START_EDGE_ROLES) | frozenset(AUDIO_CUE_END_EDGE_ROLES)
+
+
+def _cue_fusion_inputs(audio_analysis, segments):
+    """(cue_marks, pair_spans) for stage 2.5 cue fusion (2.76.0).
+
+    cue_marks: start times of confident template cues (>= the snap
+    confidence floor, an edge-appropriate ad role; the same filters
+    cue_boundary_snap trusts to move ad edges). pair_spans: (start, end)
+    spans a bracketing cue pair would synthesize (cue_pair_ads defaults,
+    empty existing-ads list) -- used as corroboration only, never added to
+    the ad list here; the opt-in synthesis in processing still owns marker
+    creation.
+
+    audio_analysis is the AudioAnalysisResult the pipeline passes; a
+    serialized dict or None yields empty inputs (defensive: recut/API paths
+    do not pass an analysis object).
+    """
+    if audio_analysis is None or not hasattr(audio_analysis, 'get_signals_by_type'):
+        return [], []
+    cue_marks = [
+        float(c.start)
+        for c in audio_analysis.get_signals_by_type('audio_cue')
+        if c.confidence >= AUDIO_CUE_SNAP_CONFIDENCE and is_template_cue(c.details)
+        and _cue_role(c) in _CUE_FUSION_ELIGIBLE_ROLES
+    ]
+    total_duration = float(segments[-1]['end']) if segments else 0.0
+    pair_ads, _ = synthesize_ads_from_cue_pairs(
+        [], audio_analysis, total_duration=total_duration)
+    pair_spans = [(a['start'], a['end']) for a in pair_ads]
+    return cue_marks, pair_spans
 
 
 class AdDetector:
@@ -1319,9 +1423,37 @@ class AdDetector:
         # it is still corroborated via the validator's audio-corroboration path.
         if dai_differential:
             corroborating_spans = [(a['start'], a['end']) for a in all_ads]
+            # Cue fusion (2.76.0): template cues corroborate differential
+            # candidates directly (cue_marks) and via bracketing pair spans.
+            # Pair spans join corroborating_spans only -- no cue_pair ads are
+            # minted here (synthesis stays the opt-in pass in processing).
+            try:
+                cue_marks, pair_spans = _cue_fusion_inputs(
+                    audio_analysis, segments)
+            except Exception as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Cue fusion extraction failed: {e}")
+                cue_marks, pair_spans = [], []
+            corroborating_spans.extend(pair_spans)
+            # Thresholds read at detection time so settings changes apply on
+            # the next run without a restart; registry defaults when the
+            # detector has no DB (test-only construction).
+            corr_max_default = registry_get_default(
+                'differential_measured_corr_max')
+            hold_min_default = registry_get_default(
+                'differential_hold_min_seconds')
             dd_ads = dai_differential_ads(
                 dai_differential, fp_pairs,
-                corroborating_spans=corroborating_spans)
+                corroborating_spans=corroborating_spans,
+                cue_marks=cue_marks,
+                measured_corr_max=(
+                    self.db.get_setting_float(
+                        'differential_measured_corr_max', corr_max_default)
+                    if self.db else corr_max_default),
+                hold_min_seconds=(
+                    self.db.get_setting_float(
+                        'differential_hold_min_seconds', hold_min_default)
+                    if self.db else hold_min_default))
             all_ads.extend(dd_ads)
             detection_stats['dai_differential_matches'] = len(dd_ads)
             if dd_ads:
@@ -1598,11 +1730,19 @@ class AdDetector:
         # from merged multi-ad spans which contaminate patterns
         duration = ad['end'] - ad['start']
         if duration > LEARNING_LONG_DURATION_THRESHOLD:
-            if confidence < LEARNING_MIN_CONFIDENCE_LONG:
+            # Read at call time (not cached) so settings changes apply on
+            # the next run without a restart.
+            min_confidence_long = (
+                self.db.get_setting_float(
+                    'learning_min_confidence_long', LEARNING_MIN_CONFIDENCE_LONG
+                )
+                if self.db else LEARNING_MIN_CONFIDENCE_LONG
+            )
+            if confidence < min_confidence_long:
                 logger.debug(
                     f"Skipping pattern for long ad ({duration:.0f}s) with "
                     f"confidence {confidence:.2f} (threshold "
-                    f"{LEARNING_MIN_CONFIDENCE_LONG} for "
+                    f"{min_confidence_long} for "
                     f">{LEARNING_LONG_DURATION_THRESHOLD:.0f}s ads)"
                 )
                 return False
@@ -1740,11 +1880,18 @@ class AdDetector:
         Returns:
             Number of patterns created
         """
+        self.initialize_client()
+
         if not self.text_pattern_matcher:
             return 0
 
         patterns_created = 0
-        min_confidence = LEARNING_MIN_CONFIDENCE
+        # Read at call time (not cached) so settings changes apply on the
+        # next run without a restart.
+        min_confidence = (
+            self.db.get_setting_float('learning_min_confidence', LEARNING_MIN_CONFIDENCE)
+            if self.db else LEARNING_MIN_CONFIDENCE
+        )
 
         # Preload active pattern sponsors once so Gate B doesn't do N queries.
         try:
@@ -1865,6 +2012,8 @@ class AdDetector:
                 # differential and the hold survives its own corroboration
                 # (DTNS 5313: 0.24s of sort order decided cut vs held).
                 last_stage_before_merge = last.get('detection_stage')
+                last_sponsor_before_merge = last.get('sponsor')
+                last_confidence_before_merge = last.get('confidence', 0)
                 # Adjacency is not corroboration (#541): a held differential
                 # only merges with a non-differential marker on true overlap.
                 if (bool(last.get('differential_uncorroborated'))
@@ -1914,6 +2063,25 @@ class AdDetector:
                     last['reason'] = cur_reason
                     last['sponsor'] = current.get('sponsor')
 
+                # Recover from a junk primary sponsor (segment name /
+                # reasoning prose) picked by the reason-length rule above:
+                # try the OTHER member's sponsor, preferring whichever had
+                # higher confidence, before giving up to None (Windows
+                # Weekly: 'Xbox segment' 0.8 discarded for 'CiraSync' 0.9's
+                # clean label). Skipped when the primary sponsor is already
+                # None -- that is a real "no sponsor" read, not junk.
+                primary_sponsor = last.get('sponsor')
+                if primary_sponsor and not sanitize_sponsor_label(primary_sponsor):
+                    candidates = sorted(
+                        [(last_sponsor_before_merge, last_confidence_before_merge),
+                         (current.get('sponsor'), current.get('confidence', 0))],
+                        key=lambda c: c[1], reverse=True
+                    )
+                    last['sponsor'] = next(
+                        (s for s in (sanitize_sponsor_label(c[0]) for c in candidates) if s),
+                        None
+                    )
+
                 # #541 hold upgrade: independent-stage overlap always
                 # corroborates; a claude overlap only counts with real
                 # transcript coverage (claude saw the region as a prompt
@@ -1946,7 +2114,77 @@ class AdDetector:
             else:
                 merged.append(current.copy())
 
+        merged = self._merge_overlapping_accepted_duplicates(merged)
+
+        # Sanitize every surviving marker's sponsor: strips reasoning prose
+        # and bare segment names the merge above didn't already clean up
+        # (e.g. a marker that never went through either merge pass).
+        for marker in merged:
+            marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
+
         return merged
+
+    def _merge_overlapping_accepted_duplicates(self, markers: List[Dict]) -> List[Dict]:
+        """Second pass: fold duplicate ACCEPTED (non-held) markers describing
+        the same ad read into one union-span marker.
+
+        The main sweep above only ever compares a `current` ad against the
+        most recently accumulated `last` entry, so two markers that survive
+        it as separate entries but still overlap heavily (one Claude window
+        response split a single ad read into two objects, e.g. Windows
+        Weekly's 'Xbox segment' + 'CiraSync' pair) can still slip through as
+        duplicates. Fold any pair overlapping >= DUPLICATE_MARKER_OVERLAP_MIN_RATIO
+        of the shorter span's duration into one marker spanning their union;
+        sponsor is the sanitized label of the higher-confidence contributor,
+        falling back to the other's sanitized label, else None.
+
+        Held/pending markers are never touched here: a hold means a human
+        still needs to see that exact span, and folding it into a cut marker
+        or another hold would destroy the review context.
+        """
+        if len(markers) < 2:
+            return markers
+
+        result = list(markers)
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(result)):
+                a = result[i]
+                if a.get('held_for_review'):
+                    continue
+                for j in range(i + 1, len(result)):
+                    b = result[j]
+                    if b.get('held_for_review'):
+                        continue
+                    a_dur = a['end'] - a['start']
+                    b_dur = b['end'] - b['start']
+                    shorter = min(a_dur, b_dur)
+                    if shorter <= 0:
+                        continue
+                    overlap = max(0.0, min(a['end'], b['end']) - max(a['start'], b['start']))
+                    if overlap / shorter < DUPLICATE_MARKER_OVERLAP_MIN_RATIO:
+                        continue
+
+                    a_conf = a.get('confidence', 0)
+                    b_conf = b.get('confidence', 0)
+                    primary, other = (a, b) if a_conf >= b_conf else (b, a)
+                    sponsor = (sanitize_sponsor_label(primary.get('sponsor'))
+                               or sanitize_sponsor_label(other.get('sponsor')))
+
+                    combined = a.copy()
+                    combined['start'] = min(a['start'], b['start'])
+                    combined['end'] = max(a['end'], b['end'])
+                    combined['confidence'] = max(a_conf, b_conf)
+                    combined['sponsor'] = sponsor
+                    result[i] = combined
+                    del result[j]
+                    changed = True
+                    break
+                if changed:
+                    break
+
+        return sorted(result, key=lambda x: x['start'])
 
     def run_verification_detection(self, segments: List[Dict],
                                     podcast_name: str = "Unknown",
