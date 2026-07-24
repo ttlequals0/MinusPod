@@ -34,6 +34,7 @@ from config import (
     AUDIO_CUE_START_EDGE_ROLES,
     AUDIO_CUE_END_EDGE_ROLES,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
     is_cue_backed,
     is_template_cue,
@@ -266,6 +267,16 @@ DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 # and 'CiraSync' for a single Windows Weekly ad) fold into one when their
 # overlap covers this much of the SHORTER span.
 DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
+
+
+def _resolve_category_action(category, action_map: Dict[str, str]) -> str:
+    """Resolve a marker's category to its feed-configured action.
+
+    Caller must only invoke this with a non-None action_map -- callers that
+    have no map treat every category as the same action (today's behavior)
+    and never call this.
+    """
+    return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
 
 def _span_transcript_coverage(segments, start, end):
@@ -667,6 +678,24 @@ class AdDetector:
             logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
             return False
         return bool(podcast and podcast.get('detect_show_segments'))
+
+    def _resolve_segment_action_map(self, slug: str) -> Optional[Dict[str, str]]:
+        """Resolve the feed's category->action map once per detection run,
+        for the merge seam (_merge_detection_results) to gate on.
+
+        Same DB-per-call pattern as _podcast_wants_show_segments. Returns
+        None when slug or db is unavailable (module-level utility calls,
+        tests constructing AdDetector without a db) so the merge seam falls
+        back to treating every category as the same action -- today's
+        merge-everything-within-3s behavior.
+        """
+        if not slug or not self.db:
+            return None
+        try:
+            return self.db.resolve_segment_actions(slug)
+        except Exception as e:
+            logger.warning(f"Could not resolve segment actions for {slug}: {e}")
+            return None
 
     def _build_detection_system_prompt(self, slug: str) -> str:
         """Compose the system prompt used for detection window calls.
@@ -1119,8 +1148,10 @@ class AdDetector:
 
             # Merge in foreign language ads (auto-detected non-English segments)
             if foreign_language_ads:
+                action_map = self._resolve_segment_action_map(slug)
                 final_ads = self._merge_detection_results(
-                    final_ads + foreign_language_ads, segments=segments)
+                    final_ads + foreign_language_ads, segments=segments,
+                    action_map=action_map)
                 logger.info(f"[{slug}:{episode_id}] Merged {len(foreign_language_ads)} foreign language ads")
 
             total_ad_time = sum(ad['end'] - ad['start'] for ad in final_ads)
@@ -1640,7 +1671,9 @@ class AdDetector:
         all_ads.sort(key=lambda x: x['start'])
 
         # Merge overlapping ads
-        all_ads = self._merge_detection_results(all_ads, segments=segments)
+        all_ads = self._merge_detection_results(
+            all_ads, segments=segments,
+            action_map=self._resolve_segment_action_map(slug))
 
         # Log detection summary
         total = len(all_ads)
@@ -2026,13 +2059,23 @@ class AdDetector:
         return foreign_ads
 
     def _merge_detection_results(self, ads: List[Dict],
-                                 segments: Optional[List[Dict]] = None) -> List[Dict]:
+                                 segments: Optional[List[Dict]] = None,
+                                 action_map: Optional[Dict[str, str]] = None) -> List[Dict]:
         """Merge overlapping ads from different detection stages.
 
         segments, when given, lets the merge verify transcript coverage of a
         held differential span before a claude overlap may upgrade it to a cut
         (see the #541 block below). Without segments claude overlaps never
         upgrade, which fails safe to held.
+
+        action_map, when given, is the feed's resolved category->action map
+        (db.resolve_segment_actions). It gates the adjacency merge below: two
+        candidates whose categories resolve to different actions are never
+        folded into one marker, so a keep-resolving detection can never be
+        absorbed into a remove-resolving one and cut with no downstream net
+        able to see it (#565 follow-up). None (module-level callers, tests
+        without a db) treats every category as the same action -- today's
+        merge-everything-within-3s behavior, unchanged.
         """
         if not ads:
             return []
@@ -2046,6 +2089,35 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
+                same_action = (
+                    action_map is None
+                    or _resolve_category_action(last.get('category'), action_map)
+                       == _resolve_category_action(current.get('category'), action_map)
+                )
+                if not same_action:
+                    # Contested audio: never merge a keep-resolving marker
+                    # into a remove-resolving one. Leave both, clamping the
+                    # later marker's start past a true overlap so the two
+                    # spans never double-cut the same audio.
+                    clamped = current.copy()
+                    if current['start'] < last['end']:
+                        clamped['start'] = last['end']
+                        logger.debug(
+                            f"Not merging {last.get('category')!r} and "
+                            f"{current.get('category')!r} (different resolved "
+                            f"actions): clamped overlap start to "
+                            f"{clamped['start']:.1f}s"
+                        )
+                    if clamped['start'] < clamped['end']:
+                        merged.append(clamped)
+                    else:
+                        logger.debug(
+                            f"Dropping fully-overlapped different-action "
+                            f"marker {current['start']:.1f}s-{current['end']:.1f}s "
+                            f"(clamped span collapsed against "
+                            f"{last['start']:.1f}s-{last['end']:.1f}s)"
+                        )
+                    continue
                 # The stage-priority merge below overwrites last's stage
                 # (e.g. claude -> dai_differential) BEFORE the #541 upgrade
                 # check runs. Snapshot it: the check must see the
@@ -2156,7 +2228,7 @@ class AdDetector:
             else:
                 merged.append(current.copy())
 
-        merged = self._merge_overlapping_accepted_duplicates(merged)
+        merged = self._merge_overlapping_accepted_duplicates(merged, action_map=action_map)
 
         # Sanitize every surviving marker's sponsor: strips reasoning prose
         # and bare segment names the merge above didn't already clean up
@@ -2172,7 +2244,9 @@ class AdDetector:
 
         return merged
 
-    def _merge_overlapping_accepted_duplicates(self, markers: List[Dict]) -> List[Dict]:
+    def _merge_overlapping_accepted_duplicates(self, markers: List[Dict],
+                                               action_map: Optional[Dict[str, str]] = None
+                                               ) -> List[Dict]:
         """Second pass: fold duplicate ACCEPTED (non-held) markers describing
         the same ad read into one union-span marker.
 
@@ -2185,6 +2259,13 @@ class AdDetector:
         of the shorter span's duration into one marker spanning their union;
         sponsor is the sanitized label of the higher-confidence contributor,
         falling back to the other's sanitized label, else None.
+
+        category (#565 follow-up): when action_map is given and the pair's
+        resolved actions differ, the combined marker takes the KEEP-resolving
+        side's category, so contested audio is never cut. Otherwise (same
+        resolved action, or no action_map) the combined marker takes the
+        higher-confidence contributor's category, consistent with the sponsor
+        selection above.
 
         Held/pending markers are never touched here: a hold means a human
         still needs to see that exact span, and folding it into a cut marker
@@ -2225,6 +2306,21 @@ class AdDetector:
                     combined['end'] = max(a['end'], b['end'])
                     combined['confidence'] = max(a_conf, b_conf)
                     combined['sponsor'] = sponsor
+
+                    category_source = primary
+                    if action_map is not None:
+                        a_action = _resolve_category_action(a.get('category'), action_map)
+                        b_action = _resolve_category_action(b.get('category'), action_map)
+                        if a_action != b_action:
+                            if a_action == 'keep':
+                                category_source = a
+                            elif b_action == 'keep':
+                                category_source = b
+                            # Neither side resolves to 'keep' (e.g. remove vs
+                            # beep): no side is more "correct" to preserve,
+                            # fall back to the higher-confidence contributor.
+                    combined['category'] = normalize_segment_category(
+                        category_source.get('category'))
                     result[i] = combined
                     del result[j]
                     changed = True

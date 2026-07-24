@@ -7,10 +7,17 @@ Covers:
 - parse_ads_from_response carries the LLM's raw category field through
   extraction unvalidated (normalization happens at the merge seam)
 - get_episode's marker-to-payload mapping exposes category/actionApplied
+- the merge seam gates on the feed's resolved segment action map, so a
+  keep-resolving detection can never be merged into (and cut with) a
+  remove-resolving one (final-review fix wave, task 11 item 1)
 """
 import json
 import os
 import sys
+import tempfile
+
+os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='segment_categories_test_'))
+os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -19,6 +26,7 @@ from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
 )
+from main_app.processing import _partition_keep_ads
 
 
 class TestNormalizeSegmentCategory:
@@ -160,3 +168,132 @@ class TestEpisodePayloadCategoryFields:
         }])
         assert out[0]['category'] == 'self_promo'
         assert out[0]['actionApplied'] == 'beep'
+
+
+def _all_remove_map():
+    return {cat: 'remove' for cat in SEGMENT_CATEGORIES}
+
+
+class TestMergeGatedOnResolvedAction:
+    """Final-review fix wave (task 11 item 1): the detection-merge seam must
+    not fold a keep-resolving detection into a remove-resolving one within
+    the 3s adjacency window -- that discarded the keep side's category and
+    cut audio no downstream net could see as kept.
+    """
+
+    def _det(self):
+        return AdDetector(api_key='test-key')
+
+    def test_different_actions_within_3s_do_not_merge(self):
+        det = self._det()
+        action_map = dict(_all_remove_map(), self_promo='keep')
+        sponsor_ad = _ad(0.0, 20.0, 'text_pattern', category='sponsor')
+        self_promo_ad = _ad(20.0, 30.0, 'claude', category='self_promo')
+
+        out = det._merge_detection_results(
+            [sponsor_ad, self_promo_ad], action_map=action_map)
+
+        assert len(out) == 2
+        categories = {m['category'] for m in out}
+        assert categories == {'sponsor', 'self_promo'}
+
+        keep_ads, remove_ads = _partition_keep_ads(out, action_map)
+        assert len(keep_ads) == 1
+        assert keep_ads[0]['category'] == 'self_promo'
+        assert len(remove_ads) == 1
+        assert remove_ads[0]['category'] == 'sponsor'
+
+    def test_all_remove_map_merges_exactly_as_today(self):
+        """Regression: an all-remove map (today's default) still merges the
+        same adjacency-window pair into one marker, exactly as pre-fix."""
+        det = self._det()
+        action_map = _all_remove_map()
+        sponsor_ad = _ad(0.0, 20.0, 'text_pattern', category='sponsor')
+        self_promo_ad = _ad(20.0, 30.0, 'claude', category='self_promo')
+
+        out = det._merge_detection_results(
+            [sponsor_ad, self_promo_ad], action_map=action_map)
+
+        assert len(out) == 1
+        assert out[0]['start'] == 0.0
+        assert out[0]['end'] == 30.0
+
+    def test_none_map_regression_module_level_call_sites_unaffected(self):
+        """A module-level caller with no slug/db resolves no action_map
+        (None); the merge must behave exactly as before this fix regardless
+        of differing categories."""
+        det = self._det()
+        sponsor_ad = _ad(0.0, 20.0, 'text_pattern', category='sponsor')
+        self_promo_ad = _ad(20.0, 30.0, 'claude', category='self_promo')
+
+        out = det._merge_detection_results([sponsor_ad, self_promo_ad])
+
+        assert len(out) == 1
+        assert out[0]['start'] == 0.0
+        assert out[0]['end'] == 30.0
+
+    def test_true_overlap_with_different_actions_clamps_instead_of_merging(self):
+        det = self._det()
+        action_map = dict(_all_remove_map(), interaction='keep')
+        sponsor_ad = _ad(0.0, 25.0, 'text_pattern', category='sponsor')
+        interaction_ad = _ad(20.0, 30.0, 'claude', category='interaction')
+
+        out = det._merge_detection_results(
+            [sponsor_ad, interaction_ad], action_map=action_map)
+
+        assert len(out) == 2
+        by_cat = {m['category']: m for m in out}
+        assert by_cat['sponsor']['start'] == 0.0
+        assert by_cat['sponsor']['end'] == 25.0
+        # Clamped past the sponsor marker's end so the two spans no longer
+        # double-cut the same 20.0-25.0s audio.
+        assert by_cat['interaction']['start'] == 25.0
+        assert by_cat['interaction']['end'] == 30.0
+
+
+class TestMergeDuplicateOverlapPrefersKeepCategory:
+    """Final-review fix wave (task 11 item 1c): a >=80%-overlap duplicate
+    fold must take the KEEP-resolving side's category when the two sides'
+    resolved actions differ, so contested audio is never cut.
+    """
+
+    def _det(self):
+        return AdDetector(api_key='test-key')
+
+    def test_sponsor_remove_vs_interaction_keep_combines_to_interaction(self):
+        det = self._det()
+        action_map = dict(_all_remove_map(), interaction='keep')
+        # A=[0,100] dur 100, B=[10,100] dur 90: overlap 90/90 = 1.0 (>= 0.8)
+        sponsor_ad = _ad(0.0, 100.0, 'text_pattern', confidence=0.7, category='sponsor')
+        interaction_ad = _ad(10.0, 100.0, 'claude', confidence=0.9, category='interaction')
+
+        out = det._merge_overlapping_accepted_duplicates(
+            [sponsor_ad, interaction_ad], action_map=action_map)
+
+        assert len(out) == 1
+        assert out[0]['category'] == 'interaction'
+
+    def test_same_action_prefers_higher_confidence_primary_category(self):
+        det = self._det()
+        action_map = _all_remove_map()
+        low_conf = _ad(0.0, 100.0, 'text_pattern', confidence=0.6, category='sponsor')
+        high_conf = _ad(10.0, 100.0, 'claude', confidence=0.9, category='cross_promo')
+
+        out = det._merge_overlapping_accepted_duplicates(
+            [low_conf, high_conf], action_map=action_map)
+
+        assert len(out) == 1
+        assert out[0]['category'] == 'cross_promo'
+
+    def test_none_map_falls_back_to_higher_confidence_primary_category(self):
+        """No action_map (module-level caller): the differ/same-action
+        distinction cannot be resolved, so the combined category always
+        comes from the higher-confidence contributor."""
+        det = self._det()
+        low_conf = _ad(0.0, 100.0, 'text_pattern', confidence=0.6, category='sponsor')
+        high_conf = _ad(10.0, 100.0, 'claude', confidence=0.9, category='interaction')
+
+        out = det._merge_overlapping_accepted_duplicates([low_conf, high_conf])
+
+        assert len(out) == 1
+        assert out[0]['category'] == 'interaction'
