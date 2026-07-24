@@ -217,6 +217,8 @@ function Settings() {
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
+  const [podpingEnabled, setPodpingEnabled] = useState(false);
+  const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('');
@@ -470,6 +472,8 @@ function Settings() {
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
+    { key: 'podpingEnabled', kind: 'val', useDefault: true, value: podpingEnabled, set: setPodpingEnabled },
+    { key: 'rssRefreshIntervalMinutes', kind: 'val', useDefault: true, literal: 15, value: rssRefreshIntervalMinutes, set: setRssRefreshIntervalMinutes },
     // Ad detection
     { key: 'minCutConfidence', kind: 'val', useDefault: true, value: minCutConfidence, set: setMinCutConfidence },
     { key: 'minContentBetweenAdsSeconds', kind: 'val', useDefault: true, literal: 12, value: minContentBetweenAdsSeconds, set: setMinContentBetweenAdsSeconds },
@@ -748,6 +752,8 @@ function Settings() {
         processingEpisodes={processingEpisodes}
         onCancel={(params) => cancelMutation.mutate(params)}
         cancelIsPending={cancelMutation.isPending}
+        rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
+        onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
       />
 
       {/* Settings search: filters the configurable sections below by matching a
@@ -974,8 +980,10 @@ function Settings() {
       <Podcasting20Section
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
+        podpingEnabled={podpingEnabled}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
+        onPodpingEnabledChange={setPodpingEnabled}
       />
 
       <CoverArtSection

@@ -338,6 +338,9 @@ function FeedDetail() {
               {feed.lastRefreshed && (
                 <span>Updated {formatDateTime(feed.lastRefreshed)}</span>
               )}
+              {feed.lastPodpingAt && (
+                <span>Last podping: {formatDateTime(feed.lastPodpingAt)}</span>
+              )}
               {feed.lastRefreshError && (
                 <span
                   className="text-warning"
