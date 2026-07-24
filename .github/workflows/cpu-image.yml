@@ -88,6 +88,7 @@ jobs:
           file: ./Dockerfile.cpu
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          build-args: MINUSPOD_VERSION=${{ inputs.version }}
           cache-from: type=gha,scope=cpu-${{ matrix.arch_id }}
           cache-to: type=gha,scope=cpu-${{ matrix.arch_id }},mode=max
 

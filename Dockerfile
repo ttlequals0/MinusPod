@@ -30,6 +30,9 @@ RUN mkdir -p /app/static/ui/swagger \
 # container runtime, driven by the NVIDIA_* env vars in the ENV block.
 FROM ubuntu:26.04
 
+ARG MINUSPOD_VERSION=dev
+LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
+
 # Install Python 3.12 from deadsnakes PPA and system dependencies
 # Ubuntu 26.04 ships Python 3.14; deadsnakes pins 3.12 (cp312 is the
 # ceiling for numpy<2.0 wheels; see the numpy pin in requirements.in)
