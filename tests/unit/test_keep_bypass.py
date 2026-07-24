@@ -37,7 +37,8 @@ def _cross_promo_ad():
            'confidence': 0.95, 'detection_stage': 'llm'}
 
 
-def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
+def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
+                  real_sweeps=False, audio_analysis_result=None, segments=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks so tests can
     inspect what each stage was actually called with.
@@ -47,11 +48,25 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
     partition already ran: it is appended to the (ads_to_remove,
     all_ads_with_validation) pair the mocked stage returns, never to the
     partition's own input.
+
+    ``real_sweeps=True`` leaves _snap_terminal_starts/_complete_cut_tails
+    unpatched (real functions) instead of the default pass-through mocks, so
+    a test can prove the late-keep-partition-before-sweeps wiring for real.
+    ``db.get_setting_float`` is given a passthrough side_effect (always
+    returns the caller's own default, i.e. "nothing stored") rather than a
+    fixed value, so it cannot silently perturb some other real call this
+    harness doesn't otherwise anticipate. ``audio_analysis_result``, when
+    given, feeds _run_audio_analysis's mocked return value (needs
+    ``splice_evidence``/``to_dict``/``get_signals_by_type`` to satisfy every
+    real call site that touches it before the sweeps run). ``segments``
+    overrides the module-level SEGMENTS transcript fixture the sweeps also
+    receive.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
                    'passthrough_enabled': None, 'skip_ad_detection': None,
                    'detection_mode': None}
+    segments = SEGMENTS if segments is None else segments
 
     def _fake_refine_and_validate(slug, episode_id, all_ads, *a, **k):
         for ad in all_ads:
@@ -83,9 +98,9 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)
         p(processing, '_download_and_transcribe',
-          return_value=('/tmp/keep.mp3', SEGMENTS))
+          return_value=('/tmp/keep.mp3', segments))
         p(processing, '_run_differential_fetch', return_value=None)
-        p(processing, '_run_audio_analysis', return_value=None)
+        p(processing, '_run_audio_analysis', return_value=audio_analysis_result)
         p(processing, 'load_positional_prior', return_value=None)
         detect = p(processing, '_detect_ads_first_pass',
                   return_value=(first_pass_ads, len(first_pass_ads), {}))
@@ -93,8 +108,9 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
                   side_effect=_fake_refine_and_validate)
         reviewer = p(processing, '_run_ad_reviewer',
                     side_effect=_fake_run_ad_reviewer)
-        p(processing, '_snap_terminal_starts', side_effect=_pass_through_ads)
-        p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
+        if not real_sweeps:
+            p(processing, '_snap_terminal_starts', side_effect=_pass_through_ads)
+            p(processing, '_complete_cut_tails', side_effect=_pass_through_ads)
         local_ap_cls = p(processing, 'AudioProcessor')
         p(processing, '_run_verification_pass',
           return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
@@ -107,6 +123,7 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
         db.get_setting.return_value = 'false'
+        db.get_setting_float.side_effect = lambda key, default=None: default
         db.get_all_settings.return_value = {}
         db.resolve_segment_actions.return_value = segment_actions
         audio_processor.get_audio_duration.return_value = 100.0
@@ -289,7 +306,7 @@ class TestLateKeepSafetyNet:
         ads_to_remove = [real_cut, synthesized]
         all_ads_with_validation = [real_cut, synthesized]
 
-        with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        with caplog.at_level(logging.DEBUG, logger='podcast.audio'):
             result = processing._apply_late_keep_safety_net(
                 ads_to_remove, all_ads_with_validation, actions_map)
 
@@ -330,12 +347,26 @@ class TestLateKeepSafetyNet:
         assert result is ads_to_remove
         assert 'action_applied' not in ads_to_remove[0]
 
-    def test_late_keep_safety_net_drops_synthesized_marker_end_to_end(self):
-        """Full process_episode pass-1 flow: a synthesized post-roll marker
-        (no category, added by the mocked _refine_and_validate the way
-        _apply_heuristic_rolls would) is dropped from the final cut list and
-        never reaches the audio processor, while a real cross_promo cut
-        marker still cuts normally."""
+
+class TestLateKeepPartitionBeforeSweeps:
+    """Reviewer High follow-up on the original Task 6 commit: a marker
+    synthesized inside _refine_and_validate (heuristic pre/post-roll,
+    VAD-gap), whose category resolves to 'keep', must be stamped and pulled
+    out of the cut list right after _refine_and_validate returns -- before
+    the reviewer's resurrection pool and the terminal-snap/tail-completion
+    sweeps ever see it -- not merely at the final _apply_late_keep_safety_net
+    backstop right before ffmpeg. Drives the real, unpatched functions
+    through the full process_episode flow (real_sweeps=True); only
+    db/storage and the detection/reviewer/verification stages are mocked.
+    """
+
+    def test_late_partition_drops_synthesized_marker_end_to_end(self):
+        """With the sweeps still mocked pass-throughs (real_sweeps not
+        needed for this one), a synthesized post-roll marker (no category,
+        added by the mocked _refine_and_validate the way _apply_heuristic_rolls
+        would) is caught by the early re-partition -- immediately after
+        _refine_and_validate returns -- and never reaches the audio
+        processor, while a real cross_promo cut marker still cuts normally."""
         cross_promo = _cross_promo_ad()
         late_marker = {'start': 90.0, 'end': 99.0, 'confidence': 0.9,
                        'detection_stage': 'post_roll'}
@@ -358,6 +389,65 @@ class TestLateKeepSafetyNet:
 
         audio_segments = m['local_ap'].process_episode.call_args.args[1]
         assert [s['start'] for s in audio_segments] == [cross_promo['start']]
+
+    def test_terminal_snap_does_not_swallow_late_kept_span(self):
+        """The reviewer's exact repro, driven through the real, unpatched
+        _snap_terminal_starts inside the full process_episode flow: a
+        synthesized marker at [70, 85) with no category (normalizes to
+        'sponsor', mapped to 'keep') sits ahead of a terminal cut at
+        [90, 99) close to the 100.0s episode end, with a digital-silence
+        splice event at 72.0 inside the 30s scan-back window. Pre-fix, the
+        marker reached the sweep unstamped, its span read as safe coverage,
+        and the terminal cut's start snapped back to 72.0 -- swallowing 13s
+        of the kept span. Post-fix, the early re-partition (this follow-up)
+        excludes the marker before the sweep runs, so the sweep has nothing
+        marking [70, 85) as covered and must treat it as blocking content."""
+        terminal_ad = {'start': 90.0, 'end': 99.0, 'category': 'cross_promo',
+                       'confidence': 0.9, 'detection_stage': 'text_pattern',
+                       'reason': 'terminal block'}
+        late_marker = {'start': 70.0, 'end': 85.0, 'confidence': 0.9,
+                       'detection_stage': 'post_roll'}
+        segment_actions = {'sponsor': 'keep', 'cross_promo': 'remove',
+                           'self_promo': 'remove', 'interaction': 'remove',
+                           'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        segments = [{'start': 70.0, 'end': 85.0,
+                    'text': 'and that wraps up this segment for today'}]
+        splice_evidence = {'events': [
+            {'time': 72.0, 'end_time': 73.4, 'type': 'digital_silence',
+             'depth_dbfs': -90.0, 'duration_s': 1.4, 'loudness_step_lu': None,
+             'centroid_step_hz': None, 'flatness_step': None},
+        ]}
+        audio_analysis_result = types.SimpleNamespace(
+            splice_evidence=splice_evidence,
+            to_dict=lambda: {},
+            get_signals_by_type=lambda t: [],
+        )
+
+        m = _run_pipeline(
+            [terminal_ad], segment_actions, late_synthesized_ad=late_marker,
+            real_sweeps=True, audio_analysis_result=audio_analysis_result,
+            segments=segments,
+        )
+
+        assert m['result'] is True
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        by_span = {(a['start'], a['end']): a for a in saved}
+        kept = by_span[(late_marker['start'], late_marker['end'])]
+        assert kept['was_cut'] is False
+        assert kept['action_applied'] == 'keep'
+
+        # The terminal cut's start must not have moved into the kept span
+        # (fixed expected value, not a re-read of the possibly-mutated
+        # input dict -- the reviewer's exact repro swept it to 72.0), and
+        # the final cut list handed to ffmpeg must not overlap the kept
+        # span at all.
+        audio_segments = m['local_ap'].process_episode.call_args.args[1]
+        assert len(audio_segments) == 1
+        assert audio_segments[0]['start'] == 90.0
+        assert not any(
+            processing.ranges_overlap(s['start'], s['end'], 70.0, 85.0)
+            for s in audio_segments
+        )
 
 
 class TestExcludeKeptSpansFromVerification:

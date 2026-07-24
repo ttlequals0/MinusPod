@@ -1021,21 +1021,26 @@ def _partition_keep_ads(all_ads, actions_map):
 
 
 def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map):
-    """Last-chance keep exclusion, right before the pass-1 cut list is handed
-    to the audio processor.
+    """Pure backstop, right before the pass-1 cut list is handed to the
+    audio processor: drops any marker whose resolved action is still 'keep'
+    at this point.
 
-    _partition_keep_ads (Task 4) only sees markers present in all_ads at
-    that point in the pipeline. A marker synthesized afterward, inside
-    _refine_and_validate (heuristic pre/post-roll, VAD-gap ads), never got a
-    chance to be pulled out even when its category resolves to 'keep' -- it
-    would otherwise reach _partition_cut_actions, fall back to
-    DEFAULT_SEGMENT_ACTION, and still cut. This is the last point before
-    ffmpeg sees the list, so it is the last chance to honor 'keep' for such
-    a marker.
+    A marker synthesized inside _refine_and_validate (heuristic pre/post-roll,
+    VAD-gap ads) whose category resolves to 'keep' is now normally caught
+    earlier, immediately after _refine_and_validate returns and before the
+    reviewer/terminal-snap/tail-completion sweeps ever see it (same
+    resurrection-safety reasoning as _partition_keep_ads' early call) -- see
+    the re-partition call in process_episode. This function should therefore
+    find nothing in the ordinary case; it stays as a defensive last resort
+    for any marker source that manages to add a keep-resolving, still-cut
+    marker after that point, since letting one silently reach
+    _partition_cut_actions would fall back to DEFAULT_SEGMENT_ACTION and
+    still cut it.
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
     all_ads_with_validation master, if a different object) and removes it
-    from the returned cut list. Logs at info when this fires.
+    from the returned cut list. Logs at debug when this fires (an actual hit
+    here past the earlier catch is unexpected, not routine).
 
     Returns ads_to_remove unchanged (same list/objects) when no category
     resolves to 'keep' -- the default all-remove map never triggers this.
@@ -1056,7 +1061,7 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         if master is not None:
             master['was_cut'] = False
             master['action_applied'] = 'keep'
-        audio_logger.info(
+        audio_logger.debug(
             f"Late keep safety net: dropping synthesized marker "
             f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
             f"from the cut list; its resolved action is 'keep'"
@@ -3718,6 +3723,25 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cue_gate_enabled=cue_gate_enabled,
                     audio_analysis=_val_audio_analysis,
                 )
+
+                # Late keep partition (reviewer High follow-up): heuristic
+                # pre/post-roll and VAD-gap markers are synthesized inside
+                # _refine_and_validate itself (_apply_heuristic_rolls), after
+                # the early partition above already ran, so a marker whose
+                # category resolves to 'keep' can still be sitting in
+                # all_ads_with_validation here, unstamped. Re-running the
+                # same partition now -- before the reviewer's resurrection
+                # pool and the terminal-snap/tail-completion sweeps ever see
+                # it, for the exact resurrection-safety reason the early
+                # call above exists -- catches it. Its catch joins keep_ads
+                # so the single fold-back save below covers both together.
+                late_keep_ads, all_ads_with_validation = _partition_keep_ads(
+                    all_ads_with_validation, segment_actions)
+                if late_keep_ads:
+                    late_keep_ids = {id(ad) for ad in late_keep_ads}
+                    ads_to_remove = [ad for ad in ads_to_remove
+                                     if id(ad) not in late_keep_ids]
+                    keep_ads = keep_ads + late_keep_ads
             _check_cancel(cancel_event, slug, episode_id)
 
             # No-op when enable_ad_review is off (the default).
@@ -3754,11 +3778,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation, segments
             )
 
-            # Late keep safety net: a marker synthesized after the Task 4
-            # keep partition ran (heuristic pre/post-roll, VAD-gap) never
-            # had a chance to be pulled out even when its category resolves
-            # to 'keep'. This is the last point before the cut list reaches
-            # the audio processor, so it is the last chance to honor it.
+            # Pure backstop: the late keep partition above already catches a
+            # heuristic/VAD-gap marker whose category resolves to 'keep', so
+            # this should normally find nothing. Kept as the last point
+            # before the cut list reaches the audio processor in case some
+            # other marker source adds a keep-resolving cut after that point.
             ads_to_remove = _apply_late_keep_safety_net(
                 ads_to_remove, all_ads_with_validation, segment_actions)
 
