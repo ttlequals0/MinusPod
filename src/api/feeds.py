@@ -1,4 +1,5 @@
 """Feed routes: /feeds/* endpoints."""
+import json
 import logging
 import os
 import re
@@ -22,6 +23,7 @@ from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     VALID_CHAPTERS_MODES,
+    SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     resolve_feed_processing_mode,
 )
@@ -168,6 +170,40 @@ def _normalize_chapters_mode(value):
     return None, f"chaptersMode must be one of: {', '.join(sorted(VALID_CHAPTERS_MODES))}"
 
 
+def _normalize_segment_category_actions(value):
+    """Validate a per-feed segmentCategoryActions override (issue #565).
+
+    None clears the override (stored NULL). A dict is validated key-by-key:
+    every key must be a known category and every value a known action. The
+    partial map is stored as-is -- unresolved keys fall through to the
+    global setting at resolve time (resolve_segment_actions).
+    """
+    if value is None:
+        return None, None
+    if not isinstance(value, dict):
+        return None, 'segmentCategoryActions must be an object or null'
+    for cat, action in value.items():
+        if cat not in SEGMENT_CATEGORIES:
+            return None, f"segmentCategoryActions: unknown category '{cat}'"
+        if action not in SEGMENT_ACTIONS:
+            return None, f"segmentCategoryActions: unknown action '{action}' for '{cat}'"
+    return json.dumps(value), None
+
+
+def _deserialize_segment_category_actions(raw):
+    """Parse the stored segment_category_actions JSON back for API responses.
+
+    Returns the partial map as stored, or None if unset/unparsable.
+    """
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
 
 _CUE_SCORE_MIN = AUDIO_CUE_SCORE_MIN
@@ -218,6 +254,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('differentialFetchEnabled', 'differential_fetch_enabled'),
     ('passthroughEnabled', 'passthrough_enabled'),
     ('skipAdDetection', 'skip_ad_detection'),
+    ('detectShowSegments', 'detect_show_segments'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -300,6 +337,8 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'segmentCategoryActions': _deserialize_segment_category_actions(
+            podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
         **_cue_override_fields(podcast),
         'sourceUrl': podcast['source_url'],
@@ -755,6 +794,13 @@ def update_feed(slug):
         if chapters_err:
             return error_response(chapters_err, 400)
         updates['chapters_mode'] = chapters_val
+
+    if 'segmentCategoryActions' in data:
+        actions_val, actions_err = _normalize_segment_category_actions(
+            data['segmentCategoryActions'])
+        if actions_err:
+            return error_response(actions_err, 400)
+        updates['segment_category_actions'] = actions_val
 
     for json_key, db_col, lo, hi in _CUE_FLOAT_OVERRIDE_FIELDS:
         if json_key in data:

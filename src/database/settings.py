@@ -28,6 +28,7 @@ from config import (
     AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+    resolve_segment_category_actions_map,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -144,6 +145,11 @@ def _payload_max_audio_download_mb() -> int:
                               floor=MAX_AUDIO_DOWNLOAD_MB_MIN, settings={})
 
 
+def _payload_segment_category_actions() -> Dict[str, str]:
+    return resolve_segment_category_actions_map(
+        registry_default('segment_category_actions'))
+
+
 @dataclass(frozen=True)
 class SettingSpec:
     """One global setting.
@@ -255,6 +261,12 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'max_feed_episodes': SettingSpec(
         default='300', seeded=True, resettable=False,
         payload_key='maxFeedEpisodes', payload_kind='int'),
+    # Global per-category segment action overrides (issue #565): JSON map of
+    # category -> action; unset categories fall back to DEFAULT_SEGMENT_ACTION.
+    'segment_category_actions': SettingSpec(
+        default='{}', seeded=True, resettable=False,
+        payload_key='segmentCategoryActions',
+        payload_factory=_payload_segment_category_actions),
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),

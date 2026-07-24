@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional, Dict, List
 
+from config import resolve_segment_category_actions_map
 from utils.constants import EpisodeStatus
 from utils.time import utc_now_iso
 
@@ -187,6 +188,7 @@ class PodcastMixin:
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
                 'last_podping_at',
+                'segment_category_actions', 'detect_show_segments',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)
@@ -416,3 +418,16 @@ class PodcastMixin:
         if per_feed is not None:
             return bool(per_feed)
         return self.get_setting('only_expose_processed_default') == 'true'
+
+    def resolve_segment_actions(self, slug: str,
+                                podcast: Optional[Dict] = None) -> Dict[str, str]:
+        """Full map for every SEGMENT_CATEGORIES key: per-feed override ->
+        global segment_category_actions setting -> DEFAULT_SEGMENT_ACTION.
+        Malformed JSON at either level is ignored (treated as unset).
+        """
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        global_resolved = resolve_segment_category_actions_map(
+            self.get_setting('segment_category_actions'))
+        per_feed_raw = podcast.get('segment_category_actions') if podcast else None
+        return resolve_segment_category_actions_map(per_feed_raw, baseline=global_resolved)

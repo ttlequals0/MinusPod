@@ -14,6 +14,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
 from database import Database
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
@@ -70,6 +71,7 @@ SEED_SNAPSHOT = {
     'review_model': 'same_as_pass',
     'review_prompt': ('sha256', '897102def672fcfffdfd2500e43cfdb6699aebf650606aee18549a4c033758d3'),
     'rss_refresh_interval_minutes': '15',
+    'segment_category_actions': '{}',
     'system_prompt': ('sha256', 'df48d3c574c5998459ec470905b2518d21dc6da7f014f348d6c92ccc5f358187'),
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',
@@ -142,7 +144,7 @@ NON_RESETTABLE_KEYS = (
     'only_expose_processed_default', 'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
-    'rss_refresh_interval_minutes',
+    'rss_refresh_interval_minutes', 'segment_category_actions',
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
     'transition_threshold_db', 'volume_threshold_db',
@@ -329,6 +331,7 @@ class TestGetDefaults:
             'feedAuthEnabled': False,
             'artworkWatermarkEnabled': False,
             'positionalPriorEnabled': False,
+            'segmentCategoryActions': {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES},
         }
         payload = {
             spec.payload_key: registry_get_default(key)
@@ -347,11 +350,12 @@ class TestGetDefaults:
         # from it -- preserve that. 2.76.0 added six detection-tuning
         # payload keys (67 -> 73). rssRefreshIntervalMinutes added after
         # (73 -> 74). podpingEnabled added after that (74 -> 75).
+        # segmentCategoryActions added after that (75 -> 76).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 75
+        assert len(payload_keys) == 76
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

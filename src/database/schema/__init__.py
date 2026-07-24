@@ -312,6 +312,13 @@ class SchemaMixin:
             ('chapters_mode', 'TEXT'),
             # Last received podping timestamp (podping-listener feature)
             ('last_podping_at', 'TEXT'),
+            # Per-feed segment category action overrides (issue #565): partial
+            # JSON map of category -> action, merged over the global
+            # segment_category_actions setting at resolve time.
+            ('segment_category_actions', 'TEXT'),
+            # Per-feed opt-in for show-segment (intro/outro/recap) detection
+            # (issue #565); NULL/0 = off, 1 = on, no global to inherit.
+            ('detect_show_segments', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

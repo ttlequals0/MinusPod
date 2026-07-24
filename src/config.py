@@ -3,10 +3,11 @@
 All magic numbers and thresholds should be defined here
 for easy tuning and consistency across the codebase.
 """
+import json
 import logging
 import os
 import re
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
@@ -63,6 +64,34 @@ DEFAULT_SEGMENT_ACTION = 'remove'
 def normalize_segment_category(value: Any) -> str:
     """Return value if it is a known segment category, else 'sponsor'."""
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
+
+
+def resolve_segment_category_actions_map(
+        raw_json: Optional[str],
+        baseline: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Parse a segment_category_actions-shaped JSON string and merge it over
+    `baseline` (default: every SEGMENT_CATEGORIES key set to
+    DEFAULT_SEGMENT_ACTION). Malformed JSON, a non-dict payload, and any
+    unknown category/action pair are ignored (treated as unset) so a partial
+    or corrupt value never drops the other categories to a missing key.
+
+    Passing a prior call's result as `baseline` layers a second JSON string
+    (e.g. a per-feed override) on top without re-deriving the base map.
+    """
+    merged = dict(baseline) if baseline is not None else {
+        cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
+    if not raw_json:
+        return merged
+    try:
+        parsed = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return merged
+    if not isinstance(parsed, dict):
+        return merged
+    for cat, action in parsed.items():
+        if cat in SEGMENT_CATEGORIES and action in SEGMENT_ACTIONS:
+            merged[cat] = action
+    return merged
 
 
 # Hold reasons pass-2 auto-approval may release when the verification pass

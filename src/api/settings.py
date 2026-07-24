@@ -32,6 +32,8 @@ from config import (
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     PODCAST_SEARCH_PROVIDERS,
+    SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
+    resolve_segment_category_actions_map,
 )
 # Safe despite api/__init__ importing settings before podcast_search:
 # podcast_search only pulls names api/__init__ defines before its submodule
@@ -229,6 +231,10 @@ def get_settings():
 
     podping_enabled = coerce_bool_setting(_setting_value(
         settings, 'podping_enabled', registry_default('podping_enabled')))
+
+    segment_category_actions = resolve_segment_category_actions_map(
+        _setting_value(settings, 'segment_category_actions',
+                       registry_default('segment_category_actions')))
 
     # Get min cut confidence (ad detection aggressiveness)
     try:
@@ -467,6 +473,8 @@ def get_settings():
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
         'podpingEnabled': _sv('podping_enabled', podping_enabled),
+        'segmentCategoryActions': _sv(
+            'segment_category_actions', segment_category_actions),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(
@@ -598,6 +606,7 @@ def update_ad_detection_settings():
         _apply_stage_tunables,
         _apply_ad_merge_fields,
         _apply_detection_tuning_fields,
+        _apply_segment_category_actions,
     )
     for phase in phases:
         err = phase(db, data)
@@ -794,6 +803,32 @@ def _apply_feed_refresh_fields(db, data):
         value = 'true' if data['podpingEnabled'] else 'false'
         db.set_setting('podping_enabled', value, is_default=False)
         logger.info(f"Updated podping listener to: {value}")
+    return None
+
+
+def _apply_segment_category_actions(db, data):
+    """Merge a partial segmentCategoryActions map over the stored global map.
+
+    Every key must be a known segment category and every value a known
+    action; the merged full map (not just the partial payload) is persisted
+    so later reads never need to fall back through a partial global row.
+    """
+    if 'segmentCategoryActions' in data:
+        value = data['segmentCategoryActions']
+        if not isinstance(value, dict):
+            return error_response('segmentCategoryActions must be an object', 400)
+        for cat, action in value.items():
+            if cat not in SEGMENT_CATEGORIES:
+                return error_response(
+                    f"segmentCategoryActions: unknown category '{cat}'", 400)
+            if action not in SEGMENT_ACTIONS:
+                return error_response(
+                    f"segmentCategoryActions: unknown action '{action}' for '{cat}'", 400)
+        merged = resolve_segment_category_actions_map(
+            db.get_setting('segment_category_actions'))
+        merged.update(value)
+        db.set_setting('segment_category_actions', json.dumps(merged), is_default=False)
+        logger.info(f"Updated segment category actions: {merged}")
     return None
 
 
