@@ -224,11 +224,17 @@ class VerificationPass:
         )
 
 
-def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:
-    """Build a sorted list of (cut_start, cut_duration) from pass 1 removed ads.
+def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float, Optional[float]]]:
+    """Build a sorted list of (cut_start, cut_duration, cut_replacement) from
+    pass 1 removed ads.
 
     Each entry represents a gap in the original timeline that was removed.
-    Used by _map_to_original to reverse the timestamp shift.
+    cut_replacement is the span's own 'replacement_duration' (see
+    audio_processor.compute_applied_cuts and utils.time.merge_cut_spans) when
+    the ad dict carries one, else None -- _map_to_original and
+    _map_correction_to_processed fall back to their `replacement_duration`
+    argument for a None entry (legacy applied-cuts rows with no per-span
+    value). Used by _map_to_original to reverse the timestamp shift.
     """
     cuts = []
     for ad in pass1_cuts:
@@ -236,9 +242,20 @@ def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:
         end = ad.get('end', 0)
         duration = end - start
         if duration > 0:
-            cuts.append((start, duration))
+            cuts.append((start, duration, ad.get('replacement_duration')))
     cuts.sort(key=lambda x: x[0])
     return cuts
+
+
+def _cut_replacement(cut: Tuple, default: Optional[float] = None) -> Optional[float]:
+    """A cut tuple's own replacement duration (third element), or `default`
+    for a 2-tuple or an explicit None third element.
+
+    Shared by _map_to_original and _map_correction_to_processed so both
+    honor the same 2-tuple/3-tuple compatibility rule (see
+    _build_timestamp_map) from one place.
+    """
+    return cut[2] if len(cut) > 2 and cut[2] is not None else default
 
 
 def _map_to_original(processed_time: float,
@@ -247,18 +264,24 @@ def _map_to_original(processed_time: float,
     """Map a processed-audio timestamp back to original-audio timestamp.
 
     Walks through the sorted cuts, accumulating removed time. Each cut is
-    replaced by `replacement_duration` of audio in the processed file, so a
-    cut shifts later content by (duration - replacement). A timestamp inside
-    a replacement maps just inside the removed span it stands in for,
-    keeping the mapping monotonic (the inverse of utils.time.adjust_timestamp).
+    replaced by its own replacement duration (third tuple element, when
+    present) or `replacement_duration` otherwise, of audio in the processed
+    file, so a cut shifts later content by (duration - replacement). A
+    timestamp inside a replacement maps just inside the removed span it
+    stands in for, keeping the mapping monotonic (the inverse of
+    utils.time.adjust_timestamp). `cuts` entries may be 2-tuples
+    (cut_start, cut_duration) or 3-tuples with a per-cut replacement (see
+    _build_timestamp_map).
     """
     offset = 0.0
-    for cut_start, cut_duration in cuts:
+    for cut in cuts:
+        cut_start, cut_duration = cut[0], cut[1]
+        cut_replacement = _cut_replacement(cut, replacement_duration)
         # In processed timeline, this cut's replacement starts at
-        # cut_start - offset and lasts replacement_duration.
+        # cut_start - offset and lasts cut_replacement.
         replacement_start = cut_start - offset
-        if processed_time >= replacement_start + replacement_duration:
-            offset += cut_duration - replacement_duration
+        if processed_time >= replacement_start + cut_replacement:
+            offset += cut_duration - cut_replacement
         elif processed_time > replacement_start:
             return cut_start + (processed_time - replacement_start)
         else:
@@ -279,17 +302,19 @@ def _map_correction_to_processed(
     processed-audio coordinates. Returns None when the entire range was
     removed by a cut (no representation in processed audio).
 
-    Cuts are pre-sorted by start ascending. If a cut contains `orig_start`,
-    the visible portion begins at the cut's end. If a cut contains
-    `orig_end`, the visible portion ends at the cut's start. Then both
-    endpoints are shifted left by the total cut duration that ended at or
-    before them.
+    Cuts are pre-sorted by start ascending and may be 2-tuples
+    (cut_start, cut_duration) or 3-tuples with a per-cut replacement duration
+    (see _build_timestamp_map). If a cut contains `orig_start`, the visible
+    portion begins at the cut's end. If a cut contains `orig_end`, the
+    visible portion ends at the cut's start. Then both endpoints are shifted
+    left by the total cut duration that ended at or before them.
     """
     if orig_end <= orig_start:
         return None
 
     start, end = orig_start, orig_end
-    for cut_start, cut_duration in cuts:
+    for cut in cuts:
+        cut_start, cut_duration = cut[0], cut[1]
         cut_end = cut_start + cut_duration
         if cut_start <= start < cut_end:
             start = cut_end
@@ -301,8 +326,17 @@ def _map_correction_to_processed(
 
     # After the snap loop the endpoints are never strictly inside a cut, so
     # the forward shift is exactly adjust_timestamp's: one owner for the
-    # (duration - replacement) render model.
-    span_dicts = [{'start': s, 'end': s + d} for s, d in cuts]
+    # (duration - replacement) render model. Each cut's own replacement
+    # (third tuple element, when present) carries through so a beeped span
+    # in the mix shifts nothing.
+    span_dicts = []
+    for cut in cuts:
+        s, d = cut[0], cut[1]
+        entry = {'start': s, 'end': s + d}
+        replacement = _cut_replacement(cut)
+        if replacement is not None:
+            entry['replacement_duration'] = replacement
+        span_dicts.append(entry)
     proc_start = adjust_timestamp(start, span_dicts, replacement_duration)
     proc_end = adjust_timestamp(end, span_dicts, replacement_duration)
     if proc_end <= proc_start:

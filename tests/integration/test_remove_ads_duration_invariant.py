@@ -119,7 +119,8 @@ def test_mid_episode_cut_duration_and_beep(processor, tmp_path):
         [{'start': 10.0, 'end': 30.0, 'confidence': 0.9}],
         str(output_path),
     )
-    assert applied == [{'start': 10.0, 'end': 30.0, 'confidence': 0.9}]
+    assert applied == [{'start': 10.0, 'end': 30.0, 'confidence': 0.9,
+                        'replacement_duration': processor.get_beep_duration()}]
     _assert_invariant(processor, input_path, output_path, applied)
     # The cut point carries the beep, not the (silent) ad audio.
     assert _mean_volume_db(output_path, 10.1, 0.8) > -60.0

@@ -2283,18 +2283,23 @@ def _unadjust_timestamp(processed_time, cuts, replacement_duration=0.0):
     timestamp back onto the original (pre-cut) timeline. All values are
     seconds; cuts are in original-episode coordinates. A timestamp that falls
     inside a replacement beep has no original content behind it and maps to
-    the cut's start (the point the beep replaced)."""
+    the cut's start (the point the beep replaced).
+
+    Each span's own 'replacement_duration' (see utils.time.merge_cut_spans)
+    wins over the `replacement_duration` argument, which is only the
+    fallback for spans that omit it (legacy persisted cuts)."""
     removed = 0.0
-    beeps = 0
-    for start, end, n_spans in merge_cut_spans(cuts):
-        beep_block_start = start - removed + beeps * replacement_duration
+    replaced = 0.0
+    for start, end, _n_spans, total_replacement in merge_cut_spans(
+            cuts, default_replacement=replacement_duration):
+        beep_block_start = start - removed + replaced
         if processed_time < beep_block_start:
             break
-        if processed_time < beep_block_start + n_spans * replacement_duration:
+        if processed_time < beep_block_start + total_replacement:
             return start
         removed += end - start
-        beeps += n_spans
-    return processed_time + removed - beeps * replacement_duration
+        replaced += total_replacement
+    return processed_time + removed - replaced
 
 
 def _remap_chapters_for_recut(chapters, previous_cuts, new_cuts,
