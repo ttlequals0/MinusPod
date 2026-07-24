@@ -68,6 +68,7 @@ SEED_SNAPSHOT = {
     'review_max_boundary_shift': '60',
     'review_model': 'same_as_pass',
     'review_prompt': ('sha256', '897102def672fcfffdfd2500e43cfdb6699aebf650606aee18549a4c033758d3'),
+    'rss_refresh_interval_minutes': '15',
     'system_prompt': ('sha256', 'df48d3c574c5998459ec470905b2518d21dc6da7f014f348d6c92ccc5f358187'),
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',
@@ -342,12 +343,13 @@ class TestGetDefaults:
         # defaults plus openrouterBaseUrl (a constant the endpoint adds
         # separately). Notably audioCuePairOrientWindowSeconds was absent
         # from it -- preserve that. 2.76.0 added six detection-tuning
-        # payload keys (67 -> 73).
+        # payload keys (67 -> 73). rssRefreshIntervalMinutes added after
+        # (73 -> 74).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 73
+        assert len(payload_keys) == 74
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

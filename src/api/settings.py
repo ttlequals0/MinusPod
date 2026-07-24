@@ -571,6 +571,7 @@ def update_ad_detection_settings():
         _apply_review_fields,
         _apply_model_fields,
         _apply_processing_flags,
+        _apply_feed_refresh_fields,
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
@@ -761,6 +762,20 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+    return None
+
+
+def _apply_feed_refresh_fields(db, data):
+    """Persist the RSS refresh interval."""
+    if 'rssRefreshIntervalMinutes' in data:
+        try:
+            minutes = int(data['rssRefreshIntervalMinutes'])
+        except (TypeError, ValueError):
+            return error_response('rssRefreshIntervalMinutes must be an integer', 400)
+        if minutes < 5 or minutes > 1440:
+            return error_response('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
+        db.set_setting('rss_refresh_interval_minutes', str(minutes), is_default=False)
+        logger.info(f"Updated RSS refresh interval to: {minutes} minutes")
     return None
 
 

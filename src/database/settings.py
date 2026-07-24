@@ -255,6 +255,9 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'max_feed_episodes': SettingSpec(
         default='300', seeded=True, resettable=False,
         payload_key='maxFeedEpisodes', payload_kind='int'),
+    'rss_refresh_interval_minutes': SettingSpec(
+        default='15', seeded=True,
+        payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
     'only_expose_processed_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='onlyExposeProcessedDefault', payload_kind='bool'),
