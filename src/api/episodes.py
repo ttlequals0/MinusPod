@@ -344,6 +344,8 @@ def get_episode(slug, episode_id):
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
                 was_cut = marker.get('was_cut', True)
+                marker['category'] = marker.get('category', 'sponsor')
+                marker['actionApplied'] = marker.get('action_applied')
                 if is_pending_review(marker):
                     pending_review_markers.append(marker)
                 elif decision == 'REJECT' or not was_cut:

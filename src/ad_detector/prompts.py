@@ -421,6 +421,11 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     # (reuses sponsor_name captured above; ad is unmutated between)
                     if sponsor_name and sponsor_name != 'Advertisement detected':
                         ad_entry['sponsor'] = sponsor_name
+                    # Pass the LLM's raw category through unvalidated; the
+                    # ad_detector merge seam normalizes it against
+                    # SEGMENT_CATEGORIES (#565).
+                    if ad.get('category'):
+                        ad_entry['category'] = ad.get('category')
                     valid_ads.append(ad_entry)
                 except ValueError as e:
                     logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")

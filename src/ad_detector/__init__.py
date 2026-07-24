@@ -34,6 +34,7 @@ from config import (
     AUDIO_CUE_START_EDGE_ROLES,
     AUDIO_CUE_END_EDGE_ROLES,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    normalize_segment_category,
     is_cue_backed,
     is_template_cue,
     MIN_OVERLAP_TOLERANCE,
@@ -2118,9 +2119,14 @@ class AdDetector:
 
         # Sanitize every surviving marker's sponsor: strips reasoning prose
         # and bare segment names the merge above didn't already clean up
-        # (e.g. a marker that never went through either merge pass).
+        # (e.g. a marker that never went through either merge pass). Every
+        # ad from every stage passes through here, so this is also the
+        # single point that stamps a validated segment category (#565):
+        # non-LLM stages never set 'category', so they fall through to the
+        # 'sponsor' default same as an unknown/invalid LLM value.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
+            marker['category'] = normalize_segment_category(marker.get('category'))
 
         return merged
 
