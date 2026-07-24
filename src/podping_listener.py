@@ -58,10 +58,16 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
         return []
 
     events = []
-    transactions = block.get('transactions', [])
+    transactions = block.get('transactions')
+    if not isinstance(transactions, list):
+        return []
 
     for tx in transactions:
-        operations = tx.get('operations', [])
+        if not isinstance(tx, dict):
+            continue
+        operations = tx.get('operations')
+        if not isinstance(operations, list):
+            continue
 
         for op in operations:
             if not isinstance(op, list) or len(op) < 2:
@@ -78,10 +84,13 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
                 continue
 
             required_posting_auths = op_data.get('required_posting_auths', [])
+            if not isinstance(required_posting_auths, list):
+                continue
             if not required_posting_auths:
                 continue
 
-            if not (set(required_posting_auths) & allowed_accounts):
+            auth_strs = {a for a in required_posting_auths if isinstance(a, str)}
+            if not (auth_strs & allowed_accounts):
                 continue
 
             json_string = op_data.get('json', '')

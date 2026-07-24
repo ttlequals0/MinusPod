@@ -451,6 +451,174 @@ class TestExtractPodpingEvents:
         result = extract_podping_events(block, {'account1'})
         assert len(result) == 0
 
+    def test_required_posting_auths_as_bool_skipped(self):
+        """required_posting_auths as bool (True) should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': True,
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_required_posting_auths_as_int_skipped(self):
+        """required_posting_auths as int (5) should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': 5,
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_required_posting_auths_mixed_types_filtered(self):
+        """required_posting_auths with mixed types: string accounts kept, dict ignored, match if account allowed."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': ['account1', {'x': 1}],
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 1
+        assert result[0]['iris'] == ['http://example.com']
+
+    def test_required_posting_auths_all_non_strings_rejected(self):
+        """required_posting_auths with only non-string elements should be rejected."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': [{'x': 1}, {'y': 2}],
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_block_with_transactions_none(self):
+        """Block with transactions=None should return empty list without raising."""
+        block = {'transactions': None}
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_block_missing_transactions(self):
+        """Block missing transactions key should return empty list."""
+        block = {}
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_tx_as_string_skipped(self):
+        """Transaction that is a string should be skipped without raising."""
+        block = {
+            'transactions': [
+                'not-a-dict'
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_operations_as_none_skipped(self):
+        """Transaction with operations=None should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': None
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_operations_as_string_skipped(self):
+        """Transaction with operations as string should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': 'not-a-list'
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_mixed_valid_and_invalid_in_same_block(self):
+        """Block with mix of valid and invalid ops should extract only valid ones."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://valid.com']}),
+                                'required_posting_auths': ['account1'],
+                                'required_auths': []
+                            }
+                        ],
+                        'not-a-list',
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example2.com']}),
+                                'required_posting_auths': True,
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 1
+        assert result[0]['iris'] == ['http://valid.com']
+
 
 class TestMatchIris:
     """Test match_iris function."""
