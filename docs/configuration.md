@@ -259,6 +259,15 @@ Cron examples (all UTC):
 
 The snapshots are plain SQLite files and are never encrypted, even with `MINUSPOD_MASTER_PASSPHRASE` set. For filenames, restore steps, and how destination directory permissions are handled, see [Scheduled database backups](security-and-storage.md#scheduled-database-backups) in the security guide.
 
+## Feed Refresh and Podping
+
+MinusPod polls every feed's upstream RSS on a fixed schedule. Podping is an opt-in accelerator that can trigger an immediate refresh of a single feed when its host announces a new episode; scheduled polling never turns off, so it stays the fallback for hosts that don't send Podping and for any notification the listener misses. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) for how the listener works, which hosts send Podping, and the "Last podping" diagnostic on the feed detail page.
+
+| Setting | Default | Notes |
+|---|---|---|
+| Feed refresh interval | 15 minutes | Minutes between background RSS refresh passes for every feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
+| Podping notifications | off | Opt-in listener that stamps a feed's "last podping" time and refreshes that one feed immediately when its host sends a Podping notification. Settings > Transcripts & Chapters. |
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)

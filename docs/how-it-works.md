@@ -78,6 +78,8 @@ When you request an episode that needs processing:
 
 HEAD requests (sent by podcast apps like Pocket Casts during feed refresh) proxy headers from the upstream audio source without triggering processing. This prevents feed refreshes from flooding the processing queue.
 
+Separately from episode processing, MinusPod polls every feed's upstream RSS on a schedule (default every 15 minutes, configurable 5-1440 minutes) to discover new episodes. An opt-in Podping listener can refresh a single feed immediately when its host announces a new episode over the Podping notification bus, ahead of the next scheduled poll; the schedule keeps running either way, so it stays the fallback for feeds whose host doesn't send Podping. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) and [Configuration > Feed Refresh and Podping](configuration.md#feed-refresh-and-podping).
+
 ### Post-Detection Validation
 
 After ad detection, a validation layer reviews each detection before audio processing:

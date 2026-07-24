@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.76.1
+  version: 2.77.0
   contact:
     name: MinusPod
   license:
@@ -3546,6 +3546,15 @@ paths:
                 onlyExposeProcessedDefault:
                   type: boolean
                   description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
+                rssRefreshIntervalMinutes:
+                  type: integer
+                  minimum: 5
+                  maximum: 1440
+                  description: Minutes between background RSS refresh passes for every feed. A change applies after the wait already in progress finishes. Default 15.
+                  example: 15
+                podpingEnabled:
+                  type: boolean
+                  description: Opt-in listener that polls public Hive API nodes for Podping publish notifications and refreshes a matching feed immediately. Off by default.
                 artworkWatermarkEnabled:
                   type: boolean
                   description: When true, the served feed's channel cover art gets a MinusPod badge overlaid so the filtered feed is distinct in a podcast app (issue #420). Off by default.
@@ -7181,6 +7190,12 @@ components:
             - 'null'
           format: date-time
           description: When the current run of refresh failures started. Cleared on the next successful refresh.
+        lastPodpingAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Stamped when a Podping publish notification matches this feed; null if the feed has never been matched by the Podping listener. See podpingEnabled in Settings.
         createdAt:
           type: string
           format: date-time
@@ -8354,6 +8369,24 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        rssRefreshIntervalMinutes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 5
+              maximum: 1440
+              description: Minutes between background RSS refresh passes for every feed. Default 15.
+            isDefault:
+              type: boolean
+        podpingEnabled:
+          type: object
+          description: Opt-in Podping listener. Default false.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         artworkWatermarkEnabled:
           type: object
           properties:
@@ -8526,6 +8559,10 @@ components:
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:
+              type: boolean
+            rssRefreshIntervalMinutes:
+              type: integer
+            podpingEnabled:
               type: boolean
             artworkWatermarkEnabled:
               type: boolean
