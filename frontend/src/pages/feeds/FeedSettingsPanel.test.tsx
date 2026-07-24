@@ -309,6 +309,41 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
       segmentCategoryActions: { sponsor: 'keep', cross_promo: 'beep' },
     });
   });
+
+  it('a failed edit does not leak into the next edit\'s PATCH payload', async () => {
+    // Regression test: updateMutation had no onError, so a rejected PATCH
+    // left the optimistic segmentOverrides state holding the failed edit.
+    // A second edit fired before the onSettled invalidation's refetch
+    // landed would build its payload on top of that stale state and resend
+    // the failed edit alongside the new one. The `feed` prop here never
+    // changes across the two clicks (this test never re-renders with new
+    // props, and no ['feed', slug] query observer exists to refetch it), so
+    // only the onError handler's immediate reseed can be what fixes this.
+    mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
+    mockUpdateFeed.mockResolvedValueOnce(makeFeed());
+    renderPanel(makeFeed());
+
+    const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
+    await userEvent.click(within(sponsorGroup).getByRole('radio', { name: 'Keep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(1, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep' },
+    });
+
+    // Wait for the rejection to be processed (the inline error appears)
+    // before firing the second edit.
+    await screen.findByText('Network error');
+
+    const crossPromoGroup = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(within(crossPromoGroup).getByRole('radio', { name: 'Beep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(2, 'test-feed', {
+      segmentCategoryActions: { cross_promo: 'beep' },
+    });
+
+    // The successful second edit clears the stale error.
+    await waitFor(() => {
+      expect(screen.queryByText('Network error')).toBeNull();
+    });
+  });
 });
 
 describe('FeedSettingsPanel show-segments toggle (#565)', () => {

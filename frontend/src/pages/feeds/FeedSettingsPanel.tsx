@@ -92,6 +92,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [sourceUrlError, setSourceUrlError] = useState<string | null>(null);
   const [rerenderResult, setRerenderResult] = useState<RerenderSegmentsResult | null>(null);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
+  const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
   // Synchronous local source of truth for the per-feed override map (issue
   // #565 race fix): the backend PATCH replaces the stored map outright (no
   // server-side merge), so a second edit built from the `feed` prop before
@@ -148,15 +149,29 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       // Surface a newly-typed custom network in every other feed's dropdown.
       queryClient.invalidateQueries({ queryKey: ['networks'] });
       setIsEditingNetwork(false);
+      if (variables && 'segmentCategoryActions' in variables) {
+        setSegmentActionError(null);
+      }
+    },
+    // The onSettled refetch below reverts a failed PATCH's optimistic state
+    // eventually, but only once the invalidated query refetches -- a second
+    // segment-action edit fired before that refetch lands would otherwise
+    // build off `segmentOverrides` while it still carries the failed first
+    // edit and resend it. Reseed segmentOverrides from the feed prop (the
+    // last server-known value) synchronously here instead of waiting.
+    onError: (e: unknown, variables) => {
+      if (variables && 'segmentCategoryActions' in variables) {
+        setSegmentOverrides(feed.segmentCategoryActions ?? {});
+        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
+      }
     },
     // onSettled (not onSuccess-only): a failed PATCH must still refetch so
-    // the segmentOverrides optimistic state (and every other field synced
-    // off the feed prop) reverts to server truth instead of showing an
-    // edit that never actually persisted.
+    // every other field synced off the feed prop reverts to server truth
+    // instead of showing an edit that never actually persisted.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
@@ -191,6 +206,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
     const next = { ...segmentOverrides, [category]: action };
     setSegmentOverrides(next);
+    setSegmentActionError(null);
     updateMutation.mutate({ segmentCategoryActions: next });
   };
 
@@ -198,6 +214,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     const next = { ...segmentOverrides };
     delete next[category];
     setSegmentOverrides(next);
+    setSegmentActionError(null);
     updateMutation.mutate({
       segmentCategoryActions: Object.keys(next).length > 0 ? next : null,
     });
@@ -691,6 +708,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   );
                 })}
               </div>
+              {segmentActionError && <p className="text-xs text-destructive">{segmentActionError}</p>}
 
               {/* Show-segment detection (issue #565 Task 3): off by default. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
