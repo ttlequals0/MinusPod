@@ -310,6 +310,8 @@ class SchemaMixin:
             ('skip_ad_detection', 'INTEGER'),
             # Per-feed chapter mode (#560)
             ('chapters_mode', 'TEXT'),
+            # Last received podping timestamp (podping-listener feature)
+            ('last_podping_at', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

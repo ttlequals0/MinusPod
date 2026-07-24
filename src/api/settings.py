@@ -220,6 +220,16 @@ def get_settings():
     except (ValueError, TypeError):
         max_feed_episodes = registry_get_default('max_feed_episodes')
 
+    try:
+        rss_refresh_interval_minutes = int(_setting_value(
+            settings, 'rss_refresh_interval_minutes',
+            registry_default('rss_refresh_interval_minutes')))
+    except (ValueError, TypeError):
+        rss_refresh_interval_minutes = registry_get_default('rss_refresh_interval_minutes')
+
+    podping_enabled = coerce_bool_setting(_setting_value(
+        settings, 'podping_enabled', registry_default('podping_enabled')))
+
     # Get min cut confidence (ad detection aggressiveness)
     try:
         min_cut_confidence = float(_setting_value(
@@ -454,6 +464,9 @@ def get_settings():
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
+        'rssRefreshIntervalMinutes': _sv(
+            'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
+        'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(
@@ -571,6 +584,7 @@ def update_ad_detection_settings():
         _apply_review_fields,
         _apply_model_fields,
         _apply_processing_flags,
+        _apply_feed_refresh_fields,
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
@@ -761,6 +775,25 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+    return None
+
+
+def _apply_feed_refresh_fields(db, data):
+    """Persist the RSS refresh interval."""
+    if 'rssRefreshIntervalMinutes' in data:
+        try:
+            minutes = int(data['rssRefreshIntervalMinutes'])
+        except (TypeError, ValueError):
+            return error_response('rssRefreshIntervalMinutes must be an integer', 400)
+        if minutes < 5 or minutes > 1440:
+            return error_response('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
+        db.set_setting('rss_refresh_interval_minutes', str(minutes), is_default=False)
+        logger.info(f"Updated RSS refresh interval to: {minutes} minutes")
+
+    if 'podpingEnabled' in data:
+        value = 'true' if data['podpingEnabled'] else 'false'
+        db.set_setting('podping_enabled', value, is_default=False)
+        logger.info(f"Updated podping listener to: {value}")
     return None
 
 

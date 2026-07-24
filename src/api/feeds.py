@@ -319,6 +319,7 @@ def _podcast_listing_fields(podcast) -> dict:
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
+        'lastPodpingAt': podcast.get('last_podping_at'),
         **_refresh_error_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }
@@ -937,7 +938,8 @@ def refresh_feed(slug):
             'slug': slug,
             'message': 'Feed refreshed',
             'episodeCount': total,
-            'lastRefreshed': podcast.get('last_checked_at')
+            'lastRefreshed': podcast.get('last_checked_at'),
+            'lastPodpingAt': podcast.get('last_podping_at')
         })
 
     except Exception:

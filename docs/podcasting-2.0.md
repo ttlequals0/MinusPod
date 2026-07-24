@@ -16,10 +16,11 @@ original audio and become wrong the moment an ad is cut. A few would
 actively break playback if passed through. This document explains
 exactly what MinusPod emits, what it deliberately drops, and why.
 
-Almost none of this is configurable. The one exception is chapters:
-each feed can choose how its `podcast:chapters` tag is populated (see
-"Chapter modes" below). Everything else in this document is automatic
-for every feed MinusPod serves.
+Almost none of this is configurable. Two things are: each feed can
+choose how its `podcast:chapters` tag is populated (see "Chapter
+modes" below), and Podping listening is an opt-in, instance-wide
+toggle (see "Podping" below). Everything else in this document is
+automatic for every feed MinusPod serves.
 
 ## The rule
 
@@ -141,21 +142,69 @@ refuse to play the episode.
 | [`podcast:liveItem`](https://podcasting2.org/docs/podcast-namespace/tags/live-item) | A live stream. By the time MinusPod has downloaded and processed recorded audio, the live event is over. It has no meaning in a re-cut feed. |
 | [`podcast:txt`](https://podcasting2.org/docs/podcast-namespace/tags/txt) (`purpose="verify"` or `purpose="applepodcastsverify"`) | An ownership-verification token a hosting platform issued to the original publisher. It proves nothing about a MinusPod re-feed, and carrying it forward leaks the original owner's token into a feed they don't control. |
 
-### Not supported: Podping
+## Podping
 
-`podcast:podping` signals that a feed sends Podping notifications when
-it updates. MinusPod does not implement Podping and does not emit this
-tag.
+Podping is a Hive blockchain notification bus that podcast hosts use
+to announce "this feed just updated" the moment they publish, instead
+of waiting for aggregators to poll. MinusPod does one half of that:
+it can listen for these notifications about the feeds it re-serves,
+but it never sends any of its own.
 
-This is a deliberate decision, not a missing feature. Podping works by
-writing the feed URL to the Hive blockchain, a public, permanent,
-append-only ledger that anyone can watch. The entire purpose of
-Podping is to broadcast feed updates to every aggregator and directory.
-MinusPod serves private, ad-stripped re-feeds of podcasts you do not
-own. Publishing those URLs to a permanent public record, and inviting
-the whole podcast ecosystem to crawl them, is the opposite of what a
-private re-feed is for. There is no private mode for Podping. MinusPod
-will not add it.
+### MinusPod listens (opt-in)
+
+Settings > Global Defaults has a **Podping notifications**
+toggle, off by default. When enabled, MinusPod runs a background
+thread that polls public Hive API nodes roughly every 3 seconds for
+new blocks, reads the `podping` and `pp_`-prefixed custom JSON
+operations in them, and checks each announced feed URL against your
+configured feeds. On a match, MinusPod stamps that feed's "last
+podping" time and triggers an immediate refresh of that one feed,
+instead of waiting for the next scheduled RSS poll.
+
+No Hive account, keys, or wallet are required. The listener only
+reads the public chain; it never writes to it. Requests go to a small,
+built-in list of public Hive API nodes over outbound HTTPS, roughly
+two requests every 3 seconds while the toggle is on (a head poll plus
+a block fetch each tick), and none while it is off. If a node is
+unreachable, the listener rotates to the next one and backs off.
+
+Podping is an accelerator, not a replacement for polling. The
+scheduled RSS refresh (see [How It Works > Processing
+Queue](how-it-works.md#processing-queue) and the [Feed Refresh and
+Podping](configuration.md#feed-refresh-and-podping) settings) keeps
+running unchanged, so a missed or delayed Podping notification costs
+nothing: the feed is picked up on its next regular poll either way.
+
+Coverage depends on the host. Buzzsprout, Transistor, RSS.com,
+Spreaker, Captivate, RedCircle, and Fireside send Podping notifications
+today; many large hosts, including Acast, Megaphone, Libsyn,
+Simplecast, and Omny, do not. Enabling the toggle only speeds up
+episodes on feeds whose host actually pings; everything else keeps its
+existing polling cadence.
+
+The feed detail page shows a "Last podping" line with the time of the
+most recent matched notification, visible only after MinusPod has
+received one for that feed. If a host sends Podping and MinusPod's
+listener is on, this line is the way to check whether the host is
+pinging and whether MinusPod's stored source URL matches what the host
+announces. No line ever appearing, with the listener enabled and the
+feed active, usually means the host does not send Podping for that
+feed.
+
+### MinusPod does not emit Podping
+
+MinusPod does not send Podping notifications for the feeds it serves,
+and has no `podcast:podping` tag or setting to turn that on.
+
+This follows from what MinusPod is. It is a proxy that re-serves
+someone else's feed with ads removed, not the publisher of that
+content. The feeds MinusPod serves change only when the upstream feed
+changes, and players already discover that on the upstream publisher's
+own schedule (directly, or now via the upstream host's Podping
+notifications, per the listening side above). MinusPod announcing its
+own re-feed as a new publish event would tell the ecosystem about a
+private, ad-stripped derivative of content you do not own, which is
+not what Podping is for.
 
 ## Feed identity
 

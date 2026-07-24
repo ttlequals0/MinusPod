@@ -35,6 +35,9 @@ export interface Feed {
   // current failure run.
   lastRefreshError?: string | null;
   lastRefreshErrorAt?: string | null;
+  // Stamped when a Podping publish notification triggers this feed's
+  // refresh; null when the feed has never been refreshed via Podping.
+  lastPodpingAt?: string | null;
   createdAt?: string;
   lastEpisodeDate?: string;
   networkId?: string;
@@ -348,6 +351,8 @@ export interface Settings {
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
   maxFeedEpisodes: SettingValueNumber;
+  podpingEnabled: SettingValueBoolean;
+  rssRefreshIntervalMinutes: SettingValueNumber;
   onlyExposeProcessedDefault: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
   feedAuthEnabled: SettingValueBoolean;
@@ -428,6 +433,8 @@ export interface Settings {
     whisperModel: string;
     autoProcessEnabled: boolean;
     maxFeedEpisodes: number;
+    podpingEnabled: boolean;
+    rssRefreshIntervalMinutes: number;
     onlyExposeProcessedDefault: boolean;
     artworkWatermarkEnabled: boolean;
     feedAuthEnabled: boolean;
@@ -506,6 +513,8 @@ export interface UpdateSettingsPayload {
   whisperModel?: string;
   autoProcessEnabled?: boolean;
   maxFeedEpisodes?: number;
+  podpingEnabled?: boolean;
+  rssRefreshIntervalMinutes?: number;
   onlyExposeProcessedDefault?: boolean;
   artworkWatermarkEnabled?: boolean;
   feedAuthEnabled?: boolean;

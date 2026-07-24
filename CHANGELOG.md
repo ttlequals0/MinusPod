@@ -9,6 +9,56 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.77.1] - 2026-07-24
+
+### Added
+
+- Expand all / collapse all controls on the Settings page, next to settings
+  search, to open or close every settings card at once (#575).
+
+### Changed
+
+- The Podping toggle now lives in Settings > Global Defaults, directly under
+  the feed refresh interval, and the "Podcasting 2.0" settings section is
+  titled "Transcripts & Chapters" again.
+
+## [2.77.0] - 2026-07-24
+
+### Added
+
+- Opt-in Podping listener: a leader-only background thread polls public Hive
+  API nodes roughly every 3 seconds for Podping publish notifications and
+  refreshes a matching feed immediately, instead of waiting for the next
+  scheduled RSS poll. Off by default (`podpingEnabled`, Settings >
+  Podcasting 2.0). No Hive account or keys are needed; the sender
+  allow-list comes from the `podping` account's posting authorities, fetched
+  hourly, and is fail-closed until the first successful fetch. A feed more
+  than 100 blocks behind (startup, node outage) skips straight to the chain
+  head rather than replaying; regular polling remains the completeness
+  fallback, so a missed or delayed notification costs nothing. Matched
+  refreshes are throttled to once per feed per 300 seconds. Coverage depends
+  on the host: Buzzsprout, Transistor, RSS.com, Spreaker, Captivate,
+  RedCircle, and Fireside send Podping notifications today; many large hosts,
+  including Acast, Megaphone, Libsyn, Simplecast, and Omny, do not. See
+  [Podcasting 2.0 > Podping](docs/podcasting-2.0.md#podping).
+- Feed refresh interval is now a setting (`rssRefreshIntervalMinutes`,
+  Settings > Global Defaults; default 15 minutes, range 5-1440), replacing
+  the previous hardcoded 900-second background RSS poll. A change applies
+  after the wait already in progress finishes.
+- Feeds expose a `lastPodpingAt` timestamp, stamped whenever the Podping
+  listener matches the feed, and the feed detail page shows a "Last
+  podping" line once one has been received. This is the diagnostic for
+  whether a host sends Podping notifications and whether MinusPod's stored
+  source URL matches what the host announces.
+
+### Changed
+
+- Release notes now roll up every CHANGELOG.md section shipped since the
+  previous tagged release into the GitHub pre-release, instead of only the
+  one section matching the version being tagged. Covers the case where a PR
+  bumps the version more than once before merging, so nothing ships
+  undocumented.
+
 ## [2.76.1] - 2026-07-23
 
 ### Changed

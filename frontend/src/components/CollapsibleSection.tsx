@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
+import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
 
 // Mirror of a CollapsibleSection's persisted open state, for hosts that need
 // to know whether their section is open (e.g. to gate a query on visibility)
@@ -60,6 +61,26 @@ function CollapsibleSection({
   const expanded = searching ? matchesSearch : isOpen;
   let contentMaxHeight = maxHeight;
   if (searching) contentMaxHeight = matchesSearch ? 'none' : '0px';
+
+  // Settings bulk expand/collapse: Expand all / Collapse all bump `seq` on
+  // each click, telling every section to snap to `open`. Goes through the
+  // same setIsOpen + onToggle path a manual click takes, so localStorage
+  // persistence and host mirrors (useCollapsibleOpen) stay coherent. Ignored
+  // during search, matching how manual toggles are ignored during search.
+  // lastAppliedSeq seeds from the signal's seq at mount time so a section
+  // that mounts after a click already happened (e.g. behind an async data
+  // load) doesn't retroactively apply a stale signal -- only a seq that
+  // changes AFTER mount is a real, freshly-clicked signal.
+  const bulkSignal = useSettingsBulkCollapse();
+  const lastAppliedSeq = useRef(bulkSignal?.seq);
+  useEffect(() => {
+    if (bulkSignal == null || searching) return;
+    if (bulkSignal.seq === lastAppliedSeq.current) return;
+    lastAppliedSeq.current = bulkSignal.seq;
+    setIsOpen(bulkSignal.open);
+    onToggle?.(bulkSignal.open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkSignal?.seq]);
 
   useEffect(() => {
     if (isOpen) {

@@ -30,6 +30,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 **Publishing**
 - Re-cut RSS feeds served per podcast, with versioned audio files
 - Podcasting 2.0: regenerated transcripts and chapters, AI-content disclosure, value-for-value tags passed through
+- Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
 - OPML import/export, and an optional cover-art badge that marks the re-feed
 
 **Interface and ops**

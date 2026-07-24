@@ -65,7 +65,8 @@ def run_cleanup():
 
 
 def background_rss_refresh():
-    """Background task to refresh RSS feeds every 15 minutes.
+    """Background task to refresh RSS feeds on a configurable interval,
+    default 15 minutes.
 
     Uses shutdown_event.wait() instead of time.sleep() to allow
     graceful shutdown interruption.
@@ -92,8 +93,14 @@ def background_rss_refresh():
         # may have left a transaction open. Clear it before the long sleep
         # so it cannot block other writers for the whole interval.
         db.clear_leaked_transaction(refresh_logger, 'refresh loop')
-        # Wait 15 minutes, but allow early exit on shutdown
-        shutdown_event.wait(timeout=900)
+        try:
+            interval_minutes = int(db.get_setting('rss_refresh_interval_minutes') or 15)
+        except (TypeError, ValueError):
+            interval_minutes = 15
+        interval_minutes = min(max(interval_minutes, 5), 1440)
+        # Wait, but allow early exit on shutdown. A changed setting applies
+        # after the current wait completes.
+        shutdown_event.wait(timeout=interval_minutes * 60)
 
 
 def background_queue_processor():

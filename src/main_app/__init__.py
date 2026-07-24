@@ -648,6 +648,7 @@ register_routes(app)
 from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_cache, get_feed_map
 from main_app.processing import start_background_processing
 from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
+from podping_listener import podping_listener_loop
 from status_service import reconcile_startup_state
 
 # The logo as ASCII: mirrored waveform with the strikethrough (the minus)
@@ -733,6 +734,11 @@ def _startup():
         queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
         queue_thread.start()
         logger.info("Started auto-process queue processor thread")
+
+        # Start podping listener thread (active only when podping_enabled)
+        podping_thread = threading.Thread(target=podping_listener_loop, daemon=True)
+        podping_thread.start()
+        logger.info("Started podping listener thread (active only when podping_enabled)")
 
         # No inline initial RSS refresh here: background_rss_refresh (started
         # above) calls refresh_all_feeds() immediately on its first loop

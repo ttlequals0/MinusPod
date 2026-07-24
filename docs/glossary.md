@@ -72,6 +72,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
 
+**Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. Only some hosts send them; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
+
 **Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified. [Web Interface > Processing stats](web-interface.md#processing-stats)
