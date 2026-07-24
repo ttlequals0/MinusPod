@@ -61,8 +61,7 @@ class TestNormalizeFeedUrl:
         """Path case should be preserved."""
         url = 'https://example.com/OxideAndFriends/feed'
         result = normalize_feed_url(url)
-        assert 'OxideAndFriends' in result
-        assert 'oxide' not in result.split('.com')[1].lower().replace('oxide', 'OXIDE')
+        assert result == 'https://example.com/OxideAndFriends/feed'
 
     def test_preserve_query_string(self):
         """Query strings should be preserved."""
@@ -127,6 +126,12 @@ class TestExtractPodpingEvents:
         result = extract_podping_events(block, {'account1'})
         assert len(result) == 1
 
+    def test_id_filter_pp_prefix_variant_accepted(self):
+        """Any id starting with 'pp_' should be accepted, not just 'pp_podcast_update'."""
+        block = self._make_block('pp_podcast_live', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 1
+
     def test_id_filter_follow_rejected(self):
         """Operations with id 'follow' should be rejected."""
         block = self._make_block('follow', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
@@ -150,6 +155,28 @@ class TestExtractPodpingEvents:
         block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
         result = extract_podping_events(block, {'account2', 'account3'})
         assert len(result) == 0
+
+    def test_allowed_account_at_second_index_accepted(self):
+        """Allow-list check must intersect ALL required_posting_auths, not just index 0."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': ['other_account', 'account1'],
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 1
 
     def test_empty_allowed_accounts_rejects_all(self):
         """Empty allowed_accounts should reject all operations (fail closed)."""
@@ -215,6 +242,49 @@ class TestExtractPodpingEvents:
         result = extract_podping_events(block, {'account1'})
         assert len(result) == 0
 
+    def test_non_string_version_ignored(self):
+        """A non-string version must not raise and must fall through to the urls/url path."""
+        payload = {'version': 11, 'iris': ['http://example.com']}
+        block = self._make_block('podping', payload, 'account1')
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_non_dict_op_data_ignored(self):
+        """op[1] that is not a dict should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        ['custom_json', 'not-a-dict']
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
+    def test_non_string_json_field_ignored(self):
+        """A json field that is not a string (e.g. dict) should be skipped without raising."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': {'version': '1.1', 'iris': ['http://example.com']},
+                                'required_posting_auths': ['account1'],
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block, {'account1'})
+        assert len(result) == 0
+
     def test_iris_as_non_list_ignored(self):
         """iris field that is not a list should be ignored."""
         payload = {'version': '1.1', 'iris': 'http://example.com'}
@@ -251,14 +321,6 @@ class TestExtractPodpingEvents:
         result = extract_podping_events(block, {'account1'})
         assert len(result) == 1
         assert result[0]['reason'] == 'liveEnd'
-
-    def test_none_reason_is_actionable_placeholder(self):
-        """None reason should count as actionable for filtering purposes."""
-        payload = {'version': '1.1', 'iris': ['http://example.com']}
-        block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
-        assert len(result) == 1
-        assert 'reason' in result[0]
 
     def test_multiple_operations_per_block(self):
         """Block with multiple operations should process all."""

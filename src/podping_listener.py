@@ -70,19 +70,18 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
             op_type = op[0]
             op_data = op[1]
 
-            if op_type != 'custom_json':
+            if op_type != 'custom_json' or not isinstance(op_data, dict):
                 continue
 
             op_id = op_data.get('id')
-            if op_id not in ('podping', 'pp_podcast_update'):
+            if not (op_id == 'podping' or (isinstance(op_id, str) and op_id.startswith('pp_'))):
                 continue
 
             required_posting_auths = op_data.get('required_posting_auths', [])
             if not required_posting_auths:
                 continue
 
-            account = required_posting_auths[0]
-            if account not in allowed_accounts:
+            if not (set(required_posting_auths) & allowed_accounts):
                 continue
 
             json_string = op_data.get('json', '')
@@ -91,7 +90,7 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
 
             try:
                 payload = json.loads(json_string)
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, ValueError, TypeError):
                 continue
 
             if not isinstance(payload, dict):
@@ -101,7 +100,7 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
             reason = None
 
             version = payload.get('version')
-            if version and version.startswith('1.'):
+            if isinstance(version, str) and version.startswith('1.'):
                 iris = payload.get('iris')
                 reason = payload.get('reason')
             else:
