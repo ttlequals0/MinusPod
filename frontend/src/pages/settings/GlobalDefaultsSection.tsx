@@ -5,6 +5,8 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
   onAutoProcessEnabledChange: (enabled: boolean) => void;
+  rssRefreshIntervalMinutes: number;
+  onRssRefreshIntervalMinutesChange: (value: number) => void;
   maxFeedEpisodes: number;
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
@@ -14,6 +16,8 @@ interface GlobalDefaultsSectionProps {
 function GlobalDefaultsSection({
   autoProcessEnabled,
   onAutoProcessEnabledChange,
+  rssRefreshIntervalMinutes,
+  onRssRefreshIntervalMinutesChange,
   maxFeedEpisodes,
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
@@ -39,6 +43,28 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             When a feed refresh discovers a new episode, queue it for processing automatically. Per-feed Auto-Process can override this.
+          </p>
+        </div>
+
+        {/* Feed refresh interval */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="rssRefreshIntervalMinutes" className="block text-sm font-medium text-foreground mb-2">
+            Feed refresh interval
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="rssRefreshIntervalMinutes"
+              value={rssRefreshIntervalMinutes}
+              min={5}
+              max={1440}
+              step={1}
+              fallback={15}
+              onCommit={onRssRefreshIntervalMinutesChange}
+            />
+            <span className="text-sm text-muted-foreground">5 to 1440</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Minutes between background RSS refresh passes. Default 15.
           </p>
         </div>
 

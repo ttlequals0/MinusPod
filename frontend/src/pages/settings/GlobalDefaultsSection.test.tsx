@@ -1,32 +1,33 @@
 /**
- * Tests for the Processing Queue settings section, including the feed
+ * Tests for the Global Defaults settings section, including the feed
  * refresh interval field added alongside the podping-listener feature.
- * Existing processing-episode list behavior is exercised indirectly via
- * the "no episodes" idle state; the interval field is the focus here.
  */
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ProcessingQueueSection from './ProcessingQueueSection';
+import GlobalDefaultsSection from './GlobalDefaultsSection';
 
 function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
   const [minutes, setMinutes] = useState(15);
   return (
     <>
-      <ProcessingQueueSection
-        processingEpisodes={[]}
-        onCancel={() => {}}
-        cancelIsPending={false}
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
         rssRefreshIntervalMinutes={minutes}
         onRssRefreshIntervalMinutesChange={setMinutes}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
   );
 }
 
-describe('ProcessingQueueSection: feed refresh interval', () => {
+describe('GlobalDefaultsSection: feed refresh interval', () => {
   it('shows the default value of 15', () => {
     render(<Harness onCommit={() => {}} />);
     expect((screen.getByLabelText('Feed refresh interval') as HTMLInputElement).value).toBe('15');

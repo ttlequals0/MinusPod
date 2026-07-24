@@ -752,8 +752,6 @@ function Settings() {
         processingEpisodes={processingEpisodes}
         onCancel={(params) => cancelMutation.mutate(params)}
         cancelIsPending={cancelMutation.isPending}
-        rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
-        onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
       />
 
       {/* Settings search: filters the configurable sections below by matching a
@@ -817,6 +815,8 @@ function Settings() {
       <GlobalDefaultsSection
         autoProcessEnabled={autoProcessEnabled}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
+        rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
+        onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
         maxFeedEpisodes={maxFeedEpisodes}
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}

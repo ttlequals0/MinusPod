@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import NumberInput from '../../components/NumberInput';
 import { btnDestructive } from '../../components/buttonStyles';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
@@ -10,16 +9,12 @@ interface ProcessingQueueSectionProps {
   processingEpisodes: ProcessingEpisode[] | undefined;
   onCancel: (params: { slug: string; episodeId: string }) => void;
   cancelIsPending: boolean;
-  rssRefreshIntervalMinutes: number;
-  onRssRefreshIntervalMinutesChange: (value: number) => void;
 }
 
 function ProcessingQueueSection({
   processingEpisodes,
   onCancel,
   cancelIsPending,
-  rssRefreshIntervalMinutes,
-  onRssRefreshIntervalMinutesChange,
 }: ProcessingQueueSectionProps) {
   const hasProcessing = !!(processingEpisodes && processingEpisodes.length > 0);
 
@@ -40,27 +35,6 @@ function ProcessingQueueSection({
       storageKey={STORAGE_KEY}
       key={hasProcessing ? 'processing-active' : 'processing-idle'}
     >
-      <div className="mb-4">
-        <label htmlFor="rssRefreshIntervalMinutes" className="block text-sm font-medium text-foreground mb-2">
-          Feed refresh interval
-        </label>
-        <div className="flex items-center gap-3">
-          <NumberInput
-            id="rssRefreshIntervalMinutes"
-            value={rssRefreshIntervalMinutes}
-            min={5}
-            max={1440}
-            step={1}
-            fallback={15}
-            onCommit={onRssRefreshIntervalMinutesChange}
-          />
-          <span className="text-sm text-muted-foreground">5 to 1440</span>
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Minutes between background RSS refresh passes. Default 15.
-        </p>
-      </div>
-
       {hasProcessing ? (
         <div className="space-y-2">
           {processingEpisodes.map((episode) => (
