@@ -918,7 +918,7 @@ Every ad object MUST also include "category", set to exactly one of:
 - cross_promo: a produced segment promoting a different show, inserted by the platform or network
 - self_promo: a produced or inserted segment where the show promotes its own other content (another show, Patreon, merch, mailing list)
 - interaction: a produced or inserted segment asking listeners to subscribe, rate, review, or follow the show
-Three more categories exist -- intro, outro, recap -- but use them only when this prompt also contains a SHOW SEGMENTS section below. Without that section, always pick one of the four categories above.
+Three more categories exist (intro, outro, recap), but use them only when this prompt also contains a SHOW SEGMENTS section below. Without that section, always pick one of the four categories above.
 
 EXAMPLE:
 [45.0s - 48.0s] That's a great point. Let's take a quick break.
@@ -950,17 +950,17 @@ for a brand with product positioning language. It is not editorial content.{spon
 # Opt-in addition to DEFAULT_SYSTEM_PROMPT (issue #565): appended when a
 # podcast has detect_show_segments enabled, so intro/outro/recap detection
 # stays off by default and only runs for feeds that asked for it. See
-# ad_detector.AdDetector for the append point -- it runs after any operator
+# ad_detector.AdDetector for the append point: it runs after any operator
 # override of system_prompt, so an opted-in feed gets this section even when
 # system_prompt has been customized.
 SHOW_SEGMENTS_PROMPT_SECTION = """SHOW SEGMENTS:
 This podcast has also asked for its show-structure segments to be identified. In addition to ads, look for these and return them in the same JSON array, each with its own category:
 - intro: the show's opening theme music and/or host introduction, before the actual episode content starts
 - outro: the show's closing credits, sign-off, or theme music, after the episode content ends
-- recap: a produced "coming up" preview, a headline bumper, or a "listen to this next" segment -- something that previews or summarizes content rather than being the content itself
+- recap: a produced "coming up" preview, a headline bumper, or a "listen to this next" segment: something that previews or summarizes content rather than being the content itself
 
 RULES FOR SHOW SEGMENTS:
-- A cold open is content, not intro. If the host starts the episode with a quote, a story, or a hook before the theme music, that is content -- do not flag it.
+- A cold open is content, not intro. If the host starts the episode with a quote, a story, or a hook before the theme music, that is content. Do not flag it.
 - Only flag a span that is clearly theme music, closing credits, or housekeeping. If you are unsure whether something is a show segment, do not flag it.
 - Use the same timestamp discipline as ads: use the exact [Xs] marker timestamps from the transcript, do not interpolate or estimate.
 """
