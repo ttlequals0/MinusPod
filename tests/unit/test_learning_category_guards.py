@@ -301,6 +301,75 @@ class TestCommunitySyncCategory:
         assert rows[0]['category'] == 'sponsor'
 
 
+class TestCommunitySyncReimportPreservesCategory:
+    """Final-review fix wave (task 11 item 2): an old-format re-import
+    payload (no 'category' key) must not NULL out a stored category on an
+    existing pattern -- import_community_pattern's update path only
+    includes 'category' in the update kwargs when the payload actually
+    carries the key.
+    """
+
+    def _seed_pattern(self, temp_db, community_id, category='cross_promo'):
+        pattern_service = PatternService(temp_db)
+        pattern_id = pattern_service.import_community_pattern({
+            'community_id': community_id,
+            'version': 1,
+            'scope': 'global',
+            'sponsor': 'ReimportCo',
+            'text_template': (
+                'This episode is brought to you by ReimportCo. '
+                'ReimportCo makes everything better and faster.'
+            ),
+            'category': category,
+        })
+        return pattern_service, pattern_id
+
+    def test_reimport_without_category_preserves_stored_category(self, temp_db):
+        pattern_service, pattern_id = self._seed_pattern(
+            temp_db, 'cid-reimport-no-category')
+        assert temp_db.get_ad_pattern_by_id(pattern_id)['category'] == 'cross_promo'
+
+        # Old-format payload: higher version forces the update path, but
+        # carries no 'category' key at all.
+        returned_id = pattern_service.import_community_pattern({
+            'community_id': 'cid-reimport-no-category',
+            'version': 2,
+            'scope': 'global',
+            'sponsor': 'ReimportCo',
+            'text_template': (
+                'This episode is brought to you by ReimportCo. '
+                'ReimportCo makes everything better and faster today.'
+            ),
+        })
+
+        assert returned_id == pattern_id
+        pattern = temp_db.get_ad_pattern_by_id(pattern_id)
+        assert pattern['category'] == 'cross_promo'
+        assert pattern['version'] == 2
+
+    def test_reimport_with_category_still_updates_it(self, temp_db):
+        pattern_service, pattern_id = self._seed_pattern(
+            temp_db, 'cid-reimport-with-category')
+        assert temp_db.get_ad_pattern_by_id(pattern_id)['category'] == 'cross_promo'
+
+        returned_id = pattern_service.import_community_pattern({
+            'community_id': 'cid-reimport-with-category',
+            'version': 2,
+            'scope': 'global',
+            'sponsor': 'ReimportCo',
+            'text_template': (
+                'This episode is brought to you by ReimportCo. '
+                'ReimportCo makes everything better and faster today.'
+            ),
+            'category': 'self_promo',
+        })
+
+        assert returned_id == pattern_id
+        pattern = temp_db.get_ad_pattern_by_id(pattern_id)
+        assert pattern['category'] == 'self_promo'
+        assert pattern['version'] == 2
+
+
 # ========== 5. Kept markers still reach pattern learning ==========
 
 class TestKeptMarkersStillLearn:

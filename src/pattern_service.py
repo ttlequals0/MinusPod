@@ -1082,8 +1082,7 @@ class PatternService:
             elif version <= int(existing.get('version') or 1):
                 return existing['id']
 
-            self.db.update_ad_pattern(
-                existing['id'],
+            update_kwargs = dict(
                 text_template=data['text_template'],
                 intro_variants=data.get('intro_variants') or [],
                 outro_variants=data.get('outro_variants') or [],
@@ -1092,8 +1091,13 @@ class PatternService:
                 submitted_app_version=data.get('submitted_app_version'),
                 source_language=data.get('source_language'),
                 content_hash=content_hash,
-                category=data.get('category'),
             )
+            # Only overwrite category when the payload actually carries the
+            # key -- an old-format payload (no 'category' key) must not NULL
+            # a stored category on re-import.
+            if 'category' in data:
+                update_kwargs['category'] = data.get('category')
+            self.db.update_ad_pattern(existing['id'], **update_kwargs)
             return existing['id']
 
         # Force scope=global. Older bundles (and the 2.4.0 seed files
