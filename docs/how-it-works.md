@@ -151,7 +151,7 @@ A global status bar shows real-time processing progress via Server-Sent Events. 
 
 ### Chapter Generation
 
-When enabled (Settings > Transcripts & Chapters > Generate Chapters, on by default), MinusPod writes Podcasting 2.0 chapters for each episode after the ads are cut. What it writes depends on the feed's chapter mode (Feed Settings > Chapters). Auto, the default, keeps the podcast's own embedded chapters, remapped onto the cut audio, and only generates when fewer than two of them survive the cut. Always generate produces AI chapters regardless. Off writes no chapters for episodes processed after the switch. On the generate path, an LLM finds topic transitions in the transcript, anchors them to any timestamps the show lists in its description, and titles each chapter, keeping them at least three minutes apart. Chapters are served two ways: as a `podcast:chapters` JSON file, and embedded in the MP3 itself as ID3 frames for players like Castro that only read embedded chapters. Re-running chapters from the episode page updates both. The Chapters Model in Settings picks the model; a small model like Haiku works well.
+When enabled (Settings > Podcasting 2.0 > Generate Chapters, on by default), MinusPod writes Podcasting 2.0 chapters for each episode after the ads are cut. What it writes depends on the feed's chapter mode (Feed Settings > Chapters). Auto, the default, keeps the podcast's own embedded chapters, remapped onto the cut audio, and only generates when fewer than two of them survive the cut. Always generate produces AI chapters regardless. Off writes no chapters for episodes processed after the switch. On the generate path, an LLM finds topic transitions in the transcript, anchors them to any timestamps the show lists in its description, and titles each chapter, keeping them at least three minutes apart. Chapters are served two ways: as a `podcast:chapters` JSON file, and embedded in the MP3 itself as ID3 frames for players like Castro that only read embedded chapters. Re-running chapters from the episode page updates both. The Chapters Model in Settings picks the model; a small model like Haiku works well.
 
 ### Reprocessing Modes
 
@@ -184,7 +184,7 @@ Both sweeps update the persisted marker and the active cut list together, so the
 
 ### Cross-Fetch Differential
 
-Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads -- or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
+Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads, or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
 
 Every silence-delimited block in the run file is probed against the refetch and carries its own measured correlation. A region only becomes an ad candidate when that correlation is at or below the **Correlation ceiling** setting (default 0.60): a high correlation means the two fetches matched too closely to be a real ad swap, not proof the region is untouched. Qualifying blocks that touch are merged into one candidate span, and a candidate too stale to score cleanly (e.g. after a different-length ad swap shifted the rest of the file) gets one retry with a widened search window before it is judged.
 
@@ -192,7 +192,7 @@ A candidate cuts outright when it overlaps a marker another stage already found.
 
 On a feed with cue templates configured, a matched audio cue also corroborates a candidate: one whose start or end lands within the normal cue-snap window of a template cue cuts instead of holding, and a candidate bracketed by a break-start/break-end cue pair corroborates the same way. The refetch is scanned for the same template cues as the primary download, and when the same cue is found in both, the offset between the two positions re-anchors the comparison timeline, absorbing fetch-to-fetch timing drift at its source. **Cross-fetch differential detection is significantly more accurate on feeds with cue templates configured**: cues corroborate differential regions, help bound DAI slots, and anchor the comparison timeline. Setting up a cue template (see [Audio Cue Detection](audio-cues.md)) is the recommended first step on any feed with heavy dynamic ad insertion, before tuning the differential thresholds themselves.
 
-The per-feed setting (Feed page > Settings > Cross-fetch diff) has three positions. **Auto** (the default since 2.53.0) runs the stage when the feed looks DAI-served -- a detected ad platform, or an episode audio URL that routes through a known DAI prefix domain. **On** always runs it; **Off** never does. The settings panel shows whether the stage currently runs on the feed. The trade-off is bandwidth: every new episode is downloaded twice, which also doubles the feed's download count in the publisher's stats.
+The per-feed setting (Feed page > Settings > Cross-fetch diff) has three positions. **Auto** (the default since 2.53.0) runs the stage when the feed looks DAI-served: a detected ad platform, or an episode audio URL that routes through a known DAI prefix domain. **On** always runs it; **Off** never does. The settings panel shows whether the stage currently runs on the feed. The trade-off is bandwidth: every new episode is downloaded twice, which also doubles the feed's download count in the publisher's stats.
 
 Each detection found this way is tagged with the cross-fetch stage in the ad list, and the episode header shows a "Cross-fetch: N inserted" badge when the comparison found differing regions.
 
@@ -200,7 +200,7 @@ Rejecting a differential detection as not an ad, held or not, still blocks that 
 
 ### Keep Content Only
 
-Normal detection asks the model to find the ads. Keep content only flips the question: the model marks what is show content, and everything it does not mark is removed. This helps on feeds whose inserted ads never read like ads -- cross-promos, host-read spots without sponsor language, or network filler that blends into the show.
+Normal detection asks the model to find the ads. Keep content only flips the question: the model marks what is show content, and everything it does not mark is removed. This helps on feeds whose inserted ads never read like ads: cross-promos, host-read spots without sponsor language, or network filler that blends into the show.
 
 Enable it per feed at Feed page > Feed Settings > Detection. Cuts found this way get a teal "Keep-content" badge in the episode ad list, and they are excluded from text-pattern learning.
 
@@ -212,7 +212,7 @@ The mode is experimental: spot-check the first few episodes after enabling it.
 
 For shows that run no ads, detection is wasted LLM spend. The per-feed "Skip ad detection" toggle (Feed page > Feed Settings > Advanced) keeps transcription, transcripts, and chapters but skips every detection stage: no first-pass detection, no verification pass, no audio-cue analysis, no cross-fetch second download. Nothing is cut, so the served audio matches the original. Chapters still make their own LLM call.
 
-This differs from pass-through, which serves episodes untouched and skips processing entirely -- no transcript, no chapters.
+This differs from pass-through, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
 
 When more than one of these per-feed controls is set, the most drastic one wins: pass-through beats skip ad detection, and skip ad detection beats the detection mode (a feed set to keep-content with skip on detects nothing). The settings panel points this out on the affected controls.
 

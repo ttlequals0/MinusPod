@@ -17,7 +17,7 @@ release notes.
   API nodes roughly every 3 seconds for Podping publish notifications and
   refreshes a matching feed immediately, instead of waiting for the next
   scheduled RSS poll. Off by default (`podpingEnabled`, Settings >
-  Transcripts & Chapters). No Hive account or keys are needed; the sender
+  Podcasting 2.0). No Hive account or keys are needed; the sender
   allow-list comes from the `podping` account's posting authorities, fetched
   hourly, and is fail-closed until the first successful fetch. A feed more
   than 100 blocks behind (startup, node outage) skips straight to the chain

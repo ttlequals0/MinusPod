@@ -1,5 +1,5 @@
 /**
- * Tests for the Transcripts & Chapters settings section, including the
+ * Tests for the Podcasting 2.0 settings section, including the
  * Podping notifications toggle added alongside the podping-listener feature.
  */
 import { useState } from 'react';
