@@ -2,6 +2,8 @@
 import logging
 from typing import Optional, Dict, List
 
+from database.patterns import _row_with_category
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,15 +20,20 @@ class FingerprintMixin:
         return dict(row) if row else None
 
     def get_all_fingerprints_with_sponsors(self) -> List[Dict]:
-        """Get all audio fingerprints with sponsor names from ad_patterns (single JOIN)."""
+        """Get all audio fingerprints with sponsor names and segment category
+        (#565 Task 7) from ad_patterns (single JOIN). category defaults NULL
+        -> 'sponsor' via the same accessor every other ad_patterns read uses,
+        so a re-matched fingerprint carries its pattern's real category
+        instead of silently reading as unset."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor
+            """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
+                      ap.category AS category
                FROM audio_fingerprints af
                LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id
                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id"""
         )
-        return [dict(row) for row in cursor.fetchall()]
+        return [_row_with_category(dict(row)) for row in cursor.fetchall()]
 
     def create_audio_fingerprint(self, pattern_id: int, fingerprint: bytes,
                                   duration: float) -> int:

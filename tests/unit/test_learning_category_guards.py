@@ -29,12 +29,13 @@ import pytest  # noqa: E402
 
 import main_app.processing as processing  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
+from audio_fingerprinter import AudioFingerprinter, FingerprintMatch  # noqa: E402
 from community_export import build_export_payload  # noqa: E402
 from community_sync import apply_manifest  # noqa: E402
 from main_app import app  # noqa: E402
 from pattern_service import PatternService  # noqa: E402
 from sponsor_normalize import get_or_create_known_sponsor  # noqa: E402
-from text_pattern_matcher import TextPatternMatcher  # noqa: E402
+from text_pattern_matcher import AdPattern, TextMatch, TextPatternMatcher  # noqa: E402
 
 
 @pytest.fixture
@@ -379,3 +380,156 @@ class TestKeptMarkersStillLearn:
             )
         assert result == 0
         mock_detector.learn_from_detections.assert_not_called()
+
+
+# ========== 6. Pattern matches inherit stored segment category ==========
+#
+# Reviewer High (post-Task-7 review): fingerprint/text-pattern RE-MATCHES of
+# an already-learned pattern dropped the pattern's stored category on the
+# floor -- TextMatch/FingerprintMatch never carried it, so a pattern learned
+# from a kept cross_promo marker re-matched on a later episode with no
+# category, fell through _merge_detection_results' normalize_segment_category
+# default to 'sponsor', resolved to 'remove' on a feed that keeps
+# cross_promo, and cut content the feed's settings say to keep. Fixed by
+# threading category end to end: AdPattern/TextMatch (text_pattern_matcher.py),
+# FingerprintMatch + the fingerprint DB join (audio_fingerprinter.py,
+# database/fingerprints.py), and _add_pattern_match (ad_detector/__init__.py).
+
+class TestPatternMatchCategoryInheritance:
+
+    def test_load_patterns_carries_category_from_db(self, temp_db):
+        pid = temp_db.create_ad_pattern(
+            scope='global', text_template='x' * 60, category='cross_promo',
+        )
+        matcher = TextPatternMatcher(db=temp_db)
+        matcher._load_patterns()
+        pattern = next(p for p in matcher._patterns if p.id == pid)
+        assert pattern.category == 'cross_promo'
+
+    def test_load_patterns_null_category_defaults_sponsor(self, temp_db):
+        """Legacy/uncategorized pattern: NULL in the DB, normalized to
+        'sponsor' by get_ad_patterns' _row_with_category before AdPattern
+        ever sees it."""
+        pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
+        matcher = TextPatternMatcher(db=temp_db)
+        matcher._load_patterns()
+        pattern = next(p for p in matcher._patterns if p.id == pid)
+        assert pattern.category == 'sponsor'
+
+    def test_find_phrase_matches_carries_pattern_category(self):
+        """Pure unit test of the fuzzy phrase-match path (deterministic,
+        no TF-IDF threshold sensitivity): the returned TextMatch carries the
+        matched AdPattern's category."""
+        matcher = TextPatternMatcher(db=None)
+        pattern = AdPattern(
+            id=1, text_template='x',
+            intro_variants=['this is a sponsor read for spanshoe today'],
+            outro_variants=[], sponsor='SpanShoe', scope='global',
+            category='cross_promo',
+        )
+        text = ('this is a sponsor read for spanshoe today and more '
+                'content follows right after this point')
+        segments = [{'start': 0.0, 'end': 10.0, 'text': text}]
+        full_text = text + ' '
+        segment_map = [(0, len(full_text), 0)]
+        matches = matcher._find_phrase_matches(full_text, segments, segment_map, [pattern])
+        assert len(matches) >= 1
+        assert all(m.category == 'cross_promo' for m in matches)
+
+    def test_add_pattern_match_and_merge_seam_carry_text_match_category(self):
+        """End-to-end through the exact seam the reviewer flagged: a
+        TextMatch's category survives _add_pattern_match (the detection
+        dict) and _merge_detection_results (the merge seam that otherwise
+        stamps 'sponsor')."""
+        det = AdDetector(api_key='test-key')
+        all_ads, regions = [], []
+        match = TextMatch(
+            pattern_id=1, start=10.0, end=40.0, confidence=0.9,
+            sponsor='SpanShoe', match_type='content', category='cross_promo',
+        )
+        det._add_pattern_match(match, 'text_pattern', 'content', all_ads, regions, episode_id='ep1')
+        merged = det._merge_detection_results(all_ads, segments=[])
+        assert merged[0]['category'] == 'cross_promo'
+
+    def test_add_pattern_match_carries_fingerprint_match_category(self):
+        det = AdDetector(api_key='test-key')
+        all_ads, regions = [], []
+        match = FingerprintMatch(
+            pattern_id=2, start=5.0, end=20.0, confidence=0.95,
+            sponsor='FPCo', category='self_promo',
+        )
+        det._add_pattern_match(match, 'fingerprint', 'fingerprint', all_ads, regions, episode_id='ep1')
+        merged = det._merge_detection_results(all_ads, segments=[])
+        assert merged[0]['category'] == 'self_promo'
+
+    def test_legacy_none_category_still_falls_back_to_sponsor_at_merge_seam(self):
+        """A match whose pattern genuinely has no category (category=None,
+        e.g. a hand-built match bypassing the normalized DB read) still
+        gets the pre-existing 'sponsor' default at the merge seam -- the
+        fix does not change behavior for a pattern with no category."""
+        det = AdDetector(api_key='test-key')
+        all_ads, regions = [], []
+        match = TextMatch(
+            pattern_id=1, start=10.0, end=40.0, confidence=0.9,
+            sponsor='OldCo', match_type='content', category=None,
+        )
+        det._add_pattern_match(match, 'text_pattern', 'content', all_ads, regions, episode_id='ep1')
+        merged = det._merge_detection_results(all_ads, segments=[])
+        assert merged[0]['category'] == 'sponsor'
+
+    def test_fingerprint_pattern_linkage_carries_category(self, temp_db):
+        """Fingerprints DO have pattern linkage: audio_fingerprints.pattern_id
+        references ad_patterns.id, and get_all_fingerprints_with_sponsors
+        already LEFT JOINs ad_patterns for the sponsor name -- confirmed by
+        reading src/database/fingerprints.py before writing this test. Not a
+        NEEDS_CONTEXT case: category rides the same existing join."""
+        pid = temp_db.create_ad_pattern(
+            scope='global', text_template='x' * 60, category='cross_promo',
+        )
+        temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
+
+        rows = temp_db.get_all_fingerprints_with_sponsors()
+        assert len(rows) == 1
+        assert rows[0]['category'] == 'cross_promo'
+
+        fp = AudioFingerprinter.__new__(AudioFingerprinter)
+        fp.db = temp_db
+        loaded = fp._load_fingerprints_from_db()
+        assert loaded == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
+
+    def test_fingerprint_pattern_with_no_category_defaults_sponsor(self, temp_db):
+        pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
+        temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
+
+        fp = AudioFingerprinter.__new__(AudioFingerprinter)
+        fp.db = temp_db
+        loaded = fp._load_fingerprints_from_db()
+        assert loaded == [(pid, 'AQAA', 12.0, None, 'sponsor')]
+
+
+class TestKeepPartitionFromCategorizedDetection:
+    """End-to-end assertion the coordinator asked for: a detection carrying
+    the stored category resolves through the feed's segment-category
+    settings to keep_ads via _partition_keep_ads directly (Task 4's
+    partition, reused rather than reimplemented here)."""
+
+    def test_cross_promo_detection_on_keep_feed_partitions_to_keep(self):
+        ad = {'start': 0.0, 'end': 30.0, 'category': 'cross_promo',
+              'confidence': 0.9, 'detection_stage': 'text_pattern'}
+        actions_map = {'cross_promo': 'keep'}
+        keep_ads, remove_ads = processing._partition_keep_ads([ad], actions_map)
+        assert keep_ads == [ad]
+        assert remove_ads == []
+        assert ad['action_applied'] == 'keep'
+        assert ad['was_cut'] is False
+
+    def test_sponsor_category_detection_on_same_feed_is_unaffected(self):
+        """Regression guard: a plain sponsor-category detection on the same
+        keep-cross_promo feed still cuts normally -- the keep resolution is
+        per-category, not global."""
+        ad = {'start': 0.0, 'end': 30.0, 'category': 'sponsor',
+              'confidence': 0.9, 'detection_stage': 'text_pattern'}
+        actions_map = {'cross_promo': 'keep'}
+        keep_ads, remove_ads = processing._partition_keep_ads([ad], actions_map)
+        assert keep_ads == []
+        assert remove_ads == [ad]

@@ -387,6 +387,9 @@ class FingerprintMatch:
     end: float
     confidence: float
     sponsor: Optional[str] = None
+    # Segment category (#565 Task 7) inherited from the matched pattern; see
+    # TextMatch.category in text_pattern_matcher.py for the same rationale.
+    category: Optional[str] = None
 
 
 @dataclass
@@ -917,24 +920,24 @@ class AudioFingerprinter:
 
     def _decode_known_fingerprints(
         self,
-        known_fingerprints: List[Tuple[int, str, float, str]]
-    ) -> List[Tuple[int, List[int], float, str]]:
+        known_fingerprints: List[Tuple[int, str, float, str, Optional[str]]]
+    ) -> List[Tuple[int, List[int], float, str, Optional[str]]]:
         """Decode known fingerprint strings to raw int arrays.
 
         Returns:
-            List of (pattern_id, raw_int_array, duration, sponsor)
+            List of (pattern_id, raw_int_array, duration, sponsor, category)
         """
         if acoustid is None:
             logger.warning("acoustid not available for fingerprint decoding")
             return []
 
         decoded = []
-        for pattern_id, fp_str, duration, sponsor in known_fingerprints:
+        for pattern_id, fp_str, duration, sponsor, category in known_fingerprints:
             try:
                 fp_bytes = fp_str.encode('utf-8') if isinstance(fp_str, str) else fp_str
                 result = acoustid.chromaprint.decode_fingerprint(fp_bytes)
                 if result and result[0]:
-                    decoded.append((pattern_id, result[0], duration, sponsor))
+                    decoded.append((pattern_id, result[0], duration, sponsor, category))
                 else:
                     logger.warning(f"Could not decode fingerprint for pattern {pattern_id}")
             except Exception as e:
@@ -975,7 +978,7 @@ class AudioFingerprinter:
         self,
         raw_ints: List[int],
         fp_duration: float,
-        decoded_known: List[Tuple[int, List[int], float, str]],
+        decoded_known: List[Tuple[int, List[int], float, str, Optional[str]]],
         total_duration: float,
         timeout: int,
         cancel_event: Optional[threading.Event]
@@ -1006,7 +1009,7 @@ class AudioFingerprinter:
         # `& 0xFFFFFFFF` masking in _calculate_similarity.
         raw_arr = np.asarray(raw_ints, dtype=np.int64).astype(np.uint32)
         pattern_arrs = [np.asarray(known_ints, dtype=np.int64).astype(np.uint32)
-                        for _, known_ints, _, _ in decoded_known]
+                        for _, known_ints, _, _, _ in decoded_known]
         n_ints = len(raw_arr)
 
         # Positions per batch: large enough to amortize the numpy call
@@ -1084,7 +1087,7 @@ class AudioFingerprinter:
 
             matched = False
             for pattern_pos, (pattern_id, _known_ints, known_duration,
-                              sponsor) in enumerate(decoded_known):
+                              sponsor, category) in enumerate(decoded_known):
                 similarity = float(run_sims[pattern_pos][run_j])
 
                 if similarity >= MATCH_THRESHOLD:
@@ -1093,7 +1096,8 @@ class AudioFingerprinter:
                         start=position,
                         end=position + known_duration,
                         confidence=similarity,
-                        sponsor=sponsor
+                        sponsor=sponsor,
+                        category=category,
                     )
                     matches.append(match)
                     logger.info(
@@ -1124,7 +1128,7 @@ class AudioFingerprinter:
     def find_matches(
         self,
         audio_path: str,
-        known_fingerprints: List[Tuple[int, str, float, str]] = None,
+        known_fingerprints: List[Tuple[int, str, float, str, Optional[str]]] = None,
         timeout: int = 600,
         cancel_event: Optional[threading.Event] = None
     ) -> List[FingerprintMatch]:
@@ -1135,7 +1139,7 @@ class AudioFingerprinter:
 
         Args:
             audio_path: Path to audio file to search
-            known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor)
+            known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor, category)
                                If None, loads from database
             timeout: Maximum seconds to spend scanning (default 600s / 10 minutes).
                      Returns partial results if exceeded.
@@ -1216,7 +1220,7 @@ class AudioFingerprinter:
 
             if chunk_fp and chunk_fp.fingerprint:
                 # Compare against known fingerprints
-                for pattern_id, known_fp, known_duration, sponsor in known_fingerprints:
+                for pattern_id, known_fp, known_duration, sponsor, category in known_fingerprints:
                     if pattern_id in broken_patterns:
                         continue
 
@@ -1243,7 +1247,8 @@ class AudioFingerprinter:
                             start=position,
                             end=position + known_duration,
                             confidence=similarity,
-                            sponsor=sponsor
+                            sponsor=sponsor,
+                            category=category,
                         )
                         matches.append(match)
                         logger.info(
@@ -1263,7 +1268,7 @@ class AudioFingerprinter:
 
         return matches
 
-    def _load_fingerprints_from_db(self) -> List[Tuple[int, str, float, str]]:
+    def _load_fingerprints_from_db(self) -> List[Tuple[int, str, float, str, Optional[str]]]:
         """Load known fingerprints from database with sponsors (single JOIN query)."""
         if not self.db:
             return []
@@ -1283,7 +1288,8 @@ class AudioFingerprinter:
                     fp['pattern_id'],
                     fp_str,
                     fp['duration'],
-                    fp.get('sponsor')
+                    fp.get('sponsor'),
+                    fp.get('category'),
                 ))
             return result
         except Exception as e:
@@ -1321,7 +1327,8 @@ class AudioFingerprinter:
                     start=current.start,
                     end=max(current.end, match.end),
                     confidence=max(current.confidence, match.confidence),
-                    sponsor=current.sponsor or match.sponsor
+                    sponsor=current.sponsor or match.sponsor,
+                    category=current.category or match.category,
                 )
             else:
                 merged.append(current)

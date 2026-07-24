@@ -50,7 +50,7 @@ def _ref_find_matches_fast(fp, raw_ints, fp_duration, decoded_known,
             position += SLIDING_STEP_SIZE
             continue
         matched = False
-        for pattern_id, known_ints, known_duration, sponsor in decoded_known:
+        for pattern_id, known_ints, known_duration, sponsor, category in decoded_known:
             similarity = _ref_similarity(raw_ints, known_ints, start_idx, end_idx)
             if similarity >= threshold:
                 matches.append(FingerprintMatch(
@@ -59,6 +59,7 @@ def _ref_find_matches_fast(fp, raw_ints, fp_duration, decoded_known,
                     end=position + known_duration,
                     confidence=similarity,
                     sponsor=sponsor,
+                    category=category,
                 ))
                 position += known_duration
                 matched = True
@@ -109,9 +110,9 @@ def test_planted_patterns_identical_to_scalar_reference():
     long_pat = _rand_ints(rng, 160)   # 20s, longer than the chunk
     noisy_pat = _rand_ints(rng, 64)   # 8s
     decoded_known = [
-        (1, short_pat, len(short_pat) / ips, 'sponsor-a'),
-        (2, long_pat, len(long_pat) / ips, 'sponsor-b'),
-        (3, noisy_pat, len(noisy_pat) / ips, None),
+        (1, short_pat, len(short_pat) / ips, 'sponsor-a', 'sponsor'),
+        (2, long_pat, len(long_pat) / ips, 'sponsor-b', 'cross_promo'),
+        (3, noisy_pat, len(noisy_pat) / ips, None, None),
     ]
 
     _plant(raw_ints, short_pat, int(30 * ips), rng, flips_per_int=2)
@@ -143,11 +144,11 @@ def test_fuzz_identical_to_scalar_reference(monkeypatch):
         n = int(total_duration * ips)
         raw_ints = _rand_ints(rng, n)
         decoded_known = [
-            (10, _rand_ints(rng, 40), 5.0, 'a'),
-            (11, _rand_ints(rng, 120), 15.0, 'b'),
-            (12, _rand_ints(rng, rng.randrange(30, 100)), 7.3, None),
-            (13, [], 4.0, 'empty'),      # scalar guard: empty pattern -> 0.0
-            (14, _rand_ints(rng, 2), 1.0, 'tiny'),
+            (10, _rand_ints(rng, 40), 5.0, 'a', 'sponsor'),
+            (11, _rand_ints(rng, 120), 15.0, 'b', None),
+            (12, _rand_ints(rng, rng.randrange(30, 100)), 7.3, None, 'self_promo'),
+            (13, [], 4.0, 'empty', None),      # scalar guard: empty pattern -> 0.0
+            (14, _rand_ints(rng, 2), 1.0, 'tiny', None),
         ]
         _plant(raw_ints, decoded_known[1][1], int(40 * ips), rng,
                flips_per_int=3)
@@ -160,7 +161,7 @@ def test_fuzz_identical_to_scalar_reference(monkeypatch):
 
 def test_empty_episode_and_no_patterns():
     fp = _fp()
-    got, expected = _run_both(fp, [], 0.0, [(1, [1, 2, 3, 4], 2.0, 's')], 60.0)
+    got, expected = _run_both(fp, [], 0.0, [(1, [1, 2, 3, 4], 2.0, 's', None)], 60.0)
     assert got == expected == []
     rng = random.Random(7)
     raw = _rand_ints(rng, 480)

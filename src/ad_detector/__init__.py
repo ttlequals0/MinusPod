@@ -1675,7 +1675,13 @@ class AdDetector:
             'reason': reason,
             'sponsor': match.sponsor,
             'detection_stage': detection_stage,
-            'pattern_id': match.pattern_id
+            'pattern_id': match.pattern_id,
+            # Segment category (#565 Task 7) inherited from the matched
+            # pattern; None when the pattern predates the category column or
+            # was never given one, in which case the merge seam below
+            # (_merge_detection_results) stamps 'sponsor' the same as it
+            # always has.
+            'category': match.category,
         })
         pattern_matched_regions.append({
             'start': match.start,
@@ -2157,8 +2163,9 @@ class AdDetector:
         # (e.g. a marker that never went through either merge pass). Every
         # ad from every stage passes through here, so this is also the
         # single point that stamps a validated segment category (#565):
-        # non-LLM stages never set 'category', so they fall through to the
-        # 'sponsor' default same as an unknown/invalid LLM value.
+        # fingerprint/text_pattern re-matches carry their pattern's stored
+        # category (_add_pattern_match); a legacy/uncategorized pattern, or
+        # an unknown/invalid LLM value, falls through to the 'sponsor' default.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
             marker['category'] = normalize_segment_category(marker.get('category'))
