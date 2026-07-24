@@ -92,6 +92,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [sourceUrlError, setSourceUrlError] = useState<string | null>(null);
   const [rerenderResult, setRerenderResult] = useState<RerenderSegmentsResult | null>(null);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
+  // Synchronous local source of truth for the per-feed override map (issue
+  // #565 race fix): the backend PATCH replaces the stored map outright (no
+  // server-side merge), so a second edit built from the `feed` prop before
+  // the first PATCH's invalidated query refetches would read a stale prop
+  // and silently drop the first edit. Reads and writes go through this
+  // state instead; it updates synchronously before each mutate() call so
+  // consecutive edits compose, and is reseeded from the server value below
+  // whenever the feed prop changes (including after a failed PATCH, via
+  // updateMutation's onSettled refetch).
+  const [segmentOverrides, setSegmentOverrides] =
+    useState<Partial<Record<SegmentCategory, SegmentAction>>>(feed.segmentCategoryActions ?? {});
 
   const { data: networks } = useQuery({
     queryKey: ['networks'],
@@ -132,15 +143,22 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setSnapLeadInput(s(f.cueSnapLeadOverride));
     setSnapLagInput(s(f.cueSnapLagOverride));
     setMaxAdDurInput(s(f.maxAdDurationOverride));
+    setSegmentOverrides(f.segmentCategoryActions ?? {});
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       // Surface a newly-typed custom network in every other feed's dropdown.
       queryClient.invalidateQueries({ queryKey: ['networks'] });
       setIsEditingNetwork(false);
+    },
+    // onSettled (not onSuccess-only): a failed PATCH must still refetch so
+    // the segmentOverrides optimistic state (and every other field synced
+    // off the feed prop) reverts to server truth instead of showing an
+    // edit that never actually persisted.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
   });
 
@@ -162,19 +180,26 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Segment-action overrides (issue #565): the backend replaces the stored
   // per-feed map outright (no server-side merge like the global PUT), so
   // every row edit must send the full current override map, not just the
-  // changed key. Clearing the last remaining override sends null instead of
-  // an empty object so the feed response comes back with no overrides at all.
+  // changed key. Both helpers build from (and update) `segmentOverrides`,
+  // not the `feed` prop directly: the prop only catches up after the PATCH's
+  // invalidated query refetches, so a second edit fired before that refetch
+  // lands would otherwise read a stale map and silently drop the first edit.
+  // Updating the state synchronously here, before mutate() sends the
+  // request, makes consecutive edits compose regardless of request timing.
+  // Clearing the last remaining override sends null instead of an empty
+  // object so the feed response comes back with no overrides at all.
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
-    updateMutation.mutate({
-      segmentCategoryActions: { ...(feed.segmentCategoryActions ?? {}), [category]: action },
-    });
+    const next = { ...segmentOverrides, [category]: action };
+    setSegmentOverrides(next);
+    updateMutation.mutate({ segmentCategoryActions: next });
   };
 
   const clearSegmentActionOverride = (category: SegmentCategory) => {
-    const rest = { ...(feed.segmentCategoryActions ?? {}) };
-    delete rest[category];
+    const next = { ...segmentOverrides };
+    delete next[category];
+    setSegmentOverrides(next);
     updateMutation.mutate({
-      segmentCategoryActions: Object.keys(rest).length > 0 ? rest : null,
+      segmentCategoryActions: Object.keys(next).length > 0 ? next : null,
     });
   };
 
@@ -633,7 +658,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </p>
               <div className="space-y-2">
                 {SEGMENT_CATEGORIES.map((category) => {
-                  const override = feed.segmentCategoryActions?.[category];
+                  const override = segmentOverrides[category];
                   const globalValue = settings?.segmentCategoryActions?.value?.[category] ?? DEFAULT_SEGMENT_ACTION;
                   const effective = override ?? globalValue;
                   return (

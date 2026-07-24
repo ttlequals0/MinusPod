@@ -285,6 +285,30 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
       segmentCategoryActions: { cross_promo: 'beep' },
     });
   });
+
+  it('two rapid sequential edits compose into the second PATCH payload', async () => {
+    // Regression test: building each payload from the `feed` prop (instead
+    // of a synchronous local source of truth) meant a second edit made
+    // before the first PATCH's invalidated feed query refetched would read
+    // the still-stale prop and silently drop the first edit, because the
+    // backend replaces the stored override map outright rather than
+    // merging. The `feed` prop here never changes across the two clicks
+    // (this test never re-renders with new props), which reproduces
+    // exactly that stale-read window deterministically.
+    renderPanel(makeFeed());
+
+    const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
+    await userEvent.click(within(sponsorGroup).getByRole('radio', { name: 'Keep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(1, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep' },
+    });
+
+    const crossPromoGroup = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
+    await userEvent.click(within(crossPromoGroup).getByRole('radio', { name: 'Beep' }));
+    expect(mockUpdateFeed).toHaveBeenNthCalledWith(2, 'test-feed', {
+      segmentCategoryActions: { sponsor: 'keep', cross_promo: 'beep' },
+    });
+  });
 });
 
 describe('FeedSettingsPanel show-segments toggle (#565)', () => {
