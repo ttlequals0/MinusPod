@@ -2052,7 +2052,14 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     the cut list ffmpeg actually applied. recut_ok is False if the re-cut
     failed (caller should clear v_ads_for_ui).
     """
-    recut_result = local_audio_processor.process_episode(processed_path, v_ads_to_cut)
+    # 'beep' is derived from action_applied, same as the pass-1 call site,
+    # so a marker stamped beep in an earlier pass renders as beep here too
+    # instead of silently falling back to a full remove. Pass-2 markers
+    # carry no action_applied today (Task 1), so this is currently a no-op
+    # here -- kept for call-site uniformity and to future-proof Task 6.
+    audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
+                      for ad in v_ads_to_cut]
+    recut_result = local_audio_processor.process_episode(processed_path, audio_segments)
     if recut_result:
         recut_path, recut_applied = recut_result
         if os.path.exists(processed_path):
@@ -3121,7 +3128,14 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         _check_cancel(cancel_event, slug, episode_id)
 
         status_service.update_job_stage("recut:processing", 60)
-        result = local_audio_processor.process_episode(work_path, ads_to_remove)
+        # 'beep' is derived from action_applied, same as the pass-1 call
+        # site: a marker stamped beep in an earlier pass must still render
+        # as beep on recut (pattern approve/reject, pass-2 auto-approve,
+        # explicit recut mode), not silently fall back to a full remove
+        # while the saved marker keeps claiming beep.
+        audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
+                          for ad in ads_to_remove]
+        result = local_audio_processor.process_episode(work_path, audio_segments)
         if not result:
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result

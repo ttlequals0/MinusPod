@@ -16,10 +16,19 @@ Under test:
   unchanged), a 'beep' span pads that same clip with silence to the
   span's own length so total duration is preserved, and an empty cut
   list (a fully-kept episode) leaves the audio byte-identical
+- main_app.processing._recut_episode: a marker saved with
+  action_applied='beep' in an earlier pass still renders as beep on
+  recut (pattern approve/reject, pass-2 auto-approve, explicit recut
+  mode), not a silent full remove
+- call-site uniformity: every AudioProcessor.process_episode call in
+  processing.py derives 'beep' from action_applied
 """
 import filecmp
+import inspect
+import re
 import shutil
 import subprocess
+import time
 from contextlib import ExitStack
 from unittest.mock import patch
 
@@ -310,3 +319,87 @@ class TestAudioProcessorCutPartition:
         # 15s length with 2s of tone plus 13s of silence.
         expected = 120.0 - (15.0 + 15.0) + (beep_len + 15.0)
         assert new_duration == pytest.approx(expected, abs=1.0)
+
+
+class TestProcessEpisodeCallSiteUniformity:
+    """Cheap regression for the recut-path finding: every
+    AudioProcessor.process_episode call in processing.py must pass a
+    beep-derived audio_segments list, not a raw marker list straight
+    through, or a future call site could silently reintroduce the bug
+    where a saved action_applied='beep' marker renders as a full remove.
+    """
+
+    def test_every_call_site_passes_audio_segments(self):
+        source = inspect.getsource(processing)
+        calls = re.findall(r'\.process_episode\(\s*[^,]+,\s*(\w+)\)', source)
+        assert len(calls) >= 3, (
+            f"expected at least the pass-1, pass-2-recut, and recut-mode "
+            f"call sites, found {calls}")
+        assert all(name == 'audio_segments' for name in calls), calls
+
+
+def _beep_marker(start=10.0, end=25.0):
+    return {'start': start, 'end': end, 'category': 'sponsor',
+           'action_applied': 'beep', 'was_cut': True,
+           'confidence': 0.95, 'detection_stage': 'llm'}
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+                    reason="ffmpeg/ffprobe not available")
+class TestRecutPreservesBeepAction:
+    """Regression: _recut_episode must derive 'beep' from action_applied
+    the same way the pass-1 call site does. Before the fix, ads_to_remove
+    went straight to AudioProcessor.process_episode with no 'beep' key,
+    so a marker saved beep in an earlier pass silently rendered as a full
+    remove on any recut while the saved marker kept claiming beep.
+    """
+
+    def _make_source(self, tmp_path, duration=60):
+        src = tmp_path / "retained.mp3"
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "lavfi", "-i",
+             f"sine=frequency=440:duration={duration}",
+             "-acodec", "libmp3lame", "-ab", "64k", str(src)],
+            check=True, capture_output=True,
+        )
+        return src
+
+    def _run_recut(self, tmp_path, marker):
+        src = self._make_source(tmp_path, duration=60)
+        final_path = tmp_path / "final.mp3"
+
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+            db = p(processing, 'db')
+            storage = p(processing, 'storage')
+            p(processing, 'status_service')
+            p(processing, '_build_recut_ad_list',
+              return_value=([marker], [marker]))
+            p(processing, '_generate_assets')
+            p(processing, '_finalize_episode')
+
+            db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 0}
+            db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
+            db.get_all_settings.return_value = {}
+            storage.get_original_path.return_value = src
+            storage.get_applied_cuts.return_value = None
+            storage.get_episode_path.return_value = str(final_path)
+
+            result = processing._recut_episode(
+                'recut-feed', 'ep1', 'Episode', 'Podcast', 'desc',
+                time.time(), cancel_event=None)
+
+        assert result is True
+        assert final_path.exists()
+        return AudioProcessor().get_audio_duration(str(final_path))
+
+    def test_beep_marker_renders_as_beep_on_recut(self, tmp_path):
+        new_duration = self._run_recut(tmp_path, _beep_marker())
+        # A remove would shrink to ~60 - 15 + beep_clip_len (well under 55s);
+        # beep preserves the full 60s span.
+        assert new_duration == pytest.approx(60.0, abs=1.0)
+
+    def test_remove_marker_still_shrinks_on_recut(self, tmp_path):
+        remove_marker = dict(_beep_marker(), action_applied='remove')
+        new_duration = self._run_recut(tmp_path, remove_marker)
+        assert new_duration < 55.0
