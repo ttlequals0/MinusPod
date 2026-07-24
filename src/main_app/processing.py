@@ -1001,6 +1001,16 @@ def _partition_keep_ads(all_ads, actions_map):
     markers pass through unmodified -- no action_applied stamp; Task 5
     stamps that at cut time.
 
+    A keep resolution is a final decision, so it also overrides any hold:
+    when the caught marker carries held_for_review (reachable via the
+    second, later call over the full all_ads_with_validation list, after
+    the validator/reviewer have had a chance to hold it), held_for_review
+    and hold_reason are cleared -- the original reason is kept additively as
+    hold_cleared_reason for traceability -- so it never counts as pending
+    review, never surfaces in the approve/reject UI, and can never be
+    force-cut via a stale hold on recut. Per spec: keep markers bypass hold
+    rules; there is nothing left to hold.
+
     Returns (keep_ads, remove_ads). When no category resolves to 'keep',
     remove_ads is all_ads unchanged (same objects, same order) and keep_ads
     is empty, so the rest of the pipeline is untouched.
@@ -1014,6 +1024,15 @@ def _partition_keep_ads(all_ads, actions_map):
         if actions_map.get(category) == 'keep':
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
+            if ad.get('held_for_review'):
+                ad['hold_cleared_reason'] = ad.get('hold_reason')
+                ad['held_for_review'] = False
+                ad.pop('hold_reason', None)
+                audio_logger.debug(
+                    f"Keep resolution clears hold on marker "
+                    f"{ad['start']:.1f}s-{ad['end']:.1f}s "
+                    f"(was {ad['hold_cleared_reason']!r})"
+                )
             keep_ads.append(ad)
         else:
             remove_ads.append(ad)

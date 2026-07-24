@@ -22,6 +22,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import patch
 
 import main_app.processing as processing
+from api.patterns import _matches_held_marker
+from config import count_pending_review
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -448,6 +450,98 @@ class TestLateKeepPartitionBeforeSweeps:
             processing.ranges_overlap(s['start'], s['end'], 70.0, 85.0)
             for s in audio_segments
         )
+
+
+class TestPartitionKeepAdsClearsHold:
+    """Reviewer High follow-up: a keep resolution is a final decision, so
+    _partition_keep_ads must clear any hold on a marker it catches. Without
+    this, a marker that the validator/reviewer already held for review
+    before the late re-partition (now reachable over the full
+    all_ads_with_validation list) catches it would keep counting as pending
+    review, surface in the approve/reject UI with no cue, and a user
+    confirm on it would force-cut it on recut via _build_recut_ad_list
+    (which never consults action_applied) -- overriding the feed's keep
+    policy. Per spec: keep markers bypass hold rules; nothing to hold.
+    """
+
+    def _held_keep_marker(self):
+        # No 'category' key -- normalizes to 'sponsor'. held_for_review
+        # simulates a marker the validator/reviewer already held before the
+        # late re-partition (over the full all_ads_with_validation list,
+        # post-validator/reviewer) catches it.
+        return {'start': 70.0, 'end': 85.0, 'confidence': 0.9,
+               'held_for_review': True, 'hold_reason': 'max_duration',
+               'was_cut': False}
+
+    def test_held_keep_marker_is_no_longer_pending_review(self):
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        marker = self._held_keep_marker()
+
+        keep_ads, remove_ads = processing._partition_keep_ads([marker], actions_map)
+
+        assert keep_ads == [marker]
+        assert remove_ads == []
+        assert marker['was_cut'] is False
+        assert marker['action_applied'] == 'keep'
+        assert marker['held_for_review'] is False
+        assert 'hold_reason' not in marker
+        # Original reason kept additively, for traceability.
+        assert marker['hold_cleared_reason'] == 'max_duration'
+        assert processing.is_pending_review(marker) is False
+        assert count_pending_review([marker]) == 0
+
+    def test_held_keep_marker_absent_from_patterns_held_marker_match(self):
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        marker = self._held_keep_marker()
+
+        processing._partition_keep_ads([marker], actions_map)
+
+        assert _matches_held_marker(
+            marker, marker['start'], marker['end'], 0.5) is False
+
+    def test_held_remove_marker_stays_held(self):
+        """A held marker whose category resolves to 'remove' is untouched:
+        only a keep resolution overrides a hold."""
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        marker = {'start': 10.0, 'end': 20.0, 'category': 'cross_promo',
+                  'confidence': 0.9, 'held_for_review': True,
+                  'hold_reason': 'max_duration', 'was_cut': False}
+
+        keep_ads, remove_ads = processing._partition_keep_ads([marker], actions_map)
+
+        assert keep_ads == []
+        assert remove_ads == [marker]
+        assert marker['held_for_review'] is True
+        assert marker['hold_reason'] == 'max_duration'
+        assert 'hold_cleared_reason' not in marker
+        assert processing.is_pending_review(marker) is True
+        assert _matches_held_marker(
+            marker, marker['start'], marker['end'], 0.5) is True
+
+    def test_all_remove_fast_path_never_touches_held_marker(self):
+        """Identity fast path: with no category resolving to 'keep', the
+        loop never runs at all, so a held marker (even one shaped exactly
+        like the held-keep fixture) is not written to."""
+        actions_map = {'sponsor': 'remove', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        marker = self._held_keep_marker()
+        all_ads = [marker]
+
+        keep_ads, remove_ads = processing._partition_keep_ads(all_ads, actions_map)
+
+        assert keep_ads == []
+        assert remove_ads is all_ads
+        assert marker['held_for_review'] is True
+        assert marker['hold_reason'] == 'max_duration'
+        assert 'action_applied' not in marker
+        assert 'hold_cleared_reason' not in marker
 
 
 class TestExcludeKeptSpansFromVerification:
