@@ -19,9 +19,7 @@ class TestConstants:
         assert isinstance(PODPING_NODES, list)
         assert len(PODPING_NODES) >= 3
         assert all(isinstance(node, str) for node in PODPING_NODES)
-        assert 'https://api.hive.blog' in PODPING_NODES
-        assert 'https://api.openhive.network' in PODPING_NODES
-        assert 'https://hived.emre.sh' in PODPING_NODES
+        assert {'https://api.hive.blog', 'https://api.openhive.network', 'https://hived.emre.sh'}.issubset(set(PODPING_NODES))
 
     def test_actionable_reasons(self):
         """ACTIONABLE_REASONS should contain update and live."""
@@ -43,7 +41,7 @@ class TestNormalizeFeedUrl:
         """Scheme and host should be lowercased."""
         url = 'HTTPS://Feeds.Transistor.FM/oxide-and-friends/'
         result = normalize_feed_url(url)
-        assert result.startswith('https://feeds.transistor.fm')
+        assert result == 'https://feeds.transistor.fm/oxide-and-friends'
 
     def test_strip_trailing_slash(self):
         """Strip one trailing slash from path."""
