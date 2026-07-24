@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.77.1
+  version: 2.78.0
   contact:
     name: MinusPod
   license:
@@ -663,6 +663,19 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                segmentCategoryActions:
+                  type:
+                    - object
+                    - 'null'
+                  additionalProperties:
+                    type: string
+                    enum: [remove, beep, keep]
+                  description: Per-feed segment-category action overrides (issue #565). A partial map; only the listed categories override the resolved global default, unlisted categories still inherit. The stored map is replaced outright by each PATCH, not merged, so send the full set of overrides you want kept. Null clears every override back to inherit.
+                detectShowSegments:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
       responses:
         '200':
           description: Feed updated successfully
@@ -3555,6 +3568,13 @@ paths:
                 podpingEnabled:
                   type: boolean
                   description: Opt-in listener that polls public Hive API nodes for Podping publish notifications and refreshes a matching feed immediately. Off by default.
+                segmentCategoryActions:
+                  type: object
+                  additionalProperties:
+                    type: string
+                    enum: [remove, beep, keep]
+                  description: Partial global segment-category action map (issue #565). Merged over the stored global map; a category omitted here keeps its current global action. Every category defaults to remove, so an install upgrades with byte-identical behavior until an action is changed.
+                  example: {sponsor: remove, cross_promo: keep, self_promo: beep}
                 artworkWatermarkEnabled:
                   type: boolean
                   description: When true, the served feed's channel cover art gets a MinusPod badge overlaid so the filtered feed is distinct in a podcast app (issue #420). Off by default.
@@ -7384,6 +7404,19 @@ components:
             - boolean
             - 'null'
           description: Per-feed override for hiding upstream episodes whose status is not 'processed' from the served RSS feed. Null means use the global onlyExposeProcessedDefault setting. true/false override the global for this feed (issue #181).
+        segmentCategoryActions:
+          type:
+            - object
+            - 'null'
+          additionalProperties:
+            type: string
+            enum: [remove, beep, keep]
+          description: Per-feed segment-category action overrides (issue #565). Only the overridden categories are present; a category absent here inherits the global default. Null when the feed has no overrides.
+        detectShowSegments:
+          type:
+            - boolean
+            - 'null'
+          description: Whether this feed detects intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
 
     EpisodeSummary:
       type: object
@@ -7763,6 +7796,17 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential]
           description: Which detection stage found this ad
           example: first_pass
+        category:
+          type: string
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+          description: What kind of content this span is. LLM detection stages emit it directly; fingerprint, text-pattern, and differential stages default to sponsor. An unknown or missing value falls back to sponsor at marker-save time.
+          example: sponsor
+        actionApplied:
+          type: string
+          nullable: true
+          enum: [remove, beep, keep, null]
+          description: The action resolved for this marker's category at cut time (per-feed override, else global default, else remove). Null for a marker that has not gone through action resolution.
+          example: remove
         approved:
           type: boolean
           description: >-
@@ -8416,6 +8460,17 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        segmentCategoryActions:
+          type: object
+          description: Global segment-category action map (issue #565). Every category defaults to remove.
+          properties:
+            value:
+              type: object
+              additionalProperties:
+                type: string
+                enum: [remove, beep, keep]
+            isDefault:
+              type: boolean
         artworkWatermarkEnabled:
           type: object
           properties:
@@ -8593,6 +8648,11 @@ components:
               type: integer
             podpingEnabled:
               type: boolean
+            segmentCategoryActions:
+              type: object
+              additionalProperties:
+                type: string
+                enum: [remove, beep, keep]
             artworkWatermarkEnabled:
               type: boolean
             feedAuthEnabled:

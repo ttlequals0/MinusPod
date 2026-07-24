@@ -9,6 +9,37 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.0] - 2026-07-25
+
+### Added
+
+- Segment categories: every detected marker now carries a category (sponsor,
+  cross_promo, self_promo, interaction, and opt-in intro, outro, recap) and
+  each category resolves to an action (remove, beep, keep). Resolution
+  checks a per-feed override first, then the global default, then falls
+  back to remove. Configure the global map at Settings > Global Defaults >
+  "Segment actions", and per-feed overrides on the feed settings page under
+  the same heading, where each category starts inherited from the global
+  map until touched. Every category defaults to remove, so existing feeds
+  cut exactly as before until an action is changed. A kept marker stays in
+  the audio, bypasses validator holds and reviewer boundary checks, is
+  dropped instead of re-flagged when pass-2 verification finds it again,
+  and is excluded from the "Detections Not Cut" count, while still teaching
+  the pattern learner its category. Opt a feed into intro/outro/recap
+  detection with the "Detect intro, outro, and housekeeping segments"
+  toggle on its settings page, off by default; the other four categories
+  are always detected. A "Re-render episodes with current segment actions"
+  button on the feed settings page recuts a feed's already-processed
+  episodes against the current action maps. See [How It Works > Segment
+  Categories](docs/how-it-works.md#segment-categories) and [Configuration >
+  Segment Categories](docs/configuration.md#segment-categories) (#565).
+
+### Fixed
+
+- Both the GPU and CPU images' `org.opencontainers.image.version` OCI label
+  now reflects the running MinusPod version instead of inheriting `26.04`
+  from the `ubuntu:26.04` base image (#576).
+
 ## [2.77.1] - 2026-07-24
 
 ### Added

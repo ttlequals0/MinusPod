@@ -133,6 +133,34 @@ Each feed's settings page has a **Pass-through** toggle. When it is on, MinusPod
 
 The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and turning the toggle off resumes full processing for new episodes. Two caveats: enclosures that are not MP3 get converted to MP3 (the serving stack requires it), and the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the toggle is on, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
 
+### Segment Categories
+
+Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
+
+| Category | Covers | Detected by default |
+|---|---|---|
+| Sponsor | Paid host-read or produced reads, dynamic ad insertion, platform pre/post-rolls | Yes |
+| Cross-promo | Other-show and network promos | Yes |
+| Self-promo | Patreon, merch, subscribe/donate for the show itself | Yes |
+| Interaction | Follow/rate/review prompts | Yes |
+| Intro | Show intro or theme | Only when Detect intro, outro, and housekeeping segments is on |
+| Outro | Outro and credits | Only when Detect intro, outro, and housekeeping segments is on |
+| Recap | "Coming up", headline bumpers, "listen next" housekeeping | Only when Detect intro, outro, and housekeeping segments is on |
+
+Each category maps to one action:
+
+| Action | Effect |
+|---|---|
+| Remove | Cut from the audio. Default for every category. |
+| Beep | Replaced with a tone; the episode's duration is unchanged. |
+| Keep | Left in the audio untouched. |
+
+Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Set the global map at Settings > Global Defaults > **Segment actions**. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
+
+The feed settings page also has a **Detect intro, outro, and housekeeping segments** toggle (`detectShowSegments` on the same PATCH endpoint), off by default. Turning it on adds intro/outro/recap detection to that feed's LLM detection windows; the other four categories are detected regardless of this toggle.
+
+Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
+
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
