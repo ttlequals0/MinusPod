@@ -162,9 +162,13 @@ def count_pending_review(markers) -> int:
 def count_not_cut(markers) -> int:
     """Number of markers that stayed in the audio and are not pending review
     (e.g. a rejected correction). Missing was_cut defaults to True (cut),
-    matching is_pending_review's convention."""
+    matching is_pending_review's convention. A keep-action marker
+    (action_applied == 'keep') is intentionally left in the audio, not a
+    miss, so it is excluded here -- it must never inflate the
+    notification-facing not-cut/miss count."""
     return sum(1 for m in markers
-               if not m.get('was_cut', True) and not is_pending_review(m))
+               if not m.get('was_cut', True) and not is_pending_review(m)
+               and m.get('action_applied') != 'keep')
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content

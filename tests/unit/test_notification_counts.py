@@ -85,3 +85,52 @@ class TestFireSiteCounting:
         ]
         assert count_pending_review(markers) == 2
         assert count_not_cut(markers) == 1
+
+    def test_keep_action_marker_excluded_from_not_cut(self):
+        """Task 6: a segment-category keep-action marker is intentionally
+        left in the audio, not a miss -- it must never inflate the
+        notification-facing not-cut/miss count."""
+        markers = [
+            {'was_cut': False, 'action_applied': 'keep'},   # kept on purpose
+            {'was_cut': False, 'action_applied': 'keep'},   # kept on purpose
+            {'held_for_review': False, 'was_cut': False},   # rejected, a real miss
+            {'was_cut': True},
+        ]
+        assert count_not_cut(markers) == 1
+
+
+class TestKeepExcludedThroughNotificationPipeline:
+    """Task 6: the count_not_cut fix must hold end-to-end through the
+    webhook payload and email context, not just at the counting helper --
+    mirrors TestBuildContextCounts/TestEmailFormatterRows above with a
+    keep-action marker mixed into the source list."""
+
+    def test_keep_marker_excluded_through_webhook_and_email_context(self):
+        markers = [
+            {'was_cut': False, 'action_applied': 'keep'},  # excluded
+            {'was_cut': False},                            # a genuine miss
+        ]
+        not_cut_count = count_not_cut(markers)
+        assert not_cut_count == 1
+
+        payload = _payload(ads_held=0, ads_not_cut=not_cut_count)
+        ctx = _build_context(payload)
+        assert ctx['episode']['ads_not_cut'] == 1
+
+        _, rows, _ = _fmt_episode_processed(ctx)
+        labels = dict(rows)
+        assert labels['Detections not cut'] == '1'
+
+    def test_all_kept_markers_render_no_not_cut_row(self):
+        markers = [
+            {'was_cut': False, 'action_applied': 'keep'},
+            {'was_cut': False, 'action_applied': 'keep'},
+        ]
+        not_cut_count = count_not_cut(markers)
+        assert not_cut_count == 0
+
+        payload = _payload(ads_held=0, ads_not_cut=not_cut_count)
+        ctx = _build_context(payload)
+        _, rows, _ = _fmt_episode_processed(ctx)
+        labels = [label for label, _ in rows]
+        assert 'Detections not cut' not in labels

@@ -7,6 +7,7 @@ the reviewer input, the cut list, or held-for-review routing. Markers whose
 action resolves to 'remove' (the default) flow through exactly as before
 Task 4 -- this is the byte-identical regression case.
 """
+import logging
 import os
 import sys
 import tempfile
@@ -36,10 +37,16 @@ def _cross_promo_ad():
            'confidence': 0.95, 'detection_stage': 'llm'}
 
 
-def _run_pipeline(first_pass_ads, segment_actions):
+def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None):
     """Drive process_episode's full pass-1 flow with every stage but the
     partition itself mocked out. Returns the recorded mocks so tests can
     inspect what each stage was actually called with.
+
+    ``late_synthesized_ad`` simulates a marker _apply_heuristic_rolls adds
+    inside the real _refine_and_validate, i.e. after Task 4's keep
+    partition already ran: it is appended to the (ads_to_remove,
+    all_ads_with_validation) pair the mocked stage returns, never to the
+    partition's own input.
     """
     podcast_row = {'id': 1, 'slug': 'keep-feed', 'description': None,
                    'tags': None, 'dai_platform': None,
@@ -53,7 +60,11 @@ def _run_pipeline(first_pass_ads, segment_actions):
                     'validator was called with a keep-action marker')
         for ad in all_ads:
             ad['was_cut'] = True
-        return list(all_ads), list(all_ads)
+        result = list(all_ads)
+        if late_synthesized_ad is not None:
+            late_synthesized_ad['was_cut'] = True
+            result = result + [late_synthesized_ad]
+        return result, result
 
     def _fake_run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                               all_ads_with_validation, *a, **k):
@@ -254,3 +265,187 @@ class TestKeepMarkersBlockTerminalSnap:
         assert kept_marker['start'] == 35.0
         assert kept_marker['end'] == 48.0
         assert kept_marker['action_applied'] == 'keep'
+
+
+class TestLateKeepSafetyNet:
+    """Task 6: a marker synthesized after Task 4's keep partition ran
+    (heuristic pre/post-roll, VAD-gap) never had a chance to be pulled out
+    even when its category resolves to 'keep'. _apply_late_keep_safety_net
+    is the last chance, right before the cut list reaches the audio
+    processor.
+    """
+
+    def test_drops_synthesized_marker_with_keep_resolved_category(self, caplog):
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        # No 'category' key -- like a heuristic pre/post-roll or VAD-gap ad
+        # added after _partition_keep_ads already ran. Normalizes to
+        # 'sponsor', which this map resolves to 'keep'.
+        synthesized = {'start': 90.0, 'end': 99.0, 'was_cut': True,
+                       'detection_stage': 'post_roll'}
+        real_cut = {'start': 10.0, 'end': 20.0, 'category': 'cross_promo',
+                    'was_cut': True}
+        ads_to_remove = [real_cut, synthesized]
+        all_ads_with_validation = [real_cut, synthesized]
+
+        with caplog.at_level(logging.INFO, logger='podcast.audio'):
+            result = processing._apply_late_keep_safety_net(
+                ads_to_remove, all_ads_with_validation, actions_map)
+
+        assert result == [real_cut]
+        assert synthesized['was_cut'] is False
+        assert synthesized['action_applied'] == 'keep'
+        # The unrelated cut-list marker is untouched.
+        assert real_cut['was_cut'] is True
+        assert 'action_applied' not in real_cut
+        assert any('Late keep safety net' in r.message for r in caplog.records)
+
+    def test_stamps_a_different_master_object_too(self):
+        # Reviewer/sweep adjustments rebuild dicts, so the master entry in
+        # all_ads_with_validation is not always the same object as the
+        # ads_to_remove entry; _find_master matches by (start, end) too.
+        actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        synthesized = {'start': 90.0, 'end': 99.0, 'was_cut': True}
+        master_twin = {'start': 90.0, 'end': 99.0, 'was_cut': True}
+
+        result = processing._apply_late_keep_safety_net(
+            [synthesized], [master_twin], actions_map)
+
+        assert result == []
+        assert master_twin['was_cut'] is False
+        assert master_twin['action_applied'] == 'keep'
+
+    def test_no_op_when_no_category_resolves_to_keep(self):
+        actions_map = {'sponsor': 'remove', 'cross_promo': 'remove',
+                       'self_promo': 'remove', 'interaction': 'remove',
+                       'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+        ads_to_remove = [{'start': 10.0, 'end': 20.0}]
+
+        result = processing._apply_late_keep_safety_net(
+            ads_to_remove, ads_to_remove, actions_map)
+
+        assert result is ads_to_remove
+        assert 'action_applied' not in ads_to_remove[0]
+
+    def test_late_keep_safety_net_drops_synthesized_marker_end_to_end(self):
+        """Full process_episode pass-1 flow: a synthesized post-roll marker
+        (no category, added by the mocked _refine_and_validate the way
+        _apply_heuristic_rolls would) is dropped from the final cut list and
+        never reaches the audio processor, while a real cross_promo cut
+        marker still cuts normally."""
+        cross_promo = _cross_promo_ad()
+        late_marker = {'start': 90.0, 'end': 99.0, 'confidence': 0.9,
+                       'detection_stage': 'post_roll'}
+        segment_actions = {'sponsor': 'keep', 'cross_promo': 'remove',
+                           'self_promo': 'remove', 'interaction': 'remove',
+                           'intro': 'remove', 'outro': 'remove', 'recap': 'remove'}
+
+        m = _run_pipeline([cross_promo], segment_actions,
+                          late_synthesized_ad=late_marker)
+
+        assert m['result'] is True
+        saved = m['storage'].save_combined_ads.call_args.args[2]
+        by_span = {(a['start'], a['end']): a for a in saved}
+        caught = by_span[(late_marker['start'], late_marker['end'])]
+        assert caught['was_cut'] is False
+        assert caught['action_applied'] == 'keep'
+        cross_promo_marker = by_span[(cross_promo['start'], cross_promo['end'])]
+        assert cross_promo_marker['was_cut'] is True
+        assert cross_promo_marker['action_applied'] == 'remove'
+
+        audio_segments = m['local_ap'].process_episode.call_args.args[1]
+        assert [s['start'] for s in audio_segments] == [cross_promo['start']]
+
+
+class TestExcludeKeptSpansFromVerification:
+    """Task 6: a pass-2 (verification) finding overlapping a kept pass-1
+    span must be dropped before _gate_verification_ads_by_confidence can
+    cut, hold, or log it as a dropped miss.
+    """
+
+    # Pass-1 removed original 100.0-200.0 with a fixed 1.0s beep. A kept
+    # marker at original 500.0-520.0 therefore maps onto the processed
+    # timeline as 401.0-421.0 (500 - (100s removed - 1s replaced) = 401).
+    PASS1_CUTS = [{'start': 100.0, 'end': 200.0, 'replacement_duration': 1.0}]
+    KEPT_MARKER = {'start': 500.0, 'end': 520.0, 'action_applied': 'keep'}
+
+    def test_overlapping_finding_dropped_before_any_routing(self, caplog):
+        proc_overlap = {'start': 405.0, 'end': 415.0, 'confidence': 0.95,
+                        'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
+        orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
+                        'sponsor': 'Acme'}
+
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
+                caplog.at_level(logging.DEBUG, logger='podcast.audio'):
+            out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS)
+
+        assert out_proc == []
+        assert out_orig == []
+        assert any('Dropping pass-2 finding' in r.message for r in caplog.records)
+
+        # Nothing left to route: no cut, no hold, no dropped-miss log line.
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, n = processing._gate_verification_ads_by_confidence(
+            out_proc, out_orig, min_cut_confidence=0.5)
+        assert v_ads_to_cut == []
+        assert v_ads_for_ui == []
+        assert v_ads_held == []
+        assert n == 0
+
+    def test_non_overlapping_finding_routes_per_existing_rules(self):
+        proc_clear = {'start': 50.0, 'end': 60.0, 'confidence': 0.95,
+                     'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
+        orig_clear = {'start': 51.0, 'end': 61.0, 'confidence': 0.95,
+                     'sponsor': 'Acme'}
+
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0):
+            out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+                [proc_clear], [orig_clear], [self.KEPT_MARKER], self.PASS1_CUTS)
+
+        assert out_proc == [proc_clear]
+        assert out_orig == [orig_clear]
+
+        # Confidence 0.95 >= min_cut_confidence 0.5: confirmed-cut path,
+        # unchanged from the pre-Task-6 routing since this finding never
+        # overlapped a kept span.
+        v_ads_to_cut, v_ads_for_ui, v_ads_held, _n = processing._gate_verification_ads_by_confidence(
+            out_proc, out_orig, min_cut_confidence=0.5)
+        assert v_ads_to_cut == [proc_clear]
+        assert v_ads_for_ui == [orig_clear]
+        assert v_ads_held == []
+
+    def test_no_kept_markers_is_noop(self):
+        proc = [{'start': 1.0, 'end': 2.0}]
+        orig = [{'start': 1.0, 'end': 2.0}]
+
+        out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+            proc, orig, [], self.PASS1_CUTS)
+
+        assert out_proc is proc
+        assert out_orig is orig
+
+
+class TestStampPass2MarkerCategories:
+    """Task 6: pass-2-created markers never route through Task 1's
+    detector-merge category-stamping seam, so _stamp_pass2_marker_categories
+    stamps them at save time instead."""
+
+    def test_stamps_default_category_when_missing(self):
+        markers = [{'start': 1.0, 'end': 2.0}]
+
+        out = processing._stamp_pass2_marker_categories(markers)
+
+        assert out is markers
+        assert markers[0]['category'] == 'sponsor'
+
+    def test_preserves_valid_category_normalizes_unknown(self):
+        markers = [{'start': 1.0, 'end': 2.0, 'category': 'cross_promo'},
+                  {'start': 3.0, 'end': 4.0, 'category': 'not-a-real-category'}]
+
+        processing._stamp_pass2_marker_categories(markers)
+
+        assert markers[0]['category'] == 'cross_promo'
+        assert markers[1]['category'] == 'sponsor'

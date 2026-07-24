@@ -154,7 +154,8 @@ class TestVerificationPassMappingMixedCutList:
         recut = [{'start': 150.0, 'end': 160.0}]
         out = processing._pass2_cuts_in_original(recut, MIXED_CUTS)
         assert out == [{'start': 178.0, 'end': 188.0,
-                        'detection_stage': 'verification'}]
+                        'detection_stage': 'verification',
+                        'replacement_duration': None}]
 
 
 class TestUnadjustTimestampMixedRecut:

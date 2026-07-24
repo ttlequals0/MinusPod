@@ -19,10 +19,25 @@ def test_pass2_rendered_cuts_map_to_original(monkeypatch):
     recut = [{'start': 150.0, 'end': 180.0}]  # processed-audio coordinates
     out = processing._pass2_cuts_in_original(recut, pass1)
     # Processed 150s sits after the pass-1 beep: original = 150 + (100 - 1).
-    assert out == [{'start': 249.0, 'end': 279.0, 'detection_stage': 'verification'}]
+    assert out == [{'start': 249.0, 'end': 279.0, 'detection_stage': 'verification',
+                     'replacement_duration': None}]
 
 
 def test_pass2_cuts_empty_when_no_recut(monkeypatch):
     monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
     assert processing._pass2_cuts_in_original(None, [{'start': 0.0, 'end': 10.0}]) == []
     assert processing._pass2_cuts_in_original([], []) == []
+
+
+def test_pass2_rendered_cuts_carry_replacement_duration(monkeypatch):
+    """Task 6: a recut span's own replacement_duration (e.g. a beep-action
+    span padded to its own length, per Task 5b's compute_applied_cuts) must
+    survive into the mapped output, feeding all_cuts_for_assets, instead of
+    being dropped and falling back to the fixed beep-clip default at every
+    downstream mapper."""
+    monkeypatch.setattr(processing, 'get_replacement_duration', lambda: 1.0)
+    pass1 = [{'start': 100.0, 'end': 200.0}]
+    recut = [{'start': 150.0, 'end': 180.0, 'replacement_duration': 30.0}]
+    out = processing._pass2_cuts_in_original(recut, pass1)
+    assert out == [{'start': 249.0, 'end': 279.0, 'detection_stage': 'verification',
+                     'replacement_duration': 30.0}]

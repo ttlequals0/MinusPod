@@ -1020,20 +1020,64 @@ def _partition_keep_ads(all_ads, actions_map):
     return keep_ads, remove_ads
 
 
+def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map):
+    """Last-chance keep exclusion, right before the pass-1 cut list is handed
+    to the audio processor.
+
+    _partition_keep_ads (Task 4) only sees markers present in all_ads at
+    that point in the pipeline. A marker synthesized afterward, inside
+    _refine_and_validate (heuristic pre/post-roll, VAD-gap ads), never got a
+    chance to be pulled out even when its category resolves to 'keep' -- it
+    would otherwise reach _partition_cut_actions, fall back to
+    DEFAULT_SEGMENT_ACTION, and still cut. This is the last point before
+    ffmpeg sees the list, so it is the last chance to honor 'keep' for such
+    a marker.
+
+    Stamps was_cut=False/action_applied='keep' on a caught marker (and its
+    all_ads_with_validation master, if a different object) and removes it
+    from the returned cut list. Logs at info when this fires.
+
+    Returns ads_to_remove unchanged (same list/objects) when no category
+    resolves to 'keep' -- the default all-remove map never triggers this.
+    """
+    if not any(action == 'keep' for action in actions_map.values()):
+        return ads_to_remove
+    caught, remove = [], []
+    for ad in ads_to_remove:
+        category = normalize_segment_category(ad.get('category'))
+        if actions_map.get(category) == 'keep':
+            caught.append((ad, category))
+        else:
+            remove.append(ad)
+    for ad, category in caught:
+        ad['was_cut'] = False
+        ad['action_applied'] = 'keep'
+        master = _find_master(all_ads_with_validation, ad)
+        if master is not None:
+            master['was_cut'] = False
+            master['action_applied'] = 'keep'
+        audio_logger.info(
+            f"Late keep safety net: dropping synthesized marker "
+            f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
+            f"from the cut list; its resolved action is 'keep'"
+        )
+    return remove
+
+
 def _partition_cut_actions(ads_to_remove, actions_map):
     """Stamp each cut-list marker with its resolved remove/beep action.
 
     'keep' is owned end-to-end by _partition_keep_ads (called before the
-    validator/reviewer on pass-1 markers); this function runs on the final
-    cut list, after boundary sweeps, and only distinguishes remove from
-    beep. A marker with no category key (heuristic pre/post-roll or
-    VAD-gap ads, added after the keep partition ran; pass-2 verification
-    ads, which never route through the category-stamping merge seam)
-    normalizes to 'sponsor' here, same as everywhere else category is read.
-    If that resolves to 'keep' -- only reachable via a category-less
-    marker when sponsor itself is set to keep -- it falls back to
-    DEFAULT_SEGMENT_ACTION rather than being pulled out of the list this
-    late; the segment still cuts.
+    validator/reviewer on pass-1 markers) and, for markers synthesized
+    afterward, by _apply_late_keep_safety_net (called just before this
+    function on the final cut list). This function runs after both and only
+    distinguishes remove from beep. A marker with no category key (pass-2
+    verification ads, which never route through the category-stamping merge
+    seam) normalizes to 'sponsor' here, same as everywhere else category is
+    read. If that resolves to 'keep' -- unreachable for a pass-1 marker now
+    that the safety net above has already run, kept here only as a defensive
+    fallback -- it falls back to DEFAULT_SEGMENT_ACTION rather than being
+    pulled out of the list this late; the segment still cuts.
 
     Sets ad['action_applied'] on every marker in place. Returns
     ads_to_remove unchanged (same list/objects) for chaining. The
@@ -1048,6 +1092,22 @@ def _partition_cut_actions(ads_to_remove, actions_map):
             action = DEFAULT_SEGMENT_ACTION
         ad['action_applied'] = action
     return ads_to_remove
+
+
+def _stamp_pass2_marker_categories(markers):
+    """Stamp category via normalize_segment_category on pass-2-created
+    markers, at save time.
+
+    Task 1's category stamping only covers the pass-1 detector merge seam
+    (_merge_detection_results); pass-2 verification markers never route
+    through it, so without this they would reach the persisted marker list
+    with no category key at all, relying on the API's read-time
+    marker.get('category', 'sponsor') default instead. Mutates in place;
+    returns markers for chaining.
+    """
+    for m in markers:
+        m['category'] = normalize_segment_category(m.get('category'))
+    return markers
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -1789,6 +1849,54 @@ def _corroborated_span(hold, orig_ad):
     }
 
 
+def _exclude_kept_spans_from_verification(verification_ads_processed,
+                                           verification_ads_original,
+                                           pass1_kept_markers, pass1_cuts):
+    """Drop pass-2 findings that overlap a kept pass-1 span, before anything
+    routes them to a cut, a hold, or a dropped-miss log line.
+
+    A category resolved to 'keep' means the span must never be re-cut, held,
+    or logged as a miss -- this runs before _gate_verification_ads_by_confidence
+    so none of its autocut/hold/log branches, including the confirmed-cut
+    path, ever see a finding inside a kept span.
+
+    pass1_kept_markers are pass-1 marker dicts (original coordinates,
+    action_applied == 'keep'). Each span is mapped onto the processed
+    timeline with Task 5b's adjust_timestamp (using the pass-1 applied
+    cuts, pass1_cuts) so the overlap check runs in the same coordinate space
+    as verification_ads_processed, the list pass-2 actually acts on.
+
+    Returns (verification_ads_processed, verification_ads_original) unchanged
+    (same lists/objects) when there are no kept markers -- the default
+    all-remove map never populates pass1_kept_markers.
+    """
+    if not pass1_kept_markers:
+        return verification_ads_processed, verification_ads_original
+    replacement_duration = get_replacement_duration()
+    kept_spans_processed = [
+        (adjust_timestamp(m['start'], pass1_cuts, replacement_duration),
+         adjust_timestamp(m['end'], pass1_cuts, replacement_duration))
+        for m in pass1_kept_markers
+    ]
+    surviving_processed = []
+    surviving_original = []
+    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
+        overlap = next(
+            (span for span in kept_spans_processed
+             if ranges_overlap(ad['start'], ad['end'], span[0], span[1])),
+            None)
+        if overlap is not None:
+            audio_logger.debug(
+                f"Dropping pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
+                f"(processed): overlaps kept span {overlap[0]:.1f}s-"
+                f"{overlap[1]:.1f}s"
+            )
+            continue
+        surviving_processed.append(ad)
+        surviving_original.append(orig_ad)
+    return surviving_processed, surviving_original
+
+
 def _gate_verification_ads_by_confidence(verification_ads_processed,
                                           verification_ads_original,
                                           min_cut_confidence,
@@ -2041,6 +2149,7 @@ def _pass2_cuts_in_original(recut_applied, pass1_cuts):
         'start': _map_to_original(c['start'], ts_map, beep),
         'end': _map_to_original(c['end'], ts_map, beep),
         'detection_stage': 'verification',
+        'replacement_duration': c.get('replacement_duration'),
     } for c in recut_applied]
 
 
@@ -2120,7 +2229,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             local_audio_processor, progress_callback,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
-                            pass1_held_markers=None, skip_detection=False):
+                            pass1_held_markers=None, pass1_kept_markers=None,
+                            skip_detection=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -2132,6 +2242,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     region survives. A corroborating re-detection of a differential hold
     stamps the marker dict pass2_corroborated in place for post-completion
     auto-approval.
+
+    ``pass1_kept_markers`` are pass-1 markers with action_applied == 'keep'
+    (original coordinates); a verification finding overlapping one, mapped
+    onto the processed timeline, is dropped before it can be cut, held, or
+    logged as a miss (see _exclude_kept_spans_from_verification).
 
     ``skip_detection`` (#538) reports the pass as cleanly done with nothing
     found; pass 2 is a second LLM scan, so skipping pass 1 alone would still
@@ -2222,6 +2337,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     max_ad_duration_override=max_ad_duration_override,
                     cue_gate_enabled=cue_gate_enabled,
                 )
+
+            # Kept-span exclusion: must run before any finding is routed to
+            # a cut, a hold, or a dropped-miss log line.
+            verification_ads_processed, verification_ads_original = _exclude_kept_spans_from_verification(
+                verification_ads_processed, verification_ads_original,
+                pass1_kept_markers, pass1_cuts,
+            )
 
             if verification_ads_processed:
                 # Confidence gate and re-cut
@@ -3632,6 +3754,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation, segments
             )
 
+            # Late keep safety net: a marker synthesized after the Task 4
+            # keep partition ran (heuristic pre/post-roll, VAD-gap) never
+            # had a chance to be pulled out even when its category resolves
+            # to 'keep'. This is the last point before the cut list reaches
+            # the audio processor, so it is the last chance to honor it.
+            ads_to_remove = _apply_late_keep_safety_net(
+                ads_to_remove, all_ads_with_validation, segment_actions)
+
             # Cut partition (remove vs beep): resolved once above as
             # segment_actions, reused here rather than re-querying the DB.
             # Stamps ad['action_applied'] on every marker in the final cut
@@ -3701,6 +3831,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             pass1_held_markers = [
                 m for m in all_ads_with_validation if is_pending_review(m)
             ]
+            # Kept markers (original coords): a verification finding
+            # overlapping one must never be cut, held, or logged as a miss.
+            pass1_kept_markers = [
+                m for m in all_ads_with_validation
+                if m.get('action_applied') == 'keep'
+            ]
             verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
@@ -3712,6 +3848,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 max_ad_duration_override=max_ad_duration_override,
                 cue_gate_enabled=cue_gate_enabled,
                 pass1_held_markers=pass1_held_markers,
+                pass1_kept_markers=pass1_kept_markers,
                 skip_detection=skip_detection,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
@@ -3753,7 +3890,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # survive into persisted markers with was_cut=False; they are kept
             # separate from v_ads_for_ui so the reviewer pool and asset mapping
             # are never contaminated with held ads.
-            merge_v = v_ads_for_ui + v_ads_held
+            merge_v = _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held)
             # Corroboration stamps mutated markers already in
             # all_ads_with_validation, so they need a re-save too.
             if merge_v or v_corroborated_count:
