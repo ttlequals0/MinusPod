@@ -1744,8 +1744,11 @@ class AdDetector:
         Filters: was_cut, detection_stage == 'claude', confidence floor,
         and stricter confidence for long (>90s) detections.
         """
-        # Only learn from ads that were actually removed
-        if not ad.get('was_cut', False):
+        # Learn from ads that were actually removed, or from a keep-action
+        # marker (#565 Task 7): a kept marker still names a real ad read the
+        # feed chose to leave in the audio, so it is worth learning even
+        # though was_cut is False for it.
+        if not ad.get('was_cut', False) and ad.get('action_applied') != 'keep':
             logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
             return False
 
@@ -1868,7 +1871,8 @@ class AdDetector:
                 sponsor=sponsor,
                 scope='podcast',
                 podcast_id=podcast_id,
-                episode_id=episode_id
+                episode_id=episode_id,
+                category=ad.get('category')
             )
 
             if pattern_id:

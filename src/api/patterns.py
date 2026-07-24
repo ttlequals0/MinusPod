@@ -1018,6 +1018,25 @@ def _load_markers(db, slug, episode_id):
         return None
 
 
+def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
+    """Find the persisted marker matching (start, end) within tolerance,
+    regardless of pending-review state (unlike _matches_held_marker, which
+    also requires is_pending_review). Used by the keep-marker correction
+    guard below: a keep-resolved marker is never pending review (Task 6
+    clears its hold), so a pending-review-scoped lookup would never see it.
+    Returns the marker dict, or None if no marker or no match.
+    """
+    markers = _load_markers(db, slug, episode_id)
+    if not markers:
+        return None
+    for m in markers:
+        m_start, m_end = m.get('start'), m.get('end')
+        if (m_start is not None and m_end is not None
+                and abs(m_start - start) <= tol and abs(m_end - end) <= tol):
+            return m
+    return None
+
+
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
                                  markers=None):
     """When the rejected range matches a held marker, demote it to a plain
@@ -1242,6 +1261,18 @@ def submit_correction(slug, episode_id):
 
     if original_start is None or original_end is None:
         return error_response('Missing original ad boundaries', 400)
+
+    # A keep-resolved marker (action_applied == 'keep') is a final per-feed
+    # decision to leave the segment in the audio; it is never pending review
+    # (Task 6 clears any hold when a marker resolves to keep), so this guard
+    # is defensive against a stale client payload rather than a normally
+    # reachable UI path. It must still never create a correction row or
+    # cross-episode false-positive text for that marker.
+    target_marker = _find_marker_by_bounds(db, slug, episode_id, original_start, original_end)
+    if target_marker is not None and target_marker.get('action_applied') == 'keep':
+        return error_response(
+            'This segment is kept for this feed and cannot be corrected', 409
+        )
 
     if correction_type == 'confirm':
         return _handle_confirm_correction(

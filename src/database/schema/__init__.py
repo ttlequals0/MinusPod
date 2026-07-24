@@ -430,6 +430,13 @@ class SchemaMixin:
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'content_hash', 'TEXT', ap_cols)
 
+        # category (#565 Task 7): segment category (sponsor/cross_promo/etc)
+        # the pattern was learned from. Nullable; a NULL/unknown value reads
+        # as 'sponsor' via normalize_segment_category, the same default used
+        # for marker categories, so pre-migration rows behave unchanged.
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'category', 'TEXT', ap_cols)
+
         # Indexes for source filtering and community_id lookup (idempotent)
         try:
             conn.execute(

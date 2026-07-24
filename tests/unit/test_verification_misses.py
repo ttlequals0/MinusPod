@@ -133,6 +133,7 @@ class TestRecordVerificationMissesAutoCreate:
             scope="podcast",
             podcast_id="slug",
             episode_id="ep1",
+            category=None,
         )
 
     def test_no_auto_create_when_segments_missing(self):

@@ -1118,6 +1118,36 @@ def _partition_cut_actions(ads_to_remove, actions_map):
     return ads_to_remove
 
 
+def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
+    """Feed keep-action markers into pattern learning (#565 Task 7).
+
+    A kept marker still names a real ad read; the feed's segment-category
+    settings just chose to leave it in the audio, not that it isn't a
+    sponsor read worth learning from. keep_ads bypasses validation entirely
+    (_partition_keep_ads), so unlike cut ads it never reaches the
+    ad_detector.learn_from_detections call inside _refine_and_validate --
+    this is that same call, applied separately to the withheld markers.
+    ad_detector.learn_from_detections' own filters (Claude-only, confidence
+    floor, sponsor gates) still apply unchanged; only the was_cut
+    requirement is relaxed for a keep-resolved marker, in
+    _ad_passes_learning_filters.
+
+    No-op (returns 0) when there is nothing to learn from or no podcast
+    slug to scope the pattern to.
+    """
+    if not keep_ads or not slug:
+        return 0
+    patterns_learned = ad_detector.learn_from_detections(
+        keep_ads, segments, slug, episode_id, audio_path=audio_path
+    )
+    if patterns_learned > 0:
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns "
+            f"from kept ads"
+        )
+    return patterns_learned
+
+
 def _stamp_pass2_marker_categories(markers):
     """Stamp category via normalize_segment_category on pass-2-created
     markers, at save time.
@@ -3782,6 +3812,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 all_ads_with_validation = list(all_ads_with_validation) + keep_ads
                 all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+                # Kept markers bypass validation entirely, so they never
+                # reach _refine_and_validate's own learn-from-cut-ads call;
+                # feed them into pattern learning separately here.
+                _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path)
 
             # Terminal boundary snap (spec 2.3b): after the reviewer so a
             # reviewer-adjusted start can be pulled back to the splice point.

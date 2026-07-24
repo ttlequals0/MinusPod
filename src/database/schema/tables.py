@@ -184,7 +184,8 @@ TABLE_DDL['ad_patterns'] = """CREATE TABLE IF NOT EXISTS ad_patterns (
     submitted_app_version TEXT,
     protected_from_sync INTEGER NOT NULL DEFAULT 0,
     source_language TEXT,
-    content_hash TEXT
+    content_hash TEXT,
+    category TEXT
 )"""
 
 TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_corrections (

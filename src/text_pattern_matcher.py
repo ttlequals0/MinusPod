@@ -15,6 +15,7 @@ from config import (
     DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN,
     TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
     FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
+    normalize_segment_category,
 )
 from community_export import count_brand_occurrences, brand_match_candidates, get_sponsor_row_or_stub
 from utils.text import extract_text_from_segments
@@ -1128,7 +1129,8 @@ class TextPatternMatcher:
         scope: str = "podcast",
         podcast_id: str = None,
         network_id: str = None,
-        episode_id: str = None
+        episode_id: str = None,
+        category: str = None
     ) -> Optional[int]:
         """
         Create a new ad pattern from a detected ad segment.
@@ -1142,6 +1144,9 @@ class TextPatternMatcher:
             podcast_id: Podcast ID for podcast-scoped patterns
             network_id: Network ID for network-scoped patterns
             episode_id: Episode ID for tracking pattern origin
+            category: Segment category (#565 Task 7) the source marker
+                carried, e.g. 'sponsor'/'cross_promo'. Normalized before
+                storage; None stores NULL, which reads back as 'sponsor'.
 
         Returns:
             Pattern ID if created, None otherwise
@@ -1258,6 +1263,7 @@ class TextPatternMatcher:
                 created_from_episode_id=episode_id,
                 duration=duration,
                 source_language=get_pattern_language(self.db, slug=podcast_id),
+                category=normalize_segment_category(category) if category is not None else None,
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")

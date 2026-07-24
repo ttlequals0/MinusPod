@@ -917,6 +917,7 @@ class PatternService:
                     scope='podcast',
                     podcast_id=slug,
                     episode_id=episode_id,
+                    category=ad.get('category'),
                 )
                 if pattern_id:
                     logger.info(
@@ -1091,6 +1092,7 @@ class PatternService:
                 submitted_app_version=data.get('submitted_app_version'),
                 source_language=data.get('source_language'),
                 content_hash=content_hash,
+                category=data.get('category'),
             )
             return existing['id']
 
@@ -1116,5 +1118,6 @@ class PatternService:
             protected_from_sync=0,
             source_language=data.get('source_language'),
             content_hash=content_hash,
+            category=data.get('category'),
         )
         return pattern_id
