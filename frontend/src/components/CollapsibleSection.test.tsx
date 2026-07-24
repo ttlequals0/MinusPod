@@ -95,6 +95,32 @@ describe('CollapsibleSection bulk expand/collapse', () => {
     expect(JSON.parse(localStorage.getItem('test-section-4') ?? 'null')).toBe(false);
   });
 
+  it('ignores a pre-existing signal on mount, but applies the next fresh seq', async () => {
+    // Mount fresh (e.g. behind an async settings load) while a bulk signal
+    // already exists from an earlier click. The section must honor its own
+    // defaultOpen, not retroactively apply the stale signal.
+    const { rerender } = render(
+      <SettingsBulkCollapseProvider value={{ seq: 1, open: true }}>
+        <CollapsibleSection title="Test Section 6" storageKey="test-section-6" defaultOpen={false} unmountWhenClosed>
+          <div>content</div>
+        </CollapsibleSection>
+      </SettingsBulkCollapseProvider>,
+    );
+    expect(screen.queryByText('content')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('test-section-6') ?? 'null')).toBe(false);
+
+    // A genuinely new seq (a fresh click after mount) still applies normally.
+    rerender(
+      <SettingsBulkCollapseProvider value={{ seq: 2, open: true }}>
+        <CollapsibleSection title="Test Section 6" storageKey="test-section-6" defaultOpen={false} unmountWhenClosed>
+          <div>content</div>
+        </CollapsibleSection>
+      </SettingsBulkCollapseProvider>,
+    );
+    expect(await screen.findByText('content')).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem('test-section-6') ?? 'null')).toBe(true);
+  });
+
   it('a manual click still toggles and persists normally alongside the bulk context', async () => {
     render(
       <SettingsBulkCollapseProvider value={null}>

@@ -67,9 +67,16 @@ function CollapsibleSection({
   // same setIsOpen + onToggle path a manual click takes, so localStorage
   // persistence and host mirrors (useCollapsibleOpen) stay coherent. Ignored
   // during search, matching how manual toggles are ignored during search.
+  // lastAppliedSeq seeds from the signal's seq at mount time so a section
+  // that mounts after a click already happened (e.g. behind an async data
+  // load) doesn't retroactively apply a stale signal -- only a seq that
+  // changes AFTER mount is a real, freshly-clicked signal.
   const bulkSignal = useSettingsBulkCollapse();
+  const lastAppliedSeq = useRef(bulkSignal?.seq);
   useEffect(() => {
     if (bulkSignal == null || searching) return;
+    if (bulkSignal.seq === lastAppliedSeq.current) return;
+    lastAppliedSeq.current = bulkSignal.seq;
     setIsOpen(bulkSignal.open);
     onToggle?.(bulkSignal.open);
     // eslint-disable-next-line react-hooks/exhaustive-deps
