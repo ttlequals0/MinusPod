@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
+import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
 
 // Mirror of a CollapsibleSection's persisted open state, for hosts that need
 // to know whether their section is open (e.g. to gate a query on visibility)
@@ -60,6 +61,19 @@ function CollapsibleSection({
   const expanded = searching ? matchesSearch : isOpen;
   let contentMaxHeight = maxHeight;
   if (searching) contentMaxHeight = matchesSearch ? 'none' : '0px';
+
+  // Settings bulk expand/collapse: Expand all / Collapse all bump `seq` on
+  // each click, telling every section to snap to `open`. Goes through the
+  // same setIsOpen + onToggle path a manual click takes, so localStorage
+  // persistence and host mirrors (useCollapsibleOpen) stay coherent. Ignored
+  // during search, matching how manual toggles are ignored during search.
+  const bulkSignal = useSettingsBulkCollapse();
+  useEffect(() => {
+    if (bulkSignal == null || searching) return;
+    setIsOpen(bulkSignal.open);
+    onToggle?.(bulkSignal.open);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkSignal?.seq]);
 
   useEffect(() => {
     if (isOpen) {

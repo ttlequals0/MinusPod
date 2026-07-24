@@ -49,6 +49,7 @@ import DatabaseBackupSection from './settings/DatabaseBackupSection';
 import OfflineQueueSection from './settings/OfflineQueueSection';
 import { Search, X } from 'lucide-react';
 import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSearchContext';
+import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
 import { formatModelLabel } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
 
@@ -162,6 +163,14 @@ function Settings() {
   // keystroke can rescan every section.
   const [settingsMatchKeys, setSettingsMatchKeys] = useState<Set<string> | null>(null);
   const searchRegionRef = useRef<HTMLDivElement>(null);
+  // Expand all / Collapse all: bumps `seq` on each click so every
+  // CollapsibleSection under the provider snaps to `open`, even on a repeated
+  // click with the same value. Disabled while a search is active since search
+  // already overrides expansion.
+  const [bulkCollapseSignal, setBulkCollapseSignal] = useState<SettingsBulkCollapseSignal | null>(null);
+  const triggerBulkCollapse = (open: boolean) => {
+    setBulkCollapseSignal((prev) => ({ seq: (prev?.seq ?? 0) + 1, open }));
+  };
   const runSettingsSearch = (q: string) => {
     setSettingsQuery(q);
     const norm = q.trim().toLowerCase();
@@ -778,6 +787,26 @@ function Settings() {
         )}
       </div>
 
+      <div className="flex justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => triggerBulkCollapse(true)}
+          disabled={settingsMatchKeys !== null}
+          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          Expand all
+        </button>
+        <button
+          type="button"
+          onClick={() => triggerBulkCollapse(false)}
+          disabled={settingsMatchKeys !== null}
+          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          Collapse all
+        </button>
+      </div>
+
+      <SettingsBulkCollapseProvider value={bulkCollapseSignal}>
       <SettingsSearchContext.Provider value={settingsMatchKeys}>
       <div ref={searchRegionRef} className="space-y-4">
 
@@ -1044,6 +1073,7 @@ function Settings() {
 
       </div>
       </SettingsSearchContext.Provider>
+      </SettingsBulkCollapseProvider>
 
       {/* Error display */}
       {(updateMutation.error || resetMutation.error || resetPromptsMutation.error) && (

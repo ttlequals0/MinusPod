@@ -11,6 +11,11 @@ release notes.
 
 ## [2.77.1] - 2026-07-24
 
+### Added
+
+- Expand all / collapse all controls on the Settings page, next to settings
+  search, to open or close every settings card at once (#575).
+
 ### Changed
 
 - The Podping toggle now lives in Settings > Global Defaults, directly under
