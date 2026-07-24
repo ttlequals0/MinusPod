@@ -3268,7 +3268,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
-    (retained original, saved segments, ad markers) are enforced by the API."""
+    (retained original, saved segments, ad markers) are enforced by the API.
+
+    Segment-category actions are re-resolved against the CURRENT per-feed/
+    global maps before cutting (issue #565 Task 8): a marker's cut/keep
+    fate is not pinned to whatever the map said the last time this episode
+    was processed. See the re-partition block below for the exact rule."""
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -3302,6 +3307,45 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             episode_description, min_cut_confidence,
             podcast_id=recut_podcast_id,
         )
+        # Re-resolve segment-category actions against the CURRENT maps
+        # (issue #565 Task 8): _build_recut_ad_list re-runs the validator/
+        # confidence gate but is itself action-unaware, so without this a
+        # marker's cut/keep fate would stay pinned to whatever the map said
+        # on its last processing run. A per-feed override or the global
+        # segment_category_actions setting can change between runs, so
+        # re-partition the freshly built list the same way pass 1 does:
+        # anything whose category now resolves 'keep' is pulled back out of
+        # ads_to_remove even though the validator just accepted it -- this
+        # is also where a stale user approval loses to a newer 'keep': the
+        # validator force-accepts confirmed corrections inside validate()
+        # with no timestamp to tell a fresh approval from a stale one, so
+        # 'keep' wins unconditionally (see task-8-report.md). A marker
+        # previously kept whose category now resolves 'remove'/'beep' is
+        # simply re-validated on its own merits like any other marker --
+        # kept markers retain their real detection evidence (confidence,
+        # corroboration), so validation judges them the same as a fresh ad
+        # and it can land in ads_to_remove without any extra force here.
+        segment_actions = db.resolve_segment_actions(slug)
+        keep_ads, all_ads_with_validation = _partition_keep_ads(
+            all_ads_with_validation, segment_actions)
+        if keep_ads:
+            # Identity, not span, is the right match key here: recut mode
+            # never runs the reviewer/boundary sweeps that rebuild marker
+            # dicts, so every ads_to_remove entry IS (by object identity)
+            # its all_ads_with_validation counterpart. A span-based fallback
+            # would risk dropping a *different* marker that happens to share
+            # an identical (start, end) with a kept one, leaving its
+            # was_cut flag stale after being excluded from cutting.
+            keep_ids = {id(ad) for ad in keep_ads}
+            ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
+            all_ads_with_validation = list(all_ads_with_validation) + keep_ads
+            all_ads_with_validation.sort(key=lambda x: x['start'])
+        ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
+        for ad in ads_to_remove:
+            master = _find_master(all_ads_with_validation, ad)
+            if master is not None:
+                master['action_applied'] = ad['action_applied']
+
         audio_logger.info(
             f"[{slug}:{episode_id}] Recut: {len(ads_to_remove)} ad(s) to remove "
             f"from {len(all_ads_with_validation)} marker(s)"

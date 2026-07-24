@@ -364,7 +364,7 @@ class TestRecutPreservesBeepAction:
         )
         return src
 
-    def _run_recut(self, tmp_path, marker):
+    def _run_recut(self, tmp_path, marker, segment_actions=None):
         src = self._make_source(tmp_path, duration=60)
         final_path = tmp_path / "final.mp3"
 
@@ -381,6 +381,10 @@ class TestRecutPreservesBeepAction:
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 0}
             db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
             db.get_all_settings.return_value = {}
+            # Task 8: _recut_episode re-resolves segment actions against the
+            # current map and restamps action_applied from it, so the
+            # marker's own stored action_applied is no longer decisive here.
+            db.resolve_segment_actions.return_value = segment_actions or ALL_REMOVE
             storage.get_original_path.return_value = src
             storage.get_applied_cuts.return_value = None
             storage.get_episode_path.return_value = str(final_path)
@@ -394,12 +398,15 @@ class TestRecutPreservesBeepAction:
         return AudioProcessor().get_audio_duration(str(final_path))
 
     def test_beep_marker_renders_as_beep_on_recut(self, tmp_path):
-        new_duration = self._run_recut(tmp_path, _beep_marker())
+        new_duration = self._run_recut(
+            tmp_path, _beep_marker(),
+            segment_actions=dict(ALL_REMOVE, sponsor='beep'))
         # A remove would shrink to ~60 - 15 + beep_clip_len (well under 55s);
         # beep preserves the full 60s span.
         assert new_duration == pytest.approx(60.0, abs=1.0)
 
     def test_remove_marker_still_shrinks_on_recut(self, tmp_path):
         remove_marker = dict(_beep_marker(), action_applied='remove')
-        new_duration = self._run_recut(tmp_path, remove_marker)
+        new_duration = self._run_recut(
+            tmp_path, remove_marker, segment_actions=ALL_REMOVE)
         assert new_duration < 55.0

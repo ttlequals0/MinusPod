@@ -5354,6 +5354,35 @@ paths:
         '400':
           description: Unknown or invalid tag(s)
 
+  /feeds/{slug}/rerender-segments:
+    post:
+      summary: Re-cut every processed episode of a feed against the current segment-category action maps
+      description: >
+        Queues the existing per-episode recut (reprocess_mode=recut) for every
+        processed episode of the feed that still has a retained original,
+        saved transcript segments, and ad detections. Each recut re-resolves
+        segment-category actions against the current per-feed/global maps, so
+        this is the bulk trigger for applying a changed segment-category
+        setting to already-processed episodes.
+      tags: [Feeds]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Recut queued for qualifying episodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:  { type: integer }
+                  skipped: { type: integer }
+        '404':
+          description: Feed not found
+
   /sponsors/{sponsor_id}/tags:
     put:
       summary: Update a sponsor's tags

@@ -32,9 +32,11 @@ from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
+from utils.constants import EpisodeStatus
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from database.podcasts import EPISODE_STATUSES
+from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
@@ -1192,3 +1194,95 @@ def update_feed_tags(slug):
 
     db.set_podcast_tags(slug, user_tags=user_tags)
     return json_response(db.get_podcast_tags(slug))
+
+
+@api.route('/feeds/<slug>/rerender-segments', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def rerender_segments(slug):
+    """Re-cut every processed episode of a feed against the CURRENT
+    segment-category action maps (issue #565 Task 8).
+
+    Reuses the existing per-episode recut path: each qualifying episode is
+    marked reprocess_mode='recut' and handed to the same
+    start_background_processing/auto-process-queue machinery the single-
+    episode POST /episodes/<id>/reprocess (mode=recut) endpoint uses, so
+    there is only one recut queue in the codebase. _recut_episode itself
+    re-resolves segment actions against the current maps, so this is the
+    bulk trigger for "the segment settings changed, apply them everywhere".
+
+    An episode not in 'processed' status is not a candidate at all (not
+    counted as queued or skipped). Among processed episodes, one that
+    fails the same preconditions the single-episode recut enforces (no
+    retained original, no saved transcript segments, no ad detections) is
+    counted as skipped, matching what a manual recut on that episode would
+    do.
+    """
+    db = get_database()
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+
+    from api.episodes import _check_recut_preconditions
+    from main_app.processing import start_background_processing
+
+    # get_episodes defaults to a 50-row page; a feed's processed backlog can
+    # exceed that, so ask for effectively "all" (storage.py uses the same
+    # convention for its own bulk full-feed reads).
+    episodes, _total = db.get_episodes(
+        slug, status=EpisodeStatus.PROCESSED.value, limit=10000)
+
+    queued = 0
+    skipped = 0
+    for row in episodes:
+        episode_id = row['episode_id']
+        # get_episodes only selects columns off `episodes`; ad_markers_json
+        # lives in episode_details and the precondition check needs it, so
+        # re-fetch the full joined row per episode.
+        episode = db.get_episode(slug, episode_id)
+        if not episode:
+            skipped += 1
+            continue
+        if episode.get('status') == EpisodeStatus.PROCESSING.value:
+            skipped += 1
+            continue
+        if _check_recut_preconditions(db, slug, episode_id, episode) is not None:
+            skipped += 1
+            continue
+
+        try:
+            db.upsert_episode(
+                slug, episode_id,
+                status=EpisodeStatus.PENDING.value,
+                reprocess_mode='recut',
+                reprocess_requested_at=utc_now_iso(),
+                retry_count=0,
+                error_message=None,
+            )
+            started, _reason = start_background_processing(
+                slug, episode_id,
+                episode.get('original_url'),
+                episode.get('title', 'Unknown'),
+                podcast.get('title', slug),
+                episode.get('description'),
+                None,
+                episode.get('published_at'),
+            )
+            if not started:
+                db.upsert_episode_for_processing(
+                    slug, episode_id, episode.get('original_url'),
+                    episode.get('title', 'Unknown'),
+                    episode.get('published_at'), episode.get('description'),
+                )
+                get_status_service().queue_episode(
+                    slug, episode_id, episode.get('title', 'Unknown'),
+                    podcast.get('title', slug))
+            queued += 1
+        except Exception:
+            logger.exception(
+                f"[{slug}:{episode_id}] Failed to queue segment re-render recut")
+            skipped += 1
+
+    logger.info(f"Rerender-segments {slug}: {queued} queued, {skipped} skipped")
+    return json_response({'queued': queued, 'skipped': skipped})
