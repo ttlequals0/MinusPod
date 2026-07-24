@@ -258,6 +258,9 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
+    'podping_enabled': SettingSpec(
+        default='false', seeded=True,
+        payload_key='podpingEnabled', payload_kind='bool'),
     'only_expose_processed_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='onlyExposeProcessedDefault', payload_kind='bool'),

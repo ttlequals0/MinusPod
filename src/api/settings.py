@@ -776,6 +776,11 @@ def _apply_feed_refresh_fields(db, data):
             return error_response('rssRefreshIntervalMinutes must be between 5 and 1440', 400)
         db.set_setting('rss_refresh_interval_minutes', str(minutes), is_default=False)
         logger.info(f"Updated RSS refresh interval to: {minutes} minutes")
+
+    if 'podpingEnabled' in data:
+        value = 'true' if data['podpingEnabled'] else 'false'
+        db.set_setting('podping_enabled', value, is_default=False)
+        logger.info(f"Updated podping listener to: {value}")
     return None
 
 

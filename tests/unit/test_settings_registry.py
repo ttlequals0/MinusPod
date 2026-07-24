@@ -61,6 +61,7 @@ SEED_SNAPSHOT = {
     'offline_queue_ttl_hours': '48',
     'only_expose_processed_default': 'false',
     'openai_base_url': 'http://localhost:8000/v1',
+    'podping_enabled': 'false',
     'processing_hard_timeout_seconds': '7200',
     'processing_soft_timeout_seconds': '3600',
     'resurrect_prompt': ('sha256', '217698265baaabc5f7ef0caa30478671dfdf95bae9f0ebd5bce4f9fe045fd454'),
@@ -344,12 +345,12 @@ class TestGetDefaults:
         # separately). Notably audioCuePairOrientWindowSeconds was absent
         # from it -- preserve that. 2.76.0 added six detection-tuning
         # payload keys (67 -> 73). rssRefreshIntervalMinutes added after
-        # (73 -> 74).
+        # (73 -> 74). podpingEnabled added after that (74 -> 75).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 74
+        assert len(payload_keys) == 75
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 
