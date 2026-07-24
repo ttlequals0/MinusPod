@@ -411,6 +411,20 @@ def refresh_all_feeds(force: bool = False):
         return False
 
 
+def refresh_single_feed(slug: str) -> bool:
+    """Refresh one feed by slug. Used by the podping listener; the
+    15-minute scheduler keeps using refresh_all_feeds."""
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast or not podcast.get('source_url'):
+        return False
+    try:
+        refresh_rss_feed(slug, podcast['source_url'])
+        return True
+    except Exception as e:
+        refresh_logger.error(f"[{slug}] Single-feed refresh failed: {e}")
+        return False
+
+
 def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     """Run modify_feed for the current feed/output settings and persist the
     served RSS. Both feed_cap and processed_only resolve per-feed override ->
