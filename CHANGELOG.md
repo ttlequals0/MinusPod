@@ -13,6 +13,14 @@ release notes.
 
 ### Changed
 
+- Categorized segments now survive the stages that run before the
+  action-gated merge. Window-level deduplication and the pattern-coverage
+  drop both discarded a detection's category, so an intro or outro set to
+  keep could be folded into an adjacent sponsor cut and removed anyway.
+  Both stages now respect the feed's per-category actions, and a span
+  fully contained inside a conflicting one is split around rather than
+  collapsed.
+
 - The webhook reference now documents the Feed Refresh Failed event:
   when it fires (3 consecutive upstream fetch failures), its payload
   variables, and a default payload example. The event is not new; only
