@@ -429,8 +429,8 @@ def serve_openapi():
     if not openapi_path.exists():
         abort(404)
     try:
-        from version import __version__
-        content = _render_openapi_yaml(str(openapi_path), __version__)
+        from utils.app_version import APP_VERSION
+        content = _render_openapi_yaml(str(openapi_path), APP_VERSION)
         return Response(content, mimetype='application/x-yaml')
     except Exception:
         return send_file(openapi_path, mimetype='application/x-yaml')

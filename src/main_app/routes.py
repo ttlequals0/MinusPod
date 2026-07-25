@@ -592,16 +592,8 @@ def register_routes(app):
     def health_check():
         """Health check endpoint."""
         import main_app.routes as _routes
-        try:
-            import sys
-            # Add parent directory to path for version module
-            parent_dir = str(Path(__file__).parent.parent.parent)
-            if parent_dir not in sys.path:
-                sys.path.insert(0, parent_dir)
-            from version import __version__
-            version = __version__
-        except ImportError:
-            version = 'unknown'
+        from utils.app_version import APP_VERSION
+        version = APP_VERSION
 
         feed_map = _routes.get_feed_map()
         return {'status': 'ok', 'feeds': len(feed_map), 'version': version}

@@ -366,17 +366,8 @@ def get_sponsor_service():
 
 def _get_version():
     """Get application version."""
-    try:
-        import sys
-        from pathlib import Path
-        # Add parent directory to path for version module
-        parent_dir = str(Path(__file__).parent.parent.parent)
-        if parent_dir not in sys.path:
-            sys.path.insert(0, parent_dir)
-        from version import __version__
-        return __version__
-    except ImportError:
-        return 'unknown'
+    from utils.app_version import APP_VERSION
+    return APP_VERSION
 
 
 def get_status_service():

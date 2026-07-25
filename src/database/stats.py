@@ -5,8 +5,8 @@ import threading
 from typing import Dict, List, Optional, Tuple
 
 from config import normalize_model_key
+from utils.app_version import APP_VERSION as __version__
 from utils.ttl_cache import TTLCache
-from version import __version__
 
 logger = logging.getLogger(__name__)
 

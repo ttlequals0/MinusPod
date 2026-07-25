@@ -12,9 +12,9 @@ import time
 from datetime import datetime, timezone
 
 from config import HTTP_TIMEOUT_API
+from utils.app_version import APP_VERSION as __version__
 from utils.community_tags import GITHUB_REPO
 from utils.safe_http import URLTrust, get_capped
-from version import __version__
 
 logger = logging.getLogger('update_checker')
 

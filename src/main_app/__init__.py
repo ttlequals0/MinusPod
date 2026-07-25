@@ -691,17 +691,12 @@ def _startup():
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
 
     if is_leader:
-        # Import version (version.py is in project root, not src/)
-        try:
-            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-            from version import __version__
-            # lstrip: journald-backed log drivers (podman) drop records whose
-            # first line is blank, eating the whole banner (#567 discussion).
-            logger.info("%s                     v%s  https://github.com/ttlequals0/minuspod",
-                        _BANNER.lstrip('\n'), __version__)
-            logger.info(f"MinusPod v{__version__} starting...")
-        except ImportError:
-            logger.warning("Could not import version")
+        from utils.app_version import APP_VERSION
+        # lstrip: journald-backed log drivers (podman) drop records whose
+        # first line is blank, eating the whole banner (#567 discussion).
+        logger.info("%s                     v%s  https://github.com/ttlequals0/minuspod",
+                    _BANNER.lstrip('\n'), APP_VERSION)
+        logger.info(f"MinusPod v{APP_VERSION} starting...")
 
         logger.info(f"BASE_URL: {base_url}")
 

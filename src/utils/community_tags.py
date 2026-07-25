@@ -9,6 +9,8 @@ import re
 from functools import lru_cache
 from typing import Dict, FrozenSet, List, Tuple
 
+from utils.app_version import APP_VERSION
+
 _SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'seed_data')
 
 UNIVERSAL_TAG = 'universal'
@@ -281,16 +283,12 @@ def slugify(name: str) -> str:
 
 
 def app_version() -> str:
-    """Return the running app version, or 'unknown' if version.py is not on path.
+    """Return the running app version, or 'unknown' if version.py can't be read.
 
     Shared by community_export (bundle metadata) and the manual-contributor
     scaffold tool so the submitted_app_version field is consistent.
     """
-    try:
-        from version import __version__  # type: ignore
-        return __version__
-    except Exception:
-        return 'unknown'
+    return APP_VERSION
 
 
 def expected_filename(sponsor: str, community_id: str) -> str | None:
