@@ -255,6 +255,9 @@ TABLE_DDL['processing_history'] = """CREATE TABLE IF NOT EXISTS processing_histo
     -- (downloaded duration, windows, stage hits, marker buckets, verification).
     processing_stats_json TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    -- MinusPod version that produced this run (2.78.4); NULL for rows
+    -- recorded before this release.
+    app_version TEXT,
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 )"""
 

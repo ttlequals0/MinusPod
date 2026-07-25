@@ -6,7 +6,7 @@ export interface HistoryQueryParams {
   limit?: number;
   status?: 'completed' | 'failed';
   podcastSlug?: string;
-  sortBy?: 'processed_at' | 'processing_duration_seconds' | 'ads_detected' | 'reprocess_number' | 'llm_cost';
+  sortBy?: 'processed_at' | 'processing_duration_seconds' | 'ads_detected' | 'reprocess_number' | 'llm_cost' | 'app_version';
   sortDir?: 'asc' | 'desc';
 }
 

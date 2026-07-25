@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.78.3
+  version: 2.78.4
   contact:
     name: MinusPod
   license:
@@ -8986,6 +8986,11 @@ components:
             - number
             - 'null'
           description: Duration of the downloaded copy this run processed, in seconds. Null for runs recorded before 2.53.0.
+        appVersion:
+          type:
+            - string
+            - 'null'
+          description: MinusPod version that produced this run. Null for runs recorded before 2.78.4.
 
     Sponsor:
       type: object

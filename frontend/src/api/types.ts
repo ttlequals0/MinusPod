@@ -751,6 +751,9 @@ export interface ProcessingHistoryEntry {
   // Duration of the downloaded copy this run processed; null for runs
   // recorded before 2.53.0 (#519).
   downloadedDuration?: number | null;
+  // MinusPod version that produced this run; null for runs recorded
+  // before 2.78.4.
+  appVersion?: string | null;
 }
 
 export interface ProcessingHistoryResponse {

@@ -18,7 +18,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
-type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost';
+type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
 
 // Shared shell for the clickable Completed/Failed filter cards. Background is set
 // per-state below (bg-card / bg-primary/5) so only one bg utility ever applies.
@@ -43,6 +43,7 @@ function HistoryPage() {
             sortField === 'processingDurationSeconds' ? 'processing_duration_seconds' :
             sortField === 'reprocessNumber' ? 'reprocess_number' :
             sortField === 'llmCost' ? 'llm_cost' :
+            sortField === 'appVersion' ? 'app_version' :
             'ads_detected',
     sortDir: sortDirection,
   };
@@ -285,6 +286,7 @@ function HistoryPage() {
                 <SortHeader field="adsDetected" label="Ads" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="llmCost" label="Cost" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="reprocessNumber" label="Reprocess #" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="appVersion" label="Version" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
@@ -293,7 +295,7 @@ function HistoryPage() {
             <tbody className="divide-y divide-border">
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     No processing history found
                   </td>
                 </tr>
@@ -337,6 +339,9 @@ function HistoryPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {entry.reprocessNumber > 1 ? `#${entry.reprocessNumber}` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                      {entry.appVersion || '-'}
                     </td>
                     <td className="px-4 py-3">
                       {entry.status === 'completed' ? (

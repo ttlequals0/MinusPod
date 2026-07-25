@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 from config import normalize_model_key
 from utils.ttl_cache import TTLCache
+from version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -307,13 +308,14 @@ class StatsMixin:
                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
                 processed_at, processing_duration_seconds, status, ads_detected,
                 error_message, reprocess_number, input_tokens, output_tokens, llm_cost,
-                audio_cues_detected, processing_stats_json)
-               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                audio_cues_detected, processing_stats_json, app_version)
+               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
              processing_duration_seconds, status, ads_detected, error_message,
              reprocess_number, input_tokens, output_tokens, llm_cost,
              audio_cues_detected,
-             json.dumps(processing_stats) if processing_stats else None)
+             json.dumps(processing_stats) if processing_stats else None,
+             __version__)
         )
         conn.commit()
         # Logger errors must not propagate: callers (e.g. _record_history_and_event)
@@ -439,7 +441,8 @@ class StatsMixin:
         # Validate sort column
         valid_sort_cols = ['processed_at', 'podcast_title', 'episode_title',
                           'processing_duration_seconds', 'ads_detected',
-                          'reprocess_number', 'status', 'llm_cost']
+                          'reprocess_number', 'status', 'llm_cost',
+                          'app_version']
         if sort_by not in valid_sort_cols:
             sort_by = 'processed_at'
         sort_dir = 'DESC' if sort_dir.lower() == 'desc' else 'ASC'

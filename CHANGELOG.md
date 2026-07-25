@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.4] - 2026-07-25
+
+### Added
+
+- The processing history table shows which MinusPod version processed
+  each run, so a run's results can be tied to the code that produced it.
+  Rows recorded before this release show a dash.
+
 ## [2.78.3] - 2026-07-25
 
 ### Fixed

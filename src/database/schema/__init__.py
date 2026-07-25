@@ -1110,6 +1110,8 @@ class SchemaMixin:
             ('audio_cues_detected', 'INTEGER DEFAULT 0'),
             # Per-run pipeline stats (#519)
             ('processing_stats_json', 'TEXT'),
+            # MinusPod version that produced this run (2.78.4)
+            ('app_version', 'TEXT'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 

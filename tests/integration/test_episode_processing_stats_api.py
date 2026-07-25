@@ -165,3 +165,31 @@ def test_history_rows_carry_downloaded_duration(app_client, seeded):
     durations = {e['reprocessNumber']: e['downloadedDuration'] for e in entries}
     assert durations[1] == 3305.7
     assert durations[2] is None
+
+
+def test_history_rows_carry_app_version(app_client, seeded):
+    from version import __version__
+
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='ver123def456', episode_title='One', status='completed',
+        ads_detected=1)
+    conn = db.get_connection()
+    conn.execute(
+        "UPDATE processing_history SET app_version = NULL WHERE episode_id = ?",
+        ('ver123def456',),
+    )
+    conn.commit()
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='ver123def456', episode_title='One', status='completed',
+        ads_detected=2)
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/history?podcast_slug={slug}')
+    assert resp.status_code == 200
+    entries = resp.get_json()['history']
+    versions = {e['reprocessNumber']: e['appVersion'] for e in entries}
+    assert versions[1] is None
+    assert versions[2] == __version__
