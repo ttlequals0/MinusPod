@@ -1,8 +1,11 @@
 """Tests for T5: held-for-review API bucket split and pending_review_count.
 
 Covers:
-- get_episode three-way marker split (held FIRST, then reject, then accepted)
+- get_episode four-way marker split (held FIRST, then kept, then reject,
+  then accepted)
 - Regression: held marker must NOT appear in rejectedAdMarkers
+- Kept-action markers (action_applied='keep') land in keptMarkers, not
+  rejectedAdMarkers (2.78.3)
 - save_combined_ads writes pending_review_count at the choke point
 - clear_episode_details zeros pending_review_count
 - clear_episode_ad_data zeros pending_review_count
@@ -66,7 +69,7 @@ def _seed(slug):
     return eid
 
 
-def _marker(decision, was_cut, held=False, hold_reason=None):
+def _marker(decision, was_cut, held=False, hold_reason=None, action_applied=None):
     m = {
         'start': 10.0,
         'end': 40.0,
@@ -77,11 +80,13 @@ def _marker(decision, was_cut, held=False, hold_reason=None):
         m['held_for_review'] = True
         if hold_reason:
             m['hold_reason'] = hold_reason
+    if action_applied:
+        m['action_applied'] = action_applied
     return m
 
 
 # ---------------------------------------------------------------------------
-# Three-way marker split via get_episode
+# Four-way marker split via get_episode
 # ---------------------------------------------------------------------------
 
 def _split_markers(slug, episode_id, markers):
@@ -92,47 +97,53 @@ def _split_markers(slug, episode_id, markers):
     ad_markers = []
     rejected_ad_markers = []
     pending_review_markers = []
+    kept_markers = []
     for marker in all_markers:
         decision = marker.get('validation', {}).get('decision', 'ACCEPT')
         was_cut = marker.get('was_cut', True)
         held = marker.get('held_for_review', False)
         if held and not was_cut:
             pending_review_markers.append(marker)
+        elif marker.get('action_applied') == 'keep':
+            kept_markers.append(marker)
         elif decision == 'REJECT' or not was_cut:
             rejected_ad_markers.append(marker)
         else:
             ad_markers.append(marker)
-    return ad_markers, rejected_ad_markers, pending_review_markers
+    return ad_markers, rejected_ad_markers, pending_review_markers, kept_markers
 
 
 def test_normal_cut_goes_to_ad_markers():
     slug = 'split-normal'
     eid = _seed(slug)
     markers = [_marker('ACCEPT', was_cut=True)]
-    ad, rej, pend = _split_markers(slug, eid, markers)
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
     assert len(ad) == 1
     assert len(rej) == 0
     assert len(pend) == 0
+    assert len(kept) == 0
 
 
 def test_reject_decision_goes_to_rejected():
     slug = 'split-reject'
     eid = _seed(slug)
     markers = [_marker('REJECT', was_cut=False)]
-    ad, rej, pend = _split_markers(slug, eid, markers)
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
     assert len(ad) == 0
     assert len(rej) == 1
     assert len(pend) == 0
+    assert len(kept) == 0
 
 
 def test_held_marker_goes_to_pending_only():
     slug = 'split-held'
     eid = _seed(slug)
     markers = [_marker('REVIEW', was_cut=False, held=True, hold_reason='max_duration')]
-    ad, rej, pend = _split_markers(slug, eid, markers)
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
     assert len(pend) == 1
     assert len(rej) == 0, "regression: held marker must NOT land in rejectedAdMarkers"
     assert len(ad) == 0
+    assert len(kept) == 0
 
 
 def test_held_marker_absent_from_rejected_regression():
@@ -144,10 +155,11 @@ def test_held_marker_absent_from_rejected_regression():
         _marker('REJECT', was_cut=False),
         _marker('ACCEPT', was_cut=True),
     ]
-    ad, rej, pend = _split_markers(slug, eid, markers)
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
     assert len(pend) == 1
     assert len(rej) == 1
     assert len(ad) == 1
+    assert len(kept) == 0
     # held marker must not appear in rejected
     for m in rej:
         assert not m.get('held_for_review'), "held marker leaked into rejectedAdMarkers"
@@ -162,10 +174,70 @@ def test_mixed_markers_split_correctly():
         _marker('REVIEW', was_cut=False, held=True, hold_reason='max_duration'),  # -> pendingReview
         _marker('REVIEW', was_cut=False, held=True, hold_reason='no_cue_evidence'),  # -> pendingReview
     ]
-    ad, rej, pend = _split_markers(slug, eid, markers)
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
     assert len(ad) == 1
     assert len(rej) == 1
     assert len(pend) == 2
+    assert len(kept) == 0
+
+
+# ---------------------------------------------------------------------------
+# Kept-action markers (2.78.3): action_applied='keep' lands in keptMarkers
+# ---------------------------------------------------------------------------
+
+def test_keep_action_marker_goes_to_kept_not_rejected():
+    """A deliberately kept segment (was_cut=False, action_applied='keep')
+    must land in keptMarkers, not rejectedAdMarkers."""
+    slug = 'split-keep'
+    eid = _seed(slug)
+    markers = [_marker('ACCEPT', was_cut=False, action_applied='keep')]
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
+    assert len(kept) == 1
+    assert len(rej) == 0, "regression: kept marker must NOT land in rejectedAdMarkers"
+    assert len(ad) == 0
+    assert len(pend) == 0
+
+
+def test_not_cut_without_keep_still_goes_to_rejected():
+    """A was_cut=False marker without a keep action is a rejected
+    detection, not a kept segment; the keptMarkers bucket must not
+    swallow it."""
+    slug = 'split-not-cut-no-keep'
+    eid = _seed(slug)
+    markers = [_marker('REJECT', was_cut=False)]
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
+    assert len(rej) == 1
+    assert len(kept) == 0
+
+
+def test_held_marker_with_keep_action_still_goes_to_pending():
+    """Defensive: a held marker that somehow also carries
+    action_applied='keep' must stay in pendingReview, never kept."""
+    slug = 'split-held-keep'
+    eid = _seed(slug)
+    markers = [_marker('REVIEW', was_cut=False, held=True,
+                       hold_reason='max_duration', action_applied='keep')]
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
+    assert len(pend) == 1
+    assert len(kept) == 0
+    assert len(rej) == 0
+    assert len(ad) == 0
+
+
+def test_mixed_markers_with_kept_split_correctly():
+    slug = 'split-mixed-kept'
+    eid = _seed(slug)
+    markers = [
+        _marker('ACCEPT', was_cut=True),                              # -> adMarkers
+        _marker('REJECT', was_cut=False),                             # -> rejectedAdMarkers
+        _marker('ACCEPT', was_cut=False, action_applied='keep'),      # -> keptMarkers
+        _marker('REVIEW', was_cut=False, held=True, hold_reason='max_duration'),  # -> pendingReview
+    ]
+    ad, rej, pend, kept = _split_markers(slug, eid, markers)
+    assert len(ad) == 1
+    assert len(rej) == 1
+    assert len(kept) == 1
+    assert len(pend) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -810,6 +810,46 @@ describe('Segment category chips (#565)', () => {
   });
 });
 
+describe('Kept segments section (2.78.3)', () => {
+  it('renders a row with the category and Kept badge when keptMarkers is populated', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      keptMarkers: [{ start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' }],
+    }));
+    expect(await screen.findByTestId('kept-segments-section')).not.toBeNull();
+    expect(screen.getByText('Kept segments')).not.toBeNull();
+    expect(screen.getByText('Intro')).not.toBeNull();
+    expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('renders nothing when keptMarkers is empty', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], keptMarkers: [] }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).not.toBeNull();
+    });
+    expect(screen.queryByTestId('kept-segments-section')).toBeNull();
+    expect(screen.queryByText('Kept segments')).toBeNull();
+  });
+
+  it('renders nothing when keptMarkers is absent', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], keptMarkers: undefined }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).not.toBeNull();
+    });
+    expect(screen.queryByTestId('kept-segments-section')).toBeNull();
+  });
+
+  it('does not also render kept segments under Detections Not Cut', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      keptMarkers: [{ start: 1562.5, end: 1600.0, confidence: 0.9, category: 'self_promo', actionApplied: 'keep' }],
+      rejectedAdMarkers: [],
+    }));
+    expect(await screen.findByTestId('kept-segments-section')).not.toBeNull();
+    expect(screen.queryByText(/Detections Not Cut/)).toBeNull();
+  });
+});
+
 describe('Correction submit error toast (#565)', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();

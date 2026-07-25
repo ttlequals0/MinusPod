@@ -1137,6 +1137,30 @@ function EpisodeDetail() {
         </div>
       )}
 
+      {episode.keptMarkers && episode.keptMarkers.length > 0 && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6" data-testid="kept-segments-section">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
+            Kept segments
+          </h2>
+          <div className="space-y-3">
+            {episode.keptMarkers.map((segment, index) => (
+              <div
+                key={index}
+                className="p-3 bg-secondary/50 rounded-lg"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-sm">
+                    {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                  </span>
+                  {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                  <KeptBadge />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
         <div className="mb-6">
           <CollapsibleSection

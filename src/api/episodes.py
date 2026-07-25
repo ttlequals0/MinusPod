@@ -331,13 +331,19 @@ def get_episode(slug, episode_id):
     feed_auth_key = get_feed_auth_key(db)
     key_suffix = f"?key={feed_auth_key}" if feed_auth_key else ""
 
-    # Parse ad markers if present, separating into three buckets:
+    # Parse ad markers if present, separating into four buckets:
     #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
-    #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held)
+    #   keptMarkers:          action_applied == 'keep' (and not held) -- a
+    #                         deliberate per-category keep, not a rejected
+    #                         detection. Checked defensively: a keep resolution
+    #                         clears holds upstream, so this and the held check
+    #                         above should never both be true for one marker.
+    #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held/kept)
     #   adMarkers:            everything else (accepted cuts)
     ad_markers = []
     rejected_ad_markers = []
     pending_review_markers = []
+    kept_markers = []
     if episode.get('ad_markers_json'):
         try:
             all_markers = json.loads(episode['ad_markers_json'])
@@ -348,6 +354,8 @@ def get_episode(slug, episode_id):
                 marker['actionApplied'] = marker.get('action_applied')
                 if is_pending_review(marker):
                     pending_review_markers.append(marker)
+                elif marker.get('action_applied') == 'keep':
+                    kept_markers.append(marker)
                 elif decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)
                 else:
@@ -404,6 +412,7 @@ def get_episode(slug, episode_id):
         'adMarkers': ad_markers,
         'rejectedAdMarkers': rejected_ad_markers,
         'pendingReviewMarkers': pending_review_markers,
+        'keptMarkers': kept_markers,
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),

@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.3] - 2026-07-25
+
+### Fixed
+
+- Kept segments now appear in their own Kept segments section on the
+  episode page. They were being listed as rejected detections, which read
+  as though the keep setting had failed.
+
 ## [2.78.2] - 2026-07-25
 
 ### Fixed

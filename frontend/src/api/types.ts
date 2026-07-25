@@ -157,6 +157,10 @@ export interface EpisodeDetail extends Episode {
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
   pendingReviewMarkers?: AdSegment[];
+  // Segments deliberately left in the audio by a per-category keep action
+  // (action_applied='keep'). Distinct from rejectedAdMarkers: a deliberate
+  // configuration outcome, not a rejected detection.
+  keptMarkers?: AdSegment[];
   corrections?: EpisodeCorrection[];
   cueDetections?: CueDetection[];
   originalDuration?: number;
