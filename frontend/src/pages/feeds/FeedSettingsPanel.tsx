@@ -560,7 +560,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 value={feed.detectionMode || 'blacklist'}
                 onChange={(e) => updateMutation.mutate({ detectionMode: e.target.value })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 max-w-xl disabled:opacity-50"
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
               >
                 <option value="blacklist">Remove ads (default)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
@@ -603,7 +603,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 value={feed.chaptersMode || 'auto'}
                 onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value as 'auto' | 'generate' | 'off' })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 max-w-xl disabled:opacity-50"
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
                 aria-label="Chapters"
               >
                 <option value="auto">Auto</option>

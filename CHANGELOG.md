@@ -13,6 +13,11 @@ release notes.
 
 ### Fixed
 
+- The Detection and Chapters dropdowns on the feed settings page size to
+  their content like the dropdowns above and below them. They sat in a
+  column layout that stretched them to the panel width, and the earlier
+  attempt only capped that stretch instead of stopping it.
+
 - Anthropic responses that begin with a thinking block no longer fail to
   parse. The reader took the first content block and asked for its text;
   with extended thinking that block has none, so verification windows and
