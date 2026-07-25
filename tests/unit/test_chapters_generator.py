@@ -1,4 +1,5 @@
 """Tests for chapters_generator topic-boundary prompt construction."""
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -58,6 +59,18 @@ def _make_generator_with_stub(canned_text: str = '') -> tuple:
     stub = _RecordingClient(canned_text=canned_text)
     gen._llm_client = stub
     return gen, stub
+
+
+def _long_episode_segments(duration: int = 7200) -> list:
+    """Segments for an episode long enough (> MIN_DURATION_FOR_AI) and with
+    enough transcript text (> 500 chars) to trigger topic-boundary
+    detection."""
+    return [
+        {'start': i, 'end': i + 10,
+         'text': f'segment {i} with enough words to exceed the five '
+                 'hundred char transcript gate a b c d e f g'}
+        for i in range(0, duration, 10)
+    ]
 
 
 class TestDetectTopicBoundariesPromptSize:
@@ -497,16 +510,8 @@ class TestSharedLLMCallPath:
         client = _FailingClient(RuntimeError('temperature rejected'))
         gen._llm_client = client
 
-        # Long episode (> MIN_DURATION_FOR_AI) with enough transcript text to
-        # trigger topic-boundary detection.
-        duration = 7200
-        segments = [
-            {'start': i, 'end': i + 10,
-             'text': f'segment {i} with enough words to exceed the five hundred char gate a b c d e f g'}
-            for i in range(0, duration, 10)
-        ]
+        segments = _long_episode_segments()
 
-        import logging
         with patch('utils.llm_call.is_retryable_error', return_value=False), \
              caplog.at_level(logging.WARNING, logger='chapters_generator'):
             out = gen.generate_chapters(
@@ -524,6 +529,93 @@ class TestSharedLLMCallPath:
             'chapters degraded to a single chapter' in rec.message
             for rec in caplog.records
         )
+
+
+class _SplitTextClient:
+    """Stub client returning unparseable prose for topic-detection prompts
+    and a real title otherwise -- isolates the topic-detection gap from
+    title-generation failure."""
+
+    def messages_create(self, **kwargs):
+        prompt = kwargs['messages'][0]['content']
+        if 'major topic changes' in prompt:
+            text = "Nothing here resembles a clean topic transition."
+        else:
+            text = "Introduction"
+        return _StubResponse(content=text)
+
+
+class TestEmptyTopicDetectionDegradation:
+    """A response that succeeds at the API level but yields zero parsed
+    boundaries (e.g. empty content, or nothing matching the timestamp
+    pattern) must be treated the same as a failed detection call on a long
+    episode -- silently returning a single whole-episode chapter with no
+    degraded flag hides the failure from operators (matches the live
+    incident: 87-minute episode, 'Generated 1 chapters', no warning)."""
+
+    def test_empty_result_on_long_episode_flags_degraded(self, caplog):
+        """response is non-None and non-empty (so call_llm's own
+        EmptyCompletionError retry path never kicks in) but nothing in it
+        matches the MM:SS topic-line pattern, e.g. because extended-thinking
+        output drifted from the requested format. _detect_topic_boundaries
+        returns [] with no exception; that must still degrade the run."""
+        gen = ChaptersGenerator(api_key='test')
+        gen._llm_client = _SplitTextClient()
+
+        with caplog.at_level(logging.WARNING, logger='chapters_generator'):
+            out = gen.generate_chapters(
+                segments=_long_episode_segments(duration=5400),
+                podcast_name='Show',
+                episode_title='Ep',
+                episode_id='ep-empty-topics',
+            )
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Introduction'}]
+        assert gen.chapters_degraded is True
+        assert gen.chapters_degradation_reason
+        assert any(
+            'chapters degraded to a single chapter' in rec.message
+            for rec in caplog.records
+        )
+
+    def test_raising_topic_detection_still_flags_degraded(self, monkeypatch):
+        """Existing exception-path behavior must be unchanged."""
+        gen = ChaptersGenerator(api_key='test')
+        gen._llm_client = object()
+        monkeypatch.setattr(
+            gen, '_detect_topic_boundaries',
+            lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('boom')),
+        )
+
+        out = gen.generate_chapters(
+            segments=_long_episode_segments(duration=5400),
+            podcast_name='Show',
+            episode_title='Ep',
+            episode_id='ep-raising',
+        )
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Introduction'}]
+        assert gen.chapters_degraded is True
+        assert 'topic detection failed' in gen.chapters_degradation_reason
+
+    def test_short_episode_single_chapter_not_flagged(self):
+        """A genuinely short episode never reaches AI topic detection
+        (MIN_DURATION_FOR_AI gate); ending up with one chapter there is
+        normal, not degradation."""
+        gen, stub = _make_generator_with_stub(canned_text='Intro Title')
+        segments = [{'start': 0, 'end': 300, 'text': 'short episode'}]
+
+        out = gen.generate_chapters(
+            segments=segments,
+            podcast_name='Show',
+            episode_title='Ep',
+            episode_id='ep-short',
+        )
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Intro Title'}]
+        assert gen.chapters_degraded is False
+        # AI topic detection is never invoked below MIN_DURATION_FOR_AI.
+        assert stub.topic_prompt == ''
 
     def test_chapter_calls_do_not_force_json_response_format(self):
         # Chapter prompts expect line-based text; the JSON-object response

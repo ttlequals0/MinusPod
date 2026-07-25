@@ -587,6 +587,21 @@ Transcript:
                             episode_description=episode_description,
                         )
 
+                        # A response that came back without error but parsed
+                        # to zero boundaries is just as much a failure as an
+                        # exception here: we already know the episode is long
+                        # enough (> MIN_DURATION_FOR_AI) and the transcript
+                        # substantial enough to have asked the LLM for
+                        # num_splits boundaries in the first place, so a
+                        # silent empty result must not look like a normal
+                        # short episode (matches the live incident: 87-minute
+                        # episode, single chapter, no degraded warning). The
+                        # degraded-to-a-single-chapter warning below already
+                        # fires once this flag is set, since an empty
+                        # new_chapters here always leaves output_chapters at 1.
+                        if not new_chapters and not self._topic_detection_failed:
+                            self._topic_detection_failed = True
+
                         for ch in new_chapters:
                             chapters.append({
                                 'startTime': ch['original_time'],
