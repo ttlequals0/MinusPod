@@ -97,6 +97,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Second scan** - See Verification pass.
 
 **Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep) per feed or globally. [How It Works > Segment Categories](how-it-works.md#segment-categories)
+  - Sponsor - Paid ads, including dynamically inserted ones
+  - Cross-promo - Promos for other shows and the network
+  - Self-promo - The show's own Patreon, merch, and subscribe asks
+  - Interaction - Follow, rate, and review reminders
+  - Intro - Opening theme and welcome
+  - Outro - Closing credits and sign-off
+  - Recap - Previews and coming-up bumpers
 
 **Silence snap** - Nudging a cut boundary to the nearest silence so the edit lands between words instead of inside one. [Audio Cues > Silence snap](audio-cues.md#silence-snap)
 

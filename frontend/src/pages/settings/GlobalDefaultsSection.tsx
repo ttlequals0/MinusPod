@@ -3,7 +3,7 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
 import {
-  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, DEFAULT_SEGMENT_ACTION,
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, SEGMENT_CATEGORY_DESCRIPTIONS, DEFAULT_SEGMENT_ACTION,
   type SegmentCategory, type SegmentAction,
 } from '../../utils/segmentCategory';
 
@@ -153,7 +153,10 @@ function GlobalDefaultsSection({
               <div className="space-y-2">
                 {SEGMENT_CATEGORIES.map((category) => (
                   <div key={category} className="flex items-center justify-between gap-3 flex-wrap">
-                    <span className="text-sm text-foreground">{SEGMENT_CATEGORY_LABELS[category]}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm text-foreground block">{SEGMENT_CATEGORY_LABELS[category]}</span>
+                      <span className="text-xs text-muted-foreground block">{SEGMENT_CATEGORY_DESCRIPTIONS[category]}</span>
+                    </div>
                     <SegmentActionToggle
                       value={segmentCategoryActions[category] ?? DEFAULT_SEGMENT_ACTION}
                       onChange={(action) => onSegmentCategoryActionChange(category, action)}

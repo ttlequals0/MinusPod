@@ -26,6 +26,16 @@ export const SEGMENT_CATEGORY_LABELS: Record<SegmentCategory, string> = {
   recap: 'Recap',
 };
 
+export const SEGMENT_CATEGORY_DESCRIPTIONS: Record<SegmentCategory, string> = {
+  sponsor: 'Paid ads, including dynamically inserted ones',
+  cross_promo: 'Promos for other shows and the network',
+  self_promo: "The show's own Patreon, merch, and subscribe asks",
+  interaction: 'Follow, rate, and review reminders',
+  intro: 'Opening theme and welcome',
+  outro: 'Closing credits and sign-off',
+  recap: 'Previews and coming-up bumpers',
+};
+
 export type SegmentAction = 'remove' | 'beep' | 'keep';
 
 export const SEGMENT_ACTIONS: SegmentAction[] = ['remove', 'beep', 'keep'];

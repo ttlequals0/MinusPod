@@ -11,7 +11,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
 import {
-  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, DEFAULT_SEGMENT_ACTION,
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, SEGMENT_CATEGORY_DESCRIPTIONS, DEFAULT_SEGMENT_ACTION,
   type SegmentCategory, type SegmentAction,
 } from '../../utils/segmentCategory';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
@@ -524,7 +524,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  The original feed MinusPod pulls episodes from -- not the URL you subscribe to.
+                  The original feed MinusPod pulls episodes from. Not the URL you subscribe to.
                 </p>
               </div>
             )}
@@ -560,7 +560,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 value={feed.detectionMode || 'blacklist'}
                 onChange={(e) => updateMutation.mutate({ detectionMode: e.target.value })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 max-w-xl disabled:opacity-50"
               >
                 <option value="blacklist">Remove ads (default)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
@@ -577,8 +577,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 ? feed.processingMode === 'standard'
                 : feed.skipAdDetection !== true && feed.detectionMode !== 'keep_content') && (
                 <p className="text-xs text-muted-foreground">
-                  Keep content only asks the model to mark what is show content and
-                  removes the rest. Episodes fall back to normal ad removal when the
+                  Keep content mode asks the model to mark the show&apos;s content and
+                  removes everything else. Falls back to normal ad removal if the
                   labeling fails safety checks.
                 </p>
               )}
@@ -603,7 +603,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 value={feed.chaptersMode || 'auto'}
                 onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value as 'auto' | 'generate' | 'off' })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 max-w-xl disabled:opacity-50"
                 aria-label="Chapters"
               >
                 <option value="auto">Auto</option>
@@ -611,11 +611,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="off">Off</option>
               </select>
               <p className="text-xs text-muted-foreground">
-                Auto keeps the podcast&apos;s own chapters, with timestamps shifted to
-                match the ad-free audio, and falls back to generated chapters when an
-                episode has too few of its own. Always generate replaces the
-                podcast&apos;s chapters with generated ones. Off leaves chapters
-                untouched.
+                Auto keeps the podcast&apos;s own chapters with timestamps shifted to
+                the ad-free audio, and generates chapters when an episode has too
+                few. Always generate replaces them; Off leaves them untouched.
               </p>
             </div>
           </div>
@@ -698,7 +696,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   const effective = override ?? globalValue;
                   return (
                     <div key={category} className="flex items-center justify-between gap-3 flex-wrap text-sm">
-                      <span className="text-muted-foreground w-28 shrink-0">{SEGMENT_CATEGORY_LABELS[category]}</span>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground block">{SEGMENT_CATEGORY_LABELS[category]}</span>
+                        <span className="text-xs text-muted-foreground/70 block">{SEGMENT_CATEGORY_DESCRIPTIONS[category]}</span>
+                      </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <SegmentActionToggle
                           value={effective}
@@ -742,7 +743,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     <span>Detect intro, outro, and housekeeping segments</span>
                   </label>
                   <p className="text-xs text-muted-foreground">
-                    Also flag show intros, outros and credits, and housekeeping like episode previews. Boundaries on music-heavy segments are approximate. Off by default while this is new.
+                    Also detect the show&apos;s intro, outro and credits, and preview bumpers. Expect rough edges where music dominates the audio.
                   </p>
                 </div>
               </div>

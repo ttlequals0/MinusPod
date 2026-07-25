@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.1] - 2026-07-24
+
+### Changed
+
+- Feed settings panel: the Detection and Chapters selects no longer stretch
+  to the panel's full width, each segment-category row in the actions
+  matrix (feed and global) now shows a muted one-line description of what
+  the category covers, and the show-segments, source feed, detection mode,
+  and chapters helper text is clearer.
+
 ## [2.78.0] - 2026-07-24
 
 ### Added
