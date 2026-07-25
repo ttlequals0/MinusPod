@@ -1,5 +1,6 @@
 import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
+import type { SegmentCategory } from '../utils/segmentCategory';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
 // and backend can't drift on the source-discriminator string spellings.
@@ -46,6 +47,9 @@ export interface AdPattern {
   version?: number;
   submitted_app_version?: string | null;
   protected_from_sync?: number;
+  // What kind of content this pattern matches (issue #565); a NULL/legacy
+  // row normalizes to 'sponsor' server-side, so this is always present.
+  category?: SegmentCategory;
 }
 
 export interface PatternCorrection {
@@ -181,6 +185,7 @@ export interface MergeSuggestionMember {
   text_template: string;
   confirmation_count: number;
   false_positive_count: number;
+  category?: SegmentCategory;
 }
 
 export interface MergeSuggestion {

@@ -3575,6 +3575,15 @@ paths:
                     enum: [remove, beep, keep]
                   description: Partial global segment-category action map (issue #565). Merged over the stored global map; a category omitted here keeps its current global action. Every category defaults to remove, so an install upgrades with byte-identical behavior until an action is changed.
                   example: {sponsor: remove, cross_promo: keep, self_promo: beep}
+                communitySyncCategories:
+                  type: array
+                  items:
+                    type: string
+                    enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+                  description: |
+                    Segment categories accepted from community pattern sync. Default is
+                    every category, so an install upgrades with unchanged sync behavior
+                    until a category is unchecked. Replaces the stored list outright.
                 artworkWatermarkEnabled:
                   type: boolean
                   description: When true, the served feed's channel cover art gets a MinusPod badge overlaid so the filtered feed is distinct in a podcast app (issue #420). Off by default.
@@ -5517,6 +5526,15 @@ paths:
               properties:
                 enabled: { type: boolean }
                 cron: { type: string }
+                categories:
+                  type: array
+                  items:
+                    type: string
+                    enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+                  description: |
+                    Segment categories to accept from community sync. Unchecking a
+                    category deactivates (not deletes) its already-synced community
+                    patterns; re-checking it reactivates them on the next sync.
       responses:
         '200':
           description: Updated settings
@@ -7080,6 +7098,20 @@ components:
           type: string
           nullable: true
           description: JSON-encoded summary of the last sync (counts + manifest version)
+        categories:
+          type: array
+          items:
+            type: string
+            enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+          description: |
+            Segment categories this install accepts from community sync
+            (community_sync_categories setting). Default is every category, so
+            an upgrade with this never configured syncs exactly as before.
+        categoryBreakdown:
+          type: object
+          description: Count of currently-active (synced) community patterns per category.
+          additionalProperties:
+            type: integer
 
     CommunitySyncSummary:
       type: object
@@ -7089,6 +7121,11 @@ components:
         deleted:  { type: integer }
         skipped:  { type: integer }
         errors:   { type: integer }
+        filtered:
+          type: integer
+          description: >-
+            Entries not inserted/updated because their category is not in
+            community_sync_categories.
         manifest_version: { type: string }
         fetched_at: { type: string }
 
@@ -8495,6 +8532,20 @@ components:
                 enum: [remove, beep, keep]
             isDefault:
               type: boolean
+        communitySyncCategories:
+          type: object
+          description: |
+            Segment categories accepted from community pattern sync (issue #565
+            follow-up). Default is every category, so an upgrade with this never
+            configured syncs exactly as before.
+          properties:
+            value:
+              type: array
+              items:
+                type: string
+                enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+            isDefault:
+              type: boolean
         artworkWatermarkEnabled:
           type: object
           properties:
@@ -8690,6 +8741,11 @@ components:
               additionalProperties:
                 type: string
                 enum: [remove, beep, keep]
+            communitySyncCategories:
+              type: array
+              items:
+                type: string
+                enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
             artworkWatermarkEnabled:
               type: boolean
             feedAuthEnabled:
@@ -8867,6 +8923,15 @@ components:
         updated_at:
           type: string
           format: date-time
+        category:
+          type: string
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
+          description: |
+            What kind of content this pattern matches (issue #565). A NULL/legacy
+            row normalizes to 'sponsor' when read, so this is always present.
+            Community-shared patterns carry their category through sync; a
+            per-install community_sync_categories setting controls which
+            categories are accepted from community sync.
 
     Network:
       type: object

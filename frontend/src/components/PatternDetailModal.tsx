@@ -4,6 +4,7 @@ import { AdPattern, updatePattern, deletePattern, splitPattern } from '../api/pa
 import { getSponsors, addSponsor } from '../api/sponsors';
 import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
+import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 
@@ -106,6 +107,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             Pattern #{pattern.id}
           </h2>
           <ScopeBadge pattern={pattern} />
+          {pattern.category && <SegmentCategoryBadge category={pattern.category} />}
         </div>
         <button
           onClick={onClose}

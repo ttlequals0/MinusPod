@@ -11,6 +11,8 @@ Settings keys (in the `settings` table):
   - community_sync_cron    (str cron expression, default '0 3 * * 0')
   - community_sync_last_run, community_sync_last_error,
     community_sync_manifest_version, community_sync_last_summary
+  - community_sync_categories (JSON list of accepted segment categories,
+    default every category; see config.resolve_community_sync_categories)
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from config import normalize_segment_category, resolve_community_sync_categories
 from utils.community_tags import (
     COMMUNITY_MANIFEST_URL,
     COMMUNITY_PATTERN_BASE_URL,
@@ -128,11 +131,24 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
 
     Reconcile: a community_id missing from the manifest is deleted unless
     protected_from_sync=1 or the anti-mass-delete guard trips.
+
+    Category filter: entries whose category is not in the accepted set
+    (community_sync_categories setting, default every category) are never
+    inserted or updated, and counted in the returned `filtered` count. An
+    existing row whose *stored* category falls outside the accepted set is
+    deactivated (is_active=0, disabled_reason='category_filtered') rather
+    than deleted, so re-enabling the category on a later sync reactivates
+    it. Only rows with a community_id (i.e. source='community') are ever
+    touched by this filter; local/imported patterns carry no community_id
+    and never appear in `existing_by_cid`.
     """
     from pattern_service import PatternService
 
     pattern_service = PatternService(db)
-    inserts = updates = deletes = skips = errors = 0
+    inserts = updates = deletes = skips = errors = filtered = 0
+
+    accepted_categories = set(resolve_community_sync_categories(
+        db.get_setting('community_sync_categories')))
 
     # Pre-collect manifest community_ids so we can batch the existence lookup
     # instead of running one SELECT per entry.
@@ -158,8 +174,34 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     for community_id, data, content_hash, path, manifest_version in valid_entries:
         existing = existing_by_cid.get(community_id)
         try:
+            # Category gate for a row that already exists: decided from the
+            # row's own stored category (already normalized), never from the
+            # incoming manifest entry, so a hash-unchanged row is still
+            # correctly (de)activated without needing to fetch its body.
+            if existing is not None:
+                existing_category = normalize_segment_category(existing.get('category'))
+                if existing_category not in accepted_categories:
+                    filtered += 1
+                    if existing.get('is_active'):
+                        db.update_ad_pattern(
+                            existing['id'], is_active=0,
+                            disabled_reason='category_filtered',
+                            disabled_at=utc_now_iso(),
+                        )
+                    continue
+                if (not existing.get('is_active')
+                        and existing.get('disabled_reason') == 'category_filtered'):
+                    db.update_ad_pattern(
+                        existing['id'], is_active=1,
+                        disabled_reason=None, disabled_at=None,
+                    )
+
             if data is not None:
                 # v1 inline: apply the embedded body with the version gate.
+                category = normalize_segment_category(data.get('category'))
+                if existing is None and category not in accepted_categories:
+                    filtered += 1
+                    continue
                 data_with_version = dict(data)
                 data_with_version['community_id'] = community_id
                 data_with_version['version'] = manifest_version
@@ -185,6 +227,10 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
                     continue
 
             fetched = _fetch_pattern_file(path)
+            fetched_category = normalize_segment_category(fetched.get('category'))
+            if existing is None and fetched_category not in accepted_categories:
+                filtered += 1
+                continue
             fetched['community_id'] = community_id
             fetched['version'] = manifest_version
             # Store the index's content_hash on the row; the equivalence test
@@ -252,6 +298,7 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
         'deleted': deletes,
         'skipped': skips,
         'errors': errors,
+        'filtered': filtered,
     }
 
 

@@ -14,7 +14,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION
+from config import (
+    SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION,
+    DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
+)
 from database import Database
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
@@ -49,6 +52,7 @@ SEED_SNAPSHOT = {
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
     'chapters_model': 'claude-haiku-4-5-20251001',
+    'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
     'enable_ad_review': 'false',
@@ -147,6 +151,7 @@ NON_RESETTABLE_KEYS = (
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
     'rss_refresh_interval_minutes', 'segment_category_actions',
+    'community_sync_categories',
     'system_prompt_override', 'verification_prompt_override',
     'review_prompt_override', 'resurrect_prompt_override',
     'transition_threshold_db', 'volume_threshold_db',
@@ -334,6 +339,7 @@ class TestGetDefaults:
             'artworkWatermarkEnabled': False,
             'positionalPriorEnabled': False,
             'segmentCategoryActions': {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES},
+            'communitySyncCategories': list(SEGMENT_CATEGORIES),
         }
         payload = {
             spec.payload_key: registry_get_default(key)
@@ -354,11 +360,12 @@ class TestGetDefaults:
         # (73 -> 74). podpingEnabled added after that (74 -> 75).
         # segmentCategoryActions added after that (75 -> 76).
         # omitTemperature added after that (76 -> 77).
+        # communitySyncCategories added after that (77 -> 78).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 77
+        assert len(payload_keys) == 78
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

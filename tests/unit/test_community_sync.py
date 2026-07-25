@@ -19,19 +19,23 @@ def db(tmp_path):
     Database._instance = None  # type: ignore[attr-defined]
 
 
-def _pattern_entry(cid, version=1, sponsor='Squarespace', text='community version '):
+def _pattern_entry(cid, version=1, sponsor='Squarespace', text='community version ',
+                    category=None):
+    data = {
+        'community_id': cid,
+        'version': version,
+        'scope': 'global',
+        'sponsor': sponsor,
+        'text_template': f'{text} for {sponsor} dot com slash show promo SHOW save ten percent today extra body',
+        'intro_variants': [],
+        'outro_variants': [],
+    }
+    if category is not None:
+        data['category'] = category
     return {
         'community_id': cid,
         'version': version,
-        'data': {
-            'community_id': cid,
-            'version': version,
-            'scope': 'global',
-            'sponsor': sponsor,
-            'text_template': f'{text} for {sponsor} dot com slash show promo SHOW save ten percent today extra body',
-            'intro_variants': [],
-            'outro_variants': [],
-        },
+        'data': data,
     }
 
 
@@ -135,3 +139,125 @@ def test_fetch_manifest_accepts_body_over_old_cap(monkeypatch):
     result = community_sync._fetch_manifest('https://example.com/index.json')
     assert result['manifest_version'] == 1
     assert len(result['patterns']) == 1
+
+
+# ========== community_sync_categories filtering ==========
+
+class TestCommunitySyncCategoryFilter:
+
+    def test_default_settings_accept_all_categories_no_filtering(self, db):
+        """Upgrade no-op: an unset community_sync_categories setting imports
+        exactly as before the setting existed."""
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [
+                _pattern_entry('c-1', category='cross_promo'),
+                _pattern_entry('c-2', sponsor='NordVPN', text='nord text', category='self_promo'),
+            ],
+        })
+        assert summary['inserted'] == 2
+        assert summary['filtered'] == 0
+        rows = db.get_patterns_by_source('community', active_only=False)
+        assert len(rows) == 2
+        assert all(r['is_active'] for r in rows)
+
+    def test_new_entry_of_excluded_category_is_filtered_not_inserted(self, db):
+        db.set_setting('community_sync_categories', json.dumps(['sponsor']))
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        assert summary['inserted'] == 0
+        assert summary['filtered'] == 1
+        assert db.get_patterns_by_source('community', active_only=False) == []
+
+    def test_accepted_category_entry_still_inserts(self, db):
+        db.set_setting('community_sync_categories', json.dumps(['sponsor']))
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='sponsor')],
+        })
+        assert summary['inserted'] == 1
+        assert summary['filtered'] == 0
+
+    def test_existing_row_deactivated_when_category_later_excluded(self, db):
+        # First sync: accept everything, insert a cross_promo pattern active.
+        apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        rows = db.get_patterns_by_source('community', active_only=False)
+        assert len(rows) == 1 and rows[0]['is_active']
+
+        # Now exclude cross_promo and re-sync with the same (unchanged) entry.
+        db.set_setting('community_sync_categories', json.dumps(['sponsor']))
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        assert summary['filtered'] == 1
+        assert summary['inserted'] == 0
+        assert summary['updated'] == 0
+        rows = db.get_patterns_by_source('community', active_only=False)
+        assert len(rows) == 1
+        assert rows[0]['is_active'] == 0
+        assert rows[0]['disabled_reason'] == 'category_filtered'
+
+    def test_reenabling_category_reactivates_on_next_sync(self, db):
+        apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        db.set_setting('community_sync_categories', json.dumps(['sponsor']))
+        apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        rows = db.get_patterns_by_source('community', active_only=False)
+        assert rows[0]['is_active'] == 0
+
+        # Re-enable cross_promo: the next sync must reactivate the row.
+        db.set_setting(
+            'community_sync_categories', json.dumps(['sponsor', 'cross_promo']))
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='cross_promo')],
+        })
+        assert summary['filtered'] == 0
+        rows = db.get_patterns_by_source('community', active_only=False)
+        assert rows[0]['is_active'] == 1
+        assert rows[0]['disabled_reason'] is None
+
+    def test_manually_disabled_row_not_resurrected_by_category_reenable(self, db):
+        """A row disabled for an unrelated reason (not the category filter)
+        must not be reactivated just because its category is accepted."""
+        apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='sponsor')],
+        })
+        rows = db.get_patterns_by_source('community', active_only=False)
+        pid = rows[0]['id']
+        db.update_ad_pattern(pid, is_active=0, disabled_reason='manual')
+
+        summary = apply_manifest(db, {
+            'manifest_version': 1,
+            'patterns': [_pattern_entry('c-1', category='sponsor')],
+        })
+        assert summary['filtered'] == 0
+        row = db.get_ad_pattern_by_id(pid)
+        assert row['is_active'] == 0
+        assert row['disabled_reason'] == 'manual'
+
+    def test_local_patterns_untouched_by_category_filter(self, db):
+        """HARD requirement: only community-sourced rows (a community_id) may
+        be touched by the filter, regardless of their own category."""
+        local_id = db.create_ad_pattern(
+            scope='global', text_template='a local pattern of excluded category',
+            category='cross_promo',
+        )
+        db.set_setting('community_sync_categories', json.dumps(['sponsor']))
+        apply_manifest(db, {'manifest_version': 1, 'patterns': []})
+
+        local_pattern = db.get_ad_pattern_by_id(local_id)
+        assert local_pattern['is_active'] == 1
+        assert local_pattern['disabled_reason'] is None

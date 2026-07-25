@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import type { SegmentCategory } from '../utils/segmentCategory';
 
 export interface CommunitySyncSettings {
   enabled: boolean;
@@ -7,6 +8,11 @@ export interface CommunitySyncSettings {
   lastError: string | null;
   manifestVersion: string | null;
   lastSummary: string | null;
+  // Segment categories this install accepts from community sync (default:
+  // every category, so an upgrade with this unset syncs exactly as before).
+  categories: SegmentCategory[];
+  // Count of currently-active (synced) community patterns per category.
+  categoryBreakdown: Record<string, number>;
 }
 
 export interface CommunitySyncSummary {
@@ -15,6 +21,8 @@ export interface CommunitySyncSummary {
   deleted: number;
   skipped: number;
   errors: number;
+  // Entries not inserted/updated because their category is not accepted.
+  filtered?: number;
   manifest_version?: number | string | null;
   fetched_at?: string;
 }
@@ -26,6 +34,7 @@ export async function getCommunitySyncSettings(): Promise<CommunitySyncSettings>
 export async function updateCommunitySyncSettings(args: {
   enabled?: boolean;
   cron?: string;
+  categories?: SegmentCategory[];
 }): Promise<CommunitySyncSettings> {
   return apiRequest<CommunitySyncSettings>('/settings/community-sync', {
     method: 'PUT',

@@ -29,6 +29,7 @@ from config import (
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     resolve_segment_category_actions_map,
+    resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -150,6 +151,11 @@ def _payload_segment_category_actions() -> Dict[str, str]:
         registry_default('segment_category_actions'))
 
 
+def _payload_community_sync_categories() -> List[str]:
+    return resolve_community_sync_categories(
+        registry_default('community_sync_categories'))
+
+
 @dataclass(frozen=True)
 class SettingSpec:
     """One global setting.
@@ -267,6 +273,13 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
         default='{}', seeded=True, resettable=False,
         payload_key='segmentCategoryActions',
         payload_factory=_payload_segment_category_actions),
+    # Per-category community-sync acceptance: JSON list of accepted
+    # categories. Default is every SEGMENT_CATEGORIES entry so an upgrade
+    # with an unset row imports exactly as before this setting existed.
+    'community_sync_categories': SettingSpec(
+        default=DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON, seeded=True,
+        resettable=False, payload_key='communitySyncCategories',
+        payload_factory=_payload_community_sync_categories),
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),

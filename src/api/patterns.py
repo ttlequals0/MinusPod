@@ -375,6 +375,7 @@ def get_merge_suggestions():
                     'text_template': (m.get('text_template') or '')[:300],
                     'confirmation_count': m.get('confirmation_count', 0),
                     'false_positive_count': m.get('false_positive_count', 0),
+                    'category': m.get('category'),
                 }
                 for m in members
             ],
@@ -1340,6 +1341,9 @@ def export_patterns():
             'false_positive_count': pattern.get('false_positive_count', 0),
             'is_active': pattern.get('is_active', True),
             'created_at': pattern.get('created_at'),
+            # Already normalized to 'sponsor' for a NULL/legacy row by
+            # _row_with_category; read as-is (issue #565).
+            'category': pattern.get('category'),
         }
 
         # Include network/podcast IDs for scoped patterns
@@ -1414,6 +1418,7 @@ def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
             'intro_variants': pattern_data.get('intro_variants'),
             'outro_variants': pattern_data.get('outro_variants'),
             'sponsor_id': pattern_data.get('_sponsor_id'),
+            'category': pattern_data.get('category'),
         }
         updates = {k: v for k, v in updates.items() if v is not None}
         if updates:
@@ -1430,7 +1435,8 @@ def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
         network_id=pattern_data.get('network_id'),
         dai_platform=pattern_data.get('dai_platform'),
         intro_variants=pattern_data.get('intro_variants'),
-        outro_variants=pattern_data.get('outro_variants')
+        outro_variants=pattern_data.get('outro_variants'),
+        category=pattern_data.get('category'),
     )
     return 'imported'
 

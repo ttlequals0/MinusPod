@@ -9,12 +9,14 @@ import {
   triggerCommunitySync,
   purgeAllCommunityPatterns,
 } from '../../api/community';
+import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 
 interface Draft {
   enabled?: boolean;
   cron?: string;
+  categories?: SegmentCategory[];
 }
 
 function CommunityPatternsSection() {
@@ -31,9 +33,10 @@ function CommunityPatternsSection() {
   const [purgeResult, setPurgeResult] = useState<string | null>(null);
   const enabled = draft.enabled ?? data?.enabled ?? false;
   const cron = draft.cron ?? data?.cron ?? '0 3 * * 0';
+  const categories = draft.categories ?? data?.categories ?? SEGMENT_CATEGORIES;
 
   const save = useMutation({
-    mutationFn: () => updateCommunitySyncSettings({ enabled, cron }),
+    mutationFn: () => updateCommunitySyncSettings({ enabled, cron, categories }),
     onSuccess: () => {
       setCronError(null);
       setDraft({});
@@ -41,6 +44,16 @@ function CommunityPatternsSection() {
     },
     onError: (e: unknown) => setCronError(getErrorMessage(e, 'Save failed')),
   });
+
+  function toggleCategory(cat: SegmentCategory) {
+    setDraft((d) => {
+      const current = d.categories ?? data?.categories ?? SEGMENT_CATEGORIES;
+      const next = current.includes(cat)
+        ? current.filter((c) => c !== cat)
+        : [...current, cat];
+      return { ...d, categories: next };
+    });
+  }
 
   const syncNow = useMutation({
     mutationFn: triggerCommunitySync,
@@ -72,6 +85,7 @@ function CommunityPatternsSection() {
         deleted: number;
         skipped: number;
         errors: number;
+        filtered?: number;
       };
     } catch {
       return null;
@@ -121,6 +135,31 @@ function CommunityPatternsSection() {
             <p className="text-sm text-red-600 dark:text-red-400">{cronError}</p>
           )}
 
+          <div className="pt-2 border-t border-border space-y-2">
+            <h4 className="text-sm font-medium text-foreground">Categories to sync</h4>
+            <p className="text-sm text-muted-foreground">
+              Unchecking a category deactivates its already-synced community patterns
+              rather than deleting them; re-checking it reactivates them on the next sync.
+              Locally created patterns are never affected.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {SEGMENT_CATEGORIES.map((cat) => (
+                <label key={cat} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={categories.includes(cat)}
+                    onChange={() => toggleCategory(cat)}
+                    className="rounded"
+                  />
+                  <span className="text-foreground">{SEGMENT_CATEGORY_LABELS[cat]}</span>
+                  <span className="text-muted-foreground">
+                    ({data?.categoryBreakdown?.[cat] ?? 0})
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -162,7 +201,7 @@ function CommunityPatternsSection() {
                 <span className="font-medium text-foreground">Last result:</span>{' '}
                 {lastSummary.inserted} added, {lastSummary.updated} updated,{' '}
                 {lastSummary.deleted} removed, {lastSummary.skipped} skipped,{' '}
-                {lastSummary.errors} errors.
+                {lastSummary.filtered ?? 0} filtered by category, {lastSummary.errors} errors.
               </div>
             )}
             {data?.lastError && (

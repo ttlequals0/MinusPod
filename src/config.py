@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
@@ -64,6 +64,32 @@ DEFAULT_SEGMENT_ACTION = 'remove'
 def normalize_segment_category(value: Any) -> str:
     """Return value if it is a known segment category, else 'sponsor'."""
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
+
+
+# Per-category community-sync acceptance (issue #565 Task follow-up): which
+# categories this install pulls in from community pattern sync. Default is
+# every SEGMENT_CATEGORIES entry, so an upgrade with an unset setting syncs
+# exactly as before the feature existed.
+DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON = json.dumps(list(SEGMENT_CATEGORIES))
+
+
+def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
+    """Parse a community_sync_categories JSON list into the accepted segment
+    categories. A missing/blank value (unset setting) or malformed/non-list
+    JSON falls back to every SEGMENT_CATEGORIES. Unknown category strings
+    inside an otherwise-valid list are dropped; an explicit empty list (the
+    user unchecked every category) is returned as-is rather than treated as
+    unset, since that is a deliberate 'accept nothing' choice.
+    """
+    if not raw_json:
+        return list(SEGMENT_CATEGORIES)
+    try:
+        parsed = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return list(SEGMENT_CATEGORIES)
+    if not isinstance(parsed, list):
+        return list(SEGMENT_CATEGORIES)
+    return [c for c in parsed if c in SEGMENT_CATEGORIES]
 
 
 def resolve_segment_category_actions_map(

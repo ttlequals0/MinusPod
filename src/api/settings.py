@@ -34,6 +34,7 @@ from config import (
     PODCAST_SEARCH_PROVIDERS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     resolve_segment_category_actions_map,
+    resolve_community_sync_categories,
 )
 # Safe despite api/__init__ importing settings before podcast_search:
 # podcast_search only pulls names api/__init__ defines before its submodule
@@ -238,6 +239,10 @@ def get_settings():
     segment_category_actions = resolve_segment_category_actions_map(
         _setting_value(settings, 'segment_category_actions',
                        registry_default('segment_category_actions')))
+
+    community_sync_categories = resolve_community_sync_categories(
+        _setting_value(settings, 'community_sync_categories',
+                       registry_default('community_sync_categories')))
 
     # Get min cut confidence (ad detection aggressiveness)
     try:
@@ -478,6 +483,8 @@ def get_settings():
         'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'segmentCategoryActions': _sv(
             'segment_category_actions', segment_category_actions),
+        'communitySyncCategories': _sv(
+            'community_sync_categories', community_sync_categories),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(
@@ -611,6 +618,7 @@ def update_ad_detection_settings():
         _apply_ad_merge_fields,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
+        _apply_community_sync_categories,
     )
     for phase in phases:
         err = phase(db, data)
@@ -838,6 +846,35 @@ def _apply_segment_category_actions(db, data):
         merged.update(value)
         db.set_setting('segment_category_actions', json.dumps(merged), is_default=False)
         logger.info(f"Updated segment category actions: {merged}")
+    return None
+
+
+def validate_community_sync_categories(value) -> tuple:
+    """Validate a communitySyncCategories/categories payload list.
+
+    Returns (categories, error_message); categories is None when
+    error_message is set. Shared by the ad-detection PUT phase below and
+    the dedicated /settings/community-sync PUT so both reject the same
+    malformed input the same way.
+    """
+    if not isinstance(value, list):
+        return None, 'communitySyncCategories must be a list'
+    for cat in value:
+        if cat not in SEGMENT_CATEGORIES:
+            return None, f"communitySyncCategories: unknown category '{cat}'"
+    # Dedupe while keeping SEGMENT_CATEGORIES order, so the stored JSON list
+    # is deterministic regardless of client submission order.
+    return [c for c in SEGMENT_CATEGORIES if c in value], None
+
+
+def _apply_community_sync_categories(db, data):
+    """Persist the global community-sync per-category accept list."""
+    if 'communitySyncCategories' in data:
+        categories, err = validate_community_sync_categories(data['communitySyncCategories'])
+        if err is not None:
+            return error_response(err, 400)
+        db.set_setting('community_sync_categories', json.dumps(categories), is_default=False)
+        logger.info(f"Updated community sync categories: {categories}")
     return None
 
 
@@ -2341,6 +2378,14 @@ def update_reviewer_settings():
 
 # ========== Community-pattern sync settings ==========
 
+def _community_category_breakdown(db) -> Dict[str, int]:
+    """Per-category counts of currently-active (synced) community patterns."""
+    breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}
+    for pattern in db.get_patterns_by_source('community', active_only=True):
+        breakdown[pattern.get('category', 'sponsor')] += 1
+    return breakdown
+
+
 @api.route('/settings/community-sync', methods=['GET'])
 @log_request
 def get_community_sync_settings():
@@ -2354,6 +2399,9 @@ def get_community_sync_settings():
         'lastError': db.get_setting('community_sync_last_error') or None,
         'manifestVersion': db.get_setting('community_sync_manifest_version') or None,
         'lastSummary': db.get_setting('community_sync_last_summary') or None,
+        'categories': resolve_community_sync_categories(
+            db.get_setting('community_sync_categories')),
+        'categoryBreakdown': _community_category_breakdown(db),
     })
 
 
@@ -2362,7 +2410,9 @@ def get_community_sync_settings():
 def update_community_sync_settings():
     """Update community-pattern sync settings.
 
-    Body: {enabled?: bool, cron?: str}. Cron expression is validated.
+    Body: {enabled?: bool, cron?: str, categories?: string[]}. Cron
+    expression is validated; categories must be a subset of the known
+    segment categories.
     """
     from utils.cron import is_valid_expression
     db = get_database()
@@ -2374,6 +2424,12 @@ def update_community_sync_settings():
         if not is_valid_expression(cron):
             return error_response(f'invalid cron expression: {cron}', 400)
         db.set_setting('community_sync_cron', cron)
+    if 'categories' in data:
+        categories, err = validate_community_sync_categories(data['categories'])
+        if err is not None:
+            return error_response(err, 400)
+        db.set_setting('community_sync_categories', json.dumps(categories), is_default=False)
+        logger.info(f"Updated community sync categories: {categories}")
     return get_community_sync_settings()
 
 

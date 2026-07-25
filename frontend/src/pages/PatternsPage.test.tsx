@@ -51,6 +51,22 @@ describe('PatternsPage tabs', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 
+  it('renders a segment category badge on a pattern row', async () => {
+    mockGetPatterns.mockResolvedValueOnce([
+      {
+        id: 1, scope: 'global', network_id: null, podcast_id: null,
+        dai_platform: null, text_template: 'x'.repeat(60),
+        intro_variants: '[]', outro_variants: '[]', sponsor: 'Acme',
+        confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+        created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+        is_active: true, disabled_at: null, disabled_reason: null,
+        category: 'cross_promo',
+      },
+    ]);
+    renderPage();
+    expect(await screen.findAllByText('Cross-promo')).not.toHaveLength(0);
+  });
+
   it('switches to the ad review tab on click', async () => {
     renderPage();
     const user = userEvent.setup();

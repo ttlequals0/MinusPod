@@ -602,3 +602,91 @@ class TestKeepPartitionFromCategorizedDetection:
         keep_ads, remove_ads = processing._partition_keep_ads([ad], actions_map)
         assert keep_ads == []
         assert remove_ads == [ad]
+
+
+# ========== 7. category exposed on every pattern-returning endpoint ==========
+
+class TestPatternCategoryOnEndpoints:
+    """The API layer never re-derives category; it just has to read it
+    through on every endpoint that returns a pattern (or a slice of one)."""
+
+    def test_list_patterns_includes_category(self, client, temp_db):
+        temp_db.create_ad_pattern(
+            scope='global', text_template='x' * 60, category='cross_promo',
+        )
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.get('/api/v1/patterns')
+        assert resp.status_code == 200, resp.data
+        patterns = json.loads(resp.data)['patterns']
+        assert len(patterns) == 1
+        assert patterns[0]['category'] == 'cross_promo'
+
+    def test_get_pattern_detail_includes_category(self, client, temp_db):
+        pid = temp_db.create_ad_pattern(
+            scope='global', text_template='x' * 60, category='self_promo',
+        )
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.get(f'/api/v1/patterns/{pid}')
+        assert resp.status_code == 200, resp.data
+        assert json.loads(resp.data)['category'] == 'self_promo'
+
+    def test_get_pattern_detail_null_category_defaults_sponsor(self, client, temp_db):
+        pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.get(f'/api/v1/patterns/{pid}')
+        assert resp.status_code == 200, resp.data
+        assert json.loads(resp.data)['category'] == 'sponsor'
+
+    def test_export_patterns_includes_category(self, client, temp_db):
+        temp_db.create_ad_pattern(
+            scope='global', text_template='x' * 60, category='interaction',
+        )
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.get('/api/v1/patterns/export')
+        assert resp.status_code == 200, resp.data
+        patterns = json.loads(resp.data)['patterns']
+        assert len(patterns) == 1
+        assert patterns[0]['category'] == 'interaction'
+
+    def test_export_import_round_trip_preserves_category(self, client, temp_db):
+        """A full-DB backup export/import round trip must not lose category
+        (repo principle: never lose data during DB changes)."""
+        temp_db.create_ad_pattern(
+            scope='global', text_template='y' * 60, category='outro',
+        )
+        with patch('api.patterns.get_database', return_value=temp_db):
+            exported = json.loads(client.get('/api/v1/patterns/export').data)
+            resp = client.post(
+                '/api/v1/patterns/import',
+                data=json.dumps({'patterns': exported['patterns'], 'mode': 'replace'}),
+                content_type='application/json',
+            )
+        assert resp.status_code == 200, resp.data
+        rows = temp_db.get_ad_patterns(active_only=False)
+        assert len(rows) == 1
+        assert rows[0]['category'] == 'outro'
+
+    def test_merge_suggestions_members_include_category(self, client, temp_db):
+        import pattern_clusters
+        pattern_clusters._CACHE.clear()
+        sponsor_id = get_or_create_known_sponsor(temp_db, 'ClusterCo')
+        read_a = ('ClusterCo makes great widgets for busy people. Visit '
+                  'clusterco dot com slash deal for a discount.')
+        read_b = ('ClusterCo makes great widgets for busy people. Visit '
+                  'clusterco dot com slash deal for a discount today.')
+        temp_db.create_ad_pattern(
+            scope='global', text_template=read_a, sponsor_id=sponsor_id,
+            category='recap',
+        )
+        temp_db.create_ad_pattern(
+            scope='global', text_template=read_b, sponsor_id=sponsor_id,
+            category='recap',
+        )
+        with patch('api.patterns.get_database', return_value=temp_db):
+            resp = client.get('/api/v1/patterns/merge-suggestions')
+        assert resp.status_code == 200, resp.data
+        suggestions = json.loads(resp.data)['suggestions']
+        assert len(suggestions) == 1
+        members = suggestions[0]['members']
+        assert len(members) == 2
+        assert all(m['category'] == 'recap' for m in members)
