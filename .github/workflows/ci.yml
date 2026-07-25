@@ -65,6 +65,14 @@ jobs:
           PYTHONPATH: src
         run: pytest tests/ -v --tb=short
 
+      - name: Container import-path gate
+        # Already collected by the run above (tests/ is scanned recursively);
+        # run it again by name so a boot-path regression shows as its own
+        # named CI failure instead of being buried in the full-suite log.
+        env:
+          PYTHONPATH: src
+        run: pytest tests/unit/test_container_import_paths.py -v --tb=short
+
   frontend-build:
     name: Frontend build (tsc + vite)
     runs-on: ubuntu-latest
