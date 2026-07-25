@@ -136,7 +136,33 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Audit
-        run: npm audit --audit-level=high
+        # GHSA-qwww-vcr4-c8h2 (react-router RSC-mode CSRF, fix is the v8
+        # major) is allowlisted: this frontend is a client-only SPA with no
+        # RSC server actions. Tracked in #578; remove with the v8 upgrade.
+        run: |
+          npm audit --audit-level=high --json > audit.json || true
+          python3 - <<'PYEOF'
+          import json
+          ALLOWED_GHSA = {'GHSA-qwww-vcr4-c8h2'}
+          vulns = json.load(open('audit.json')).get('vulnerabilities', {})
+          def allowed(name, seen=None):
+              seen = set() if seen is None else seen
+              if name in seen:
+                  return True
+              seen.add(name)
+              for via in vulns.get(name, {}).get('via', []):
+                  if isinstance(via, dict):
+                      if not any(g in via.get('url', '') for g in ALLOWED_GHSA):
+                          return False
+                  elif via not in vulns or not allowed(via, seen):
+                      return False
+              return True
+          bad = [(n, v['severity']) for n, v in vulns.items()
+                 if v.get('severity') in ('high', 'critical') and not allowed(n)]
+          if bad:
+              raise SystemExit(f'Unallowlisted high/critical advisories: {bad}')
+          print('npm audit clean (allowlist: GHSA-qwww-vcr4-c8h2, see #578)')
+          PYEOF
 
   ruff:
     name: ruff (lint)
