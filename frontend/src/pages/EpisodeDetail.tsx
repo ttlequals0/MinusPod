@@ -157,6 +157,9 @@ function EpisodeDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
+    onError: (error) => {
+      console.error('Failed to regenerate chapters:', error);
+    },
   });
 
   // Mutation for submitting ad corrections
@@ -548,6 +551,20 @@ function EpisodeDetail() {
 
         {verificationVerdict && (
           <p className="mt-2 text-xs text-muted-foreground">{verificationVerdict}</p>
+        )}
+
+        {regenerateChaptersMutation.isPending && (
+          <p className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+            <LoadingSpinner size="sm" inline /> Regenerating chapters...
+          </p>
+        )}
+        {regenerateChaptersMutation.isSuccess && (
+          <p className="mt-2 text-sm text-success">Chapters regenerated.</p>
+        )}
+        {regenerateChaptersMutation.isError && (
+          <p className="mt-2 text-sm text-destructive">
+            {getErrorMessage(regenerateChaptersMutation.error, 'Failed to regenerate chapters')}
+          </p>
         )}
 
         {failureReason && (

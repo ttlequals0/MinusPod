@@ -70,13 +70,14 @@ vi.mock('../utils/confidence', () => ({
 // Mutable mutation stubs; reassigned per test.
 const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
+const mockRegenerateChapters = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
   getFeed: vi.fn(),
   getOriginalTranscript: vi.fn(),
   reprocessEpisode: (...args: unknown[]) => mockReprocessEpisode(...args),
-  regenerateChapters: vi.fn(),
+  regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
 }));
@@ -887,5 +888,73 @@ describe('Correction submit error toast (#565)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Conflict')).toBeNull();
+  });
+});
+
+describe('Regenerate Chapters: progress and result feedback', () => {
+  beforeEach(() => {
+    mockRegenerateChapters.mockReset();
+  });
+
+  async function openMenuAndRegenerate(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(screen.getByText('Regenerate Chapters'));
+  }
+
+  it('shows the progress text once the menu closes while the call is pending', async () => {
+    const user = userEvent.setup();
+    let resolveRegenerate: () => void = () => {};
+    mockRegenerateChapters.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveRegenerate = resolve; }),
+    );
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+
+    await openMenuAndRegenerate(user);
+
+    // The menu (and its "Regenerate Chapters" item) unmounted; the progress
+    // text renders outside it, so this is the only remaining match.
+    expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
+
+    resolveRegenerate();
+  });
+
+  it('shows a confirmation once regeneration succeeds', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockResolvedValue({});
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+
+    await openMenuAndRegenerate(user);
+
+    expect(await screen.findByText('Chapters regenerated.')).not.toBeNull();
+  });
+
+  it('surfaces the API error message when regeneration fails', async () => {
+    const user = userEvent.setup();
+    mockRegenerateChapters.mockRejectedValueOnce(new Error('LLM request timed out'));
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+
+    await openMenuAndRegenerate(user);
+
+    expect(await screen.findByText('LLM request timed out')).not.toBeNull();
+  });
+
+  it('keeps the dropdown item disabled while regeneration is pending', async () => {
+    const user = userEvent.setup();
+    let resolveRegenerate: () => void = () => {};
+    mockRegenerateChapters.mockImplementation(
+      () => new Promise<void>((resolve) => { resolveRegenerate = resolve; }),
+    );
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+
+    await openMenuAndRegenerate(user);
+    await screen.findByText('Regenerating chapters...');
+
+    // Reopen the menu; a user who reopens it mid-flight should see it's busy.
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const menuItem = screen.getByText('Regenerate Chapters').closest('button');
+    expect(menuItem).toHaveProperty('disabled', true);
+
+    resolveRegenerate();
   });
 });
