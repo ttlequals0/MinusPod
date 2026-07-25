@@ -9,6 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.6] - 2026-07-25
+
+### Fixed
+
+- Anthropic responses that begin with a thinking block no longer fail to
+  parse. The reader took the first content block and asked for its text;
+  with extended thinking that block has none, so verification windows and
+  chapter calls failed with "'ThinkingBlock' object has no attribute
+  'text'". It now takes the first text block and skips thinking blocks,
+  matching how the tool-use path already reads responses.
+- A single chapter produced by topic detection that returned nothing
+  usable is now flagged as degraded. Detection that fails outright was
+  already caught; a response that parses to zero boundaries was not, so a
+  90-minute episode could ship one chapter and look finished.
+
 ## [2.78.5] - 2026-07-25
 
 ### Fixed
