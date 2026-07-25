@@ -695,7 +695,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   const globalValue = settings?.segmentCategoryActions?.value?.[category] ?? DEFAULT_SEGMENT_ACTION;
                   const effective = override ?? globalValue;
                   return (
-                    <div key={category} className="flex items-center justify-between gap-3 flex-wrap text-sm">
+                    <div key={category} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm">
                       <div className="min-w-0">
                         <span className="text-muted-foreground block">{SEGMENT_CATEGORY_LABELS[category]}</span>
                         <span className="text-xs text-muted-foreground/70 block">{SEGMENT_CATEGORY_DESCRIPTIONS[category]}</span>
@@ -738,12 +738,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       checked={feed.detectShowSegments === true}
                       onChange={(v) => updateMutation.mutate({ detectShowSegments: v })}
                       disabled={updateMutation.isPending}
-                      ariaLabel="Detect intro, outro, and housekeeping segments"
+                      ariaLabel="Detect show segments"
                     />
-                    <span>Detect intro, outro, and housekeeping segments</span>
+                    <span>Detect show segments</span>
                   </label>
                   <p className="text-xs text-muted-foreground">
-                    Also detect the show&apos;s intro, outro and credits, and preview bumpers. Expect rough edges where music dominates the audio.
+                    Finds the show&apos;s intro, outro and credits, and preview bumpers so you
+                    can keep or cut them by category. Rough edges where music dominates.
                   </p>
                 </div>
               </div>
@@ -755,10 +756,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   type="button"
                   onClick={handleRerenderClick}
                   disabled={rerenderMutation.isPending}
-                  className={`self-start px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+                  className={`self-start whitespace-nowrap px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
                 >
-                  {rerenderMutation.isPending ? 'Re-rendering...' : 'Re-render episodes with current segment actions'}
+                  {rerenderMutation.isPending ? 'Re-rendering...' : 'Re-render episodes'}
                 </button>
+                <p className="text-xs text-muted-foreground">
+                  Applies the current segment actions to every processed episode with a retained original.
+                </p>
                 {rerenderResult && (
                   <p className="text-xs text-muted-foreground">
                     {rerenderResult.queued} episode{rerenderResult.queued === 1 ? '' : 's'} queued, {rerenderResult.skipped} skipped.

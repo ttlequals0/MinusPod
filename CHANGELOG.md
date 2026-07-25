@@ -24,6 +24,10 @@ release notes.
   the category covers, and the show-segments, source feed, detection mode,
   and chapters helper text is clearer.
 
+- Feed settings: shorter labels on the show-segment toggle and the
+  re-render button, with the detail moved to helper text, so neither
+  wraps into a slab on narrow screens.
+
 - The webhook test button now sends one sample payload per subscribed event
   type instead of always sending an Episode Processed sample.
 

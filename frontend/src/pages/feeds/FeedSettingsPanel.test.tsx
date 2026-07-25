@@ -404,13 +404,13 @@ describe('FeedSettingsPanel show-segments toggle (#565)', () => {
 
   it('renders off by default', () => {
     renderPanel(makeFeed());
-    const toggle = screen.getByRole('switch', { name: 'Detect intro, outro, and housekeeping segments' });
+    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
     expect(toggle.getAttribute('aria-checked')).toBe('false');
   });
 
   it('enabling fires updateFeed with detectShowSegments true', async () => {
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('switch', { name: 'Detect intro, outro, and housekeeping segments' }));
+    await userEvent.click(screen.getByRole('switch', { name: 'Detect show segments' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: true });
   });
 });
@@ -424,7 +424,7 @@ describe('FeedSettingsPanel re-render segments (#565 Task 8)', () => {
   it('does nothing when the confirm dialog is dismissed', async () => {
     window.confirm = vi.fn().mockReturnValue(false);
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
     expect(mockRerenderSegments).not.toHaveBeenCalled();
   });
 
@@ -432,7 +432,7 @@ describe('FeedSettingsPanel re-render segments (#565 Task 8)', () => {
     window.confirm = vi.fn().mockReturnValue(true);
     mockRerenderSegments.mockResolvedValue({ queued: 3, skipped: 1 });
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
     expect(mockRerenderSegments).toHaveBeenCalledWith('test-feed');
     expect(await screen.findByText('3 episodes queued, 1 skipped.')).toBeDefined();
   });
@@ -441,7 +441,7 @@ describe('FeedSettingsPanel re-render segments (#565 Task 8)', () => {
     window.confirm = vi.fn().mockReturnValue(true);
     mockRerenderSegments.mockRejectedValue(new Error('Feed not found'));
     renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes with current segment actions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
     expect(await screen.findByText('Feed not found')).toBeDefined();
   });
 });
