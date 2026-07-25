@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.78.6] - 2026-07-25
+## [2.78.7] - 2026-07-25
 
 ### Fixed
 
@@ -17,6 +17,11 @@ release notes.
   their content like the dropdowns above and below them. They sat in a
   column layout that stretched them to the panel width, and the earlier
   attempt only capped that stretch instead of stopping it.
+
+## [2.78.6] - 2026-07-25
+
+### Fixed
+
 
 - Anthropic responses that begin with a thinking block no longer fail to
   parse. The reader took the first content block and asked for its text;
