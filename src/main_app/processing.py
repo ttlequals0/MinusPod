@@ -2614,7 +2614,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
-                      podcast_row=None):
+                      podcast_row=None, run_stats=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -2640,6 +2640,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     upstream podcast:chapters JSON fetch (issue #560 follow-up): with it
     unset, that fetch is skipped and an embedded-chapter shortfall falls
     straight through to generation, same as before this source existed.
+
+    run_stats, when given, is the caller's per-run processing_stats dict
+    (process_episode's run_stats, persisted into processing_stats_json).
+    When the generator's topic-detection or title-generation LLM calls fail
+    and it degrades to a fallback chapter set, chapters_degraded/
+    chapters_degraded_reason are recorded here so the degradation is visible
+    after the fact instead of looking like a normal short episode.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -2779,6 +2786,9 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 episode_id=episode_id,
                 replacement_duration=replacement_duration,
             )
+            if run_stats is not None and chapters_gen.chapters_degraded:
+                run_stats['chapters_degraded'] = True
+                run_stats['chapters_degraded_reason'] = chapters_gen.chapters_degradation_reason
             if chapters and chapters.get('chapters'):
                 # Chapters and the applied cut list they were generated
                 # against (all_cuts, original-episode coordinates) persist in
@@ -4048,7 +4058,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, podcast_name, episode_title,
                               audio_path=final_path, audio_duration=new_duration,
                               podcast_row=podcast_settings,
-                              original_duration=original_duration)
+                              original_duration=original_duration,
+                              run_stats=run_stats)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still

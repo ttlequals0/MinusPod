@@ -16,6 +16,8 @@ from llm_capabilities import (
 def _reset_state():
     with llm_capabilities._fallback_lock:
         llm_capabilities._fallback_state.clear()
+    with llm_capabilities._learned_no_temperature_lock:
+        llm_capabilities._learned_no_temperature_models.clear()
 
 
 def _make_anthropic_response(text="ok"):
@@ -350,6 +352,122 @@ class TestAnthropicTemperatureOmission:
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
         assert kwargs["temperature"] == 0.2
+
+
+class TestAnthropicTemperatureRejectionRetry:
+    """A model that 400s specifically because it rejects `temperature` must
+    have the retry OMIT temperature, not substitute a default value that
+    400s identically (#530 production incident: chapter_generation retried
+    with temperature=0.1 and failed the same way in the same second)."""
+
+    def _temperature_rejection_error(self, status_code=400):
+        return _FakeAPIError(
+            status_code,
+            "Error code: 400 ... '`temperature` is deprecated for this model.'",
+        )
+
+    def test_retry_omits_temperature_entirely(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            self._temperature_rejection_error(),
+            _make_anthropic_response(),
+        ]
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-unlisted-model",
+            max_tokens=300,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.1,
+            episode_id="ep1",
+            pass_name="chapter_generation",
+        )
+
+        assert mock_sdk.messages.create.call_count == 2
+        retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
+        assert "temperature" not in retry_kwargs
+
+    def test_retry_works_even_without_a_tracked_pass(self):
+        # No episode_id/pass_name -- the general tunables-fallback path is
+        # gated on pass_name, but the temperature-omission fix must not be.
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            self._temperature_rejection_error(),
+            _make_anthropic_response(),
+        ]
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-unlisted-model",
+            max_tokens=300,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.1,
+        )
+
+        assert mock_sdk.messages.create.call_count == 2
+        retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
+        assert "temperature" not in retry_kwargs
+
+    def test_model_is_remembered_for_subsequent_calls(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            self._temperature_rejection_error(),
+            _make_anthropic_response(),
+            _make_anthropic_response(),
+        ]
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-unlisted-model", max_tokens=300, system="sys",
+            messages=[{"role": "user", "content": "hi"}], temperature=0.1,
+        )
+        client.messages_create(
+            model="claude-unlisted-model", max_tokens=300, system="sys",
+            messages=[{"role": "user", "content": "hi"}], temperature=0.1,
+        )
+
+        assert mock_sdk.messages.create.call_count == 3
+        # Third call (second messages_create, no retry needed) never sends temperature.
+        third_call_kwargs = mock_sdk.messages.create.call_args_list[2].kwargs
+        assert "temperature" not in third_call_kwargs
+
+    def test_non_temperature_400_still_retries_with_defaults(self):
+        # No regression: a plain tunable-rejection 400 (e.g. max_tokens too
+        # large) still goes through the general fallback path with defaults.
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.side_effect = [
+            _FakeAPIError(400, "max_tokens too large"),
+            _make_anthropic_response(),
+        ]
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-unlisted-model",
+            max_tokens=99999,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.5,
+            episode_id="ep1",
+            pass_name=PASS_AD_DETECTION_1,
+        )
+
+        assert mock_sdk.messages.create.call_count == 2
+        retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
+        assert retry_kwargs["max_tokens"] == 4096
+        assert retry_kwargs["temperature"] == 0.0
+        # claude-unlisted-model was never marked as omitting temperature by
+        # an unrelated max_tokens rejection.
+        assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is True
 
 
 class TestAnthropicJsonSchemaStructuredOutput:

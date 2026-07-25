@@ -471,6 +471,7 @@ class TestSharedLLMCallPath:
         assert out[0]['title'] == 'Introduction'
         assert out[1]['title'] == 'Part 1'
         assert not any(ch['needs_title'] for ch in out)
+        assert gen._title_generation_failed is True
 
     def test_non_retryable_failure_fails_once_and_degrades(self):
         gen, client = self._failing_generator()
@@ -484,6 +485,45 @@ class TestSharedLLMCallPath:
             )
         assert chapters == []
         assert client.calls == 1
+
+    def test_full_pipeline_degradation_reported_on_generator(self, caplog):
+        """Reproduces the production incident (#530 follow-up): both
+        topic-detection and title-generation LLM calls fail on a long
+        episode, so it degrades to a single whole-episode chapter. That must
+        be visible on the generator instance (chapters_degraded / reason)
+        and logged with the 'degraded to a single chapter' wording, not look
+        like a normal short episode."""
+        gen = ChaptersGenerator(api_key='test')
+        client = _FailingClient(RuntimeError('temperature rejected'))
+        gen._llm_client = client
+
+        # Long episode (> MIN_DURATION_FOR_AI) with enough transcript text to
+        # trigger topic-boundary detection.
+        duration = 7200
+        segments = [
+            {'start': i, 'end': i + 10,
+             'text': f'segment {i} with enough words to exceed the five hundred char gate a b c d e f g'}
+            for i in range(0, duration, 10)
+        ]
+
+        import logging
+        with patch('utils.llm_call.is_retryable_error', return_value=False), \
+             caplog.at_level(logging.WARNING, logger='chapters_generator'):
+            out = gen.generate_chapters(
+                segments=segments,
+                podcast_name='Show',
+                episode_title='Ep',
+                episode_id='ep-degraded',
+            )
+
+        assert out['chapters'] == [{'startTime': 1, 'title': 'Introduction'}]
+        assert gen.chapters_degraded is True
+        assert 'topic detection failed' in gen.chapters_degradation_reason
+        assert 'title generation failed' in gen.chapters_degradation_reason
+        assert any(
+            'chapters degraded to a single chapter' in rec.message
+            for rec in caplog.records
+        )
 
     def test_chapter_calls_do_not_force_json_response_format(self):
         # Chapter prompts expect line-based text; the JSON-object response

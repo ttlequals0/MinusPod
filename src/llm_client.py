@@ -60,6 +60,8 @@ from llm_capabilities import (
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
+    is_temperature_rejection_error,
+    mark_model_omits_temperature,
     model_omits_temperature,
     set_fallback,
     translate_reasoning_effort,
@@ -327,6 +329,20 @@ def _log_fallback(
     )
 
 
+def _log_temperature_omission(
+    provider_label: str,
+    episode_id: Optional[str],
+    pass_name: Optional[str],
+    model: str,
+    error: Exception,
+) -> None:
+    logger.warning(
+        f"[{episode_id}:{pass_name}] {provider_label} rejected temperature "
+        f"for model={model}: {error}. Retrying with temperature omitted "
+        f"(remembered for the rest of this process)."
+    )
+
+
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
@@ -411,6 +427,26 @@ class LLMClient(ABC):
         try:
             return send_fn(eff_max, eff_temp, eff_reasoning), eff_max, eff_temp, eff_reasoning
         except Exception as e:
+            if is_temperature_rejection_error(e):
+                # The model rejects temperature outright (Anthropic's
+                # adaptive-thinking generation) -- a retry that substitutes a
+                # DEFAULT temperature would 400 identically, since the
+                # rejected value was never the problem. Self-heal for this
+                # process: mark_model_omits_temperature() makes
+                # model_omits_temperature() return True for `model` from now
+                # on, and every client's _send closure re-consults it on each
+                # call (including this retry), so re-invoking send_fn with
+                # the same tunables now omits temperature instead.
+                _log_temperature_omission(provider_label, episode_id, pass_name, model, e)
+                mark_model_omits_temperature(model)
+                try:
+                    response = send_fn(eff_max, eff_temp, eff_reasoning)
+                except Exception as e2:
+                    if not is_rate_limit_error(e2):
+                        self._record_circuit_breaker(success=False)
+                    raise
+                return response, eff_max, eff_temp, eff_reasoning
+
             will_fallback = _should_fallback_retry(e, episode_id, pass_name)
             if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False)
@@ -550,9 +586,8 @@ class AnthropicClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        omit_temperature = model_omits_temperature(model)
         self._log_messages("Anthropic", effective_system, messages, model,
-                           None if omit_temperature else eff_temp, eff_max)
+                           None if model_omits_temperature(model) else eff_temp, eff_max)
 
         def _send(tok, tmp, reasoning):
             kw = dict(
@@ -563,7 +598,9 @@ class AnthropicClient(LLMClient):
                 timeout=timeout,
             )
             # Anthropic's adaptive-thinking models reject temperature with a 400.
-            if not omit_temperature:
+            # Re-consulted on every call (not hoisted) so a retry after
+            # mark_model_omits_temperature() picks up the freshly-learned state.
+            if not model_omits_temperature(model):
                 kw["temperature"] = tmp
             kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
             if tool_spec is not None:
@@ -730,9 +767,8 @@ class OpenAICompatibleClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        omit_temperature = model_omits_temperature(model)
         self._log_messages("OpenAI", system, messages, model,
-                           None if omit_temperature else eff_temp, eff_max)
+                           None if model_omits_temperature(model) else eff_temp, eff_max)
 
         # Newer OpenAI models require max_completion_tokens instead of max_tokens.
         # Try cached param first, fallback on error.
@@ -752,7 +788,9 @@ class OpenAICompatibleClient(LLMClient):
             }
             # Anthropic's adaptive-thinking models (e.g. via OpenRouter) reject
             # temperature with a 400; omit it rather than let the request fail.
-            if not omit_temperature:
+            # Re-consulted on every call (not hoisted) so a retry after
+            # mark_model_omits_temperature() picks up the freshly-learned state.
+            if not model_omits_temperature(model):
                 kw["temperature"] = tmp
             if response_format:
                 if self._get_json_format_supported() is False:

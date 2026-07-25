@@ -12,6 +12,8 @@ from llm_capabilities import (
     get_pass_defaults,
     is_fallback_eligible_error,
     is_fallback_set,
+    is_temperature_rejection_error,
+    mark_model_omits_temperature,
     set_fallback,
     supports_json_schema,
     translate_reasoning_effort,
@@ -22,6 +24,8 @@ from llm_capabilities import (
 def _reset_fallback_state():
     with llm_capabilities._fallback_lock:
         llm_capabilities._fallback_state.clear()
+    with llm_capabilities._learned_no_temperature_lock:
+        llm_capabilities._learned_no_temperature_models.clear()
 
 
 class TestFallbackFlag:
@@ -173,6 +177,8 @@ class TestModelOmitsTemperature:
         "claude-mythos-5",
         "claude-opus-4-7",
         "claude-opus-4-8",
+        "claude-opus-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
         "claude-opus-4-8-20260101",
     ])
@@ -190,6 +196,7 @@ class TestModelOmitsTemperature:
         # A token must not match as a prefix of a longer version number.
         "claude-opus-4-70",
         "claude-sonnet-50",
+        "claude-opus-50",
     ])
     def test_older_and_other_models_keep_temperature(self, model):
         assert llm_capabilities.model_omits_temperature(model) is False
@@ -197,6 +204,64 @@ class TestModelOmitsTemperature:
     @pytest.mark.parametrize("model", [None, ""])
     def test_empty_model_keeps_temperature(self, model):
         assert llm_capabilities.model_omits_temperature(model) is False
+
+
+class TestMarkModelOmitsTemperature:
+    """Self-healing per-process memo for models not in the static list (#530 follow-up)."""
+
+    def test_unknown_model_defaults_to_keeping_temperature(self):
+        assert llm_capabilities.model_omits_temperature("claude-unreleased-9") is False
+
+    def test_marking_makes_model_omit_temperature(self):
+        mark_model_omits_temperature("claude-unreleased-9")
+        assert llm_capabilities.model_omits_temperature("claude-unreleased-9") is True
+
+    def test_marking_is_case_insensitive(self):
+        mark_model_omits_temperature("Claude-Unreleased-9")
+        assert llm_capabilities.model_omits_temperature("claude-unreleased-9") is True
+
+    def test_marking_empty_model_is_a_noop(self):
+        mark_model_omits_temperature("")
+        mark_model_omits_temperature(None)
+        assert llm_capabilities.model_omits_temperature("") is False
+
+
+class TestIsTemperatureRejectionError:
+    def test_matches_deprecated_temperature_message(self):
+        err = _StatusError(400)
+        err.args = ("Error code: 400 ... '`temperature` is deprecated for this model.'",)
+        assert is_temperature_rejection_error(err) is True
+
+    @pytest.mark.parametrize("phrase", [
+        "temperature is deprecated for this model",
+        "temperature is unsupported on this model",
+        "temperature is not supported for this model",
+    ])
+    def test_matches_marker_phrases(self, phrase):
+        err = _StatusError(400)
+        err.args = (phrase,)
+        assert is_temperature_rejection_error(err) is True
+
+    def test_non_temperature_400_is_not_a_match(self):
+        err = _StatusError(400)
+        err.args = ("max_tokens too large",)
+        assert is_temperature_rejection_error(err) is False
+
+    def test_temperature_mentioned_without_rejection_marker_is_not_a_match(self):
+        err = _StatusError(400)
+        err.args = ("temperature must be between 0 and 1",)
+        assert is_temperature_rejection_error(err) is False
+
+    @pytest.mark.parametrize("status", [401, 403, 404, 429, 500])
+    def test_non_400_status_is_not_a_match(self, status):
+        err = _StatusError(status)
+        err.args = ("`temperature` is deprecated for this model.",)
+        assert is_temperature_rejection_error(err) is False
+
+    def test_status_on_response_attribute(self):
+        err = _ResponseError(400)
+        err.args = ("`temperature` is deprecated for this model.",)
+        assert is_temperature_rejection_error(err) is True
 
 
 class TestSupportsJsonSchema:

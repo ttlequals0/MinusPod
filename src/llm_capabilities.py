@@ -120,10 +120,31 @@ def translate_reasoning_effort(
 _ANTHROPIC_NO_SAMPLING_MODELS = (
     "claude-opus-4-7",
     "claude-opus-4-8",
+    "claude-opus-5",
     "claude-sonnet-5",
     "claude-fable-5",
     "claude-mythos-5",
 )
+
+# Per-process memo of models discovered at runtime to reject temperature, keyed
+# by lowercased model id. Self-heals model_omits_temperature() for a model not
+# (yet) added to _ANTHROPIC_NO_SAMPLING_MODELS above -- mirrors the
+# set_fallback/_fallback_state pattern, but keyed by model since the rejection
+# is a property of the model, not of a specific (episode_id, pass_name).
+_learned_no_temperature_models: set = set()
+_learned_no_temperature_lock = threading.Lock()
+
+
+def mark_model_omits_temperature(model: str) -> None:
+    """Remember, for the life of this process, that ``model`` rejects the
+    temperature parameter. Called after a provider 400 identifies the
+    rejection (see is_temperature_rejection_error); subsequent calls to
+    model_omits_temperature() for this model return True without needing a
+    _ANTHROPIC_NO_SAMPLING_MODELS entry or a restart."""
+    if not model:
+        return
+    with _learned_no_temperature_lock:
+        _learned_no_temperature_models.add(model.lower())
 
 
 def model_omits_temperature(model: Optional[str]) -> bool:
@@ -133,6 +154,9 @@ def model_omits_temperature(model: Optional[str]) -> bool:
     if not model:
         return False
     m = model.lower()
+    with _learned_no_temperature_lock:
+        if m in _learned_no_temperature_models:
+            return True
     # Trailing (?!\d) guards against a token being a prefix of a longer version,
     # e.g. "claude-opus-4-7" must not match a hypothetical "claude-opus-4-70",
     # and "claude-sonnet-5" must not match "claude-sonnet-50".
@@ -170,6 +194,32 @@ def supports_json_schema(provider: str) -> bool:
     risk a false positive on an unverified provider.
     """
     return (provider or '').lower() in _JSON_SCHEMA_SUPPORTED_PROVIDERS
+
+
+def is_temperature_rejection_error(error: Exception) -> bool:
+    """True for a 400 whose body indicates the model rejects ``temperature``
+    outright (Anthropic's adaptive-thinking generation, e.g. the literal
+    "`temperature` is deprecated for this model" message). Distinct from
+    is_fallback_eligible_error: this identifies the specific
+    temperature-unsupported case so callers can retry with temperature
+    OMITTED instead of defaulted -- a defaulted retry 400s identically on
+    these models, since the rejected value was never the problem.
+    """
+    status = getattr(error, 'status_code', None)
+    if status is None:
+        response = getattr(error, 'response', None)
+        if response is not None:
+            status = getattr(response, 'status_code', None)
+    try:
+        status_int = int(status)
+    except (TypeError, ValueError):
+        return False
+    if status_int != 400:
+        return False
+    text = str(error).lower()
+    if 'temperature' not in text:
+        return False
+    return any(marker in text for marker in ('deprecated', 'unsupported', 'not supported'))
 
 
 def is_fallback_eligible_error(error: Exception) -> bool:

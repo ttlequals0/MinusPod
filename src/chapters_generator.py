@@ -116,6 +116,15 @@ class ChaptersGenerator:
         self.api_key = api_key or get_api_key()
         self._llm_client_override: Optional[LLMClient] = None
         self._episode_id: Optional[str] = None
+        # Set when topic detection or title generation fails and the run
+        # degrades to a fallback (whole-episode single chapter, or generic
+        # titles); read by callers after generate_chapters() to surface the
+        # degradation in processing stats rather than let it look like a
+        # normal short episode.
+        self._topic_detection_failed: bool = False
+        self._title_generation_failed: bool = False
+        self.chapters_degraded: bool = False
+        self.chapters_degradation_reason: Optional[str] = None
 
     @property
     def _llm_client(self) -> Optional[LLMClient]:
@@ -239,6 +248,7 @@ Transcript:
             )
             if response is None:
                 logger.error(f"Failed to detect topic boundaries: {last_error}")
+                self._topic_detection_failed = True
                 return []
 
             result_text = response.content.strip()
@@ -281,6 +291,7 @@ Transcript:
 
         except Exception as e:
             logger.error(f"Failed to detect topic boundaries: {e}")
+            self._topic_detection_failed = True
             return []
 
     def get_transcript_excerpt(
@@ -345,6 +356,7 @@ Transcript:
 
         except Exception as e:
             logger.error(f"Failed to generate chapter titles: {e}")
+            self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
 
         return chapters
@@ -534,6 +546,10 @@ Transcript:
         """
         logger.info(f"Generating chapters for '{episode_title}'")
         self._episode_id = episode_id
+        self._topic_detection_failed = False
+        self._title_generation_failed = False
+        self.chapters_degraded = False
+        self.chapters_degradation_reason = None
 
         if not segments:
             return {'version': '1.2.0', 'chapters': []}
@@ -580,6 +596,7 @@ Transcript:
                             })
                     except Exception as e:
                         logger.warning(f"Failed to detect topic boundaries: {e}")
+                        self._topic_detection_failed = True
 
         chapters.sort(key=lambda x: x['startTime'])
 
@@ -603,6 +620,26 @@ Transcript:
             })
 
         logger.info(f"Generated {len(output_chapters)} chapters")
+
+        if self._topic_detection_failed or self._title_generation_failed:
+            reasons = []
+            if self._topic_detection_failed:
+                reasons.append('chapter topic detection failed')
+            if self._title_generation_failed:
+                reasons.append('chapter title generation failed')
+            reason = '; '.join(reasons)
+            self.chapters_degraded = True
+            self.chapters_degradation_reason = reason
+            if len(output_chapters) <= 1:
+                logger.warning(
+                    f"[{episode_id}] chapters degraded to a single chapter "
+                    f"({reason}); operator-visible fallback, not a normal short episode"
+                )
+            else:
+                logger.warning(
+                    f"[{episode_id}] chapter generation degraded ({reason}); "
+                    f"some chapters may have generic titles or missing boundaries"
+                )
 
         return {
             'version': '1.2.0',
