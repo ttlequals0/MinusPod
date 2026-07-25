@@ -94,6 +94,8 @@ from .boundaries import (
     merge_same_sponsor_ads,
     merge_ads_across_short_content_gaps,
     deduplicate_window_ads,
+    split_conflicting_action_span,
+    resolve_category_action,
 )
 from .prompts import (
     USER_PROMPT_TEMPLATE,
@@ -267,16 +269,6 @@ DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 # and 'CiraSync' for a single Windows Weekly ad) fold into one when their
 # overlap covers this much of the SHORTER span.
 DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
-
-
-def _resolve_category_action(category, action_map: Dict[str, str]) -> str:
-    """Resolve a marker's category to its feed-configured action.
-
-    Caller must only invoke this with a non-None action_map -- callers that
-    have no map treat every category as the same action (today's behavior)
-    and never call this.
-    """
-    return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
 
 def _span_transcript_coverage(segments, start, end):
@@ -970,7 +962,8 @@ class AdDetector:
                             description_section, podcast_name, episode_title,
                             audio_analysis, progress_callback,
                             progress_base, progress_range, slug, episode_id,
-                            pass_name, window_label_prefix, validate_timestamps):
+                            pass_name, window_label_prefix, validate_timestamps,
+                            action_map=None):
         """Shared window orchestration for the detection and verification passes.
 
         Runs every window through ``_run_windows``, merges results in window
@@ -980,6 +973,12 @@ class AdDetector:
 
         ``pass_label`` is 'Detection' or 'Verification'; its lowercase form is
         used in the failure log and the all-windows-failed envelope.
+
+        ``action_map``, when given, gates the window-boundary dedup so it
+        never fuses two raw detections whose categories resolve to
+        different actions (see ``deduplicate_window_ads``). None (the
+        verification pass, or a caller with no resolved map) preserves the
+        merge-everything-within-threshold behavior unchanged.
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
         failure_response, category_missing, category_total)`` where
@@ -1058,7 +1057,7 @@ class AdDetector:
         category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
         # Deduplicate ads across windows
-        final_ads = deduplicate_window_ads(all_window_ads)
+        final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
                 category_missing, category_total)
 
@@ -1136,6 +1135,14 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
                             f"{positional_prior_hint.splitlines()[0]}")
 
+            # Resolved once per run (not per window), before the window
+            # pass so deduplicate_window_ads can gate its merge on it too
+            # (#565 follow-up, DTNS 5317): the window-boundary dedup is the
+            # earliest point a categorized LLM detection could be silently
+            # fused into an adjacent uncategorized one and lose its category
+            # before _merge_detection_results ever sees it as a candidate.
+            action_map = self._resolve_segment_action_map(slug)
+
             (final_ads, all_raw_responses, failed_windows, failure,
              category_missing, category_total) = self._run_detection_pass(
                 windows,
@@ -1154,19 +1161,18 @@ class AdDetector:
                 pass_name=PASS_AD_DETECTION_1,
                 window_label_prefix='Window',
                 validate_timestamps=True,
+                action_map=action_map,
             )
             if failure is not None:
                 return failure
 
-            # Resolved once per run (not per window): gates the
-            # category-miss warning below on whether per-category actions
-            # are actually configured for this feed. Reads whether
+            # Gates the category-miss warning below on whether per-category
+            # actions are actually configured for this feed. Reads whether
             # SHOW_SEGMENTS_PROMPT_SECTION made it into system_prompt above
             # instead of a second _podcast_wants_show_segments DB call.
             # That call already happened once inside
             # _build_detection_system_prompt, and its outcome is right there
             # in the string.
-            action_map = self._resolve_segment_action_map(slug)
             show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
             segment_categories_configured = show_segments_enabled or (
                 action_map is not None
@@ -1624,6 +1630,10 @@ class AdDetector:
         claude_ads = result.get('ads', [])
         cross_episode_skipped = 0
 
+        # Resolved once and reused below (the coverage-drop gate) and at the
+        # final merge call: the feed's category->action map.
+        action_map = self._resolve_segment_action_map(slug)
+
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
         updated_patterns = set()
         for ad in claude_ads:
@@ -1647,9 +1657,22 @@ class AdDetector:
             uncovered_portions = get_uncovered_portions(ad, pattern_matched_regions)
 
             if not uncovered_portions:
-                logger.debug(f"[{slug}:{episode_id}] Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
-                             f"fully covered by patterns")
-                continue
+                # A pattern match covering this exact span rarely carries a
+                # category (most patterns predate per-feed segment actions
+                # and default to 'sponsor'/remove). Dropping the Claude ad
+                # here would silently discard a keep-resolving category
+                # (e.g. 'intro'/'outro') and leave only the remove-resolving
+                # pattern's copy of this region to reach the merge seam --
+                # #565 follow-up, DTNS 5317. Keep the Claude ad intact
+                # instead so the action-gated merge below can see it.
+                if (action_map is not None
+                        and resolve_category_action(ad.get('category'), action_map)
+                            != DEFAULT_SEGMENT_ACTION):
+                    uncovered_portions = [ad]
+                else:
+                    logger.debug(f"[{slug}:{episode_id}] Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
+                                 f"fully covered by patterns")
+                    continue
 
             # Log if ad was trimmed (not returned as-is)
             if not (len(uncovered_portions) == 1
@@ -1705,8 +1728,7 @@ class AdDetector:
 
         # Merge overlapping ads
         all_ads = self._merge_detection_results(
-            all_ads, segments=segments,
-            action_map=self._resolve_segment_action_map(slug))
+            all_ads, segments=segments, action_map=action_map)
 
         # Log detection summary
         total = len(all_ads)
@@ -2106,7 +2128,11 @@ class AdDetector:
         candidates whose categories resolve to different actions are never
         folded into one marker, so a keep-resolving detection can never be
         absorbed into a remove-resolving one and cut with no downstream net
-        able to see it (#565 follow-up). None (module-level callers, tests
+        able to see it (#565 follow-up). A true overlap where one span is
+        fully contained in the other is split around the contained span
+        (split_conflicting_action_span) rather than collapsing it to
+        nothing (DTNS 5317: an intro/outro nested inside a longer
+        pattern-matched remove span). None (module-level callers, tests
         without a db) treats every category as the same action -- today's
         merge-everything-within-3s behavior, unchanged.
         """
@@ -2124,32 +2150,27 @@ class AdDetector:
             if current['start'] <= last['end'] + 3.0:
                 same_action = (
                     action_map is None
-                    or _resolve_category_action(last.get('category'), action_map)
-                       == _resolve_category_action(current.get('category'), action_map)
+                    or resolve_category_action(last.get('category'), action_map)
+                       == resolve_category_action(current.get('category'), action_map)
                 )
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker
-                    # into a remove-resolving one. Leave both, clamping the
-                    # later marker's start past a true overlap so the two
-                    # spans never double-cut the same audio.
-                    clamped = current.copy()
-                    if current['start'] < last['end']:
-                        clamped['start'] = last['end']
-                        logger.debug(
-                            f"Not merging {last.get('category')!r} and "
-                            f"{current.get('category')!r} (different resolved "
-                            f"actions): clamped overlap start to "
-                            f"{clamped['start']:.1f}s"
-                        )
-                    if clamped['start'] < clamped['end']:
-                        merged.append(clamped)
+                    # into a remove-resolving one, and never let a shorter
+                    # span fully inside the other collapse to nothing (a
+                    # remove-resolving pattern match can fully contain a
+                    # shorter keep-resolving LLM span, e.g. an intro/outro
+                    # -- #565 follow-up, DTNS 5317).
+                    new_last, new_entries = split_conflicting_action_span(last, current)
+                    if new_last is None:
+                        merged.pop()
                     else:
-                        logger.debug(
-                            f"Dropping fully-overlapped different-action "
-                            f"marker {current['start']:.1f}s-{current['end']:.1f}s "
-                            f"(clamped span collapsed against "
-                            f"{last['start']:.1f}s-{last['end']:.1f}s)"
-                        )
+                        merged[-1] = new_last
+                    merged.extend(new_entries)
+                    logger.debug(
+                        f"Not merging {last.get('category')!r} and "
+                        f"{current.get('category')!r} (different resolved "
+                        f"actions) at {current['start']:.1f}s"
+                    )
                     continue
                 # The stage-priority merge below overwrites last's stage
                 # (e.g. claude -> dai_differential) BEFORE the #541 upgrade
@@ -2342,8 +2363,8 @@ class AdDetector:
 
                     category_source = primary
                     if action_map is not None:
-                        a_action = _resolve_category_action(a.get('category'), action_map)
-                        b_action = _resolve_category_action(b.get('category'), action_map)
+                        a_action = resolve_category_action(a.get('category'), action_map)
+                        b_action = resolve_category_action(b.get('category'), action_map)
                         if a_action != b_action:
                             if a_action == 'keep':
                                 category_source = a

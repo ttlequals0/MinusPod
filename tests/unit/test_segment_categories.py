@@ -21,7 +21,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from ad_detector import AdDetector, parse_ads_from_response
+from ad_detector import AdDetector, parse_ads_from_response, deduplicate_window_ads
 from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
@@ -297,3 +297,101 @@ class TestMergeDuplicateOverlapPrefersKeepCategory:
 
         assert len(out) == 1
         assert out[0]['category'] == 'interaction'
+
+
+DTNS_ACTION_MAP = {
+    'sponsor': 'remove', 'interaction': 'remove',
+    'cross_promo': 'keep', 'self_promo': 'keep',
+    'intro': 'keep', 'outro': 'keep', 'recap': 'keep',
+}
+
+
+def _dtns5317_raw_llm_detections():
+    """The real 9 raw window detections from daily-tech-news-show episode
+    3c0b827ef2c5 (reprocessed on 2.78.1, 2026-07-25 02:55 UTC). Only the
+    intro and outro carried a category; the other 7 did not."""
+    return [
+        {'start': 0.0, 'end': 156.7, 'confidence': 0.98,
+         'reason': 'Pre-roll ad block: Capital One, Olly Sleep, Cologuard, '
+                   'and Morning Brew Daily sponsor reads'},
+        {'start': 158.0, 'end': 166.6, 'confidence': 0.9, 'category': 'intro',
+         'reason': 'Show intro marker/theme'},
+        {'start': 687.5, 'end': 845.5, 'confidence': 0.98,
+         'reason': 'Ad break with multiple sponsors: Capital One, Michaels, '
+                   'Morning Brew Daily podcast promo, Stamps.com, Vanta'},
+        {'start': 814.2, 'end': 845.5, 'confidence': 0.97,
+         'reason': 'Vanta sponsor read with call to action (vanta.com), '
+                   'continues from previous window'},
+        {'start': 1502.5, 'end': 1562.5, 'confidence': 0.9,
+         'reason': "Patreon promotion with promo code 'experiment' for 26% "
+                   'off, call to action patreon.com/DTNS'},
+        {'start': 1900.1, 'end': 1972.2, 'confidence': 0.98,
+         'reason': 'Ad break with Capital One and Noom sponsor reads, '
+                   'bracketed by ad-break boundary cues'},
+        {'start': 2314.1, 'end': 2319.2, 'confidence': 0.9,
+         'reason': 'Patreon promo with code experiment and URL patreon.com/DTNS'},
+        {'start': 2324.5, 'end': 2381.1, 'confidence': 0.85, 'category': 'outro',
+         'reason': 'Show credits and DTNS Family of Podcasts sign-off'},
+        {'start': 2385.8, 'end': 2444.9, 'confidence': 0.97,
+         'reason': 'Capital One and Stamps.com sponsor ads with promo code podcast'},
+    ]
+
+
+class TestDTNS5317IntroOutroSurviveFullPipeline:
+    """End-to-end reproduction of DTNS 5317: the raw 9 LLM window
+    detections, run through deduplicate_window_ads and
+    _merge_detection_results with the feed's real action map (issue #565
+    follow-up), must keep the intro and outro as distinct markers that
+    resolve to 'keep' -- and every other span still resolves to 'remove',
+    so no ad content is left uncut."""
+
+    def test_intro_and_outro_survive_as_keep_markers(self):
+        det = AdDetector(api_key='test-key')
+
+        deduped = deduplicate_window_ads(
+            _dtns5317_raw_llm_detections(), action_map=DTNS_ACTION_MAP)
+        merged = det._merge_detection_results(deduped, action_map=DTNS_ACTION_MAP)
+
+        keep_ads, remove_ads = _partition_keep_ads(merged, DTNS_ACTION_MAP)
+
+        keep_by_cat = {m['category']: m for m in keep_ads}
+        assert keep_by_cat['intro']['start'] == 158.0
+        assert keep_by_cat['intro']['end'] == 166.6
+        assert keep_by_cat['intro']['action_applied'] == 'keep'
+        assert keep_by_cat['intro']['was_cut'] is False
+
+        assert keep_by_cat['outro']['start'] == 2324.5
+        assert keep_by_cat['outro']['end'] == 2381.1
+        assert keep_by_cat['outro']['action_applied'] == 'keep'
+        assert keep_by_cat['outro']['was_cut'] is False
+
+        # Every remove-side marker still resolves to 'sponsor'/'remove' --
+        # the surrounding ad content is still cut, the fix only protects
+        # the categorized keep spans.
+        assert all(m['category'] == 'sponsor' for m in remove_ads)
+        remove_by_start = {m['start']: m for m in remove_ads}
+        assert remove_by_start[0.0]['end'] == 156.7
+        assert remove_by_start[2385.8]['end'] == 2444.9
+
+    def test_all_remove_map_still_cuts_everything(self):
+        """Regression: a default (all-remove) feed's identical raw
+        detections must still merge and cut exactly as before this fix --
+        the category-blind window fusion of intro/outro into their
+        neighbours is only a bug when it discards a keep resolution."""
+        det = AdDetector(api_key='test-key')
+        all_remove = {cat: 'remove' for cat in DTNS_ACTION_MAP}
+
+        deduped = deduplicate_window_ads(
+            _dtns5317_raw_llm_detections(), action_map=all_remove)
+        merged = det._merge_detection_results(deduped, action_map=all_remove)
+
+        keep_ads, remove_ads = _partition_keep_ads(merged, all_remove)
+        assert keep_ads == []
+        # Every marker resolves to 'remove' regardless of its stamped
+        # category label (an all-remove map cuts everything).
+        assert all(all_remove[m['category']] == 'remove' for m in remove_ads)
+        # Intro fused into the pre-roll block, outro fused into the
+        # trailing sponsor ad -- identical to today's pre-fix shape.
+        by_start = {m['start']: m for m in remove_ads}
+        assert by_start[0.0]['end'] == 166.6
+        assert by_start[2324.5]['end'] == 2444.9

@@ -10,6 +10,7 @@ from ad_detector import (
     refine_ad_boundaries,
     merge_same_sponsor_ads,
     deduplicate_window_ads,
+    split_conflicting_action_span,
     _extract_ad_keywords,
     validate_ad_timestamps,
     get_uncovered_portions,
@@ -561,3 +562,189 @@ class TestDeduplicateWindowMergeFlag:
         assert len(merged) == 1
         # Key must be absent, not merely falsy, so deleting the gap logic fails.
         assert 'merged_distinct_ads' not in merged[0]
+
+
+class TestSplitConflictingActionSpan:
+    """split_conflicting_action_span is the shared containment-safe split
+    used by both deduplicate_window_ads and _merge_detection_results when
+    two adjacent-or-overlapping ads resolve to different actions (#565
+    follow-up, DTNS 5317)."""
+
+    def test_no_true_overlap_both_survive_untouched(self):
+        last = {'start': 0.0, 'end': 20.0, 'category': 'sponsor'}
+        current = {'start': 20.0, 'end': 30.0, 'category': 'self_promo'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert new_last == last
+        assert entries == [current]
+
+    def test_current_extends_past_last_clamps_start(self):
+        last = {'start': 0.0, 'end': 25.0, 'category': 'sponsor'}
+        current = {'start': 20.0, 'end': 30.0, 'category': 'interaction'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert new_last == last
+        assert len(entries) == 1
+        assert entries[0]['start'] == 25.0
+        assert entries[0]['end'] == 30.0
+
+    def test_current_nested_inside_last_splits_last_around_it(self):
+        """The DTNS 5317 shape: a longer remove-resolving pattern match
+        fully containing a shorter keep-resolving LLM span (e.g. an intro
+        tail-aligned inside a pre-roll pattern match) must not collapse the
+        nested span to nothing."""
+        last = {'start': 0.0, 'end': 166.6, 'category': 'sponsor'}
+        current = {'start': 158.0, 'end': 166.6, 'category': 'intro'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert new_last['start'] == 0.0
+        assert new_last['end'] == 158.0
+        assert new_last['category'] == 'sponsor'
+        assert len(entries) == 1
+        assert entries[0]['start'] == 158.0
+        assert entries[0]['end'] == 166.6
+        assert entries[0]['category'] == 'intro'
+
+    def test_current_strictly_inside_last_produces_before_and_after(self):
+        last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor'}
+        current = {'start': 40.0, 'end': 60.0, 'category': 'interaction'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert new_last['start'] == 0.0
+        assert new_last['end'] == 40.0
+        assert len(entries) == 2
+        assert entries[0]['start'] == 40.0 and entries[0]['end'] == 60.0
+        assert entries[0]['category'] == 'interaction'
+        assert entries[1]['start'] == 60.0 and entries[1]['end'] == 100.0
+        assert entries[1]['category'] == 'sponsor'
+
+    def test_current_same_start_as_last_consumes_last(self):
+        last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor'}
+        current = {'start': 0.0, 'end': 50.0, 'category': 'outro'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert new_last is None
+        assert len(entries) == 2
+        assert entries[0]['start'] == 0.0 and entries[0]['end'] == 50.0
+        assert entries[1]['start'] == 50.0 and entries[1]['end'] == 100.0
+
+    def test_nested_split_strips_stale_merge_bookkeeping(self):
+        """A last that already carries merged_distinct_ads/
+        merged_protected_start/end (from an earlier same-action fold)
+        must not hand that stale bookkeeping to the split pieces: the
+        recorded protected bounds describe last's ORIGINAL span and could
+        otherwise float the reviewer's expand-only floor back across the
+        split boundary, re-absorbing audio this split just carved out."""
+        last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor',
+                'merged_distinct_ads': True,
+                'merged_protected_start': 0.0, 'merged_protected_end': 100.0}
+        current = {'start': 40.0, 'end': 60.0, 'category': 'interaction'}
+        new_last, entries = split_conflicting_action_span(last, current)
+        assert len(entries) == 2  # current itself, plus the 'after' remainder
+        for piece in [new_last, entries[1]]:
+            assert 'merged_distinct_ads' not in piece
+            assert 'merged_protected_start' not in piece
+            assert 'merged_protected_end' not in piece
+
+
+class TestDeduplicateWindowAdsActionGate:
+    """DTNS 5317 (2026-07-25): daily-tech-news-show episode 3c0b827ef2c5,
+    reprocessed with detect_show_segments=true and per-feed actions
+    {cross_promo,intro,outro,recap,self_promo: keep; sponsor,interaction:
+    remove}. The LLM's raw 9 detections carried category on only the intro
+    (158.0-166.6) and outro (2324.5-2381.1); deduplicate_window_ads's
+    5.0s-threshold window-boundary merge fused each into an adjacent
+    uncategorized sponsor read before the category-action gate at the
+    downstream merge seam (_merge_detection_results) ever saw them as
+    separate candidates -- the intro's category was silently dropped, and
+    the outro's span was wrongly extended over unrelated sponsor content.
+    """
+
+    DTNS_ACTION_MAP = {
+        'sponsor': 'remove', 'interaction': 'remove',
+        'cross_promo': 'keep', 'self_promo': 'keep',
+        'intro': 'keep', 'outro': 'keep', 'recap': 'keep',
+    }
+
+    def _raw_llm_detections(self):
+        return [
+            {'start': 0.0, 'end': 156.7, 'confidence': 0.98,
+             'reason': 'Pre-roll ad block: Capital One, Olly Sleep, Cologuard, '
+                       'and Morning Brew Daily sponsor reads',
+             'end_text': 'wherever you get your podcasts'},
+            {'start': 158.0, 'end': 166.6, 'confidence': 0.9, 'category': 'intro',
+             'reason': 'Show intro marker/theme',
+             'end_text': 'Daily Tech News for Friday'},
+            {'start': 687.5, 'end': 845.5, 'confidence': 0.98,
+             'reason': 'Ad break with multiple sponsors: Capital One, Michaels, '
+                       'Morning Brew Daily podcast promo, Stamps.com, Vanta',
+             'end_text': "All right, let's get into the briefs"},
+            {'start': 814.2, 'end': 845.5, 'confidence': 0.97,
+             'reason': 'Vanta sponsor read with call to action (vanta.com), '
+                       'continues from previous window',
+             'end_text': "let's get into the briefs"},
+            {'start': 1502.5, 'end': 1562.5, 'confidence': 0.9,
+             'reason': "Patreon promotion with promo code 'experiment' for 26% "
+                       'off, call to action patreon.com/DTNS',
+             'end_text': 'little smarter'},
+            {'start': 1900.1, 'end': 1972.2, 'confidence': 0.98,
+             'reason': 'Ad break with Capital One and Noom sponsor reads, '
+                       'bracketed by ad-break boundary cues',
+             'end_text': 'Individual results may vary'},
+            {'start': 2314.1, 'end': 2319.2, 'confidence': 0.9,
+             'reason': 'Patreon promo with code experiment and URL patreon.com/DTNS',
+             'end_text': 'patreon.com slash DTNS'},
+            {'start': 2324.5, 'end': 2381.1, 'confidence': 0.85, 'category': 'outro',
+             'reason': 'Show credits and DTNS Family of Podcasts sign-off',
+             'end_text': 'enjoyed this program'},
+            {'start': 2385.8, 'end': 2444.9, 'confidence': 0.97,
+             'reason': 'Capital One and Stamps.com sponsor ads with promo code podcast',
+             'end_text': 'Taxes and fees apply'},
+        ]
+
+    def test_without_action_map_reproduces_the_bug(self):
+        """Regression anchor: without an action_map, today's (pre-fix, and
+        still-current no-map) behavior fuses the intro into the pre-roll
+        (1.3s gap) and the outro into the trailing sponsor ad (4.7s gap),
+        exactly matching the production log ("Total after dedup: 6 ads")."""
+        merged = deduplicate_window_ads(self._raw_llm_detections())
+        assert len(merged) == 6
+        first = merged[0]
+        assert first['start'] == 0.0 and first['end'] == 166.6
+        assert 'category' not in first
+        last = merged[-1]
+        assert last['start'] == 2324.5 and last['end'] == 2444.9
+        assert last['category'] == 'outro'
+
+    def test_with_dtns_action_map_intro_and_outro_survive_distinct(self):
+        merged = deduplicate_window_ads(
+            self._raw_llm_detections(), action_map=self.DTNS_ACTION_MAP)
+
+        by_start = {round(m['start'], 1): m for m in merged}
+        assert 0.0 in by_start
+        assert by_start[0.0]['end'] == 156.7
+        assert by_start[0.0].get('category') is None
+
+        assert 158.0 in by_start
+        intro = by_start[158.0]
+        assert intro['end'] == 166.6
+        assert intro['category'] == 'intro'
+
+        assert 2324.5 in by_start
+        outro = by_start[2324.5]
+        assert outro['end'] == 2381.1
+        assert outro['category'] == 'outro'
+
+        assert 2385.8 in by_start
+        assert by_start[2385.8]['end'] == 2444.9
+        assert by_start[2385.8].get('category') is None
+
+        # The genuinely-duplicate Vanta re-detection across the window 2/3
+        # boundary (687.5-845.5 and 814.2-845.5, same resolved action) still
+        # merges exactly as before.
+        assert 687.5 in by_start
+        assert by_start[687.5]['end'] == 845.5
+
+    def test_all_remove_map_matches_no_map_behavior(self):
+        """An all-remove action map (today's default feed) must merge
+        identically to the no-map case -- the gate never changes behavior
+        for a feed that has not opted into per-category actions."""
+        all_remove = {cat: 'remove' for cat in self.DTNS_ACTION_MAP}
+        merged = deduplicate_window_ads(
+            self._raw_llm_detections(), action_map=all_remove)
+        assert len(merged) == 6
