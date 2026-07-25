@@ -9,9 +9,9 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.78.1] - 2026-07-24
+## [2.78.2] - 2026-07-25
 
-### Changed
+### Fixed
 
 - Detection now repairs missing segment categories with a follow-up call.
   When a feed uses per-category actions (or has show-segments detection on)
@@ -28,6 +28,14 @@ release notes.
   fully contained inside a conflicting one is split around rather than
   collapsed.
 
+- Feed settings: shorter labels on the show-segment toggle and the
+  re-render button, with the detail moved to helper text, so neither
+  wraps into a slab on narrow screens.
+
+## [2.78.1] - 2026-07-24
+
+### Changed
+
 - The webhook reference now documents the Feed Refresh Failed event:
   when it fires (3 consecutive upstream fetch failures), its payload
   variables, and a default payload example. The event is not new; only
@@ -38,10 +46,6 @@ release notes.
   matrix (feed and global) now shows a muted one-line description of what
   the category covers, and the show-segments, source feed, detection mode,
   and chapters helper text is clearer.
-
-- Feed settings: shorter labels on the show-segment toggle and the
-  re-render button, with the detail moved to helper text, so neither
-  wraps into a slab on narrow screens.
 
 - The webhook test button now sends one sample payload per subscribed event
   type instead of always sending an Episode Processed sample.
