@@ -9,6 +9,34 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.78.5] - 2026-07-25
+
+### Fixed
+
+- Chapter generation no longer produces a single whole-episode chapter when
+  the model rejects the temperature parameter. Opus 5 joins the list of
+  models that never receive it, and the retry after a rejection now omits
+  the parameter instead of resending a default value, which could never
+  succeed. A rejection is also remembered for the rest of the run, so a
+  model MinusPod has not seen before costs one failed call rather than
+  every call. Chapter degradation is recorded in the run's processing
+  stats and logged, instead of passing silently as a finished episode.
+- The app version is resolved through a path-independent accessor. A
+  module-level import of the root version file crashed every worker at
+  boot in 2.78.4, because the container puts only the source directory on
+  the import path. A new test imports the boot-path modules under
+  container-equivalent conditions so this class of failure fails in CI,
+  and the release flow documents a container smoke check before push.
+- Regenerating chapters shows progress and a result. The control sits in a
+  menu that closes on click, so the pending state was never visible and
+  neither success nor failure was reported.
+
+### Added
+
+- A "Do not send temperature" toggle beside the stage temperature controls
+  (`omitTemperature`), for models that reject the parameter outright. The
+  per-stage temperature inputs grey out while it is on.
+
 ## [2.78.4] - 2026-07-25
 
 ### Added
