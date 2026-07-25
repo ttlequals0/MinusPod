@@ -6,7 +6,7 @@ for readability; behavior is unchanged from the pre-split module.
 """
 import logging
 import json
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from sponsor_service import SponsorService
 from utils.prompt import format_sponsor_block, render_prompt
@@ -22,7 +22,7 @@ from utils.constants import (
 from config import (
     LOW_CONFIDENCE, CONFIDENCE_STRING_MAP,
     CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
-    get_stage_tunable,
+    get_stage_tunable, SEGMENT_CATEGORIES,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -436,3 +436,108 @@ def parse_ads_from_response(response_text: str, slug: str = None,
     except json.JSONDecodeError as e:
         logger.error(f"[{slug}:{episode_id}] Failed to parse JSON: {e}")
         return []
+
+
+# =============================================================================
+# Category repair pass (#565 follow-up, DTNS 5317): a narrow follow-up call
+# asking only for a category on ads a window's detection call already found
+# but left uncategorized, instead of trusting prompt wording alone.
+# =============================================================================
+
+CATEGORY_REPAIR_SYSTEM_PROMPT = """You are assigning a category to podcast segments that were already identified in a prior pass. Do NOT detect new segments and do NOT change any start or end time -- only choose one category per segment listed in the user message.
+
+Respond with ONLY valid JSON: an array of {"index": INTEGER, "category": STRING}, one entry per segment listed, using exactly one of:
+- sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad
+- cross_promo: a produced segment promoting a different show, inserted by the platform or network
+- self_promo: a produced or inserted segment where the show promotes its own other content (another show, Patreon, merch, mailing list)
+- interaction: a produced or inserted segment asking listeners to subscribe, rate, review, or follow the show
+- intro: the show's opening theme music and/or host introduction
+- outro: the show's closing credits, sign-off, or theme music
+- recap: a produced "coming up" preview, headline bumper, or "listen to this next" segment
+
+Every listed segment MUST get exactly one category from that list. Do not add, remove, or reorder segments. No markdown, no explanation, just the JSON array."""
+
+# Tool-use input schema for the forced-tool-call path (Anthropic; see
+# llm_capabilities.supports_json_schema). Anthropic tool input must be a
+# JSON object, so the array is wrapped under "categories" -- parse_category_
+# repair_response accepts both this shape and a bare array.
+CATEGORY_REPAIR_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "categories": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "category": {"type": "string", "enum": list(SEGMENT_CATEGORIES)},
+                },
+                "required": ["index", "category"],
+            },
+        },
+    },
+    "required": ["categories"],
+}
+
+# Small, fixed budget: the repair call only ever emits a short JSON array,
+# never full-length ad detection. Not user-tunable -- this is an internal
+# follow-up call, not a configurable detection pass.
+CATEGORY_REPAIR_MAX_TOKENS = 1024
+
+
+def format_category_repair_prompt(transcript_excerpt: str,
+                                   missing: List[Tuple[int, Dict]]) -> str:
+    """Build the user prompt for the category repair call.
+
+    ``missing`` is an iterable of (index, ad_dict) pairs; index is the ad's
+    position in the window's full ad list, carried through unchanged so the
+    response can be merged back onto the right ad unambiguously.
+    """
+    segments = [
+        {
+            "index": i,
+            "start": ad.get('start'),
+            "end": ad.get('end'),
+            "reason": ad.get('reason') or '',
+            "end_text": ad.get('end_text') or '',
+        }
+        for i, ad in missing
+    ]
+    return (
+        f"Transcript excerpt for this window:\n{transcript_excerpt}\n\n"
+        f"Segments needing a category:\n{json.dumps(segments)}"
+    )
+
+
+def parse_category_repair_response(response_text: str) -> Dict[int, str]:
+    """Parse the repair call's response into {index: category}.
+
+    Accepts either a bare JSON array of {"index", "category"} objects (the
+    json_object / prompt-injection path) or {"categories": [...]} (the
+    tool-forced json_schema path, whose tool input must be a JSON object).
+    Returns {} on any parse failure, unexpected shape, or per-entry
+    validation miss -- callers treat that as "nothing resolved" and leave
+    the existing sponsor default in place rather than raise.
+    """
+    try:
+        data = json.loads(response_text)
+    except (TypeError, ValueError):
+        return {}
+    if isinstance(data, dict):
+        data = data.get('categories')
+    if not isinstance(data, list):
+        return {}
+    resolved = {}
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        idx = entry.get('index')
+        category = entry.get('category')
+        # bool is a subclass of int in Python; exclude it explicitly so a
+        # stray true/false in the index field cannot masquerade as 0/1.
+        if isinstance(idx, bool) or not isinstance(idx, int):
+            continue
+        if category not in SEGMENT_CATEGORIES:
+            continue
+        resolved[idx] = category
+    return resolved

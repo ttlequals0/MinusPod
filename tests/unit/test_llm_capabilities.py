@@ -13,6 +13,7 @@ from llm_capabilities import (
     is_fallback_eligible_error,
     is_fallback_set,
     set_fallback,
+    supports_json_schema,
     translate_reasoning_effort,
 )
 
@@ -196,3 +197,21 @@ class TestModelOmitsTemperature:
     @pytest.mark.parametrize("model", [None, ""])
     def test_empty_model_keeps_temperature(self, model):
         assert llm_capabilities.model_omits_temperature(model) is False
+
+
+class TestSupportsJsonSchema:
+    def test_anthropic_supported(self):
+        assert supports_json_schema("anthropic") is True
+
+    def test_case_insensitive(self):
+        assert supports_json_schema("Anthropic") is True
+
+    @pytest.mark.parametrize("provider", [
+        "openrouter", "openai-compatible", "ollama", "unknown-provider",
+    ])
+    def test_unverified_providers_unsupported(self, provider):
+        assert supports_json_schema(provider) is False
+
+    @pytest.mark.parametrize("provider", [None, ""])
+    def test_empty_provider_unsupported(self, provider):
+        assert supports_json_schema(provider) is False

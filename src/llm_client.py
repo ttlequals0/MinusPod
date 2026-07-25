@@ -20,6 +20,7 @@ Configuration via environment variables:
         OPENAI_API_KEY: API key if required (default: "not-needed")
 """
 
+import json
 import logging
 import os
 import socket
@@ -518,13 +519,30 @@ class AnthropicClient(LLMClient):
         self._check_circuit_breaker()
         self._ensure_client()
 
-        # Anthropic doesn't support response_format natively;
-        # inject JSON instructions into the system prompt when requested
+        # Anthropic doesn't support response_format natively; inject JSON
+        # instructions into the system prompt when requested. A 'json_schema'
+        # request instead forces a tool call below -- the two are mutually
+        # exclusive on a single request.
         effective_system = system
         if response_format and response_format.get('type') == 'json_object':
             if '<output_format>' not in system:
                 effective_system = system + _JSON_FORMAT_SYSTEM_INSTRUCTION
                 logger.debug("Added JSON format instructions to system prompt")
+
+        # 'json_schema' requests enforced structured output via a forced
+        # tool call: the Messages API validates the model's response against
+        # the tool's input_schema, so a caller asking for this (gated by
+        # llm_capabilities.supports_json_schema) gets a real guarantee
+        # instead of prompt-injected instructions the model can ignore.
+        tool_spec = None
+        if response_format and response_format.get('type') == 'json_schema':
+            schema_cfg = response_format.get('json_schema') or {}
+            tool_spec = {
+                "name": schema_cfg.get('name', 'structured_output'),
+                "description": schema_cfg.get(
+                    'description', 'Return the structured result.'),
+                "input_schema": schema_cfg.get('schema', {"type": "object"}),
+            }
 
         # If a previous call in this pass already tripped the fallback flag,
         # use the built-in defaults from llm_capabilities instead of user values.
@@ -548,6 +566,9 @@ class AnthropicClient(LLMClient):
             if not omit_temperature:
                 kw["temperature"] = tmp
             kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
+            if tool_spec is not None:
+                kw["tools"] = [tool_spec]
+                kw["tool_choice"] = {"type": "tool", "name": tool_spec["name"]}
             # 429 is throttling, not a provider failure; 4xx tunable rejections
             # also skip the breaker because the _send_with_fallback wrapper is
             # about to retry. Both are handled in the wrapper.
@@ -563,7 +584,18 @@ class AnthropicClient(LLMClient):
 
         self._record_circuit_breaker(success=True)
 
-        content = (response.content[0].text or "") if response.content else ""
+        if tool_spec is not None:
+            # Forced tool_choice guarantees exactly one tool_use block; its
+            # `input` is the model's answer, already validated against the
+            # schema. Re-serialize to JSON text so downstream parsing (which
+            # expects response.content to be a JSON string) is unchanged.
+            content = ""
+            for block in (response.content or []):
+                if getattr(block, 'type', None) == 'tool_use':
+                    content = json.dumps(block.input)
+                    break
+        else:
+            content = (response.content[0].text or "") if response.content else ""
 
         self._warn_if_truncated(
             getattr(response, 'stop_reason', None), eff_max, model

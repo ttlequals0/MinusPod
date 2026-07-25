@@ -140,6 +140,38 @@ def model_omits_temperature(model: Optional[str]) -> bool:
                for token in _ANTHROPIC_NO_SAMPLING_MODELS)
 
 
+# Providers whose request/response contract this codebase has actually
+# implemented enforced structured output for (category repair pass, #565
+# follow-up, DTNS 5317): Anthropic's Messages API supports forcing a tool
+# call via tool_choice, which makes the model emit JSON matching the tool's
+# input_schema instead of prose -- AnthropicClient.messages_create
+# translates a response_format={"type": "json_schema", ...} request into a
+# forced tool call and reassembles the tool's `input` as the response
+# content. Every other provider stays unsupported until proven: this app's
+# "openai-compatible" and "ollama" providers front arbitrary endpoints (LM
+# Studio, vLLM, the Claude Code wrapper, real Ollama) that mostly do not
+# implement OpenAI's json_schema strict mode, and OpenRouter fans out to
+# hundreds of models with inconsistent support. Getting this wrong means a
+# 400 or a silently-ignored schema on a provider that doesn't actually
+# support it -- worse than the existing response_format=json_object /
+# prompt-injection fallback callers use instead. Extend this set only after
+# verifying a specific provider's contract, the same bar as
+# _ANTHROPIC_NO_SAMPLING_MODELS above.
+_JSON_SCHEMA_SUPPORTED_PROVIDERS = frozenset({PROVIDER_ANTHROPIC})
+
+
+def supports_json_schema(provider: str) -> bool:
+    """True when ``provider`` has a proven, enforced structured-output path.
+
+    Callers that can tolerate the existing response_format=json_object /
+    prompt-injection behavior should not gate on this -- it exists for call
+    sites that specifically need a guarantee the response matches a schema
+    (e.g. an enum field) and would rather fall back to json_object than
+    risk a false positive on an unverified provider.
+    """
+    return (provider or '').lower() in _JSON_SCHEMA_SUPPORTED_PROVIDERS
+
+
 def is_fallback_eligible_error(error: Exception) -> bool:
     """True for a 4xx (non-429) response, indicating the user's tunables were
     rejected by the provider. False for 429, 5xx, network, timeout -- those go

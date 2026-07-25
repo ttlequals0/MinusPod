@@ -1,4 +1,5 @@
 """Tests for messages_create extensions: reasoning_effort + per-pass fallback."""
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -349,3 +350,86 @@ class TestAnthropicTemperatureOmission:
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
         assert kwargs["temperature"] == 0.2
+
+
+class TestAnthropicJsonSchemaStructuredOutput:
+    """response_format={"type": "json_schema", ...} forces a tool call so the
+    Messages API validates the response against the schema, instead of the
+    prompt-injected instructions json_object relies on (#565 follow-up,
+    category repair pass)."""
+
+    def test_forces_tool_call_and_extracts_tool_input_as_json_content(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        tool_block = MagicMock()
+        tool_block.type = "tool_use"
+        tool_block.input = {"categories": [{"index": 0, "category": "sponsor"}]}
+        response = MagicMock()
+        response.content = [tool_block]
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        response.stop_reason = "tool_use"
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+
+        result = client.messages_create(
+            model="claude-sonnet-5",
+            max_tokens=512,
+            system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": {"type": "object"}},
+            },
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert kwargs["tools"] == [{
+            "name": "seg",
+            "description": "Return the structured result.",
+            "input_schema": {"type": "object"},
+        }]
+        assert kwargs["tool_choice"] == {"type": "tool", "name": "seg"}
+        assert json.loads(result.content) == {
+            "categories": [{"index": 0, "category": "sponsor"}]}
+
+    def test_missing_tool_use_block_yields_empty_content_not_a_crash(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        text_block = MagicMock()
+        text_block.type = "text"
+        response = MagicMock()
+        response.content = [text_block]
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        response.stop_reason = "end_turn"
+        mock_sdk.messages.create.return_value = response
+        client._client = mock_sdk
+
+        result = client.messages_create(
+            model="claude-sonnet-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "seg", "schema": {"type": "object"}},
+            },
+        )
+
+        assert result.content == ""
+
+    def test_json_object_request_never_sets_tools(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = _make_anthropic_response()
+        client._client = mock_sdk
+
+        client.messages_create(
+            model="claude-sonnet-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+            response_format={"type": "json_object"},
+        )
+
+        kwargs = mock_sdk.messages.create.call_args.kwargs
+        assert "tools" not in kwargs
+        assert "tool_choice" not in kwargs

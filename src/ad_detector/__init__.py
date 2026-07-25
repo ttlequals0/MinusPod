@@ -22,7 +22,7 @@ from llm_client import (
     StructuralRateLimitError,
 )
 from utils.language import get_pattern_language
-from utils.llm_call import call_llm_for_window
+from utils.llm_call import call_llm, call_llm_for_window
 from utils.markers import mark_distinct_merge, note_merged_members
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.time import overlap_ratio, ranges_overlap
@@ -62,7 +62,7 @@ from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from database.settings import registry_get_default
-from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
+from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
 from sponsor_service import SponsorService
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
@@ -104,6 +104,11 @@ from .prompts import (
     get_static_system_prompt,
     parse_ads_from_response,
     extract_json_ads_array,
+    CATEGORY_REPAIR_SYSTEM_PROMPT,
+    CATEGORY_REPAIR_JSON_SCHEMA,
+    CATEGORY_REPAIR_MAX_TOKENS,
+    format_category_repair_prompt,
+    parse_category_repair_response,
 )
 # Source the JSON-array scanner directly from utils.llm_response instead of
 # laundering it through prompts.py; re-exported below for backward-compat
@@ -164,6 +169,13 @@ class WindowResult(NamedTuple):
     raw_response: Optional[str]
     failed: bool
     last_error: Optional[Exception]
+    # Joined transcript_lines for this window, used only by the category
+    # repair pass (#565 follow-up) so it can send context without
+    # rebuilding it. Left at the default '' by failed windows and by
+    # callers that don't populate it (keep-content windows, direct
+    # WindowResult construction in tests); those never reach the repair
+    # pass since it is only wired up for the main detection pass.
+    transcript_excerpt: str = ''
 
 
 def _resolve_parallel_windows() -> int:
@@ -873,6 +885,7 @@ class AdDetector:
             raw_response=raw_block,
             failed=False,
             last_error=None,
+            transcript_excerpt='\n'.join(transcript_lines),
         )
 
     def _run_windows(self, windows, *, max_workers, progress_callback,
@@ -963,7 +976,7 @@ class AdDetector:
                             audio_analysis, progress_callback,
                             progress_base, progress_range, slug, episode_id,
                             pass_name, window_label_prefix, validate_timestamps,
-                            action_map=None):
+                            action_map=None, category_repair_enabled=False):
         """Shared window orchestration for the detection and verification passes.
 
         Runs every window through ``_run_windows``, merges results in window
@@ -980,13 +993,23 @@ class AdDetector:
         verification pass, or a caller with no resolved map) preserves the
         merge-everything-within-threshold behavior unchanged.
 
+        ``category_repair_enabled`` (#565 follow-up, DTNS 5317): when True,
+        any successful window with one or more ads missing "category" gets
+        exactly one follow-up LLM call asking only for those categories
+        (see ``_repair_window_categories``). False (the default, and always
+        for the verification pass, which never asks the LLM for a category
+        at all) skips repair entirely -- zero extra calls, zero behavior
+        change for feeds that never opted into per-category actions.
+
         Returns ``(final_ads, all_raw_responses, failed_windows,
-        failure_response, category_missing, category_total)`` where
-        ``failure_response`` is the all-windows-failed envelope the caller
-        must return as-is, or None. ``category_missing`` / ``category_total``
-        count, across all non-failed windows before dedup, how many raw LLM
-        markers arrived with no "category" key at all. The caller decides
-        whether that is worth surfacing.
+        failure_response, category_missing, category_total,
+        category_repaired)`` where ``failure_response`` is the
+        all-windows-failed envelope the caller must return as-is, or None.
+        ``category_missing`` / ``category_total`` count, across all
+        non-failed windows before dedup, how many raw LLM markers still
+        have no "category" key -- AFTER repair, when repair ran, so the
+        caller's warning reflects the post-repair state.
+        ``category_repaired`` is how many the repair pass resolved.
         """
         all_raw_responses = []
         all_window_ads = []
@@ -1031,11 +1054,28 @@ class AdDetector:
             validate_timestamps=validate_timestamps,
         )
 
+        category_repaired = 0
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 last_error = result.last_error
                 continue
+            if category_repair_enabled:
+                # _repair_window_categories itself no-ops (no LLM call) when
+                # nothing in this window is missing a category -- checking
+                # here first would just scan `ads` a second time for the
+                # same answer.
+                window_label = f"{window_label_prefix} {result.window_idx + 1}"
+                category_repaired += self._repair_window_categories(
+                    ads=result.ads,
+                    transcript_excerpt=result.transcript_excerpt,
+                    model=model,
+                    llm_timeout=llm_timeout,
+                    max_retries=max_retries,
+                    slug=slug,
+                    episode_id=episode_id,
+                    window_label=window_label,
+                )
             if result.raw_response:
                 all_raw_responses.append(result.raw_response)
             all_window_ads.extend(result.ads)
@@ -1048,7 +1088,7 @@ class AdDetector:
         if failed_windows >= len(windows):
             failure = _all_windows_failed_response(
                 pass_label.lower(), len(windows), last_error, model)
-            return [], all_raw_responses, failed_windows, failure, 0, 0
+            return [], all_raw_responses, failed_windows, failure, 0, 0, 0
 
         # Count raw LLM markers with no "category" key at all, before
         # normalize_segment_category (applied later at the merge seam)
@@ -1059,8 +1099,76 @@ class AdDetector:
         # Deduplicate ads across windows
         final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
-                category_missing, category_total)
+                category_missing, category_total, category_repaired)
 
+    def _repair_window_categories(self, *, ads, transcript_excerpt, model,
+                                   llm_timeout, max_retries, slug, episode_id,
+                                   window_label):
+        """One follow-up LLM call asking only for categories on ``ads``
+        missing one (#565 follow-up, DTNS 5317: two rounds of prompt
+        strengthening still left most detections category-less on a real
+        episode; a contract only the model can choose to follow is not
+        reliable, so ask again narrowly instead of trusting the prompt).
+
+        Mutates the ad dicts in ``ads`` in place -- sets 'category' on the
+        entries the response resolves -- and returns how many were
+        repaired. Never raises: a failed LLM call or a malformed/partial
+        response leaves the still-missing ads exactly as they came in, so
+        they fall through to the existing normalize_segment_category
+        default ('sponsor') at the merge seam, same as before this pass
+        existed.
+        """
+        missing = [(i, ad) for i, ad in enumerate(ads) if 'category' not in ad]
+        if not missing:
+            return 0
+
+        prompt = format_category_repair_prompt(transcript_excerpt, missing)
+
+        if supports_json_schema(get_effective_provider()):
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "segment_categories",
+                    "description": "Category for each listed segment.",
+                    "schema": CATEGORY_REPAIR_JSON_SCHEMA,
+                },
+            }
+        else:
+            response_format = {"type": "json_object"}
+
+        response, error = call_llm(
+            llm_client=self._llm_client,
+            model=model,
+            system_prompt=CATEGORY_REPAIR_SYSTEM_PROMPT,
+            prompt=prompt,
+            llm_timeout=llm_timeout,
+            max_retries=max_retries,
+            max_tokens=CATEGORY_REPAIR_MAX_TOKENS,
+            slug=slug,
+            episode_id=episode_id,
+            call_label=f"{window_label} category repair",
+            response_format=response_format,
+        )
+        if response is None:
+            logger.warning(
+                f"[{slug}:{episode_id}] {window_label} category repair call "
+                f"failed, leaving {len(missing)} ad(s) uncategorized: {error}"
+            )
+            return 0
+
+        resolved = parse_category_repair_response(response.content)
+        repaired = 0
+        for i, ad in missing:
+            category = resolved.get(i)
+            if category:
+                ad['category'] = category
+                repaired += 1
+        if repaired < len(missing):
+            logger.debug(
+                f"[{slug}:{episode_id}] {window_label} category repair "
+                f"resolved {repaired}/{len(missing)}"
+            )
+        return repaired
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
                    episode_title: str = "Unknown", slug: str = None,
@@ -1143,8 +1251,24 @@ class AdDetector:
             # before _merge_detection_results ever sees it as a candidate.
             action_map = self._resolve_segment_action_map(slug)
 
+            # Gates both the category repair pass below and the category-miss
+            # warning on whether per-category actions are actually configured
+            # for this feed -- an all-remove feed gets zero extra LLM calls
+            # and zero behavior change either way. Reads whether
+            # SHOW_SEGMENTS_PROMPT_SECTION made it into system_prompt above
+            # instead of a second _podcast_wants_show_segments DB call. That
+            # call already happened once inside _build_detection_system_prompt,
+            # and its outcome is right there in the string.
+            show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
+            segment_categories_configured = show_segments_enabled or (
+                action_map is not None
+                and any(action != DEFAULT_SEGMENT_ACTION
+                        for action in action_map.values())
+            )
+
             (final_ads, all_raw_responses, failed_windows, failure,
-             category_missing, category_total) = self._run_detection_pass(
+             category_missing, category_total,
+             category_repaired) = self._run_detection_pass(
                 windows,
                 pass_label='Detection',
                 model=model,
@@ -1162,27 +1286,28 @@ class AdDetector:
                 window_label_prefix='Window',
                 validate_timestamps=True,
                 action_map=action_map,
+                category_repair_enabled=segment_categories_configured,
             )
             if failure is not None:
                 return failure
 
-            # Gates the category-miss warning below on whether per-category
-            # actions are actually configured for this feed. Reads whether
-            # SHOW_SEGMENTS_PROMPT_SECTION made it into system_prompt above
-            # instead of a second _podcast_wants_show_segments DB call.
-            # That call already happened once inside
-            # _build_detection_system_prompt, and its outcome is right there
-            # in the string.
-            show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
-            segment_categories_configured = show_segments_enabled or (
-                action_map is not None
-                and any(action != DEFAULT_SEGMENT_ACTION
-                        for action in action_map.values())
-            )
+            if category_repaired > 0:
+                logger.info(
+                    f"[{slug}:{episode_id}] Category repair pass resolved "
+                    f"{category_repaired} missing segment categor"
+                    f"{'y' if category_repaired == 1 else 'ies'} via follow-up call"
+                )
+
             if segment_categories_configured and category_missing > 0:
+                repair_note = (
+                    f" (the repair pass resolved {category_repaired} of "
+                    f"{category_repaired + category_missing} originally missing)"
+                    if category_repaired > 0 else ""
+                )
                 logger.warning(
                     f"[{slug}:{episode_id}] {category_missing} of {category_total} "
-                    f"LLM detections returned no category; all defaulted to sponsor. "
+                    f"LLM detections still returned no category after the repair "
+                    f"pass{repair_note}; all defaulted to sponsor. "
                     f"Per-category actions may not apply as configured."
                 )
 
@@ -2443,8 +2568,13 @@ class AdDetector:
             # can distinguish first-pass from verification. The verification
             # prompt does not ask for "category" at all, so the category-miss
             # counts are not meaningful here and are discarded.
+            # category_repair_enabled is left at its False default: repair
+            # would be a no-op every call here (every ad is "missing" since
+            # the prompt never asks for one) and would burn a call per window
+            # for nothing.
             (final_ads, all_raw_responses, _failed_windows, failure,
-             _category_missing, _category_total) = self._run_detection_pass(
+             _category_missing, _category_total,
+             _category_repaired) = self._run_detection_pass(
                 windows,
                 pass_label='Verification',
                 model=model,

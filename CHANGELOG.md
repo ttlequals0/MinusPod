@@ -13,6 +13,13 @@ release notes.
 
 ### Changed
 
+- Detection now repairs missing segment categories with a follow-up call.
+  When a feed uses per-category actions (or has show-segments detection on)
+  and the LLM leaves one or more found segments without a category, a
+  second call asks only for those categories before they default to
+  sponsor. It runs at most once per affected window, and never runs for a
+  feed on default (remove-everything) actions.
+
 - Categorized segments now survive the stages that run before the
   action-gated merge. Window-level deduplication and the pattern-coverage
   drop both discarded a detection's category, so an intro or outro set to
