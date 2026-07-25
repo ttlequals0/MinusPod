@@ -646,7 +646,15 @@ class AnthropicClient(LLMClient):
                     content = json.dumps(block.input)
                     break
         else:
-            content = (response.content[0].text or "") if response.content else ""
+            # Extended thinking (temperature omitted) puts a ThinkingBlock or
+            # redacted_thinking block first; the answer is in a later text
+            # block. Find it instead of assuming content[0] is text.
+            content = ""
+            for block in (response.content or []):
+                text = getattr(block, 'text', None)
+                if getattr(block, 'type', None) == 'text' and text is not None:
+                    content = text
+                    break
 
         self._warn_if_truncated(
             getattr(response, 'stop_reason', None), eff_max, model

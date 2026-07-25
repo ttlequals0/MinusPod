@@ -551,3 +551,96 @@ class TestAnthropicJsonSchemaStructuredOutput:
         kwargs = mock_sdk.messages.create.call_args.kwargs
         assert "tools" not in kwargs
         assert "tool_choice" not in kwargs
+
+
+class TestAnthropicExtendedThinkingTextExtraction:
+    """Extended-thinking responses (temperature omitted, thinking enabled)
+    put a ThinkingBlock first in response.content; the real answer is in a
+    later TextBlock. content[0].text blows up with AttributeError since
+    ThinkingBlock has no .text attribute (regression behind Verification
+    Window failures on 2.78.5)."""
+
+    def _thinking_block(self, thinking="internal reasoning..."):
+        block = MagicMock(spec=['type', 'thinking'])
+        block.type = 'thinking'
+        block.thinking = thinking
+        return block
+
+    def _redacted_thinking_block(self):
+        block = MagicMock(spec=['type', 'data'])
+        block.type = 'redacted_thinking'
+        block.data = 'encrypted-blob'
+        return block
+
+    def _text_block(self, text):
+        block = MagicMock(spec=['type', 'text'])
+        block.type = 'text'
+        block.text = text
+        return block
+
+    def _response_with_content(self, blocks):
+        response = MagicMock()
+        response.content = blocks
+        response.usage = MagicMock(input_tokens=10, output_tokens=5)
+        response.stop_reason = "end_turn"
+        return response
+
+    def _call(self, client, mock_sdk):
+        return client.messages_create(
+            model="claude-opus-5", max_tokens=512, system="sys",
+            messages=[{"role": "user", "content": "hi"}],
+        )
+
+    def test_thinking_then_text_extracts_text_block_payload(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._response_with_content([
+            self._thinking_block(),
+            self._text_block('[{"start": 10.0, "end": 45.0}]'),
+        ])
+        client._client = mock_sdk
+
+        result = self._call(client, mock_sdk)
+
+        assert result.content == '[{"start": 10.0, "end": 45.0}]'
+
+    def test_thinking_only_response_yields_empty_string_not_a_crash(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._response_with_content([
+            self._thinking_block(),
+        ])
+        client._client = mock_sdk
+
+        result = self._call(client, mock_sdk)
+
+        assert result.content == ""
+
+    def test_plain_single_text_block_unchanged(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._response_with_content([
+            self._text_block("ok"),
+        ])
+        client._client = mock_sdk
+
+        result = self._call(client, mock_sdk)
+
+        assert result.content == "ok"
+
+    def test_redacted_thinking_block_is_skipped(self):
+        from llm_client import AnthropicClient
+        client = AnthropicClient(api_key="dummy")
+        mock_sdk = MagicMock()
+        mock_sdk.messages.create.return_value = self._response_with_content([
+            self._redacted_thinking_block(),
+            self._text_block("final answer"),
+        ])
+        client._client = mock_sdk
+
+        result = self._call(client, mock_sdk)
+
+        assert result.content == "final answer"
