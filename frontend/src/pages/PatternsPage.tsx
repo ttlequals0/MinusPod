@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import {
   getPatterns, getPatternStats, AdPattern,
   protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,

@@ -34,7 +34,7 @@ import type { CueTemplate } from '../../api/cueTemplates';
 import type { Episode } from '../../api/types';
 
 // ---- Router stub ----
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed' }),
   Link: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }));

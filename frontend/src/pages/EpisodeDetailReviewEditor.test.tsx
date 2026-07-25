@@ -22,8 +22,8 @@ import type { EpisodeDetail as EpisodeDetailType } from '../api/types';
 // Bounds the AdReviewModal stub's adjust button submits; set per test.
 const adjustBounds = vi.hoisted(() => ({ start: 0, end: 0 }));
 
-// react-router-dom stubs
-vi.mock('react-router-dom', () => ({
+// react-router stubs
+vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>

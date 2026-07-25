@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';

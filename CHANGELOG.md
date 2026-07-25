@@ -39,6 +39,9 @@ release notes.
 - Both the GPU and CPU images' `org.opencontainers.image.version` OCI label
   now reflects the running MinusPod version instead of inheriting `26.04`
   from the `ubuntu:26.04` base image (#576).
+- react-router-dom was retired upstream; we now depend on react-router v8
+  directly, fixing GHSA-qwww-vcr4-c8h2. The temporary npm audit allowlist is
+  removed (#578).
 
 ## [2.77.1] - 2026-07-24
 

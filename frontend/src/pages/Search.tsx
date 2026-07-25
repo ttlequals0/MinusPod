@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, ReactNode } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats, SearchResult } from '../api/search';
 import LoadingSpinner from '../components/LoadingSpinner';

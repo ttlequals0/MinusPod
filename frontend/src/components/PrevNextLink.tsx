@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 // One prev/next pill, shared by the episode and feed detail headers. `side`
 // fixes the chevron position (prev = left, next = right); `label` is the visible

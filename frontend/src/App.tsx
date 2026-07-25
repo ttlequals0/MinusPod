@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { createBrowserRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Outlet, Navigate } from 'react-router';
+import { RouterProvider } from 'react-router/dom';
 import PullToRefresh from 'pulltorefreshjs';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';

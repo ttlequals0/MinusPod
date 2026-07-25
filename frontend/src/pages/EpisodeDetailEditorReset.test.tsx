@@ -39,8 +39,8 @@ vi.mock('../components/CueDetectionsSection', () => ({
 vi.mock('../components/CueCandidatesSection', () => ({
   default: () => null,
 }));
-vi.mock('react-router-dom', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('react-router-dom')>();
+vi.mock('react-router', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('react-router')>();
   return {
     ...mod,
     useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { feedsQueryOptions, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import DropdownMenu from '../components/DropdownMenu';
 import FeedCard from '../components/FeedCard';

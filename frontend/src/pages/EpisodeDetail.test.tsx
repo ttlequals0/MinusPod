@@ -15,8 +15,8 @@ import EpisodeDetail from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
 import type { Episode, EpisodeDetail as EpisodeDetailType } from '../api/types';
 
-// react-router-dom stubs
-vi.mock('react-router-dom', () => ({
+// react-router stubs
+vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>

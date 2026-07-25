@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';

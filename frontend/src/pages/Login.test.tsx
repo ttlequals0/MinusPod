@@ -11,9 +11,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Login from './Login';
 
-// react-router-dom: capture navigate calls; render Navigate as a sentinel element.
+// react-router: capture navigate calls; render Navigate as a sentinel element.
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useNavigate: () => mockNavigate,
   Navigate: ({ to }: { to: string }) => (
     <div data-testid="navigate-sentinel" data-to={to} />
