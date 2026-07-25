@@ -251,6 +251,7 @@ TABLE_DDL['processing_history'] = """CREATE TABLE IF NOT EXISTS processing_histo
     input_tokens INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     llm_cost REAL DEFAULT 0.0,
+    audio_cues_detected INTEGER DEFAULT 0,
     -- Per-run pipeline stats (#519): JSON blob assembled by process_episode
     -- (downloaded duration, windows, stage hits, marker buckets, verification).
     processing_stats_json TEXT,
