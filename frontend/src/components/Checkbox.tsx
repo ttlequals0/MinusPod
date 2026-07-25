@@ -3,9 +3,10 @@ interface CheckboxProps {
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
+  ariaLabel?: string;
 }
 
-function Checkbox({ checked, onChange, disabled, className = '' }: CheckboxProps) {
+function Checkbox({ checked, onChange, disabled, className = '', ariaLabel }: CheckboxProps) {
   return (
     <label className={`relative inline-flex items-center ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}>
       <input
@@ -13,6 +14,7 @@ function Checkbox({ checked, onChange, disabled, className = '' }: CheckboxProps
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         disabled={disabled}
+        aria-label={ariaLabel}
         className="sr-only peer"
       />
       <div className={`h-4 w-4 rounded-sm border-2 transition-colors flex items-center justify-center ${

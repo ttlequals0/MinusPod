@@ -9,6 +9,25 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.79.0] - 2026-07-25
+
+### Added
+
+- Community pattern categories are visible and controllable. Patterns show
+  their segment category in the patterns list and API, the community
+  settings section breaks down how many synced patterns fall in each
+  category, and checkboxes there choose which categories to accept.
+  Unchecking one deactivates its already-synced community patterns rather
+  than deleting them, and re-checking restores them on the next sync.
+  Locally created patterns are never touched. All seven categories are
+  accepted by default, so syncing behaves as before until changed.
+- Chapter generation receives the detected ad and segment positions as
+  boundary hints. Ads usually sit between show segments, so the seam where
+  one was cut is a likely topic change; the model treats these as candidate
+  boundaries and still needs the transcript to support a real change.
+  Feeds whose chapters come from the publisher or an embedded track are
+  unaffected.
+
 ## [2.78.7] - 2026-07-25
 
 ### Fixed

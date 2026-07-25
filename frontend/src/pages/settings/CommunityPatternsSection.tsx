@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import Checkbox from '../../components/Checkbox';
 import { getErrorMessage } from '../../api/client';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import {
@@ -144,18 +145,17 @@ function CommunityPatternsSection() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {SEGMENT_CATEGORIES.map((cat) => (
-                <label key={cat} className="flex items-center gap-2 cursor-pointer text-sm">
-                  <input
-                    type="checkbox"
+                <div key={cat} className="flex items-center gap-2 text-sm">
+                  <Checkbox
                     checked={categories.includes(cat)}
                     onChange={() => toggleCategory(cat)}
-                    className="rounded"
+                    ariaLabel={`${SEGMENT_CATEGORY_LABELS[cat]} (${data?.categoryBreakdown?.[cat] ?? 0})`}
                   />
                   <span className="text-foreground">{SEGMENT_CATEGORY_LABELS[cat]}</span>
                   <span className="text-muted-foreground">
                     ({data?.categoryBreakdown?.[cat] ?? 0})
                   </span>
-                </label>
+                </div>
               ))}
             </div>
           </div>
