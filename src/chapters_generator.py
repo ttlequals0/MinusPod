@@ -4,7 +4,7 @@ import re
 from typing import List, Dict, Optional, Tuple
 
 from config import DEFAULT_CHAPTERS_MODEL as _DEFAULT_CHAPTERS_MODEL
-from config import resolve_stage_tunables
+from config import resolve_stage_tunables, normalize_segment_category
 from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
@@ -75,6 +75,106 @@ def _parse_description_anchors(description: str) -> List[Tuple[str, str]]:
                 continue
             seen.setdefault(ts, title)
     return sorted(seen.items(), key=lambda kv: parse_timestamp(kv[0]))
+
+
+def _format_mmss(seconds: float) -> str:
+    """Format seconds as zero-padded MM:SS, matching the prompt's own
+    [MM:SS] transcript markers and example lines."""
+    total = max(0, int(round(seconds)))
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
+def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]],
+                         replacement_duration: float = 0.0) -> List[Dict]:
+    """Map applied ad/segment markers onto the processed timeline as
+    candidate topic-boundary hints for the topic-detection prompt.
+
+    A podcast ad sits between two content segments; the processed transcript
+    the topic detector sees has no trace of it once it's cut, so the model
+    loses the one signal that would have told it a topic change happened
+    there. This reconstructs that signal from the same markers and applied
+    cut list the rest of the asset pipeline already has.
+
+    - action_applied == 'remove': the span was cut out entirely, so it
+      contributes a single SEAM position -- the processed-time point where
+      the surrounding content now joins. That is exactly
+      utils.time.adjust_timestamp of the marker's own start: content flows
+      continuously up to that original-time point, so its mapped position is
+      where the join sits in the processed audio.
+    - action_applied in ('keep', 'beep'): the span still occupies real time
+      in the processed audio (beep overdubs it, keep leaves it untouched),
+      so it contributes its mapped start/end as a range.
+    - Any other action (including markers still pending review, which are
+      never stamped with action_applied) is skipped: it either isn't in this
+      render at all, or its fate isn't resolved yet.
+
+    `cuts` is the same applied-cut list (each span optionally carrying its
+    own 'replacement_duration', see audio_processor.compute_applied_cuts)
+    already used to project transcript segments onto the processed timeline;
+    reusing utils.time.adjust_timestamp keeps marker positions in lockstep
+    with that mapping instead of re-deriving it. An empty/None cuts list is
+    valid (nothing was removed) and simply leaves every position unchanged.
+
+    Returns [] when there are no markers -- callers must skip the hints
+    block entirely in that case so the prompt stays byte-identical to
+    before this existed.
+    """
+    if not markers:
+        return []
+    cuts = cuts or []
+    hints: List[Dict] = []
+    for marker in markers:
+        action = marker.get('action_applied')
+        if action not in ('remove', 'beep', 'keep'):
+            continue
+        start = marker.get('start')
+        end = marker.get('end')
+        if start is None or end is None:
+            continue
+        category = normalize_segment_category(marker.get('category'))
+        if action == 'remove':
+            seam = adjust_timestamp(start, cuts, replacement_duration)
+            hints.append({'type': 'seam', 'time': seam, 'category': category})
+        else:
+            mapped_start = adjust_timestamp(start, cuts, replacement_duration)
+            mapped_end = adjust_timestamp(end, cuts, replacement_duration)
+            if mapped_end <= mapped_start:
+                continue
+            hints.append({
+                'type': 'range', 'start': mapped_start, 'end': mapped_end,
+                'category': category,
+            })
+    hints.sort(key=lambda h: h.get('time', h.get('start', 0.0)))
+    return hints
+
+
+def _format_hints_block(hints: List[Dict]) -> str:
+    """Render segment hints into the prompt block explaining what they mean.
+
+    Returns "" when hints is empty so the caller's prompt stays exactly what
+    it was before this feature existed."""
+    if not hints:
+        return ""
+    lines = []
+    for hint in hints:
+        if hint['type'] == 'seam':
+            lines.append(f"{_format_mmss(hint['time'])} ad/segment break ({hint['category']})")
+        else:
+            lines.append(
+                f"{_format_mmss(hint['start'])}-{_format_mmss(hint['end'])} "
+                f"ad/segment ({hint['category']})"
+            )
+    hint_lines = '\n'.join(lines)
+    return (
+        "\n\nThese timestamps mark where an ad break or show segment was "
+        "detected in this episode. Podcast ads are usually inserted between "
+        "content segments, so a real topic change often falls at one of "
+        "these points. Treat them as CANDIDATE boundaries only: use one "
+        "only where the transcript itself shows a genuine topic change "
+        "there. Do not output a boundary just because it is listed here.\n\n"
+        f"Detected ad/segment positions:\n{hint_lines}"
+    )
+
 
 # Default model for chapter generation tasks (titles, topic detection, splitting).
 # Uses Haiku for cost efficiency -- these are simple classification/generation tasks.
@@ -183,11 +283,17 @@ class ChaptersGenerator:
         end_time: float,
         num_splits: int,
         episode_description: str = None,
+        hints: Optional[List[Dict]] = None,
     ) -> List[Dict]:
         """Use the LLM to detect topic boundaries in a transcript range.
 
+        hints: optional candidate boundaries derived from detected ad/segment
+        markers (see build_segment_hints). Empty/None leaves the prompt
+        byte-identical to before hints existed.
+
         Returns list of {'original_time': float, 'title': str}.
         """
+        hints_block = _format_hints_block(hints or [])
         description_block = ""
         if episode_description and episode_description.strip():
             anchors = _parse_description_anchors(episode_description)
@@ -224,7 +330,7 @@ Example:
 05:30 Discussion of AI Trends
 12:45 New Product Announcements
 
-Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.{description_block}
+Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.{description_block}{hints_block}
 
 Transcript:
 {transcript}"""
@@ -522,6 +628,8 @@ Transcript:
         episode_title: str = "Unknown",
         episode_id: Optional[str] = None,
         replacement_duration: float = 0.0,
+        segment_markers: Optional[List[Dict]] = None,
+        marker_cuts: Optional[List[Dict]] = None,
     ) -> Dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -540,6 +648,20 @@ Transcript:
                 timeline before detection runs.
             podcast_name: Podcast name (used for title generation).
             episode_title: Episode title (used for title generation).
+            segment_markers: Optional list of detected ad/segment markers
+                (each with 'start', 'end', 'category', 'action_applied') used
+                to build topic-boundary hints (see build_segment_hints). None
+                or empty leaves the topic-detection prompt byte-identical to
+                before hints existed.
+            marker_cuts: Applied cut list used to map segment_markers onto
+                the processed timeline. Defaults to `ads_removed` when not
+                given, which is correct for the pipeline call site (segments
+                and hints share the same mapping). The regenerate-chapters
+                endpoint must pass this explicitly instead: its segments are
+                already on the processed timeline (ads_removed is omitted so
+                they aren't double-adjusted), but its hints still need the
+                original applied-cut list to map from marker (original-time)
+                coordinates.
 
         Returns:
             {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
@@ -558,6 +680,9 @@ Transcript:
             segments = self._adjust_segments_for_ads(segments, ads_removed, replacement_duration)
             if not segments:
                 return {'version': '1.2.0', 'chapters': []}
+
+        hint_cuts = marker_cuts if marker_cuts is not None else ads_removed
+        hints = build_segment_hints(segment_markers, hint_cuts, replacement_duration)
 
         episode_duration = segments[-1].get('end', 0)
 
@@ -585,6 +710,7 @@ Transcript:
                         new_chapters = self._detect_topic_boundaries(
                             transcript_text, 0, episode_duration, num_splits,
                             episode_description=episode_description,
+                            hints=hints,
                         )
 
                         # A response that came back without error but parsed

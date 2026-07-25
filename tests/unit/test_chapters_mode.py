@@ -62,7 +62,7 @@ def _db(chapters_mode=None, chapters_enabled=None, upstream_chapters_url=None):
 
 
 def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_row=None,
-         original_duration=None, fetch_return=None, run_stats=None):
+         original_duration=None, fetch_return=None, run_stats=None, markers=None):
     """Invoke the real _generate_assets with all IO seams mocked, returning
     (storage_mock, probe_mock, generator_class_mock, embed_mock, fetch_mock)."""
     storage_mock = MagicMock()
@@ -93,7 +93,7 @@ def _run(monkeypatch, db, publisher_chapters, generator_chapters=None, podcast_r
         podcast_name='Pod', episode_title='Title', regenerate_chapters=True,
         audio_path='/tmp/fake-processed.mp3', audio_duration=100.0,
         podcast_row=podcast_row, original_duration=original_duration,
-        run_stats=run_stats,
+        run_stats=run_stats, markers=markers,
     )
     return storage_mock, probe_mock, generator_class, embed_mock, fetch_mock
 
@@ -309,3 +309,52 @@ def test_fetched_chapters_below_threshold_after_remap_falls_to_generator(monkeyp
     fetch_mock.assert_called_once()
     generator_class.return_value.generate_chapters.assert_called_once()
     storage_mock.save_chapters_and_applied_cuts.assert_called_once()
+
+
+# ---------- Segment-marker hints (ad-break boundary hints) ----------
+
+def test_markers_reach_generator_as_segment_markers_kwarg(monkeypatch):
+    """_generate_assets threads its markers argument through to
+    ChaptersGenerator.generate_chapters as segment_markers -- only reachable
+    on the AI-generation branch (mode 'generate' here, no publisher/upstream
+    chapters to preserve)."""
+    db = _db(chapters_mode='generate')
+    markers = [{'start': 10.0, 'end': 20.0, 'action_applied': 'remove', 'category': 'sponsor'}]
+    storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(
+        monkeypatch, db, publisher_chapters=[], markers=markers)
+
+    generator_class.return_value.generate_chapters.assert_called_once()
+    kwargs = generator_class.return_value.generate_chapters.call_args.kwargs
+    assert kwargs['segment_markers'] is markers
+
+
+def test_markers_not_passed_when_publisher_chapters_preserved(monkeypatch):
+    """Auto mode preserving embedded publisher chapters never calls the
+    generator at all, so markers can never reach a hints prompt on that
+    path regardless of what is passed in."""
+    db = _db(chapters_mode='auto')
+    publisher = [
+        {'start': 0.0, 'end': 30.0, 'title': 'Intro'},
+        {'start': 100.0, 'end': 200.0, 'title': 'Body'},
+    ]
+    markers = [{'start': 10.0, 'end': 20.0, 'action_applied': 'remove', 'category': 'sponsor'}]
+    storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(
+        monkeypatch, db, publisher, markers=markers)
+
+    generator_class.return_value.generate_chapters.assert_not_called()
+
+
+def test_markers_not_passed_when_upstream_json_preserved(monkeypatch):
+    """Same guarantee for the upstream podcast:chapters JSON preserve path."""
+    db = _db(chapters_mode='auto', upstream_chapters_url='https://pub.example.com/ch.json')
+    fetched = [
+        {'startTime': 5, 'title': 'Cold Open'},
+        {'startTime': 50, 'title': 'Segment Two'},
+    ]
+    markers = [{'start': 10.0, 'end': 20.0, 'action_applied': 'remove', 'category': 'sponsor'}]
+    storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(
+        monkeypatch, db, publisher_chapters=[], original_duration=100.0,
+        fetch_return=fetched, markers=markers)
+
+    fetch_mock.assert_called_once()
+    generator_class.return_value.generate_chapters.assert_not_called()

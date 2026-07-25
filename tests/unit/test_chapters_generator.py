@@ -9,7 +9,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from chapters_generator import ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE
+from chapters_generator import (
+    ChaptersGenerator, _parse_description_anchors, TOPIC_DETECTION_TEMPERATURE,
+    build_segment_hints,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -628,3 +631,174 @@ class TestEmptyTopicDetectionDegradation:
             num_splits=1,
         )
         assert stub.calls[-1].get('response_format') is None
+
+
+# Same mixed remove+beep applied cut list as
+# tests/unit/test_beep_timeline_mapping.py's MIXED_CUTS, cross-checked there
+# against utils.time.adjust_timestamp/merge_cut_spans directly.
+_MIXED_CUTS = [
+    {'start': 100.0, 'end': 130.0, 'replacement_duration': 2.0},   # remove
+    {'start': 200.0, 'end': 210.0, 'replacement_duration': 10.0},  # beep
+]
+
+
+class TestBuildSegmentHints:
+    """build_segment_hints maps markers onto the processed timeline via the
+    existing utils.time.adjust_timestamp mapping helper."""
+
+    def test_remove_marker_becomes_single_seam(self):
+        markers = [{'start': 100.0, 'end': 130.0, 'action_applied': 'remove',
+                    'category': 'sponsor'}]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert hints == [{'type': 'seam', 'time': pytest.approx(100.0),
+                          'category': 'sponsor'}]
+
+    def test_beep_marker_becomes_range(self):
+        markers = [{'start': 200.0, 'end': 210.0, 'action_applied': 'beep',
+                    'category': 'cross_promo'}]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert len(hints) == 1
+        assert hints[0]['type'] == 'range'
+        assert hints[0]['start'] == pytest.approx(172.0)
+        assert hints[0]['end'] == pytest.approx(182.0)
+        assert hints[0]['category'] == 'cross_promo'
+
+    def test_keep_marker_becomes_range(self):
+        # 400s sits after both cuts: 28s shift from the remove span (30 - 2
+        # clip), zero extra from the beep span (10s span, 10s replacement).
+        markers = [{'start': 400.0, 'end': 420.0, 'action_applied': 'keep',
+                    'category': 'self_promo'}]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert hints[0]['type'] == 'range'
+        assert hints[0]['start'] == pytest.approx(372.0)
+        assert hints[0]['end'] == pytest.approx(392.0)
+
+    def test_mixed_remove_and_beep_markers_both_present(self):
+        markers = [
+            {'start': 100.0, 'end': 130.0, 'action_applied': 'remove', 'category': 'sponsor'},
+            {'start': 200.0, 'end': 210.0, 'action_applied': 'beep', 'category': 'intro'},
+        ]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert [h['type'] for h in hints] == ['seam', 'range']
+        assert hints[0]['category'] == 'sponsor'
+        assert hints[1]['category'] == 'intro'
+
+    def test_pending_review_marker_has_no_action_applied_and_is_skipped(self):
+        # Markers held for review are never stamped with action_applied
+        # until resolved; they must not leak into hints as if resolved.
+        markers = [{'start': 100.0, 'end': 130.0, 'category': 'sponsor',
+                    'held_for_review': True}]
+        assert build_segment_hints(markers, _MIXED_CUTS) == []
+
+    def test_no_markers_returns_empty(self):
+        assert build_segment_hints(None, _MIXED_CUTS) == []
+        assert build_segment_hints([], _MIXED_CUTS) == []
+
+    def test_no_cuts_maps_identity(self):
+        # No applied cuts at all (e.g. an episode with only kept segments):
+        # processed time equals original time.
+        markers = [{'start': 50.0, 'end': 60.0, 'action_applied': 'keep',
+                    'category': 'sponsor'}]
+        hints = build_segment_hints(markers, None)
+        assert hints[0]['start'] == 50.0
+        assert hints[0]['end'] == 60.0
+
+    def test_unknown_category_normalizes_to_sponsor(self):
+        markers = [{'start': 100.0, 'end': 130.0, 'action_applied': 'remove',
+                    'category': 'not_a_real_category'}]
+        hints = build_segment_hints(markers, _MIXED_CUTS)
+        assert hints[0]['category'] == 'sponsor'
+
+
+class TestSegmentHintsPromptInjection:
+    """The topic-detection prompt gets a hints block only when hints exist,
+    and is otherwise byte-identical to before hints existed."""
+
+    def test_hints_block_present_when_hints_given(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        hints = [
+            {'type': 'seam', 'time': 90.0, 'category': 'sponsor'},
+            {'type': 'range', 'start': 300.0, 'end': 330.0, 'category': 'cross_promo'},
+        ]
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+            hints=hints,
+        )
+        prompt = stub.last_prompt
+        assert 'Detected ad/segment positions:' in prompt
+        assert '01:30 ad/segment break (sponsor)' in prompt
+        assert '05:00-05:30 ad/segment (cross_promo)' in prompt
+        assert 'CANDIDATE boundaries' in prompt
+        assert 'not' in prompt.lower() and 'just because' in prompt
+
+    def test_no_hints_block_when_hints_none(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+            hints=None,
+        )
+        assert 'Detected ad/segment positions:' not in stub.last_prompt
+
+    def test_prompt_byte_identical_with_empty_hints(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+        )
+        baseline = stub.last_prompt
+
+        gen2, stub2 = _make_generator_with_stub(canned_text='')
+        gen2._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+            hints=[],
+        )
+        assert stub2.last_prompt == baseline
+
+
+class TestGenerateChaptersHintsWiring:
+    """generate_chapters composes hints from segment_markers/marker_cuts and
+    threads them into the topic-detection call -- a synthetic end-to-end
+    check on the composed prompt, not on model behavior."""
+
+    def _segments(self, duration: int = 1800) -> list:
+        return [
+            {'start': i, 'end': i + 10,
+             'text': f'segment {i} with enough words to exceed the five hundred char gate a b c d e f g'}
+            for i in range(0, duration, 10)
+        ]
+
+    def test_segment_markers_reach_topic_prompt(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        markers = [{'start': 300.0, 'end': 330.0, 'action_applied': 'remove',
+                    'category': 'sponsor'}]
+        gen.generate_chapters(
+            segments=self._segments(),
+            podcast_name='Show', episode_title='Ep',
+            segment_markers=markers,
+        )
+        assert 'Detected ad/segment positions:' in stub.topic_prompt
+        assert '05:00 ad/segment break (sponsor)' in stub.topic_prompt
+
+    def test_no_segment_markers_no_hints_block(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen.generate_chapters(
+            segments=self._segments(),
+            podcast_name='Show', episode_title='Ep',
+        )
+        assert stub.topic_prompt, 'Topic-detection prompt must have been sent'
+        assert 'Detected ad/segment positions:' not in stub.topic_prompt
+
+    def test_marker_cuts_used_instead_of_ads_removed_for_hint_mapping(self):
+        """Regen-endpoint call shape: ads_removed is omitted (segments are
+        already ad-adjusted), marker_cuts is supplied separately just to map
+        hint positions."""
+        gen, stub = _make_generator_with_stub(canned_text='')
+        markers = [{'start': 100.0, 'end': 130.0, 'action_applied': 'remove',
+                    'category': 'sponsor'}]
+        cuts = [{'start': 100.0, 'end': 130.0, 'replacement_duration': 2.0}]
+        gen.generate_chapters(
+            segments=self._segments(),
+            podcast_name='Show', episode_title='Ep',
+            segment_markers=markers, marker_cuts=cuts,
+        )
+        # Nothing precedes this cut, so the seam maps to its own start (100s).
+        assert '01:40 ad/segment break (sponsor)' in stub.topic_prompt

@@ -13,6 +13,7 @@ from api import (
 )
 from config import is_pending_review
 from audio_peaks import compute_peaks, PeaksError
+from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
@@ -744,19 +745,37 @@ def regenerate_chapters(slug, episode_id):
     podcast_name = podcast.get('title', slug) if podcast else slug
     episode_title = episode.get('title', 'Unknown')
 
+    # Segment markers + the applied cut list that rendered this episode
+    # (both persisted from the run that produced this VTT) let chapter
+    # regeneration give the topic detector the same ad/segment-position
+    # hints the pipeline gets. Neither is required: missing either falls
+    # back to no hints, same as before this existed.
+    segment_markers = None
+    if episode.get('ad_markers_json'):
+        try:
+            segment_markers = json.loads(episode['ad_markers_json'])
+        except (json.JSONDecodeError, TypeError):
+            segment_markers = None
+    marker_cuts = storage.get_applied_cuts(slug, episode_id)
+
     try:
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
         try:
             # VTT segments are already ad-adjusted; omit ads_removed so
-            # generate_chapters doesn't double-adjust.
+            # generate_chapters doesn't double-adjust. marker_cuts is passed
+            # separately so segment_markers can still be mapped onto the
+            # processed timeline for topic-boundary hints.
             chapters = chapters_gen.generate_chapters(
                 segments,
                 episode_description=episode_description,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
                 episode_id=episode_id,
+                replacement_duration=get_replacement_duration(),
+                segment_markers=segment_markers,
+                marker_cuts=marker_cuts,
             )
         finally:
             token_totals = get_episode_token_totals()

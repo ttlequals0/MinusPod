@@ -2614,7 +2614,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
-                      podcast_row=None, run_stats=None):
+                      podcast_row=None, run_stats=None, markers=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -2647,6 +2647,14 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     and it degrades to a fallback chapter set, chapters_degraded/
     chapters_degraded_reason are recorded here so the degradation is visible
     after the fact instead of looking like a normal short episode.
+
+    markers, when given, is the full ad/segment marker list (start, end,
+    category, action_applied) used to build topic-boundary hints for the
+    generator's topic-detection prompt (see chapters_generator.
+    build_segment_hints). Only reaches the AI-generation branch below --
+    the preserved-publisher-chapters and upstream-JSON-chapters branches
+    never call the generator, so they are unaffected regardless of what is
+    passed here.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -2785,6 +2793,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                 episode_title=episode_title,
                 episode_id=episode_id,
                 replacement_duration=replacement_duration,
+                segment_markers=markers,
             )
             if run_stats is not None and chapters_gen.chapters_degraded:
                 run_stats['chapters_degraded'] = True
@@ -4059,7 +4068,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               audio_path=final_path, audio_duration=new_duration,
                               podcast_row=podcast_settings,
                               original_duration=original_duration,
-                              run_stats=run_stats)
+                              run_stats=run_stats,
+                              markers=all_ads_with_validation)
 
             # Stage 8: Finalize. ads_removed accounting counts the cuts that
             # exist in the audio: an ad merged into a covering span still
