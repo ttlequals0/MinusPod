@@ -74,6 +74,63 @@ def _format_cost(cost):
     return f"${cost:.2f}"
 
 
+_FAILED_SAMPLE = dict(
+    episode_id='a1b2c3d4e5f6',
+    slug='my-favorite-podcast',
+    episode_title='Episode 42: The Answer',
+    processing_time=12.3,
+    llm_cost=0.001,
+    ads_removed=0,
+    ads_held=0,
+    ads_not_cut=0,
+    error_message='Transcription failed: audio file is corrupt or unsupported format',
+    original_duration=None,
+    new_duration=None,
+    podcast_name='My Favorite Podcast',
+)
+
+# Sample values for the alert-family events (Auth Failure, Limit Exceeded,
+# Rate Limit Structural, Feed Refresh Failed, Update Available), mirroring
+# the "Default Payloads" examples in docs/api-and-webhooks.md. These are
+# assembled into a context the same way _fire_alert_event does for real
+# alerts: {'event': event, **sample, 'timestamp': ...}.
+_ALERT_SAMPLE_CONTEXTS = {
+    EVENT_AUTH_FAILURE: {
+        'provider': 'anthropic',
+        'model': 'claude-sonnet-4-20250514',
+        'error_message': 'Invalid API key provided',
+        'status_code': 401,
+    },
+    EVENT_LIMIT_EXCEEDED: {
+        'provider': 'openrouter',
+        'model': 'anthropic/claude-sonnet-4',
+        'error_message': 'Key limit exceeded (monthly limit). Manage it using https://openrouter.ai/settings/keys',
+        'status_code': 403,
+    },
+    EVENT_RATE_LIMIT_STRUCTURAL: {
+        'provider': 'groq',
+        'model': 'llama-3.3-70b-versatile',
+        'limit': 6000,
+        'used': 2400,
+        'requested': 8500,
+        'error_message': 'rate_limit_exceeded: Request too large for model on tokens per minute',
+    },
+    EVENT_FEED_REFRESH_FAILED: {
+        'slug': 'my-podcast',
+        'podcast_name': 'My Podcast',
+        'feed_url': 'https://feeds.example.com/my-podcast',
+        'error_message': 'HTTP 522 from upstream',
+        'failure_count': 3,
+    },
+    EVENT_UPDATE_AVAILABLE: {
+        'version': '2.74.0',
+        'channel': 'stable',
+        'release_date': '2026-07-22',
+        'release_url': 'https://github.com/ttlequals0/MinusPod/releases/tag/v2.74.0',
+    },
+}
+
+
 _DUMMY_CONTEXT = {
     'event': 'Episode Processed',
     'timestamp': '',  # overwritten at render time with current UTC
@@ -433,43 +490,79 @@ def render_template_preview(template_string):
     return _render_template(template_string, context)
 
 
-def fire_test_event(webhook_config):
-    """Fire a test payload to a single webhook config dict.
+def _episode_test_context(event):
+    """Build an episode-shaped context (Episode Processed or Episode Failed
+    payload family) for a test delivery.
 
-    Attempts to load real data from the most recent completed
-    processing_history entry. Falls back to synthetic placeholder data.
-
-    Returns True on HTTP 2xx, False otherwise.
+    Episode Processed attempts to load real data from the most recent
+    completed processing_history entry, falling back to placeholder data
+    (existing behavior). Episode Failed always uses placeholder data; there
+    is no comparable "most recent failure" query.
     """
-    from database import Database  # deferred to avoid circular imports
-
-    db = Database()
-    context = None
-
-    try:
-        row = db.get_latest_completed_processing()
-        if row:
-            payload = WebhookPayload(
-                event=EVENT_EPISODE_PROCESSED,
-                episode_id=row['episode_id'],
-                slug=row['podcast_slug'],
-                episode_title=row['episode_title'],
-                processing_time=row['processing_duration_seconds'],
-                llm_cost=row['llm_cost'],
-                ads_removed=row['ads_detected'],
-                original_duration=row['original_duration'],
-                new_duration=row['new_duration'],
-                podcast_name=row.get('podcast_title'),
-            )
-            context = _build_context(payload)
-    except Exception:
-        logger.debug("Could not load real data for test webhook, using placeholders")
-
-    if context is None:
+    if event == EVENT_EPISODE_PROCESSED:
+        try:
+            from database import Database  # deferred to avoid circular imports
+            db = Database()
+            row = db.get_latest_completed_processing()
+            if row:
+                payload = WebhookPayload(
+                    event=event,
+                    episode_id=row['episode_id'],
+                    slug=row['podcast_slug'],
+                    episode_title=row['episode_title'],
+                    processing_time=row['processing_duration_seconds'],
+                    llm_cost=row['llm_cost'],
+                    ads_removed=row['ads_detected'],
+                    original_duration=row['original_duration'],
+                    new_duration=row['new_duration'],
+                    podcast_name=row.get('podcast_title'),
+                )
+                return _build_context(payload)
+        except Exception:
+            logger.debug("Could not load real data for test webhook, using placeholders")
         context = dict(_DUMMY_CONTEXT)
         context['timestamp'] = utc_now_iso()
+        return context
 
-    status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
-    if status is not None and 200 <= status < 300:
-        return True
-    return False
+    payload = WebhookPayload(event=EVENT_EPISODE_FAILED, **_FAILED_SAMPLE)
+    return _build_context(payload)
+
+
+def _build_test_context(event):
+    """Build the render context for one test delivery, matching the real
+    payload shape for `event` (see docs/api-and-webhooks.md)."""
+    if event in (EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED):
+        return _episode_test_context(event)
+    sample = _ALERT_SAMPLE_CONTEXTS.get(event)
+    if sample is None:
+        # Unknown/legacy event value stored on the webhook; fall back to
+        # the universal sample rather than dropping the test delivery.
+        return _episode_test_context(EVENT_EPISODE_PROCESSED)
+    return {'event': event, **sample, 'timestamp': utc_now_iso()}
+
+
+def fire_test_event(webhook_config):
+    """Fire one test payload per event the webhook is subscribed to.
+
+    Each payload matches the real shape for its event and is dispatched
+    through the same render/dispatch path as real events (`_build_context`/
+    `_prepare_and_dispatch`), with `test: true` set. Falls back to a single
+    Episode Processed sample when the webhook's event list is empty --
+    webhooks created through the API always save a non-empty list, so this
+    only covers legacy or hand-edited data.
+
+    Returns a list of {'event': ..., 'delivered': bool} dicts, one per
+    event tested, in subscription order (duplicates collapsed).
+    """
+    events = list(dict.fromkeys(webhook_config.get('events') or [])) or [EVENT_EPISODE_PROCESSED]
+
+    results = []
+    for event in events:
+        context = _build_test_context(event)
+        status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
+        delivered = status is not None and 200 <= status < 300
+        # Report the event actually sent (context['event']), not the raw
+        # stored value: they only diverge for an unrecognized/legacy event
+        # name, which falls back to an Episode Processed sample.
+        results.append({'event': context['event'], 'delivered': delivered})
+    return results

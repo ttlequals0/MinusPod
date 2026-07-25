@@ -245,8 +245,14 @@ export async function deleteWebhook(id: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/settings/webhooks/${id}`, { method: 'DELETE' });
 }
 
-export async function testWebhook(id: string): Promise<{ success: boolean; message: string }> {
-  return apiRequest<{ success: boolean; message: string }>(`/settings/webhooks/${id}/test`, { method: 'POST' });
+export interface WebhookTestResult {
+  success: boolean;
+  results: { event: string; delivered: boolean }[];
+  message: string;
+}
+
+export async function testWebhook(id: string): Promise<WebhookTestResult> {
+  return apiRequest<WebhookTestResult>(`/settings/webhooks/${id}/test`, { method: 'POST' });
 }
 
 export async function validateTemplate(template: string): Promise<TemplateValidationResult> {

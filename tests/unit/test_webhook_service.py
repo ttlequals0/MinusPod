@@ -25,9 +25,16 @@ from webhook_service import (
     _format_cost,
     load_webhooks,
     fire_event,
+    fire_test_event,
     _fire_event_sync,
     WebhookPayload,
+    VALID_EVENTS,
     EVENT_EPISODE_PROCESSED,
+    EVENT_EPISODE_FAILED,
+    EVENT_AUTH_FAILURE,
+    EVENT_LIMIT_EXCEEDED,
+    EVENT_RATE_LIMIT_STRUCTURAL,
+    EVENT_UPDATE_AVAILABLE,
 )
 
 
@@ -353,6 +360,146 @@ class TestLoadWebhooks:
         mock_db.get_setting.return_value = json.dumps(webhooks)
         result = load_webhooks(db=mock_db)
         assert result == webhooks
+
+
+# ---------------------------------------------------------------------------
+# fire_test_event tests: one sample per subscribed event (issue: the test
+# button always sent an Episode Processed sample regardless of subscription)
+# ---------------------------------------------------------------------------
+
+class TestFireTestEvent:
+
+    @patch('webhook_service.safe_post')
+    def test_single_event_auth_failure_only(self, mock_post):
+        """Webhook subscribed to Auth Failure only sends exactly one
+        delivery, shaped like the Auth Failure payload, with test: true."""
+        mock_post.return_value = MagicMock(status_code=200)
+        config = {'url': 'https://hook.example.com', 'events': [EVENT_AUTH_FAILURE]}
+
+        results = fire_test_event(config)
+
+        assert results == [{'event': EVENT_AUTH_FAILURE, 'delivered': True}]
+        mock_post.assert_called_once()
+        body = json.loads(mock_post.call_args.kwargs['data'])
+        assert body['event'] == EVENT_AUTH_FAILURE
+        assert body['provider'] == 'anthropic'
+        assert body['status_code'] == 401
+        assert 'episode' not in body
+        assert body['test'] is True
+
+    @patch('webhook_service.safe_post')
+    def test_three_events_across_families(self, mock_post):
+        """Subscribing to three events across payload families delivers
+        three payloads, each shaped for its own event."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {
+            'url': 'https://hook.example.com',
+            'events': [EVENT_EPISODE_FAILED, EVENT_RATE_LIMIT_STRUCTURAL, EVENT_UPDATE_AVAILABLE],
+        }
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert results == [
+            {'event': EVENT_EPISODE_FAILED, 'delivered': True},
+            {'event': EVENT_RATE_LIMIT_STRUCTURAL, 'delivered': True},
+            {'event': EVENT_UPDATE_AVAILABLE, 'delivered': True},
+        ]
+        assert mock_post.call_count == 3
+        bodies = [json.loads(c.kwargs['data']) for c in mock_post.call_args_list]
+        assert bodies[0]['event'] == EVENT_EPISODE_FAILED
+        assert bodies[0]['episode']['error_message']
+        assert bodies[1]['event'] == EVENT_RATE_LIMIT_STRUCTURAL
+        assert bodies[1]['limit'] == 6000
+        assert bodies[2]['event'] == EVENT_UPDATE_AVAILABLE
+        assert bodies[2]['version'] == '2.74.0'
+        assert all(b['test'] is True for b in bodies)
+
+    @patch('webhook_service.safe_post')
+    def test_empty_events_falls_back_to_episode_processed(self, mock_post):
+        """Empty events list preserves the old universal test behavior."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {'url': 'https://hook.example.com', 'events': []}
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+        mock_post.assert_called_once()
+
+    @patch('webhook_service.safe_post')
+    def test_missing_events_key_falls_back_to_episode_processed(self, mock_post):
+        """Legacy webhook dicts with no 'events' key get the same fallback."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {'url': 'https://hook.example.com'}
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+
+    @patch('webhook_service.safe_post')
+    def test_unrecognized_event_reports_the_sample_it_actually_sent(self, mock_post):
+        """A stored event name outside VALID_EVENTS (corrupted/legacy data)
+        falls back to an Episode Processed sample; the reported event label
+        must match what was actually sent, not the raw stored value."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        config = {'url': 'https://hook.example.com', 'events': ['Not A Real Event']}
+
+        with patch('database.Database', return_value=mock_db):
+            results = fire_test_event(config)
+
+        assert results == [{'event': EVENT_EPISODE_PROCESSED, 'delivered': True}]
+        body = json.loads(mock_post.call_args.kwargs['data'])
+        assert body['event'] == EVENT_EPISODE_PROCESSED
+
+    @patch('webhook_service.safe_post')
+    def test_partial_delivery_failure_reported_per_event(self, mock_post):
+        """One failing delivery among several is reported per event, not
+        collapsed into a single pass/fail flag."""
+        mock_post.side_effect = [
+            MagicMock(status_code=200),
+            MagicMock(status_code=500),
+        ]
+        config = {
+            'url': 'https://hook.example.com',
+            'events': [EVENT_AUTH_FAILURE, EVENT_LIMIT_EXCEEDED],
+        }
+
+        results = fire_test_event(config)
+
+        assert results == [
+            {'event': EVENT_AUTH_FAILURE, 'delivered': True},
+            {'event': EVENT_LIMIT_EXCEEDED, 'delivered': False},
+        ]
+
+    @patch('webhook_service.safe_post')
+    def test_custom_template_never_raises_for_any_event(self, mock_post):
+        """A single custom template referencing fields from multiple payload
+        families must not raise for any event's context; _prepare_and_dispatch
+        falls back to the default JSON body and the delivery still happens."""
+        mock_post.return_value = MagicMock(status_code=200)
+        mock_db = MagicMock()
+        mock_db.get_latest_completed_processing.return_value = None
+        template = '{{ episode.title }} {{ provider }} {{ version }} {{ slug }}'
+
+        with patch('database.Database', return_value=mock_db):
+            for event in sorted(VALID_EVENTS):
+                config = {
+                    'url': 'https://hook.example.com',
+                    'events': [event],
+                    'payloadTemplate': template,
+                }
+                results = fire_test_event(config)
+                assert results == [{'event': event, 'delivered': True}]
 
 
 # ---------------------------------------------------------------------------

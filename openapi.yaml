@@ -4830,7 +4830,7 @@ paths:
         - Settings
       summary: Test a webhook
       description: |
-        Send a test event to a webhook endpoint to verify it is reachable and correctly configured. Rate limited to 10/min.
+        Send one test payload per event the webhook is subscribed to, matching each event's real payload shape (`test: true` set on every payload). Falls back to a single Episode Processed sample when the webhook's event list is empty. Rate limited to 10/min.
       operationId: testWebhook
       parameters:
         - $ref: '#/components/parameters/webhook_id'
@@ -4844,8 +4844,19 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    description: 'true only when every event delivered'
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        event:
+                          type: string
+                        delivered:
+                          type: boolean
                   message:
                     type: string
+                    description: 'Summary, e.g. "3 of 3 test payloads delivered"'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':

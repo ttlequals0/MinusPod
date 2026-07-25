@@ -14,13 +14,14 @@ const mockGetEmail = vi.fn();
 const mockUpdateEmail = vi.fn();
 const mockSendTest = vi.fn();
 const mockGetWebhooks = vi.fn();
+const mockTestWebhook = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   getWebhooks: (...a: unknown[]) => mockGetWebhooks(...a),
   createWebhook: vi.fn(),
   updateWebhook: vi.fn(),
   deleteWebhook: vi.fn(),
-  testWebhook: vi.fn(),
+  testWebhook: (...a: unknown[]) => mockTestWebhook(...a),
   validateTemplate: vi.fn(),
   getEmailNotificationSettings: (...a: unknown[]) => mockGetEmail(...a),
   updateEmailNotificationSettings: (...a: unknown[]) => mockUpdateEmail(...a),
@@ -131,6 +132,46 @@ describe('NotificationsSection', () => {
       expect((screen.getByRole('button', { name: 'Send test email' }) as HTMLButtonElement).disabled).toBe(true);
     });
     expect(mockSendTest).not.toHaveBeenCalled();
+  });
+
+  it('shows the per-event summary message after a webhook test', async () => {
+    mockTestWebhook.mockResolvedValue({
+      success: true,
+      results: [
+        { event: 'Episode Failed', delivered: true },
+        { event: 'Auth Failure', delivered: true },
+      ],
+      message: '2 of 2 test payloads delivered',
+    });
+    renderSection();
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
+    });
+    await user.click(screen.getByRole('button', { name: 'Test' }));
+    await waitFor(() => {
+      expect(screen.getByText('2 of 2 test payloads delivered')).toBeDefined();
+    });
+    expect(mockTestWebhook).toHaveBeenCalledWith('wh1');
+  });
+
+  it('shows a partial-failure summary message when some events fail to deliver', async () => {
+    mockTestWebhook.mockResolvedValue({
+      success: false,
+      results: [
+        { event: 'Episode Failed', delivered: true },
+        { event: 'Auth Failure', delivered: false },
+      ],
+      message: '1 of 2 test payloads delivered',
+    });
+    renderSection();
+    const user = userEvent.setup();
+    await waitFor(() => {
+      expect(screen.getByText('http://hook.example.com/x')).toBeDefined();
+    });
+    await user.click(screen.getByRole('button', { name: 'Test' }));
+    const message = await screen.findByText('1 of 2 test payloads delivered');
+    expect(message.className).toContain('text-destructive');
   });
 
   it('disables the test button while the draft is dirty', async () => {

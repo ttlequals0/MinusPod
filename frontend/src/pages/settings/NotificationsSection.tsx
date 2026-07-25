@@ -5,7 +5,7 @@ import {
   getWebhooks, createWebhook, updateWebhook, deleteWebhook,
   testWebhook, validateTemplate,
 } from '../../api/settings';
-import type { Webhook, WebhookPayload } from '../../api/settings';
+import type { Webhook, WebhookPayload, WebhookTestResult } from '../../api/settings';
 import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
@@ -46,8 +46,10 @@ function WebhooksBlock() {
   const [showSecret, setShowSecret] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   // One transient result at a time; auto-clears 4s after the last test.
+  // The result carries a per-event `results` breakdown, but the inline
+  // message idiom below shows only the summary line.
   const [testResult, setTestResult] = useTransientState<
-    { id: string; success: boolean; message: string } | null
+    ({ id: string } & WebhookTestResult) | null
   >(null, 4000);
   const [templatePreview, setTemplatePreview] = useState<{ valid: boolean; preview: string; error: string | null } | null>(null);
   const [validating, setValidating] = useState(false);
@@ -83,7 +85,7 @@ function WebhooksBlock() {
   const testMutation = useMutation({
     mutationFn: (id: string) => testWebhook(id),
     onSuccess: (data, id) => setTestResult({ id, ...data }),
-    onError: (_err, id) => setTestResult({ id, success: false, message: 'Request failed' }),
+    onError: (_err, id) => setTestResult({ id, success: false, results: [], message: 'Request failed' }),
   });
 
   function resetForm() {

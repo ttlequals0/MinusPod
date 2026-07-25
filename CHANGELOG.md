@@ -24,6 +24,9 @@ release notes.
   the category covers, and the show-segments, source feed, detection mode,
   and chapters helper text is clearer.
 
+- The webhook test button now sends one sample payload per subscribed event
+  type instead of always sending an Episode Processed sample.
+
 ## [2.78.0] - 2026-07-24
 
 ### Added

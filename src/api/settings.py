@@ -2104,15 +2104,20 @@ def test_webhook(webhook_id):
         return error_response('Webhook not found', 404)
 
     try:
-        success = fire_test_event(target)
+        results = fire_test_event(target)
+        delivered_count = sum(1 for r in results if r['delivered'])
+        total = len(results)
+        plural = '' if total == 1 else 's'
         return json_response({
-            'success': success,
-            'message': 'Test webhook delivered' if success else 'Test webhook failed to deliver',
+            'success': delivered_count == total,
+            'results': results,
+            'message': f'{delivered_count} of {total} test payload{plural} delivered',
         })
     except Exception as e:
         logger.error(f"Webhook test failed for {webhook_id}: {e}")
         return json_response({
             'success': False,
+            'results': [],
             'message': 'webhook test failed; see server logs for details',
         })
 
