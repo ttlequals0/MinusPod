@@ -96,7 +96,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Second scan** - See Verification pass.
 
-**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep) per feed or globally. [How It Works > Segment Categories](how-it-works.md#segment-categories)
+**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds that opt in via the show-segments toggle; the other four categories are always detected. [How It Works > Segment Categories](how-it-works.md#segment-categories)
   - Sponsor - Paid ads, including dynamically inserted ones
   - Cross-promo - Promos for other shows and the network
   - Self-promo - The show's own Patreon, merch, and subscribe asks

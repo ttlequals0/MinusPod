@@ -137,6 +137,8 @@ The served feed URL does not change, which is the point: your app keeps pulling 
 
 Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
+Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds that turn on the show-segments toggle below; a feed without it enabled has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
+
 | Category | Covers | Detected by default |
 |---|---|---|
 | Sponsor | Paid host-read or produced reads, dynamic ad insertion, platform pre/post-rolls | Yes |
@@ -157,7 +159,7 @@ Each category maps to one action:
 
 Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Set the global map at Settings > Global Defaults > **Segment actions**. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
 
-The feed settings page also has a **Detect intro, outro, and housekeeping segments** toggle (`detectShowSegments` on the same PATCH endpoint), off by default. Turning it on adds intro/outro/recap detection to that feed's LLM detection windows; the other four categories are detected regardless of this toggle.
+The feed settings page also has a **Detect intro, outro, and housekeeping segments** toggle (`detectShowSegments` on the same PATCH endpoint), off by default. This toggle gates whether intro, outro, and recap markers exist at all: with it off, the LLM never produces those markers for that feed, so the intro/outro/recap rows of the action map above have nothing to act on regardless of how they are set. Turning it on adds intro/outro/recap detection to that feed's LLM detection windows; the other four categories are detected regardless of this toggle.
 
 Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
 

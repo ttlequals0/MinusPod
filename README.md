@@ -12,7 +12,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - Audio-side signals: loudness analysis, DAI transition detection, pre/post-roll, and a VAD-gap detector for spans Whisper drops
 - Per-feed audio cue detection that snaps cuts to a show's jingle or stinger
 - Confidence scoring with a review queue; rejected detections stay visible for auditing
-- Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, or keep, set globally or per feed
+- Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, or keep, set globally or per feed and defaulting to remove until configured
 
 **Transcription**
 - Local Whisper on GPU or CPU via faster-whisper, or a remote OpenAI-compatible API

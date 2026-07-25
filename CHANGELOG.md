@@ -18,6 +18,11 @@ release notes.
   column layout that stretched them to the panel width, and the earlier
   attempt only capped that stretch instead of stopping it.
 
+- Documentation now states plainly that segment categories are configured
+  per feed, that intro, outro, and recap are only detected when a feed
+  opts in, and that an existing prompt override forcing intro or outro
+  removal should be removed.
+
 ## [2.78.6] - 2026-07-25
 
 ### Fixed
