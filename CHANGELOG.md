@@ -27,6 +27,14 @@ release notes.
 - The webhook test button now sends one sample payload per subscribed event
   type instead of always sending an Episode Processed sample.
 
+- Detection prompt: "category" is now required right next to the JSON schema
+  line, not only in a later block, with a non-sponsor worked example and a
+  matching category example inside the show-segments section. When a feed
+  with non-default segment actions or show-segments detection enabled still
+  gets category-less LLM responses, the detector now logs one warning per
+  run naming the feed and the count affected, since those responses silently
+  default to sponsor and can skip the feed's configured actions.
+
 ## [2.78.0] - 2026-07-24
 
 ### Added

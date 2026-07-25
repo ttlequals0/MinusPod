@@ -910,6 +910,8 @@ Return ONLY a valid JSON array. No explanation, no markdown.
 
 Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}}
 
+"category" is REQUIRED on every ad object, with no exceptions. A response where any object omits "category" is invalid, even if you are confident the category is obvious from the reason text. Always write the key. See CATEGORY below for the exact allowed values.
+
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
 CATEGORY:
@@ -945,7 +947,18 @@ SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
 Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "category": "sponsor", "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
 
 Note: No promo code, no call to action -- but this is concentrated marketing copy
-for a brand with product positioning language. It is not editorial content.{sponsor_database}"""
+for a brand with product positioning language. It is not editorial content.
+
+CROSS-PROMO EXAMPLE (this IS an ad, and its category is NOT sponsor):
+[512.0s - 514.5s] Before we get back to it, a quick note.
+[514.5s - 528.0s] Hey, it's Jamie from Tech Weekly. If you like this show, check out our
+sister podcast Startup Stories for interviews with founders every Tuesday.
+[528.0s - 531.0s] Now, back to today's episode.
+
+Output: [{{"start": 512.0, "end": 531.0, "confidence": 0.9, "category": "cross_promo", "reason": "Produced cross-promotion for the sister podcast Startup Stories", "end_text": "back to today's episode"}}]
+
+Note: a different voice promoting a different show, inserted by the platform or network.
+Not a sponsor read, so "category" is "cross_promo", not "sponsor".{sponsor_database}"""
 
 # Opt-in addition to DEFAULT_SYSTEM_PROMPT (issue #565): appended when a
 # podcast has detect_show_segments enabled, so intro/outro/recap detection
@@ -959,8 +972,16 @@ This podcast has also asked for its show-structure segments to be identified. In
 - outro: the show's closing credits, sign-off, or theme music, after the episode content ends
 - recap: a produced "coming up" preview, a headline bumper, or a "listen to this next" segment: something that previews or summarizes content rather than being the content itself
 
+"category" is REQUIRED on these objects too, set to exactly "intro", "outro", or "recap". A show segment reported without "category" is invalid, the same as an ad reported without one.
+
 RULES FOR SHOW SEGMENTS:
 - A cold open is content, not intro. If the host starts the episode with a quote, a story, or a hook before the theme music, that is content. Do not flag it.
 - Only flag a span that is clearly theme music, closing credits, or housekeeping. If you are unsure whether something is a show segment, do not flag it.
 - Use the same timestamp discipline as ads: use the exact [Xs] marker timestamps from the transcript, do not interpolate or estimate.
+
+OUTRO EXAMPLE:
+[2324.5s - 2360.0s] That's the show for today, thanks for listening, and we'll see you next time.
+[2360.0s - 2381.1s] [closing theme music]
+
+Output: [{"start": 2324.5, "end": 2381.1, "confidence": 0.85, "category": "outro", "reason": "Show sign-off and closing theme music", "end_text": "[closing theme music]"}]
 """

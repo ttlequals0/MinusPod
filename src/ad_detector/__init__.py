@@ -982,8 +982,12 @@ class AdDetector:
         used in the failure log and the all-windows-failed envelope.
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
-        failure_response)`` where ``failure_response`` is the
-        all-windows-failed envelope the caller must return as-is, or None.
+        failure_response, category_missing, category_total)`` where
+        ``failure_response`` is the all-windows-failed envelope the caller
+        must return as-is, or None. ``category_missing`` / ``category_total``
+        count, across all non-failed windows before dedup, how many raw LLM
+        markers arrived with no "category" key at all. The caller decides
+        whether that is worth surfacing.
         """
         all_raw_responses = []
         all_window_ads = []
@@ -1045,11 +1049,18 @@ class AdDetector:
         if failed_windows >= len(windows):
             failure = _all_windows_failed_response(
                 pass_label.lower(), len(windows), last_error, model)
-            return [], all_raw_responses, failed_windows, failure
+            return [], all_raw_responses, failed_windows, failure, 0, 0
+
+        # Count raw LLM markers with no "category" key at all, before
+        # normalize_segment_category (applied later at the merge seam)
+        # papers over the gap by defaulting them to 'sponsor'.
+        category_total = len(all_window_ads)
+        category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
         # Deduplicate ads across windows
         final_ads = deduplicate_window_ads(all_window_ads)
-        return final_ads, all_raw_responses, failed_windows, None
+        return (final_ads, all_raw_responses, failed_windows, None,
+                category_missing, category_total)
 
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
@@ -1125,7 +1136,8 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
                             f"{positional_prior_hint.splitlines()[0]}")
 
-            final_ads, all_raw_responses, failed_windows, failure = self._run_detection_pass(
+            (final_ads, all_raw_responses, failed_windows, failure,
+             category_missing, category_total) = self._run_detection_pass(
                 windows,
                 pass_label='Detection',
                 model=model,
@@ -1146,9 +1158,30 @@ class AdDetector:
             if failure is not None:
                 return failure
 
+            # Resolved once per run (not per window): gates the
+            # category-miss warning below on whether per-category actions
+            # are actually configured for this feed. Reads whether
+            # SHOW_SEGMENTS_PROMPT_SECTION made it into system_prompt above
+            # instead of a second _podcast_wants_show_segments DB call.
+            # That call already happened once inside
+            # _build_detection_system_prompt, and its outcome is right there
+            # in the string.
+            action_map = self._resolve_segment_action_map(slug)
+            show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
+            segment_categories_configured = show_segments_enabled or (
+                action_map is not None
+                and any(action != DEFAULT_SEGMENT_ACTION
+                        for action in action_map.values())
+            )
+            if segment_categories_configured and category_missing > 0:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {category_missing} of {category_total} "
+                    f"LLM detections returned no category; all defaulted to sponsor. "
+                    f"Per-category actions may not apply as configured."
+                )
+
             # Merge in foreign language ads (auto-detected non-English segments)
             if foreign_language_ads:
-                action_map = self._resolve_segment_action_map(slug)
                 final_ads = self._merge_detection_results(
                     final_ads + foreign_language_ads, segments=segments,
                     action_map=action_map)
@@ -2386,8 +2419,11 @@ class AdDetector:
                 description_section += sponsor_history
 
             # Verification stamps every surviving ad so the merge downstream
-            # can distinguish first-pass from verification.
-            final_ads, all_raw_responses, _failed_windows, failure = self._run_detection_pass(
+            # can distinguish first-pass from verification. The verification
+            # prompt does not ask for "category" at all, so the category-miss
+            # counts are not meaningful here and are discarded.
+            (final_ads, all_raw_responses, _failed_windows, failure,
+             _category_missing, _category_total) = self._run_detection_pass(
                 windows,
                 pass_label='Verification',
                 model=model,
