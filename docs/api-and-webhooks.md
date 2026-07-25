@@ -95,6 +95,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Auth Failure` | LLM provider rejects the API key as invalid or expired (401/403 without billing markers; rate-limited to one per 5 minutes) |
 | `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
 | `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
+| `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
 
 ### Template Variables
@@ -103,7 +104,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, or `Update Available` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, or `Update Available` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -157,6 +158,18 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `used` | int | Tokens already consumed in the current minute |
 | `requested` | int | Tokens this request asked for (greater than `limit` means the request structurally cannot fit) |
 | `error_message` | string | Raw error details from the provider |
+
+**Feed Refresh Failed events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Feed Refresh Failed` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `slug` | string | Feed slug |
+| `podcast_name` | string | Podcast title (falls back to the slug) |
+| `feed_url` | string | Upstream feed URL, with any credentials stripped |
+| `error_message` | string | Error from the most recent fetch attempt |
+| `failure_count` | int | Consecutive failed refreshes when the alert fired |
 
 **Update Available events use a different payload:**
 
@@ -269,6 +282,20 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "used": 2400,
   "requested": 8500,
   "error_message": "rate_limit_exceeded: Request too large for model on tokens per minute"
+}
+```
+
+**Feed Refresh Failed:**
+
+```json
+{
+  "event": "Feed Refresh Failed",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "slug": "my-podcast",
+  "podcast_name": "My Podcast",
+  "feed_url": "https://feeds.example.com/my-podcast",
+  "error_message": "HTTP 522 from upstream",
+  "failure_count": 3
 }
 ```
 

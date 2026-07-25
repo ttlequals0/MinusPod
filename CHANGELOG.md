@@ -13,6 +13,11 @@ release notes.
 
 ### Changed
 
+- The webhook reference now documents the Feed Refresh Failed event:
+  when it fires (3 consecutive upstream fetch failures), its payload
+  variables, and a default payload example. The event is not new; only
+  the docs were missing it.
+
 - Feed settings panel: the Detection and Chapters selects no longer stretch
   to the panel's full width, each segment-category row in the actions
   matrix (feed and global) now shows a muted one-line description of what
