@@ -7,6 +7,7 @@ import type {
 } from '../../api/types';
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 
@@ -20,6 +21,7 @@ interface StageTunablesSectionProps {
   saveError: string | null;
   parallelWindows: number;
   parallelWindowsDefault: number;
+  omitTemperature: boolean;
 }
 
 interface StageBlock {
@@ -85,7 +87,12 @@ const REASONING_LEVEL_OPTIONS: { value: ReasoningLevel; label: string }[] = [
 // its own settings field) but it is edited in this section's draft.
 const PARALLEL_KEY = 'adDetectionParallelWindows';
 
-type DraftValue = number | string | null;
+// 'omitTemperature' is likewise a standalone global setting, not part of
+// StageTunables, edited here because it sits right next to the per-stage
+// temperature controls it governs.
+const OMIT_TEMPERATURE_KEY = 'omitTemperature';
+
+type DraftValue = number | string | boolean | null;
 type DraftRecord = Record<string, DraftValue>;
 
 // Every key this section edits, in a stable order. Used for diffing the draft
@@ -95,11 +102,16 @@ const DRAFT_KEYS: string[] = [
   'windowSizeSeconds',
   'windowOverlapSeconds',
   PARALLEL_KEY,
+  OMIT_TEMPERATURE_KEY,
 ];
 
 // Server truth as a flat draft. null means "not set" (resolves to env/default at
 // read time); a value means an explicit override.
-function buildBaseline(tunables: StageTunables, parallelWindows: number): DraftRecord {
+function buildBaseline(
+  tunables: StageTunables,
+  parallelWindows: number,
+  omitTemperature: boolean,
+): DraftRecord {
   const b: DraftRecord = {};
   for (const block of STAGES) {
     b[block.temperatureKey] = tunables[block.temperatureKey]?.value ?? null;
@@ -110,6 +122,7 @@ function buildBaseline(tunables: StageTunables, parallelWindows: number): DraftR
   b.windowSizeSeconds = tunables.windowSizeSeconds?.value ?? null;
   b.windowOverlapSeconds = tunables.windowOverlapSeconds?.value ?? null;
   b[PARALLEL_KEY] = parallelWindows;
+  b[OMIT_TEMPERATURE_KEY] = omitTemperature;
   return b;
 }
 
@@ -154,6 +167,7 @@ function DraftNumberInput({
   parse,
   onChange,
   className,
+  disabled,
 }: {
   value: number | null;
   fallback: number | null;
@@ -164,6 +178,7 @@ function DraftNumberInput({
   parse: (raw: string) => number | null;
   onChange: (parsed: number | null) => void;
   className: string;
+  disabled?: boolean;
 }) {
   const display = (v: number | null) => {
     if (v !== null && v !== undefined) return String(v);
@@ -197,6 +212,7 @@ function DraftNumberInput({
         onChange(parse(e.target.value));
       }}
       className={className}
+      disabled={disabled}
     />
   );
 }
@@ -227,6 +243,7 @@ function StageBlockEditor({
   defaults,
   draft,
   llmProvider,
+  omitTemperature,
   setField,
 }: {
   block: StageBlock;
@@ -234,6 +251,7 @@ function StageBlockEditor({
   defaults: Record<keyof StageTunables, number | string | null>;
   draft: DraftRecord;
   llmProvider: LlmProvider;
+  omitTemperature: boolean;
   setField: (key: string, value: DraftValue) => void;
 }) {
   const tempEnv = readEnvOverride(tunables[block.temperatureKey]);
@@ -258,11 +276,11 @@ function StageBlockEditor({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-foreground">
+            <label className={`block text-xs font-medium ${omitTemperature ? 'text-muted-foreground' : 'text-foreground'}`}>
               Temperature
             </label>
             <ResetButton
-              disabled={tempDraft === null}
+              disabled={tempDraft === null || omitTemperature}
               onClick={() => setField(block.temperatureKey, null)}
             />
           </div>
@@ -279,11 +297,14 @@ function StageBlockEditor({
             }}
             onChange={(parsed) => setField(block.temperatureKey, parsed)}
             className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
+            disabled={omitTemperature}
           />
           <p className="mt-1 text-xs text-muted-foreground">
-            {tempEnv
-              ? `Default from ${tempEnv}.`
-              : '0.0 = deterministic. Higher = more variation.'}
+            {omitTemperature
+              ? 'Not sent: "Do not send temperature" is on.'
+              : tempEnv
+                ? `Default from ${tempEnv}.`
+                : '0.0 = deterministic. Higher = more variation.'}
           </p>
         </div>
 
@@ -528,6 +549,34 @@ function ConcurrencyConfigBlock({
   );
 }
 
+function OmitTemperatureToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="border border-border rounded-lg p-3">
+      <label className="flex items-center gap-3 cursor-pointer">
+        <ToggleSwitch
+          checked={checked}
+          onChange={onChange}
+          ariaLabel="Do not send temperature"
+        />
+        <span className="text-sm font-medium text-foreground">
+          Do not send temperature
+        </span>
+      </label>
+      <p className="mt-2 text-sm text-muted-foreground ml-14">
+        Some newer models reject the temperature parameter and fail the request. Turn
+        this on to leave it out of every LLM call. MinusPod already skips it for models
+        known to reject it.
+      </p>
+    </div>
+  );
+}
+
 function StageTunablesSection({
   tunables,
   defaults,
@@ -538,10 +587,11 @@ function StageTunablesSection({
   saveError,
   parallelWindows,
   parallelWindowsDefault,
+  omitTemperature,
 }: StageTunablesSectionProps) {
   const serverBaseline = useMemo(
-    () => buildBaseline(tunables, parallelWindows),
-    [tunables, parallelWindows],
+    () => buildBaseline(tunables, parallelWindows, omitTemperature),
+    [tunables, parallelWindows, omitTemperature],
   );
   const [draft, setDraft] = useState<DraftRecord>(serverBaseline);
 
@@ -570,6 +620,7 @@ function StageTunablesSection({
     sizeEff !== null && overlapEff !== null && overlapEff >= sizeEff
       ? 'Overlap must be less than window size.'
       : null;
+  const omitTemperatureDraft = draft[OMIT_TEMPERATURE_KEY] as boolean;
 
   return (
     <CollapsibleSection title="LLM Tunables">
@@ -577,6 +628,10 @@ function StageTunablesSection({
         Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
       <div className="space-y-3">
+        <OmitTemperatureToggle
+          checked={omitTemperatureDraft}
+          onChange={(checked) => setField(OMIT_TEMPERATURE_KEY, checked)}
+        />
         {STAGES.map((block) => (
           <StageBlockEditor
             key={block.label}
@@ -585,6 +640,7 @@ function StageTunablesSection({
             defaults={defaults}
             draft={draft}
             llmProvider={llmProvider}
+            omitTemperature={omitTemperatureDraft}
             setField={setField}
           />
         ))}

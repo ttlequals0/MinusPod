@@ -3635,6 +3635,14 @@ paths:
                   description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
                   enum: [anthropic, openai-compatible, ollama, openrouter]
                   example: anthropic
+                omitTemperature:
+                  type: boolean
+                  description: |
+                    Operator override: when true, omit the temperature parameter from every
+                    LLM call, for every model, regardless of the built-in list of models known
+                    to reject it or anything learned at runtime from a prior rejection. Use
+                    ahead of a newly-released model that rejects temperature, without waiting
+                    for a failed call or a code change. Off by default.
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
@@ -8532,6 +8540,17 @@ components:
               description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama)
             isDefault:
               type: boolean
+        omitTemperature:
+          type: object
+          description: |
+            Operator override: when true, temperature is omitted from every LLM call for
+            every model, regardless of the built-in list of models known to reject it or
+            anything learned at runtime from a prior rejection. Off by default.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         openaiBaseUrl:
           type: object
           properties:
@@ -8663,6 +8682,8 @@ components:
             rssRefreshIntervalMinutes:
               type: integer
             podpingEnabled:
+              type: boolean
+            omitTemperature:
               type: boolean
             segmentCategoryActions:
               type: object

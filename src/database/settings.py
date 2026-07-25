@@ -360,6 +360,14 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
         payload_key='minContentBetweenAdsSeconds', payload_kind='float'),
 
     # -- LLM provider (env-backed keys resolve via ENV_BACKED_SETTINGS) --
+    # Operator override: skip temperature on every LLM call regardless of the
+    # static _ANTHROPIC_NO_SAMPLING_MODELS list or the learned-rejection memo
+    # in llm_capabilities.model_omits_temperature(). Lets an operator get
+    # ahead of a newly-released model that rejects temperature without
+    # waiting for a failed call or a code change.
+    'omit_temperature': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='omitTemperature', payload_kind='bool'),
     'llm_provider': SettingSpec(
         env_backed=True, seeded=True,
         in_ad_reset=True, payload_key='llmProvider',

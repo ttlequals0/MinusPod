@@ -60,6 +60,7 @@ SEED_SNAPSHOT = {
     'min_cut_confidence': '0.80',
     'offline_queue_enabled': 'false',
     'offline_queue_ttl_hours': '48',
+    'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
     'openai_base_url': 'http://localhost:8000/v1',
     'podping_enabled': 'false',
@@ -141,7 +142,8 @@ EXPECTED_AD_RESET_KEYS = {
 NON_RESETTABLE_KEYS = (
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
     'max_feed_episodes', 'offline_queue_enabled', 'offline_queue_ttl_hours',
-    'only_expose_processed_default', 'podping_enabled', 'positional_prior_enabled',
+    'only_expose_processed_default', 'omit_temperature',
+    'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
     'rss_refresh_interval_minutes', 'segment_category_actions',
@@ -351,11 +353,12 @@ class TestGetDefaults:
         # payload keys (67 -> 73). rssRefreshIntervalMinutes added after
         # (73 -> 74). podpingEnabled added after that (74 -> 75).
         # segmentCategoryActions added after that (75 -> 76).
+        # omitTemperature added after that (76 -> 77).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 76
+        assert len(payload_keys) == 77
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

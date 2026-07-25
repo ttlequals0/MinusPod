@@ -147,10 +147,26 @@ def mark_model_omits_temperature(model: str) -> None:
         _learned_no_temperature_models.add(model.lower())
 
 
-def model_omits_temperature(model: Optional[str]) -> bool:
-    """True when the model rejects the temperature parameter (Anthropic's
-    adaptive-thinking generation). Callers must omit temperature from the
-    request for these models."""
+def model_omits_temperature(
+    model: Optional[str],
+    operator_override: bool = False,
+) -> bool:
+    """True when temperature must be omitted from the request for ``model``.
+
+    Resolution order (any one of the three is sufficient to omit):
+      1. operator_override -- the ``omit_temperature`` global setting. Forces
+         omission for EVERY model, regardless of the static list or the
+         learned memo below. This module is intentionally DB-free (see the
+         module docstring), so the caller resolves the setting and passes
+         the result in; do not add a DB read here.
+      2. _ANTHROPIC_NO_SAMPLING_MODELS -- static list of models known at
+         release time to reject temperature.
+      3. _learned_no_temperature_models -- per-process memo populated by
+         mark_model_omits_temperature() after a live 400 identifies the
+         rejection for a model not (yet) in the static list.
+    """
+    if operator_override:
+        return True
     if not model:
         return False
     m = model.lower()

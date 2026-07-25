@@ -429,6 +429,7 @@ export interface Settings {
   whisperLanguage: SettingValue;
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
+  omitTemperature: SettingValueBoolean;
   openaiBaseUrl: SettingValue;
   pricingSourceMode: SettingValue;
   apiKeyConfigured: boolean;
@@ -462,6 +463,7 @@ export interface Settings {
     chaptersModel: string;
     minCutConfidence: number;
     llmProvider: LlmProvider;
+    omitTemperature: boolean;
     openaiBaseUrl: string;
     pricingSourceMode: string;
     openrouterBaseUrl: string;
@@ -623,6 +625,7 @@ export interface UpdateSettingsPayload {
   ollamaNumCtx?: number | null;
   windowSizeSeconds?: number | null;
   windowOverlapSeconds?: number | null;
+  omitTemperature?: boolean;
 }
 
 export type ReasoningLevel = 'none' | 'low' | 'medium' | 'high';

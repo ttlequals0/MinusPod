@@ -902,6 +902,7 @@ function Settings() {
           saveError={stageTunablesMutation.error ? (stageTunablesMutation.error as Error).message : null}
           parallelWindows={settings.adDetectionParallelWindows?.value ?? settings.defaults?.adDetectionParallelWindows ?? 4}
           parallelWindowsDefault={settings.defaults?.adDetectionParallelWindows ?? 4}
+          omitTemperature={settings.omitTemperature?.value ?? settings.defaults?.omitTemperature ?? false}
         />
       )}
 

@@ -55,6 +55,7 @@ from config import (
     PROVIDER_OPENROUTER,
     PROVIDER_OLLAMA,
     PROVIDERS_NON_ANTHROPIC,
+    coerce_bool_setting,
 )
 from llm_capabilities import (
     get_pass_defaults,
@@ -222,6 +223,15 @@ def model_matches_provider(model_id: str, provider: str) -> bool:
     if provider == PROVIDER_ANTHROPIC:
         return is_claude_model
     return not is_claude_model
+
+
+def _omit_temperature_override() -> bool:
+    """DB-backed operator override (settings.omit_temperature), read through
+    the same short-TTL cache as the other provider settings above so the
+    resolution isn't a DB read on every LLM call. See
+    llm_capabilities.model_omits_temperature() for the full resolution
+    order this feeds into."""
+    return coerce_bool_setting(_get_cached_setting('omit_temperature'))
 
 
 def get_effective_base_url() -> str:
@@ -586,8 +596,12 @@ class AnthropicClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
+        # Operator override (settings.omit_temperature) takes priority over the
+        # static list / learned memo -- see model_omits_temperature().
+        omit_temp_override = _omit_temperature_override()
+
         self._log_messages("Anthropic", effective_system, messages, model,
-                           None if model_omits_temperature(model) else eff_temp, eff_max)
+                           None if model_omits_temperature(model, omit_temp_override) else eff_temp, eff_max)
 
         def _send(tok, tmp, reasoning):
             kw = dict(
@@ -600,7 +614,7 @@ class AnthropicClient(LLMClient):
             # Anthropic's adaptive-thinking models reject temperature with a 400.
             # Re-consulted on every call (not hoisted) so a retry after
             # mark_model_omits_temperature() picks up the freshly-learned state.
-            if not model_omits_temperature(model):
+            if not model_omits_temperature(model, omit_temp_override):
                 kw["temperature"] = tmp
             kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
             if tool_spec is not None:
@@ -767,8 +781,12 @@ class OpenAICompatibleClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
+        # Operator override (settings.omit_temperature) takes priority over the
+        # static list / learned memo -- see model_omits_temperature().
+        omit_temp_override = _omit_temperature_override()
+
         self._log_messages("OpenAI", system, messages, model,
-                           None if model_omits_temperature(model) else eff_temp, eff_max)
+                           None if model_omits_temperature(model, omit_temp_override) else eff_temp, eff_max)
 
         # Newer OpenAI models require max_completion_tokens instead of max_tokens.
         # Try cached param first, fallback on error.
@@ -790,7 +808,7 @@ class OpenAICompatibleClient(LLMClient):
             # temperature with a 400; omit it rather than let the request fail.
             # Re-consulted on every call (not hoisted) so a retry after
             # mark_model_omits_temperature() picks up the freshly-learned state.
-            if not model_omits_temperature(model):
+            if not model_omits_temperature(model, omit_temp_override):
                 kw["temperature"] = tmp
             if response_format:
                 if self._get_json_format_supported() is False:
@@ -971,7 +989,9 @@ class OpenAICompatibleClient(LLMClient):
             "timeout": HTTP_TIMEOUT_API,
         }
         # No-sampling Anthropic models (e.g. via OpenRouter) reject temperature.
-        if not model_omits_temperature(model):
+        # Operator override (settings.omit_temperature) takes priority over the
+        # static list / learned memo -- see model_omits_temperature().
+        if not model_omits_temperature(model, _omit_temperature_override()):
             probe_kwargs["temperature"] = 0.0
         try:
             self._client.chat.completions.create(**probe_kwargs)
