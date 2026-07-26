@@ -13,6 +13,16 @@ release notes.
 
 ### Fixed
 
+- The tail re-transcription never ran on the local Whisper backend. When a
+  quiet post-roll falls outside Whisper's VAD the transcript ends early, and
+  the pass that re-reads that tail with VAD off failed with "No clip
+  timestamps found", because the batched pipeline builds its chunks from VAD
+  output and had none. The no-VAD path now supplies its own 30 second clips
+  covering the whole span, so a quiet tail gets transcribed and reviewed
+  instead of reaching the detector with no text.
+- A failed tail re-transcription logged the same line as a tail that held no
+  speech, so the failure only showed up if you grepped for the transcriber's
+  own error. The two now log differently.
 - The Podping host coverage list in the Podcasting 2.0 docs was stale and
   incomplete. It named seven hosts; measuring three days of Podping traffic
   on the Hive chain found thirteen, including PodServe, which sends more

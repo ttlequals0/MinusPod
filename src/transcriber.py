@@ -66,6 +66,13 @@ from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 logger = logging.getLogger(__name__)
 
+# Whisper's encoder window. A clip handed to BatchedInferencePipeline longer
+# than this is silently truncated to its first 30s.
+WHISPER_CHUNK_SECONDS = 30.0
+
+# Shortest clip worth handing to the pipeline.
+MIN_CLIP_SECONDS = 0.1
+
 # Batch size tiers based on audio duration (in seconds)
 # Longer episodes need smaller batches to avoid CUDA OOM
 BATCH_SIZE_TIERS = [
@@ -910,6 +917,26 @@ def _effective_language(language_override: Optional[str], whisper_settings: Dict
     return (whisper_settings.get('language') or 'en').strip().lower()
 
 
+def _full_span_clips(duration: Optional[float]) -> Optional[List[Dict]]:
+    """Cover the whole file with 30s clips for a VAD-off transcription.
+
+    BatchedInferencePipeline derives its chunks from VAD speech timestamps, so
+    with VAD off it needs clip_timestamps or it raises. Returns None when the
+    duration is unknown or too short to clip.
+    """
+    if not duration or duration <= 0:
+        return None
+    clips = [
+        {'start': i * WHISPER_CHUNK_SECONDS,
+         'end': min((i + 1) * WHISPER_CHUNK_SECONDS, duration)}
+        for i in range(math.ceil(duration / WHISPER_CHUNK_SECONDS))
+    ]
+    # A duration a hair past a chunk boundary leaves a sub-sample trailing
+    # clip, which the pipeline hits as an empty feature array and raises on.
+    return [c for c in clips
+            if c['end'] - c['start'] >= MIN_CLIP_SECONDS] or None
+
+
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
@@ -1537,6 +1564,9 @@ class Transcriber:
                             speech_pad_ms=600,  # Increased from 400 - more padding for ad segments
                             threshold=0.3  # Lower threshold = more sensitive to speech in ads
                         ) if vad_filter else None,
+                        clip_timestamps=(
+                            None if vad_filter
+                            else _full_span_clips(audio_duration)),
                     )
 
                     # Log detected language

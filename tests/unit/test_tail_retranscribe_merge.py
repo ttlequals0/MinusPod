@@ -91,9 +91,20 @@ def test_unknown_duration_is_noop(tmp_path):
 
 def test_empty_tail_transcription_is_noop(tmp_path):
     merged, added, _, _, _ = _run_helper(
-        tmp_path, [_seg(0.0, 100.0, 'x')], 142.4, None)
+        tmp_path, [_seg(0.0, 100.0, 'x')], 142.4, [])
     assert added is False
     assert len(merged) == 1
+
+
+def test_swallowed_transcribe_failure_is_logged_as_failure(tmp_path, caplog):
+    # transcribe() returns None on error rather than raising, so a silent
+    # tail and a hard failure must not log the same line.
+    with caplog.at_level('WARNING'):
+        merged, added, _, _, _ = _run_helper(
+            tmp_path, [_seg(0.0, 100.0, 'x')], 142.4, None)
+    assert added is False
+    assert len(merged) == 1
+    assert 'Tail re-transcription failed' in caplog.text
 
 
 def test_hallucination_filter_can_drop_whole_tail(tmp_path):

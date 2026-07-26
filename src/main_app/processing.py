@@ -346,6 +346,12 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
                 os.unlink(chunk_path)
             except OSError:
                 pass
+    if tail_segments is None:
+        # transcribe() returns None on failure and [] on a silent tail.
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Tail re-transcription failed; "
+            f"proceeding without tail")
+        return segments, False
     if not tail_segments:
         audio_logger.info(
             f"[{slug}:{episode_id}] Tail re-transcription produced no segments")
