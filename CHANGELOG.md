@@ -9,6 +9,26 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.1] - 2026-07-26
+
+### Changed
+
+- The per-feed Podping line now answers one question instead of explaining
+  itself. It reads `Podping: last ping at <time>` when a ping has arrived and
+  `Podping: none` until then, and stays hidden while the listener is off, since
+  that is a global setting rather than a fact about the feed. The wording it
+  replaced described why a feed was uncovered, which read as a failure on feeds
+  that were fine.
+
+### Added
+
+- The feeds API reports the fuller picture the line no longer shows.
+  `podpingCoverage` separates a publisher opt-out, a publisher opt-in with no
+  ping yet, a host seen pinging other feeds, and nothing known, and the parsed
+  declaration comes back as `podpingUses` and `podpingHiveAccounts`. A feed
+  declaring `usesPodping="true"` previously got no credit for it anywhere,
+  since the value was stored and never read back.
+
 ## [2.81.0] - 2026-07-26
 
 ### Fixed
@@ -24,13 +44,6 @@ release notes.
 
 ### Added
 
-- Each feed shows its Podping state as one line: `Podping: last ping at <time>`
-  when one has arrived, `Podping: none` otherwise. The line is hidden when the
-  listener is off, since that is a global setting rather than a fact about the
-  feed. The API carries more detail in `podpingCoverage`, which
-  distinguishes a publisher opt-out, a publisher opt-in with no ping yet, a
-  host seen pinging other feeds, and nothing known, alongside the parsed
-  `podpingUses` and `podpingHiveAccounts`.
 - MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
   accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
   and MinusPod ignores podpings for that feed from anyone else. A feed
