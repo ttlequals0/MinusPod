@@ -372,7 +372,7 @@ def _podping_coverage(podcast, enabled, active_domains):
     return 'host_active' if domain in active_domains else 'unseen'
 
 
-def _podcast_listing_fields(podcast, podping=(False, frozenset())) -> dict:
+def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, active_domains = podping
     return {

@@ -73,12 +73,21 @@ def test_flush_is_a_noop_when_the_buffer_is_empty():
     assert db.recorded == []
 
 
-def test_flush_failure_does_not_lose_the_buffer():
-    class FailingDb(FakeDb):
-        def record_podping_hosts(self, counts):
-            raise RuntimeError('db down')
+class FailingDb(FakeDb):
+    def record_podping_hosts(self, counts):
+        raise RuntimeError('db down')
 
+
+def test_flush_failure_does_not_lose_the_buffer():
     listener = _listener(FailingDb())
     listener._buffer_hosts(['https://anchor.fm/x'])
     listener._flush_host_buffer()
     assert listener.host_buffer == {'anchor.fm': 1}
+
+
+def test_flush_failure_still_backs_off():
+    # Without this the listener would retry, and log a traceback, every tick.
+    listener = _listener(FailingDb())
+    listener._buffer_hosts(['https://anchor.fm/x'])
+    listener._flush_host_buffer()
+    assert listener.host_flushed_at > 0.0

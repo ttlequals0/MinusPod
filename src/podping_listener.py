@@ -308,13 +308,15 @@ class PodpingListener:
         """Write buffered domain counts; keep the buffer on failure to retry."""
         if not self.host_buffer:
             return
+        # Stamped before the write so a failing db backs off to the flush
+        # interval instead of retrying, and logging, on every tick.
+        self.host_flushed_at = time.time()
         try:
             self.db.record_podping_hosts(self.host_buffer)
         except Exception:
             logger.exception("Failed to record podping hosts; retrying next flush")
             return
         self.host_buffer = {}
-        self.host_flushed_at = time.time()
 
     def _handle_match(self, slug, reason):
         """Always stamp last_podping_at; refresh only outside the per-slug

@@ -11,6 +11,17 @@ release notes.
 
 ## [2.80.0] - 2026-07-25
 
+### Added
+
+- Feeds show whether Podping covers them, in three states: a podping arrived
+  for this feed, the host sends podpings but none has arrived for this feed
+  yet, or the host has not been seen sending podpings so scheduled polling is
+  doing the work. The states come from what the listener sees on the Hive
+  chain rather than a bundled host list, the same list that just went stale in
+  the docs. A host counts as sending podpings only if it was
+  seen in the last 30 days, so a host that drops support decays back on its
+  own. The line is hidden when the Podping listener is disabled (#579).
+
 ### Fixed
 
 - The tail re-transcription never ran on the local Whisper backend. When a
