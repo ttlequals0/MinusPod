@@ -85,12 +85,12 @@ describe('FeedDetail: podping metadata line', () => {
     expect(screen.getByText(/^Podping: last ping at /)).toBeDefined();
   });
 
-  it('says none when no podping has arrived', async () => {
+  it('says never when no podping has arrived', async () => {
     renderFeedDetail(makeFeed({ podpingCoverage: 'unseen', lastPodpingAt: null }));
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    expect(screen.getByText('Podping: none')).toBeDefined();
+    expect(screen.getByText('Podping: never')).toBeDefined();
   });
 
   it('hides the line when the listener is disabled', async () => {

@@ -9,6 +9,24 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.2] - 2026-07-26
+
+### Changed
+
+- The per-feed Podping line reads `Podping: never` rather than
+  `Podping: none` when no ping has arrived.
+
+### Fixed
+
+- A feed's `<podcast:podping>` declaration was never read in steady state. The
+  tag is parsed from the feed body, but a refresh that gets a 304 has no body
+  and returns early, and most refreshes are 304s because a feed's RSS rarely
+  changes. So the declaration stayed unread until a feed happened to publish,
+  which left the per-feed `hiveAccount` authorization inert on every existing
+  feed. A 304 now forces one full fetch when the declaration has never been
+  read, the same way a missing cached artwork already does, and records that it
+  did, so the extra fetch happens once per feed rather than every time.
+
 ## [2.81.1] - 2026-07-26
 
 ### Changed

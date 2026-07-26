@@ -173,8 +173,17 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if discovered_count > 0:
                 # Even on 304, ensure artwork is cached (may be missing after DB restore)
                 podcast = db.get_podcast_by_slug(slug)
+                # A 304 carries no body, so the podping declaration cannot be
+                # read from it. Without this a steady-state feed would never
+                # have its <podcast:podping> tag ingested (#579).
+                forced_reason = None
                 if podcast and not podcast.get('artwork_cached'):
-                    refresh_logger.info(f"[{slug}] Feed unchanged (304) but artwork missing, forcing full fetch")
+                    forced_reason = 'artwork missing'
+                elif podcast and not podcast.get('podping_checked_at'):
+                    forced_reason = 'podping declaration never read'
+                if forced_reason:
+                    refresh_logger.info(
+                        f"[{slug}] Feed unchanged (304) but {forced_reason}, forcing full fetch")
                     feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
                         feed_url, etag=None, last_modified=None
                     )

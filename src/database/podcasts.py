@@ -27,10 +27,15 @@ _STATUS_COUNT_SELECT = ',\n'.join(
 
 def podping_declaration_columns(uses_podping: Optional[bool],
                                 hive_accounts: Optional[List[str]]) -> Dict:
-    """A parsed <podcast:podping> declaration as podcasts-table columns."""
+    """A parsed <podcast:podping> declaration as podcasts-table columns.
+
+    Stamps podping_checked_at so a feed with no tag is distinguishable from one
+    never read: both leave podping_uses NULL.
+    """
     return {
         'podping_uses': None if uses_podping is None else int(uses_podping),
         'podping_hive_accounts': json.dumps(hive_accounts) if hive_accounts else None,
+        'podping_checked_at': utc_now_iso(),
     }
 
 
@@ -197,6 +202,7 @@ class PodcastMixin:
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
                 'last_podping_at', 'podping_uses', 'podping_hive_accounts',
+                'podping_checked_at',
                 'segment_category_actions', 'detect_show_segments',
             ):
                 fields.append(f"{key} = ?")

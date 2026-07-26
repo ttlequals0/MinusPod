@@ -18,11 +18,11 @@ function PodpingBadge({ coverage, lastPodpingAt, compact, className }: PodpingBa
     ? (compact
         ? `Podping: ${formatDate(lastPodpingAt)}`
         : `Podping: last ping at ${formatDateTime(lastPodpingAt)}`)
-    : 'Podping: none';
+    : 'Podping: never';
 
   const title = received
     ? 'This feed is refreshed by Podping instead of waiting for the next scheduled poll.'
-    : 'No Podping has arrived for this feed, so it updates on the refresh schedule.';
+    : 'No Podping has ever arrived for this feed, so it updates on the refresh schedule.';
 
   const tone = received ? 'text-foreground' : 'text-muted-foreground';
   return <span title={title} className={`${tone} ${className ?? ''}`.trim()}>{label}</span>;

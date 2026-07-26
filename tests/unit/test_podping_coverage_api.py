@@ -90,6 +90,13 @@ def test_undeclared_feed_reports_null_uses_and_no_accounts(client, feed):
     payload = _detail(client, feed)
     assert payload['podpingUses'] is None
     assert payload['podpingHiveAccounts'] == []
+    # Never read: this is what lets a 304 force one full fetch.
+    assert payload['podpingCheckedAt'] is None
+
+
+def test_checked_at_is_exposed_once_the_declaration_is_read(client, db, feed):
+    db.set_podping_declaration(feed, True, [])
+    assert _detail(client, feed)['podpingCheckedAt'] is not None
 
 
 def test_coverage_is_null_when_podping_is_disabled(client, db, feed):

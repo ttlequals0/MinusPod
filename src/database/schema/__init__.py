@@ -322,6 +322,10 @@ class SchemaMixin:
             # is a JSON array of accounts allowed to podping this feed.
             ('podping_uses', 'INTEGER'),
             ('podping_hive_accounts', 'TEXT'),
+            # When the declaration was last read from the upstream body. NULL
+            # means never, which is what lets a 304 force one full fetch to
+            # read it instead of waiting for the feed to change (#579).
+            ('podping_checked_at', 'TEXT'),
             # Per-feed segment category action overrides (issue #565): partial
             # JSON map of category -> action, merged over the global
             # segment_category_actions setting at resolve time.

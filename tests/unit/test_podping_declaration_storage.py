@@ -65,12 +65,17 @@ def test_all_declarations_maps_slug_to_rules(db):
 
 def test_columns_helper_matches_what_the_refresh_path_writes():
     from database.podcasts import podping_declaration_columns
-    assert podping_declaration_columns(None, []) == {
-        'podping_uses': None, 'podping_hive_accounts': None}
-    assert podping_declaration_columns(False, []) == {
-        'podping_uses': 0, 'podping_hive_accounts': None}
-    assert podping_declaration_columns(True, ['podping.aaa']) == {
-        'podping_uses': 1, 'podping_hive_accounts': '["podping.aaa"]'}
+    # checked_at is always stamped so a tagless feed is distinguishable from
+    # one whose body has never been read.
+    for uses, accounts, expected_uses, expected_json in [
+        (None, [], None, None),
+        (False, [], 0, None),
+        (True, ['podping.aaa'], 1, '["podping.aaa"]'),
+    ]:
+        cols = podping_declaration_columns(uses, accounts)
+        assert cols['podping_uses'] == expected_uses
+        assert cols['podping_hive_accounts'] == expected_json
+        assert cols['podping_checked_at']
 
 
 def test_parsed_feed_round_trips_through_storage(db):

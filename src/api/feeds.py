@@ -394,6 +394,7 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'podpingCoverage': _podping_coverage(podcast, enabled, active_domains),
         'podpingUses': declaration['uses_podping'],
         'podpingHiveAccounts': declaration['hive_accounts'],
+        'podpingCheckedAt': podcast.get('podping_checked_at'),
         **_refresh_error_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }

@@ -200,19 +200,19 @@ actually receives.
 
 With the listener on, the feed detail page and the feed lists show one
 line per feed: `Podping: last ping at <time>` once a notification has
-arrived for that feed, and `Podping: none` until then. The line is
+arrived for that feed, and `Podping: never` until then. The line is
 hidden when the listener is off, because that is an instance-wide
 setting rather than anything about the feed.
 
 The API carries more detail than the line does. `podpingCoverage` on
-the feeds endpoints separates the reasons a feed reads as none: the
+the feeds endpoints separates the reasons a feed reads as never: the
 publisher declined Podping, the publisher opted in but nothing has
 arrived yet, the host was seen pinging other feeds in the last 30 days,
 or nothing is known. It also returns the parsed declaration as
 `podpingUses` and `podpingHiveAccounts`. `GET /api/v1/podping/hosts`
 lists every domain the listener has seen announcing feeds, which is the
 way to confirm the listener is receiving traffic at all. A feed that
-stays on none while `/podping/hosts` shows its host pinging usually
+stays on never while `/podping/hosts` shows its host pinging usually
 means MinusPod's stored source URL does not match what the host
 announces.
 

@@ -25,14 +25,14 @@ describe('PodpingBadge', () => {
   // The API reports finer states; the UI deliberately collapses them all to
   // "none" so the line stays a simple yes-or-no.
   it.each(['declared', 'host_active', 'unseen', 'declined'] as const)(
-    'says none for the %s state', (coverage) => {
+    'says never for the %s state', (coverage) => {
       render(<PodpingBadge coverage={coverage} lastPodpingAt={null} />);
-      expect(screen.getByText('Podping: none')).toBeDefined();
+      expect(screen.getByText('Podping: never')).toBeDefined();
     });
 
-  it('says none when received but the timestamp is missing', () => {
+  it('says never when received but the timestamp is missing', () => {
     render(<PodpingBadge coverage="received" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: none')).toBeDefined();
+    expect(screen.getByText('Podping: never')).toBeDefined();
   });
 
   it('uses the short date in compact mode', () => {
@@ -40,14 +40,14 @@ describe('PodpingBadge', () => {
     expect(screen.getByText(/^Podping: \d/)).toBeDefined();
   });
 
-  it('says none in compact mode too', () => {
+  it('says never in compact mode too', () => {
     render(<PodpingBadge coverage="unseen" lastPodpingAt={null} compact />);
-    expect(screen.getByText('Podping: none')).toBeDefined();
+    expect(screen.getByText('Podping: never')).toBeDefined();
   });
 
   it('explains the schedule fallback on hover when there is no ping', () => {
     render(<PodpingBadge coverage="unseen" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: none').getAttribute('title'))
+    expect(screen.getByText('Podping: never').getAttribute('title'))
       .toContain('refresh schedule');
   });
 });
