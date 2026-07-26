@@ -40,12 +40,16 @@ class FakeDb:
     def __init__(self, podcasts=None):
         self.podcasts = podcasts or []
         self.stamped_slugs = []
+        self.recorded_hosts = []
 
     def get_all_podcasts(self):
         return self.podcasts
 
     def set_last_podping_at(self, slug):
         self.stamped_slugs.append(slug)
+
+    def record_podping_hosts(self, counts):
+        self.recorded_hosts.append(dict(counts))
 
 
 def _podping_op(auths, payload):
@@ -180,6 +184,57 @@ class TestTick:
         assert fake_db.stamped_slugs == ['my-show']
         refresh_mock.assert_called_once_with('my-show')
         assert '[my-show] Podping received (reason=update), refreshing feed' in caplog.text
+
+    def test_tick_records_hosts_of_feeds_it_does_not_have(self):
+        block = _podping_op(['delegate1'], {
+            'version': '1.0',
+            'iris': ['https://feeds.example.com/show',
+                     'https://anchor.fm/somebody-else'],
+            'reason': 'update',
+        })
+        rpc = ScriptedRpc({
+            'condenser_api.get_accounts': [{
+                'name': 'podping',
+                'posting': {'account_auths': [['delegate1', 1]]},
+            }],
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': 5},
+            'condenser_api.get_block': {'transactions': [block]},
+        })
+        fake_db = FakeDb(podcasts=[
+            {'slug': 'my-show', 'source_url': 'https://feeds.example.com/show'},
+        ])
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(),
+                                   sleep=lambda s: None)
+
+        listener.tick()
+
+        assert fake_db.recorded_hosts == [
+            {'feeds.example.com': 1, 'anchor.fm': 1}]
+
+    def test_tick_does_not_flush_again_inside_the_interval(self):
+        block = _podping_op(['delegate1'], {
+            'version': '1.0',
+            'iris': ['https://anchor.fm/somebody-else'],
+            'reason': 'update',
+        })
+        rpc = ScriptedRpc({
+            'condenser_api.get_accounts': [{
+                'name': 'podping',
+                'posting': {'account_auths': [['delegate1', 1]]},
+            }],
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': 5},
+            'condenser_api.get_block': {'transactions': [block]},
+        })
+        fake_db = FakeDb()
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(),
+                                   sleep=lambda s: None)
+
+        listener.tick()
+        listener.current_block = 4  # replay the same block
+        listener.tick()
+
+        assert len(fake_db.recorded_hosts) == 1
+        assert listener.host_buffer == {'anchor.fm': 1}
 
     def test_reason_none_is_actionable(self):
         block = _podping_op(['delegate1'], {

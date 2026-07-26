@@ -27,6 +27,7 @@ MAX_CATCHUP_BLOCKS = 100
 
 ALLOWED_ACCOUNTS_REFRESH_SECONDS = 3600
 FEED_MAP_REFRESH_SECONDS = 60
+HOST_FLUSH_SECONDS = 60
 NODE_BACKOFF_SCHEDULE = (5, 15, 60)
 
 
@@ -67,6 +68,16 @@ def normalize_feed_url(url: str) -> str:
     ))
 
     return result
+
+
+def feed_url_domain(url: str) -> str:
+    """Lowercase host of a feed URL without port, or '' when unparseable."""
+    if not isinstance(url, str) or not url:
+        return ''
+    try:
+        return urlparse(url).hostname or ''
+    except ValueError:
+        return ''
 
 
 def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict]:
@@ -200,6 +211,9 @@ class PodpingListener:
         self.current_block = None
         self.last_refresh = {}  # slug -> time.time() of last podping-triggered refresh
 
+        self.host_buffer = {}
+        self.host_flushed_at = 0.0
+
     def _default_rpc(self, method, params):
         """Default rpc: POST to the currently-selected node. Returns the
         unwrapped 'result' payload (dict or list depending on method)."""
@@ -283,6 +297,25 @@ class PodpingListener:
         if now - self.feed_map_fetched_at >= FEED_MAP_REFRESH_SECONDS:
             self._refresh_feed_map()
 
+    def _buffer_hosts(self, iris):
+        """Count the host of every IRI seen, matching a local feed or not."""
+        for iri in iris:
+            domain = feed_url_domain(iri)
+            if domain:
+                self.host_buffer[domain] = self.host_buffer.get(domain, 0) + 1
+
+    def _flush_host_buffer(self):
+        """Write buffered domain counts; keep the buffer on failure to retry."""
+        if not self.host_buffer:
+            return
+        try:
+            self.db.record_podping_hosts(self.host_buffer)
+        except Exception:
+            logger.exception("Failed to record podping hosts; retrying next flush")
+            return
+        self.host_buffer = {}
+        self.host_flushed_at = time.time()
+
     def _handle_match(self, slug, reason):
         """Always stamp last_podping_at; refresh only outside the per-slug
         cooldown window."""
@@ -340,8 +373,13 @@ class PodpingListener:
             for event in extract_podping_events(block, self.allowed_accounts):
                 reason = event.get('reason')
                 if reason is None or reason in ACTIONABLE_REASONS:
-                    for slug in match_iris(event.get('iris') or [], self.feed_map):
+                    iris = event.get('iris') or []
+                    self._buffer_hosts(iris)
+                    for slug in match_iris(iris, self.feed_map):
                         self._handle_match(slug, reason)
+
+        if time.time() - self.host_flushed_at >= HOST_FLUSH_SECONDS:
+            self._flush_host_buffer()
 
 
 def podping_listener_loop():

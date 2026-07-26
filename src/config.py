@@ -419,6 +419,9 @@ TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF count
 # tail_retranscribe_min_seconds / tail_retranscribe_max_seconds settings.
 TAIL_RETRANSCRIBE_MIN_SECONDS = 10.0
 TAIL_RETRANSCRIBE_MAX_SECONDS = 600.0
+# A podping host counts as active only if seen within this window, so a host
+# that drops podping support decays back to uncovered (#579).
+PODPING_HOST_ACTIVE_DAYS = 30
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
