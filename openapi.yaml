@@ -5354,6 +5354,48 @@ paths:
                         tag:         { type: string }
                         description: { type: string }
 
+  /podping/hosts:
+    get:
+      summary: List domains seen sending Podpings on the Hive chain
+      tags: [Feeds]
+      description: >
+        Diagnostic view of what the Podping listener has observed. The listener
+        records the domain of every feed URL announced on the chain, including
+        ones that match no local feed, which is what lets a feed report whether
+        its host sends Podpings at all. Counts are aggregated per domain as the
+        listener runs, so there is no per-notification history to return. Rows
+        recorded earlier stay visible when the listener is disabled.
+      parameters:
+        - in: query
+          name: limit
+          description: Rows to return, clamped to 1-500. Does not affect the totals.
+          schema: { type: integer, default: 100, minimum: 1, maximum: 500 }
+      responses:
+        '200':
+          description: Observed Podping host domains, most recently active first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hosts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        domain:      { type: string, example: feeds.transistor.fm }
+                        firstSeenAt: { type: string, format: date-time }
+                        lastSeenAt:  { type: string, format: date-time }
+                        pingCount:   { type: integer }
+                        active:
+                          type: boolean
+                          description: Seen within activeWindowDays.
+                  limit:            { type: integer }
+                  totalDomains:     { type: integer }
+                  activeDomains:    { type: integer }
+                  activeWindowDays: { type: integer, example: 30 }
+                  listenerEnabled:  { type: boolean }
+
   /feeds/{slug}/tags:
     get:
       summary: Get a feed's tag breakdown (rss / episode / user / effective)

@@ -43,3 +43,9 @@ class PodpingHostMixin:
             "SELECT domain, first_seen_at, last_seen_at, ping_count "
             "FROM podping_hosts ORDER BY last_seen_at DESC LIMIT ?", (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+    def count_podping_hosts(self) -> int:
+        """Every domain ever recorded, active or not."""
+        cursor = self.get_connection().execute(
+            "SELECT COUNT(*) AS n FROM podping_hosts")
+        return cursor.fetchone()['n']

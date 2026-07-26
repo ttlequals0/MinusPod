@@ -21,6 +21,12 @@ release notes.
   the docs. A host counts as sending podpings only if it was
   seen in the last 30 days, so a host that drops support decays back on its
   own. The line is hidden when the Podping listener is disabled (#579).
+- `GET /api/v1/podping/hosts` lists the domains the listener has seen sending
+  podpings, with first and last seen times, a ping count, and whether each
+  falls inside the active window. Counts are aggregated per domain as the
+  listener runs, so there is no per-notification history. It also answers
+  whether the listener is recording at all, since a feed reading as uncovered
+  otherwise looks identical to a listener seeing no traffic.
 
 ### Fixed
 
