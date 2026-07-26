@@ -39,6 +39,8 @@ export interface Feed {
   // Stamped when a Podping publish notification triggers this feed's
   // refresh; null when the feed has never been refreshed via Podping.
   lastPodpingAt?: string | null;
+  // Podping coverage for this feed. Null when the listener is disabled.
+  podpingCoverage?: 'received' | 'host_active' | 'unseen' | null;
   createdAt?: string;
   lastEpisodeDate?: string;
   networkId?: string;

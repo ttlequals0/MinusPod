@@ -13,6 +13,7 @@ import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
+import PodpingBadge from '../components/PodpingBadge';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
@@ -338,9 +339,10 @@ function FeedDetail() {
               {feed.lastRefreshed && (
                 <span>Updated {formatDateTime(feed.lastRefreshed)}</span>
               )}
-              {feed.lastPodpingAt && (
-                <span>Last podping: {formatDateTime(feed.lastPodpingAt)}</span>
-              )}
+              <PodpingBadge
+                coverage={feed.podpingCoverage}
+                lastPodpingAt={feed.lastPodpingAt}
+              />
               {feed.lastRefreshError && (
                 <span
                   className="text-warning"

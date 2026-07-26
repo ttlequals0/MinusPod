@@ -7,6 +7,7 @@ import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 
 interface FeedCardProps {
@@ -44,6 +45,12 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
               Updated {formatDate(feed.lastRefreshed)}
             </p>
           )}
+          <PodpingBadge
+            coverage={feed.podpingCoverage}
+            lastPodpingAt={feed.lastPodpingAt}
+            compact
+            className="text-xs mt-1 block"
+          />
           {feed.lastRefreshError && (
             <p
               className="text-xs text-warning mt-1"

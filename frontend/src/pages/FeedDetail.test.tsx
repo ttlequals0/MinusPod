@@ -1,8 +1,8 @@
 /**
- * Render test for the "Last podping" metadata line added to FeedDetail
- * alongside the podping-listener feature. Heavy feature panels (settings,
- * stats, distribution, cue templates) are stubbed since they are not under
- * test here; only the feed header metadata is exercised.
+ * Render test for the podping coverage metadata line on FeedDetail. Heavy
+ * feature panels (settings, stats, distribution, cue templates) are stubbed
+ * since they are not under test here; only the feed header metadata is
+ * exercised.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -73,28 +73,47 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('FeedDetail: Last podping metadata line', () => {
-  it('shows the line when lastPodpingAt is set', async () => {
-    renderFeedDetail(makeFeed({ lastPodpingAt: '2026-07-20T12:00:00Z' }));
+describe('FeedDetail: podping coverage metadata line', () => {
+  it('shows the timestamp when a podping was received', async () => {
+    renderFeedDetail(makeFeed({
+      podpingCoverage: 'received',
+      lastPodpingAt: '2026-07-20T12:00:00Z',
+    }));
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
     expect(screen.getByText(/^Last podping:/)).toBeDefined();
   });
 
-  it('hides the line when lastPodpingAt is null', async () => {
-    renderFeedDetail(makeFeed({ lastPodpingAt: null }));
+  it('shows the host state when this feed has no podping yet', async () => {
+    renderFeedDetail(makeFeed({ podpingCoverage: 'host_active', lastPodpingAt: null }));
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    expect(screen.queryByText(/^Last podping:/)).toBeNull();
+    expect(screen.getByText('Podping: host sends, none for this feed yet')).toBeDefined();
   });
 
-  it('hides the line when lastPodpingAt is absent', async () => {
+  it('says polling when the host is not seen sending podpings', async () => {
+    renderFeedDetail(makeFeed({ podpingCoverage: 'unseen', lastPodpingAt: null }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    expect(screen.getByText('Podping: not seen from this host')).toBeDefined();
+  });
+
+  it('hides the line when the listener is disabled', async () => {
+    renderFeedDetail(makeFeed({ podpingCoverage: null, lastPodpingAt: null }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Feed')).toBeDefined();
+    });
+    expect(screen.queryByText(/Podping/)).toBeNull();
+  });
+
+  it('hides the line when coverage is absent', async () => {
     renderFeedDetail(makeFeed());
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    expect(screen.queryByText(/^Last podping:/)).toBeNull();
+    expect(screen.queryByText(/Podping/)).toBeNull();
   });
 });

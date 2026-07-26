@@ -8,6 +8,7 @@ import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
+import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 
 interface FeedListItemProps {
@@ -43,6 +44,12 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
               Updated {formatDate(feed.lastRefreshed)}
             </span>
           )}
+          <PodpingBadge
+            coverage={feed.podpingCoverage}
+            lastPodpingAt={feed.lastPodpingAt}
+            compact
+            className="ml-2"
+          />
           {feed.lastRefreshError && (
             <span
               className="ml-2 text-warning"
