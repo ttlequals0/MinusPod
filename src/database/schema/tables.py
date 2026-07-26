@@ -425,6 +425,13 @@ TABLE_DDL['cue_window_optimize_scans'] = """CREATE TABLE IF NOT EXISTS cue_windo
     FOREIGN KEY (template_id) REFERENCES audio_cue_templates(id) ON DELETE CASCADE
 )"""
 
+TABLE_DDL['podping_hosts'] = """CREATE TABLE IF NOT EXISTS podping_hosts (
+    domain TEXT PRIMARY KEY,
+    first_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    ping_count INTEGER NOT NULL DEFAULT 0
+)"""
+
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -557,4 +564,12 @@ CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
 -- Keyed by template_id alone (the optimizer is per-template, not per-episode). Stores the
 -- proposed window and per-episode peak scores so the UI can offer a one-click apply.
 """ + TABLE_DDL['cue_window_optimize_scans'] + """;
+
+-- podping_hosts (2.80.0): every feed-URL domain seen sending a Podping on the
+-- Hive chain, not only domains matching a local feed. Lets a feed report
+-- whether its host pings at all, which a bundled list would get wrong as
+-- hosts adopt Podping over time (#579).
+""" + TABLE_DDL['podping_hosts'] + """;
+CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen
+    ON podping_hosts(last_seen_at DESC);
 """

@@ -119,14 +119,15 @@ class SchemaMixin:
         'model_pricing',
         'token_usage',
         'ad_reviewer_log',
+        'podping_hosts',
     )
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
-        # Sentinel: ad_reviewer_log is the last table created in this block.
+        # Sentinel: podping_hosts is the last table created in this block.
         # If it already exists, every other CREATE IF NOT EXISTS below is a
         # no-op too, so we can skip the boot "Created new tables..." log.
-        sentinel_existed = self._table_exists(conn, 'ad_reviewer_log')
+        sentinel_existed = self._table_exists(conn, 'podping_hosts')
         for table in self._MIGRATION_CREATED_TABLES:
             conn.execute(TABLE_DDL[table])
 
@@ -142,6 +143,10 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_podcast "
             "ON ad_reviewer_log(podcast_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen "
+            "ON podping_hosts(last_seen_at DESC)"
         )
 
         conn.commit()

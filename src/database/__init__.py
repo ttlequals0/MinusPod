@@ -18,6 +18,7 @@ from database.cue_detections import CueDetectionMixin
 from database.queue import QueueMixin
 from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
+from database.podping_hosts import PodpingHostMixin
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +254,7 @@ Output: []{sponsor_database}"""
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
                FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
-               QueueMixin, SearchMixin, AuthLockoutMixin):
+               QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None
