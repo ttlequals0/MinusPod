@@ -24,6 +24,13 @@ release notes.
 
 ### Added
 
+- Each feed shows its Podping state as one line: `Podping: last ping at <time>`
+  when one has arrived, `Podping: none` otherwise. The line is hidden when the
+  listener is off, since that is a global setting rather than a fact about the
+  feed. The API carries more detail in `podpingCoverage`, which
+  distinguishes a publisher opt-out, a publisher opt-in with no ping yet, a
+  host seen pinging other feeds, and nothing known, alongside the parsed
+  `podpingUses` and `podpingHiveAccounts`.
 - MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
   accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
   and MinusPod ignores podpings for that feed from anyone else. A feed

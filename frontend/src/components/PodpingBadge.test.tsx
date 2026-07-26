@@ -1,6 +1,6 @@
 /**
- * PodpingBadge renders the three podping coverage states, and nothing at all
- * when the listener is disabled.
+ * PodpingBadge shows the last ping time when one has arrived and "none"
+ * otherwise. It renders nothing at all when the listener is disabled.
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -17,49 +17,37 @@ describe('PodpingBadge', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('shows the timestamp when a podping was received', () => {
+  it('shows the last ping time when one arrived', () => {
     render(<PodpingBadge coverage="received" lastPodpingAt="2026-07-20T12:00:00Z" />);
-    expect(screen.getByText(/^Last podping:/)).toBeDefined();
+    expect(screen.getByText(/^Podping: last ping at /)).toBeDefined();
   });
 
-  it('says the host pings when this feed has not', () => {
-    render(<PodpingBadge coverage="host_active" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: host sends, none for this feed yet')).toBeDefined();
-  });
+  // The API reports finer states; the UI deliberately collapses them all to
+  // "none" so the line stays a simple yes-or-no.
+  it.each(['declared', 'host_active', 'unseen', 'declined'] as const)(
+    'says none for the %s state', (coverage) => {
+      render(<PodpingBadge coverage={coverage} lastPodpingAt={null} />);
+      expect(screen.getByText('Podping: none')).toBeDefined();
+    });
 
-  it('says polling when the host is not seen pinging', () => {
-    render(<PodpingBadge coverage="unseen" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: not seen from this host')).toBeDefined();
-  });
-
-  it('reports a feed that declined podping', () => {
-    render(<PodpingBadge coverage="declined" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: declined by this feed')).toBeDefined();
-  });
-
-  it('shortens the declined copy in compact mode', () => {
-    render(<PodpingBadge coverage="declined" lastPodpingAt={null} compact />);
-    expect(screen.getByText('Polling')).toBeDefined();
-  });
-
-  it('explains the declined state on hover', () => {
-    render(<PodpingBadge coverage="declined" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: declined by this feed').getAttribute('title'))
-      .toContain('asks not to be notified');
-  });
-
-  it('shortens the copy in compact mode', () => {
-    render(<PodpingBadge coverage="host_active" lastPodpingAt={null} compact />);
-    expect(screen.getByText('Podping host')).toBeDefined();
-  });
-
-  it('falls back when received has no timestamp', () => {
+  it('says none when received but the timestamp is missing', () => {
     render(<PodpingBadge coverage="received" lastPodpingAt={null} />);
-    expect(screen.getByText('Podping: received')).toBeDefined();
+    expect(screen.getByText('Podping: none')).toBeDefined();
   });
 
-  it('keeps the timestamp reachable on hover in compact mode', () => {
+  it('uses the short date in compact mode', () => {
     render(<PodpingBadge coverage="received" lastPodpingAt="2026-07-20T12:00:00Z" compact />);
-    expect(screen.getByText('Podping').getAttribute('title')).toContain('Last podping:');
+    expect(screen.getByText(/^Podping: \d/)).toBeDefined();
+  });
+
+  it('says none in compact mode too', () => {
+    render(<PodpingBadge coverage="unseen" lastPodpingAt={null} compact />);
+    expect(screen.getByText('Podping: none')).toBeDefined();
+  });
+
+  it('explains the schedule fallback on hover when there is no ping', () => {
+    render(<PodpingBadge coverage="unseen" lastPodpingAt={null} />);
+    expect(screen.getByText('Podping: none').getAttribute('title'))
+      .toContain('refresh schedule');
   });
 });

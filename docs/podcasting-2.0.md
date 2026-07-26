@@ -198,21 +198,23 @@ Podping over time. Treat it as a guide to what to expect rather than a
 guarantee, and use the Podping line below to see what a specific feed
 actually receives.
 
-With the listener on, the feed detail page shows a Podping line and the
-feed lists show the same state as a short badge. Once a notification has
-arrived for a feed, the line gives the time of the most recent one.
-Otherwise it separates two cases: the host sends Podping but this feed
-has not been announced yet, or the host has not been seen sending
-Podping at all, so scheduled polling is doing the work. A feed whose own
-tag declines Podping reads as declined instead.
+With the listener on, the feed detail page and the feed lists show one
+line per feed: `Podping: last ping at <time>` once a notification has
+arrived for that feed, and `Podping: none` until then. The line is
+hidden when the listener is off, because that is an instance-wide
+setting rather than anything about the feed.
 
-MinusPod can tell those apart because the listener records the domain
-of every feed URL announced on the chain, not only the ones matching
-your feeds. A host counts as sending Podping if it was seen in the last
-30 days, so the line follows what the chain shows as hosts adopt or
-drop support. A feed that stays on "host sends, none for this feed yet"
-while its host pings usually means MinusPod's stored source URL does
-not match what the host announces.
+The API carries more detail than the line does. `podpingCoverage` on
+the feeds endpoints separates the reasons a feed reads as none: the
+publisher declined Podping, the publisher opted in but nothing has
+arrived yet, the host was seen pinging other feeds in the last 30 days,
+or nothing is known. It also returns the parsed declaration as
+`podpingUses` and `podpingHiveAccounts`. `GET /api/v1/podping/hosts`
+lists every domain the listener has seen announcing feeds, which is the
+way to confirm the listener is receiving traffic at all. A feed that
+stays on none while `/podping/hosts` shows its host pinging usually
+means MinusPod's stored source URL does not match what the host
+announces.
 
 ### MinusPod does not emit Podping
 

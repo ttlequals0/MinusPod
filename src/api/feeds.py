@@ -29,7 +29,6 @@ from config import (
     resolve_feed_processing_mode,
 )
 from differential_fetcher import is_likely_dai_feed
-from podping_listener import feed_url_domain
 from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
@@ -37,7 +36,8 @@ import rss_parser
 from utils.constants import EpisodeStatus
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
-from database.podcasts import EPISODE_STATUSES
+from database.podcasts import EPISODE_STATUSES, PodcastMixin
+from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
@@ -363,10 +363,11 @@ def _podping_context(db):
 
 
 def _podping_coverage(podcast, enabled, active_domains):
-    """declined / received / host_active / unseen, None when the listener is off.
+    """Why this feed is or is not covered by podping, most specific first.
 
-    declined wins over everything: a feed carrying usesPodping="false" is asking
-    to be polled, and the listener honors that whatever the chain shows.
+    None when the listener is off instance-wide: that is a global setting, not a
+    fact about this feed. The UI only distinguishes received from everything
+    else; the finer states are here for API consumers and diagnostics.
     """
     if not enabled:
         return None
@@ -374,6 +375,8 @@ def _podping_coverage(podcast, enabled, active_domains):
         return 'declined'
     if podcast.get('last_podping_at'):
         return 'received'
+    if podcast.get('podping_uses') == 1:
+        return 'declared'
     domain = feed_url_domain(podcast.get('source_url') or '')
     return 'host_active' if domain in active_domains else 'unseen'
 
@@ -381,6 +384,7 @@ def _podping_coverage(podcast, enabled, active_domains):
 def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, active_domains = podping
+    declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
         'episodeCount': podcast.get('episode_count', 0),
@@ -388,6 +392,8 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
         'podpingCoverage': _podping_coverage(podcast, enabled, active_domains),
+        'podpingUses': declaration['uses_podping'],
+        'podpingHiveAccounts': declaration['hive_accounts'],
         **_refresh_error_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }

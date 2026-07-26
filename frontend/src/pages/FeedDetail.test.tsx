@@ -73,8 +73,8 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('FeedDetail: podping coverage metadata line', () => {
-  it('shows the timestamp when a podping was received', async () => {
+describe('FeedDetail: podping metadata line', () => {
+  it('shows the last ping time when one arrived', async () => {
     renderFeedDetail(makeFeed({
       podpingCoverage: 'received',
       lastPodpingAt: '2026-07-20T12:00:00Z',
@@ -82,23 +82,15 @@ describe('FeedDetail: podping coverage metadata line', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    expect(screen.getByText(/^Last podping:/)).toBeDefined();
+    expect(screen.getByText(/^Podping: last ping at /)).toBeDefined();
   });
 
-  it('shows the host state when this feed has no podping yet', async () => {
-    renderFeedDetail(makeFeed({ podpingCoverage: 'host_active', lastPodpingAt: null }));
-    await waitFor(() => {
-      expect(screen.getByText('Test Feed')).toBeDefined();
-    });
-    expect(screen.getByText('Podping: host sends, none for this feed yet')).toBeDefined();
-  });
-
-  it('says polling when the host is not seen sending podpings', async () => {
+  it('says none when no podping has arrived', async () => {
     renderFeedDetail(makeFeed({ podpingCoverage: 'unseen', lastPodpingAt: null }));
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    expect(screen.getByText('Podping: not seen from this host')).toBeDefined();
+    expect(screen.getByText('Podping: none')).toBeDefined();
   });
 
   it('hides the line when the listener is disabled', async () => {

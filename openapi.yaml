@@ -7347,8 +7347,29 @@ components:
           type:
             - string
             - 'null'
-          enum: [received, host_active, unseen, declined, null]
-          description: Podping coverage for this feed. received means a podping arrived for this feed; host_active means the feed host sends podpings but none has arrived for this feed yet; unseen means the host has not been seen sending podpings in the last 30 days; declined means the feed's own podcast:podping tag carries usesPodping="false", so MinusPod polls it instead. Null when the Podping listener is disabled. See podpingEnabled in Settings.
+          enum: [received, declared, host_active, unseen, declined, null]
+          description: >-
+            Why this feed is or is not covered by Podping, most specific first.
+            declined means the feed's own podcast:podping tag carries
+            usesPodping="false", so MinusPod polls it and ignores pings for it.
+            received means a podping arrived for this feed and lastPodpingAt
+            carries the time. declared means the feed's tag opts in but no ping
+            has arrived yet. host_active means the feed host has been seen
+            sending podpings in the last 30 days but not for this feed.
+            unseen means none of the above. Null when the Podping listener is
+            disabled instance-wide, which is a global setting rather than a fact
+            about this feed. The MinusPod UI collapses everything except
+            received into a single "none", so consumers wanting the detail
+            should read this field rather than mirror the UI.
+        podpingUses:
+          type:
+            - boolean
+            - 'null'
+          description: The upstream podcast:podping usesPodping value. Null when the feed carries no such tag.
+        podpingHiveAccounts:
+          type: array
+          items: { type: string }
+          description: Hive accounts the feed declares as allowed to podping it, from podcast:hiveAccount. Empty when the feed names none, in which case any sender is accepted.
         createdAt:
           type: string
           format: date-time

@@ -39,9 +39,14 @@ export interface Feed {
   // Stamped when a Podping publish notification triggers this feed's
   // refresh; null when the feed has never been refreshed via Podping.
   lastPodpingAt?: string | null;
-  // Podping coverage for this feed. Null when the listener is disabled.
-  // declined means the feed's own tag carries usesPodping="false".
-  podpingCoverage?: 'received' | 'host_active' | 'unseen' | 'declined' | null;
+  // Why this feed is or is not covered by podping. Null when the listener is
+  // disabled instance-wide, in which case the UI shows nothing. The UI only
+  // distinguishes received from the rest; the finer states are for API use.
+  podpingCoverage?: 'received' | 'declared' | 'host_active' | 'unseen' | 'declined' | null;
+  // Upstream <podcast:podping> declaration. podpingUses is null when the feed
+  // carries no such tag.
+  podpingUses?: boolean | null;
+  podpingHiveAccounts?: string[];
   createdAt?: string;
   lastEpisodeDate?: string;
   networkId?: string;

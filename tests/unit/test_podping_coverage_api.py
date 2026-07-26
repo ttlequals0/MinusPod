@@ -48,7 +48,7 @@ def _from_list(client, slug):
     return next(f for f in response.get_json()['feeds'] if f['slug'] == slug)
 
 
-def test_unseen_when_host_never_pinged(client, feed):
+def test_unseen_when_nothing_is_known(client, feed):
     assert _detail(client, feed)['podpingCoverage'] == 'unseen'
     assert _from_list(client, feed)['podpingCoverage'] == 'unseen'
 
@@ -59,17 +59,37 @@ def test_host_active_when_the_host_pings_but_this_feed_has_not(client, db, feed)
     assert _from_list(client, feed)['podpingCoverage'] == 'host_active'
 
 
-def test_received_wins_over_host_state(client, db, feed):
-    db.record_podping_hosts({'feeds.megaphone.fm': 4})
+def test_declared_when_the_feed_opts_in(client, db, feed):
+    # usesPodping="true" is the publisher asserting coverage, which outranks
+    # anything inferred from the host's chain activity.
+    db.set_podping_declaration(feed, True, ['podping.aaa'])
+    payload = _detail(client, feed)
+    assert payload['podpingCoverage'] == 'declared'
+    assert payload['podpingUses'] is True
+    assert payload['podpingHiveAccounts'] == ['podping.aaa']
+
+
+def test_received_outranks_declared(client, db, feed):
+    db.set_podping_declaration(feed, True, [])
     db.set_last_podping_at(feed)
     payload = _detail(client, feed)
     assert payload['podpingCoverage'] == 'received'
     assert payload['lastPodpingAt'] is not None
 
 
-def test_received_even_when_the_host_is_not_currently_active(client, db, feed):
+def test_declined_outranks_everything(client, db, feed):
+    db.set_podping_declaration(feed, False, [])
     db.set_last_podping_at(feed)
-    assert _detail(client, feed)['podpingCoverage'] == 'received'
+    db.record_podping_hosts({'feeds.megaphone.fm': 4})
+    payload = _detail(client, feed)
+    assert payload['podpingCoverage'] == 'declined'
+    assert payload['podpingUses'] is False
+
+
+def test_undeclared_feed_reports_null_uses_and_no_accounts(client, feed):
+    payload = _detail(client, feed)
+    assert payload['podpingUses'] is None
+    assert payload['podpingHiveAccounts'] == []
 
 
 def test_coverage_is_null_when_podping_is_disabled(client, db, feed):
@@ -83,22 +103,4 @@ def test_coverage_is_null_when_podping_is_disabled(client, db, feed):
 
 def test_a_different_host_does_not_grant_coverage(client, db, feed):
     db.record_podping_hosts({'anchor.fm': 9})
-    assert _detail(client, feed)['podpingCoverage'] == 'unseen'
-
-
-def test_declined_when_the_feed_opts_out(client, db, feed):
-    db.set_podping_declaration(feed, False, [])
-    db.record_podping_hosts({'feeds.megaphone.fm': 4})
-    assert _detail(client, feed)['podpingCoverage'] == 'declined'
-    assert _from_list(client, feed)['podpingCoverage'] == 'declined'
-
-
-def test_declined_outranks_a_previously_received_ping(client, db, feed):
-    db.set_last_podping_at(feed)
-    db.set_podping_declaration(feed, False, [])
-    assert _detail(client, feed)['podpingCoverage'] == 'declined'
-
-
-def test_opting_in_does_not_by_itself_grant_coverage(client, db, feed):
-    db.set_podping_declaration(feed, True, ['podping.aaa'])
     assert _detail(client, feed)['podpingCoverage'] == 'unseen'
