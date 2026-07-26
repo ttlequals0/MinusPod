@@ -291,12 +291,12 @@ The snapshots are plain SQLite files and are never encrypted, even with `MINUSPO
 
 ## Feed Refresh and Podping
 
-MinusPod polls every feed's upstream RSS on a fixed schedule. Podping is an opt-in accelerator that can trigger an immediate refresh of a single feed when its host announces a new episode; scheduled polling never turns off, so it stays the fallback for hosts that don't send Podping and for any notification the listener misses. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) for how the listener works, which hosts send Podping, and the "Last podping" diagnostic on the feed detail page.
+MinusPod polls every feed's upstream RSS on a fixed schedule. Podping is an opt-in accelerator that can trigger an immediate refresh of a single feed when its host announces a new episode; scheduled polling never turns off, so it stays the fallback for hosts that don't send Podping and for any notification the listener misses. See [Podcasting 2.0 > Podping](podcasting-2.0.md#podping) for how the listener works, which hosts send Podping, and the per-feed Podping coverage line on the feed detail page.
 
 | Setting | Default | Notes |
 |---|---|---|
 | Feed refresh interval | 15 minutes | Minutes between background RSS refresh passes for every feed. Range 5-1440. Settings > Global Defaults. A change applies after the wait already in progress finishes. |
-| Podping notifications | off | Opt-in listener that stamps a feed's "last podping" time and refreshes that one feed immediately when its host sends a Podping notification. Settings > Global Defaults. |
+| Podping notifications | off | Opt-in listener that refreshes a feed immediately when its host sends a Podping notification. It also records which hosts send them, so each feed reports whether Podping covers it. Settings > Global Defaults. |
 
 ---
 

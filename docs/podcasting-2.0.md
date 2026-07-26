@@ -186,17 +186,24 @@ pings; everything else keeps its existing polling cadence.
 That list is a snapshot, not a fixed set. It came from measuring three
 days of Podping traffic on the Hive chain in July 2026, and hosts adopt
 Podping over time. Treat it as a guide to what to expect rather than a
-guarantee, and use the "Last podping" line below to see what a specific
-feed actually receives.
+guarantee, and use the Podping line below to see what a specific feed
+actually receives.
 
-The feed detail page shows a "Last podping" line with the time of the
-most recent matched notification, visible only after MinusPod has
-received one for that feed. If a host sends Podping and MinusPod's
-listener is on, this line is the way to check whether the host is
-pinging and whether MinusPod's stored source URL matches what the host
-announces. No line ever appearing, with the listener enabled and the
-feed active, usually means the host does not send Podping for that
-feed.
+With the listener on, the feed detail page shows a Podping line and the
+feed lists show the same state as a short badge. It reads one of three
+ways. Once a notification has arrived for a feed, the line gives the
+time of the most recent one. Otherwise it separates two cases: the host
+sends Podping but this feed has not been announced yet, or the host has
+not been seen sending Podping at all, so scheduled polling is doing the
+work.
+
+MinusPod can tell those apart because the listener records the domain
+of every feed URL announced on the chain, not only the ones matching
+your feeds. A host counts as sending Podping if it was seen in the last
+30 days, so the line follows what the chain shows as hosts adopt or
+drop support. A feed that stays on "host sends, none for this feed yet"
+while its host pings usually means MinusPod's stored source URL does
+not match what the host announces.
 
 ### MinusPod does not emit Podping
 
