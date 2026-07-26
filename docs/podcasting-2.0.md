@@ -199,10 +199,12 @@ guarantee, and use the Podping line below to see what a specific feed
 actually receives.
 
 With the listener on, the feed detail page and the feed lists show one
-line per feed: `Podping: last ping at <time>` once a notification has
-arrived for that feed, and `Podping: never` until then. The line is
-hidden when the listener is off, because that is an instance-wide
-setting rather than anything about the feed.
+line per feed. It reads `Podping: last ping at <time>` once a
+notification has arrived for that feed. A feed whose own tag declares
+`usesPodping="true"` but has not been pinged yet reads
+`Podping: enabled, none received yet`. Everything else reads
+`Podping: never`. The line is hidden when the listener is off, because
+that is an instance-wide setting rather than anything about the feed.
 
 The API carries more detail than the line does. `podpingCoverage` on
 the feeds endpoints separates the reasons a feed reads as never: the

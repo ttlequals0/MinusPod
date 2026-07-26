@@ -1,6 +1,7 @@
 /**
- * PodpingBadge shows the last ping time when one has arrived and "none"
- * otherwise. It renders nothing at all when the listener is disabled.
+ * PodpingBadge collapses the API's five coverage states into three lines: the
+ * time of the last ping, a publisher opt-in with nothing received yet, or
+ * never. It renders nothing at all when the listener is disabled.
  */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
@@ -22,9 +23,14 @@ describe('PodpingBadge', () => {
     expect(screen.getByText(/^Podping: last ping at /)).toBeDefined();
   });
 
-  // The API reports finer states; the UI deliberately collapses them all to
-  // "none" so the line stays a simple yes-or-no.
-  it.each(['declared', 'host_active', 'unseen', 'declined'] as const)(
+  it('shows the opt-in when the feed declares podping but has no ping yet', () => {
+    render(<PodpingBadge coverage="declared" lastPodpingAt={null} />);
+    expect(screen.getByText('Podping: enabled, none received yet')).toBeDefined();
+  });
+
+  // host_active and unseen are host-level inference, and declined is an opt-out.
+  // None of them tells the reader anything actionable about this feed.
+  it.each(['host_active', 'unseen', 'declined'] as const)(
     'says never for the %s state', (coverage) => {
       render(<PodpingBadge coverage={coverage} lastPodpingAt={null} />);
       expect(screen.getByText('Podping: never')).toBeDefined();
@@ -40,9 +46,20 @@ describe('PodpingBadge', () => {
     expect(screen.getByText(/^Podping: \d/)).toBeDefined();
   });
 
+  it('shortens the declared copy in compact mode', () => {
+    render(<PodpingBadge coverage="declared" lastPodpingAt={null} compact />);
+    expect(screen.getByText('Podping: enabled')).toBeDefined();
+  });
+
   it('says never in compact mode too', () => {
     render(<PodpingBadge coverage="unseen" lastPodpingAt={null} compact />);
     expect(screen.getByText('Podping: never')).toBeDefined();
+  });
+
+  it('explains the declared state on hover', () => {
+    render(<PodpingBadge coverage="declared" lastPodpingAt={null} />);
+    expect(screen.getByText('Podping: enabled, none received yet').getAttribute('title'))
+      .toContain('declares that it uses Podping');
   });
 
   it('explains the schedule fallback on hover when there is no ping', () => {

@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.3] - 2026-07-26
+
+### Changed
+
+- A feed that declares Podping now says so. The line reads
+  `Podping: enabled, none received yet` when the feed's own tag carries
+  `usesPodping="true"` but nothing has arrived for it, instead of the flat
+  `Podping: never` it shared with feeds nobody has ever pinged. Feeds with a
+  received ping still show its time, and everything else still reads never, so
+  the line stays one short phrase.
+
 ## [2.81.2] - 2026-07-26
 
 ### Changed
