@@ -7301,6 +7301,12 @@ components:
             - 'null'
           format: date-time
           description: Stamped when a Podping publish notification matches this feed; null if the feed has never been matched by the Podping listener. See podpingEnabled in Settings.
+        podpingCoverage:
+          type:
+            - string
+            - 'null'
+          enum: [received, host_active, unseen, null]
+          description: Podping coverage for this feed. received means a podping arrived for this feed; host_active means the feed host sends podpings but none has arrived for this feed yet; unseen means the host has not been seen sending podpings in the last 30 days. Null when the Podping listener is disabled. See podpingEnabled in Settings.
         createdAt:
           type: string
           format: date-time

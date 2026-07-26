@@ -22,12 +22,14 @@ from cancel import cancel_processing
 from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
+    PODPING_HOST_ACTIVE_DAYS,
     VALID_CHAPTERS_MODES,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     resolve_feed_processing_mode,
 )
 from differential_fetcher import is_likely_dai_feed
+from podping_listener import feed_url_domain
 from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
@@ -353,14 +355,33 @@ def _podcast_base_json(podcast, feed_url) -> dict:
     }
 
 
-def _podcast_listing_fields(podcast) -> dict:
+def _podping_context(db):
+    """(enabled, active domains) for one request; the set is empty when off."""
+    if not db.get_setting_bool('podping_enabled', False):
+        return False, set()
+    return True, db.get_active_podping_domains(PODPING_HOST_ACTIVE_DAYS)
+
+
+def _podping_coverage(podcast, enabled, active_domains):
+    """received / host_active / unseen, or None when the listener is off."""
+    if not enabled:
+        return None
+    if podcast.get('last_podping_at'):
+        return 'received'
+    domain = feed_url_domain(podcast.get('source_url') or '')
+    return 'host_active' if domain in active_domains else 'unseen'
+
+
+def _podcast_listing_fields(podcast, podping=(False, frozenset())) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
+    enabled, active_domains = podping
     return {
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
+        'podpingCoverage': _podping_coverage(podcast, enabled, active_domains),
         **_refresh_error_fields(podcast),
         'createdAt': podcast.get('created_at'),
     }
@@ -375,13 +396,14 @@ def list_feeds():
     podcasts = db.get_all_podcasts()
     feed_auth_key = get_feed_auth_key(db)
 
+    podping = _podping_context(db)
     feeds = []
     for podcast in podcasts:
         feed_url = _public_feed_url(podcast['slug'], feed_auth_key)
 
         feeds.append({
             **_podcast_base_json(podcast, feed_url),
-            **_podcast_listing_fields(podcast),
+            **_podcast_listing_fields(podcast, podping),
             'lastEpisodeDate': podcast.get('last_episode_date'),
         })
 
@@ -720,7 +742,7 @@ def get_feed(slug):
 
     return json_response({
         **_podcast_base_json(podcast, feed_url),
-        **_podcast_listing_fields(podcast),
+        **_podcast_listing_fields(podcast, _podping_context(db)),
         'description': podcast.get('description'),
         'daiLikely': dai_likely,
         'websiteUrl': podcast.get('website_url'),
