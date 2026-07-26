@@ -87,9 +87,8 @@ const REASONING_LEVEL_OPTIONS: { value: ReasoningLevel; label: string }[] = [
 // its own settings field) but it is edited in this section's draft.
 const PARALLEL_KEY = 'adDetectionParallelWindows';
 
-// 'omitTemperature' is likewise a standalone global setting, not part of
-// StageTunables, edited here because it sits right next to the per-stage
-// temperature controls it governs.
+// 'omitTemperature' is likewise a standalone global setting, edited here
+// because it sits right next to the per-stage temperature controls it governs.
 const OMIT_TEMPERATURE_KEY = 'omitTemperature';
 
 type DraftValue = number | string | boolean | null;

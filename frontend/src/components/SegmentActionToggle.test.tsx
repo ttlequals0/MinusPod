@@ -1,7 +1,7 @@
 /**
- * Component tests for SegmentActionToggle's ARIA radiogroup keyboard
- * pattern (issue #565 review fix): roving tabindex (one tab stop) plus
- * Left/Up, Right/Down, Home, End moving and committing the selection.
+ * Tests SegmentActionToggle's ARIA radiogroup keyboard pattern (issue #565):
+ * roving tabindex, Left/Up, Right/Down, Home, End moving and committing
+ * the selection.
  */
 import { useState } from 'react';
 import { describe, it, expect } from 'vitest';

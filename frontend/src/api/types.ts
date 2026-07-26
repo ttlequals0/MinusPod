@@ -81,9 +81,9 @@ export interface Feed {
   processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard';
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
-  // Per-feed segment-action overrides (issue #565): only the overridden
-  // categories are present; everything else inherits the global map.
-  // Null (or absent) means no per-feed overrides at all.
+  // Per-feed segment-action overrides (issue #565): only overridden
+  // categories are present (others inherit the global map); null/absent
+  // means there are no per-feed overrides at all.
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
   // Also detect intro/outro/recap/housekeeping segments. Off by default.
   detectShowSegments?: boolean | null;

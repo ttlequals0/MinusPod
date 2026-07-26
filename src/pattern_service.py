@@ -1092,9 +1092,8 @@ class PatternService:
                 source_language=data.get('source_language'),
                 content_hash=content_hash,
             )
-            # Only overwrite category when the payload actually carries the
-            # key -- an old-format payload (no 'category' key) must not NULL
-            # a stored category on re-import.
+            # Overwrite category only when the payload carries the key: an
+            # old-format payload (no 'category' key) must not null out a stored category.
             if 'category' in data:
                 update_kwargs['category'] = data.get('category')
             self.db.update_ad_pattern(existing['id'], **update_kwargs)

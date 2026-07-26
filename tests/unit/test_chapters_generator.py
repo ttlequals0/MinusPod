@@ -503,12 +503,10 @@ class TestSharedLLMCallPath:
         assert client.calls == 1
 
     def test_full_pipeline_degradation_reported_on_generator(self, caplog):
-        """Reproduces the production incident (#530 follow-up): both
-        topic-detection and title-generation LLM calls fail on a long
-        episode, so it degrades to a single whole-episode chapter. That must
-        be visible on the generator instance (chapters_degraded / reason)
-        and logged with the 'degraded to a single chapter' wording, not look
-        like a normal short episode."""
+        """Reproduces #530: both topic-detection and title-generation LLM
+        calls fail on a long episode, degrading to a single whole-episode
+        chapter. Must be visible on the generator instance (chapters_degraded
+        / reason) and logged, not look like a normal short episode."""
         gen = ChaptersGenerator(api_key='test')
         client = _FailingClient(RuntimeError('temperature rejected'))
         gen._llm_client = client
@@ -536,7 +534,7 @@ class TestSharedLLMCallPath:
 
 class _SplitTextClient:
     """Stub client returning unparseable prose for topic-detection prompts
-    and a real title otherwise -- isolates the topic-detection gap from
+    and a real title otherwise, to isolate the topic-detection gap from
     title-generation failure."""
 
     def messages_create(self, **kwargs):
@@ -550,18 +548,15 @@ class _SplitTextClient:
 
 class TestEmptyTopicDetectionDegradation:
     """A response that succeeds at the API level but yields zero parsed
-    boundaries (e.g. empty content, or nothing matching the timestamp
-    pattern) must be treated the same as a failed detection call on a long
-    episode -- silently returning a single whole-episode chapter with no
-    degraded flag hides the failure from operators (matches the live
-    incident: 87-minute episode, 'Generated 1 chapters', no warning)."""
+    boundaries must be treated the same as a failed detection call on a
+    long episode: silently returning a single chapter with no degraded
+    flag hides the failure from operators."""
 
     def test_empty_result_on_long_episode_flags_degraded(self, caplog):
-        """response is non-None and non-empty (so call_llm's own
-        EmptyCompletionError retry path never kicks in) but nothing in it
-        matches the MM:SS topic-line pattern, e.g. because extended-thinking
-        output drifted from the requested format. _detect_topic_boundaries
-        returns [] with no exception; that must still degrade the run."""
+        """Response is non-empty (EmptyCompletionError retry never kicks in)
+        but nothing matches the MM:SS topic-line pattern, so
+        _detect_topic_boundaries returns [] with no exception; that must
+        still degrade the run."""
         gen = ChaptersGenerator(api_key='test')
         gen._llm_client = _SplitTextClient()
 
@@ -756,8 +751,8 @@ class TestSegmentHintsPromptInjection:
 
 class TestGenerateChaptersHintsWiring:
     """generate_chapters composes hints from segment_markers/marker_cuts and
-    threads them into the topic-detection call -- a synthetic end-to-end
-    check on the composed prompt, not on model behavior."""
+    threads them into the topic-detection call: checks the composed prompt,
+    not model behavior."""
 
     def _segments(self, duration: int = 1800) -> list:
         return [

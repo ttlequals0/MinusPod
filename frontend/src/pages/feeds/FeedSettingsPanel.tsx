@@ -93,15 +93,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [rerenderResult, setRerenderResult] = useState<RerenderSegmentsResult | null>(null);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
   const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
-  // Synchronous local source of truth for the per-feed override map (issue
-  // #565 race fix): the backend PATCH replaces the stored map outright (no
-  // server-side merge), so a second edit built from the `feed` prop before
-  // the first PATCH's invalidated query refetches would read a stale prop
-  // and silently drop the first edit. Reads and writes go through this
-  // state instead; it updates synchronously before each mutate() call so
-  // consecutive edits compose, and is reseeded from the server value below
-  // whenever the feed prop changes (including after a failed PATCH, via
-  // updateMutation's onSettled refetch).
+  // Local source of truth for the per-feed override map, not the `feed`
+  // prop: the PATCH replaces the stored map outright with no server merge,
+  // so building from a stale prop between edits would drop the earlier one.
   const [segmentOverrides, setSegmentOverrides] =
     useState<Partial<Record<SegmentCategory, SegmentAction>>>(feed.segmentCategoryActions ?? {});
 
@@ -157,19 +151,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         setSegmentActionError(null);
       }
     },
-    // No mutation-level onError: a segment-action edit's rollback must
-    // restore the local segmentOverrides snapshot from immediately before
-    // THAT edit, not the `feed` prop -- the prop is stale until the
-    // invalidated query below refetches, so if it lagged behind an earlier
-    // *successful* edit, reseeding from it here would silently erase that
-    // edit from both the display and the next PATCH's payload. Each
-    // mutate() call below supplies its own per-call onError with the
-    // correct snapshot captured in its closure (react-query v5 runs
-    // per-call callbacks in addition to these mutation-level ones).
-    //
-    // onSettled (not onSuccess-only): a failed PATCH must still refetch so
-    // every other field synced off the feed prop reverts to server truth
-    // instead of showing an edit that never actually persisted.
+    // Rollback lives in each mutate() call's own onError below (react-query
+    // v5 runs per-call callbacks alongside these), so it can restore the
+    // exact pre-edit snapshot rather than the possibly-stale feed prop.
+    // onSettled always refetches so a failed PATCH still reverts every
+    // other field to server truth.
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
@@ -190,25 +176,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     onError: (e: Error) => setSourceUrlError(e.message),
   });
 
-  // Segment-action overrides (issue #565): the backend replaces the stored
-  // per-feed map outright (no server-side merge like the global PUT), so
-  // every row edit must send the full current override map, not just the
-  // changed key. Both helpers build from (and update) `segmentOverrides`,
-  // not the `feed` prop directly: the prop only catches up after the PATCH's
-  // invalidated query refetches, so a second edit fired before that refetch
-  // lands would otherwise read a stale map and silently drop the first edit.
-  // Updating the state synchronously here, before mutate() sends the
-  // request, makes consecutive edits compose regardless of request timing.
-  // Clearing the last remaining override sends null instead of an empty
-  // object so the feed response comes back with no overrides at all.
-  //
-  // Standard optimistic-rollback pattern: `prev` snapshots segmentOverrides
-  // as it stood immediately before THIS edit's optimistic update, captured
-  // in the closure passed to mutate()'s per-call onError. On failure this
-  // restores exactly that snapshot -- which still carries any edit that
-  // already succeeded before this one -- instead of the `feed` prop, which
-  // can lag behind a just-succeeded edit until its refetch lands and would
-  // otherwise erase that edit from both the display and the next PATCH.
+  // Full-map PATCH: each edit must send the whole override map, built from
+  // segmentOverrides (see above), not the feed prop. Clearing the last
+  // override sends null, not {}, so the feed comes back with no overrides
+  // at all. `prev` snapshots the pre-edit state for rollback in onError.
   const setSegmentActionOverride = (category: SegmentCategory, action: SegmentAction) => {
     const prev = segmentOverrides;
     const next = { ...segmentOverrides, [category]: action };
@@ -729,7 +700,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
               {segmentActionError && <p className="text-xs text-destructive">{segmentActionError}</p>}
 
-              {/* Show-segment detection (issue #565 Task 3): off by default. */}
+              {/* Show-segment detection (issue #565): off by default. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Show segments:</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -749,7 +720,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              {/* Bulk re-render (issue #565 Task 8): apply the current segment
+              {/* Bulk re-render (issue #565): apply the current segment
                   actions to every already-processed episode. */}
               <div className="pt-2 border-t border-border flex flex-col gap-2">
                 <button

@@ -216,10 +216,9 @@ class TextMatch:
     confidence: float
     sponsor: Optional[str] = None
     match_type: str = "content"  # "content", "intro", "outro", "both"
-    # Segment category (#565 Task 7) inherited from the matched pattern, so a
-    # re-match of a pattern learned from a keep-resolved marker (e.g.
-    # cross_promo) carries that category into the detection dict instead of
-    # silently falling back to 'sponsor' at the merge seam.
+    # Segment category (#565) inherited from the matched pattern, so a
+    # re-match of a pattern learned from e.g. a cross_promo marker carries
+    # that category into the detection instead of falling back to 'sponsor'.
     category: Optional[str] = None
 
 
@@ -238,7 +237,7 @@ class AdPattern:
     sponsor_id: Optional[int] = None
     source: str = 'local'  # "local", "community", "imported"
     source_language: Optional[str] = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
-    category: Optional[str] = None  # Segment category (#565 Task 7); None on a legacy/unmigrated row
+    category: Optional[str] = None  # Segment category (#565); None on a legacy/unmigrated row
 
 
 class TextPatternMatcher:
@@ -1156,9 +1155,9 @@ class TextPatternMatcher:
             podcast_id: Podcast ID for podcast-scoped patterns
             network_id: Network ID for network-scoped patterns
             episode_id: Episode ID for tracking pattern origin
-            category: Segment category (#565 Task 7) the source marker
-                carried, e.g. 'sponsor'/'cross_promo'. Normalized before
-                storage; None stores NULL, which reads back as 'sponsor'.
+            category: Segment category (#565) the source marker carried.
+                Normalized before storage; None stores NULL, which reads
+                back as 'sponsor'.
 
         Returns:
             Pattern ID if created, None otherwise

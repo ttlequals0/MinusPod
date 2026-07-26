@@ -1,4 +1,4 @@
-"""Tests for PodpingListener and podping_listener_loop (Task 5)."""
+"""Tests for PodpingListener and podping_listener_loop."""
 import json
 import time
 from unittest.mock import Mock

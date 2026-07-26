@@ -422,8 +422,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     if sponsor_name and sponsor_name != 'Advertisement detected':
                         ad_entry['sponsor'] = sponsor_name
                     # Pass the LLM's raw category through unvalidated; the
-                    # ad_detector merge seam normalizes it against
-                    # SEGMENT_CATEGORIES (#565).
+                    # merge seam normalizes it against SEGMENT_CATEGORIES.
                     if ad.get('category'):
                         ad_entry['category'] = ad.get('category')
                     valid_ads.append(ad_entry)
@@ -439,9 +438,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
 
 
 # =============================================================================
-# Category repair pass (#565 follow-up, DTNS 5317): a narrow follow-up call
-# asking only for a category on ads a window's detection call already found
-# but left uncategorized, instead of trusting prompt wording alone.
+# Category repair pass: a narrow follow-up call asking only for the category
+# of ads a window's detection found but left uncategorized, rather than
+# relying on prompt wording alone.
 # =============================================================================
 
 CATEGORY_REPAIR_SYSTEM_PROMPT = """You are assigning a category to podcast segments that were already identified in a prior pass. Do NOT detect new segments and do NOT change any start or end time -- only choose one category per segment listed in the user message.
@@ -457,10 +456,10 @@ Respond with ONLY valid JSON: an array of {"index": INTEGER, "category": STRING}
 
 Every listed segment MUST get exactly one category from that list. Do not add, remove, or reorder segments. No markdown, no explanation, just the JSON array."""
 
-# Tool-use input schema for the forced-tool-call path (Anthropic; see
-# llm_capabilities.supports_json_schema). Anthropic tool input must be a
-# JSON object, so the array is wrapped under "categories" -- parse_category_
-# repair_response accepts both this shape and a bare array.
+# Input schema for the forced-tool-call path (see
+# llm_capabilities.supports_json_schema). Wrapped under "categories" because
+# Anthropic tool input must be a JSON object; parse_category_repair_response
+# accepts both shapes.
 CATEGORY_REPAIR_JSON_SCHEMA = {
     "type": "object",
     "properties": {
@@ -479,9 +478,8 @@ CATEGORY_REPAIR_JSON_SCHEMA = {
     "required": ["categories"],
 }
 
-# Small, fixed budget: the repair call only ever emits a short JSON array,
-# never full-length ad detection. Not user-tunable -- this is an internal
-# follow-up call, not a configurable detection pass.
+# Small fixed budget: the repair call only ever emits a short JSON array,
+# not full-length ad detection. Not user-tunable; this is an internal call.
 CATEGORY_REPAIR_MAX_TOKENS = 1024
 
 
@@ -512,12 +510,11 @@ def format_category_repair_prompt(transcript_excerpt: str,
 def parse_category_repair_response(response_text: str) -> Dict[int, str]:
     """Parse the repair call's response into {index: category}.
 
-    Accepts either a bare JSON array of {"index", "category"} objects (the
-    json_object / prompt-injection path) or {"categories": [...]} (the
-    tool-forced json_schema path, whose tool input must be a JSON object).
-    Returns {} on any parse failure, unexpected shape, or per-entry
-    validation miss -- callers treat that as "nothing resolved" and leave
-    the existing sponsor default in place rather than raise.
+    Accepts a bare JSON array of {"index", "category"} objects (json_object
+    path) or {"categories": [...]} (tool-forced json_schema path, since tool
+    input must be a JSON object). Returns {} on any parse failure or
+    validation miss; callers treat that as nothing resolved and fall back
+    to the existing sponsor default.
     """
     try:
         data = json.loads(response_text)

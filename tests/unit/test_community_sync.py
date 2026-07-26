@@ -249,8 +249,8 @@ class TestCommunitySyncCategoryFilter:
         assert row['disabled_reason'] == 'manual'
 
     def test_local_patterns_untouched_by_category_filter(self, db):
-        """HARD requirement: only community-sourced rows (a community_id) may
-        be touched by the filter, regardless of their own category."""
+        """Only community-sourced rows (a community_id) may be touched by
+        the filter, regardless of their own category."""
         local_id = db.create_ad_pattern(
             scope='global', text_template='a local pattern of excluded category',
             category='cross_promo',

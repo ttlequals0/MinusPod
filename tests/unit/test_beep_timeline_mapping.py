@@ -1,16 +1,11 @@
-"""Per-span replacement duration in timeline mapping (Task 5b).
+"""Per-span replacement duration in timeline mapping.
 
-A 'remove' cut span is replaced by the fixed beep clip (today's behavior).
-A 'beep' cut span is instead padded to its own length, so it costs no
-timeline shift -- unless the span is shorter than the clip itself, in which
-case the clip (not the shorter span) is what plays.
-audio_processor.compute_applied_cuts stamps this per span as
-'replacement_duration'; every original<->processed mapper (utils.time.
-adjust_timestamp, embedded_chapters.remap_chapters, verification_pass'
-timestamp map, processing._unadjust_timestamp) reads it per span instead of
-assuming one constant for every cut. A span with no such key (legacy
-persisted applied_cuts_json, or a hand-built cut dict) falls back to the
-mapper's scalar `replacement_duration` argument -- today's behavior.
+A 'remove' cut span is replaced by the fixed beep clip. A 'beep' cut span
+is instead padded to its own length (no timeline shift), unless the span
+is shorter than the clip, in which case the clip plays. Every
+original<->processed mapper reads 'replacement_duration' per span instead
+of assuming one constant for every cut; a span without that key falls back
+to the mapper's scalar `replacement_duration` argument.
 """
 import pytest
 
@@ -55,10 +50,9 @@ class TestComputeAppliedCutsStampsReplacementDuration:
         assert cuts[0]['replacement_duration'] == pytest.approx(30.0)
 
     def test_beep_span_shorter_than_clip_gets_clip_length(self):
-        # A trusted (fingerprint) span bypasses the 10s short-cut floor, so
-        # this exercises a beep span shorter than the clip itself: the clip
-        # still plays in full, so the filler is the clip length, not the
-        # (shorter) span length.
+        # A trusted (fingerprint) span bypasses the 10s short-cut floor: the
+        # clip still plays in full, so the filler is the clip length, not
+        # the shorter span length.
         processor = AudioProcessor()
         beep = processor.get_beep_duration()
         short_span = beep / 2
@@ -85,8 +79,8 @@ class TestMergeCutSpansTotalReplacement:
 
 
 class TestAdjustTimestampMixedRemoveBeep:
-    """The HARD invariant target: a beeped span shifts nothing, a removed
-    span shifts by (span length - clip length)."""
+    """Core invariant: a beeped span shifts nothing, a removed span shifts
+    by (span length - clip length)."""
 
     def test_beeped_span_contributes_zero_shift(self):
         # Bracket only the beep span [200, 210): no shift across it.
@@ -147,9 +141,8 @@ class TestVerificationPassMappingMixedCutList:
         assert _map_to_original(proc[1], ts_map) == pytest.approx(215.0)
 
     def test_pass2_cuts_in_original_maps_through_mixed_pass1_cuts(self):
-        # Pass-2 found a rendered-audio cut at [150, 160) on the pass-1
-        # output; that region sits between the beep-shifted remove span and
-        # the zero-shift beep span, so it maps back with the remove span's
+        # [150, 160) sits between the beep-shifted remove span and the
+        # zero-shift beep span, so it maps back with the remove span's
         # 28s shift only.
         recut = [{'start': 150.0, 'end': 160.0}]
         out = processing._pass2_cuts_in_original(recut, MIXED_CUTS)
@@ -181,7 +174,7 @@ class TestLegacyMetadataDefaultsToAllRemove:
     LEGACY_CUTS = [{'start': 100.0, 'end': 130.0}, {'start': 200.0, 'end': 230.0}]
 
     def test_adjust_timestamp_uses_scalar_for_every_span(self):
-        # Both spans fall back to the scalar default -- the pre-5b model.
+        # Both spans fall back to the scalar default.
         assert adjust_timestamp(250.0, self.LEGACY_CUTS, replacement_duration=BEEP) \
             == pytest.approx(250.0 - (30.0 - BEEP) - (30.0 - BEEP))
 
@@ -221,10 +214,10 @@ class TestPersistedReplacementDurationRoundTrips:
 
 
 class TestAllRemoveRegression:
-    """HARD invariant: with no beep-action spans, mapper output is
-    bit-identical to a hand-built legacy (no replacement_duration) cut
-    list -- compute_applied_cuts stamping the fixed clip length on every
-    remove span must not change any mapper's output."""
+    """With no beep-action spans, mapper output is bit-identical to a
+    hand-built legacy (no replacement_duration) cut list: stamping the
+    fixed clip length on every remove span must not change any mapper's
+    output."""
 
     def test_compute_applied_cuts_output_maps_identically_to_legacy_shape(self):
         processor = AudioProcessor()

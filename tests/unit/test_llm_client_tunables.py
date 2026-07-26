@@ -356,9 +356,9 @@ class TestAnthropicTemperatureOmission:
 
 class TestAnthropicTemperatureRejectionRetry:
     """A model that 400s specifically because it rejects `temperature` must
-    have the retry OMIT temperature, not substitute a default value that
-    400s identically (#530 production incident: chapter_generation retried
-    with temperature=0.1 and failed the same way in the same second)."""
+    have the retry omit temperature, not substitute a default value that
+    400s identically (#530: chapter_generation retried with temperature=0.1
+    and failed the same way in the same second)."""
 
     def _temperature_rejection_error(self, status_code=400):
         return _FakeAPIError(
@@ -391,7 +391,7 @@ class TestAnthropicTemperatureRejectionRetry:
         assert "temperature" not in retry_kwargs
 
     def test_retry_works_even_without_a_tracked_pass(self):
-        # No episode_id/pass_name -- the general tunables-fallback path is
+        # No episode_id/pass_name: the general tunables-fallback path is
         # gated on pass_name, but the temperature-omission fix must not be.
         from llm_client import AnthropicClient
         client = AnthropicClient(api_key="dummy")

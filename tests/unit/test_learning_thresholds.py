@@ -1,4 +1,4 @@
-"""Tests for tunable learning confidence thresholds (Task 4).
+"""Tests for tunable learning confidence thresholds.
 
 record_verification_misses (pattern_service) and learn_from_detections /
 _ad_passes_learning_filters (ad_detector) must read learning_min_confidence

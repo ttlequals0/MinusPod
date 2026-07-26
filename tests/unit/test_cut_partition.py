@@ -1,25 +1,22 @@
-"""Tests for the segment-category cut partition (issue #565 Task 5): the
+"""Tests for the segment-category cut partition (issue #565): the
 remove-vs-beep split for the markers that reach the final cut list.
 
-'keep' is fully owned by Task 4's _partition_keep_ads and never reaches
-this code under normal flow; this task only distinguishes remove from
-beep on the markers that DO get cut, reusing the same per-episode
-segment_actions map Task 4 already resolves.
+'keep' is fully owned by _partition_keep_ads and never reaches this code;
+this only distinguishes remove from beep on markers that already cut,
+reusing the same per-episode segment_actions map.
 
 Under test:
 - main_app.processing._partition_cut_actions (pure partition helper)
 - main_app.processing.process_episode integration: the audio-processor
   'beep' flag reaches AudioProcessor.process_episode, and action_applied
   is persisted on saved markers without leaking that transient flag
-- audio_processor.AudioProcessor.remove_ads real-ffmpeg behavior: a
-  'remove' span shortens the episode (today's fixed-length beep clip,
-  unchanged), a 'beep' span pads that same clip with silence to the
-  span's own length so total duration is preserved, and an empty cut
-  list (a fully-kept episode) leaves the audio byte-identical
+- audio_processor.AudioProcessor.remove_ads real-ffmpeg behavior: 'remove'
+  shortens the episode (fixed-length beep clip), 'beep' pads that clip
+  with silence to the span's own length so duration is preserved, and an
+  empty cut list leaves the audio byte-identical
 - main_app.processing._recut_episode: a marker saved with
   action_applied='beep' in an earlier pass still renders as beep on
-  recut (pattern approve/reject, pass-2 auto-approve, explicit recut
-  mode), not a silent full remove
+  recut, not a silent full remove
 - call-site uniformity: every AudioProcessor.process_episode call in
   processing.py derives 'beep' from action_applied
 """
@@ -47,7 +44,7 @@ ALL_REMOVE = {cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
 
 
 class TestPartitionCutActions:
-    """Direct unit tests of the partition helper -- no ffmpeg, no pipeline."""
+    """Direct unit tests of the partition helper: no ffmpeg, no pipeline."""
 
     def test_remove_and_beep_resolved_per_category(self):
         actions = dict(ALL_REMOVE, cross_promo='beep')
@@ -77,9 +74,9 @@ class TestPartitionCutActions:
         assert ad['action_applied'] == 'beep'
 
     def test_keep_resolved_action_falls_back_to_remove(self):
-        # Only reachable via a category-less marker added after Task 4's
-        # keep partition ran, with sponsor itself set to keep; the segment
-        # is already in the cut list this late, so it still cuts.
+        # Only reachable via a marker added after the keep partition ran,
+        # with sponsor itself set to keep; already in the cut list, so it
+        # still cuts.
         actions = dict(ALL_REMOVE, sponsor='keep')
         ad = {'start': 0.0, 'end': 10.0, 'category': 'sponsor'}
 
@@ -289,8 +286,8 @@ class TestAudioProcessorCutPartition:
         assert new_duration == pytest.approx(60.0, abs=1.0)
 
     def test_kept_span_leaves_audio_intact(self, tmp_path):
-        # A kept marker never reaches ads_to_remove (Task 4); an empty cut
-        # list is what remove_ads sees for a fully-kept episode.
+        # A kept marker never reaches ads_to_remove; an empty cut list is
+        # what remove_ads sees for a fully-kept episode.
         src = self._make_source(tmp_path, duration=30)
         beep = self._make_beep_asset(tmp_path)
         out = tmp_path / "out.mp3"
@@ -322,12 +319,10 @@ class TestAudioProcessorCutPartition:
 
 
 class TestProcessEpisodeCallSiteUniformity:
-    """Cheap regression for the recut-path finding: every
-    AudioProcessor.process_episode call in processing.py must pass a
-    beep-derived audio_segments list, not a raw marker list straight
-    through, or a future call site could silently reintroduce the bug
-    where a saved action_applied='beep' marker renders as a full remove.
-    """
+    """Every AudioProcessor.process_episode call in processing.py must pass
+    a beep-derived audio_segments list, not a raw marker list, or a future
+    call site could silently reintroduce a saved 'beep' marker rendering
+    as a full remove."""
 
     def test_every_call_site_passes_audio_segments(self):
         source = inspect.getsource(processing)
@@ -348,11 +343,8 @@ def _beep_marker(start=10.0, end=25.0):
                     reason="ffmpeg/ffprobe not available")
 class TestRecutPreservesBeepAction:
     """Regression: _recut_episode must derive 'beep' from action_applied
-    the same way the pass-1 call site does. Before the fix, ads_to_remove
-    went straight to AudioProcessor.process_episode with no 'beep' key,
-    so a marker saved beep in an earlier pass silently rendered as a full
-    remove on any recut while the saved marker kept claiming beep.
-    """
+    the same way the pass-1 call site does, or a marker saved beep in an
+    earlier pass silently renders as a full remove on recut."""
 
     def _make_source(self, tmp_path, duration=60):
         src = tmp_path / "retained.mp3"
@@ -381,9 +373,9 @@ class TestRecutPreservesBeepAction:
             db.get_episode.return_value = {'podcast_id': 1, 'processed_version': 0}
             db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
             db.get_all_settings.return_value = {}
-            # Task 8: _recut_episode re-resolves segment actions against the
-            # current map and restamps action_applied from it, so the
-            # marker's own stored action_applied is no longer decisive here.
+            # _recut_episode re-resolves against the current map and
+            # restamps action_applied from it: the marker's own stored
+            # value isn't decisive here.
             db.resolve_segment_actions.return_value = segment_actions or ALL_REMOVE
             storage.get_original_path.return_value = src
             storage.get_applied_cuts.return_value = None

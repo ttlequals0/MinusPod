@@ -1,16 +1,15 @@
-"""Task 7: learning guards on keep-action markers, and ad_patterns.category.
+"""Learning guards on keep-action markers, and ad_patterns.category.
 
 Covers:
 - Corrections guard: a marker resolved to action_applied == 'keep' can
-  never create a pattern_correction row (which is also the row that would
-  seed cross-episode false-positive text -- both flow through the same
-  create_pattern_correction call, so guarding correction creation guards
-  FP-text creation too).
+  never create a pattern_correction row (which also seeds cross-episode
+  false-positive text, since both flow through the same
+  create_pattern_correction call).
 - ad_patterns.category: additive NULL column; NULL reads back as 'sponsor';
   the pattern learner stores a marker's category on newly created patterns.
 - Community sync: export includes category; import without one defaults to
   'sponsor' via the same NULL read default.
-- Kept markers still reach pattern learning -- only correction/FP-text
+- Kept markers still reach pattern learning: only correction/FP-text
   creation is guarded, not learning.
 """
 import json
@@ -150,7 +149,7 @@ class TestKeepMarkerCorrectionGuard:
 
     def test_reject_with_no_matching_marker_is_unaffected(self, client, temp_db):
         """No persisted marker at all (e.g. a stale client payload) must not
-        be treated as a keep marker -- the guard only fires on an actual
+        be treated as a keep marker: the guard only fires on an actual
         action_applied == 'keep' match."""
         _seed_episode(temp_db, markers=[])
         with patch('api.patterns.get_database', return_value=temp_db):
@@ -302,12 +301,10 @@ class TestCommunitySyncCategory:
 
 
 class TestCommunitySyncReimportPreservesCategory:
-    """Final-review fix wave (task 11 item 2): an old-format re-import
-    payload (no 'category' key) must not NULL out a stored category on an
-    existing pattern -- import_community_pattern's update path only
-    includes 'category' in the update kwargs when the payload actually
-    carries the key.
-    """
+    """An old-format re-import payload (no 'category' key) must not NULL
+    out a stored category on an existing pattern:
+    import_community_pattern's update path only includes 'category' in the
+    update kwargs when the payload actually carries the key."""
 
     def _seed_pattern(self, temp_db, community_id, category='cross_promo'):
         pattern_service = PatternService(temp_db)
@@ -384,8 +381,8 @@ class TestKeptMarkersStillLearn:
         assert det._ad_passes_learning_filters(keep_ad, min_confidence=0.5) is True
 
     def test_learning_filter_still_rejects_plain_uncut_marker(self):
-        """Sanity: an ordinary uncut marker (no action_applied at all --
-        e.g. a rejected correction) must not slip through the relaxed check."""
+        """Sanity: an ordinary uncut marker (no action_applied at all, e.g.
+        a rejected correction) must not slip through the relaxed check."""
         det = AdDetector(api_key='test-key')
         uncut_ad = {
             'start': 0.0, 'end': 60.0, 'was_cut': False,
@@ -453,16 +450,12 @@ class TestKeptMarkersStillLearn:
 
 # ========== 6. Pattern matches inherit stored segment category ==========
 #
-# Reviewer High (post-Task-7 review): fingerprint/text-pattern RE-MATCHES of
-# an already-learned pattern dropped the pattern's stored category on the
-# floor -- TextMatch/FingerprintMatch never carried it, so a pattern learned
-# from a kept cross_promo marker re-matched on a later episode with no
-# category, fell through _merge_detection_results' normalize_segment_category
-# default to 'sponsor', resolved to 'remove' on a feed that keeps
-# cross_promo, and cut content the feed's settings say to keep. Fixed by
-# threading category end to end: AdPattern/TextMatch (text_pattern_matcher.py),
-# FingerprintMatch + the fingerprint DB join (audio_fingerprinter.py,
-# database/fingerprints.py), and _add_pattern_match (ad_detector/__init__.py).
+# Fingerprint/text-pattern re-matches of an already-learned pattern dropped
+# the pattern's stored category: a pattern learned from a kept cross_promo
+# marker re-matched with no category, fell through to the 'sponsor'
+# default, and got cut on a feed that keeps cross_promo. Fixed by threading
+# category through AdPattern/TextMatch, FingerprintMatch, and
+# _add_pattern_match.
 
 class TestPatternMatchCategoryInheritance:
 
@@ -506,10 +499,9 @@ class TestPatternMatchCategoryInheritance:
         assert all(m.category == 'cross_promo' for m in matches)
 
     def test_add_pattern_match_and_merge_seam_carry_text_match_category(self):
-        """End-to-end through the exact seam the reviewer flagged: a
-        TextMatch's category survives _add_pattern_match (the detection
-        dict) and _merge_detection_results (the merge seam that otherwise
-        stamps 'sponsor')."""
+        """A TextMatch's category survives _add_pattern_match (the
+        detection dict) and _merge_detection_results (the merge seam that
+        otherwise stamps 'sponsor')."""
         det = AdDetector(api_key='test-key')
         all_ads, regions = [], []
         match = TextMatch(
@@ -532,10 +524,9 @@ class TestPatternMatchCategoryInheritance:
         assert merged[0]['category'] == 'self_promo'
 
     def test_legacy_none_category_still_falls_back_to_sponsor_at_merge_seam(self):
-        """A match whose pattern genuinely has no category (category=None,
-        e.g. a hand-built match bypassing the normalized DB read) still
-        gets the pre-existing 'sponsor' default at the merge seam -- the
-        fix does not change behavior for a pattern with no category."""
+        """A match whose pattern genuinely has no category (category=None)
+        still gets the 'sponsor' default at the merge seam: the fix does
+        not change behavior for a pattern with no category."""
         det = AdDetector(api_key='test-key')
         all_ads, regions = [], []
         match = TextMatch(
@@ -547,11 +538,9 @@ class TestPatternMatchCategoryInheritance:
         assert merged[0]['category'] == 'sponsor'
 
     def test_fingerprint_pattern_linkage_carries_category(self, temp_db):
-        """Fingerprints DO have pattern linkage: audio_fingerprints.pattern_id
-        references ad_patterns.id, and get_all_fingerprints_with_sponsors
-        already LEFT JOINs ad_patterns for the sponsor name -- confirmed by
-        reading src/database/fingerprints.py before writing this test. Not a
-        NEEDS_CONTEXT case: category rides the same existing join."""
+        """audio_fingerprints.pattern_id references ad_patterns.id, and
+        get_all_fingerprints_with_sponsors already joins ad_patterns for
+        the sponsor name, so category rides the same existing join."""
         pid = temp_db.create_ad_pattern(
             scope='global', text_template='x' * 60, category='cross_promo',
         )
@@ -577,10 +566,9 @@ class TestPatternMatchCategoryInheritance:
 
 
 class TestKeepPartitionFromCategorizedDetection:
-    """End-to-end assertion the coordinator asked for: a detection carrying
-    the stored category resolves through the feed's segment-category
-    settings to keep_ads via _partition_keep_ads directly (Task 4's
-    partition, reused rather than reimplemented here)."""
+    """A detection carrying the stored category resolves through the
+    feed's segment-category settings to keep_ads via _partition_keep_ads
+    directly (reused rather than reimplemented here)."""
 
     def test_cross_promo_detection_on_keep_feed_partitions_to_keep(self):
         ad = {'start': 0.0, 'end': 30.0, 'category': 'cross_promo',
@@ -594,7 +582,7 @@ class TestKeepPartitionFromCategorizedDetection:
 
     def test_sponsor_category_detection_on_same_feed_is_unaffected(self):
         """Regression guard: a plain sponsor-category detection on the same
-        keep-cross_promo feed still cuts normally -- the keep resolution is
+        keep-cross_promo feed still cuts normally: the keep resolution is
         per-category, not global."""
         ad = {'start': 0.0, 'end': 30.0, 'category': 'sponsor',
               'confidence': 0.9, 'detection_stage': 'text_pattern'}

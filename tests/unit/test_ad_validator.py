@@ -1103,10 +1103,9 @@ class TestVadGapClampBypass:
         assert 'corroborated_by' not in ad
 
     def test_empty_text_vad_gap_skips_clamp_and_corroboration(self):
-        # Pre-existing early return: empty-text vad_gap markers skip the
-        # clamp block entirely. Deliberate - Task 3 holds uncorroborated
-        # tail markers via a direct _audio_corroboration_source check, not
-        # via corroborated_by.
+        # Empty-text vad_gap markers skip the clamp block entirely. That is
+        # deliberate: uncorroborated tail markers are held via a direct
+        # _audio_corroboration_source check, not via corroborated_by.
         segments = [
             {'start': 100.0, 'end': 130.0,
              'text': 'Welcome to the show everybody.'},

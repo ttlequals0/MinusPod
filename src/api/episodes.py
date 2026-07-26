@@ -334,11 +334,9 @@ def get_episode(slug, episode_id):
 
     # Parse ad markers if present, separating into four buckets:
     #   pendingReviewMarkers: held_for_review=True and not was_cut (checked FIRST)
-    #   keptMarkers:          action_applied == 'keep' (and not held) -- a
-    #                         deliberate per-category keep, not a rejected
-    #                         detection. Checked defensively: a keep resolution
-    #                         clears holds upstream, so this and the held check
-    #                         above should never both be true for one marker.
+    #   keptMarkers:          action_applied == 'keep' and not held (deliberate
+    #                         per-category keep; keep resolution clears holds
+    #                         upstream, so this never overlaps pendingReviewMarkers)
     #   rejectedAdMarkers:    REJECT decision or not was_cut (and not held/kept)
     #   adMarkers:            everything else (accepted cuts)
     ad_markers = []
@@ -745,11 +743,10 @@ def regenerate_chapters(slug, episode_id):
     podcast_name = podcast.get('title', slug) if podcast else slug
     episode_title = episode.get('title', 'Unknown')
 
-    # Segment markers + the applied cut list that rendered this episode
-    # (both persisted from the run that produced this VTT) let chapter
-    # regeneration give the topic detector the same ad/segment-position
-    # hints the pipeline gets. Neither is required: missing either falls
-    # back to no hints, same as before this existed.
+    # Segment markers and applied cuts (both persisted from the run that
+    # produced this VTT) let chapter regen give the topic detector the same
+    # ad/segment-position hints the pipeline gets. Missing either just falls
+    # back to no hints.
     segment_markers = None
     if episode.get('ad_markers_json'):
         try:
@@ -764,9 +761,8 @@ def regenerate_chapters(slug, episode_id):
 
         try:
             # VTT segments are already ad-adjusted; omit ads_removed so
-            # generate_chapters doesn't double-adjust. marker_cuts is passed
-            # separately so segment_markers can still be mapped onto the
-            # processed timeline for topic-boundary hints.
+            # generate_chapters doesn't double-adjust. marker_cuts still maps
+            # segment_markers onto the processed timeline for topic hints.
             chapters = chapters_gen.generate_chapters(
                 segments,
                 episode_description=episode_description,

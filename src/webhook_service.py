@@ -89,11 +89,9 @@ _FAILED_SAMPLE = dict(
     podcast_name='My Favorite Podcast',
 )
 
-# Sample values for the alert-family events (Auth Failure, Limit Exceeded,
-# Rate Limit Structural, Feed Refresh Failed, Update Available), mirroring
-# the "Default Payloads" examples in docs/api-and-webhooks.md. These are
-# assembled into a context the same way _fire_alert_event does for real
-# alerts: {'event': event, **sample, 'timestamp': ...}.
+# Sample values for the alert-family events, mirroring the "Default
+# Payloads" examples in docs/api-and-webhooks.md. Assembled into a context
+# the same way _fire_alert_event does: {'event': event, **sample, 'timestamp': ...}.
 _ALERT_SAMPLE_CONTEXTS = {
     EVENT_AUTH_FAILURE: {
         'provider': 'anthropic',
@@ -547,7 +545,7 @@ def fire_test_event(webhook_config):
     Each payload matches the real shape for its event and is dispatched
     through the same render/dispatch path as real events (`_build_context`/
     `_prepare_and_dispatch`), with `test: true` set. Falls back to a single
-    Episode Processed sample when the webhook's event list is empty --
+    Episode Processed sample when the webhook's event list is empty:
     webhooks created through the API always save a non-empty list, so this
     only covers legacy or hand-edited data.
 

@@ -136,15 +136,12 @@ def merge_cut_spans(cuts: List[Dict], default_replacement: float = 0.0) -> List[
     """Merge overlapping/touching cut spans into [start, end, n_spans,
     total_replacement] groups.
 
-    n_spans counts the source spans folded into each group. total_replacement
-    sums each source span's own `replacement_duration` (a 'remove' cut is
-    replaced by the fixed beep clip; a 'beep' cut is padded to its own span
-    length instead -- see audio_processor.compute_applied_cuts), falling back
-    to `default_replacement` per span for cuts that omit the key (legacy
-    persisted cuts, or callers that never set it). Rendered cut lists carry
-    one replacement per cut, so timestamp adjustment credits one replacement
-    per source span even when cuts from different render passes merge in
-    original coordinates.
+    total_replacement sums each span's own `replacement_duration` ('remove'
+    uses the fixed beep clip, 'beep' pads to its own length; see
+    audio_processor.compute_applied_cuts), falling back to
+    `default_replacement` when a span omits the key. This credits one
+    replacement per source span even when cuts from different render
+    passes merge in original coordinates.
     """
     sorted_cuts = sorted(cuts, key=lambda x: x.get('start', 0))
     merged: List[List[float]] = []
@@ -187,16 +184,12 @@ def adjust_timestamp(original_time: float, ads_removed: List[Dict],
     Args:
         original_time: Original timestamp in seconds
         ads_removed: List of {'start': float, 'end': float} for removed ads.
-            A span may also carry its own 'replacement_duration', which wins
-            over the `replacement_duration` argument for that span (see
-            merge_cut_spans); this is how a mixed remove+beep cut list maps
-            correctly without every caller threading per-span state through.
+            A span's own 'replacement_duration', if present, wins over the
+            `replacement_duration` argument for that span (see merge_cut_spans).
         replacement_duration: Seconds of audio inserted in place of a removed
-            span that does not specify its own 'replacement_duration' (the
-            beep). The render replaces each merged cut with this much audio,
-            so post-cut content shifts by (cut length - replacement) per
-            cut, not the full cut length. Assumes one replacement per merged
-            span.
+            span with no 'replacement_duration' of its own (the beep). Post-cut
+            content shifts by (cut length - replacement) per cut, assuming
+            one replacement per merged span.
 
     Returns:
         Adjusted timestamp reflecting position in processed audio
@@ -214,9 +207,8 @@ def adjust_timestamp(original_time: float, ads_removed: List[Dict],
     for ad_start, ad_end, _n_spans, total_replacement in merged:
         if ad_end <= original_time:
             # Entire group was before our timestamp; its replacement audio
-            # (one beep per source cut, or a full-length pad for a beeped
-            # span) sits before us too, so it shifts us back by (removed
-            # length - inserted replacements).
+            # (one beep per cut, or a full pad for a beeped span) shifts us
+            # back by (removed length - inserted replacements).
             adjustment += (ad_end - ad_start) - total_replacement
         elif ad_start < original_time < ad_end:
             # Timestamp falls within an ad -- snap to the replacement's start

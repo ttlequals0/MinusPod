@@ -46,8 +46,7 @@ function WebhooksBlock() {
   const [showSecret, setShowSecret] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   // One transient result at a time; auto-clears 4s after the last test.
-  // The result carries a per-event `results` breakdown, but the inline
-  // message idiom below shows only the summary line.
+  // `results` carries a per-event breakdown; only the summary line is shown below.
   const [testResult, setTestResult] = useTransientState<
     ({ id: string } & WebhookTestResult) | null
   >(null, 4000);

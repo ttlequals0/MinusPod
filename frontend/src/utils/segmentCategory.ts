@@ -1,8 +1,6 @@
-// Segment categories and actions (issue #565): what kind of content a
-// detected span covers, and what the pipeline does with it. Mirrors
-// config.SEGMENT_CATEGORIES / SEGMENT_ACTIONS -- the single frontend source
-// of truth for labels so the global matrix, per-feed overrides, and the
-// episode-page chips never drift apart.
+// Segment categories and actions (issue #565). Mirrors
+// config.SEGMENT_CATEGORIES / SEGMENT_ACTIONS as the single frontend source
+// of truth for labels, so the matrix, overrides, and episode chips agree.
 export type SegmentCategory =
   | 'sponsor'
   | 'cross_promo'

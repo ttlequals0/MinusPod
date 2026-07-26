@@ -1,15 +1,13 @@
 """Regression gate for the module-level `from version import ...` incident.
 
-gunicorn's boot path only puts /app/src on sys.path (see gunicorn.conf.py's
+gunicorn's boot path only puts /app/src on sys.path (gunicorn.conf.py's
 on_starting/post_fork hooks); the repo root (where version.py lives) is not
-importable there. A module-level `from version import __version__` in
-anything gunicorn imports at boot (e.g. `database` -> `database.stats`)
-raises ModuleNotFoundError and crash-loops every worker.
-
-The 4000+ test pytest suite runs with PYTHONPATH=src from the repo root, so
-the root IS on sys.path there and this whole bug class was invisible to it.
-This test reproduces the container's narrower boot sys.path in a subprocess
-so the same bug class fails locally instead of in production.
+importable there, so a module-level `from version import __version__` in
+anything gunicorn imports at boot raises ModuleNotFoundError and
+crash-loops every worker. The pytest suite runs with PYTHONPATH=src from
+the repo root, so the root is on sys.path there and this bug class was
+invisible to it. This test reproduces the container's narrower boot
+sys.path in a subprocess so the same bug class fails locally.
 """
 import os
 import re
@@ -22,9 +20,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC_DIR = _REPO_ROOT / "src"
 
 # Modules gunicorn imports at boot: `database` (gunicorn.conf.py's
-# on_starting/post_fork hooks do `from database import Database`), and
-# `main_app`, the WSGI app object named by entrypoint.sh's
-# `gunicorn -c /app/gunicorn.conf.py main_app:app`.
+# on_starting/post_fork hooks) and `main_app`, the WSGI app object named
+# by entrypoint.sh's `gunicorn -c /app/gunicorn.conf.py main_app:app`.
 _BOOT_MODULES = ("database", "main_app")
 
 
@@ -40,9 +37,7 @@ def _run_in_container_like_sandbox(code: str) -> subprocess.CompletedProcess:
         "PATH": os.environ.get("PATH", ""),
         "PYTHONPATH": str(_SRC_DIR),
         # Storage() and Database() default to /app/data outside the
-        # container; point every env var those read at a writable temp dir
-        # (see storage.py's DATA_PATH/MINUSPOD_DATA_DIR fallback chain and
-        # main_app/__init__.py's DATA_DIR use for the leader lockfile).
+        # container; point every env var those read at a writable temp dir.
         "DATA_DIR": data_dir,
         "DATA_PATH": data_dir,
         "MINUSPOD_DATA_DIR": data_dir,

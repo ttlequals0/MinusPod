@@ -52,9 +52,8 @@ HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
 
 # Segment categories (issue #565): what kind of content a marker spans.
-# Stamped on every detection at the ad_detector merge seam via
-# normalize_segment_category so a marker's 'category' key is always one of
-# these, regardless of which stage produced it.
+# normalize_segment_category stamps this at the ad_detector merge seam, so
+# 'category' is always one of these regardless of the producing stage.
 SEGMENT_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction',
                       'intro', 'outro', 'recap')
 SEGMENT_ACTIONS = ('remove', 'beep', 'keep')
@@ -66,20 +65,16 @@ def normalize_segment_category(value: Any) -> str:
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
 
 
-# Per-category community-sync acceptance (issue #565 Task follow-up): which
-# categories this install pulls in from community pattern sync. Default is
-# every SEGMENT_CATEGORIES entry, so an upgrade with an unset setting syncs
-# exactly as before the feature existed.
+# Per-category community-sync acceptance (issue #565): which categories this
+# install pulls from community sync. Defaults to every category, so an
+# upgrade with an unset setting syncs exactly as it did before this feature.
 DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON = json.dumps(list(SEGMENT_CATEGORIES))
 
 
 def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
-    """Parse a community_sync_categories JSON list into the accepted segment
-    categories. A missing/blank value (unset setting) or malformed/non-list
-    JSON falls back to every SEGMENT_CATEGORIES. Unknown category strings
-    inside an otherwise-valid list are dropped; an explicit empty list (the
-    user unchecked every category) is returned as-is rather than treated as
-    unset, since that is a deliberate 'accept nothing' choice.
+    """Parse community_sync_categories JSON into accepted categories, falling
+    back to every category on missing, blank, or malformed input. An explicit
+    empty list is kept as-is (deliberate 'accept nothing'), not treated as unset.
     """
     if not raw_json:
         return list(SEGMENT_CATEGORIES)
@@ -95,14 +90,10 @@ def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
 def resolve_segment_category_actions_map(
         raw_json: Optional[str],
         baseline: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-    """Parse a segment_category_actions-shaped JSON string and merge it over
-    `baseline` (default: every SEGMENT_CATEGORIES key set to
-    DEFAULT_SEGMENT_ACTION). Malformed JSON, a non-dict payload, and any
-    unknown category/action pair are ignored (treated as unset) so a partial
-    or corrupt value never drops the other categories to a missing key.
-
-    Passing a prior call's result as `baseline` layers a second JSON string
-    (e.g. a per-feed override) on top without re-deriving the base map.
+    """Parse segment_category_actions JSON and merge over `baseline` (default:
+    every category at DEFAULT_SEGMENT_ACTION). Invalid JSON, non-dict payloads,
+    and unknown category/action pairs are ignored rather than clearing keys.
+    Pass a prior result as `baseline` to layer another override on top.
     """
     merged = dict(baseline) if baseline is not None else {
         cat: DEFAULT_SEGMENT_ACTION for cat in SEGMENT_CATEGORIES}
@@ -188,10 +179,9 @@ def count_pending_review(markers) -> int:
 def count_not_cut(markers) -> int:
     """Number of markers that stayed in the audio and are not pending review
     (e.g. a rejected correction). Missing was_cut defaults to True (cut),
-    matching is_pending_review's convention. A keep-action marker
-    (action_applied == 'keep') is intentionally left in the audio, not a
-    miss, so it is excluded here -- it must never inflate the
-    notification-facing not-cut/miss count."""
+    matching is_pending_review's convention. A keep-action marker is
+    intentionally left in the audio, not a miss, so it's excluded here:
+    it must never inflate the notification-facing not-cut/miss count."""
     return sum(1 for m in markers
                if not m.get('was_cut', True) and not is_pending_review(m)
                and m.get('action_applied') != 'keep')

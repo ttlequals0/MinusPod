@@ -21,10 +21,9 @@ class FingerprintMixin:
 
     def get_all_fingerprints_with_sponsors(self) -> List[Dict]:
         """Get all audio fingerprints with sponsor names and segment category
-        (#565 Task 7) from ad_patterns (single JOIN). category defaults NULL
-        -> 'sponsor' via the same accessor every other ad_patterns read uses,
-        so a re-matched fingerprint carries its pattern's real category
-        instead of silently reading as unset."""
+        (#565) from ad_patterns (single JOIN). category defaults NULL ->
+        'sponsor' via the shared accessor, so a re-matched fingerprint
+        carries its pattern's real category instead of reading as unset."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,

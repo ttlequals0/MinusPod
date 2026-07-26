@@ -1,5 +1,5 @@
-"""Tests for segment category action resolution (issue #565 Task 2):
-the per-feed -> global -> DEFAULT_SEGMENT_ACTION resolver, global-setting
+"""Tests for segment category action resolution (issue #565): the
+per-feed -> global -> DEFAULT_SEGMENT_ACTION resolver, global-setting
 PUT validation, the GET /settings defaults block, and per-feed PATCH
 validation.
 

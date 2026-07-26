@@ -322,8 +322,8 @@ export interface RerenderSegmentsResult {
 }
 
 // Re-cut every processed episode of a feed against the current segment-
-// category action maps (issue #565 Task 8). Reuses the recut queue, so the
-// result shape mirrors reprocessAllEpisodes/bulkEpisodeAction.
+// category action maps (issue #565). Reuses the recut queue, so the result
+// shape mirrors reprocessAllEpisodes/bulkEpisodeAction.
 export async function rerenderSegments(slug: string): Promise<RerenderSegmentsResult> {
   return apiRequest<RerenderSegmentsResult>(`/feeds/${slug}/rerender-segments`, {
     method: 'POST',

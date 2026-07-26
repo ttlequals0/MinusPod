@@ -315,7 +315,7 @@ def test_fetched_chapters_below_threshold_after_remap_falls_to_generator(monkeyp
 
 def test_markers_reach_generator_as_segment_markers_kwarg(monkeypatch):
     """_generate_assets threads its markers argument through to
-    ChaptersGenerator.generate_chapters as segment_markers -- only reachable
+    ChaptersGenerator.generate_chapters as segment_markers: only reachable
     on the AI-generation branch (mode 'generate' here, no publisher/upstream
     chapters to preserve)."""
     db = _db(chapters_mode='generate')

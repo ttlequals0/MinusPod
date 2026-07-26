@@ -41,12 +41,10 @@ def normalize_published_at(value: Optional[str]) -> Optional[str]:
 def _serialize_applied_cut(cut: Dict) -> Dict:
     """Trim an applied-cut dict to the fields persisted in applied_cuts_json.
 
-    start/end are always kept. 'replacement_duration' (see
-    audio_processor.compute_applied_cuts) is kept additively -- only when the
-    cut actually carries one -- so a legacy cut dict with no such key
-    round-trips exactly as {'start', 'end'}, byte-identical to before this
-    field existed. A later reader missing the key falls back to the fixed
-    beep clip length (today's behavior; see utils.time.merge_cut_spans).
+    'replacement_duration' (see audio_processor.compute_applied_cuts) is kept
+    only when present, so a legacy cut dict round-trips as {'start', 'end'}
+    unchanged. A missing key falls back to the fixed beep clip length on read
+    (utils.time.merge_cut_spans).
     """
     out = {'start': float(cut['start']), 'end': float(cut['end'])}
     replacement = cut.get('replacement_duration')
@@ -479,12 +477,11 @@ class EpisodeMixin:
         The recut chapter remap loads this authoritative list instead of
         reconstructing it from was_cut markers (which drops trusted sub-10s
         cuts and cannot reproduce pass-2 boundary shifts). start/end are
-        always needed; a span's 'replacement_duration' (its beep clip, or the
-        span's own length for a 'beep' action) is kept when present so the
-        remap arithmetic (utils.time.merge_cut_spans) reads it per span
-        instead of assuming one constant. A cut with no such key round-trips
-        as just {start, end}, so pre-5b callers and legacy rows are
-        unaffected.
+        always needed; a span's 'replacement_duration' (beep clip length, or
+        the span's own length for a 'beep' action) is kept when present so
+        merge_cut_spans reads it per span instead of assuming one constant.
+        A cut without the key round-trips as {start, end}, so legacy rows
+        are unaffected.
         """
         conn = self.get_connection()
 

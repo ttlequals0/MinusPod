@@ -227,10 +227,8 @@ def model_matches_provider(model_id: str, provider: str) -> bool:
 
 def _omit_temperature_override() -> bool:
     """DB-backed operator override (settings.omit_temperature), read through
-    the same short-TTL cache as the other provider settings above so the
-    resolution isn't a DB read on every LLM call. See
-    llm_capabilities.model_omits_temperature() for the full resolution
-    order this feeds into."""
+    the same short-TTL cache as other provider settings so it isn't a DB
+    read on every call. See llm_capabilities.model_omits_temperature()."""
     return coerce_bool_setting(_get_cached_setting('omit_temperature'))
 
 
@@ -439,14 +437,10 @@ class LLMClient(ABC):
         except Exception as e:
             if is_temperature_rejection_error(e):
                 # The model rejects temperature outright (Anthropic's
-                # adaptive-thinking generation) -- a retry that substitutes a
-                # DEFAULT temperature would 400 identically, since the
-                # rejected value was never the problem. Self-heal for this
-                # process: mark_model_omits_temperature() makes
-                # model_omits_temperature() return True for `model` from now
-                # on, and every client's _send closure re-consults it on each
-                # call (including this retry), so re-invoking send_fn with
-                # the same tunables now omits temperature instead.
+                # adaptive-thinking generation); a default-temperature retry
+                # would 400 identically. Self-heal: mark_model_omits_temperature()
+                # makes model_omits_temperature() return True for `model` from
+                # now on, so re-invoking send_fn here picks that up immediately.
                 _log_temperature_omission(provider_label, episode_id, pass_name, model, e)
                 mark_model_omits_temperature(model)
                 try:
@@ -567,19 +561,17 @@ class AnthropicClient(LLMClient):
 
         # Anthropic doesn't support response_format natively; inject JSON
         # instructions into the system prompt when requested. A 'json_schema'
-        # request instead forces a tool call below -- the two are mutually
-        # exclusive on a single request.
+        # request forces a tool call below instead; the two are mutually exclusive.
         effective_system = system
         if response_format and response_format.get('type') == 'json_object':
             if '<output_format>' not in system:
                 effective_system = system + _JSON_FORMAT_SYSTEM_INSTRUCTION
                 logger.debug("Added JSON format instructions to system prompt")
 
-        # 'json_schema' requests enforced structured output via a forced
-        # tool call: the Messages API validates the model's response against
-        # the tool's input_schema, so a caller asking for this (gated by
-        # llm_capabilities.supports_json_schema) gets a real guarantee
-        # instead of prompt-injected instructions the model can ignore.
+        # 'json_schema' forces a tool call so the Messages API validates the
+        # response against the tool's input_schema (gated by
+        # llm_capabilities.supports_json_schema): a real guarantee instead of
+        # prompt-injected instructions the model can ignore.
         tool_spec = None
         if response_format and response_format.get('type') == 'json_schema':
             schema_cfg = response_format.get('json_schema') or {}
@@ -596,8 +588,8 @@ class AnthropicClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        # Operator override (settings.omit_temperature) takes priority over the
-        # static list / learned memo -- see model_omits_temperature().
+        # Operator override (settings.omit_temperature) takes priority over
+        # the static list / learned memo; see model_omits_temperature().
         omit_temp_override = _omit_temperature_override()
 
         self._log_messages("Anthropic", effective_system, messages, model,
@@ -637,9 +629,8 @@ class AnthropicClient(LLMClient):
 
         if tool_spec is not None:
             # Forced tool_choice guarantees exactly one tool_use block; its
-            # `input` is the model's answer, already validated against the
-            # schema. Re-serialize to JSON text so downstream parsing (which
-            # expects response.content to be a JSON string) is unchanged.
+            # `input` is the schema-validated answer. Re-serialize to JSON
+            # text since downstream parsing expects a JSON string.
             content = ""
             for block in (response.content or []):
                 if getattr(block, 'type', None) == 'tool_use':
@@ -789,8 +780,8 @@ class OpenAICompatibleClient(LLMClient):
             episode_id, pass_name, max_tokens, temperature, reasoning_effort
         )
 
-        # Operator override (settings.omit_temperature) takes priority over the
-        # static list / learned memo -- see model_omits_temperature().
+        # Operator override (settings.omit_temperature) takes priority over
+        # the static list / learned memo; see model_omits_temperature().
         omit_temp_override = _omit_temperature_override()
 
         self._log_messages("OpenAI", system, messages, model,
@@ -997,8 +988,8 @@ class OpenAICompatibleClient(LLMClient):
             "timeout": HTTP_TIMEOUT_API,
         }
         # No-sampling Anthropic models (e.g. via OpenRouter) reject temperature.
-        # Operator override (settings.omit_temperature) takes priority over the
-        # static list / learned memo -- see model_omits_temperature().
+        # Operator override (settings.omit_temperature) takes priority over
+        # the static list / learned memo; see model_omits_temperature().
         if not model_omits_temperature(model, _omit_temperature_override()):
             probe_kwargs["temperature"] = 0.0
         try:

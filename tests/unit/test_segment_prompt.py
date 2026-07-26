@@ -1,11 +1,7 @@
 """Tests for segment category emission in the detection prompt (issue #565).
 
-DEFAULT_SYSTEM_PROMPT always asks the LLM for a category on every ad.
-SHOW_SEGMENTS_PROMPT_SECTION (intro/outro/recap detection) is opt-in per
-podcast and is appended only when the podcast's detect_show_segments column
-is truthy. Normalization at the ad_detector merge seam applies regardless
-of that flag: it is a defense against any out-of-enum LLM value, not a gate
-on show-segment categories.
+SHOW_SEGMENTS_PROMPT_SECTION is opt-in per podcast (detect_show_segments),
+but merge-seam category normalization runs unconditionally.
 """
 import json
 import logging
@@ -70,10 +66,9 @@ class TestDefaultPromptCategoryInstructions:
             in DEFAULT_SYSTEM_PROMPT
 
     def test_category_required_wording_adjacent_to_schema_line(self):
-        # The "required" statement must sit next to the schema line itself,
-        # not only in the CATEGORY block further down. That is what let a
-        # model skip the field while still following the CATEGORY block's
-        # enum rules for everything else.
+        # Must sit next to the schema line, not only in the CATEGORY block
+        # further down: that let a model skip the field while still
+        # following the CATEGORY block's enum rules for everything else.
         schema_idx = DEFAULT_SYSTEM_PROMPT.index('Each ad segment:')
         required_idx = DEFAULT_SYSTEM_PROMPT.index(
             'is REQUIRED on every ad object')
@@ -99,9 +94,9 @@ class TestShowSegmentsSection:
         assert 'cold open' in SHOW_SEGMENTS_PROMPT_SECTION.lower()
 
     def test_section_states_category_is_required(self):
-        # Failure evidence: a feed with detect_show_segments=true still got
-        # category-less LLM responses, so the section must repeat the
-        # requirement itself rather than relying on the base prompt's block.
+        # A detect_show_segments=true feed still got category-less LLM
+        # responses, so the section repeats the requirement itself rather
+        # than relying on the base prompt's block.
         assert 'REQUIRED' in SHOW_SEGMENTS_PROMPT_SECTION
         assert '"category"' in SHOW_SEGMENTS_PROMPT_SECTION
 
@@ -131,8 +126,7 @@ class TestPromptComposition:
         assert SHOW_SEGMENTS_PROMPT_SECTION not in prompt
 
     def test_section_rides_along_on_operator_override(self):
-        # Operator has replaced system_prompt entirely; the show-segments
-        # section is appended AFTER override resolution, so an opted-in
+        # Section is appended after override resolution, so an opted-in
         # feed still gets it even though it is nowhere in their override.
         override = "Custom instructions with no category talk at all."
         det = _detector(detect_show_segments=True, system_prompt=override)
@@ -167,9 +161,8 @@ class TestParsedCategorySurvivesMergeSeam:
         assert merged[0]['category'] == 'intro'
 
     def test_recap_category_survives_with_flag_off(self):
-        # Category normalization is unconditional: it runs at the merge
-        # seam regardless of whether detect_show_segments is on, because
-        # intro/outro/recap are in SEGMENT_CATEGORIES either way.
+        # Normalization runs at the merge seam regardless of the flag,
+        # since intro/outro/recap are in SEGMENT_CATEGORIES either way.
         det = AdDetector()
         raw_ads = parse_ads_from_response(
             self._mock_response('recap'), slug='feed-a', episode_id='ep1')
@@ -215,15 +208,8 @@ def _fake_ad(start, end, category=None):
 def _run_detect_ads(*, detect_show_segments, segment_actions, ads,
                      repair_side_effect=None):
     """Drive detect_ads() with one canned window of LLM ads, bypassing the
-    real LLM call the same way test_ad_detector_positional_prior.py does.
-
-    ``_repair_window_categories`` is patched too: without it, a feed with
-    non-default segment actions or show-segments enabled would trigger the
-    real category repair pass, which reaches through ``self._llm_client``
-    to ``get_llm_client()`` -- a real, unmocked provider client. The default
-    (``repair_side_effect=None``) returns 0 and leaves ``ads`` untouched,
-    reproducing pre-repair-pass behavior for tests that only care about the
-    warning. Tests that exercise repair itself pass their own side_effect.
+    real LLM call and the real category repair pass. Default repair_side_effect
+    leaves ads untouched; tests exercising repair pass their own.
     """
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(detect_show_segments=detect_show_segments,
@@ -265,9 +251,9 @@ class TestCategoryMissWarning:
     def test_warns_once_on_feed_with_keep_actions(self, caplog):
         action_map = dict(_all_remove_map(), self_promo='keep')
         ads = [
-            _fake_ad(10.0, 40.0),                        # missing category
-            _fake_ad(200.0, 240.0),                       # missing category
-            _fake_ad(500.0, 540.0, category='sponsor'),   # has category
+            _fake_ad(10.0, 40.0),
+            _fake_ad(200.0, 240.0),
+            _fake_ad(500.0, 540.0, category='sponsor'),
         ]
         with caplog.at_level(logging.WARNING, logger='podcast.claude'):
             _run_detect_ads(detect_show_segments=False,
@@ -279,7 +265,7 @@ class TestCategoryMissWarning:
         assert '2 of 3' in warnings[0].message
 
     def test_warns_once_when_show_segments_enabled(self, caplog):
-        ads = [_fake_ad(10.0, 40.0)]  # missing category
+        ads = [_fake_ad(10.0, 40.0)]
         with caplog.at_level(logging.WARNING, logger='podcast.claude'):
             _run_detect_ads(detect_show_segments=True,
                             segment_actions=_all_remove_map(), ads=ads)
@@ -289,9 +275,8 @@ class TestCategoryMissWarning:
         assert '1 of 1' in warnings[0].message
 
     def test_no_warning_on_default_all_remove_feed_with_toggle_off(self, caplog):
-        # Nothing is affected for this feed: every category resolves to the
-        # same action regardless of what the LLM sends, so there is nothing
-        # to warn about.
+        # Every category resolves to the same action here, so there's
+        # nothing for a category miss to affect.
         ads = [_fake_ad(10.0, 40.0), _fake_ad(200.0, 240.0)]
         with caplog.at_level(logging.WARNING, logger='podcast.claude'):
             _run_detect_ads(detect_show_segments=False,
@@ -314,8 +299,8 @@ class TestCategoryMissWarning:
     def test_warning_mentions_repair_when_it_resolved_some(self, caplog):
         action_map = dict(_all_remove_map(), self_promo='keep')
         ads = [
-            _fake_ad(10.0, 40.0),   # missing
-            _fake_ad(200.0, 240.0),  # missing
+            _fake_ad(10.0, 40.0),
+            _fake_ad(200.0, 240.0),
         ]
 
         def repair(*, ads, **kwargs):
@@ -333,7 +318,7 @@ class TestCategoryMissWarning:
 
     def test_no_warning_when_repair_resolves_everything(self, caplog):
         action_map = dict(_all_remove_map(), self_promo='keep')
-        ads = [_fake_ad(10.0, 40.0)]  # missing
+        ads = [_fake_ad(10.0, 40.0)]
 
         def repair(*, ads, **kwargs):
             ads[0]['category'] = 'self_promo'
@@ -385,9 +370,9 @@ class TestCategoryRepairPromptAndParsing:
 
 
 class _FakeCategoryRepairClient(LLMClient):
-    """Real LLMClient subclass (not a bare MagicMock) so set_usage_callback
-    / _notify_usage -- the same cost-tracking path every other LLM call
-    uses -- actually runs, proving the repair call is not a special case."""
+    """Real LLMClient subclass (not a bare MagicMock), so the same
+    set_usage_callback / _notify_usage cost-tracking path every other
+    LLM call uses actually runs here too."""
 
     def __init__(self, content):
         super().__init__()
@@ -401,7 +386,7 @@ class _FakeCategoryRepairClient(LLMClient):
             model=kwargs.get('model', 'fake-model'),
             usage={'input_tokens': 42, 'output_tokens': 7},
         )
-        self._notify_usage(response)  # same callback path every real client uses
+        self._notify_usage(response)
         return response
 
     def list_models(self, bypass_cache=False):
@@ -413,9 +398,8 @@ class _FakeCategoryRepairClient(LLMClient):
 
 def _detect_ads_with_fake_client(*, detect_show_segments, segment_actions,
                                   ads, fake_client):
-    """Same as _run_detect_ads, but wires a real (fake) LLMClient in place
-    of mocking _repair_window_categories, so the actual repair code path
-    runs end to end against a controllable client."""
+    """Same as _run_detect_ads, but wires a real (fake) LLMClient instead
+    of mocking _repair_window_categories, so the repair path runs end to end."""
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(detect_show_segments=detect_show_segments,
                           segment_actions=segment_actions)
@@ -442,16 +426,13 @@ def _detect_ads_with_fake_client(*, detect_show_segments, segment_actions,
 
 
 class TestCategoryRepairEndToEnd:
-    """Drives the real _repair_window_categories code path (no mocking of
-    the method itself) against a fake but real LLMClient subclass, so the
-    gating, index-mapping, failure handling, and cost-accounting behavior
-    are proven against actual production code, not test doubles standing
-    in for it."""
+    """Drives the real _repair_window_categories code path (unmocked) against
+    a fake but real LLMClient subclass: gating, index-mapping, failure
+    handling, and cost accounting are proven against production code."""
 
     def test_client_never_called_for_default_feed(self):
-        # Hard requirement: an all-remove, show-segments-off feed makes
-        # zero extra LLM calls even though every ad here is missing a
-        # category -- the repair pass must never reach the client.
+        # An all-remove, show-segments-off feed makes zero extra LLM calls,
+        # even with every ad missing a category: repair must never fire.
         fake = _FakeCategoryRepairClient(content='[]')
         ads = [_fake_ad(10.0, 40.0), _fake_ad(200.0, 240.0)]
         _detect_ads_with_fake_client(
@@ -472,9 +453,9 @@ class TestCategoryRepairEndToEnd:
     def test_client_called_once_and_categories_applied_by_index(self):
         action_map = dict(_all_remove_map(), self_promo='keep')
         ads = [
-            _fake_ad(10.0, 40.0),                          # index 0, missing
-            _fake_ad(200.0, 240.0, category='sponsor'),    # index 1, already has one
-            _fake_ad(500.0, 540.0),                         # index 2, missing
+            _fake_ad(10.0, 40.0),                        # index 0
+            _fake_ad(200.0, 240.0, category='sponsor'),  # index 1
+            _fake_ad(500.0, 540.0),                       # index 2
         ]
         response_json = json.dumps([
             {"index": 0, "category": "self_promo"},
@@ -490,11 +471,10 @@ class TestCategoryRepairEndToEnd:
 
         assert len(fake.calls) == 1
         assert ads[0]['category'] == 'self_promo'
-        assert ads[1]['category'] == 'sponsor'  # untouched, was never missing
+        assert ads[1]['category'] == 'sponsor'
         assert ads[2]['category'] == 'interaction'
-        # Cost/telemetry: the repair call goes through the exact same
-        # LLMClient.messages_create -> _notify_usage -> usage_callback chain
-        # as every other LLM call, so its usage is recorded identically.
+        # Repair goes through the same messages_create -> _notify_usage ->
+        # usage_callback chain as every other LLM call.
         assert usage_seen == {'input_tokens': 42, 'output_tokens': 7}
 
     def test_malformed_response_leaves_sponsor_default_and_does_not_raise(self):
@@ -526,8 +506,8 @@ class TestCategoryRepairEndToEnd:
         assert 'category' not in ads[1]
 
     def test_direct_call_returns_zero_and_makes_no_request_when_nothing_missing(self):
-        # _repair_window_categories itself short-circuits when every ad
-        # already has a category, independent of the _run_detection_pass gate.
+        # Short-circuits when every ad already has a category, independent
+        # of the _run_detection_pass gate.
         detector = AdDetector(api_key='test-key')
         detector.db = _FakeDb(detect_show_segments=False,
                               segment_actions=_all_remove_map())

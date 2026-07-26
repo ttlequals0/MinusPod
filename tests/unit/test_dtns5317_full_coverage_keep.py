@@ -1,19 +1,16 @@
-"""DTNS 5317 (2026-07-25): daily-tech-news-show episode 3c0b827ef2c5,
-reprocessed with detect_show_segments=true and per-feed actions
-{cross_promo,intro,outro,recap,self_promo: keep; sponsor,interaction:
-remove}.
+"""DTNS 5317: daily-tech-news-show episode 3c0b827ef2c5, reprocessed with
+detect_show_segments=true and per-feed actions {cross_promo,intro,outro,
+recap,self_promo: keep; sponsor,interaction: remove}.
 
-Root cause (second, independent layer from the window-dedup fix in
+This is a second, independent layer from the window-dedup fix covered in
 test_ad_detector.py::TestDeduplicateWindowAdsActionGate and
-test_segment_categories.py::TestDTNS5317IntroOutroSurviveFullPipeline):
-process_transcript's "Merge Claude detections with pattern matches" step
-silently discards a Claude ad's category whenever its span is fully
-covered by an existing fingerprint/text_pattern match (see the "fully
-covered by patterns" debug log). Legacy patterns predate per-feed segment
-actions and default to no category ('sponsor'/remove); dropping the
-Claude ad here left only the pattern's uncategorized copy of that region
-to reach the merge seam, so a keep-resolving 'intro'/'outro' detection
-was lost even when the window-boundary dedup left it intact.
+test_segment_categories.py::TestDTNS5317IntroOutroSurviveFullPipeline:
+process_transcript's pattern-merge step silently discards a Claude ad's
+category whenever its span is fully covered by an existing
+fingerprint/text_pattern match. Legacy patterns default to no category, so
+dropping the Claude ad here left only the pattern's uncategorized copy,
+losing a keep-resolving 'intro'/'outro' detection even when the
+window-boundary dedup left it intact.
 """
 import os
 import sys
@@ -105,7 +102,7 @@ def test_intro_fully_covered_by_legacy_pattern_still_survives_as_keep():
     assert by_cat['intro']['end'] == 166.6
 
     # The legacy pattern's own remove-resolving span still covers the
-    # pre-roll audio ahead of the intro -- nothing is left uncut.
+    # pre-roll audio ahead of the intro, so nothing is left uncut.
     assert 'sponsor' in by_cat
     assert by_cat['sponsor']['start'] == 0.0
     assert by_cat['sponsor']['end'] == 158.0
@@ -114,7 +111,7 @@ def test_intro_fully_covered_by_legacy_pattern_still_survives_as_keep():
 def test_default_action_map_still_drops_fully_covered_claude_ad():
     """Regression: a plain sponsor-categorized (or uncategorized) Claude ad
     that is fully covered by a pattern match is still dropped in favor of
-    the pattern's own marker -- the fix only protects a non-default
+    the pattern's own marker: the fix only protects a non-default
     (keep-resolving) category."""
     detector = AdDetector(api_key='test-key')
     sponsor_ad = {'start': 10.0, 'end': 150.0, 'confidence': 0.9,
@@ -155,6 +152,6 @@ def test_no_action_map_preserves_pre_fix_drop_behavior():
     assert len(ads) == 1
     assert ads[0]['detection_stage'] == 'text_pattern'
     # normalize_segment_category at the merge seam still stamps the
-    # default 'sponsor' regardless of action_map -- only the Claude ad's
+    # default 'sponsor' regardless of action_map: only the Claude ad's
     # own (now-lost) 'intro' category is gone.
     assert ads[0]['category'] == 'sponsor'

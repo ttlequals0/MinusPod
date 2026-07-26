@@ -1002,58 +1002,37 @@ def _content_duration_in_range(segments: List[Dict], range_start: float, range_e
 def resolve_category_action(category, action_map: Dict[str, str]) -> str:
     """Resolve a marker's category to its feed-configured action.
 
-    Caller must only invoke this with a non-None action_map -- callers that
-    have no map treat every category as the same action (today's behavior)
-    and never call this.
+    Only call with a non-None action_map; callers with no map treat every
+    category as the same action and never call this.
     """
     return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
 
 def split_conflicting_action_span(last: Dict, current: Dict) -> tuple:
-    """Resolve two adjacent-or-overlapping ads whose resolved segment
-    actions differ: never merge a keep-resolving detection into a
-    remove-resolving one (or vice versa), and never let a shorter span
-    fully inside the other collapse to nothing.
+    """Resolve two adjacent-or-overlapping ads whose resolved actions differ:
+    never merge a keep-resolving detection into a remove-resolving one, and
+    never let a span fully nested inside the other collapse to nothing.
 
-    Shared by ``deduplicate_window_ads`` and ``_merge_detection_results``
-    (#565 follow-up, DTNS 5317): both run an adjacency-window merge over raw
-    detections and both need the identical containment-safe split so a
-    categorized LLM span (e.g. an intro/outro resolved to 'keep') survives
-    intact whether it happens to collide with a same-window neighbour or an
-    unrelated pattern-matched region downstream.
+    Returns ``(updated_last_or_None, new_entries)``: ``new_entries`` replaces
+    ``current`` in the merged list; ``updated_last`` (None when fully
+    consumed) replaces ``last``.
 
-    Returns ``(updated_last_or_None, new_entries)``: ``new_entries``
-    replaces ``current`` at this position in the merged list;
-    ``updated_last`` (None when fully consumed) replaces ``last`` in place.
-
-    Three shapes:
-    - No true overlap (current starts at/after last ends): both survive
-      untouched.
-    - True overlap, current is fully nested inside last (or exactly
-      tail-aligned): split last around current so both the remove-resolving
-      remainder(s) and the nested keep-resolving span survive.
-    - True overlap, current extends past last's end: current's start is
-      clamped forward past last's end so the two spans never double-cut the
-      same audio. (Clamping can never collapse current to nothing here --
-      that only happens when current does not extend past last, i.e. the
-      nested case above, which is handled by splitting instead of
-      dropping.)
+    - No true overlap: both survive untouched.
+    - ``current`` fully nested in ``last``: split ``last`` around it so both
+      pieces and the nested span survive.
+    - ``current`` extends past ``last``'s end: clamp its start forward past
+      ``last``'s end so the two spans never double-cut the same audio.
     """
     if current['start'] >= last['end']:
         return last, [current.copy()]
 
     if current['end'] <= last['end']:
         # Splitting last invalidates any merged_distinct_ads/
-        # merged_protected_start/end bookkeeping it already carried (from an
-        # earlier same-action fold): those bounds describe member spans
-        # across last's ORIGINAL [start, end], which may now fall outside
-        # one of the two narrower pieces. The ad_reviewer's expand-only
-        # protection (ad_reviewer.py's merged_distinct_ads branch) would
-        # otherwise floor a piece's boundary back out to a stale bound and
-        # silently re-absorb audio this split just carved away. Each piece
-        # reverts to an ordinary single-origin marker; the reviewer's
-        # legacy (non-tracked) merged-ad handling is a safe fallback if
-        # either piece is independently re-merged later.
+        # merged_protected_start/end bookkeeping from an earlier fold: those
+        # bounds describe last's original range and may not fit either
+        # narrower piece. Strip them so ad_reviewer's expand-only protection
+        # can't float a boundary back out to a stale bound and re-absorb
+        # audio this split just carved away.
         before = {k: v for k, v in last.items()
                   if k not in ('merged_distinct_ads', 'merged_protected_start',
                                'merged_protected_end')}
@@ -1086,13 +1065,8 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0,
             ``AdDetector._resolve_segment_action_map``). When given, gates
             the merge so two raw window detections whose categories resolve
             to different actions are never fused into one marker before
-            categories are even normalized -- the earliest point a keep-
-            resolving LLM detection (e.g. an 'intro'/'outro') could
-            otherwise be silently absorbed into an adjacent sponsor read
-            and lose its category (#565 follow-up, DTNS 5317). None
-            (module-level callers, tests without a db) treats every
-            category as the same action -- today's merge-everything-within-
-            threshold behavior, unchanged.
+            categories are normalized. None treats every category as the
+            same action, unchanged.
 
     Returns:
         Deduplicated list with overlapping ads merged

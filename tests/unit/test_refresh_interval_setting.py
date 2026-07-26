@@ -1,5 +1,5 @@
-"""Tests for rss_refresh_interval_minutes (Task 2): registry default, PUT
-validation, and the background refresh loop honoring the configured interval."""
+"""Tests for rss_refresh_interval_minutes: registry default, PUT validation,
+and the background refresh loop honoring the configured interval."""
 import json
 from unittest.mock import MagicMock
 

@@ -287,14 +287,10 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('two rapid sequential edits compose into the second PATCH payload', async () => {
-    // Regression test: building each payload from the `feed` prop (instead
-    // of a synchronous local source of truth) meant a second edit made
-    // before the first PATCH's invalidated feed query refetched would read
-    // the still-stale prop and silently drop the first edit, because the
-    // backend replaces the stored override map outright rather than
-    // merging. The `feed` prop here never changes across the two clicks
-    // (this test never re-renders with new props), which reproduces
-    // exactly that stale-read window deterministically.
+    // Building the payload from the `feed` prop instead of a synchronous
+    // local source of truth would let a second edit read a stale prop and
+    // drop the first edit (the backend replaces the override map outright,
+    // it doesn't merge). The prop never changes across these two clicks.
     renderPanel(makeFeed());
 
     const sponsorGroup = await screen.findByRole('radiogroup', { name: 'Sponsor action' });
@@ -311,14 +307,10 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a failed edit does not leak into the next edit\'s PATCH payload', async () => {
-    // Regression test: updateMutation had no onError, so a rejected PATCH
-    // left the optimistic segmentOverrides state holding the failed edit.
-    // A second edit fired before the onSettled invalidation's refetch
-    // landed would build its payload on top of that stale state and resend
-    // the failed edit alongside the new one. The `feed` prop here never
-    // changes across the two clicks (this test never re-renders with new
-    // props, and no ['feed', slug] query observer exists to refetch it), so
-    // only the onError handler's immediate reseed can be what fixes this.
+    // Without onError, a rejected PATCH would leave segmentOverrides holding
+    // the failed edit; a second edit before the refetch lands would resend
+    // it alongside the new one. Only the onError handler's immediate reseed
+    // fixes this, since the `feed` prop never changes here to refetch it.
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     renderPanel(makeFeed());
@@ -329,8 +321,7 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
       segmentCategoryActions: { sponsor: 'keep' },
     });
 
-    // Wait for the rejection to be processed (the inline error appears)
-    // before firing the second edit.
+    // Wait for the rejection to surface before firing the second edit.
     await screen.findByText('Network error');
 
     const crossPromoGroup = screen.getByRole('radiogroup', { name: 'Cross-promo action' });
@@ -346,17 +337,10 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 
   it('a later failed edit does not erase an earlier successful edit (Lens B)', async () => {
-    // Regression test: reseeding segmentOverrides from the `feed` PROP on
-    // error is itself buggy, because the prop lags behind a just-succeeded
-    // edit until its invalidated ['feed', slug] query refetches. Sequence:
-    // edit A (sponsor -> keep) succeeds, edit B (cross_promo -> beep)
-    // fails. A prop-based rollback would restore the PRE-A prop value,
-    // silently erasing A from the display AND from a third edit's PATCH
-    // payload. The correct rollback restores the per-edit snapshot taken
-    // immediately before B's own optimistic update, which still carries A.
-    // The `feed` prop here never changes across the three clicks (no
-    // ['feed', slug] query observer exists to refetch it), so nothing but
-    // that snapshot-based rollback can be what preserves A.
+    // Reseeding segmentOverrides from the `feed` prop on error is buggy: the
+    // prop lags a just-succeeded edit until its query refetches. Restoring
+    // that stale prop after B fails would erase A; the fix is rolling back
+    // to the per-edit snapshot taken before B's own optimistic update.
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
     mockUpdateFeed.mockRejectedValueOnce(new Error('Network error'));
     mockUpdateFeed.mockResolvedValueOnce(makeFeed());
@@ -415,7 +399,7 @@ describe('FeedSettingsPanel show-segments toggle (#565)', () => {
   });
 });
 
-describe('FeedSettingsPanel re-render segments (#565 Task 8)', () => {
+describe('FeedSettingsPanel re-render segments (#565)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSettings.mockResolvedValue({});

@@ -1,25 +1,20 @@
 """Tests for recut re-resolution against current segment-category action
-maps, and the feed-wide re-render endpoint (issue #565 Task 8).
+maps, and the feed-wide re-render endpoint (issue #565).
 
-Part A drives _recut_episode directly (audio processor mocked out, no
-ffmpeg) to assert marker-level cut/keep outcomes when the segment-category
-action map has changed since the marker was last processed:
-- a previously-cut marker whose category now resolves 'keep' must not cut,
-  even when the validator force-accepted it for a user approval (there is
-  no timestamp to tell a fresh approval from a stale one, so 'keep' wins
-  unconditionally -- documented in _recut_episode and task-8-report.md)
-- a previously-kept marker whose category now resolves 'remove'/'beep' can
-  cut (simulated here the same way _build_recut_ad_list would produce it:
-  the validator judged the marker ACCEPT on its own merits)
-- action_applied is restamped from the CURRENT map, not the stale stored
-  value
-- an all-remove map recuts exactly as before Task 8 (regression)
+Part A drives _recut_episode directly (audio processor mocked, no ffmpeg)
+to assert marker-level cut/keep outcomes when the action map has changed
+since the marker was last processed: a previously-cut marker whose category
+now resolves 'keep' must not cut even after a force-accepted user approval
+(no timestamp to compare, so keep wins unconditionally); a previously-kept
+marker can now cut if its category resolves 'remove'/'beep'; action_applied
+is restamped from the current map, not the stale stored value; an
+all-remove map recuts unchanged.
 
 Part B drives POST /feeds/<slug>/rerender-segments through the real Flask
-app (main_app.processing.start_background_processing mocked so no real
-processing thread starts): only processed episodes with a retained
-original, saved segments, and ad detections are queued; the response
-reports {queued, skipped}; CSRF is enforced like sibling POST endpoints.
+app (start_background_processing mocked, no real processing thread starts):
+only processed episodes with a retained original, saved segments, and ad
+detections are queued; the response reports {queued, skipped}; CSRF is
+enforced like sibling POST endpoints.
 """
 import time
 from contextlib import ExitStack
@@ -54,10 +49,10 @@ def _marker(start, end, category, action_applied, was_cut, **overrides):
 
 def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1):
     """Drive _recut_episode with _build_recut_ad_list mocked to return the
-    given (ads_to_remove, all_ads) -- i.e. what the validator/confidence
-    gate would have produced on THIS run, before any Task 8 re-resolution
-    -- and the audio processor mocked out (no ffmpeg). Returns the audio
-    segments actually cut and the markers persisted to storage.
+    given (ads_to_remove, all_ads), i.e. what the validator/confidence gate
+    would have produced on this run, before re-resolution against the
+    current action map. Audio processor is mocked out (no ffmpeg). Returns
+    the audio segments actually cut and the markers persisted to storage.
     """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
@@ -102,12 +97,8 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1):
 
 class TestRecutReResolvesAgainstCurrentMap:
     def test_flipped_map_keep_to_remove_cuts_previously_kept_marker(self):
-        # Stale stored action_applied='keep' from an earlier run where
-        # cross_promo resolved 'keep'; the validator judges it ACCEPT on
-        # this run too (real detection evidence -- confidence,
-        # corroboration -- unaffected by the old keep stamp), so
-        # _build_recut_ad_list hands it back in ads_to_remove. The current
-        # map has since flipped cross_promo back to the default 'remove'.
+        # Stale stored action_applied='keep' from a run where cross_promo
+        # resolved 'keep'; the map has since flipped it back to 'remove'.
         marker = _marker(30.0, 40.0, 'cross_promo', 'keep', True)
         actions = ALL_REMOVE
 
@@ -118,10 +109,8 @@ class TestRecutReResolvesAgainstCurrentMap:
         assert saved_marker['action_applied'] == 'remove'
 
     def test_flipped_map_remove_to_keep_uncuts_previously_cut_marker(self):
-        # Previously cut (was_cut=True, action_applied='remove'); the
-        # validator re-accepts it this run too. The current map has
-        # flipped sponsor -> 'keep', so it must not cut even though it is
-        # sitting in ads_to_remove.
+        # Previously cut; the map has since flipped sponsor -> 'keep', so
+        # it must not cut even though it's sitting in ads_to_remove.
         marker = _marker(10.0, 20.0, 'sponsor', 'remove', True)
         actions = dict(ALL_REMOVE, sponsor='keep')
 
@@ -133,11 +122,9 @@ class TestRecutReResolvesAgainstCurrentMap:
         assert saved_marker['was_cut'] is False
 
     def test_keep_wins_over_a_stale_user_approval(self):
-        # Simulates what _build_recut_ad_list produces for a marker the
-        # validator force-accepted via a confirmed correction (user
-        # approval): was_cut=True, in ads_to_remove, no distinguishing
-        # timestamp on the approval. The category now resolves 'keep' --
-        # per the documented Task 8 rule, keep wins unconditionally.
+        # Simulates a marker force-accepted via a confirmed user approval:
+        # was_cut=True, in ads_to_remove, no timestamp to distinguish a
+        # fresh approval from a stale one. Keep wins unconditionally.
         marker = _marker(50.0, 60.0, 'sponsor', 'remove', True,
                          validation={'decision': 'ACCEPT',
                                     'flags': ['INFO: User confirmed as ad']})
@@ -164,9 +151,8 @@ class TestRecutReResolvesAgainstCurrentMap:
         assert saved_marker['action_applied'] == 'beep'
 
     def test_all_remove_map_regresses_exactly_as_before(self):
-        # No 'keep' anywhere in the map: _partition_keep_ads is a documented
-        # no-op (same objects, same order), so this is the byte-identical
-        # pre-Task-8 recut path.
+        # No 'keep' anywhere in the map: _partition_keep_ads is a no-op
+        # (same objects, same order), so the recut path is byte-identical.
         sponsor = _marker(10.0, 20.0, 'sponsor', 'remove', True)
         promo = _marker(30.0, 40.0, 'cross_promo', 'remove', True)
 

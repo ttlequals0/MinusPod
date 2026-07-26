@@ -169,12 +169,9 @@ class WindowResult(NamedTuple):
     raw_response: Optional[str]
     failed: bool
     last_error: Optional[Exception]
-    # Joined transcript_lines for this window, used only by the category
-    # repair pass (#565 follow-up) so it can send context without
-    # rebuilding it. Left at the default '' by failed windows and by
-    # callers that don't populate it (keep-content windows, direct
-    # WindowResult construction in tests); those never reach the repair
-    # pass since it is only wired up for the main detection pass.
+    # Joined transcript_lines for this window, used by the category repair
+    # pass to send context without rebuilding it. Left at the default ''
+    # by failed windows and callers that don't populate it.
     transcript_excerpt: str = ''
 
 
@@ -276,10 +273,9 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
 # while a transcribed ad read covers far more of its span.
 DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 
-# Duplicate-marker overlap merge (task 8): two ACCEPTED markers describing
-# the same ad read (e.g. one Claude response emitting both 'Xbox segment'
-# and 'CiraSync' for a single Windows Weekly ad) fold into one when their
-# overlap covers this much of the SHORTER span.
+# Two accepted markers describing the same ad read (one Claude response
+# emitting both 'Xbox segment' and 'CiraSync' for a single ad) fold into one
+# when their overlap covers this much of the shorter span.
 DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
 
 
@@ -670,9 +666,8 @@ class AdDetector:
     def _podcast_wants_show_segments(self, slug: str) -> bool:
         """Return whether this podcast opted into intro/outro/recap detection.
 
-        Reads the podcasts.detect_show_segments column, same DB-per-call
-        pattern as _get_podcast_sponsor_history: one lookup for the whole
-        detect_ads() call, not per window.
+        One DB lookup per detect_ads() call, not per window (same pattern
+        as _get_podcast_sponsor_history).
         """
         if not slug or not self.db:
             return False
@@ -685,13 +680,11 @@ class AdDetector:
 
     def _resolve_segment_action_map(self, slug: str) -> Optional[Dict[str, str]]:
         """Resolve the feed's category->action map once per detection run,
-        for the merge seam (_merge_detection_results) to gate on.
+        for the merge seam to gate on.
 
-        Same DB-per-call pattern as _podcast_wants_show_segments. Returns
-        None when slug or db is unavailable (module-level utility calls,
-        tests constructing AdDetector without a db) so the merge seam falls
-        back to treating every category as the same action -- today's
-        merge-everything-within-3s behavior.
+        Returns None when slug or db is unavailable, so callers fall back
+        to treating every category as the same action (today's
+        merge-everything-within-3s behavior).
         """
         if not slug or not self.db:
             return None
@@ -702,13 +695,11 @@ class AdDetector:
             return None
 
     def _build_detection_system_prompt(self, slug: str) -> str:
-        """Compose the system prompt used for detection window calls.
+        """Compose the system prompt for detection window calls.
 
-        Starts from get_system_prompt() (default or the operator's override,
-        with sponsors substituted), then appends SHOW_SEGMENTS_PROMPT_SECTION
-        when the podcast has opted in. The append happens AFTER override
-        resolution, so an opted-in feed gets the show-segments instructions
-        even when the operator has customized system_prompt.
+        Appends SHOW_SEGMENTS_PROMPT_SECTION to get_system_prompt() when the
+        podcast opted in, after override resolution, so a customized
+        system_prompt still gets the show-segments instructions.
         """
         prompt = self.get_system_prompt()
         if self._podcast_wants_show_segments(slug):
@@ -987,29 +978,23 @@ class AdDetector:
         ``pass_label`` is 'Detection' or 'Verification'; its lowercase form is
         used in the failure log and the all-windows-failed envelope.
 
-        ``action_map``, when given, gates the window-boundary dedup so it
-        never fuses two raw detections whose categories resolve to
-        different actions (see ``deduplicate_window_ads``). None (the
-        verification pass, or a caller with no resolved map) preserves the
-        merge-everything-within-threshold behavior unchanged.
+        ``action_map``, when given, gates window-boundary dedup so detections
+        whose categories resolve to different actions are never fused (see
+        ``deduplicate_window_ads``). None preserves the
+        merge-everything-within-threshold behavior.
 
-        ``category_repair_enabled`` (#565 follow-up, DTNS 5317): when True,
-        any successful window with one or more ads missing "category" gets
-        exactly one follow-up LLM call asking only for those categories
-        (see ``_repair_window_categories``). False (the default, and always
-        for the verification pass, which never asks the LLM for a category
-        at all) skips repair entirely -- zero extra calls, zero behavior
-        change for feeds that never opted into per-category actions.
+        ``category_repair_enabled``: when True, any window with an ad missing
+        "category" gets one follow-up LLM call for just those categories (see
+        ``_repair_window_categories``). False (default; always for
+        verification) skips repair, no extra calls.
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
         failure_response, category_missing, category_total,
         category_repaired)`` where ``failure_response`` is the
         all-windows-failed envelope the caller must return as-is, or None.
-        ``category_missing`` / ``category_total`` count, across all
-        non-failed windows before dedup, how many raw LLM markers still
-        have no "category" key -- AFTER repair, when repair ran, so the
-        caller's warning reflects the post-repair state.
-        ``category_repaired`` is how many the repair pass resolved.
+        ``category_missing``/``category_total`` count raw LLM markers still
+        missing "category" across non-failed windows before dedup, after
+        repair ran. ``category_repaired`` is how many repair resolved.
         """
         all_raw_responses = []
         all_window_ads = []
@@ -1061,10 +1046,9 @@ class AdDetector:
                 last_error = result.last_error
                 continue
             if category_repair_enabled:
-                # _repair_window_categories itself no-ops (no LLM call) when
-                # nothing in this window is missing a category -- checking
-                # here first would just scan `ads` a second time for the
-                # same answer.
+                # _repair_window_categories no-ops when nothing here is
+                # missing a category; checking first would just scan `ads`
+                # twice for the same answer.
                 window_label = f"{window_label_prefix} {result.window_idx + 1}"
                 category_repaired += self._repair_window_categories(
                     ads=result.ads,
@@ -1090,9 +1074,8 @@ class AdDetector:
                 pass_label.lower(), len(windows), last_error, model)
             return [], all_raw_responses, failed_windows, failure, 0, 0, 0
 
-        # Count raw LLM markers with no "category" key at all, before
-        # normalize_segment_category (applied later at the merge seam)
-        # papers over the gap by defaulting them to 'sponsor'.
+        # Count raw LLM markers missing "category" before normalize_segment_category
+        # (at the merge seam) papers over the gap with the 'sponsor' default.
         category_total = len(all_window_ads)
         category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
@@ -1105,18 +1088,13 @@ class AdDetector:
                                    llm_timeout, max_retries, slug, episode_id,
                                    window_label):
         """One follow-up LLM call asking only for categories on ``ads``
-        missing one (#565 follow-up, DTNS 5317: two rounds of prompt
-        strengthening still left most detections category-less on a real
-        episode; a contract only the model can choose to follow is not
-        reliable, so ask again narrowly instead of trusting the prompt).
+        missing one; prompt wording alone left most detections
+        category-less on real episodes, so ask again narrowly instead.
 
-        Mutates the ad dicts in ``ads`` in place -- sets 'category' on the
-        entries the response resolves -- and returns how many were
-        repaired. Never raises: a failed LLM call or a malformed/partial
-        response leaves the still-missing ads exactly as they came in, so
-        they fall through to the existing normalize_segment_category
-        default ('sponsor') at the merge seam, same as before this pass
-        existed.
+        Mutates ``ads`` in place, setting 'category' on entries the response
+        resolves, and returns how many were repaired. Never raises: a failed
+        or malformed response leaves the rest to fall through to the
+        normalize_segment_category default ('sponsor') at the merge seam.
         """
         missing = [(i, ad) for i, ad in enumerate(ads) if 'category' not in ad]
         if not missing:
@@ -1243,22 +1221,16 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
                             f"{positional_prior_hint.splitlines()[0]}")
 
-            # Resolved once per run (not per window), before the window
-            # pass so deduplicate_window_ads can gate its merge on it too
-            # (#565 follow-up, DTNS 5317): the window-boundary dedup is the
-            # earliest point a categorized LLM detection could be silently
-            # fused into an adjacent uncategorized one and lose its category
-            # before _merge_detection_results ever sees it as a candidate.
+            # Resolved once per run, before the window pass, so
+            # deduplicate_window_ads can gate on it too: window-boundary
+            # dedup is the earliest point a categorized detection could be
+            # silently fused into an uncategorized one and lose its category.
             action_map = self._resolve_segment_action_map(slug)
 
-            # Gates both the category repair pass below and the category-miss
-            # warning on whether per-category actions are actually configured
-            # for this feed -- an all-remove feed gets zero extra LLM calls
-            # and zero behavior change either way. Reads whether
-            # SHOW_SEGMENTS_PROMPT_SECTION made it into system_prompt above
-            # instead of a second _podcast_wants_show_segments DB call. That
-            # call already happened once inside _build_detection_system_prompt,
-            # and its outcome is right there in the string.
+            # Gates the category repair pass and the category-miss warning on
+            # whether per-category actions are configured for this feed.
+            # Checks system_prompt for SHOW_SEGMENTS_PROMPT_SECTION instead of
+            # a second DB call: _build_detection_system_prompt already made it.
             show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
             segment_categories_configured = show_segments_enabled or (
                 action_map is not None
@@ -1782,14 +1754,10 @@ class AdDetector:
             uncovered_portions = get_uncovered_portions(ad, pattern_matched_regions)
 
             if not uncovered_portions:
-                # A pattern match covering this exact span rarely carries a
-                # category (most patterns predate per-feed segment actions
-                # and default to 'sponsor'/remove). Dropping the Claude ad
-                # here would silently discard a keep-resolving category
-                # (e.g. 'intro'/'outro') and leave only the remove-resolving
-                # pattern's copy of this region to reach the merge seam --
-                # #565 follow-up, DTNS 5317. Keep the Claude ad intact
-                # instead so the action-gated merge below can see it.
+                # A covering pattern match rarely carries a category and
+                # defaults to sponsor/remove; dropping the Claude ad here
+                # would discard a keep-resolving category (e.g. intro/outro),
+                # so keep it intact for the merge below to see.
                 if (action_map is not None
                         and resolve_category_action(ad.get('category'), action_map)
                             != DEFAULT_SEGMENT_ACTION):
@@ -1889,11 +1857,9 @@ class AdDetector:
             'sponsor': match.sponsor,
             'detection_stage': detection_stage,
             'pattern_id': match.pattern_id,
-            # Segment category (#565 Task 7) inherited from the matched
-            # pattern; None when the pattern predates the category column or
-            # was never given one, in which case the merge seam below
-            # (_merge_detection_results) stamps 'sponsor' the same as it
-            # always has.
+            # Category inherited from the matched pattern; None (pattern
+            # predates the category column) falls through to the merge
+            # seam's 'sponsor' default.
             'category': match.category,
         })
         pattern_matched_regions.append({
@@ -1963,10 +1929,9 @@ class AdDetector:
         Filters: was_cut, detection_stage == 'claude', confidence floor,
         and stricter confidence for long (>90s) detections.
         """
-        # Learn from ads that were actually removed, or from a keep-action
-        # marker (#565 Task 7): a kept marker still names a real ad read the
-        # feed chose to leave in the audio, so it is worth learning even
-        # though was_cut is False for it.
+        # Learn from removed ads, or a keep-action marker: it still names a
+        # real ad read the feed chose to leave in, so it's worth learning
+        # even though was_cut is False for it.
         if not ad.get('was_cut', False) and ad.get('action_applied') != 'keep':
             logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
             return False
@@ -2248,18 +2213,12 @@ class AdDetector:
         (see the #541 block below). Without segments claude overlaps never
         upgrade, which fails safe to held.
 
-        action_map, when given, is the feed's resolved category->action map
-        (db.resolve_segment_actions). It gates the adjacency merge below: two
-        candidates whose categories resolve to different actions are never
-        folded into one marker, so a keep-resolving detection can never be
-        absorbed into a remove-resolving one and cut with no downstream net
-        able to see it (#565 follow-up). A true overlap where one span is
-        fully contained in the other is split around the contained span
-        (split_conflicting_action_span) rather than collapsing it to
-        nothing (DTNS 5317: an intro/outro nested inside a longer
-        pattern-matched remove span). None (module-level callers, tests
-        without a db) treats every category as the same action -- today's
-        merge-everything-within-3s behavior, unchanged.
+        action_map, when given, is the feed's resolved category->action map.
+        It gates the adjacency merge below: candidates whose categories
+        resolve to different actions are never folded together, and a
+        contained-span overlap is split (split_conflicting_action_span)
+        instead of collapsed. None treats every category as the same
+        action, unchanged.
         """
         if not ads:
             return []
@@ -2281,10 +2240,8 @@ class AdDetector:
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker
                     # into a remove-resolving one, and never let a shorter
-                    # span fully inside the other collapse to nothing (a
-                    # remove-resolving pattern match can fully contain a
-                    # shorter keep-resolving LLM span, e.g. an intro/outro
-                    # -- #565 follow-up, DTNS 5317).
+                    # span nested inside the other collapse to nothing (e.g.
+                    # an intro/outro inside a remove-resolving match).
                     new_last, new_entries = split_conflicting_action_span(last, current)
                     if new_last is None:
                         merged.pop()
@@ -2411,12 +2368,10 @@ class AdDetector:
 
         # Sanitize every surviving marker's sponsor: strips reasoning prose
         # and bare segment names the merge above didn't already clean up
-        # (e.g. a marker that never went through either merge pass). Every
-        # ad from every stage passes through here, so this is also the
-        # single point that stamps a validated segment category (#565):
-        # fingerprint/text_pattern re-matches carry their pattern's stored
-        # category (_add_pattern_match); a legacy/uncategorized pattern, or
-        # an unknown/invalid LLM value, falls through to the 'sponsor' default.
+        # (e.g. a marker that never went through either merge pass). Also the
+        # single point that stamps a validated segment category:
+        # fingerprint/text_pattern matches keep their pattern's stored
+        # category; anything unset or invalid falls through to 'sponsor'.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
             marker['category'] = normalize_segment_category(marker.get('category'))
@@ -2439,12 +2394,10 @@ class AdDetector:
         sponsor is the sanitized label of the higher-confidence contributor,
         falling back to the other's sanitized label, else None.
 
-        category (#565 follow-up): when action_map is given and the pair's
-        resolved actions differ, the combined marker takes the KEEP-resolving
-        side's category, so contested audio is never cut. Otherwise (same
-        resolved action, or no action_map) the combined marker takes the
-        higher-confidence contributor's category, consistent with the sponsor
-        selection above.
+        category: when action_map is given and the pair's resolved actions
+        differ, the combined marker takes the keep-resolving side's category
+        so contested audio is never cut. Otherwise it takes the
+        higher-confidence contributor's category, as with sponsor above.
 
         Held/pending markers are never touched here: a hold means a human
         still needs to see that exact span, and folding it into a cut marker
@@ -2566,12 +2519,9 @@ class AdDetector:
 
             # Verification stamps every surviving ad so the merge downstream
             # can distinguish first-pass from verification. The verification
-            # prompt does not ask for "category" at all, so the category-miss
-            # counts are not meaningful here and are discarded.
-            # category_repair_enabled is left at its False default: repair
-            # would be a no-op every call here (every ad is "missing" since
-            # the prompt never asks for one) and would burn a call per window
-            # for nothing.
+            # prompt never asks for "category", so category counts are
+            # discarded here, and category_repair_enabled stays False: repair
+            # would be a no-op on every ad and cost a call for nothing.
             (final_ads, all_raw_responses, _failed_windows, failure,
              _category_missing, _category_total,
              _category_repaired) = self._run_detection_pass(

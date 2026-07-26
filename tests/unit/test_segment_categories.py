@@ -1,4 +1,4 @@
-"""Tests for segment category constants and provenance (issue #565, Task 1).
+"""Tests for segment category constants and provenance (issue #565).
 
 Covers:
 - normalize_segment_category valid/invalid passthrough
@@ -9,7 +9,7 @@ Covers:
 - get_episode's marker-to-payload mapping exposes category/actionApplied
 - the merge seam gates on the feed's resolved segment action map, so a
   keep-resolving detection can never be merged into (and cut with) a
-  remove-resolving one (final-review fix wave, task 11 item 1)
+  remove-resolving one
 """
 import json
 import os
@@ -175,11 +175,10 @@ def _all_remove_map():
 
 
 class TestMergeGatedOnResolvedAction:
-    """Final-review fix wave (task 11 item 1): the detection-merge seam must
-    not fold a keep-resolving detection into a remove-resolving one within
-    the 3s adjacency window -- that discarded the keep side's category and
-    cut audio no downstream net could see as kept.
-    """
+    """The detection-merge seam must not fold a keep-resolving detection
+    into a remove-resolving one within the 3s adjacency window: that
+    discarded the keep side's category and cut audio no downstream check
+    could see as kept."""
 
     def _det(self):
         return AdDetector(api_key='test-key')
@@ -252,10 +251,9 @@ class TestMergeGatedOnResolvedAction:
 
 
 class TestMergeDuplicateOverlapPrefersKeepCategory:
-    """Final-review fix wave (task 11 item 1c): a >=80%-overlap duplicate
-    fold must take the KEEP-resolving side's category when the two sides'
-    resolved actions differ, so contested audio is never cut.
-    """
+    """A >=80%-overlap duplicate fold must take the keep-resolving side's
+    category when the two sides' resolved actions differ, so contested
+    audio is never cut."""
 
     def _det(self):
         return AdDetector(api_key='test-key')
@@ -340,10 +338,9 @@ def _dtns5317_raw_llm_detections():
 class TestDTNS5317IntroOutroSurviveFullPipeline:
     """End-to-end reproduction of DTNS 5317: the raw 9 LLM window
     detections, run through deduplicate_window_ads and
-    _merge_detection_results with the feed's real action map (issue #565
-    follow-up), must keep the intro and outro as distinct markers that
-    resolve to 'keep' -- and every other span still resolves to 'remove',
-    so no ad content is left uncut."""
+    _merge_detection_results with the feed's real action map, must keep
+    the intro and outro as distinct 'keep' markers while every other span
+    still resolves to 'remove', so no ad content is left uncut."""
 
     def test_intro_and_outro_survive_as_keep_markers(self):
         det = AdDetector(api_key='test-key')
@@ -365,9 +362,9 @@ class TestDTNS5317IntroOutroSurviveFullPipeline:
         assert keep_by_cat['outro']['action_applied'] == 'keep'
         assert keep_by_cat['outro']['was_cut'] is False
 
-        # Every remove-side marker still resolves to 'sponsor'/'remove' --
-        # the surrounding ad content is still cut, the fix only protects
-        # the categorized keep spans.
+        # Every remove-side marker still resolves to 'sponsor'/'remove':
+        # the surrounding ad content is still cut, only the categorized
+        # keep spans are protected.
         assert all(m['category'] == 'sponsor' for m in remove_ads)
         remove_by_start = {m['start']: m for m in remove_ads}
         assert remove_by_start[0.0]['end'] == 156.7
@@ -375,9 +372,9 @@ class TestDTNS5317IntroOutroSurviveFullPipeline:
 
     def test_all_remove_map_still_cuts_everything(self):
         """Regression: a default (all-remove) feed's identical raw
-        detections must still merge and cut exactly as before this fix --
-        the category-blind window fusion of intro/outro into their
-        neighbours is only a bug when it discards a keep resolution."""
+        detections must still merge and cut exactly as before: the
+        category-blind window fusion of intro/outro into their neighbours
+        is only a bug when it discards a keep resolution."""
         det = AdDetector(api_key='test-key')
         all_remove = {cat: 'remove' for cat in DTNS_ACTION_MAP}
 
@@ -391,7 +388,7 @@ class TestDTNS5317IntroOutroSurviveFullPipeline:
         # category label (an all-remove map cuts everything).
         assert all(all_remove[m['category']] == 'remove' for m in remove_ads)
         # Intro fused into the pre-roll block, outro fused into the
-        # trailing sponsor ad -- identical to today's pre-fix shape.
+        # trailing sponsor ad, matching the unfixed shape.
         by_start = {m['start']: m for m in remove_ads}
         assert by_start[0.0]['end'] == 166.6
         assert by_start[2324.5]['end'] == 2444.9

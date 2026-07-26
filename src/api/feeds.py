@@ -175,10 +175,10 @@ def _normalize_chapters_mode(value):
 def _normalize_segment_category_actions(value):
     """Validate a per-feed segmentCategoryActions override (issue #565).
 
-    None clears the override (stored NULL). A dict is validated key-by-key:
-    every key must be a known category and every value a known action. The
-    partial map is stored as-is -- unresolved keys fall through to the
-    global setting at resolve time (resolve_segment_actions).
+    None clears the override (stored NULL). Every key must be a known
+    category and every value a known action; the partial map is stored
+    as-is, unresolved keys fall through to the global setting at resolve
+    time.
     """
     if value is None:
         return None, None
@@ -1200,23 +1200,15 @@ def update_feed_tags(slug):
 @limiter.limit("5 per minute")
 @log_request
 def rerender_segments(slug):
-    """Re-cut every processed episode of a feed against the CURRENT
-    segment-category action maps (issue #565 Task 8).
+    """Re-cut every processed episode of a feed against the current
+    segment-category action maps (issue #565).
 
-    Reuses the existing per-episode recut path: each qualifying episode is
-    marked reprocess_mode='recut' and handed to the same
-    start_background_processing/auto-process-queue machinery the single-
-    episode POST /episodes/<id>/reprocess (mode=recut) endpoint uses, so
-    there is only one recut queue in the codebase. _recut_episode itself
-    re-resolves segment actions against the current maps, so this is the
-    bulk trigger for "the segment settings changed, apply them everywhere".
-
-    An episode not in 'processed' status is not a candidate at all (not
-    counted as queued or skipped). Among processed episodes, one that
-    fails the same preconditions the single-episode recut enforces (no
-    retained original, no saved transcript segments, no ad detections) is
-    counted as skipped, matching what a manual recut on that episode would
-    do.
+    Reuses the single-episode recut path (_recut_episode re-resolves
+    actions against the current maps), so there is only one recut queue
+    in the codebase. Episodes not in 'processed' status aren't candidates;
+    a processed episode failing the same preconditions as the
+    single-episode recut (no retained original, no saved transcript
+    segments, no ad detections) counts as skipped.
     """
     db = get_database()
 

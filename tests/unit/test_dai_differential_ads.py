@@ -118,7 +118,7 @@ def test_non_touching_qualifying_blocks_stay_separate():
 
 
 def test_cue_marks_outside_snap_window_leave_output_unchanged():
-    # Task 7 consumes cue_marks for corroboration (see test_cue_fusion.py);
+    # The stage consumes cue_marks for corroboration (see test_cue_fusion.py);
     # marks outside the snap window of both edges must not change anything.
     diff = _diff(_region(100.0, 130.0, 0.2))
     with_marks = dai_differential_ads(diff, [], cue_marks=[50.0, 300.0])

@@ -20,9 +20,8 @@ def _parse_bounds(raw: Optional[str]) -> Optional[Dict]:
 
 
 def _row_with_category(row: Dict) -> Dict:
-    """Single accessor every ad_patterns read routes through: default a
-    NULL/unrecognized `category` to 'sponsor', mirroring the marker-side
-    normalize_segment_category default so pre-migration and community-imported
+    """Default a NULL/unrecognized `category` to 'sponsor', mirroring
+    normalize_segment_category, so pre-migration and community-imported
     rows with no category behave identically to an explicit 'sponsor' one."""
     row['category'] = normalize_segment_category(row.get('category'))
     return row

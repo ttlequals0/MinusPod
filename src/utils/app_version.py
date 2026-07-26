@@ -1,15 +1,10 @@
 """Path-independent accessor for the running application version.
 
-``version.py`` lives at the project root, one level above ``src/``. That
-root is not guaranteed to be on ``sys.path`` at runtime: the container's
-gunicorn boot path (see ``gunicorn.conf.py``) only inserts ``/app/src``,
-so a bare ``from version import __version__`` used at module level in
-anything gunicorn imports at boot (e.g. via ``database`` -> ``database.stats``)
-raises ``ModuleNotFoundError`` and crash-loops every worker.
-
-This module resolves the version by an explicit filesystem path instead,
-so it works regardless of what's on ``sys.path``. Import ``APP_VERSION``
-(computed once at import time) or call ``get_app_version()``.
+``version.py`` lives at the project root, which isn't always on ``sys.path``
+(gunicorn's boot path only inserts ``/app/src``), so a bare
+``from version import __version__`` can crash-loop workers with
+``ModuleNotFoundError``. This module reads it by explicit file path instead.
+Import ``APP_VERSION`` or call ``get_app_version()``.
 """
 import importlib.util
 import logging

@@ -995,25 +995,14 @@ def _build_validator(episode_duration, segments, episode_description, *,
 def _partition_keep_ads(all_ads, actions_map):
     """Split first-pass markers by resolved segment-category action.
 
-    A marker whose category resolves to 'keep' bypasses the validator,
-    reviewer, and cut entirely: it is stamped was_cut=False and
-    action_applied='keep' here and pulled out of the list. 'remove'/'beep'
-    markers pass through unmodified -- no action_applied stamp; Task 5
-    stamps that at cut time.
+    A marker resolving to 'keep' bypasses the validator, reviewer, and cut:
+    stamped was_cut=False, action_applied='keep', and pulled out of the
+    list. It also overrides any existing hold, since a kept marker can
+    never be force-cut via a stale hold: held_for_review is cleared and the
+    original reason kept as hold_cleared_reason.
 
-    A keep resolution is a final decision, so it also overrides any hold:
-    when the caught marker carries held_for_review (reachable via the
-    second, later call over the full all_ads_with_validation list, after
-    the validator/reviewer have had a chance to hold it), held_for_review
-    and hold_reason are cleared -- the original reason is kept additively as
-    hold_cleared_reason for traceability -- so it never counts as pending
-    review, never surfaces in the approve/reject UI, and can never be
-    force-cut via a stale hold on recut. Per spec: keep markers bypass hold
-    rules; there is nothing left to hold.
-
-    Returns (keep_ads, remove_ads). When no category resolves to 'keep',
-    remove_ads is all_ads unchanged (same objects, same order) and keep_ads
-    is empty, so the rest of the pipeline is untouched.
+    Returns (keep_ads, remove_ads); remove_ads is all_ads unchanged when no
+    category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
         return [], all_ads
@@ -1040,29 +1029,19 @@ def _partition_keep_ads(all_ads, actions_map):
 
 
 def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_map):
-    """Pure backstop, right before the pass-1 cut list is handed to the
-    audio processor: drops any marker whose resolved action is still 'keep'
-    at this point.
+    """Backstop right before the pass-1 cut list reaches the audio
+    processor: drops any marker whose resolved action is still 'keep'.
 
-    A marker synthesized inside _refine_and_validate (heuristic pre/post-roll,
-    VAD-gap ads) whose category resolves to 'keep' is now normally caught
-    earlier, immediately after _refine_and_validate returns and before the
-    reviewer/terminal-snap/tail-completion sweeps ever see it (same
-    resurrection-safety reasoning as _partition_keep_ads' early call) -- see
-    the re-partition call in process_episode. This function should therefore
-    find nothing in the ordinary case; it stays as a defensive last resort
-    for any marker source that manages to add a keep-resolving, still-cut
-    marker after that point, since letting one silently reach
-    _partition_cut_actions would fall back to DEFAULT_SEGMENT_ACTION and
-    still cut it.
+    A keep-resolving marker synthesized inside _refine_and_validate is
+    normally already caught by process_episode's late partition call before
+    this runs, so this should find nothing in the ordinary case; it stays
+    as a last resort for any marker source that adds one afterward, since
+    letting it reach _partition_cut_actions would fall back to
+    DEFAULT_SEGMENT_ACTION and still cut it.
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
-    all_ads_with_validation master, if a different object) and removes it
-    from the returned cut list. Logs at debug when this fires (an actual hit
-    here past the earlier catch is unexpected, not routine).
-
-    Returns ads_to_remove unchanged (same list/objects) when no category
-    resolves to 'keep' -- the default all-remove map never triggers this.
+    all_ads_with_validation master) and removes it from the returned cut
+    list. Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
         return ads_to_remove
@@ -1091,23 +1070,14 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
 def _partition_cut_actions(ads_to_remove, actions_map):
     """Stamp each cut-list marker with its resolved remove/beep action.
 
-    'keep' is owned end-to-end by _partition_keep_ads (called before the
-    validator/reviewer on pass-1 markers) and, for markers synthesized
-    afterward, by _apply_late_keep_safety_net (called just before this
-    function on the final cut list). This function runs after both and only
-    distinguishes remove from beep. A marker with no category key (pass-2
-    verification ads, which never route through the category-stamping merge
-    seam) normalizes to 'sponsor' here, same as everywhere else category is
-    read. If that resolves to 'keep' -- unreachable for a pass-1 marker now
-    that the safety net above has already run, kept here only as a defensive
-    fallback -- it falls back to DEFAULT_SEGMENT_ACTION rather than being
-    pulled out of the list this late; the segment still cuts.
+    'keep' is already handled by _partition_keep_ads and
+    _apply_late_keep_safety_net; this only distinguishes remove from beep.
+    A marker with no category key (pass-2 verification ads) normalizes to
+    'sponsor'. A 'keep' resolution reaching here (unreachable for a pass-1
+    marker) falls back to DEFAULT_SEGMENT_ACTION rather than being pulled
+    from the list this late, so the segment still cuts.
 
-    Sets ad['action_applied'] on every marker in place. Returns
-    ads_to_remove unchanged (same list/objects) for chaining. The
-    audio-processor-facing 'beep' bool is derived from action_applied at
-    the call site, not stored here, so persisted marker dicts never carry
-    that transient flag.
+    Mutates ad['action_applied'] in place; returns ads_to_remove for chaining.
     """
     for ad in ads_to_remove:
         category = normalize_segment_category(ad.get('category'))
@@ -1119,21 +1089,12 @@ def _partition_cut_actions(ads_to_remove, actions_map):
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
-    """Feed keep-action markers into pattern learning (#565 Task 7).
+    """Feed keep-action markers into pattern learning (issue #565).
 
-    A kept marker still names a real ad read; the feed's segment-category
-    settings just chose to leave it in the audio, not that it isn't a
-    sponsor read worth learning from. keep_ads bypasses validation entirely
-    (_partition_keep_ads), so unlike cut ads it never reaches the
-    ad_detector.learn_from_detections call inside _refine_and_validate --
-    this is that same call, applied separately to the withheld markers.
-    ad_detector.learn_from_detections' own filters (Claude-only, confidence
-    floor, sponsor gates) still apply unchanged; only the was_cut
-    requirement is relaxed for a keep-resolved marker, in
-    _ad_passes_learning_filters.
-
-    No-op (returns 0) when there is nothing to learn from or no podcast
-    slug to scope the pattern to.
+    keep_ads bypasses validation entirely (_partition_keep_ads), so it never
+    reaches the learn_from_detections call inside _refine_and_validate; this
+    applies that same call separately to the withheld markers. No-op when
+    there is nothing to learn from or no slug.
     """
     if not keep_ads or not slug:
         return 0
@@ -1149,15 +1110,12 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
 
 
 def _stamp_pass2_marker_categories(markers):
-    """Stamp category via normalize_segment_category on pass-2-created
-    markers, at save time.
+    """Stamp category via normalize_segment_category on pass-2 markers, at save time.
 
-    Task 1's category stamping only covers the pass-1 detector merge seam
-    (_merge_detection_results); pass-2 verification markers never route
-    through it, so without this they would reach the persisted marker list
-    with no category key at all, relying on the API's read-time
-    marker.get('category', 'sponsor') default instead. Mutates in place;
-    returns markers for chaining.
+    Pass-2 verification markers never route through the pass-1 detector
+    merge seam that normally stamps category, so without this they would
+    persist with no category key. Mutates in place; returns markers for
+    chaining.
     """
     for m in markers:
         m['category'] = normalize_segment_category(m.get('category'))
@@ -1624,10 +1582,8 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
         return ads_to_remove
     window_s = db.get_setting_float('terminal_snap_window_seconds',
                                     TERMINAL_SNAP_WINDOW_SECONDS)
-    # Coverage tells the sweep "this span is already explained, safe to cross".
-    # A kept marker is the opposite of that: it is content the pipeline has
-    # promised to leave alone, so it must read as blocking, not as coverage,
-    # or the sweep can pull a terminal cut's start back into kept audio.
+    # A kept marker must read as blocking, not as coverage, or the sweep
+    # could pull a terminal cut's start back into kept audio.
     coverage_ads = [m for m in all_ads_with_validation
                     if m.get('action_applied') != 'keep']
     snapped = snap_terminal_ad_to_splice(
@@ -1909,20 +1865,13 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     """Drop pass-2 findings that overlap a kept pass-1 span, before anything
     routes them to a cut, a hold, or a dropped-miss log line.
 
-    A category resolved to 'keep' means the span must never be re-cut, held,
-    or logged as a miss -- this runs before _gate_verification_ads_by_confidence
-    so none of its autocut/hold/log branches, including the confirmed-cut
-    path, ever see a finding inside a kept span.
+    Runs before _gate_verification_ads_by_confidence so none of its
+    autocut/hold/log branches ever see a finding inside a kept span.
+    pass1_kept_markers (original coordinates) are mapped onto the processed
+    timeline via adjust_timestamp with pass1_cuts, matching the coordinate
+    space of verification_ads_processed.
 
-    pass1_kept_markers are pass-1 marker dicts (original coordinates,
-    action_applied == 'keep'). Each span is mapped onto the processed
-    timeline with Task 5b's adjust_timestamp (using the pass-1 applied
-    cuts, pass1_cuts) so the overlap check runs in the same coordinate space
-    as verification_ads_processed, the list pass-2 actually acts on.
-
-    Returns (verification_ads_processed, verification_ads_original) unchanged
-    (same lists/objects) when there are no kept markers -- the default
-    all-remove map never populates pass1_kept_markers.
+    Returns the inputs unchanged when there are no kept markers.
     """
     if not pass1_kept_markers:
         return verification_ads_processed, verification_ads_original
@@ -2217,9 +2166,7 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     """
     # 'beep' is derived from action_applied, same as the pass-1 call site,
     # so a marker stamped beep in an earlier pass renders as beep here too
-    # instead of silently falling back to a full remove. Pass-2 markers
-    # carry no action_applied today (Task 1), so this is currently a no-op
-    # here -- kept for call-site uniformity and to future-proof Task 6.
+    # instead of silently falling back to a full remove.
     audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
                       for ad in v_ads_to_cut]
     recut_result = local_audio_processor.process_episode(processed_path, audio_segments)
@@ -2297,10 +2244,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     stamps the marker dict pass2_corroborated in place for post-completion
     auto-approval.
 
-    ``pass1_kept_markers`` are pass-1 markers with action_applied == 'keep'
-    (original coordinates); a verification finding overlapping one, mapped
-    onto the processed timeline, is dropped before it can be cut, held, or
-    logged as a miss (see _exclude_kept_spans_from_verification).
+    ``pass1_kept_markers`` are pass-1 markers with action_applied == 'keep';
+    a verification finding overlapping one is dropped before it can be cut,
+    held, or logged as a miss (see _exclude_kept_spans_from_verification).
 
     ``skip_detection`` (#538) reports the pass as cleanly done with nothing
     found; pass 2 is a second LLM scan, so skipping pass 1 alone would still
@@ -2641,20 +2587,13 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     unset, that fetch is skipped and an embedded-chapter shortfall falls
     straight through to generation, same as before this source existed.
 
-    run_stats, when given, is the caller's per-run processing_stats dict
-    (process_episode's run_stats, persisted into processing_stats_json).
-    When the generator's topic-detection or title-generation LLM calls fail
-    and it degrades to a fallback chapter set, chapters_degraded/
-    chapters_degraded_reason are recorded here so the degradation is visible
-    after the fact instead of looking like a normal short episode.
+    run_stats, when given, is the caller's run_stats dict; if chapter
+    generation degrades to a fallback set, chapters_degraded and
+    chapters_degraded_reason are recorded there.
 
-    markers, when given, is the full ad/segment marker list (start, end,
-    category, action_applied) used to build topic-boundary hints for the
-    generator's topic-detection prompt (see chapters_generator.
-    build_segment_hints). Only reaches the AI-generation branch below --
-    the preserved-publisher-chapters and upstream-JSON-chapters branches
-    never call the generator, so they are unaffected regardless of what is
-    passed here.
+    markers, when given, is the ad/segment marker list used to build
+    topic-boundary hints for the generator's prompt (see chapters_generator.
+    build_segment_hints). Only used by the AI-generation branch.
     """
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
@@ -3289,10 +3228,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     transcription, detection, LLM, or verification pass. Preconditions
     (retained original, saved segments, ad markers) are enforced by the API.
 
-    Segment-category actions are re-resolved against the CURRENT per-feed/
-    global maps before cutting (issue #565 Task 8): a marker's cut/keep
-    fate is not pinned to whatever the map said the last time this episode
-    was processed. See the re-partition block below for the exact rule."""
+    Segment-category actions are re-resolved against the current per-feed/
+    global maps before cutting (issue #565): a marker's cut/keep fate is
+    not pinned to whatever the map said the last time this episode was
+    processed. See the re-partition block below for the exact rule."""
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -3326,35 +3265,18 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             episode_description, min_cut_confidence,
             podcast_id=recut_podcast_id,
         )
-        # Re-resolve segment-category actions against the CURRENT maps
-        # (issue #565 Task 8): _build_recut_ad_list re-runs the validator/
-        # confidence gate but is itself action-unaware, so without this a
-        # marker's cut/keep fate would stay pinned to whatever the map said
-        # on its last processing run. A per-feed override or the global
-        # segment_category_actions setting can change between runs, so
-        # re-partition the freshly built list the same way pass 1 does:
-        # anything whose category now resolves 'keep' is pulled back out of
-        # ads_to_remove even though the validator just accepted it -- this
-        # is also where a stale user approval loses to a newer 'keep': the
-        # validator force-accepts confirmed corrections inside validate()
-        # with no timestamp to tell a fresh approval from a stale one, so
-        # 'keep' wins unconditionally (see task-8-report.md). A marker
-        # previously kept whose category now resolves 'remove'/'beep' is
-        # simply re-validated on its own merits like any other marker --
-        # kept markers retain their real detection evidence (confidence,
-        # corroboration), so validation judges them the same as a fresh ad
-        # and it can land in ads_to_remove without any extra force here.
+        # _build_recut_ad_list is action-unaware, so re-resolve against the
+        # current maps: a category that now resolves 'keep' comes back out
+        # of ads_to_remove, and 'keep' beats an older approval (no timestamp
+        # to compare). A previously kept marker whose category now resolves
+        # 'remove'/'beep' is simply re-validated on its own merits.
         segment_actions = db.resolve_segment_actions(slug)
         keep_ads, all_ads_with_validation = _partition_keep_ads(
             all_ads_with_validation, segment_actions)
         if keep_ads:
-            # Identity, not span, is the right match key here: recut mode
-            # never runs the reviewer/boundary sweeps that rebuild marker
-            # dicts, so every ads_to_remove entry IS (by object identity)
-            # its all_ads_with_validation counterpart. A span-based fallback
-            # would risk dropping a *different* marker that happens to share
-            # an identical (start, end) with a kept one, leaving its
-            # was_cut flag stale after being excluded from cutting.
+            # Match by identity, not span: recut mode never rebuilds marker
+            # dicts, so a span-based match could drop a different marker
+            # that happens to share coordinates with a kept one.
             keep_ids = {id(ad) for ad in keep_ads}
             ads_to_remove = [ad for ad in ads_to_remove if id(ad) not in keep_ids]
             all_ads_with_validation = list(all_ads_with_validation) + keep_ads
@@ -3372,11 +3294,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         _check_cancel(cancel_event, slug, episode_id)
 
         status_service.update_job_stage("recut:processing", 60)
-        # 'beep' is derived from action_applied, same as the pass-1 call
-        # site: a marker stamped beep in an earlier pass must still render
-        # as beep on recut (pattern approve/reject, pass-2 auto-approve,
-        # explicit recut mode), not silently fall back to a full remove
-        # while the saved marker keeps claiming beep.
+        # 'beep' is derived from action_applied so a marker stamped beep in
+        # an earlier pass still renders as beep on recut, not a full remove.
         audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
                           for ad in ads_to_remove]
         result = local_audio_processor.process_episode(work_path, audio_segments)
@@ -3812,13 +3731,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 all_ads = first_pass_ads.copy()
 
-                # Keep-action bypass: resolve the per-feed segment-category
-                # action map once and pull 'keep' markers out before the
-                # validator/reviewer ever see them. They are stamped
-                # was_cut=False/action_applied='keep' now and merged back into
-                # the saved marker list after the reviewer runs below, so the
-                # resurrection pool (which iterates all_ads_with_validation)
-                # never gets a chance to resurrect one.
+                # Keep-action bypass: pull 'keep' markers out before the
+                # validator/reviewer see them, so the resurrection pool
+                # (which iterates all_ads_with_validation) never resurrects
+                # one. Merged back into the saved marker list below.
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
                 keep_ads, all_ads = _partition_keep_ads(all_ads, segment_actions)
 
@@ -3836,17 +3752,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     audio_analysis=_val_audio_analysis,
                 )
 
-                # Late keep partition (reviewer High follow-up): heuristic
-                # pre/post-roll and VAD-gap markers are synthesized inside
-                # _refine_and_validate itself (_apply_heuristic_rolls), after
-                # the early partition above already ran, so a marker whose
-                # category resolves to 'keep' can still be sitting in
-                # all_ads_with_validation here, unstamped. Re-running the
-                # same partition now -- before the reviewer's resurrection
-                # pool and the terminal-snap/tail-completion sweeps ever see
-                # it, for the exact resurrection-safety reason the early
-                # call above exists -- catches it. Its catch joins keep_ads
-                # so the single fold-back save below covers both together.
+                # Late keep partition: _refine_and_validate's heuristic
+                # pre/post-roll and VAD-gap markers are synthesized after the
+                # early partition above ran, so a keep-resolving one can
+                # still be sitting here unstamped. Catch it now, before the
+                # reviewer's resurrection pool and the terminal-snap/
+                # tail-completion sweeps see it, and join it to keep_ads.
                 late_keep_ads, all_ads_with_validation = _partition_keep_ads(
                     all_ads_with_validation, segment_actions)
                 if late_keep_ads:
@@ -3894,21 +3805,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation, segments
             )
 
-            # Pure backstop: the late keep partition above already catches a
-            # heuristic/VAD-gap marker whose category resolves to 'keep', so
-            # this should normally find nothing. Kept as the last point
-            # before the cut list reaches the audio processor in case some
-            # other marker source adds a keep-resolving cut after that point.
+            # Backstop: the late keep partition above should already have
+            # caught everything, so this normally finds nothing.
             ads_to_remove = _apply_late_keep_safety_net(
                 ads_to_remove, all_ads_with_validation, segment_actions)
 
-            # Cut partition (remove vs beep): resolved once above as
-            # segment_actions, reused here rather than re-querying the DB.
-            # Stamps ad['action_applied'] on every marker in the final cut
-            # list, then syncs it into the master list the same way the
-            # tail-completion sweep syncs start/end (reviewer/sweep
-            # adjustments rebuild dicts, so ads_to_remove entries are not
-            # always the same object as their master).
+            # Stamps action_applied on the final cut list, then syncs it
+            # into the master list since sweep adjustments rebuild dicts,
+            # so an ads_to_remove entry isn't always its master's object.
             ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
             for ad in ads_to_remove:
                 master = _find_master(all_ads_with_validation, ad)
@@ -3928,8 +3832,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # process_episode returns the cuts ffmpeg actually applied (merged,
             # <10s-filtered, end-trimmed); verification mapping and assets must
             # use that list, not the requested one. 'beep' is derived here,
-            # not stored on ads_to_remove/all_ads_with_validation, so the
-            # persisted marker dicts never carry the audio-processor-only flag.
+            # not stored, so persisted marker dicts never carry that flag.
             audio_segments = [dict(ad, beep=(ad['action_applied'] == 'beep'))
                               for ad in ads_to_remove]
             result = local_audio_processor.process_episode(audio_path, audio_segments)

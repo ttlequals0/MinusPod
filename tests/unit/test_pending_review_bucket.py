@@ -1,7 +1,7 @@
 """Tests for T5: held-for-review API bucket split and pending_review_count.
 
 Covers:
-- get_episode four-way marker split (held FIRST, then kept, then reject,
+- get_episode four-way marker split (held first, then kept, then reject,
   then accepted)
 - Regression: held marker must NOT appear in rejectedAdMarkers
 - Kept-action markers (action_applied='keep') land in keptMarkers, not

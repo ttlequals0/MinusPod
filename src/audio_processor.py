@@ -247,9 +247,8 @@ class AudioProcessor:
 
         sorted_segments = sorted(clamped, key=lambda x: x['start'])
 
-        # Merge segments with < 1 second gaps. Remove and beep spans never
-        # merge into each other -- they render differently below -- so the
-        # gap check also requires matching 'beep' status.
+        # Merge segments with < 1 second gaps. Remove and beep spans render
+        # differently below, so the gap check also requires matching 'beep' status.
         merged_ads = []
         current_segment = None
         for ad in sorted_segments:
@@ -309,14 +308,9 @@ class AudioProcessor:
                             f"{total_duration:.1f}s ({remaining:.1f}s would remain)")
                 ads[-1]['end'] = total_duration
 
-        # Stamp each applied span with the replacement length remove_ads will
-        # actually render it with: a 'remove' cut gets the fixed beep clip; a
-        # 'beep' cut is padded to its own length so it costs no timeline
-        # shift (unless the span is shorter than the clip itself, in which
-        # case the clip -- not the shorter span -- is what plays). Timeline
-        # mappers (utils.time.adjust_timestamp, embedded_chapters.
-        # remap_chapters, verification pass, recut chapter remap) read this
-        # per-span instead of assuming one constant for every cut.
+        # Stamp each ad with 'replacement_duration', the length remove_ads
+        # will render it with: 'remove' gets the fixed beep clip; 'beep' is
+        # padded to its own span length (or the clip's, if that's longer).
         beep_duration = self.get_beep_duration()
         for ad in ads:
             span_len = ad['end'] - ad['start']
@@ -380,14 +374,10 @@ class AudioProcessor:
             fade_in_duration = 0.8   # Content fade-in after beep (longer ease back)
             beep_fade_duration = 0.5  # Beep fades stay short
             beep_duration = self.get_beep_duration()
-            # Render model: a 'remove' cut is replaced by one fixed-length
-            # beep clip (today's behavior, byte-identical). A 'beep' cut is
-            # replaced by that same clip padded with silence to the span's
-            # own length, so its filler exactly backfills what was removed
-            # and total duration does not shrink for that span. Each ad's
-            # 'replacement_duration' (stamped by compute_applied_cuts above)
-            # is this filler length; the chapter remap and the post-render
-            # drift check share the same per-ad value.
+            # Render model: 'remove' gets the fixed-length beep clip; 'beep'
+            # gets that clip padded to the span's own length, so duration
+            # doesn't shrink there. 'replacement_duration' holds this filler
+            # length, shared by the chapter remap and drift check below.
             cut_total = sum(a['end'] - a['start'] for a in ads)
             expected_duration = total_duration - cut_total + sum(a['replacement_duration'] for a in ads)
 
@@ -429,11 +419,9 @@ class AudioProcessor:
                 beep_chain = (f"{beep_input}afade=t=in:d={beep_fade_duration},"
                              f"afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},"
                              f"volume=0.4")
-                # 'beep' action: pad the clip with silence to the ad's own
-                # duration (ad['replacement_duration'], the same value the
-                # drift check above uses) so the span's total length is
-                # unchanged (the fades above are reused exactly, unmodified).
-                # 'remove' keeps the fixed-length clip -- today's behavior.
+                # 'beep' pads the clip with silence to the ad's own duration
+                # (same value the drift check above uses) so the span's
+                # total length is unchanged. 'remove' keeps the fixed-length clip.
                 if ad.get('beep'):
                     filler = ad['replacement_duration']
                     if filler > beep_duration:
@@ -519,11 +507,10 @@ class AudioProcessor:
                 logger.error(f"FFMPEG failed: {stderr_text}")
                 return None
 
-            # Verify output. Each applied cut is REPLACED by its filler (each
-            # ad's 'replacement_duration'), so the exact expectation is
-            # input - cuts + sum(filler); drift beyond RENDER_DRIFT_WARN_SECONDS
-            # means the render diverged from marker arithmetic (spec 1.5
-            # overshoot forensics).
+            # Verify output: each applied cut is replaced by its filler
+            # ('replacement_duration'), so expected duration is input - cuts
+            # + sum(filler); drift beyond RENDER_DRIFT_WARN_SECONDS means the
+            # render diverged from marker arithmetic (spec 1.5 overshoot forensics).
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 removed_time = total_duration - new_duration

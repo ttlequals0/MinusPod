@@ -126,21 +126,17 @@ _ANTHROPIC_NO_SAMPLING_MODELS = (
     "claude-mythos-5",
 )
 
-# Per-process memo of models discovered at runtime to reject temperature, keyed
-# by lowercased model id. Self-heals model_omits_temperature() for a model not
-# (yet) added to _ANTHROPIC_NO_SAMPLING_MODELS above -- mirrors the
-# set_fallback/_fallback_state pattern, but keyed by model since the rejection
-# is a property of the model, not of a specific (episode_id, pass_name).
+# Per-process memo of models discovered at runtime to reject temperature
+# (keyed by lowercased model id); self-heals model_omits_temperature() for
+# models not yet in _ANTHROPIC_NO_SAMPLING_MODELS.
 _learned_no_temperature_models: set = set()
 _learned_no_temperature_lock = threading.Lock()
 
 
 def mark_model_omits_temperature(model: str) -> None:
-    """Remember, for the life of this process, that ``model`` rejects the
-    temperature parameter. Called after a provider 400 identifies the
-    rejection (see is_temperature_rejection_error); subsequent calls to
-    model_omits_temperature() for this model return True without needing a
-    _ANTHROPIC_NO_SAMPLING_MODELS entry or a restart."""
+    """Remember, for the life of this process, that ``model`` rejects
+    temperature (called after a 400; see is_temperature_rejection_error).
+    Later model_omits_temperature() calls return True for this model."""
     if not model:
         return
     with _learned_no_temperature_lock:
@@ -153,17 +149,10 @@ def model_omits_temperature(
 ) -> bool:
     """True when temperature must be omitted from the request for ``model``.
 
-    Resolution order (any one of the three is sufficient to omit):
-      1. operator_override -- the ``omit_temperature`` global setting. Forces
-         omission for EVERY model, regardless of the static list or the
-         learned memo below. This module is intentionally DB-free (see the
-         module docstring), so the caller resolves the setting and passes
-         the result in; do not add a DB read here.
-      2. _ANTHROPIC_NO_SAMPLING_MODELS -- static list of models known at
-         release time to reject temperature.
-      3. _learned_no_temperature_models -- per-process memo populated by
-         mark_model_omits_temperature() after a live 400 identifies the
-         rejection for a model not (yet) in the static list.
+    Checked in order, any one sufficient: operator_override (the
+    ``omit_temperature`` setting; resolved by the caller since this module
+    stays DB-free), the static _ANTHROPIC_NO_SAMPLING_MODELS list, then the
+    learned _learned_no_temperature_models memo.
     """
     if operator_override:
         return True
@@ -180,46 +169,30 @@ def model_omits_temperature(
                for token in _ANTHROPIC_NO_SAMPLING_MODELS)
 
 
-# Providers whose request/response contract this codebase has actually
-# implemented enforced structured output for (category repair pass, #565
-# follow-up, DTNS 5317): Anthropic's Messages API supports forcing a tool
-# call via tool_choice, which makes the model emit JSON matching the tool's
-# input_schema instead of prose -- AnthropicClient.messages_create
-# translates a response_format={"type": "json_schema", ...} request into a
-# forced tool call and reassembles the tool's `input` as the response
-# content. Every other provider stays unsupported until proven: this app's
-# "openai-compatible" and "ollama" providers front arbitrary endpoints (LM
-# Studio, vLLM, the Claude Code wrapper, real Ollama) that mostly do not
-# implement OpenAI's json_schema strict mode, and OpenRouter fans out to
-# hundreds of models with inconsistent support. Getting this wrong means a
-# 400 or a silently-ignored schema on a provider that doesn't actually
-# support it -- worse than the existing response_format=json_object /
-# prompt-injection fallback callers use instead. Extend this set only after
-# verifying a specific provider's contract, the same bar as
-# _ANTHROPIC_NO_SAMPLING_MODELS above.
+# Anthropic is the only provider with a proven, enforced structured-output
+# path (json_schema response_format forces a tool_choice call in
+# AnthropicClient.messages_create, guaranteeing schema-matching output).
+# Other providers front arbitrary/inconsistent backends lacking strict JSON
+# schema mode; extend this set only after verifying a provider's actual contract.
 _JSON_SCHEMA_SUPPORTED_PROVIDERS = frozenset({PROVIDER_ANTHROPIC})
 
 
 def supports_json_schema(provider: str) -> bool:
     """True when ``provider`` has a proven, enforced structured-output path.
 
-    Callers that can tolerate the existing response_format=json_object /
-    prompt-injection behavior should not gate on this -- it exists for call
-    sites that specifically need a guarantee the response matches a schema
-    (e.g. an enum field) and would rather fall back to json_object than
-    risk a false positive on an unverified provider.
+    Only gate on this when the call site needs a guarantee the response
+    matches a schema (e.g. an enum field) and would rather fall back to
+    json_object than risk a false positive on an unverified provider.
     """
     return (provider or '').lower() in _JSON_SCHEMA_SUPPORTED_PROVIDERS
 
 
 def is_temperature_rejection_error(error: Exception) -> bool:
     """True for a 400 whose body indicates the model rejects ``temperature``
-    outright (Anthropic's adaptive-thinking generation, e.g. the literal
-    "`temperature` is deprecated for this model" message). Distinct from
-    is_fallback_eligible_error: this identifies the specific
-    temperature-unsupported case so callers can retry with temperature
-    OMITTED instead of defaulted -- a defaulted retry 400s identically on
-    these models, since the rejected value was never the problem.
+    outright (Anthropic's adaptive-thinking generation). Distinct from
+    is_fallback_eligible_error: identifies this specific case so callers can
+    retry with temperature omitted rather than defaulted, since a defaulted
+    retry 400s identically here.
     """
     status = getattr(error, 'status_code', None)
     if status is None:

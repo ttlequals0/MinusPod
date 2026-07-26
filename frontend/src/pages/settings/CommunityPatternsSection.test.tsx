@@ -1,5 +1,5 @@
 /**
- * Component tests for CommunityPatternsSection.tsx (issue #565 follow-up).
+ * Component tests for CommunityPatternsSection.tsx (issue #565).
  *
  * Covers:
  *   - Renders the per-category breakdown counts from query data.

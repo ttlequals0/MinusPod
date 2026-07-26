@@ -2,14 +2,10 @@
 
 Covers the SETTINGS_REGISTRY / SettingSpec + PUT-phase pattern (mirroring
 segment_category_actions), including the top-level _sv entry in GET
-/settings (issue #565 follow-up: a prior release shipped a bug where a new
-key was only in the 'defaults' block), plus the dedicated
-/settings/community-sync GET/PUT surface the CommunityPatternsSection UI
-talks to.
-
-Each test patches api.settings.get_database to a fresh temp_db so tests are
-isolated from each other (the settings routes hit the same underlying
-setting key, so shared state would make tests order-dependent).
+/settings, plus the dedicated /settings/community-sync GET/PUT surface the
+CommunityPatternsSection UI talks to. Each test patches
+api.settings.get_database to a fresh temp_db to avoid order-dependence
+between tests sharing the same setting key.
 """
 import json
 from unittest.mock import patch

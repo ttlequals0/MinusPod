@@ -1021,11 +1021,11 @@ def _load_markers(db, slug, episode_id):
 
 def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
     """Find the persisted marker matching (start, end) within tolerance,
-    regardless of pending-review state (unlike _matches_held_marker, which
-    also requires is_pending_review). Used by the keep-marker correction
-    guard below: a keep-resolved marker is never pending review (Task 6
-    clears its hold), so a pending-review-scoped lookup would never see it.
-    Returns the marker dict, or None if no marker or no match.
+    regardless of pending-review state (unlike _matches_held_marker). A
+    keep-resolved marker clears its hold, so it's never pending review and
+    a pending-review-scoped lookup would miss it.
+
+    Returns the marker dict, or None if no match.
     """
     markers = _load_markers(db, slug, episode_id)
     if not markers:
@@ -1263,12 +1263,10 @@ def submit_correction(slug, episode_id):
     if original_start is None or original_end is None:
         return error_response('Missing original ad boundaries', 400)
 
-    # A keep-resolved marker (action_applied == 'keep') is a final per-feed
-    # decision to leave the segment in the audio; it is never pending review
-    # (Task 6 clears any hold when a marker resolves to keep), so this guard
-    # is defensive against a stale client payload rather than a normally
-    # reachable UI path. It must still never create a correction row or
-    # cross-episode false-positive text for that marker.
+    # A keep-resolved marker is a final per-feed decision to leave the
+    # segment in; it's never pending review, so this guard only catches a
+    # stale client payload. Must never create a correction row or
+    # cross-episode false-positive text for it.
     target_marker = _find_marker_by_bounds(db, slug, episode_id, original_start, original_end)
     if target_marker is not None and target_marker.get('action_applied') == 'keep':
         return error_response(

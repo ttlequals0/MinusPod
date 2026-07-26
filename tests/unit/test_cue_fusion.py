@@ -1,4 +1,4 @@
-"""Cue fusion into the differential stage (Task 7).
+"""Cue fusion into the differential stage.
 
 Three seams:
 1. dai_differential_ads consumes cue_marks: an uncorroborated merged

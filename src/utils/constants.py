@@ -960,12 +960,9 @@ Output: [{{"start": 512.0, "end": 531.0, "confidence": 0.9, "category": "cross_p
 Note: a different voice promoting a different show, inserted by the platform or network.
 Not a sponsor read, so "category" is "cross_promo", not "sponsor".{sponsor_database}"""
 
-# Opt-in addition to DEFAULT_SYSTEM_PROMPT (issue #565): appended when a
-# podcast has detect_show_segments enabled, so intro/outro/recap detection
-# stays off by default and only runs for feeds that asked for it. See
-# ad_detector.AdDetector for the append point: it runs after any operator
-# override of system_prompt, so an opted-in feed gets this section even when
-# system_prompt has been customized.
+# Opt-in addition to DEFAULT_SYSTEM_PROMPT (issue #565): appended only when
+# detect_show_segments is enabled. ad_detector.AdDetector appends it after
+# any operator override of system_prompt, so it applies even when customized.
 SHOW_SEGMENTS_PROMPT_SECTION = """SHOW SEGMENTS:
 This podcast has also asked for its show-structure segments to be identified. In addition to ads, look for these and return them in the same JSON array, each with its own category:
 - intro: the show's opening theme music and/or host introduction, before the actual episode content starts

@@ -1,6 +1,6 @@
 /**
  * Tests for the "Do not send temperature" operator override toggle in the
- * LLM Tunables section (task 25).
+ * LLM Tunables section.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';

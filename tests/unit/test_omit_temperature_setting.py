@@ -1,4 +1,4 @@
-"""Tests for the omit_temperature operator override (task 25).
+"""Tests for the omit_temperature operator override.
 
 Covers the SETTINGS_REGISTRY entry (registry default + PUT + GET round
 trip), and the resolution order in llm_capabilities.model_omits_temperature

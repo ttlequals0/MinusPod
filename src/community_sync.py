@@ -132,15 +132,10 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     Reconcile: a community_id missing from the manifest is deleted unless
     protected_from_sync=1 or the anti-mass-delete guard trips.
 
-    Category filter: entries whose category is not in the accepted set
-    (community_sync_categories setting, default every category) are never
-    inserted or updated, and counted in the returned `filtered` count. An
-    existing row whose *stored* category falls outside the accepted set is
-    deactivated (is_active=0, disabled_reason='category_filtered') rather
-    than deleted, so re-enabling the category on a later sync reactivates
-    it. Only rows with a community_id (i.e. source='community') are ever
-    touched by this filter; local/imported patterns carry no community_id
-    and never appear in `existing_by_cid`.
+    Category filter: entries outside community_sync_categories (default all)
+    are skipped on insert/update and counted in `filtered`. An existing row
+    whose stored category falls outside is deactivated (category_filtered)
+    rather than deleted, so it reactivates once the category is allowed again.
     """
     from pattern_service import PatternService
 
@@ -174,10 +169,8 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     for community_id, data, content_hash, path, manifest_version in valid_entries:
         existing = existing_by_cid.get(community_id)
         try:
-            # Category gate for a row that already exists: decided from the
-            # row's own stored category (already normalized), never from the
-            # incoming manifest entry, so a hash-unchanged row is still
-            # correctly (de)activated without needing to fetch its body.
+            # Gate on the row's own stored category, not the incoming manifest
+            # entry, so a hash-unchanged row still gets (de)activated without a fetch.
             if existing is not None:
                 existing_category = normalize_segment_category(existing.get('category'))
                 if existing_category not in accepted_categories:

@@ -59,9 +59,9 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
   );
 }
 
-// Mirrors the "matrix PUT payload" saved immediately per row -- the harness
-// builds the same partial-map shape the real Settings.tsx page sends
-// through updateSettings({ segmentCategoryActions: { [category]: action } }).
+// Mirrors the "matrix PUT payload" saved immediately per row: the harness
+// builds the same partial-map shape Settings.tsx sends through
+// updateSettings({ segmentCategoryActions: { [category]: action } }).
 function SegmentActionsHarness({ onCommit }: {
   onCommit: (payload: { segmentCategoryActions: Record<string, string> }) => void;
 }) {

@@ -387,7 +387,7 @@ class FingerprintMatch:
     end: float
     confidence: float
     sponsor: Optional[str] = None
-    # Segment category (#565 Task 7) inherited from the matched pattern; see
+    # Segment category (#565) inherited from the matched pattern; see
     # TextMatch.category in text_pattern_matcher.py for the same rationale.
     category: Optional[str] = None
 

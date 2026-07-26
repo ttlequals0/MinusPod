@@ -625,11 +625,11 @@ class TestSplitConflictingActionSpan:
 
     def test_nested_split_strips_stale_merge_bookkeeping(self):
         """A last that already carries merged_distinct_ads/
-        merged_protected_start/end (from an earlier same-action fold)
-        must not hand that stale bookkeeping to the split pieces: the
-        recorded protected bounds describe last's ORIGINAL span and could
-        otherwise float the reviewer's expand-only floor back across the
-        split boundary, re-absorbing audio this split just carved out."""
+        merged_protected_start/end (from an earlier same-action fold) must
+        not hand that stale bookkeeping to the split pieces: the recorded
+        protected bounds describe last's original span and could otherwise
+        float the reviewer's expand-only floor back across the split
+        boundary, re-absorbing audio this split just carved out."""
         last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor',
                 'merged_distinct_ads': True,
                 'merged_protected_start': 0.0, 'merged_protected_end': 100.0}
@@ -643,16 +643,14 @@ class TestSplitConflictingActionSpan:
 
 
 class TestDeduplicateWindowAdsActionGate:
-    """DTNS 5317 (2026-07-25): daily-tech-news-show episode 3c0b827ef2c5,
-    reprocessed with detect_show_segments=true and per-feed actions
-    {cross_promo,intro,outro,recap,self_promo: keep; sponsor,interaction:
-    remove}. The LLM's raw 9 detections carried category on only the intro
-    (158.0-166.6) and outro (2324.5-2381.1); deduplicate_window_ads's
-    5.0s-threshold window-boundary merge fused each into an adjacent
-    uncategorized sponsor read before the category-action gate at the
-    downstream merge seam (_merge_detection_results) ever saw them as
-    separate candidates -- the intro's category was silently dropped, and
-    the outro's span was wrongly extended over unrelated sponsor content.
+    """DTNS 5317: daily-tech-news-show episode 3c0b827ef2c5, reprocessed
+    with detect_show_segments=true and per-feed actions {cross_promo,
+    intro,outro,recap,self_promo: keep; sponsor,interaction: remove}. The
+    LLM's raw 9 detections carried category on only the intro and outro;
+    deduplicate_window_ads's 5.0s window-boundary merge fused each into an
+    adjacent uncategorized sponsor read before the merge seam ever saw
+    them as separate candidates: the intro's category was silently
+    dropped, and the outro's span was wrongly extended.
     """
 
     DTNS_ACTION_MAP = {
@@ -742,7 +740,7 @@ class TestDeduplicateWindowAdsActionGate:
 
     def test_all_remove_map_matches_no_map_behavior(self):
         """An all-remove action map (today's default feed) must merge
-        identically to the no-map case -- the gate never changes behavior
+        identically to the no-map case: the gate never changes behavior
         for a feed that has not opted into per-category actions."""
         all_remove = {cat: 'remove' for cat in self.DTNS_ACTION_MAP}
         merged = deduplicate_window_ads(

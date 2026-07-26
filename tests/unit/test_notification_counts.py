@@ -1,4 +1,4 @@
-"""Tests for held/not-cut counts in Episode Processed notifications (Task 13).
+"""Tests for held/not-cut counts in Episode Processed notifications.
 
 Covers WebhookPayload -> _build_context field passthrough, email formatter
 row visibility, and the marker-counting helpers used at the Episode
@@ -87,9 +87,9 @@ class TestFireSiteCounting:
         assert count_not_cut(markers) == 1
 
     def test_keep_action_marker_excluded_from_not_cut(self):
-        """Task 6: a segment-category keep-action marker is intentionally
-        left in the audio, not a miss -- it must never inflate the
-        notification-facing not-cut/miss count."""
+        """A segment-category keep-action marker is intentionally left in
+        the audio, not a miss: it must never inflate the notification-facing
+        not-cut/miss count."""
         markers = [
             {'was_cut': False, 'action_applied': 'keep'},   # kept on purpose
             {'was_cut': False, 'action_applied': 'keep'},   # kept on purpose
@@ -100,10 +100,10 @@ class TestFireSiteCounting:
 
 
 class TestKeepExcludedThroughNotificationPipeline:
-    """Task 6: the count_not_cut fix must hold end-to-end through the
-    webhook payload and email context, not just at the counting helper --
-    mirrors TestBuildContextCounts/TestEmailFormatterRows above with a
-    keep-action marker mixed into the source list."""
+    """The count_not_cut fix must hold end-to-end through the webhook
+    payload and email context, not just at the counting helper: mirrors
+    TestBuildContextCounts/TestEmailFormatterRows above with a keep-action
+    marker mixed into the source list."""
 
     def test_keep_marker_excluded_through_webhook_and_email_context(self):
         markers = [

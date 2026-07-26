@@ -13,26 +13,19 @@ interface SegmentActionToggleProps {
   muted?: boolean;
 }
 
-// Three-way remove/beep/keep control shared by the global segment-action
-// matrix and the per-feed override matrix. No segmented/button-group
-// component exists elsewhere in the app, so this joins three btnSecondary-
-// style buttons into one radiogroup, with the selected option picking up
-// the same bg-primary/10 text-primary treatment used for other selected
-// states (e.g. the Appearance theme picker).
-//
-// Implements the standard ARIA radiogroup keyboard pattern: one tab stop
-// (roving tabindex -- only the selected option is in tab order), Left/Up
-// and Right/Down move and commit the selection with wraparound, Home/End
-// jump to the first/last option.
+// Three-way remove/beep/keep control shared by the global and per-feed
+// segment-action matrices. Implements the standard ARIA radiogroup keyboard
+// pattern: roving tabindex (one tab stop, only the selected option is in tab
+// order), Left/Up and Right/Down move with wraparound, Home/End jump to
+// the first/last option.
 function SegmentActionToggle({ value, onChange, ariaLabel, disabled, muted }: SegmentActionToggleProps) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const selectIndex = (index: number) => {
     const action = SEGMENT_ACTIONS[index];
     onChange(action);
-    // Roving tabindex requires DOM focus to follow the selection, not just
-    // the aria-checked/tabIndex props -- React re-render alone won't move
-    // the browser's actual focus to the newly-selected button.
+    // Roving tabindex needs DOM focus to follow the selection: a React
+    // re-render alone won't move the browser's actual focus.
     buttonRefs.current[index]?.focus();
   };
 

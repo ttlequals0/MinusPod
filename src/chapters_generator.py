@@ -89,35 +89,18 @@ def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]
     """Map applied ad/segment markers onto the processed timeline as
     candidate topic-boundary hints for the topic-detection prompt.
 
-    A podcast ad sits between two content segments; the processed transcript
-    the topic detector sees has no trace of it once it's cut, so the model
-    loses the one signal that would have told it a topic change happened
-    there. This reconstructs that signal from the same markers and applied
-    cut list the rest of the asset pipeline already has.
+    The processed transcript has no trace of a cut ad, so the topic
+    detector loses the signal that a topic change likely happened there;
+    this reconstructs it from the same markers and applied-cut list the
+    rest of the pipeline uses (via utils.time.adjust_timestamp, so
+    positions stay in lockstep with the transcript's own mapping).
 
-    - action_applied == 'remove': the span was cut out entirely, so it
-      contributes a single SEAM position -- the processed-time point where
-      the surrounding content now joins. That is exactly
-      utils.time.adjust_timestamp of the marker's own start: content flows
-      continuously up to that original-time point, so its mapped position is
-      where the join sits in the processed audio.
-    - action_applied in ('keep', 'beep'): the span still occupies real time
-      in the processed audio (beep overdubs it, keep leaves it untouched),
-      so it contributes its mapped start/end as a range.
-    - Any other action (including markers still pending review, which are
-      never stamped with action_applied) is skipped: it either isn't in this
-      render at all, or its fate isn't resolved yet.
-
-    `cuts` is the same applied-cut list (each span optionally carrying its
-    own 'replacement_duration', see audio_processor.compute_applied_cuts)
-    already used to project transcript segments onto the processed timeline;
-    reusing utils.time.adjust_timestamp keeps marker positions in lockstep
-    with that mapping instead of re-deriving it. An empty/None cuts list is
-    valid (nothing was removed) and simply leaves every position unchanged.
-
-    Returns [] when there are no markers -- callers must skip the hints
-    block entirely in that case so the prompt stays byte-identical to
-    before this existed.
+    A 'remove' marker becomes a single seam position (where the
+    surrounding content now joins); 'keep'/'beep' markers become a
+    start/end range, since that time still exists in the processed audio.
+    Any other action, including markers still pending review, is skipped.
+    Returns [] when there are no markers, so callers can skip the hints
+    block entirely and leave the prompt unchanged.
     """
     if not markers:
         return []
@@ -151,8 +134,7 @@ def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]
 def _format_hints_block(hints: List[Dict]) -> str:
     """Render segment hints into the prompt block explaining what they mean.
 
-    Returns "" when hints is empty so the caller's prompt stays exactly what
-    it was before this feature existed."""
+    Returns "" when hints is empty, leaving the caller's prompt unchanged."""
     if not hints:
         return ""
     lines = []
@@ -217,10 +199,8 @@ class ChaptersGenerator:
         self._llm_client_override: Optional[LLMClient] = None
         self._episode_id: Optional[str] = None
         # Set when topic detection or title generation fails and the run
-        # degrades to a fallback (whole-episode single chapter, or generic
-        # titles); read by callers after generate_chapters() to surface the
-        # degradation in processing stats rather than let it look like a
-        # normal short episode.
+        # degrades to a fallback; read after generate_chapters() so a
+        # degraded run doesn't look like a normal short episode.
         self._topic_detection_failed: bool = False
         self._title_generation_failed: bool = False
         self.chapters_degraded: bool = False
@@ -288,8 +268,7 @@ class ChaptersGenerator:
         """Use the LLM to detect topic boundaries in a transcript range.
 
         hints: optional candidate boundaries derived from detected ad/segment
-        markers (see build_segment_hints). Empty/None leaves the prompt
-        byte-identical to before hints existed.
+        markers (see build_segment_hints). Empty/None leaves the prompt unchanged.
 
         Returns list of {'original_time': float, 'title': str}.
         """
@@ -651,17 +630,13 @@ Transcript:
             segment_markers: Optional list of detected ad/segment markers
                 (each with 'start', 'end', 'category', 'action_applied') used
                 to build topic-boundary hints (see build_segment_hints). None
-                or empty leaves the topic-detection prompt byte-identical to
-                before hints existed.
+                or empty leaves the topic-detection prompt unchanged.
             marker_cuts: Applied cut list used to map segment_markers onto
-                the processed timeline. Defaults to `ads_removed` when not
-                given, which is correct for the pipeline call site (segments
-                and hints share the same mapping). The regenerate-chapters
-                endpoint must pass this explicitly instead: its segments are
-                already on the processed timeline (ads_removed is omitted so
-                they aren't double-adjusted), but its hints still need the
-                original applied-cut list to map from marker (original-time)
-                coordinates.
+                the processed timeline; defaults to `ads_removed`. The
+                regenerate-chapters endpoint must pass this explicitly: its
+                segments are already on the processed timeline, but hints
+                still need the original applied-cut list to map from marker
+                (original-time) coordinates.
 
         Returns:
             {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
@@ -713,18 +688,10 @@ Transcript:
                             hints=hints,
                         )
 
-                        # A response that came back without error but parsed
-                        # to zero boundaries is just as much a failure as an
-                        # exception here: we already know the episode is long
-                        # enough (> MIN_DURATION_FOR_AI) and the transcript
-                        # substantial enough to have asked the LLM for
-                        # num_splits boundaries in the first place, so a
-                        # silent empty result must not look like a normal
-                        # short episode (matches the live incident: 87-minute
-                        # episode, single chapter, no degraded warning). The
-                        # degraded-to-a-single-chapter warning below already
-                        # fires once this flag is set, since an empty
-                        # new_chapters here always leaves output_chapters at 1.
+                        # A parsed-but-empty result is as much a failure as an
+                        # exception: the episode already qualified for AI
+                        # boundaries (duration and transcript length), so a
+                        # silent empty result must not look like a normal short episode.
                         if not new_chapters and not self._topic_detection_failed:
                             self._topic_detection_failed = True
 
