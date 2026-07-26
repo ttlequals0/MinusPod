@@ -9,6 +9,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.80.0] - 2026-07-25
+
+### Fixed
+
+- The Podping host coverage list in the Podcasting 2.0 docs was stale and
+  incomplete. It named seven hosts; measuring three days of Podping traffic
+  on the Hive chain found thirteen, including PodServe, which sends more
+  notifications than Transistor. The list is now marked as a snapshot rather
+  than a fixed set, since hosts adopt Podping over time (#579).
+
 ## [2.79.0] - 2026-07-25
 
 ### Added

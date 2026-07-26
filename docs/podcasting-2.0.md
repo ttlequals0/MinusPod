@@ -175,12 +175,19 @@ Podping](configuration.md#feed-refresh-and-podping) settings) keeps
 running unchanged, so a missed or delayed Podping notification costs
 nothing: the feed is picked up on its next regular poll either way.
 
-Coverage depends on the host. Buzzsprout, Transistor, RSS.com,
-Spreaker, Captivate, RedCircle, and Fireside send Podping notifications
-today; many large hosts, including Acast, Megaphone, Libsyn,
-Simplecast, and Omny, do not. Enabling the toggle only speeds up
-episodes on feeds whose host actually pings; everything else keeps its
-existing polling cadence.
+Coverage depends on the host. Hosts sending Podping notifications
+include Spreaker, Buzzsprout, RSS.com, PodServe, Transistor, RedCircle,
+Captivate, Podigee, Fireside, PRX Dovetail, Blubrry, Podhome, and
+Alitu, alongside a long tail of self-hosted and WordPress feeds. Many
+large hosts, including Acast, Megaphone, Libsyn, Simplecast, and Omny,
+do not. Enabling the toggle only speeds up episodes on feeds whose host
+pings; everything else keeps its existing polling cadence.
+
+That list is a snapshot, not a fixed set. It came from measuring three
+days of Podping traffic on the Hive chain in July 2026, and hosts adopt
+Podping over time. Treat it as a guide to what to expect rather than a
+guarantee, and use the "Last podping" line below to see what a specific
+feed actually receives.
 
 The feed detail page shows a "Last podping" line with the time of the
 most recent matched notification, visible only after MinusPod has
