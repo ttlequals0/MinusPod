@@ -9,6 +9,30 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.0] - 2026-07-26
+
+### Fixed
+
+- The Podping listener never acted on a single notification. It only accepted
+  senders reachable from the `podping` account's posting authorities, but all
+  live traffic comes from `podping.aaa` through `podping.eee`, which have their
+  own keys and appear in no account's authority list. Every real podping was
+  dropped, silently, since the listener shipped in 2.77.1. Measuring 25
+  consecutive Hive blocks found 41 podpings and all 41 were rejected. The
+  reference watcher had already abandoned this check; MinusPod now does the
+  same and filters on the operation id.
+
+### Added
+
+- MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
+  accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
+  and MinusPod ignores podpings for that feed from anyone else. A feed
+  carrying `usesPodping="false"` is asking to be polled, so MinusPod skips
+  podping refreshes for it and reports it as declined. Feeds that say nothing
+  accept any sender, since the tag is optional and there is nothing to check
+  against. Scheduled polling stays the fallback either way, and the global
+  Podping toggle is still the master switch.
+
 ## [2.80.1] - 2026-07-26
 
 ### Added

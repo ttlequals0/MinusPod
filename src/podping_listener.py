@@ -25,7 +25,6 @@ ACTIONABLE_REASONS = {'update', 'live'}
 COOLDOWN_SECONDS = 300
 MAX_CATCHUP_BLOCKS = 100
 
-ALLOWED_ACCOUNTS_REFRESH_SECONDS = 3600
 FEED_MAP_REFRESH_SECONDS = 60
 HOST_FLUSH_SECONDS = 60
 NODE_BACKOFF_SCHEDULE = (5, 15, 60)
@@ -80,21 +79,20 @@ def feed_url_domain(url: str) -> str:
         return ''
 
 
-def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict]:
+def extract_podping_events(block: dict) -> list[dict]:
     """Extract podping events from a block.
+
+    Filters on the operation id alone, which is what the reference watcher
+    does. Authorization is per feed via <podcast:hiveAccount>, so the sending
+    accounts ride along in 'auths' for the caller to check.
 
     Args:
         block: Block dict from condenser_api.get_block with shape
                {'transactions': [{'operations': [['custom_json', {...}]]}]}.
-        allowed_accounts: Set of accounts allowed to post podping events.
-                         Empty set rejects all events (fail closed).
 
     Returns:
-        List of dicts with 'iris' and 'reason' keys.
+        List of dicts with 'iris', 'reason', and 'auths' keys.
     """
-    if not allowed_accounts:
-        return []
-
     events = []
     transactions = block.get('transactions')
     if not isinstance(transactions, list):
@@ -124,12 +122,9 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
             required_posting_auths = op_data.get('required_posting_auths', [])
             if not isinstance(required_posting_auths, list):
                 continue
-            if not required_posting_auths:
-                continue
 
-            auth_strs = {a for a in required_posting_auths if isinstance(a, str)}
-            if not (auth_strs & allowed_accounts):
-                continue
+            auth_strs = {a.lower() for a in required_posting_auths
+                         if isinstance(a, str)}
 
             json_string = op_data.get('json', '')
             if not json_string:
@@ -162,7 +157,7 @@ def extract_podping_events(block: dict, allowed_accounts: set[str]) -> list[dict
             if not iris or not isinstance(iris, list):
                 continue
 
-            events.append({'iris': iris, 'reason': reason})
+            events.append({'iris': iris, 'reason': reason, 'auths': auth_strs})
 
     return events
 
@@ -202,10 +197,8 @@ class PodpingListener:
         self.node_index = 0
         self._backoff_step = 0
 
-        self.allowed_accounts = set()
-        self.allowed_accounts_fetched_at = 0.0
-
         self.feed_map = {}
+        self.feed_rules = {}
         self.feed_map_fetched_at = 0.0
 
         self.current_block = None
@@ -255,34 +248,6 @@ class PodpingListener:
         self._backoff_step = 0
         return result
 
-    def refresh_allowed_accounts(self) -> None:
-        """Fetch the podping posting-authority allow-list: 'podping' itself
-        plus every account_auths name on its posting authority. On failure,
-        the previous allow-list (possibly empty, if never fetched) is kept.
-        """
-        accounts = self._call_rpc(
-            'condenser_api.get_accounts', [['podping']], expected_type=list)
-        if accounts is None:
-            return
-
-        allowed = {'podping'}
-        if accounts and isinstance(accounts[0], dict):
-            posting = accounts[0].get('posting')
-            if isinstance(posting, dict):
-                for auth in posting.get('account_auths', []):
-                    if isinstance(auth, (list, tuple)) and auth:
-                        allowed.add(auth[0])
-                    elif isinstance(auth, str):
-                        allowed.add(auth)
-
-        self.allowed_accounts = allowed
-        self.allowed_accounts_fetched_at = time.time()
-
-    def _maybe_refresh_allowed_accounts(self):
-        now = time.time()
-        if now - self.allowed_accounts_fetched_at >= ALLOWED_ACCOUNTS_REFRESH_SECONDS:
-            self.refresh_allowed_accounts()
-
     def _refresh_feed_map(self):
         feed_map = {}
         for podcast in self.db.get_all_podcasts():
@@ -290,6 +255,7 @@ class PodpingListener:
             if source_url:
                 feed_map[normalize_feed_url(source_url)] = podcast['slug']
         self.feed_map = feed_map
+        self.feed_rules = self.db.get_all_podping_declarations()
         self.feed_map_fetched_at = time.time()
 
     def _maybe_refresh_feed_map(self):
@@ -318,6 +284,26 @@ class PodpingListener:
             return
         self.host_buffer = {}
 
+    def _feed_accepts(self, slug, auths):
+        """Whether this feed's own <podcast:podping> declaration allows a ping
+        from these accounts. Undeclared feeds accept any sender: the spec gives
+        nothing to check against, and polling stays the fallback either way.
+        """
+        rules = self.feed_rules.get(slug)
+        if not rules:
+            return True
+        if rules.get('uses_podping') is False:
+            logger.debug(
+                "[%s] Podping ignored: feed declares usesPodping=false", slug)
+            return False
+        declared = rules.get('hive_accounts') or []
+        if declared and not (set(declared) & set(auths or ())):
+            logger.info(
+                "[%s] Podping from %s ignored: not in the feed's hiveAccount "
+                "list %s", slug, sorted(auths or ()), declared)
+            return False
+        return True
+
     def _handle_match(self, slug, reason):
         """Always stamp last_podping_at; refresh only outside the per-slug
         cooldown window."""
@@ -340,11 +326,6 @@ class PodpingListener:
     def tick(self) -> None:
         """One polling iteration: refresh allow-list/feed map as needed,
         pull any new blocks, match podping events against known feeds."""
-        self._maybe_refresh_allowed_accounts()
-        if not self.allowed_accounts:
-            # Never successfully fetched (or fail-closed) -- nothing to do.
-            return
-
         self._maybe_refresh_feed_map()
 
         props = self._call_rpc('condenser_api.get_dynamic_global_properties', [])
@@ -372,13 +353,15 @@ class PodpingListener:
                 return  # Node failure already logged/rotated; retry next tick.
             self.current_block = next_block_num
 
-            for event in extract_podping_events(block, self.allowed_accounts):
+            for event in extract_podping_events(block):
                 reason = event.get('reason')
                 if reason is None or reason in ACTIONABLE_REASONS:
                     iris = event.get('iris') or []
                     self._buffer_hosts(iris)
+                    auths = event.get('auths') or set()
                     for slug in match_iris(iris, self.feed_map):
-                        self._handle_match(slug, reason)
+                        if self._feed_accepts(slug, auths):
+                            self._handle_match(slug, reason)
 
         if time.time() - self.host_flushed_at >= HOST_FLUSH_SECONDS:
             self._flush_host_buffer()

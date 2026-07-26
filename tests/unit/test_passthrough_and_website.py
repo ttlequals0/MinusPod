@@ -187,6 +187,8 @@ class TestWebsiteLinkCapture:
         parsed.bozo = False
         rss_parser.parse_feed.return_value = parsed
         rss_parser.extract_podcast_artwork_url.return_value = None
+        rss_parser.extract_podping_declaration.return_value = {
+            'uses_podping': None, 'hive_accounts': []}
         rss_parser.extract_podcast_categories.return_value = []
         rss_parser.extract_episodes.return_value = []
         with patch('main_app.feeds._build_and_save_served_rss'):

@@ -132,6 +132,8 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         mock_parsed.entries = []
         rss_parser.parse_feed.return_value = mock_parsed
         rss_parser.extract_podcast_artwork_url.return_value = None
+        rss_parser.extract_podping_declaration.return_value = {
+            'uses_podping': None, 'hive_accounts': []}
         rss_parser.extract_podcast_categories.return_value = []
         storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 

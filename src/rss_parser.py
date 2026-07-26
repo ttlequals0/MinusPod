@@ -492,6 +492,53 @@ class RSSParser:
             return None
 
     @staticmethod
+    def extract_podping_declaration(feed_content, channel=None) -> Dict:
+        """Channel-level ``<podcast:podping>`` declaration.
+
+        Per the podping tag spec, ``usesPodping="false"`` opts the feed out and
+        each nested ``<podcast:hiveAccount account="...">`` names an account
+        allowed to podping this feed. Returns uses_podping None when the feed
+        carries no such tag, which is the common case and means "unknown".
+        """
+        unknown = {'uses_podping': None, 'hive_accounts': []}
+        if not feed_content and channel is None:
+            return unknown
+
+        if channel is None:
+            try:
+                payload = (feed_content.encode('utf-8')
+                           if isinstance(feed_content, str) else feed_content)
+                root = defused_fromstring(payload)
+            except Exception as e:
+                logger.debug("Podping declaration parse failed (%s)", type(e).__name__)
+                return unknown
+            for child in list(root) if root is not None else []:
+                tag = getattr(child, 'tag', '')
+                if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
+                    channel = child
+                    break
+            if channel is None:
+                return unknown
+
+        for elem in channel:
+            if not _is_podcast_element(elem) or _podcast_localname(elem) != 'podping':
+                continue
+            raw = (elem.get('usesPodping') or '').strip().lower()
+            uses = True if not raw else raw in ('true', '1', 'yes')
+            accounts = []
+            for child in elem:
+                if not _is_podcast_element(child):
+                    continue
+                if _podcast_localname(child) != 'hiveAccount':
+                    continue
+                name = (child.get('account') or '').strip().lower()
+                if name and name not in accounts:
+                    accounts.append(name)
+            return {'uses_podping': uses, 'hive_accounts': accounts}
+
+        return unknown
+
+    @staticmethod
     def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> Optional[str]:
         """Channel-level podcast artwork URL.
 

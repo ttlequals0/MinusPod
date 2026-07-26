@@ -161,6 +161,15 @@ configured feeds. On a match, MinusPod stamps that feed's "last
 podping" time and triggers an immediate refresh of that one feed,
 instead of waiting for the next scheduled RSS poll.
 
+Which senders count is up to each feed. A feed can name the accounts
+allowed to podping it with `<podcast:hiveAccount account="...">` inside
+its `<podcast:podping>` tag, and MinusPod ignores podpings for that feed
+from anyone else. A feed carrying `usesPodping="false"` is asking to be
+polled, so MinusPod skips podping refreshes for it entirely. The tag is
+optional, and a feed that says nothing accepts any sender. Scheduled
+polling runs either way, so the worst a declaration can do is leave a
+feed on the schedule.
+
 No Hive account, keys, or wallet are required. The listener only
 reads the public chain; it never writes to it. Requests go to a small,
 built-in list of public Hive API nodes over outbound HTTPS, roughly
@@ -190,12 +199,12 @@ guarantee, and use the Podping line below to see what a specific feed
 actually receives.
 
 With the listener on, the feed detail page shows a Podping line and the
-feed lists show the same state as a short badge. It reads one of three
-ways. Once a notification has arrived for a feed, the line gives the
-time of the most recent one. Otherwise it separates two cases: the host
-sends Podping but this feed has not been announced yet, or the host has
-not been seen sending Podping at all, so scheduled polling is doing the
-work.
+feed lists show the same state as a short badge. Once a notification has
+arrived for a feed, the line gives the time of the most recent one.
+Otherwise it separates two cases: the host sends Podping but this feed
+has not been announced yet, or the host has not been seen sending
+Podping at all, so scheduled polling is doing the work. A feed whose own
+tag declines Podping reads as declined instead.
 
 MinusPod can tell those apart because the listener records the domain
 of every feed URL announced on the chain, not only the ones matching

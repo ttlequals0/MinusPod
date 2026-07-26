@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.80.1
+  version: 2.81.0
   contact:
     name: MinusPod
   license:
@@ -7347,8 +7347,8 @@ components:
           type:
             - string
             - 'null'
-          enum: [received, host_active, unseen, null]
-          description: Podping coverage for this feed. received means a podping arrived for this feed; host_active means the feed host sends podpings but none has arrived for this feed yet; unseen means the host has not been seen sending podpings in the last 30 days. Null when the Podping listener is disabled. See podpingEnabled in Settings.
+          enum: [received, host_active, unseen, declined, null]
+          description: Podping coverage for this feed. received means a podping arrived for this feed; host_active means the feed host sends podpings but none has arrived for this feed yet; unseen means the host has not been seen sending podpings in the last 30 days; declined means the feed's own podcast:podping tag carries usesPodping="false", so MinusPod polls it instead. Null when the Podping listener is disabled. See podpingEnabled in Settings.
         createdAt:
           type: string
           format: date-time

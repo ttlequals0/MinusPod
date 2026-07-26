@@ -11,6 +11,7 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
+from database.podcasts import podping_declaration_columns
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -242,12 +243,18 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if not website_url.startswith(('http://', 'https://')):
                 website_url = None
 
+            # Upstream <podcast:podping> declaration (#579): who may podping
+            # this feed, and whether it opts out entirely.
+            podping = rss_parser.extract_podping_declaration(feed_content)
+
             # Update podcast metadata (and ETag if available) in a single DB call
             update_kwargs = dict(
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
                 website_url=website_url,
+                **podping_declaration_columns(
+                    podping.get('uses_podping'), podping.get('hive_accounts')),
                 last_checked_at=utc_now_iso()
             )
             # On force=True, always overwrite the stored ETag/Last-Modified --

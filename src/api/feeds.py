@@ -363,9 +363,15 @@ def _podping_context(db):
 
 
 def _podping_coverage(podcast, enabled, active_domains):
-    """received / host_active / unseen, or None when the listener is off."""
+    """declined / received / host_active / unseen, None when the listener is off.
+
+    declined wins over everything: a feed carrying usesPodping="false" is asking
+    to be polled, and the listener honors that whatever the chain shows.
+    """
     if not enabled:
         return None
+    if podcast.get('podping_uses') == 0:
+        return 'declined'
     if podcast.get('last_podping_at'):
         return 'received'
     domain = feed_url_domain(podcast.get('source_url') or '')

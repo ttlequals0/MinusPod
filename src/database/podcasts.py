@@ -25,6 +25,15 @@ _STATUS_COUNT_SELECT = ',\n'.join(
 )
 
 
+def podping_declaration_columns(uses_podping: Optional[bool],
+                                hive_accounts: Optional[List[str]]) -> Dict:
+    """A parsed <podcast:podping> declaration as podcasts-table columns."""
+    return {
+        'podping_uses': None if uses_podping is None else int(uses_podping),
+        'podping_hive_accounts': json.dumps(hive_accounts) if hive_accounts else None,
+    }
+
+
 class PodcastMixin:
     """Podcast management methods."""
 
@@ -187,7 +196,7 @@ class PodcastMixin:
                 'refresh_failure_count', 'last_refresh_error',
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
-                'last_podping_at',
+                'last_podping_at', 'podping_uses', 'podping_hive_accounts',
                 'segment_category_actions', 'detect_show_segments',
             ):
                 fields.append(f"{key} = ?")
@@ -370,6 +379,47 @@ class PodcastMixin:
     def set_last_podping_at(self, slug: str) -> None:
         """Stamp the last received podping for a feed (UTC ISO)."""
         self.update_podcast(slug, last_podping_at=utc_now_iso())
+
+    def set_podping_declaration(self, slug: str, uses_podping: Optional[bool],
+                                hive_accounts: List[str]) -> None:
+        """Store a feed's upstream <podcast:podping> declaration."""
+        self.update_podcast(
+            slug, **podping_declaration_columns(uses_podping, hive_accounts))
+
+    @staticmethod
+    def _podping_declaration_from_row(row) -> Dict:
+        """Row columns to {'uses_podping', 'hive_accounts'}."""
+        uses = row['podping_uses'] if 'podping_uses' in row.keys() else None
+        raw = row['podping_hive_accounts'] if 'podping_hive_accounts' in row.keys() else None
+        accounts = []
+        if raw:
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    accounts = [a for a in parsed if isinstance(a, str)]
+            except (ValueError, TypeError):
+                logger.warning("Bad podping_hive_accounts JSON; treating as none")
+        return {
+            'uses_podping': None if uses is None else bool(uses),
+            'hive_accounts': accounts,
+        }
+
+    def get_podping_declaration(self, slug: str) -> Dict:
+        """A feed's podping declaration; uses_podping None when undeclared."""
+        cursor = self.get_connection().execute(
+            "SELECT podping_uses, podping_hive_accounts FROM podcasts WHERE slug = ?",
+            (slug,))
+        row = cursor.fetchone()
+        if row is None:
+            return {'uses_podping': None, 'hive_accounts': []}
+        return self._podping_declaration_from_row(row)
+
+    def get_all_podping_declarations(self) -> Dict[str, Dict]:
+        """slug -> podping declaration, for the listener's per-feed rules."""
+        cursor = self.get_connection().execute(
+            "SELECT slug, podping_uses, podping_hive_accounts FROM podcasts")
+        return {row['slug']: self._podping_declaration_from_row(row)
+                for row in cursor.fetchall()}
 
     def clear_all_podcast_etags(self) -> int:
         """Null every podcast's conditional-GET validators in one statement.

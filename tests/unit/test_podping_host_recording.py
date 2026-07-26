@@ -15,6 +15,9 @@ class FakeDb:
     def get_all_podcasts(self):
         return [{'slug': 'mine', 'source_url': 'https://feeds.megaphone.fm/mine'}]
 
+    def get_all_podping_declarations(self):
+        return {}
+
     def set_last_podping_at(self, slug):
         pass
 
@@ -36,7 +39,6 @@ def test_feed_url_domain(url, expected):
 
 def _listener(db):
     listener = PodpingListener(db=db, rpc=lambda *a, **k: None, sleep=lambda s: None)
-    listener.allowed_accounts = {'podping.bot'}
     listener._refresh_feed_map()
     return listener
 

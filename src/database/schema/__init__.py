@@ -317,6 +317,11 @@ class SchemaMixin:
             ('chapters_mode', 'TEXT'),
             # Last received podping timestamp (podping-listener feature)
             ('last_podping_at', 'TEXT'),
+            # Upstream <podcast:podping> declaration (#579). podping_uses is a
+            # nullable bool: NULL when the feed carries no tag. hive_accounts
+            # is a JSON array of accounts allowed to podping this feed.
+            ('podping_uses', 'INTEGER'),
+            ('podping_hive_accounts', 'TEXT'),
             # Per-feed segment category action overrides (issue #565): partial
             # JSON map of category -> action, merged over the global
             # segment_category_actions setting at resolve time.

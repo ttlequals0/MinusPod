@@ -114,48 +114,42 @@ class TestExtractPodpingEvents:
     def test_id_filter_podping_accepted(self):
         """Operations with id 'podping' should be accepted."""
         block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://example.com']
 
     def test_id_filter_pp_podcast_update_accepted(self):
         """Operations with id 'pp_podcast_update' should be accepted."""
         block = self._make_block('pp_podcast_update', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
 
     def test_id_filter_pp_prefix_variant_accepted(self):
         """Any id starting with 'pp_' should be accepted, not just 'pp_podcast_update'."""
         block = self._make_block('pp_podcast_live', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
 
     def test_id_filter_follow_rejected(self):
         """Operations with id 'follow' should be rejected."""
         block = self._make_block('follow', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_id_filter_custom_operation_rejected(self):
         """Operations with arbitrary id should be rejected."""
         block = self._make_block('some_other_id', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
-    def test_allowed_account_in_set(self):
-        """Operation from account in allowed_accounts should be accepted."""
-        block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account1', 'account2'})
-        assert len(result) == 1
+    def test_sender_accounts_are_returned_lowercased(self):
+        """Authorization is per feed now, so the senders ride along in 'auths'."""
+        block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'Account1')
+        result = extract_podping_events(block)
+        assert result[0]['auths'] == {'account1'}
 
-    def test_allowed_account_not_in_set(self):
-        """Operation from account not in allowed_accounts should be rejected."""
-        block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, {'account2', 'account3'})
-        assert len(result) == 0
-
-    def test_allowed_account_at_second_index_accepted(self):
-        """Allow-list check must intersect ALL required_posting_auths, not just index 0."""
+    def test_all_posting_auths_are_returned(self):
+        """Every required_posting_auth is surfaced, not just index 0."""
         block = {
             'transactions': [
                 {
@@ -173,20 +167,49 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
-        assert len(result) == 1
+        result = extract_podping_events(block)
+        assert result[0]['auths'] == {'other_account', 'account1'}
 
-    def test_empty_allowed_accounts_rejects_all(self):
-        """Empty allowed_accounts should reject all operations (fail closed)."""
-        block = self._make_block('podping', {'version': '1.1', 'iris': ['http://example.com']}, 'account1')
-        result = extract_podping_events(block, set())
-        assert len(result) == 0
+    def test_op_with_no_posting_auths_is_still_extracted(self):
+        """The op id is the filter; a missing auth list yields an empty set."""
+        block = {
+            'transactions': [
+                {
+                    'operations': [
+                        [
+                            'custom_json',
+                            {
+                                'id': 'podping',
+                                'json': json.dumps({'version': '1.1', 'iris': ['http://example.com']}),
+                                'required_posting_auths': [],
+                                'required_auths': []
+                            }
+                        ]
+                    ]
+                }
+            ]
+        }
+        result = extract_podping_events(block)
+        assert len(result) == 1
+        assert result[0]['auths'] == set()
+
+    def test_real_world_load_balanced_sender_is_accepted(self):
+        """podping.aaa-eee send all live traffic and are not reachable from the
+        podping account's posting authorities, which is what broke the old
+        allow-list."""
+        block = self._make_block(
+            'pp_podcast_update',
+            {'version': '1.1', 'iris': ['https://feeds.example.com/show'], 'reason': 'update'},
+            'podping.ddd')
+        result = extract_podping_events(block)
+        assert len(result) == 1
+        assert result[0]['auths'] == {'podping.ddd'}
 
     def test_version_1_1_payload(self):
         """Version 1.1 payload with iris and reason should be extracted."""
         payload = {'version': '1.1', 'iris': ['http://ex1.com', 'http://ex2.com'], 'reason': 'update'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://ex1.com', 'http://ex2.com']
         assert result[0]['reason'] == 'update'
@@ -195,7 +218,7 @@ class TestExtractPodpingEvents:
         """Version 1.0 payload should be extracted."""
         payload = {'version': '1.0', 'iris': ['http://example.com'], 'reason': 'liveEnd'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://example.com']
         assert result[0]['reason'] == 'liveEnd'
@@ -204,7 +227,7 @@ class TestExtractPodpingEvents:
         """Version 0.x with urls array should be extracted."""
         payload = {'urls': ['http://ex1.com', 'http://ex2.com']}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://ex1.com', 'http://ex2.com']
         assert result[0]['reason'] is None
@@ -213,7 +236,7 @@ class TestExtractPodpingEvents:
         """Version 0.x with single url string should be extracted."""
         payload = {'url': 'http://example.com'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://example.com']
         assert result[0]['reason'] is None
@@ -237,14 +260,14 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_non_string_version_ignored(self):
         """A non-string version must not raise and must fall through to the urls/url path."""
         payload = {'version': 11, 'iris': ['http://example.com']}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_non_dict_op_data_ignored(self):
@@ -258,7 +281,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_non_string_json_field_ignored(self):
@@ -280,35 +303,35 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_iris_as_non_list_ignored(self):
         """iris field that is not a list should be ignored."""
         payload = {'version': '1.1', 'iris': 'http://example.com'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_urls_as_non_list_ignored(self):
         """urls field that is not a list should be ignored."""
         payload = {'urls': 'http://example.com'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_empty_urls_ignored(self):
         """Empty urls array should be ignored."""
         payload = {'urls': []}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_reason_passthrough_none(self):
         """None reason should be passed through."""
         payload = {'version': '1.1', 'iris': ['http://example.com']}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['reason'] is None
 
@@ -316,7 +339,7 @@ class TestExtractPodpingEvents:
         """'liveEnd' reason should be passed through (filtering happens in listener tick)."""
         payload = {'version': '1.1', 'iris': ['http://example.com'], 'reason': 'liveEnd'}
         block = self._make_block('podping', payload, 'account1')
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['reason'] == 'liveEnd'
 
@@ -348,17 +371,17 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 2
 
     def test_empty_block(self):
         """Empty block should return empty list."""
         block = {'transactions': []}
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_missing_required_posting_auths(self):
-        """Operation without required_posting_auths should be rejected."""
+        """An empty auth list yields an empty 'auths' set, not a rejection."""
         block = {
             'transactions': [
                 {
@@ -376,8 +399,9 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
-        assert len(result) == 0
+        result = extract_podping_events(block)
+        assert len(result) == 1
+        assert result[0]['auths'] == set()
 
     def test_empty_json_string_ignored(self):
         """Operation with empty json string should be ignored."""
@@ -398,7 +422,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_non_dict_json_ignored(self):
@@ -420,7 +444,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_non_list_operation_ignored(self):
@@ -434,7 +458,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_short_operation_list_ignored(self):
@@ -446,7 +470,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_required_posting_auths_as_bool_skipped(self):
@@ -468,7 +492,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_required_posting_auths_as_int_skipped(self):
@@ -490,7 +514,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_required_posting_auths_mixed_types_filtered(self):
@@ -512,12 +536,12 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://example.com']
 
-    def test_required_posting_auths_all_non_strings_rejected(self):
-        """required_posting_auths with only non-string elements should be rejected."""
+    def test_required_posting_auths_all_non_strings_yield_no_auths(self):
+        """Non-string auth entries are dropped, leaving an empty 'auths' set."""
         block = {
             'transactions': [
                 {
@@ -535,19 +559,20 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
-        assert len(result) == 0
+        result = extract_podping_events(block)
+        assert len(result) == 1
+        assert result[0]['auths'] == set()
 
     def test_block_with_transactions_none(self):
         """Block with transactions=None should return empty list without raising."""
         block = {'transactions': None}
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_block_missing_transactions(self):
         """Block missing transactions key should return empty list."""
         block = {}
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_tx_as_string_skipped(self):
@@ -557,7 +582,7 @@ class TestExtractPodpingEvents:
                 'not-a-dict'
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_operations_as_none_skipped(self):
@@ -569,7 +594,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_operations_as_string_skipped(self):
@@ -581,7 +606,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 0
 
     def test_mixed_valid_and_invalid_in_same_block(self):
@@ -613,7 +638,7 @@ class TestExtractPodpingEvents:
                 }
             ]
         }
-        result = extract_podping_events(block, {'account1'})
+        result = extract_podping_events(block)
         assert len(result) == 1
         assert result[0]['iris'] == ['http://valid.com']
 

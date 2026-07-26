@@ -32,6 +32,22 @@ describe('PodpingBadge', () => {
     expect(screen.getByText('Podping: not seen from this host')).toBeDefined();
   });
 
+  it('reports a feed that declined podping', () => {
+    render(<PodpingBadge coverage="declined" lastPodpingAt={null} />);
+    expect(screen.getByText('Podping: declined by this feed')).toBeDefined();
+  });
+
+  it('shortens the declined copy in compact mode', () => {
+    render(<PodpingBadge coverage="declined" lastPodpingAt={null} compact />);
+    expect(screen.getByText('Polling')).toBeDefined();
+  });
+
+  it('explains the declined state on hover', () => {
+    render(<PodpingBadge coverage="declined" lastPodpingAt={null} />);
+    expect(screen.getByText('Podping: declined by this feed').getAttribute('title'))
+      .toContain('asks not to be notified');
+  });
+
   it('shortens the copy in compact mode', () => {
     render(<PodpingBadge coverage="host_active" lastPodpingAt={null} compact />);
     expect(screen.getByText('Podping host')).toBeDefined();

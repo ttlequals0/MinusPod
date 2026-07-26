@@ -84,3 +84,21 @@ def test_coverage_is_null_when_podping_is_disabled(client, db, feed):
 def test_a_different_host_does_not_grant_coverage(client, db, feed):
     db.record_podping_hosts({'anchor.fm': 9})
     assert _detail(client, feed)['podpingCoverage'] == 'unseen'
+
+
+def test_declined_when_the_feed_opts_out(client, db, feed):
+    db.set_podping_declaration(feed, False, [])
+    db.record_podping_hosts({'feeds.megaphone.fm': 4})
+    assert _detail(client, feed)['podpingCoverage'] == 'declined'
+    assert _from_list(client, feed)['podpingCoverage'] == 'declined'
+
+
+def test_declined_outranks_a_previously_received_ping(client, db, feed):
+    db.set_last_podping_at(feed)
+    db.set_podping_declaration(feed, False, [])
+    assert _detail(client, feed)['podpingCoverage'] == 'declined'
+
+
+def test_opting_in_does_not_by_itself_grant_coverage(client, db, feed):
+    db.set_podping_declaration(feed, True, ['podping.aaa'])
+    assert _detail(client, feed)['podpingCoverage'] == 'unseen'
