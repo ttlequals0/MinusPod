@@ -173,3 +173,39 @@ def test_get_static_system_prompt_includes_a_known_seed_sponsor():
 def test_get_static_system_prompt_is_deterministic():
     """Two calls must return identical output (no DB, env, or wallclock dependency)."""
     assert get_static_system_prompt() == get_static_system_prompt()
+
+
+class TestCategoryRepairTolerance:
+    """Only Anthropic enforces the category enum. Every other provider answers
+    freely, and an entry the parser drops reads as "the model had no opinion",
+    which is how 10 of 14 detections on one episode ended up uncategorized and
+    silently defaulted to sponsor.
+    """
+
+    def _parse(self, payload):
+        from ad_detector.prompts import parse_category_repair_response
+        return parse_category_repair_response(json.dumps(payload))
+
+    def test_canonical_shape(self):
+        assert self._parse({'categories': [{'index': 0, 'category': 'self_promo'}]}) == {0: 'self_promo'}
+
+    def test_a_quoted_index_is_accepted(self):
+        assert self._parse({'categories': [{'index': '1', 'category': 'sponsor'}]}) == {1: 'sponsor'}
+
+    def test_case_and_hyphen_variants_are_the_same_category(self):
+        assert self._parse({'categories': [{'index': 2, 'category': 'Cross-Promo'}]}) == {2: 'cross_promo'}
+        assert self._parse({'categories': [{'index': 3, 'category': 'self promo'}]}) == {3: 'self_promo'}
+
+    def test_a_position_word_is_not_a_category(self):
+        """"pre-roll" says where the segment is, not what it is. Accepting it
+        would invent a meaning the model did not give."""
+        assert self._parse({'categories': [{'index': 4, 'category': 'pre-roll'}]}) == {}
+        assert self._parse({'categories': [{'index': 5, 'category': 'mid-roll'}]}) == {}
+
+    def test_a_bool_index_is_not_a_number(self):
+        assert self._parse({'categories': [{'index': True, 'category': 'sponsor'}]}) == {}
+
+    def test_a_malformed_response_resolves_nothing(self):
+        from ad_detector.prompts import parse_category_repair_response
+        assert parse_category_repair_response('not json') == {}
+        assert parse_category_repair_response('{}') == {}

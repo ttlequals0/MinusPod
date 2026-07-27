@@ -13,6 +13,16 @@ release notes.
 
 ### Fixed
 
+- Per-category actions were not applying, because the categories never
+  arrived. Only Anthropic enforces the category list on the model; on every
+  other provider the follow-up call that fills in a missing category can answer
+  in a shape the parser dropped, and a dropped entry looks the same as a model
+  with no opinion. On one episode it resolved 0 of 10, every window, and all of
+  them defaulted to sponsor. Case, hyphen and spacing variants of a real
+  category are accepted now ("Cross-Promo"), as is a quoted index, and anything
+  still unusable is logged with what came back. A position word like "pre-roll"
+  is still refused: it says where a segment is, not what it is.
+
 - A stretch of ordinary conversation could be flagged as an ad on the strength
   of a seam. The verification pass reads the already-cut audio, so a pass-1 cut
   leaves a mid-sentence break that looks like a removed ad. The model reported

@@ -553,6 +553,31 @@ def format_category_repair_prompt(transcript_excerpt: str,
     )
 
 
+def _repair_index(value):
+    """The segment index from a repair entry, or None. Accepts the digits a
+    provider without enum enforcement may quote as a string."""
+    # bool is a subclass of int in Python; exclude it explicitly so a stray
+    # true/false in the index field cannot masquerade as 0/1.
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().lstrip('-').isdigit():
+        return int(value.strip())
+    return None
+
+
+def _repair_category(value):
+    """A known category from a repair entry, or None. Spacing, case and
+    hyphens vary between providers ("Cross-Promo"); the vocabulary does not,
+    so only formatting is normalized. A position word like "pre-roll" is not
+    a category and stays rejected."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().lower().replace('-', '_').replace(' ', '_')
+    return candidate if candidate in SEGMENT_CATEGORIES else None
+
+
 def parse_category_repair_response(response_text: str) -> Dict[int, str]:
     """Parse the repair call's response into {index: category}.
 
@@ -571,16 +596,22 @@ def parse_category_repair_response(response_text: str) -> Dict[int, str]:
     if not isinstance(data, list):
         return {}
     resolved = {}
+    rejected = []
     for entry in data:
         if not isinstance(entry, dict):
             continue
-        idx = entry.get('index')
-        category = entry.get('category')
-        # bool is a subclass of int in Python; exclude it explicitly so a
-        # stray true/false in the index field cannot masquerade as 0/1.
-        if isinstance(idx, bool) or not isinstance(idx, int):
-            continue
-        if category not in SEGMENT_CATEGORIES:
+        idx = _repair_index(entry.get('index'))
+        category = _repair_category(entry.get('category'))
+        if idx is None or category is None:
+            rejected.append(entry)
             continue
         resolved[idx] = category
+    if rejected:
+        # Only Anthropic enforces the schema; every other provider can answer
+        # in a shape this drops, and a silent drop reads as "the model had no
+        # opinion". Say what came back so it is diagnosable.
+        logger.info(
+            "Category repair: ignored %d unusable entr%s, e.g. %s",
+            len(rejected), 'y' if len(rejected) == 1 else 'ies',
+            json.dumps(rejected[:3])[:200])
     return resolved
