@@ -270,7 +270,9 @@ class SponsorService:
             return None
         patterns = [
             r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read',
-            r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)',
+            # \b after the alternation: without it "ad" matched inside
+            # "address", so "mailing address" captured "mailing" as the brand.
+            r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)\b',
             r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
             r'promoting\s+(\w+(?:\s+\w+)?)',
             r'brought to you by\s+(\w+(?:\s+\w+)?)',

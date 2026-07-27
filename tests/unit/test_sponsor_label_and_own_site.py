@@ -135,3 +135,71 @@ class TestContinuationNotesAreNotSponsors:
             'slug', 'ep')
 
         assert ads[0]['sponsor'] == 'Acme'
+
+
+class TestRationaleFilterDoesNotEatDescriptions:
+    """A full ad description can mention the transcript in passing. Restoring
+    those descriptions started tripping the rationale filter, which rejected
+    legitimate pattern learning."""
+
+    DESCRIPTION = (
+        "Arctic Wolf: Host-read ad break beginning with 'this show brought to "
+        "you today by Arctic Wolf' at ~3769.7s. Ad ends at ~3938.7s when the "
+        "host says 'our hydration break is over'. Overlapping timestamps in "
+        "transcript appear to be duplicated audio channel text; ad content "
+        "itself concludes with the arcticwolf.com/trends CTA and thanks."
+    )
+
+    def test_a_long_description_is_not_a_rationale(self):
+        from utils.constants import is_sponsor_reasoning_rationale
+        assert not is_sponsor_reasoning_rationale(self.DESCRIPTION)
+
+    def test_a_rationale_only_string_still_is(self):
+        from utils.constants import is_sponsor_reasoning_rationale
+        assert is_sponsor_reasoning_rationale(
+            'Inferred from ~26 second gap in transcript with no spoken content')
+        assert is_sponsor_reasoning_rationale('volume anomaly at 42s')
+
+    def test_a_rationale_prefix_decides_at_any_length(self):
+        from utils.constants import is_sponsor_reasoning_rationale
+        assert is_sponsor_reasoning_rationale('Inferred from ' + 'x' * 400)
+
+
+class TestReasonRegexWordBoundaries:
+    """"ad" must not match inside a longer word."""
+
+    def test_mailing_address_is_not_a_sponsor(self):
+        from sponsor_service import SponsorService
+        text = ('Host-read self-promotion: donation links, mailing address, '
+                'example.com bonus-episode subscription pitch')
+        assert SponsorService.extract_sponsor_from_reason(text) is None
+
+    def test_a_real_ad_phrase_still_resolves(self):
+        from sponsor_service import SponsorService
+        assert SponsorService.extract_sponsor_from_reason(
+            'This is a BetterHelp ad for listeners') == 'BetterHelp'
+
+
+class TestContinuationScaffoldingStrippedFromReason:
+    """The window prompt asks for these notes; a reader should not see them."""
+
+    def test_leading_continuation_note_is_dropped(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 840, 'end': 900, 'type': 'promo',
+             'note': 'continues from previous; host self-promo for Example.com'}]),
+            'slug', 'ep')
+        assert ads[0]['reason'] == 'host self-promo for Example.com'
+
+    def test_continues_in_next_is_dropped_too(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 840, 'end': 900, 'sponsor': 'Acme',
+             'note': 'continues in next: Acme pitch with promo code SAVE'}]),
+            'slug', 'ep')
+        assert 'continues in next' not in ads[0]['reason']
+        assert 'Acme pitch with promo code SAVE' in ads[0]['reason']
+
+    def test_a_description_that_merely_mentions_it_is_untouched(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 840, 'end': 900, 'sponsor': 'Acme',
+             'note': 'Acme read that continues in next window'}]), 'slug', 'ep')
+        assert 'continues in next window' in ads[0]['reason']

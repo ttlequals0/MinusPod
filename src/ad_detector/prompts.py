@@ -6,6 +6,7 @@ for readability; behavior is unchanged from the pre-split module.
 """
 import logging
 import json
+import re
 from typing import List, Dict, Tuple
 
 from sponsor_service import SponsorService
@@ -182,12 +183,27 @@ def _flatten_ad_envelopes(ads: List) -> List:
     return flat
 
 
+# The window prompt asks for these notes, so they arrive as prose glued to the
+# front of a description and end up in the marker a reader sees.
+_CONTINUATION_PREFIX_RE = re.compile(
+    r'^(?:continues?\s+(?:from\s+previous|in\s+next)|continued)\b[\s;,.:-]*',
+    re.IGNORECASE)
+
+
+def _strip_continuation_prefix(text: str) -> str:
+    """Drop a leading window-continuation note from description text."""
+    return _CONTINUATION_PREFIX_RE.sub('', text or '').lstrip()
+
+
 def _as_text(value) -> str:
     """Flatten an LLM field to text. A back-to-back break makes the model
-    answer a string field with a list, and str() would store the Python repr."""
+    answer a string field with a list, and str() would store the Python repr.
+    The window-continuation note the prompt asks for is dropped here so it
+    reaches neither the sponsor slot nor the reason a reader sees."""
     if isinstance(value, (list, tuple)):
-        return ', '.join(str(v).strip() for v in value if v and str(v).strip())
-    return str(value).strip() if value else ''
+        joined = ', '.join(str(v).strip() for v in value if v and str(v).strip())
+        return _strip_continuation_prefix(joined)
+    return _strip_continuation_prefix(str(value).strip()) if value else ''
 
 
 def parse_ads_from_response(response_text: str, slug: str = None,
@@ -372,7 +388,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                                 description = val
                     # Kept whole (#591); the old 300/150 caps put a literal
                     # "..." in the UI with no fuller text to expand to.
-                    description = truncate(description, REASON_DESCRIPTION_MAX)
+                    description = truncate(
+                        _strip_continuation_prefix(description),
+                        REASON_DESCRIPTION_MAX)
 
                     # Combine sponsor + description in reason field
                     if description:

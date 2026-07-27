@@ -1,5 +1,6 @@
 """Tests for PodpingListener and podping_listener_loop."""
 import json
+import threading
 import time
 from unittest.mock import Mock
 
@@ -37,11 +38,12 @@ class ScriptedRpc:
 
 
 class FakeDb:
-    def __init__(self, podcasts=None, declarations=None):
+    def __init__(self, podcasts=None, declarations=None, settings=None):
         self.podcasts = podcasts or []
         self.declarations = declarations or {}
         self.stamped_slugs = []
         self.recorded_hosts = []
+        self.settings = dict(settings or {})
 
     def get_all_podcasts(self):
         return self.podcasts
@@ -54,6 +56,12 @@ class FakeDb:
 
     def record_podping_hosts(self, counts):
         self.recorded_hosts.append(dict(counts))
+
+    def get_setting(self, key):
+        return self.settings.get(key)
+
+    def set_setting(self, key, value, is_default=False):
+        self.settings[key] = value
 
 
 def _podping_op(auths, payload):
@@ -381,6 +389,29 @@ class TestTick:
         refresh_mock.assert_not_called()
         assert fake_db.stamped_slugs == []
 
+    def test_a_non_actionable_reason_is_still_counted_as_traffic(self):
+        """The host table is a coverage measure, so a reason we do not act on
+        must not make its sender invisible."""
+        block = _podping_op(['delegate1'], {
+            'version': '1.0',
+            'iris': ['https://feeds.somehost.com/show'],
+            'reason': 'delete',
+        })
+        rpc = ScriptedRpc({
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': 5},
+            'condenser_api.get_block': {'transactions': [block]},
+        })
+        fake_db = FakeDb()
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(),
+                                   sleep=lambda s: None)
+        listener.host_flushed_at = 0
+
+        listener.tick()
+
+        recorded = {d for call in fake_db.recorded_hosts for d in call}
+        assert 'feeds.somehost.com' in recorded
+        assert fake_db.stamped_slugs == [], 'still no refresh for that reason'
+
     def test_block_fetch_failure_does_not_advance_cursor(self):
         def get_block_side_effect(params):
             if params[0] == 3:
@@ -465,11 +496,19 @@ class _FakeShutdownEvent:
     """Stand-in for the real, process-wide shutdown_event -- see
     test_refresh_interval_setting.py's identically-shaped fake for why this
     is needed rather than monkeypatching the real singleton's methods.
+
+    Only the thread that built it is observed. Background threads started at
+    bootstrap read the same patched attribute, and their waits used to land in
+    wait_calls, which made the assertions here depend on test order.
     """
 
     def __init__(self):
         self._flag = False
         self.wait_calls = []
+        self._owner = threading.current_thread()
+
+    def _is_owner(self):
+        return threading.current_thread() is self._owner
 
     def is_set(self):
         return self._flag
@@ -478,6 +517,8 @@ class _FakeShutdownEvent:
         self._flag = True
 
     def wait(self, timeout=None):
+        if not self._is_owner():
+            return True
         self.wait_calls.append(timeout)
         self._flag = True
         return True
@@ -510,6 +551,8 @@ class TestPodpingListenerLoop:
                 return self.iteration_count >= self.max_iterations
 
             def wait(self, timeout=None):
+                if not self._is_owner():
+                    return True
                 self.wait_calls.append(timeout)
                 self.iteration_count += 1
                 return True
@@ -551,6 +594,8 @@ class TestPodpingListenerLoop:
                 return self.iteration_count >= self.max_iterations
 
             def wait(self, timeout=None):
+                if not self._is_owner():
+                    return True
                 self.wait_calls.append(timeout)
                 self.iteration_count += 1
                 return True
@@ -578,3 +623,60 @@ class TestPodpingListenerLoop:
         assert 'Podping listener loop iteration failed' in caplog.text
         exc_records = [r for r in caplog.records if r.exc_info is not None]
         assert len(exc_records) == 2
+
+
+class TestRestartResume:
+    """A podping is never resent, so a restart must not jump to the chain head
+    and skip whatever was sent while the container was down."""
+
+    def _listener(self, head, stored=None):
+        rpc = ScriptedRpc({
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': head},
+            'condenser_api.get_block': {'transactions': []},
+        })
+        settings = {'podping_last_block': stored} if stored else {}
+        fake_db = FakeDb(settings=settings)
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(),
+                                   sleep=lambda s: None)
+        listener.feed_map = {}
+        listener.feed_map_fetched_at = time.time()
+        return listener, fake_db, rpc
+
+    def test_resumes_from_the_last_processed_block(self):
+        head = 5000
+        listener, _, rpc = self._listener(head, stored='4990')
+        listener.tick()
+
+        fetched = sorted(c[1][0] for c in rpc.calls
+                         if c[0] == 'condenser_api.get_block')
+        assert fetched[0] == 4991, 'must replay the blocks missed while down'
+        assert listener.current_block == head
+
+    def test_a_gap_wider_than_the_cap_still_skips(self):
+        head = 5000
+        listener, _, rpc = self._listener(head, stored=str(head - MAX_CATCHUP_BLOCKS - 500))
+        listener.tick()
+
+        calls = [c for c in rpc.calls if c[0] == 'condenser_api.get_block']
+        assert len(calls) == 1, 'an unbounded catch-up would hammer the nodes'
+
+    def test_first_ever_start_begins_at_the_head(self):
+        listener, _, rpc = self._listener(5000)
+        listener.tick()
+
+        calls = [c for c in rpc.calls if c[0] == 'condenser_api.get_block']
+        assert len(calls) == 1
+
+    def test_progress_is_persisted_for_the_next_start(self):
+        listener, fake_db, _ = self._listener(5000, stored='4998')
+        listener.host_flushed_at = 0  # force the flush cadence
+        listener.tick()
+
+        assert fake_db.settings.get('podping_last_block') == '5000'
+
+    def test_a_corrupt_stored_block_falls_back_to_the_head(self):
+        listener, _, rpc = self._listener(5000, stored='not-a-number')
+        listener.tick()
+
+        calls = [c for c in rpc.calls if c[0] == 'condenser_api.get_block']
+        assert len(calls) == 1

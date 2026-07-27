@@ -72,6 +72,14 @@ SPONSOR_REASONING_SUBSTRINGS = (
     ' in transcript', 'audio signal', 'no spoken content',
     'gap in transcript', 'volume anomaly',
 )
+
+# The substrings above identify text that is nothing but a rationale, so they
+# only decide for text short enough to be one. A full ad description runs to
+# hundreds of characters and can mention the transcript in passing ("Overlapping
+# timestamps in transcript ... appear to be duplicated audio channel text")
+# without being a rationale. A rationale-shaped prefix still decides at any
+# length.
+SPONSOR_RATIONALE_SUBSTRING_MAX_CHARS = 200
 SPONSOR_MAX_NAME_CHARS = 60
 
 # Backstop on the detector's free-text reason. Generous on purpose: the old
@@ -99,8 +107,8 @@ def is_sponsor_reasoning_rationale(text) -> bool:
     lowered = str(text).strip().lower()
     if lowered.startswith(SPONSOR_REASONING_PREFIXES):
         return True
-    if any(s in lowered for s in SPONSOR_REASONING_SUBSTRINGS):
-        return True
+    if len(lowered) <= SPONSOR_RATIONALE_SUBSTRING_MAX_CHARS:
+        return any(s in lowered for s in SPONSOR_REASONING_SUBSTRINGS)
     return False
 
 

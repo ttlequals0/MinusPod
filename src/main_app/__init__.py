@@ -665,6 +665,19 @@ _BANNER = r"""
 """
 
 
+def _background_threads_enabled() -> bool:
+    """Whether to start the daemon threads below.
+
+    Tests import this module for the app object, which used to start a real
+    RSS refresh, queue processor and podping listener against the test
+    database. They also share patched globals with the test, which made
+    assertions depend on which module won the leader lock first.
+    """
+    if os.environ.get('MINUSPOD_BACKGROUND_THREADS') == '1':
+        return True
+    return 'pytest' not in sys.modules
+
+
 # Startup initialization (runs when module is imported by gunicorn)
 def _startup():
     """Initialize the application on startup.
@@ -720,20 +733,23 @@ def _startup():
         from main_app.feed_auth import ensure_feed_auth_key
         ensure_feed_auth_key(db)
 
-        # Start background RSS refresh thread
-        refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
-        refresh_thread.start()
-        logger.info("Started background refresh thread")
+        if _background_threads_enabled():
+            # Start background RSS refresh thread
+            refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
+            refresh_thread.start()
+            logger.info("Started background refresh thread")
 
-        # Start background queue processor thread for auto-processing
-        queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
-        queue_thread.start()
-        logger.info("Started auto-process queue processor thread")
+            # Start background queue processor thread for auto-processing
+            queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
+            queue_thread.start()
+            logger.info("Started auto-process queue processor thread")
 
-        # Start podping listener thread (active only when podping_enabled)
-        podping_thread = threading.Thread(target=podping_listener_loop, daemon=True)
-        podping_thread.start()
-        logger.info("Started podping listener thread (active only when podping_enabled)")
+            # Start podping listener thread (active only when podping_enabled)
+            podping_thread = threading.Thread(target=podping_listener_loop, daemon=True)
+            podping_thread.start()
+            logger.info("Started podping listener thread (active only when podping_enabled)")
+        else:
+            logger.debug("Background threads not started")
 
         # No inline initial RSS refresh here: background_rss_refresh (started
         # above) calls refresh_all_feeds() immediately on its first loop

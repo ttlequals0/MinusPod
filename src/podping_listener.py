@@ -27,6 +27,11 @@ MAX_CATCHUP_BLOCKS = 100
 
 FEED_MAP_REFRESH_SECONDS = 60
 HOST_FLUSH_SECONDS = 60
+
+# Where the last processed block is kept so a restart resumes instead of
+# jumping to the chain head. Every deploy used to lose the pings sent while
+# the container was down, and a podping is never resent.
+LAST_BLOCK_SETTING = 'podping_last_block'
 NODE_BACKOFF_SCHEDULE = (5, 15, 60)
 
 
@@ -263,12 +268,37 @@ class PodpingListener:
         if now - self.feed_map_fetched_at >= FEED_MAP_REFRESH_SECONDS:
             self._refresh_feed_map()
 
+    def _resume_block(self, head):
+        """Block to start from: the last one processed before a restart, or the
+        head when there is nothing stored or the gap is too wide to catch up."""
+        try:
+            stored = self.db.get_setting(LAST_BLOCK_SETTING)
+            last = int(stored) if stored else 0
+        except (TypeError, ValueError):
+            last = 0
+        if last and 0 < head - last <= MAX_CATCHUP_BLOCKS:
+            logger.info("Podping listener resuming at block %d (%d behind head)",
+                        last + 1, head - last)
+            return last
+        return head - 1
+
     def _buffer_hosts(self, iris):
         """Count the host of every IRI seen, matching a local feed or not."""
         for iri in iris:
             domain = feed_url_domain(iri)
             if domain:
                 self.host_buffer[domain] = self.host_buffer.get(domain, 0) + 1
+
+    def _persist_block(self):
+        """Record progress so a restart resumes here. Written on the flush
+        cadence, so a crash replays at most that many blocks; the per-feed
+        refresh cooldown absorbs a repeat."""
+        if self.current_block is None:
+            return
+        try:
+            self.db.set_setting(LAST_BLOCK_SETTING, str(self.current_block))
+        except Exception as exc:
+            logger.debug("Could not persist podping block: %s", exc)
 
     def _flush_host_buffer(self):
         """Write buffered domain counts; keep the buffer on failure to retry."""
@@ -338,12 +368,13 @@ class PodpingListener:
             return
 
         if self.current_block is None:
-            self.current_block = head - 1
+            self.current_block = self._resume_block(head)
 
         if head - self.current_block > MAX_CATCHUP_BLOCKS:
-            logger.info(
-                "Podping listener is %d blocks behind; skipping catch-up to block %d",
-                head - self.current_block, head - 1)
+            logger.warning(
+                "Podping listener is %d blocks behind (over the %d cap); skipping "
+                "to block %d. Pings in the gap are lost, they are never resent.",
+                head - self.current_block, MAX_CATCHUP_BLOCKS, head - 1)
             self.current_block = head - 1
 
         while self.current_block < head:
@@ -354,10 +385,12 @@ class PodpingListener:
             self.current_block = next_block_num
 
             for event in extract_podping_events(block):
+                iris = event.get('iris') or []
+                # Count the host whatever the reason, so coverage reflects all
+                # traffic and an unhandled reason cannot make a sender invisible.
+                self._buffer_hosts(iris)
                 reason = event.get('reason')
                 if reason is None or reason in ACTIONABLE_REASONS:
-                    iris = event.get('iris') or []
-                    self._buffer_hosts(iris)
                     auths = event.get('auths') or set()
                     for slug in match_iris(iris, self.feed_map):
                         if self._feed_accepts(slug, auths):
@@ -365,6 +398,7 @@ class PodpingListener:
 
         if time.time() - self.host_flushed_at >= HOST_FLUSH_SECONDS:
             self._flush_host_buffer()
+            self._persist_block()
 
 
 def podping_listener_loop():

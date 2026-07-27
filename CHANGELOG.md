@@ -9,6 +9,32 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.8] - 2026-07-27
+
+### Fixed
+
+- Restoring full ad descriptions stopped the detector learning patterns from
+  them. A description that mentions the transcript in passing ("overlapping
+  timestamps in transcript") was classified as model reasoning rather than an
+  ad description, and the pattern was discarded. That test now only
+  decides for text short enough to be reasoning; a reasoning-shaped opening
+  still decides at any length.
+- A word beginning with "ad" was read as the start of an advertisement, so
+  "mailing address" stored "mailing" as the sponsor.
+- The window-continuation note the prompt asks the model for ("continues from
+  previous") reached the sponsor slot and the start of the marker text a
+  reader sees. It is dropped when the field is read.
+- A podping sent while the container was restarting was lost. The listener
+  resumed at the chain head, and a podping is never resent, so every deploy
+  left a gap. It now records the last block it read and resumes there, still
+  skipping a catch-up wider than the existing cap.
+- The host coverage table ignored any notification whose reason the listener
+  does not act on, so a sender using one would have been invisible. Hosts are
+  counted from all traffic; only the feed refresh is gated on the reason.
+- Importing the app started the RSS refresh, queue processor and podping
+  listener, which under test ran against the test database and made results
+  depend on which module started first. They are not started under pytest.
+
 ## [2.81.7] - 2026-07-27
 
 ### Fixed
