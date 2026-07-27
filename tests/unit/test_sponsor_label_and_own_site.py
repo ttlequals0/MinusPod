@@ -33,8 +33,8 @@ class TestListSponsorIsReadable:
 
 class TestOwnSiteTokens:
     def test_covers_the_domain_a_host_plugs_in_a_read(self):
-        assert 'joerogan' in SponsorService.own_site_tokens(
-            'The Joe Rogan Experience')
+        assert 'dailytech' in SponsorService.own_site_tokens(
+            'The Daily Tech Show')
 
     def test_a_single_title_word_can_still_be_an_advertiser(self):
         # "save" is a plausible brand; only runs of two or more words, and the
@@ -53,22 +53,22 @@ class TestOwnSiteTokens:
 
 class TestExtractSponsorsExcludesOwnSite:
     TEXT = ('this episode is brought to you by squarespace, the home of my '
-            'website, joerogan.com. if you want to level up')
+            'website, dailytech.com. if you want to level up')
 
     def test_host_domain_is_not_a_sponsor(self):
         found = SponsorService.extract_sponsors_from_transcript(
             self.TEXT,
-            exclude=SponsorService.own_site_tokens('The Joe Rogan Experience'))
+            exclude=SponsorService.own_site_tokens('The Daily Tech Show'))
 
-        assert 'joerogan' not in found
+        assert 'dailytech' not in found
 
     def test_real_sponsors_are_kept(self):
         found = SponsorService.extract_sponsors_from_transcript(
-            'go to betterhelp.com slash rogan today',
-            exclude=SponsorService.own_site_tokens('The Joe Rogan Experience'))
+            'go to betterhelp.com slash show today',
+            exclude=SponsorService.own_site_tokens('The Daily Tech Show'))
 
         assert 'betterhelp' in found
 
     def test_without_an_exclusion_set_nothing_changes(self):
-        assert 'joerogan' in SponsorService.extract_sponsors_from_transcript(
+        assert 'dailytech' in SponsorService.extract_sponsors_from_transcript(
             self.TEXT)

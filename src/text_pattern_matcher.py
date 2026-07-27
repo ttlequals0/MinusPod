@@ -957,7 +957,6 @@ class TextPatternMatcher:
                     sponsor=current.sponsor or match.sponsor,
                     match_type="both" if current.match_type != match.match_type else current.match_type,
                     category=current.category or match.category,
-                    matched_text=best.matched_text or current.matched_text or match.matched_text,
                 )
             else:
                 merged.append(current)
@@ -1092,7 +1091,9 @@ class TextPatternMatcher:
 
                 # Look for intro phrase near start
                 if pattern.intro_variants:
-                    # Get text around start
+                    # Flat threshold on purpose: this searches ~40s around a
+                    # match that already cleared required_fuzzy_score, so the
+                    # long-transcript alignment problem it guards is absent.
                     start_text = self._get_text_around_time(
                         segments, match.start - 10, match.start + 30
                     ).lower()

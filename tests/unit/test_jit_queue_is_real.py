@@ -1,11 +1,5 @@
-"""A play request deferred for a busy worker must reach the real work queue.
-
-The JIT path used to record the episode only in the status file the UI reads.
-Nothing drains that, so an episode shown as "queued at position 1" stayed
-unprocessed unless the client happened to retry while the worker was free
-(android-faithful ea105e762fd5: queued behind a Joe Rogan reprocess, never
-picked up, still 'discovered' five days later).
-"""
+"""A play request deferred for a busy worker must reach the real work queue,
+not only the status file the UI reads, which nothing drains."""
 from unittest.mock import patch
 
 import pytest
@@ -16,11 +10,11 @@ _test_data_dir = bootstrap('jit_queue_test_')
 
 from main_app import app
 
-EP = 'ea105e762fd5'
-SLUG = 'android-faithful'
-LOOKUP = ({'id': EP, 'url': 'https://example.com/ep.mp3', 'title': 'Goodbye OnePlus',
+EP = 'a1b2c3d4e5f6'
+SLUG = 'example-podcast'
+LOOKUP = ({'id': EP, 'url': 'https://example.com/ep.mp3', 'title': 'Episode One',
            'description': 'desc', 'artwork_url': None,
-           'published': '2026-07-22T04:12:25Z'}, 'Android Faithful')
+           'published': '2026-07-22T04:12:25Z'}, 'Example Podcast')
 
 
 @pytest.fixture
@@ -72,8 +66,8 @@ def test_queue_busy_writes_a_real_work_queue_row(
 def test_queue_busy_marks_the_play_as_user_requested(
     _feed_map, mock_db, mock_status, _lookup, _start, client,
 ):
-    """Without this the drainer's auto-process gate drops the row on feeds with
-    auto-process off, which is the feed this actually happened on."""
+    """Without this the drainer's auto-process gate drops the row on feeds
+    with auto-processing turned off."""
     _busy(mock_db)
     mock_status.get_queue_position.return_value = 1
 

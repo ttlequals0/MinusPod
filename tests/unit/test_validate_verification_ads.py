@@ -721,26 +721,33 @@ def test_proposed_span_outside_hold_does_not_corroborate():
 
 # ---------- One reprocess, one completion (folded approval recut) ----------
 
-def test_approved_holds_are_cut_by_the_run_not_a_second_completion():
-    """Filing is separate from cutting so the pipeline can fold approvals into
-    its own recut. Two finalize calls for one reprocess wrote two history rows
-    and sent two notifications, which is what this split removes.
+def test_approved_holds_are_cut_by_the_run_not_a_second_completion(monkeypatch):
+    """The helper files approvals and never recuts, so the caller decides who
+    finalizes. Two finalizes for one reprocess wrote two history rows."""
+    recut = MagicMock()
+    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
+    hold = _diff_hold(100.0, 200.0)
+    hold['pass2_corroborated'] = True
+    _auto_approve_env(monkeypatch)
 
-    Guards the seam rather than the whole pipeline: the helper must never
-    recut on its own, or the caller cannot control who finalizes.
-    """
-    import inspect
-    src = inspect.getsource(processing_mod._file_corroborated_hold_approvals)
-    assert '_recut_episode' not in src, (
-        'the approval helper must not recut; the caller owns finalization')
+    assert processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', [hold]) == 1
+    recut.assert_not_called()
 
 
-def test_pipeline_recut_forwards_run_stats():
-    """A folded recut becomes the run's only history row, so it has to carry
-    the detection stats. Without forwarding, the surviving row lands with a
-    null mode and no detected count."""
-    import inspect
-    sig = inspect.signature(processing_mod._recut_episode)
-    for name in ('run_stats', 'verification_count', 'audio_cue_detections'):
-        assert name in sig.parameters, f'_recut_episode must accept {name}'
-    assert sig.parameters['run_stats'].default is None
+def test_recut_splits_verification_out_of_its_total():
+    """A recut cuts pass-1 and pass-2 spans together, and persistence adds the
+    two counts back together, so the verification share comes out of the
+    total. Adding it on top double-counted the pass-2 ads."""
+    assert processing_mod._split_recut_counts(8, 2) == (6, 2)
+    # Total is what the row reports as ads_removed.
+    first, verification = processing_mod._split_recut_counts(8, 2)
+    assert first + verification == 8
+
+
+def test_recut_split_survives_a_verification_count_over_the_total():
+    """Pass-2 spans the recut did not end up cutting must not drive the first
+    pass count negative."""
+    assert processing_mod._split_recut_counts(3, 5) == (0, 3)
+    assert processing_mod._split_recut_counts(4, 0) == (4, 0)
+    assert processing_mod._split_recut_counts(4, None) == (4, 0)

@@ -321,6 +321,8 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict],
         segments: List of transcript segments with 'start', 'end', 'text'
         extend_start: Also extend ad starts backwards (the post-reviewer tail
             pass sets this False so it only sweeps trailing CTAs)
+        podcast_name: Show name, so the host's own site does not read as ad
+            content at a boundary
 
     Returns:
         List of ads with boundaries extended where ad content continues

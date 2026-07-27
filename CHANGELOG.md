@@ -33,27 +33,35 @@ release notes.
   CodeQL; the text was already escaped by React, so nothing was injectable.
 - Short pattern phrases matched arbitrary conversation. Fuzzy matching scores
   the best substring alignment, so a 20-character phrase of common words
-  clears the flat threshold somewhere in any long transcript. On one episode
-  that held four sponsors on ordinary speech: "If you know, you Vrbo." aligned
-  to "feel. you know, you do", and "What's in your wallet?" to "what is your
-  website?". The score a phrase must reach now rises as the phrase gets
-  shorter, so a short one has to be near-verbatim. All four measured false
-  positives fall below the new bar; the genuine match in the same episode, a
-  156-character phrase, still matches.
+  clears the flat threshold somewhere in any long transcript. One episode held
+  four sponsors on ordinary speech that way, a 22-character outro landing on
+  "feel. you know, you do" and a 21-character one on "what is your website?".
+  The score a phrase must reach now rises as the phrase gets shorter, so a
+  short one has to be near-verbatim. All four measured false positives fall
+  below the new bar; the genuine match in the same episode, a 156-character
+  phrase, still matches. All four came from community patterns, whose variants
+  are stored verbatim, so a length floor at learning time would not catch them:
+  locally learned variants already require 20 words for an intro, 15 for an
+  outro.
 - A pattern match is timed against the words it aligned to rather than the
   start of the block it was found in, which was placing matches off the ad.
-- A held pattern marker said only "Vrbo (pattern #485)", which left a reviewer
-  no way to judge it. The marker now quotes the transcript text the pattern
-  matched and the score, for example: `Squarespace (pattern #332, outro "slash
-  rogan for a free trial" 86%)`.
+- A held pattern marker named only its sponsor and pattern id, which left a
+  reviewer no way to judge it. The marker now quotes the transcript text the
+  pattern matched, with the score: `Acme (pattern #12, outro "for a free trial
+  at acme dot com" 86%)`.
 - A back-to-back ad break made the model answer with a list of sponsors, which
-  was stored as its Python repr. The marker read `['Dodge', "The Farmer's
-  Dog"]`, and anything downstream that split on the quotes recovered fragments
-  like "s Dog". Several names are joined into one readable label instead.
-- A host's own site named inside a sponsor read (joerogan.com in a Squarespace
-  spot) was harvested as a sponsor. Every break on the show then shared that
-  token, which merged unrelated ads together. Tokens matching the show's own
-  name are no longer treated as advertisers.
+  was stored as its Python repr, so a marker read `['Acme', "Bob's Diner"]` and
+  anything downstream that split on the quotes recovered fragments like
+  "s Diner". Several names are joined into one readable label instead. Other
+  text fields are flattened the same way; a list in `end_text` used to raise.
+- A play request for an episode with no database row yet lost its
+  user-requested stamp, because the insert path did not carry the column the
+  update path did. The drainer then discarded the queued row on a feed with
+  auto-processing off.
+- A host's own site named inside a sponsor read ("the home of my website,
+  example.com") was harvested as a sponsor. Every break on that show then
+  shared the token, which merged unrelated ads together. Domain labels formed
+  from the show's own name are no longer treated as advertisers.
 
 ## [2.81.5] - 2026-07-26
 

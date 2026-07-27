@@ -1517,6 +1517,19 @@ class TestBatchMethods:
         assert ep['status'] == 'pending'
         assert ep['reprocess_mode'] == 'full'
 
+    def test_insert_keeps_reprocess_requested_at(self, temp_db):
+        """A play request on an episode with no row yet must keep the
+        user-intent stamp, or the drainer's auto-process gate discards it."""
+        slug = 'insert-stamp'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+
+        temp_db.upsert_episode(slug, 'ep-new',
+                               original_url='https://example.com/new.mp3',
+                               reprocess_requested_at='2026-01-01T00:00:00Z')
+
+        ep = temp_db.get_episode(slug, 'ep-new')
+        assert ep['reprocess_requested_at'] == '2026-01-01T00:00:00Z'
+
     def test_batch_methods_empty_ids(self, temp_db):
         slug = 'batch-empty'
         temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')

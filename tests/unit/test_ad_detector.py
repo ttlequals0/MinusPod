@@ -236,18 +236,14 @@ class TestMergeSameSponsorAds:
         assert merged[0]['confidence'] == 0.92
 
     def test_the_hosts_own_site_does_not_merge_unrelated_ads(self):
-        """Two different sponsors that both name the show's site stay apart.
-
-        JRE #2529: a Squarespace read and an Apple Card read both mentioned
-        joerogan.com, which was harvested as a shared sponsor and merged them.
-        """
+        """Two different sponsors that both name the show's site stay apart."""
         segments = [
             {'start': 0.0, 'end': 60.0,
              'text': 'brought to you by squarespace, the home of my website, '
-                     'joerogan.com, go build one'},
+                     'dailytech.com, go build one'},
             {'start': 60.0, 'end': 100.0, 'text': 'back to the conversation'},
             {'start': 100.0, 'end': 160.0,
-             'text': 'apple card, terms at joerogan.com slash card'},
+             'text': 'apple card, terms at dailytech.com slash card'},
         ]
         ads = [
             {'start': 0.0, 'end': 60.0, 'confidence': 0.9,
@@ -257,16 +253,16 @@ class TestMergeSameSponsorAds:
         ]
 
         merged = merge_same_sponsor_ads(ads, segments, max_gap=300.0,
-                                        podcast_name='The Joe Rogan Experience')
+                                        podcast_name='The Daily Tech Show')
 
         assert len(merged) == 2
 
     def test_without_the_show_name_the_shared_token_still_merges(self):
         """Guards the fix itself: same input, no podcast name, one span."""
         segments = [
-            {'start': 0.0, 'end': 60.0, 'text': 'squarespace joerogan.com'},
+            {'start': 0.0, 'end': 60.0, 'text': 'squarespace dailytech.com'},
             {'start': 60.0, 'end': 100.0, 'text': 'back to the conversation'},
-            {'start': 100.0, 'end': 160.0, 'text': 'apple card joerogan.com'},
+            {'start': 100.0, 'end': 160.0, 'text': 'apple card dailytech.com'},
         ]
         ads = [
             {'start': 0.0, 'end': 60.0, 'confidence': 0.9, 'reason': 'Squarespace'},

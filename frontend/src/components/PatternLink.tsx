@@ -7,8 +7,9 @@ interface PatternLinkProps {
 }
 
 export default function PatternLink({ reason, className = '' }: PatternLinkProps) {
-  // Match "pattern #123" pattern
-  const patternRegex = /\(pattern #(\d+)\)/g;
+  // The id is not always followed by a closing paren: a pattern marker's
+  // reason carries the matched text after it, "(pattern #12, outro "...")".
+  const patternRegex = /pattern #(\d+)/gi;
   const parts: (string | ReactElement)[] = [];
   let lastIndex = 0;
   let match;
@@ -20,6 +21,7 @@ export default function PatternLink({ reason, className = '' }: PatternLinkProps
     }
     // Add the linked pattern reference
     const patternId = match[1];
+    const label = match[0];
     parts.push(
       <Link
         key={match.index}
@@ -27,7 +29,7 @@ export default function PatternLink({ reason, className = '' }: PatternLinkProps
         className="text-primary hover:underline"
         onClick={(e) => e.stopPropagation()}
       >
-        (pattern #{patternId})
+        {label}
       </Link>
     );
     lastIndex = match.index + match[0].length;

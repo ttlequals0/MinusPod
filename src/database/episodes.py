@@ -255,8 +255,9 @@ class EpisodeMixin:
                     processed_file, processed_at, original_duration,
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
                     error_message, ad_detection_status, artwork_url, episode_number,
-                    retry_count, published_at, deferred_at, deferred_service)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    retry_count, published_at, deferred_at, deferred_service,
+                    reprocess_requested_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -278,7 +279,8 @@ class EpisodeMixin:
                     kwargs.get('retry_count', 0),
                     kwargs.get('published_at'),
                     kwargs.get('deferred_at'),
-                    kwargs.get('deferred_service')
+                    kwargs.get('deferred_service'),
+                    kwargs.get('reprocess_requested_at')
                 )
             )
             db_id = cursor.lastrowid

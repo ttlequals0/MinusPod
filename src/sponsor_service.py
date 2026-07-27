@@ -297,12 +297,8 @@ class SponsorService:
     def own_site_tokens(podcast_name: str) -> set:
         """Domain labels formed from the show's own name, not advertisers.
 
-        A host plugs their site inside a sponsor read ("Squarespace, the home
-        of my website, joerogan.com") and the domain harvest cannot tell that
-        from a brand, so the token is shared by every break on the show.
-        Runs of two or more words only, plus the whole name: a single word of
-        the title ("save" from "Pod Save America") can be a real advertiser.
-        """
+        Runs of two or more words plus the whole name; a single title word
+        can be a real brand."""
         words = re.findall(r'[a-z0-9]+', (podcast_name or '').lower())
         runs = [''.join(words[i:j])
                 for i in range(len(words))
@@ -320,7 +316,9 @@ class SponsorService:
         - "dot com" speech transcriptions
         - The ad_reason field (e.g., "Vention sponsor read")
 
-        ``exclude`` drops known non-advertiser tokens (see own_site_tokens).
+        ``exclude`` drops known non-advertiser tokens (see own_site_tokens),
+        which also stops the host's own site reading as ad content at a
+        boundary.
 
         This is the multi-sponsor counterpart used by merge_same_sponsor_ads
         to test whether adjacent ad regions share a brand.

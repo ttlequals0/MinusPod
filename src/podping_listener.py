@@ -324,8 +324,8 @@ class PodpingListener:
                 slug, reason, COOLDOWN_SECONDS - (now - last))
 
     def tick(self) -> None:
-        """One polling iteration: refresh allow-list/feed map as needed,
-        pull any new blocks, match podping events against known feeds."""
+        """One polling iteration: refresh the feed map as needed, pull any new
+        blocks, match podping events against known feeds."""
         self._maybe_refresh_feed_map()
 
         props = self._call_rpc('condenser_api.get_dynamic_global_properties', [])

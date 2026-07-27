@@ -1854,7 +1854,7 @@ class AdDetector:
                            all_ads, pattern_matched_regions, episode_id):
         """Append a stage-1/2 pattern match to the ad and matched-region lists
         and record it for metrics and promotion. ``reason_suffix`` names the
-        match kind in the no-sponsor fallback reason."""
+        match kind in the reason."""
         evidence = _pattern_match_evidence(match, reason_suffix)
         if match.sponsor:
             reason = f"{match.sponsor} (pattern #{match.pattern_id}, {evidence})"
