@@ -12,9 +12,9 @@ services:
       - "${MINUSPOD_PORT:-8000}:${MINUSPOD_PORT:-8000}"
     volumes:
       - ./data:/app/data
-      # Optional: Custom assets directory for replacement audio
-      # Place your own replace.mp3 file here to customize the sound played where ads were removed
-      # If not mounted, the built-in default audio marker is used
+      # Optional: bake in your own replace.mp3, the sound played where ads were
+      # removed. Usually unnecessary: Settings > Audio > Replacement audio
+      # uploads one to ./data, which takes precedence and survives a rebuild.
       # - ./assets:/app/assets:ro
     environment:
       # =================================================================

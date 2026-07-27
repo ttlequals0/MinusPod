@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import ReplacementAudioField from './ReplacementAudioField';
 
 interface AudioSectionProps {
   audioBitrate: string;
@@ -85,6 +86,8 @@ function AudioSection({
             </p>
           </div>
         )}
+
+        <ReplacementAudioField />
 
         <div className="pt-4 border-t border-border">
           <label htmlFor="maxAudioDownloadMb" className="block text-sm font-medium text-foreground mb-2">

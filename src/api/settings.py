@@ -8,8 +8,9 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping
 
-from flask import request
+from flask import request, send_file
 
+import replacement_audio
 from api import (
     api, log_request, json_response, error_response,
     get_database, _enrich_models_with_pricing, limiter,
@@ -2610,3 +2611,51 @@ def delete_all_community_patterns():
     db = get_database()
     deleted = db.delete_all_community_patterns()
     return json_response({'deleted': deleted})
+
+
+@api.route('/settings/replacement-audio', methods=['GET'])
+@log_request
+def get_replacement_audio():
+    """Metadata for the audio spliced in where an ad was cut."""
+    return json_response(replacement_audio.describe())
+
+
+@api.route('/settings/replacement-audio/file', methods=['GET'])
+@log_request
+def get_replacement_audio_file():
+    """Serve the current replacement audio so the UI can play it."""
+    path, mimetype = replacement_audio.current_file()
+    if not path:
+        return error_response('no replacement audio is installed', 404)
+    response = send_file(path, mimetype=mimetype, as_attachment=False,
+                         download_name='replace.mp3')
+    # The path is stable across uploads, so without this a swap keeps playing
+    # the file the browser already cached.
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@api.route('/settings/replacement-audio', methods=['POST'])
+@limiter.limit("10/minute")
+@log_request
+def upload_replacement_audio():
+    """Install an operator-supplied replacement, transcoded to MP3."""
+    upload = request.files.get('file')
+    if upload is None:
+        return error_response('an audio file is required (multipart field "file")', 400)
+    raw = upload.stream.read(replacement_audio.MAX_UPLOAD_BYTES + 1)
+    try:
+        info = replacement_audio.save_upload(raw)
+    except replacement_audio.ReplacementAudioError as e:
+        return error_response(str(e), 400)
+    return json_response(info)
+
+
+@api.route('/settings/replacement-audio', methods=['DELETE'])
+@log_request
+def delete_replacement_audio():
+    """Drop the uploaded replacement and fall back to the shipped default."""
+    reverted = replacement_audio.revert()
+    info = replacement_audio.describe()
+    info['reverted'] = reverted
+    return json_response(info)

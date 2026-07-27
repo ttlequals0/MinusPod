@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.81.12
+  version: 2.81.13
   contact:
     name: MinusPod
   license:
@@ -5607,6 +5607,87 @@ paths:
         '200':
           description: Updated settings
 
+  /settings/replacement-audio:
+    get:
+      summary: Read the replacement audio currently in use
+      description: |
+        Metadata for the audio spliced in wherever an ad was cut. `source` is
+        `uploaded` when an operator has supplied their own file, `default`
+        otherwise.
+      tags: [Settings]
+      operationId: getReplacementAudio
+      responses:
+        '200':
+          description: Current replacement audio
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReplacementAudio' }
+    post:
+      summary: Upload a replacement audio file
+      description: |
+        Accepts a single audio file as multipart field `file`, transcodes it to
+        MP3 and installs it on the data volume so it survives a redeploy. Takes
+        effect on the next episode without a restart. Rejects files over 5 MB or
+        30 seconds; every cut becomes as long as this file.
+      tags: [Settings]
+      operationId: uploadReplacementAudio
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: MP3, WAV, M4A, OGG or FLAC. Up to 5 MB and 30 seconds.
+      responses:
+        '200':
+          description: Installed, returning the new metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReplacementAudio' }
+        '400':
+          description: Rejected, with an operator-facing reason
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Restore the default replacement audio
+      description: Removes an uploaded file so the shipped default applies again.
+      tags: [Settings]
+      operationId: revertReplacementAudio
+      responses:
+        '200':
+          description: Current replacement audio after the revert
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ReplacementAudio'
+                  - type: object
+                    properties:
+                      reverted:
+                        type: boolean
+                        description: False when no uploaded file was present.
+  /settings/replacement-audio/file:
+    get:
+      summary: Download the replacement audio for preview
+      tags: [Settings]
+      operationId: getReplacementAudioFile
+      responses:
+        '200':
+          description: The audio file
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+        '404':
+          description: No replacement audio is installed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
   /settings/db-backup:
     get:
       summary: Read scheduled DB backup settings
@@ -7197,6 +7278,29 @@ components:
         manifest_version: { type: string }
         fetched_at: { type: string }
 
+    ReplacementAudio:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [default, uploaded]
+        canRevert:
+          type: boolean
+          description: True when an uploaded file is in use and can be removed.
+        exists:
+          type: boolean
+          description: False when no file is on disk, in which case cuts render as silence.
+        sizeBytes: { type: integer, nullable: true }
+        updatedAt:
+          type: integer
+          nullable: true
+          description: Unix mtime, used by the UI to bust the preview cache.
+        durationSeconds:
+          type: number
+          nullable: true
+          description: Every cut becomes this long.
+        channels: { type: integer, nullable: true }
+        sampleRateHz: { type: integer, nullable: true }
     DatabaseBackupSettings:
       type: object
       properties:

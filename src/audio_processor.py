@@ -23,22 +23,44 @@ logger = logging.getLogger(__name__)
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
 ASSETS_BUILTIN_DIR = Path(__file__).parent.parent / "assets_builtin"
 
+REPLACE_AUDIO_FILENAME = "replace.mp3"
+
+
+def get_data_dir() -> Path:
+    """Root of the writable data volume, mirroring Storage's resolution."""
+    return Path(
+        os.environ.get("DATA_PATH")
+        or os.environ.get("MINUSPOD_DATA_DIR")
+        or "/app/data"
+    )
+
+
+def get_uploaded_replace_audio_path() -> Path:
+    """Where an operator-uploaded replacement lands.
+
+    The data volume, not assets/: assets/ is baked into the image by the
+    Dockerfile and is only a bind mount if the operator uncomments it, so an
+    upload written there would vanish on the next redeploy.
+    """
+    return get_data_dir() / REPLACE_AUDIO_FILENAME
+
 
 def get_replace_audio_path() -> str:
-    """Get the path to replace.mp3, checking primary assets first, then builtin."""
-    primary_path = ASSETS_DIR / "replace.mp3"
-    builtin_path = ASSETS_BUILTIN_DIR / "replace.mp3"
+    """Resolve the replacement audio, most specific source first.
 
-    if primary_path.exists():
-        return str(primary_path)
-    elif builtin_path.exists():
-        return str(builtin_path)
-    else:
-        # Return primary path anyway (will fail later with clear error)
-        return str(primary_path)
-
-
-DEFAULT_REPLACE_AUDIO = get_replace_audio_path()
+    Uploaded file, then a mounted assets/ override, then the shipped default.
+    Resolved per call rather than frozen at import so an upload takes effect
+    without a restart.
+    """
+    for candidate in (
+        get_uploaded_replace_audio_path(),
+        ASSETS_DIR / REPLACE_AUDIO_FILENAME,
+        ASSETS_BUILTIN_DIR / REPLACE_AUDIO_FILENAME,
+    ):
+        if candidate.exists():
+            return str(candidate)
+    # Nothing on disk; return the shipped location so the error names it.
+    return str(ASSETS_BUILTIN_DIR / REPLACE_AUDIO_FILENAME)
 
 
 def get_replacement_duration() -> float:
@@ -46,11 +68,10 @@ def get_replacement_duration() -> float:
 
     Asset generators need this to map original-timeline timestamps onto the
     processed audio: each cut is replaced by this much audio, not removed
-    outright. Uses DEFAULT_REPLACE_AUDIO (frozen at import) so the value
-    always matches the beep default-constructed AudioProcessors render with.
-    AudioMetadata caches the probe process-wide.
+    outright. Resolves the same path AudioProcessor renders with, so the two
+    cannot disagree. AudioMetadata re-probes when the file's mtime changes.
     """
-    return AudioMetadata.get_duration(DEFAULT_REPLACE_AUDIO) or 1.0
+    return AudioMetadata.get_duration(get_replace_audio_path()) or 1.0
 
 
 # Loudness leveling presets (optional dynaudnorm second pass). Tuned via the
@@ -73,7 +94,7 @@ DEFAULT_NORMALIZE_INTENSITY = 'normal'
 
 class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
-        self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
+        self.replace_audio_path = replace_audio_path or get_replace_audio_path()
         self.bitrate = bitrate
 
     def get_audio_duration(self, audio_path: str) -> Optional[float]:

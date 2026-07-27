@@ -9,6 +9,37 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.13] - 2026-07-27
+
+### Added
+
+- The sound that plays where an ad was cut can be changed from Settings, under
+  Audio. The section plays the current file, states its length, channels and
+  sample rate, and takes an upload of MP3, WAV, M4A, OGG or FLAC. Uploads are
+  transcoded to MP3 and capped at 5 MB and 30 seconds, since every cut becomes
+  as long as this file. `Use the default` restores the shipped sound, which is
+  what a fresh install still plays.
+
+  A duration bar sizes the replacement against the content on either side of
+  it, so a file long enough to pad out every ad break shows that before you
+  install it. A mono upload is flagged, because an episode whose first cut
+  starts at 0:00 takes the replacement's channel count and would come out mono.
+
+  New endpoints: `GET`, `POST` and `DELETE /settings/replacement-audio`, plus
+  `GET /settings/replacement-audio/file` for the preview.
+
+### Fixed
+
+- An uploaded replacement now survives a redeploy and applies without a
+  restart. Two things stood in the way. `assets/` is copied into the image by
+  the Dockerfile and is only a bind mount if the operator uncomments it, so
+  anything written there is lost on the next pull; uploads go to the data
+  volume instead. And the path was resolved once at import into a module
+  constant, so a swapped file kept rendering the old sound until the container
+  restarted. It is resolved per call now, and the duration used to place
+  chapters and cues reads the same path the renderer does, so the two cannot
+  disagree.
+
 ## [2.81.12] - 2026-07-27
 
 ### Added

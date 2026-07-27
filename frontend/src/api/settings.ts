@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -297,4 +297,18 @@ export async function sendTestEmail(): Promise<{ success: boolean; message: stri
     method: 'POST',
     skipRetry: true,
   });
+}
+
+export async function getReplacementAudio(): Promise<ReplacementAudio> {
+  return apiRequest<ReplacementAudio>('/settings/replacement-audio');
+}
+
+export async function uploadReplacementAudio(file: File): Promise<ReplacementAudio> {
+  const body = new FormData();
+  body.append('file', file);
+  return apiRequest<ReplacementAudio>('/settings/replacement-audio', { method: 'POST', body });
+}
+
+export async function revertReplacementAudio(): Promise<ReplacementAudio> {
+  return apiRequest<ReplacementAudio>('/settings/replacement-audio', { method: 'DELETE' });
 }

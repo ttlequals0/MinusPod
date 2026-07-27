@@ -908,3 +908,15 @@ export interface UpdateCheckSettings {
   enabled: boolean;
   channel: 'stable' | 'edge';
 }
+
+export interface ReplacementAudio {
+  source: 'default' | 'uploaded';
+  canRevert: boolean;
+  exists: boolean;
+  sizeBytes: number | null;
+  updatedAt: number | null;
+  durationSeconds: number | null;
+  channels: number | null;
+  sampleRateHz: number | null;
+  reverted?: boolean;
+}
