@@ -110,6 +110,7 @@ def background_queue_processor():
     """
     from main_app.processing import start_background_processing
     from offline_queue import offline_queue_tick
+    from processing_queue import ProcessingQueue
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
@@ -128,6 +129,11 @@ def background_queue_processor():
                 retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
                 if retry_count > 0:
                     refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
+
+                # Episode rows orphaned in 'processing' by a killed worker.
+                # This ran at startup only, so a row could sit unprocessable
+                # until the next restart.
+                reset_stuck_processing_episodes()
 
                 # Offline queue (#482): expire deferred episodes past their
                 # TTL and re-queue the rest once their service is reachable.
@@ -177,11 +183,26 @@ def background_queue_processor():
                         from processing_timeouts import get_hard_timeout
                         max_wait = get_hard_timeout()
                         waited = 0
+                        queue = ProcessingQueue()
+                        # Consecutive polls where the row says processing but no
+                        # worker holds the lock. One poll of grace lets a job
+                        # that just finished write its status first.
+                        orphan_polls = 0
                         while waited < max_wait and not shutdown_event.is_set():
                             shutdown_event.wait(timeout=10)
                             waited += 10
                             episode = db.get_episode(slug, episode_id)
                             if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
+                                break
+                            if queue.is_processing(slug, episode_id):
+                                orphan_polls = 0
+                                continue
+                            orphan_polls += 1
+                            if orphan_polls >= 2:
+                                refresh_logger.warning(
+                                    f"[{slug}:{episode_id}] Row says processing but no worker holds "
+                                    f"the lock after {waited}s; treating as orphaned"
+                                )
                                 break
 
                         # Check final status
@@ -190,10 +211,15 @@ def background_queue_processor():
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
                         elif episode and episode['status'] == 'processing':
-                            # Still processing after timeout - don't mark as failed, let it continue
-                            # Put back in queue to check again later
+                            # Still processing - don't mark as failed, let it continue.
+                            # Put back in queue to check again later; the next
+                            # claim restarts an orphan, since acquiring the lock
+                            # is what gates a start, not the row's status.
                             db.update_queue_status(queue_id, 'pending')
-                            refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {max_wait}s, will check again later")
+                            if queue.is_processing(slug, episode_id):
+                                refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {waited}s, will check again later")
+                            else:
+                                refresh_logger.warning(f"[{slug}:{episode_id}] Orphaned after {waited}s with no worker on it; requeued")
                         elif episode and episode['status'] == 'deferred':
                             # Offline queue (#482) owns the episode now. Close
                             # the row so it is not counted as a failure (the

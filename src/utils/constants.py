@@ -49,7 +49,12 @@ INVALID_SPONSOR_VALUES = frozenset({
     'none', 'unknown', 'null', 'n/a', 'na', '', 'no', 'yes',
     'ad', 'ads', 'sponsor', 'sponsors', 'advertisement', 'advertisements',
     'multiple', 'various', 'detected', 'advertisement detected',
-    'host read', 'host-read', 'mid-roll', 'pre-roll', 'post-roll'
+    'host read', 'host-read', 'mid-roll', 'pre-roll', 'post-roll',
+    # Window-continuation notes the prompt itself asks for. 'note' is a
+    # sponsor-candidate key, so a short one became the brand name and was
+    # offered to pattern learning as a sponsor.
+    'continues in next', 'continues from previous', 'continued',
+    'continues', 'continuation',
 })
 
 # Claude occasionally returns a reasoning sentence in the `sponsor` slot

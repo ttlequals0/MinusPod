@@ -108,3 +108,30 @@ class TestReasonKeepsItsDescription:
               'note': 'Acme sponsor read'}
         ads = parse_ads_from_response(json.dumps([ad]), 'slug', 'ep')
         assert ads[0]['reason'] == 'Acme sponsor read'
+
+
+class TestContinuationNotesAreNotSponsors:
+    """The window prompt asks for note "continues in next", and `note` is a
+    sponsor-candidate key, so a short one became the brand name and reached
+    pattern learning as a sponsor."""
+
+    def test_a_continuation_note_is_not_a_sponsor(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 100, 'end': 160, 'note': 'continues in next',
+             'confidence': 0.9}]), 'slug', 'ep')
+
+        assert ads and ads[0].get('sponsor') is None
+
+    def test_continues_from_previous_is_also_rejected(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 100, 'end': 160, 'note': 'continues from previous',
+             'confidence': 0.9}]), 'slug', 'ep')
+
+        assert ads and ads[0].get('sponsor') is None
+
+    def test_a_real_brand_in_a_note_still_counts(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 100, 'end': 160, 'note': 'Acme', 'confidence': 0.9}]),
+            'slug', 'ep')
+
+        assert ads[0]['sponsor'] == 'Acme'

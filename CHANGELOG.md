@@ -62,6 +62,16 @@ release notes.
   read was rejected, and only survived because an overlapping detection window
   caught it independently. The gate also now recognizes the pluralized field
   name the model sometimes uses for the sponsor.
+- An episode row left in 'processing' by a killed worker only healed on the
+  next restart. The queue drainer's waiter polled the row's status alone, so it
+  sat on a job nothing was running for the full hard timeout, two hours by
+  default, then requeued and waited again. It now notices that no worker holds
+  the processing lock and requeues immediately, and the reconciler that resets
+  such rows runs on the drainer's periodic sweep rather than only at startup.
+- The window prompt asks the model to note "continues in next" when an ad
+  crosses a window edge, and a note is one of the fields searched for a sponsor
+  name, so that phrase was being stored as the advertiser and offered to
+  pattern learning as one. Continuation notes are rejected as sponsor values.
 - A play request for an episode with no database row yet lost its
   user-requested stamp, because the insert path did not carry the column the
   update path did. The drainer then discarded the queued row on a feed with
