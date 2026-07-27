@@ -27,6 +27,16 @@ release notes.
 
 - A feed's description is shown in full on its detail page instead of being
   clipped to three lines.
+- Links in feed and episode descriptions are clickable. Descriptions were
+  flattened to plain text, which dropped the target of a link whose text is a
+  name rather than a URL, and left bare URLs unclickable. Both now render as
+  links, opening in a new tab. Only http, https, and mailto targets are
+  followed, so a javascript: or data: link in a publisher's feed stays inert
+  text. Descriptions are rebuilt as page elements rather than injected as
+  markup, so nothing in a feed can inject content into the page.
+- Paragraphs and list items in an episode description no longer run together.
+  Flattening the markup concatenated them, so the end of one paragraph
+  collided with the start of the next.
 
 ## [2.81.4] - 2026-07-26
 

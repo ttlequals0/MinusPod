@@ -11,13 +11,13 @@ import Artwork from '../components/Artwork';
 import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_META } from '../utils/corroboration';
-import { stripHtml } from '../utils/stripHtml';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
+import RichText from '../components/RichText';
 import CollapsibleSection, { useCollapsibleOpen } from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
@@ -614,17 +614,10 @@ function EpisodeDetail() {
         )}
 
         {episode.description && (
-          <p className="mt-4 text-muted-foreground whitespace-pre-wrap wrap-break-word">
-            {stripHtml(
-              episode.description
-                .replace(/<br\s*\/?>/gi, '\n')
-                .replace(/<\/p>/gi, '\n')
-                .replace(/<\/li>/gi, '\n')
-                .replace(/<li>/gi, '- ')
-            )
-              .replace(/\n([ \t]*\n)+/g, '\n')
-              .trim()}
-          </p>
+          <RichText
+            html={episode.description}
+            className="mt-4 block text-muted-foreground wrap-break-word"
+          />
         )}
       </div>
 

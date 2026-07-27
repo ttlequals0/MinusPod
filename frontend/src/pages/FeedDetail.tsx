@@ -21,7 +21,7 @@ import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
-import { stripHtml } from '../utils/stripHtml';
+import RichText from '../components/RichText';
 import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { Modal } from '../components/Modal';
 
@@ -332,7 +332,7 @@ function FeedDetail() {
               </div>
             )}
             {feed.description && (
-              <p className="text-muted-foreground mt-2 wrap-break-word">{stripHtml(feed.description)}</p>
+              <RichText html={feed.description} className="text-muted-foreground mt-2 block wrap-break-word" />
             )}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>
