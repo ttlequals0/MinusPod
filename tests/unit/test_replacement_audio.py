@@ -1,10 +1,11 @@
 """Uploading a replacement beep has to persist, take effect without a restart,
 and never install a file that would wreck every cut."""
 import os
+import shutil
 import subprocess
 import sys
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +20,14 @@ from audio_processor import (  # noqa: E402
     get_replace_audio_path,
     get_replacement_duration,
     get_uploaded_replace_audio_path,
+)
+
+
+# CI does not install ffmpeg, matching the rest of the suite. The validation
+# that runs before any probe stays covered there; the transcode does not.
+requires_ffmpeg = pytest.mark.skipif(
+    shutil.which('ffmpeg') is None or shutil.which('ffprobe') is None,
+    reason='ffmpeg and ffprobe are required to build and probe fixture audio',
 )
 
 
@@ -56,18 +65,21 @@ class TestResolutionOrder:
         assert info['source'] == ra.SOURCE_DEFAULT
         assert info['canRevert'] is False
 
+    @requires_ffmpeg
     def test_upload_wins_over_the_default(self, tmp_tone):
         ra.save_upload(tmp_tone(seconds=2.0))
 
         assert get_replace_audio_path() == str(get_uploaded_replace_audio_path())
         assert ra.describe()['source'] == ra.SOURCE_UPLOADED
 
+    @requires_ffmpeg
     def test_upload_lands_on_the_data_volume(self, tmp_tone):
         """assets/ is baked into the image, so an upload there dies on redeploy."""
         ra.save_upload(tmp_tone())
 
         assert get_uploaded_replace_audio_path().parent == Path(_test_data_dir)
 
+    @requires_ffmpeg
     def test_revert_restores_the_default(self, tmp_tone):
         ra.save_upload(tmp_tone())
 
@@ -79,6 +91,7 @@ class TestResolutionOrder:
 
 
 class TestTakesEffectWithoutRestart:
+    @requires_ffmpeg
     def test_pipeline_duration_follows_the_upload(self, tmp_tone):
         """get_replacement_duration used to freeze the path at import."""
         before = get_replacement_duration()
@@ -88,12 +101,14 @@ class TestTakesEffectWithoutRestart:
         assert after == pytest.approx(3.0, abs=0.1)
         assert after != pytest.approx(before, abs=0.1)
 
+    @requires_ffmpeg
     def test_a_default_constructed_processor_picks_up_the_upload(self, tmp_tone):
         from audio_processor import AudioProcessor
         ra.save_upload(tmp_tone(seconds=2.0))
 
         assert AudioProcessor().replace_audio_path == str(get_uploaded_replace_audio_path())
 
+    @requires_ffmpeg
     def test_render_path_and_timestamp_math_agree(self, tmp_tone):
         """A mismatch here shifts every chapter and cue in the episode."""
         from audio_processor import AudioProcessor
@@ -103,6 +118,7 @@ class TestTakesEffectWithoutRestart:
 
 
 class TestRejections:
+    @requires_ffmpeg
     def test_a_non_audio_file_is_rejected(self):
         with pytest.raises(ra.ReplacementAudioError, match='could not be read as audio'):
             ra.save_upload(b'PK\x03\x04 definitely not audio')
@@ -115,12 +131,14 @@ class TestRejections:
         with pytest.raises(ra.ReplacementAudioError, match='The limit is 5 MB'):
             ra.save_upload(b'\x00' * (ra.MAX_UPLOAD_BYTES + 1))
 
+    @requires_ffmpeg
     def test_a_long_file_is_rejected_because_every_cut_becomes_this_long(self, tmp_tone):
         raw = tmp_tone(seconds=45.0, channels=1, bitrate='32k')
 
         with pytest.raises(ra.ReplacementAudioError, match='every cut becomes this long'):
             ra.save_upload(raw)
 
+    @requires_ffmpeg
     def test_a_rejected_upload_leaves_the_previous_file_in_place(self, tmp_tone):
         ra.save_upload(tmp_tone(seconds=2.0))
         with pytest.raises(ra.ReplacementAudioError):
@@ -137,6 +155,7 @@ class TestRejections:
 
 
 class TestMetadata:
+    @requires_ffmpeg
     def test_channels_and_rate_are_reported(self, tmp_tone):
         info = ra.save_upload(tmp_tone(seconds=1.0, channels=1))
 
@@ -144,6 +163,7 @@ class TestMetadata:
         assert info['sampleRateHz'] == 44100
         assert info['sizeBytes'] > 0
 
+    @requires_ffmpeg
     def test_a_wav_upload_is_stored_as_mp3(self, tmp_tone):
         """The render path is handed a file whose name claims MP3."""
         ra.save_upload(tmp_tone())
@@ -151,6 +171,7 @@ class TestMetadata:
 
         assert head in (b'ID3', b'\xff\xfb', b'\xff\xf3', b'\xff\xf2')
 
+    @requires_ffmpeg
     def test_stereo_is_preserved_through_the_transcode(self, tmp_tone):
         info = ra.save_upload(tmp_tone(channels=2))
 
