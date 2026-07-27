@@ -148,6 +148,14 @@ class SchemaViolations:
     extra_keys: int = 0
     out_of_range: int = 0
     extra_key_names: list[str] = field(default_factory=list)
+    # Ads carrying a usable segment category, and ads carrying none. The
+    # prompt marks category REQUIRED, but it is counted separately from
+    # missing_required: an ad with no category is still a usable detection,
+    # it just falls back to the sponsor default and per-category actions
+    # stop meaning anything. Tracked so the report can say which models
+    # actually answer it, since only some providers enforce the schema.
+    category_present: int = 0
+    category_missing: int = 0
 
 
 REQUIRED_AD_KEYS = ("start", "end")
@@ -171,13 +179,33 @@ KNOWN_OPTIONAL_KEYS = (
     "confidence", "reason", "advertiser", "description",
     "continues_from_previous", "continues_in_next",
     "start_time", "end_time", "text",
+    # The prompt asks for this one, so emitting it is compliance, not an
+    # extra key. It was scored as a violation before, which penalized the
+    # models that did what they were told.
+    "category",
 ) + _production_known_keys()
+
+
+def _resolve_category(ad: dict):
+    """The segment category an ad carries, using production's resolution so
+    the benchmark scores what the live parser accepts, not a stricter shape.
+    Falls back to an exact key when the app package is not importable."""
+    try:
+        from ad_detector.prompts import resolve_ad_category  # type: ignore[import-not-found]
+    except Exception:
+        value = ad.get("category")
+        return value if isinstance(value, str) and value.strip() else None
+    return resolve_ad_category(ad)
 
 
 def schema_audit(parsed_ads: list[dict]) -> SchemaViolations:
     v = SchemaViolations()
     extras: set[str] = set()
     for ad in parsed_ads:
+        if _resolve_category(ad):
+            v.category_present += 1
+        else:
+            v.category_missing += 1
         for req in REQUIRED_AD_KEYS:
             if req not in ad and f"{req}_time" not in ad:
                 v.missing_required += 1

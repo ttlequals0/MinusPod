@@ -97,6 +97,12 @@ release notes.
   same-sponsor merging. It is rejected there now, matched with separators
   stripped so a run-together rendering still counts. Only an exact match is
   refused, so a brand that merely contains the show's name survives.
+- The LLM benchmark now measures whether a model names a segment category, and
+  no longer penalizes the ones that do. "category" was absent from both the
+  required and the known-optional key sets, so a model omitting it was counted
+  as missing nothing while a model emitting it took an extra-key violation. It
+  resolves the category the same way the live parser does, so the report says
+  which models answer it and how much the parser's fallback is carrying.
 - A segment category was only read from a field named exactly "category",
   while start, end and the sponsor name are all matched however the model
   spells them. Only Anthropic enforces the schema, so elsewhere the model

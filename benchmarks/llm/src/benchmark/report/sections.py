@@ -353,6 +353,13 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
             )
         if s.schema_violations_total:
             lines.append(f"- Schema violations: {s.schema_violations_total}")
+        categorized = s.category_present_total + s.category_missing_total
+        if categorized:
+            pct = 100.0 * s.category_present_total / categorized
+            lines.append(
+                f"- Segment category named on {s.category_present_total}/{categorized} "
+                f"detections ({pct:.0f}%); the rest fall back to the sponsor default"
+            )
         if s.extra_key_names:
             lines.append(f"- Extra keys observed: {', '.join(sorted(s.extra_key_names))}")
         lines.append("")

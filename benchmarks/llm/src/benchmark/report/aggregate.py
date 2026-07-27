@@ -84,6 +84,11 @@ class ModelStats:
     extraction_method_counts: dict[str, int] = field(default_factory=dict)
     schema_violations_total: int = 0
     extra_key_names: set[str] = field(default_factory=set)
+    # Share of detections that named a segment category. Only some providers
+    # enforce the schema, so this says which models answer it unprompted and
+    # how much the parser's fallback is carrying.
+    category_present_total: int = 0
+    category_missing_total: int = 0
     output_tokens_total: int = 0
     detected_ads_total: int = 0
     # Verbosity / truncation telemetry. Useful for spotting models that
@@ -177,6 +182,8 @@ def _aggregate(
     parse_failures_per_model: dict[str, int] = defaultdict(int)
     parse_total_per_model: dict[str, int] = defaultdict(int)
     schema_totals_per_model: dict[str, int] = defaultdict(int)
+    category_present_per_model: dict[str, int] = defaultdict(int)
+    category_missing_per_model: dict[str, int] = defaultdict(int)
     extra_keys_per_model: dict[str, set[str]] = defaultdict(set)
 
     output_tokens_per_model: dict[str, int] = defaultdict(int)
@@ -205,6 +212,8 @@ def _aggregate(
         compliance_values_per_model[rec["model"]].append(float(rec.get("compliance_score", 0.0)))
         sv = rec.get("schema_violations") or {}
         schema_totals_per_model[rec["model"]] += int(sv.get("missing_required", 0)) + int(sv.get("wrong_type", 0)) + int(sv.get("extra_keys", 0)) + int(sv.get("out_of_range", 0))
+        category_present_per_model[rec["model"]] += int(sv.get("category_present", 0))
+        category_missing_per_model[rec["model"]] += int(sv.get("category_missing", 0))
         for k in sv.get("extra_key_names") or []:
             extra_keys_per_model[rec["model"]].add(k)
         out_toks = int(rec.get("output_tokens", 0))
@@ -346,6 +355,8 @@ def _aggregate(
             ms.parse_failure_rate = parse_failures_per_model[model] / parse_total_per_model[model]
         ms.extraction_method_counts = dict(method_counts[model])
         ms.schema_violations_total = schema_totals_per_model[model]
+        ms.category_present_total = category_present_per_model[model]
+        ms.category_missing_total = category_missing_per_model[model]
         ms.extra_key_names = extra_keys_per_model[model]
         ms.output_tokens_total = output_tokens_per_model[model]
         ms.detected_ads_total = detected_ads_per_model[model]
