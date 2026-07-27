@@ -72,3 +72,39 @@ class TestExtractSponsorsExcludesOwnSite:
     def test_without_an_exclusion_set_nothing_changes(self):
         assert 'dailytech' in SponsorService.extract_sponsors_from_transcript(
             self.TEXT)
+
+
+class TestReasonKeepsItsDescription:
+    """A bare sponsor name must not swallow the note that explains the read.
+
+    The name is both a prefix of its own description and a full word subset of
+    it, so the duplicate check discarded the description and left markers
+    reading only "Box" or "Gusto". A long ad then failed the evidence gate and
+    was dropped outright.
+    """
+
+    NOTE = ("Box sponsor read begins at 'This episode is brought to you by "
+            "Box' (box.com/AI); continues in next")
+
+    def _parse(self, sponsor_key):
+        ad = {'ad_start': 1710.8, 'ad_end': 1860.0, 'note': self.NOTE}
+        ad[sponsor_key] = ['Box'] if sponsor_key == 'sponsors' else 'Box'
+        return parse_ads_from_response(json.dumps([ad]), 'slug', 'ep')
+
+    def test_description_survives_a_sponsor_name_prefix(self):
+        ads = self._parse('sponsor')
+        assert len(ads) == 1
+        assert ads[0]['reason'].startswith('Box: Box sponsor read begins')
+
+    def test_a_pluralized_sponsor_key_still_counts_as_evidence(self):
+        """The model writes "sponsors" sometimes. extract_sponsor_name already
+        read it; the evidence gate did not, so the ad was rejected."""
+        ads = self._parse('sponsors')
+        assert len(ads) == 1
+        assert 'box.com/AI' in ads[0]['reason']
+
+    def test_genuinely_duplicate_text_is_still_collapsed(self):
+        ad = {'ad_start': 10.0, 'ad_end': 90.0, 'sponsor': 'Acme sponsor read',
+              'note': 'Acme sponsor read'}
+        ads = parse_ads_from_response(json.dumps([ad]), 'slug', 'ep')
+        assert ads[0]['reason'] == 'Acme sponsor read'

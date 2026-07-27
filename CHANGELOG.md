@@ -54,6 +54,14 @@ release notes.
   anything downstream that split on the quotes recovered fragments like
   "s Diner". Several names are joined into one readable label instead. Other
   text fields are flattened the same way; a list in `end_text` used to raise.
+- A marker could be left saying only its sponsor name, and a long ad with that
+  shape was dropped outright. The name is both a prefix of its own description
+  and a full word subset of it, so the duplicate check discarded the
+  description that explained the read. The evidence gate then found nothing in
+  the bare name and rejected the ad. Found in production: a 149-second sponsor
+  read was rejected, and only survived because an overlapping detection window
+  caught it independently. The gate also now recognizes the pluralized field
+  name the model sometimes uses for the sponsor.
 - A play request for an episode with no database row yet lost its
   user-requested stamp, because the insert path did not carry the column the
   update path did. The drainer then discarded the queued row on a feed with

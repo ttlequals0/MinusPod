@@ -28,6 +28,16 @@ from config import (
 
 logger = logging.getLogger('podcast.claude')
 
+# Two texts can only be duplicates when their lengths are comparable; below
+# this ratio the shorter one is a fragment of the longer, which is worth
+# keeping rather than discarding.
+DUPLICATE_MIN_LENGTH_RATIO = 0.8
+
+# Sponsor field names with a trailing plural dropped, so the evidence gate
+# accepts the "sponsors" key extract_sponsor_name already reads.
+_SPONSOR_FIELD_STEMS = frozenset(
+    f.lower().rstrip('s') for f in SPONSOR_PRIORITY_FIELDS)
+
 
 # User prompt template (not configurable via UI - just formats the transcript)
 # Description is optional - may contain sponsor lists, chapter markers, or content context
@@ -203,10 +213,19 @@ def parse_ads_from_response(response_text: str, slug: str = None,
         return str_value
 
     def _text_is_duplicate(a: str, b: str) -> bool:
-        """Check if two strings are essentially the same text."""
+        """Check if two strings are essentially the same text.
+
+        Length has to be comparable first. A bare sponsor name is both a
+        prefix of its own description and a full word subset of it, so
+        without this "Box" swallowed the note explaining the read and left
+        the marker saying only "Box".
+        """
         a_lower = a.lower().strip()
         b_lower = b.lower().strip()
-        if a_lower.startswith(b_lower) or b_lower.startswith(a_lower):
+        shorter, longer = sorted((a_lower, b_lower), key=len)
+        if not shorter or len(shorter) < len(longer) * DUPLICATE_MIN_LENGTH_RATIO:
+            return False
+        if longer.startswith(shorter):
             return True
         a_words = set(a_lower.split())
         b_words = set(b_lower.split())
@@ -381,8 +400,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     # instead of blocklisting content indicators (which keeps growing)
                     duration = end - start
                     has_sponsor_field = any(
-                        get_valid_value(ad.get(f))
-                        for f in SPONSOR_PRIORITY_FIELDS
+                        key.lower().rstrip('s') in _SPONSOR_FIELD_STEMS
+                        and get_valid_value(val)
+                        for key, val in ad.items()
                     )
                     has_known_sponsor = (
                         sponsor_service and
