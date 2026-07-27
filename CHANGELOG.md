@@ -76,6 +76,19 @@ release notes.
 
 ### Fixed
 
+- Prompt improvements never reached an existing install. Seeding inserted each
+  prompt row once and never touched it again, while the row stayed flagged as a
+  default, so an install kept whatever prompt shipped when its database was
+  created. One instance was running an 8442-character system prompt with no
+  category section against a shipped default of 10408 that requires a category
+  on every ad, which is why per-category actions never applied there. A row
+  still flagged as a default now tracks the shipped text at startup; a prompt
+  you edited is yours and is left alone.
+- A self-promo or listener-support read has no advertiser, so the show's own
+  name ended up in the sponsor slot, and from there in pattern learning and
+  same-sponsor merging. It is rejected there now, matched with separators
+  stripped so a run-together rendering still counts. Only an exact match is
+  refused, so a brand that merely contains the show's name survives.
 - Per-category actions were not applying, because the categories never
   arrived. Only Anthropic enforces the category list on the model; on every
   other provider the follow-up call that fills in a missing category can answer
