@@ -12,7 +12,6 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('validate_vads_test_')
 from main_app.processing import (
-    _drop_uncovered_pass2_ads,
     _gate_verification_ads_by_confidence,
     _validate_verification_ads,
 )
@@ -439,9 +438,9 @@ def test_held_pass2_ad_still_diverts_never_stamps():
     assert 'pass2_corroborated' not in hold
 
 
-def test_auto_approve_files_correction_and_recuts(monkeypatch):
-    """The auto-approve helper writes the same confirm correction the approve
-    button writes, then runs the standard recut once."""
+def test_auto_approve_files_correction(monkeypatch):
+    """The helper writes the same confirm correction the approve button
+    writes. The recut that applies it is the caller's job."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
@@ -456,18 +455,14 @@ def test_auto_approve_files_correction_and_recuts(monkeypatch):
     other_pending = _held_marker(100.0, 160.0)  # not corroborated
     cut_marker = {'start': 0.0, 'end': 29.0, 'was_cut': True}
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc',
-        [cut_marker, other_pending, hold])
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [cut_marker, other_pending, hold])
 
     assert n == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['correction_type'] == 'confirm'
     assert kwargs['original_bounds'] == {'start': 4875.8, 'end': 5025.8}
     assert kwargs['corrected_bounds'] is None
-    recut.assert_called_once()
-    assert recut.call_args.args[0] == 's'
-    assert recut.call_args.args[1] == 'ep1'
 
 
 def test_auto_approve_noop_without_stamped_holds(monkeypatch):
@@ -476,101 +471,37 @@ def test_auto_approve_noop_without_stamped_holds(monkeypatch):
     monkeypatch.setattr(processing_mod, 'db', db)
     monkeypatch.setattr(processing_mod, '_recut_episode', recut)
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc',
-        [_diff_hold(1.0, 50.0), _held_marker(100.0, 160.0)])
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [_diff_hold(1.0, 50.0), _held_marker(100.0, 160.0)])
 
     assert n == 0
     db.create_pattern_correction.assert_not_called()
-    recut.assert_not_called()
 
 
-def test_auto_approve_swallows_recut_failure(monkeypatch):
-    """A recut failure must not raise: the episode is already complete and
-    the hold stays pending for manual approval."""
+def test_auto_approve_swallows_filing_failure(monkeypatch):
+    """A database failure while filing must not raise: the hold simply stays
+    pending for a manual approval and the run finalizes normally."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    db.create_pattern_correction.side_effect = RuntimeError('boom')
     monkeypatch.setattr(processing_mod, 'db', db)
     monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    monkeypatch.setattr(processing_mod, '_recut_episode',
-                        MagicMock(side_effect=RuntimeError('boom')))
 
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
 
     assert n == 0
     assert hold['held_for_review'] is True
     assert hold['was_cut'] is False
 
 
-def test_drop_uncovered_handles_twinless_cut():
-    """_drop_uncovered_pass2_ads must tolerate a cut dict with no id-twin in
-    the processed/original map."""
-    covered = {'start': 100.0, 'end': 150.0}
-    filtered = {'start': 300.0, 'end': 305.0}
-    v_ads_to_cut = [covered, filtered]
-
-    _drop_uncovered_pass2_ads(
-        's', 'e', v_ads_to_cut, [], [{'start': 100.0, 'end': 150.0}],
-        [], [], total_duration=600.0,
-    )
-
-    assert v_ads_to_cut == [covered]
-    assert filtered['was_cut'] is False
-
-
-def test_auto_approve_respects_human_reject(monkeypatch):
-    """A span the user explicitly rejected must never be auto-approved."""
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = [
-        {'start': 4880.0, 'end': 5020.0}]
-    db.get_confirmed_corrections.return_value = []
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
-    monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
-    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-
-    hold = _diff_hold(4875.8, 5025.8)
-    hold['pass2_corroborated'] = True
-
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
-
-    assert n == 0
-    db.create_pattern_correction.assert_not_called()
-    recut.assert_not_called()
-    assert hold['held_for_review'] is True
-
-def test_auto_approve_skips_without_retained_original(monkeypatch):
-    """Missing retained original: no correction, no recut, no FAILED flip."""
-    db = MagicMock()
-    recut = MagicMock()
-    storage = MagicMock()
-    storage.get_original_path.return_value.exists.return_value = False
-    monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, 'storage', storage)
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
-
-    hold = _diff_hold(4875.8, 5025.8)
-    hold['pass2_corroborated'] = True
-
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
-
-    assert n == 0
-    db.create_pattern_correction.assert_not_called()
-    recut.assert_not_called()
-
-
 def test_auto_approve_dedupes_existing_confirm(monkeypatch):
     """An equivalent confirm already on file must not get a second row, but
-    the recut still runs to apply it."""
+    it still counts as approved so the caller recuts to apply it."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = [
@@ -584,21 +515,20 @@ def test_auto_approve_dedupes_existing_confirm(monkeypatch):
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold])
 
     assert n == 1
     db.create_pattern_correction.assert_not_called()
-    recut.assert_called_once()
 
 
 def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
     """A stale confirm that merely grazes the hold -- typical after a
     reprocess fetched a copy with a shifted DAI timeline -- covers too
     little of the span to force-accept it at recut time. Treating the graze
-    as an equivalent confirm skips filing, the recut re-holds the marker,
-    and the approval silently does nothing (DTNS 5313 reprocess). Only a
-    confirm covering at least half the hold counts as already on file."""
+    as an equivalent confirm skips filing, the caller's recut re-holds the
+    marker, and the approval silently does nothing (DTNS 5313 reprocess).
+    Only a confirm covering at least half the hold counts as on file."""
     db = MagicMock()
     db.get_false_positive_corrections.return_value = []
     # Covers 32.6s of the 107.4s hold (30%): below the validator's
@@ -614,14 +544,13 @@ def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
     hold = _diff_hold(1648.3, 1755.7)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold])
 
     assert n == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
     assert kwargs['correction_type'] == 'confirm'
     assert kwargs['original_bounds'] == {'start': 1648.3, 'end': 1755.7}
-    recut.assert_called_once()
 
 
 def test_auto_approve_dedupes_confirm_covering_most_of_hold(monkeypatch):
@@ -641,33 +570,11 @@ def test_auto_approve_dedupes_confirm_covering_most_of_hold(monkeypatch):
     hold = _diff_hold(1648.3, 1755.7)
     hold['pass2_corroborated'] = True
 
-    n = processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
+    n = processing_mod._file_corroborated_hold_approvals(
+        's', 'ep1', [hold])
 
     assert n == 1
     db.create_pattern_correction.assert_not_called()
-    recut.assert_called_once()
-
-
-def test_auto_approve_recut_gets_no_cancel_event(monkeypatch):
-    """The recut must run with cancel_event=None: a cancel would propagate to
-    the background wrapper's cleanup and delete the completed episode."""
-    db = MagicMock()
-    db.get_false_positive_corrections.return_value = []
-    db.get_confirmed_corrections.return_value = []
-    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
-    monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
-
-    hold = _diff_hold(4875.8, 5025.8)
-    hold['pass2_corroborated'] = True
-
-    processing_mod._auto_approve_corroborated_holds(
-        's', 'ep1', 'Title', 'Pod', 'desc', [hold])
-
-    assert recut.call_args.kwargs.get('cancel_event') is None
 
 
 # ---------- Pass-2 auto-approve across all releasable hold reasons ----------
@@ -753,7 +660,7 @@ def test_proposed_span_disagreement_does_not_corroborate():
 
 
 def _auto_approve_env(monkeypatch):
-    """Swap the IO seams _auto_approve_corroborated_holds touches, following
+    """Swap the IO seams _file_corroborated_hold_approvals touches, following
     the file's MagicMock pattern; returns the db mock for filing asserts."""
     db = MagicMock()
     db.get_original_segments.return_value = [{'start': 0.0}]
@@ -763,8 +670,6 @@ def _auto_approve_env(monkeypatch):
     monkeypatch.setattr(processing_mod, 'storage', storage)
     monkeypatch.setattr(processing_mod, '_load_user_corrections',
                         lambda s, e, d: ([], []))
-    monkeypatch.setattr(processing_mod, '_recut_episode',
-                        lambda *a, **kw: True)
     return db
 
 
@@ -777,8 +682,8 @@ def test_auto_approve_files_trimmed_confirm(monkeypatch):
     hold['pass2_corroborated_span'] = {'start': 837.4, 'end': 1053.0}
     db = _auto_approve_env(monkeypatch)
 
-    approved = processing_mod._auto_approve_corroborated_holds(
-        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+    approved = processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', [hold])
 
     assert approved == 1
     kwargs = db.create_pattern_correction.call_args.kwargs
@@ -794,8 +699,8 @@ def test_auto_approve_full_coverage_files_untrimmed_confirm(monkeypatch):
     hold['pass2_corroborated_span'] = {'start': 4875.9, 'end': 5025.8}
     db = _auto_approve_env(monkeypatch)
 
-    approved = processing_mod._auto_approve_corroborated_holds(
-        'slug', 'ep', 'title', 'pod', 'desc', [hold])
+    approved = processing_mod._file_corroborated_hold_approvals(
+        'slug', 'ep', [hold])
 
     assert approved == 1
     assert db.create_pattern_correction.call_args.kwargs['corrected_bounds'] is None
@@ -812,3 +717,30 @@ def test_proposed_span_outside_hold_does_not_corroborate():
         proc, orig, min_cut_confidence=0.8, pass1_held_markers=[hold])
     assert n == 0
     assert 'pass2_corroborated' not in hold
+
+
+# ---------- One reprocess, one completion (folded approval recut) ----------
+
+def test_approved_holds_are_cut_by_the_run_not_a_second_completion():
+    """Filing is separate from cutting so the pipeline can fold approvals into
+    its own recut. Two finalize calls for one reprocess wrote two history rows
+    and sent two notifications, which is what this split removes.
+
+    Guards the seam rather than the whole pipeline: the helper must never
+    recut on its own, or the caller cannot control who finalizes.
+    """
+    import inspect
+    src = inspect.getsource(processing_mod._file_corroborated_hold_approvals)
+    assert '_recut_episode' not in src, (
+        'the approval helper must not recut; the caller owns finalization')
+
+
+def test_pipeline_recut_forwards_run_stats():
+    """A folded recut becomes the run's only history row, so it has to carry
+    the detection stats. Without forwarding, the surviving row lands with a
+    null mode and no detected count."""
+    import inspect
+    sig = inspect.signature(processing_mod._recut_episode)
+    for name in ('run_stats', 'verification_count', 'audio_cue_detections'):
+        assert name in sig.parameters, f'_recut_episode must accept {name}'
+    assert sig.parameters['run_stats'].default is None

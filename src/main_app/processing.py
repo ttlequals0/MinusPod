@@ -2043,20 +2043,18 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     return v_ads_to_cut, v_ads_for_ui, v_ads_held, corroborated_count
 
 
-def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
-                                      podcast_name, episode_description,
-                                      markers):
-    """Approve pass-2-corroborated holds through the standard human-approval
-    path: file the same confirm correction the approve button
-    writes, then run the standard recut from the retained original audio.
+def _file_corroborated_hold_approvals(slug, episode_id, markers):
+    """File the confirm corrections for pass-2-corroborated holds.
 
-    Runs only after the episode has fully completed. Pending-hold audio is
-    never cut mid-pipeline; when the preconditions are unmet or the recut
-    fails, the markers stay pending for a manual approval (a recut failure
-    carries the same episode-level effects as a failed manual recut). The
-    recut deliberately gets no cancel_event: a cancel here would propagate to
-    the background wrapper's cleanup, which deletes the completed episode's
-    files. Returns the number of holds approved and recut."""
+    Writes the same correction row the approve button writes, so the recut
+    that follows cuts these spans. Filing is separated from the recut so the
+    caller decides which recut applies them: the pipeline folds them into the
+    run's own recut, keeping one reprocess to one completion, while a caller
+    with nothing else to cut can drive a recut of its own.
+
+    Returns the number of approvals filed. Zero means nothing to cut and the
+    markers stay pending for a manual approval, which is also what happens
+    when the preconditions are unmet."""
     holds = [m for m in markers or []
              if m.get('pass2_corroborated') and is_pending_review(m)
              and m.get('hold_reason') in PASS2_AUTOAPPROVE_HOLD_REASONS]
@@ -2131,13 +2129,10 @@ def _auto_approve_corroborated_holds(slug, episode_id, episode_title,
                 + (f" trimmed to {span['start']:.1f}s-{span['end']:.1f}s"
                    if trimmed else "")
                 + ": pass-2 independently re-detected the span as an ad")
-        recut_ok = _recut_episode(slug, episode_id, episode_title,
-                                   podcast_name, episode_description,
-                                   time.time(), cancel_event=None)
-        return len(holds) if recut_ok else 0
+        return len(holds)
     except Exception as e:
         audio_logger.warning(
-            f"[{slug}:{episode_id}] Auto-approve recut failed: {e}; "
+            f"[{slug}:{episode_id}] Auto-approve failed: {e}; "
             f"hold(s) remain pending for manual approval")
         return 0
 
@@ -3228,7 +3223,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
 
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
-                    episode_description, start_time, cancel_event=None):
+                    episode_description, start_time, cancel_event=None,
+                    run_stats=None, verification_count=0,
+                    audio_cue_detections=0):
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
@@ -3237,7 +3234,12 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     Segment-category actions are re-resolved against the current per-feed/
     global maps before cutting (issue #565): a marker's cut/keep fate is
     not pinned to whatever the map said the last time this episode was
-    processed. See the re-partition block below for the exact rule."""
+    processed. See the re-partition block below for the exact rule.
+
+    run_stats, verification_count, and audio_cue_detections are forwarded to
+    the history row. The pipeline passes its own when it folds an approval
+    recut into the run, so the one surviving row keeps the detection stats a
+    standalone recut has none of."""
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -3358,12 +3360,13 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
         not_cut_count = count_not_cut(all_ads_with_validation)
         _finalize_episode(slug, episode_id, episode_title, podcast_name,
-                           pass1_cut_count, verification_count=0,
+                           pass1_cut_count, verification_count=verification_count,
                            first_pass_count=pass1_cut_count,
                            original_duration=original_duration,
                            new_duration=new_duration, start_time=start_time,
                            processed_version=new_version,
-                           audio_cue_detections=0,
+                           audio_cue_detections=audio_cue_detections,
+                           run_stats=run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count)
         status_service.complete_job()
         return True
@@ -4004,6 +4007,28 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 run_stats['verification_ads_cut'] = verification_count
             if new_duration:
                 run_stats['seconds_removed'] = round(original_duration - new_duration, 2)
+            # Approve any hold pass 2 corroborated before finalizing. Filing
+            # the confirms here lets the recut below apply them in the same
+            # run, so one reprocess produces one completion instead of
+            # finalizing twice and notifying twice.
+            if _file_corroborated_hold_approvals(
+                    slug, episode_id, all_ads_with_validation):
+                # The recut re-derives everything from the retained original
+                # with the new confirms applied, and finalizes with the
+                # post-approval durations and cut count. No cancel_event: a
+                # cancel here would reach the background wrapper's cleanup,
+                # which deletes the finished episode's files.
+                if _recut_episode(slug, episode_id, episode_title,
+                                   podcast_name, episode_description,
+                                   start_time, cancel_event=None,
+                                   run_stats=run_stats,
+                                   verification_count=verification_count,
+                                   audio_cue_detections=audio_cue_count):
+                    return True
+                # The recut failed and left the episode marked failed; it owns
+                # the outcome, so do not also finalize this run as a success.
+                return False
+
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,
                                original_duration, new_duration, start_time,
@@ -4013,13 +4038,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                ads_held=held_count, ads_not_cut=not_cut_count)
 
             status_service.complete_job()
-
-            # After the episode is fully complete: approve any differential
-            # hold pass 2 corroborated, via the same correction + recut path
-            # a human approval uses.
-            _auto_approve_corroborated_holds(
-                slug, episode_id, episode_title, podcast_name,
-                episode_description, all_ads_with_validation)
             return True
 
         finally:

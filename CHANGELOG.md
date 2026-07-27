@@ -9,6 +9,29 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.6] - 2026-07-27
+
+### Fixed
+
+- A reprocess that auto-approved a held marker completed twice, writing two
+  history rows and sending two notifications for one action. The second row
+  carried no detection stats, because a recut does no detection. The pipeline
+  finalized the run, then approved the holds and recut, and the recut
+  finalized again. Approvals are
+  now filed before the run finalizes and applied by the run's own recut, so
+  one reprocess is one completion carrying the post-approval numbers.
+- An episode a listener asked for while the worker was busy was never
+  processed. The just-in-time path recorded it only in the status file the UI
+  reads, which nothing drains, so "queued at position 1" was display only and
+  the episode depended on the client retrying at a moment the worker was free.
+  It now goes on the work queue the background drainer reads. A play request is
+  also marked user-requested, without which the drainer discards it on feeds
+  with auto-processing turned off, as the feed this surfaced on had.
+- The no-parser fallback for rendering descriptions stripped tags in a single
+  pass, which leaves a live tag for input like `<scr<script>ipt>`. It reuses
+  the shared helper that strips until the text stops changing. Flagged by
+  CodeQL; the text was already escaped by React, so nothing was injectable.
+
 ## [2.81.5] - 2026-07-26
 
 ### Fixed

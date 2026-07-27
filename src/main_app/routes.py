@@ -25,7 +25,7 @@ from config import (
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
 from utils.constants import EpisodeStatus
 from utils.safe_http import URLTrust, safe_head
-from utils.time import parse_iso_datetime
+from utils.time import parse_iso_datetime, utc_now_iso
 from utils.url import SSRFError
 from utils.validation import (
     validate_slug_param,
@@ -475,7 +475,18 @@ def register_routes(app):
                 headers={'Retry-After': '30'}
             )
         else:
-            # Queue is busy with another episode - queue this one and return 503
+            # Queue is busy with another episode. Put it on the real work queue
+            # the drainer reads, not only the status file the UI shows: a
+            # display-only entry left the episode unprocessed forever unless
+            # the client happened to retry while the worker was free.
+            # A play request is user intent, so mark it the same way a manual
+            # reprocess does, or the drainer's auto-process gate discards it
+            # on feeds with auto-process off.
+            db.upsert_episode(slug, episode_id,
+                              reprocess_requested_at=utc_now_iso())
+            db.upsert_episode_for_processing(
+                slug, episode_id, original_url, episode_title,
+                ep_data.get('published'), episode_description)
             status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
             queue_position = status_service.get_queue_position(slug, episode_id)
             feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), queued at position {queue_position}")

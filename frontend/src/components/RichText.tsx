@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
 
+import { stripHtml } from '../utils/stripHtml';
+
 /**
  * Renders a feed or episode description with its links intact.
  *
@@ -139,7 +141,9 @@ function RichText({ html, className }: RichTextProps) {
   if (!html) return null;
   if (typeof DOMParser === 'undefined') {
     // No parser available: show the text rather than nothing, links inert.
-    return <span className={className}>{html.replace(/<[^>]*>/g, '')}</span>;
+    // stripHtml re-runs its strip until the string stops changing; a single
+    // pass leaves "<scr<script>ipt>" as a live tag.
+    return <span className={className}>{stripHtml(html)}</span>;
   }
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const nodes = tidy(walk(doc.body, 'rt'));
