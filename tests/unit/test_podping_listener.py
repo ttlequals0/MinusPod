@@ -409,7 +409,7 @@ class TestTick:
         listener.tick()
 
         recorded = {d for call in fake_db.recorded_hosts for d in call}
-        assert 'feeds.somehost.com' in recorded
+        assert recorded == {'feeds.somehost.com'}
         assert fake_db.stamped_slugs == [], 'still no refresh for that reason'
 
     def test_block_fetch_failure_does_not_advance_cursor(self):
