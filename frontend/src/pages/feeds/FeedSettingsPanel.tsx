@@ -124,6 +124,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [snapLeadInput, setSnapLeadInput] = useState(s(feed.cueSnapLeadOverride));
   const [snapLagInput, setSnapLagInput] = useState(s(feed.cueSnapLagOverride));
   const [maxAdDurInput, setMaxAdDurInput] = useState(s(feed.maxAdDurationOverride));
+  const [maxAdDurRejectInput, setMaxAdDurRejectInput] = useState(s(feed.maxAdDurationRejectOverride));
 
   // Reseed inputs from the server feed object when it changes (e.g. after a
   // successful mutation or a background refetch). This mirrors useSyncFromQuery
@@ -138,6 +139,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     setSnapLeadInput(s(f.cueSnapLeadOverride));
     setSnapLagInput(s(f.cueSnapLagOverride));
     setMaxAdDurInput(s(f.maxAdDurationOverride));
+    setMaxAdDurRejectInput(s(f.maxAdDurationRejectOverride));
     setSegmentOverrides(f.segmentCategoryActions ?? {});
   });
 
@@ -890,6 +892,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   'maxAdDurationOverride', 1, 3600,
                   () => setMaxAdDurInput(s(feed.maxAdDurationOverride)))}
                 description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
+
+              {/* Length past which an ad needs a confirmed sponsor */}
+              <CueOverrideRow label="Sponsor needed over" min={1} max={3600} step={1}
+                value={maxAdDurRejectInput} setValue={setMaxAdDurRejectInput}
+                feedValue={feed.maxAdDurationRejectOverride}
+                hint="s, empty = use global" placeholder="global"
+                disabled={updateMutation.isPending}
+                onBlur={() => commitFloat(maxAdDurRejectInput, feed.maxAdDurationRejectOverride,
+                  'maxAdDurationRejectOverride', 1, 3600,
+                  () => setMaxAdDurRejectInput(s(feed.maxAdDurationRejectOverride)))}
+                description="Past this length an ad has to name a recognized sponsor to be cut; one that does not is held for review. Overrides the global setting for this feed." />
 
               {/* Cue-gated approval (Phase C held-for-review) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">

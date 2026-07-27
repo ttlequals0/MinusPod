@@ -117,7 +117,9 @@ class AdValidator:
                  splice_veto_enabled: bool = True,
                  veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS,
                  differential_corr_max: float = 0.60,
-                 sponsor_service=None):
+                 sponsor_service=None,
+                 max_ad_duration: float = MAX_AD_DURATION,
+                 max_ad_duration_confirmed: float = MAX_AD_DURATION_CONFIRMED):
         """Initialize validator.
 
         Args:
@@ -140,6 +142,10 @@ class AdValidator:
             sponsor_service: Sponsor registry, used to confirm a long ad names
                 a real advertiser when the episode description does not list
                 sponsors. Optional; without it only the description counts.
+            max_ad_duration: Length above which an ad needs a confirmed
+                sponsor. Resolved per feed by the caller.
+            max_ad_duration_confirmed: Length above which even a confirmed
+                sponsor does not help.
         """
         self.episode_duration = episode_duration
         self.segments = segments or []
@@ -155,6 +161,8 @@ class AdValidator:
         self.veto_min_cut_seconds = veto_min_cut_seconds
         self.differential_corr_max = differential_corr_max
         self.sponsor_service = sponsor_service
+        self.max_ad_duration = max_ad_duration
+        self.max_ad_duration_confirmed = max_ad_duration_confirmed
         self._audio_analysis = None
 
         if self.false_positive_corrections:
@@ -472,7 +480,8 @@ class AdValidator:
 
         # Check if sponsor is confirmed in episode description
         sponsor_confirmed = self._is_sponsor_confirmed(ad)
-        max_duration = MAX_AD_DURATION_CONFIRMED if sponsor_confirmed else MAX_AD_DURATION
+        max_duration = (self.max_ad_duration_confirmed if sponsor_confirmed
+                        else self.max_ad_duration)
 
         if duration > max_duration:
             flags.append(f"ERROR: Very long ({duration:.1f}s)")
@@ -747,7 +756,7 @@ class AdValidator:
 
         # High confidence (>0.9) overrides long-duration errors up to 15 minutes
         if has_long_error and confidence >= HIGH_CONFIDENCE_OVERRIDE:
-            if duration <= MAX_AD_DURATION_CONFIRMED:
+            if duration <= self.max_ad_duration_confirmed:
                 logger.info(
                     f"Accepting long ad ({duration:.1f}s) due to high confidence ({confidence:.2f})"
                 )
@@ -772,18 +781,23 @@ class AdValidator:
         A held ad gets decision=REVIEW with held_for_review=True so the gate
         keeps it in the audio. Returns the (possibly updated) decision.
         """
-        # Rule 1: max duration override.
-        if self.max_ad_duration_override is not None and duration > self.max_ad_duration_override:
-            if decision == Decision.ACCEPT:
+        # Rule 1a: per-feed cap holds an ad that would otherwise be cut.
+        if (self.max_ad_duration_override is not None
+                and duration > self.max_ad_duration_override
+                and decision == Decision.ACCEPT):
+            self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
+            return Decision.REVIEW
+
+        # Rule 1b: a reject whose only fault is length is held, not dropped.
+        # It cleared every other check, and a plain reject leaves no marker at
+        # all, so a whole ad break disappeared with nothing to review. Applies
+        # to the global ceiling too, not just a per-feed cap. Low-confidence
+        # junk and non-duration errors (NOT_AD etc.) stay rejected.
+        if decision == Decision.REJECT and confidence >= REJECT_CONFIDENCE:
+            error_flags = [f for f in flags if 'ERROR' in f]
+            if error_flags and all('Very long' in f for f in error_flags):
                 self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
                 return Decision.REVIEW
-            if decision == Decision.REJECT and confidence >= REJECT_CONFIDENCE:
-                # Only hold duration-only rejects -- leave low-confidence junk
-                # and non-duration errors (NOT_AD etc.) as plain REJECT.
-                duration_flags = [f for f in flags if 'ERROR' in f]
-                if all('Very long' in f for f in duration_flags) and duration_flags:
-                    self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
-                    return Decision.REVIEW
 
         # Rule 5: uncorroborated cross-fetch differential (#541) -> held for
         # review, never solo-cut. Ordered before the cue gate so the hold

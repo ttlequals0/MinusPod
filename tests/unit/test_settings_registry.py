@@ -361,11 +361,12 @@ class TestGetDefaults:
         # segmentCategoryActions added after that (75 -> 76).
         # omitTemperature added after that (76 -> 77).
         # communitySyncCategories added after that (77 -> 78).
+        # maxAdDurationSeconds + maxAdDurationConfirmedSeconds (78 -> 80).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 78
+        assert len(payload_keys) == 80
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

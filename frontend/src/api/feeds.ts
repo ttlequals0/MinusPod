@@ -222,6 +222,7 @@ export interface UpdateFeedPayload {
   silenceSnapEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
+  maxAdDurationRejectOverride?: number | null;
   cueGatedApproval?: boolean | null;
   differentialFetchEnabled?: boolean | null;
   passthroughEnabled?: boolean | null;

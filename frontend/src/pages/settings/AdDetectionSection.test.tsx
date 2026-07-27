@@ -13,6 +13,8 @@ import AdDetectionSection from './AdDetectionSection';
 interface TunablesState {
   minCutConfidence: number;
   minContentBetweenAdsSeconds: number;
+  maxAdDurationSeconds: number;
+  maxAdDurationConfirmedSeconds: number;
   verificationMissHoldMinConfidence: number;
   verificationMissAutocutMinConfidence: number;
   learningMinConfidence: number;
@@ -25,6 +27,8 @@ function defaultState(): TunablesState {
   return {
     minCutConfidence: 0.75,
     minContentBetweenAdsSeconds: 12,
+    maxAdDurationSeconds: 300,
+    maxAdDurationConfirmedSeconds: 900,
     verificationMissHoldMinConfidence: 0.6,
     verificationMissAutocutMinConfidence: 0,
     learningMinConfidence: 0.85,
@@ -48,6 +52,10 @@ function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
         onMinCutConfidenceChange={patch('minCutConfidence')}
         minContentBetweenAdsSeconds={state.minContentBetweenAdsSeconds}
         onMinContentBetweenAdsSecondsChange={patch('minContentBetweenAdsSeconds')}
+        maxAdDurationSeconds={state.maxAdDurationSeconds}
+        onMaxAdDurationSecondsChange={patch('maxAdDurationSeconds')}
+        maxAdDurationConfirmedSeconds={state.maxAdDurationConfirmedSeconds}
+        onMaxAdDurationConfirmedSecondsChange={patch('maxAdDurationConfirmedSeconds')}
         verificationMissHoldMinConfidence={state.verificationMissHoldMinConfidence}
         onVerificationMissHoldMinConfidenceChange={patch('verificationMissHoldMinConfidence')}
         verificationMissAutocutMinConfidence={state.verificationMissAutocutMinConfidence}
@@ -154,6 +162,8 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
     expect(committed).toEqual({
       minCutConfidence: 0.75,
       minContentBetweenAdsSeconds: 12,
+      maxAdDurationSeconds: 300,
+      maxAdDurationConfirmedSeconds: 900,
       verificationMissHoldMinConfidence: 0.7,
       verificationMissAutocutMinConfidence: 0.8,
       learningMinConfidence: 0.9,

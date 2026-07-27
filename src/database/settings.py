@@ -16,6 +16,7 @@ from config import (
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
     AUDIO_CUE_MIN_CONFIDENCE, AUDIO_CUE_TEMPLATE_SCORE,
     AUDIO_CUE_FORMANT_ATTEN_DB,
@@ -371,6 +372,16 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'min_content_between_ads_seconds': SettingSpec(
         default=str(MIN_CONTENT_BETWEEN_ADS_SECONDS),
         payload_key='minContentBetweenAdsSeconds', payload_kind='float'),
+
+    # Length past which an ad needs a confirmed sponsor, and the hard ceiling
+    # even a confirmed one cannot pass. Over the first, an otherwise valid ad
+    # is held for review rather than dropped.
+    'max_ad_duration_seconds': SettingSpec(
+        default=str(MAX_AD_DURATION),
+        payload_key='maxAdDurationSeconds', payload_kind='float'),
+    'max_ad_duration_confirmed_seconds': SettingSpec(
+        default=str(MAX_AD_DURATION_CONFIRMED),
+        payload_key='maxAdDurationConfirmedSeconds', payload_kind='float'),
 
     # -- LLM provider (env-backed keys resolve via ENV_BACKED_SETTINGS) --
     # Operator override: skip temperature on every LLM call, taking precedence

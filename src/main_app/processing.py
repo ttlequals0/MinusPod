@@ -61,6 +61,8 @@ from config import (
     resolve_silence_snap_tunables,
     resolve_tail_retranscribe_tunables,
     resolve_max_ad_duration_override,
+    resolve_max_ad_duration,
+    resolve_max_ad_duration_confirmed,
     resolve_cue_gated_approval,
     differential_fetch_effective,
     resolve_differential_fetch_setting,
@@ -968,7 +970,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      false_positive_corrections, min_cut_confidence,
                      max_ad_duration_override, cue_gate_enabled,
                      confirmed_corrections=None, positional_prior=None,
-                     splice_veto=True):
+                     splice_veto=True, podcast_id=None):
     """Single construction point for AdValidator; owns the splice-veto
     settings reads. Per-site differences are stated by the callers:
 
@@ -979,6 +981,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
     - recut passes everything except positional_prior.
     """
     from ad_validator import AdValidator
+    max_ad_duration = resolve_max_ad_duration(db, podcast_id)
+    max_ad_duration_confirmed = resolve_max_ad_duration_confirmed(db)
     splice_kwargs = {}
     if splice_veto:
         splice_kwargs = {
@@ -999,6 +1003,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
             'differential_measured_corr_max',
             registry_get_default('differential_measured_corr_max')),
         sponsor_service=sponsor_service,
+        max_ad_duration=max_ad_duration,
+        max_ad_duration_confirmed=max_ad_duration_confirmed,
         **splice_kwargs,
     )
 

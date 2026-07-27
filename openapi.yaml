@@ -631,6 +631,13 @@ paths:
                   minimum: 1.0
                   maximum: 3600.0
                   description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap (global MAX_AD_DURATION constants apply).
+                maxAdDurationRejectOverride:
+                  type:
+                    - number
+                    - 'null'
+                  minimum: 1.0
+                  maximum: 3600.0
+                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. null falls back to the global maxAdDurationSeconds setting.
                 cueGatedApproval:
                   type:
                     - boolean
@@ -3547,6 +3554,25 @@ paths:
                     less content (ad-transition music/silence) are collapsed into
                     one contiguous cut. Set to 0 to disable. Default 12.0.
                   example: 12.0
+                maxAdDurationSeconds:
+                  type: number
+                  format: float
+                  minimum: 30
+                  maximum: 3600
+                  description: |
+                    Length past which an ad must name a sponsor MinusPod
+                    recognizes to be cut. One that does not is held for
+                    review rather than dropped.
+                  example: 300.0
+                maxAdDurationConfirmedSeconds:
+                  type: number
+                  format: float
+                  minimum: 30
+                  maximum: 3600
+                  description: |
+                    Hard ceiling. Even an ad with a confirmed sponsor is held
+                    rather than cut past this length.
+                  example: 900.0
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -7492,6 +7518,13 @@ components:
           minimum: 1.0
           maximum: 3600.0
           description: Per-feed max ad duration cap in seconds. Ads longer than this are held for review instead of cut. null means no cap.
+        maxAdDurationRejectOverride:
+          type:
+            - number
+            - 'null'
+          minimum: 1.0
+          maximum: 3600.0
+          description: Per-feed length past which an ad must name a recognized sponsor to be cut. null falls back to the global maxAdDurationSeconds setting.
         cueGatedApproval:
           type:
             - boolean
@@ -8833,6 +8866,16 @@ components:
               format: float
               minimum: 0
               maximum: 60
+            maxAdDurationSeconds:
+              type: number
+              format: float
+              minimum: 30
+              maximum: 3600
+            maxAdDurationConfirmedSeconds:
+              type: number
+              format: float
+              minimum: 30
+              maximum: 3600
             llmProvider:
               type: string
             openaiBaseUrl:

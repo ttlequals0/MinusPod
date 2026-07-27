@@ -35,7 +35,7 @@ MIN_CUT_CONFIDENCE = 0.80       # Minimum to actually remove from audio
 MIN_AD_DURATION = 7.0           # Reject if shorter (quick mentions ~10s minimum)
 SHORT_AD_WARN = 30.0            # Warn if shorter than 30s
 LONG_AD_WARN = 180.0            # Warn if longer than 3 min
-MAX_AD_DURATION = 300.0         # Reject if longer (5 min)
+MAX_AD_DURATION = 300.0         # Needs a confirmed sponsor past this (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved
 
@@ -779,6 +779,31 @@ def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:
     global MAX_AD_DURATION / MAX_AD_DURATION_CONFIRMED constants apply).
     """
     return _resolve_override(db, podcast_id, 'max_ad_duration_override', float, None)
+
+
+def resolve_max_ad_duration(db, podcast_id) -> float:
+    """Length past which an ad needs a confirmed sponsor.
+
+    Per-feed override wins, else the global setting, else the constant.
+    """
+    override = _resolve_override(
+        db, podcast_id, 'max_ad_duration_reject_override', float, None)
+    if override is not None:
+        return override
+    try:
+        return float(db.get_setting_float('max_ad_duration_seconds',
+                                          MAX_AD_DURATION))
+    except Exception:
+        return MAX_AD_DURATION
+
+
+def resolve_max_ad_duration_confirmed(db) -> float:
+    """Hard ceiling that even a confirmed sponsor cannot pass. Global only."""
+    try:
+        return float(db.get_setting_float('max_ad_duration_confirmed_seconds',
+                                          MAX_AD_DURATION_CONFIRMED))
+    except Exception:
+        return MAX_AD_DURATION_CONFIRMED
 
 
 def resolve_cue_gated_approval(db, podcast_id) -> bool:

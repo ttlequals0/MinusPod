@@ -28,6 +28,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
+    MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     get_env_backed_int,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
@@ -293,6 +294,9 @@ def get_settings():
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
     min_content_between_ads = _db_float('min_content_between_ads_seconds', MIN_CONTENT_BETWEEN_ADS_SECONDS)
+    max_ad_duration = _db_float('max_ad_duration_seconds', MAX_AD_DURATION)
+    max_ad_duration_confirmed = _db_float('max_ad_duration_confirmed_seconds',
+                                          MAX_AD_DURATION_CONFIRMED)
 
     # Detection tuning (2.76.0): verification-miss hold/autocut confidence,
     # learning confidence floors, differential correlation/hold thresholds.
@@ -520,6 +524,9 @@ def get_settings():
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'minContentBetweenAdsSeconds': _sv('min_content_between_ads_seconds', min_content_between_ads),
+        'maxAdDurationSeconds': _sv('max_ad_duration_seconds', max_ad_duration),
+        'maxAdDurationConfirmedSeconds': _sv('max_ad_duration_confirmed_seconds',
+                                             max_ad_duration_confirmed),
         'audioCueDetectionEnabled': _sv('audio_cue_detection_enabled', audio_cue_enabled),
         'audioCueFreqMinHz': _sv('audio_cue_freq_min_hz', audio_cue_freq_min),
         'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),
@@ -616,6 +623,7 @@ def update_ad_detection_settings():
         _apply_transcribe_chunk_fields,
         _apply_stage_tunables,
         _apply_ad_merge_fields,
+        _apply_max_ad_duration_fields,
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
         _apply_community_sync_categories,
@@ -1188,6 +1196,28 @@ def _apply_ad_merge_fields(db, data):
         return json_response({'error': 'minContentBetweenAdsSeconds must be between 0 and 60'}, 400)
     db.set_setting('min_content_between_ads_seconds', str(value), is_default=False)
     logger.info(f"Updated min_content_between_ads_seconds to: {value}")
+    return None
+
+
+def _apply_max_ad_duration_fields(db, data):
+    """Persist the ad-length ceilings. Past the first an ad needs a confirmed
+    sponsor; past the second nothing helps."""
+    for key, setting, lo, hi in (
+        ('maxAdDurationSeconds', 'max_ad_duration_seconds', 30.0, 3600.0),
+        ('maxAdDurationConfirmedSeconds', 'max_ad_duration_confirmed_seconds',
+         30.0, 3600.0),
+    ):
+        if key not in data:
+            continue
+        try:
+            value = float(data[key])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{key} must be a number'}, 400)
+        if not math.isfinite(value) or value < lo or value > hi:
+            return json_response(
+                {'error': f'{key} must be between {lo:.0f} and {hi:.0f}'}, 400)
+        db.set_setting(setting, str(value), is_default=False)
+        logger.info(f"Updated {setting} to: {value}")
     return None
 
 

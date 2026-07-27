@@ -6,6 +6,10 @@ interface AdDetectionSectionProps {
   minCutConfidence: number;
   onMinCutConfidenceChange: (value: number) => void;
   minContentBetweenAdsSeconds: number;
+  maxAdDurationSeconds: number;
+  onMaxAdDurationSecondsChange: (v: number) => void;
+  maxAdDurationConfirmedSeconds: number;
+  onMaxAdDurationConfirmedSecondsChange: (v: number) => void;
   onMinContentBetweenAdsSecondsChange: (value: number) => void;
   verificationMissHoldMinConfidence: number;
   onVerificationMissHoldMinConfidenceChange: (value: number) => void;
@@ -52,6 +56,10 @@ function AdDetectionSection({
   minCutConfidence,
   onMinCutConfidenceChange,
   minContentBetweenAdsSeconds,
+  maxAdDurationSeconds,
+  onMaxAdDurationSecondsChange,
+  maxAdDurationConfirmedSeconds,
+  onMaxAdDurationConfirmedSecondsChange,
   onMinContentBetweenAdsSecondsChange,
   verificationMissHoldMinConfidence,
   onVerificationMissHoldMinConfidenceChange,
@@ -114,6 +122,48 @@ function AdDetectionSection({
           />
           <p className="mt-2 text-sm text-muted-foreground">
             Consecutive ads separated by less than this many seconds of speech content are merged into one cut. Set to 0 to disable.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="maxAdDurationSeconds" className="block text-sm font-medium text-foreground mb-2">
+            Ad length needing a confirmed sponsor (s)
+          </label>
+          <input
+            type="number"
+            id="maxAdDurationSeconds"
+            min="30"
+            max="3600"
+            step="10"
+            value={maxAdDurationSeconds}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              if (!isNaN(v) && v >= 30 && v <= 3600) onMaxAdDurationSecondsChange(v);
+            }}
+            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="mt-2 text-sm text-muted-foreground">
+            Past this length an ad has to name a sponsor MinusPod recognizes, in the episode description or in its own audio, or be detected with very high confidence. One that does not is held for review rather than cut, so a long ad break is never dropped without you seeing it. Raise this on shows with long ad blocks.
+          </p>
+        </div>
+        <div>
+          <label htmlFor="maxAdDurationConfirmedSeconds" className="block text-sm font-medium text-foreground mb-2">
+            Longest ad to cut at all (s)
+          </label>
+          <input
+            type="number"
+            id="maxAdDurationConfirmedSeconds"
+            min="30"
+            max="3600"
+            step="10"
+            value={maxAdDurationConfirmedSeconds}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              if (!isNaN(v) && v >= 30 && v <= 3600) onMaxAdDurationConfirmedSecondsChange(v);
+            }}
+            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          <p className="mt-2 text-sm text-muted-foreground">
+            The hard ceiling. Even an ad with a confirmed sponsor is held rather than cut past this length.
           </p>
         </div>
 

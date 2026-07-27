@@ -224,6 +224,7 @@ _CUE_FLOAT_OVERRIDE_FIELDS = [
     ('cueSnapLeadOverride',            'cue_snap_lead_override',               0.5, 30.0),
     ('cueSnapLagOverride',             'cue_snap_lag_override',                0.5, 30.0),
     ('maxAdDurationOverride',          'max_ad_duration_override',             1.0, 3600.0),
+    ('maxAdDurationRejectOverride',    'max_ad_duration_reject_override',      1.0, 3600.0),
 ]
 
 

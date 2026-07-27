@@ -11,6 +11,23 @@ release notes.
 
 ## [2.81.9] - 2026-07-27
 
+### Added
+
+- Ad length limits are settings now, global and per feed, in the UI and the
+  API. "Ad length needing a confirmed sponsor" (default 300s) and "Longest ad
+  to cut at all" (default 900s) sit in Settings under ad detection, and a feed
+  can override the first from its settings panel. A show with long ad blocks no
+  longer depends on the defaults happening to suit it.
+
+### Changed
+
+- An ad past the length ceiling whose only fault is its length is held for
+  review instead of rejected. A reject left no marker at all, so a whole break
+  disappeared with nothing to look at or approve. Whether a long break was cut
+  came down to which side of a fixed 0.90 confidence line it landed on. One
+  episode's 415-second break was cut at 0.90. The next episode's 374-second
+  break was dropped just under it.
+
 ### Fixed
 
 - A whole ad break could be dropped for being long. An ad over five minutes is

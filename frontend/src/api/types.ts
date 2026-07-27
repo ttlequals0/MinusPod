@@ -68,6 +68,7 @@ export interface Feed {
   silenceSnapEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
+  maxAdDurationRejectOverride?: number | null;
   cueGatedApproval?: boolean | null;
   // Layer 3 cross-fetch differential. Null means auto: the stage runs when
   // the feed looks DAI-served; an explicit true/false overrides that.
@@ -420,6 +421,8 @@ export interface Settings {
   silenceSnapMinDurationSeconds: SettingValueNumber;
   silenceSnapMaxDistanceSeconds: SettingValueNumber;
   minContentBetweenAdsSeconds: SettingValueNumber;
+  maxAdDurationSeconds: SettingValueNumber;
+  maxAdDurationConfirmedSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   verificationMissHoldMinConfidence: SettingValueNumber;
   verificationMissAutocutMinConfidence: SettingValueNumber;
@@ -515,6 +518,8 @@ export interface Settings {
     silenceSnapMinDurationSeconds: number;
     silenceSnapMaxDistanceSeconds: number;
     minContentBetweenAdsSeconds: number;
+    maxAdDurationSeconds: number;
+    maxAdDurationConfirmedSeconds: number;
     positionalPriorEnabled: boolean;
     verificationMissHoldMinConfidence: number;
     verificationMissAutocutMinConfidence: number;
@@ -586,6 +591,8 @@ export interface UpdateSettingsPayload {
   silenceSnapMinDurationSeconds?: number;
   silenceSnapMaxDistanceSeconds?: number;
   minContentBetweenAdsSeconds?: number;
+  maxAdDurationSeconds?: number;
+  maxAdDurationConfirmedSeconds?: number;
   positionalPriorEnabled?: boolean;
   verificationMissHoldMinConfidence?: number;
   verificationMissAutocutMinConfidence?: number;

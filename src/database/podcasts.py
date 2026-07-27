@@ -126,6 +126,7 @@ class PodcastMixin:
     # Phase C held-for-review per-feed columns.
     _HELD_REVIEW_COLS = (
         'max_ad_duration_override',
+        'max_ad_duration_reject_override',
         'cue_gated_approval',
     )
 
