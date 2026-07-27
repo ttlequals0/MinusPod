@@ -434,6 +434,11 @@ def _cue_fusion_inputs(audio_analysis, segments):
     return cue_marks, pair_spans
 
 
+# Merge bookkeeping: how much audio the member that supplied the current
+# category covered. Stripped before markers are returned.
+_CATEGORY_SPAN = '_category_span'
+
+
 def _pattern_match_evidence(match, kind: str) -> str:
     """Kind, quoted matched text, and score for the marker reason."""
     pct = f'{match.confidence:.0%}'
@@ -2307,6 +2312,23 @@ class AdDetector:
                     # in so the protected union covers audio it adds past the
                     # recorded end (else a later trim could sever it).
                     note_merged_members(last, current)
+                # The category comes from whichever member covers the most
+                # audio, not whichever happened to sort first. A break holding
+                # a sponsor read and a cross-promo is labelled by the one that
+                # dominates it. Only members that named a category compete, so
+                # a categorized span is never displaced by one that said
+                # nothing. Actions cannot conflict here: a keep-resolving span
+                # is split out before this by split_conflicting_action_span.
+                cur_category = current.get('category')
+                if cur_category:
+                    if last.get('category') and _CATEGORY_SPAN not in last:
+                        # Incumbent's own span, before the end is extended below.
+                        last[_CATEGORY_SPAN] = last['end'] - last['start']
+                    cur_span = current['end'] - current['start']
+                    if cur_span > last.get(_CATEGORY_SPAN, 0.0):
+                        last['category'] = cur_category
+                        last[_CATEGORY_SPAN] = cur_span
+
                 # Merge - prefer pattern-detected metadata
                 if current['end'] > last['end']:
                     last['end'] = current['end']
@@ -2400,6 +2422,7 @@ class AdDetector:
             marker['sponsor'] = sanitize_sponsor_label(
                 marker.get('sponsor'), show_name=podcast_name)
             marker['category'] = normalize_segment_category(marker.get('category'))
+            marker.pop(_CATEGORY_SPAN, None)
 
         return merged
 

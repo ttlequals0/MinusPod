@@ -97,6 +97,17 @@ release notes.
   same-sponsor merging. It is rejected there now, matched with separators
   stripped so a run-together rendering still counts. Only an exact match is
   refused, so a brand that merely contains the show's name survives.
+- The verification pass never asked for a segment category, so every ad it
+  found arrived without one and fell back to the sponsor default even on a
+  provider that answers the first pass perfectly. It now asks for the same
+  four values the detection pass does, and says that a fragment left behind by
+  a cut takes the category of the ad it belonged to.
+- A merged marker took the category of whichever member happened to sort
+  first. One episode detected a sponsor read, a self-promo and a cross-promo
+  and labelled all four surviving markers "sponsor". The category now comes
+  from the member covering the most audio, and a member that named no category
+  never displaces one that did. Actions cannot conflict here, since a
+  keep-resolving span is split out before the merge.
 - The LLM benchmark now measures whether a model names a segment category, and
   no longer penalizes the ones that do. "category" was absent from both the
   required and the known-optional key sets, so a model omitting it was counted

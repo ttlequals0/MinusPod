@@ -395,3 +395,60 @@ class TestDTNS5317IntroOutroSurviveFullPipeline:
         by_start = {m['start']: m for m in remove_ads}
         assert by_start[0.0]['end'] == 166.6
         assert by_start[2324.5]['end'] == 2444.9
+
+
+class TestMergedSpanTakesTheDominantCategory:
+    """A merged span used to keep whichever member sorted first, so a break
+    holding a sponsor read, a self-promo and a cross-promo was labelled by
+    accident. Observed on a real episode: three distinct categories at
+    detection, all four final markers reading sponsor.
+    """
+
+    def _detector(self):
+        from ad_detector import AdDetector
+        d = AdDetector.__new__(AdDetector)
+        d.pattern_service = None
+        return d
+
+    def _ad(self, start, end, category, conf=0.95):
+        return {'start': start, 'end': end, 'confidence': conf,
+                'category': category, 'reason': f'{category} read',
+                'detection_stage': 'claude'}
+
+    def test_the_longest_member_names_the_span(self):
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 120.0, 'self_promo'),
+            self._ad(110.0, 200.0, 'sponsor'),
+        ])
+        assert len(merged) == 1
+        assert merged[0]['category'] == 'sponsor'
+
+    def test_order_does_not_decide_it(self):
+        """Same spans, reversed input: the answer must not change."""
+        merged = self._detector()._merge_detection_results([
+            self._ad(110.0, 200.0, 'sponsor'),
+            self._ad(100.0, 120.0, 'self_promo'),
+        ])
+        assert merged[0]['category'] == 'sponsor'
+
+    def test_a_short_dominant_member_keeps_its_label(self):
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 190.0, 'cross_promo'),
+            self._ad(180.0, 200.0, 'sponsor'),
+        ])
+        assert merged[0]['category'] == 'cross_promo'
+
+    def test_a_member_without_a_category_never_displaces_one(self):
+        uncategorized = {'start': 110.0, 'end': 300.0, 'confidence': 0.95,
+                         'reason': 'no category given', 'detection_stage': 'claude'}
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 120.0, 'cross_promo'), uncategorized,
+        ])
+        assert merged[0]['category'] == 'cross_promo'
+
+    def test_the_bookkeeping_key_is_stripped(self):
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 120.0, 'self_promo'),
+            self._ad(110.0, 200.0, 'sponsor'),
+        ])
+        assert '_category_span' not in merged[0]

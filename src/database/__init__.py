@@ -106,7 +106,14 @@ BE ACCURATE: Don't invent ads. Many episodes will be completely clean after the 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description", "end_text": "last 3-5 words"}}
+Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}}
+
+"category" is REQUIRED on every object, the same as in the first pass. Use:
+- sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad
+- cross_promo: a produced segment promoting a different show
+- self_promo: the show promoting its own other content (another show, Patreon, merch, mailing list)
+- interaction: asking listeners to subscribe, rate, review, or follow the show
+An orphaned fragment left by a cut takes the category of the ad it belonged to.
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
@@ -116,7 +123,7 @@ FRAGMENT EXAMPLE:
 [124.5s - 128.0s] at athleticgreens.com slash podcast. Anyway, moving on to
 [128.5s - 132.0s] the next topic I wanted to discuss was the new research.
 
-Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "reason": "Athletic Greens ad fragment -- orphaned URL after cut boundary", "end_text": "moving on to"}}]
+Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "category": "sponsor", "reason": "Athletic Greens ad fragment -- orphaned URL after cut boundary", "end_text": "moving on to"}}]
 
 MISSED AD EXAMPLE:
 [340.0s - 342.0s] You know what I've been really into lately?
@@ -124,7 +131,7 @@ MISSED AD EXAMPLE:
 [348.5s - 365.0s] They have these sleep stories and meditations... You can try it free for 30 days at calm.com/podcast.
 [365.5s - 368.0s] But anyway, getting back to what we were saying about
 
-Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app sponsor read -- missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
+Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "category": "sponsor", "reason": "Calm app sponsor read -- missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
 
 CLEAN EPISODE EXAMPLE:
 [no promotional content found in transcript]
