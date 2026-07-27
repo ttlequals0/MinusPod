@@ -69,6 +69,11 @@ SPONSOR_REASONING_SUBSTRINGS = (
 )
 SPONSOR_MAX_NAME_CHARS = 60
 
+# Backstop on the detector's free-text reason. Generous on purpose: the old
+# 300/150 caps put a literal "..." in the UI with no fuller text behind it
+# (#591). This only guards against a pathological model response.
+REASON_DESCRIPTION_MAX = 2000
+
 
 def is_sponsor_reasoning_rationale(text) -> bool:
     """True if `text` looks like an LLM reasoning sentence stored in a slot

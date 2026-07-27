@@ -9,6 +9,25 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.5] - 2026-07-26
+
+### Fixed
+
+- Ad marker text was cut off with no way to read the rest, most visibly on
+  mobile (#591). Two things caused it. The detector cut its own description to
+  300 characters, and to 150 when combining it with a sponsor name, so the
+  stored text already ended in a literal "..." with nothing behind it. In a
+  sample of recent episodes, 40 of 190 reasons were cut this way. The UI also
+  had no way to show a long reason in full. The detector now keeps the text
+  whole, and long reasons and reviewer notes clamp to a few lines with a
+  control to see the rest. Markers detected before this release keep whatever
+  text was stored for them; only a reprocess recovers the full wording.
+
+### Changed
+
+- A feed's description is shown in full on its detail page instead of being
+  clipped to three lines.
+
 ## [2.81.4] - 2026-07-26
 
 ### Changed

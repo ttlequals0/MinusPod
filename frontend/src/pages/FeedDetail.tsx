@@ -332,7 +332,7 @@ function FeedDetail() {
               </div>
             )}
             {feed.description && (
-              <p className="text-muted-foreground mt-2 line-clamp-3">{stripHtml(feed.description)}</p>
+              <p className="text-muted-foreground mt-2 wrap-break-word">{stripHtml(feed.description)}</p>
             )}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>

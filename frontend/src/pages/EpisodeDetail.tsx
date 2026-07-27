@@ -17,6 +17,7 @@ import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment } from '../api/types';
 import PatternLink from '../components/PatternLink';
+import ExpandableText from '../components/ExpandableText';
 import CollapsibleSection, { useCollapsibleOpen } from '../components/CollapsibleSection';
 import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
@@ -880,10 +881,13 @@ function EpisodeDetail() {
                     free text (e.g., boundary extension that swept up an
                     adjacent ad's content). */}
                 {segment.reason && (
-                  <p className="text-sm text-muted-foreground mt-2 wrap-break-word">
+                  <ExpandableText
+                    label="match"
+                    className="text-sm text-muted-foreground mt-2"
+                  >
                     <span className="font-medium">Match:</span>{' '}
                     <PatternLink reason={segment.reason} />
-                  </p>
+                  </ExpandableText>
                 )}
                 {segment.reviewer_verdict === 'adjust' && (
                   <p className="text-sm text-cyan-600 dark:text-cyan-400 mt-1 font-mono">
@@ -891,9 +895,13 @@ function EpisodeDetail() {
                   </p>
                 )}
                 {segment.reviewer_verdict && segment.reviewer_reasoning && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">
+                  <ExpandableText
+                    label="reviewer note"
+                    clampLines={3}
+                    className="text-xs text-muted-foreground mt-1 italic"
+                  >
                     Reviewer: {segment.reviewer_reasoning}
-                  </p>
+                  </ExpandableText>
                 )}
               </div>
             ))}
@@ -1257,7 +1265,12 @@ function EpisodeDetail() {
                         </p>
                       )}
                       {segment.reason && (
-                        <p className="text-sm text-muted-foreground mt-1">{segment.reason}</p>
+                        <ExpandableText
+                          label="match"
+                          className="text-sm text-muted-foreground mt-1"
+                        >
+                          {segment.reason}
+                        </ExpandableText>
                       )}
                       {!correction && (
                         <div className="flex flex-col sm:flex-row gap-2 mt-3">

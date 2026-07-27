@@ -15,7 +15,7 @@ from utils.llm_response import extract_json_ads_array
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
-    SPONSOR_MAX_NAME_CHARS,
+    SPONSOR_MAX_NAME_CHARS, REASON_DESCRIPTION_MAX,
     is_sponsor_reasoning_rationale,
     NOT_AD_CLASSIFICATIONS,
 )
@@ -342,16 +342,18 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                             # Prefer longer descriptive text over short values
                             if description is None or len(val) > len(description):
                                 description = val
-                    if description and len(description) > 300:
-                        description = description[:297] + "..."
+                    # The description is kept whole. It used to be cut to 300
+                    # (and to 150 when combined with a sponsor), which put a
+                    # literal "..." in the UI with no fuller text to expand to
+                    # (#591). The UI clamps long reasons and offers to expand.
+                    if description and len(description) > REASON_DESCRIPTION_MAX:
+                        description = description[:REASON_DESCRIPTION_MAX - 3] + "..."
 
                     # Combine sponsor + description in reason field
                     if description:
                         if reason and reason != 'Advertisement detected':
                             # Avoid duplication: check if description is essentially the same text
                             if not _text_is_duplicate(reason, description):
-                                if len(description) > 150:
-                                    description = description[:147] + "..."
                                 reason = f"{reason}: {description}"
                         elif not reason or reason == 'Advertisement detected':
                             reason = description
