@@ -1630,8 +1630,7 @@ class TestStalePromptRefresh:
                      " VALUES ('system_prompt', 'OLD PROMPT', 1)")
         conn.commit()
 
-        temp_db._seed_default_settings(conn)
-        conn.commit()
+        temp_db._refresh_shipped_prompt_defaults(conn)
 
         value, _ = self._row(temp_db, 'system_prompt')
         assert value == DEFAULT_SYSTEM_PROMPT
@@ -1643,9 +1642,31 @@ class TestStalePromptRefresh:
                      " VALUES ('system_prompt', 'MY CUSTOM PROMPT', 0)")
         conn.commit()
 
-        temp_db._seed_default_settings(conn)
-        conn.commit()
+        temp_db._refresh_shipped_prompt_defaults(conn)
 
         value, is_default = self._row(temp_db, 'system_prompt')
         assert value == 'MY CUSTOM PROMPT'
         assert is_default == 0
+
+    def test_the_refresh_is_not_on_the_seeding_path(self, temp_db):
+        """Seeding is reached through _migrate_from_json, which returns early
+        on any database that already has podcasts. Putting the refresh there
+        skipped every install that needed it, which is how it shipped once
+        without working."""
+        import inspect
+        src = inspect.getsource(temp_db.__class__._seed_default_settings)
+        assert 'iter_refreshable_defaults' not in src
+
+    def test_a_populated_database_still_gets_the_refresh(self, temp_db):
+        """The production shape: podcasts present, prompt row stale."""
+        from utils.constants import DEFAULT_SYSTEM_PROMPT
+        temp_db.create_podcast('a-show', 'https://e.test/f.xml', 'A Show')
+        conn = temp_db.get_connection()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default)"
+                     " VALUES ('system_prompt', 'OLD PROMPT', 1)")
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM podcasts").fetchone()[0] > 0
+
+        temp_db._refresh_shipped_prompt_defaults(conn)
+
+        assert self._row(temp_db, 'system_prompt')[0] == DEFAULT_SYSTEM_PROMPT

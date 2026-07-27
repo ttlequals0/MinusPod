@@ -165,11 +165,10 @@ def test_migration_is_idempotent(tmp_path):
     assert first.count('{sponsor_database}') == 1
 
 
-def test_migration_skips_default_prompts(tmp_path):
-    """is_default=1 rows are owned by the seed/refresh path; the placeholder
-    backfill must leave them alone. Use a fixture value that pre-existing
-    prompt-refresh migrations also skip (contains the keywords those
-    migrations check) so we isolate the placeholder migration's behavior.
+def test_default_flagged_prompts_are_owned_by_the_refresh(tmp_path):
+    """is_default=1 rows belong to the refresh path, which re-points them at
+    the text this version ships. The placeholder backfill never has to touch
+    them, since the shipped prompt already carries the placeholder.
     """
     from database import Database
     Database._instance = None
@@ -198,11 +197,13 @@ def test_migration_skips_default_prompts(tmp_path):
 
     db = Database(data_dir=str(tmp_path))
     sp = db.get_setting('system_prompt')
-    # The placeholder backfill must not touch default-flagged rows.
-    assert '{sponsor_database}' not in sp
-    # Value should be preserved verbatim by my migration (and by other
-    # migrations that skipped this fixture).
-    assert sp == fixture_value
+    # An untouched row tracks the shipped default rather than keeping whatever
+    # prompt happened to be in the database when it was created.
+    from utils.constants import DEFAULT_SYSTEM_PROMPT
+    assert sp == DEFAULT_SYSTEM_PROMPT
+    assert sp != fixture_value
+    # The shipped prompt carries the placeholder, rendered at call time.
+    assert '{sponsor_database}' in sp
 
 
 def test_migration_skips_already_placeholdered_prompts(tmp_path):

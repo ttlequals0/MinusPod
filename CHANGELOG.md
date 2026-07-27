@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.10] - 2026-07-27
+## [2.81.11] - 2026-07-27
 
 ### Added
 
@@ -79,7 +79,9 @@ release notes.
 - Prompt improvements never reached an existing install. Seeding inserted each
   prompt row once and never touched it again, while the row stayed flagged as a
   default, so an install kept whatever prompt shipped when its database was
-  created. One instance was running an 8442-character system prompt with no
+  created. The refresh runs on every boot: the seeding path it would naturally
+  belong to returns early on any database that already has feeds in it, which
+  is every install that needs this. One instance was running an 8442-character system prompt with no
   category section against a shipped default of 10408 that requires a category
   on every ad, which is why per-category actions never applied there. A row
   still flagged as a default now tracks the shipped text at startup; a prompt

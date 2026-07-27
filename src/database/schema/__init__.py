@@ -1257,6 +1257,15 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"env-backed settings migration failed: {e}")
 
+        # Shipped prompts track the current default while the row is still
+        # flagged is_default. Runs on every boot, idempotent, and deliberately
+        # not in _seed_default_settings: that path returns early on any
+        # database with podcasts in it, which is every install that needs this.
+        try:
+            self._refresh_shipped_prompt_defaults(conn)
+        except Exception as e:
+            logger.error(f"shipped prompt refresh failed: {e}")
+
         # One-shot backfill of processing_history.ads_detected (2.5.29).
         # See _run_backfill_history_ads_detected for the bug + predicate.
         # rollback() here is safe to scope to this migration's writes only
@@ -3174,6 +3183,25 @@ class SchemaMixin:
         conn.commit()
         logger.info("JSON to SQLite migration completed")
 
+    def _refresh_shipped_prompt_defaults(self, conn: 'sqlite3.Connection'):
+        """Re-point untouched prompt rows at the text this version ships.
+
+        Seeding only ever inserted, so an install kept whatever prompt existed
+        when its database was created and no later improvement reached it. A
+        row the user edited carries is_default = 0 and is left alone.
+        """
+        from database.settings import iter_refreshable_defaults
+
+        for key, value in iter_refreshable_defaults():
+            cursor = conn.execute(
+                "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP "
+                "WHERE key = ? AND is_default = 1 AND value != ?",
+                (value, key, value)
+            )
+            if cursor.rowcount:
+                logger.info("Refreshed %s to the shipped default", key)
+        conn.commit()
+
     def _seed_default_settings(self, conn: 'sqlite3.Connection'):
         """Seed default settings from SETTINGS_REGISTRY.
 
@@ -3182,8 +3210,7 @@ class SchemaMixin:
         defaults. Env-var overrides (RETENTION_PERIOD, WHISPER_MODEL, ...)
         are encoded in the registry entries themselves.
         """
-        from database.settings import (iter_seed_defaults,
-                                       iter_refreshable_defaults)
+        from database.settings import iter_seed_defaults
 
         for key, value in iter_seed_defaults():
             conn.execute(
@@ -3191,19 +3218,6 @@ class SchemaMixin:
                    ON CONFLICT(key) DO NOTHING""",
                 (key, value)
             )
-
-        # Insert-only seeding left an install on whatever prompt shipped when
-        # its database was created, still flagged is_default, so no later
-        # improvement ever reached it. Track the shipped text while the row is
-        # untouched; is_default = 0 means the user edited it and it is theirs.
-        for key, value in iter_refreshable_defaults():
-            cursor = conn.execute(
-                "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP "
-                "WHERE key = ? AND is_default = 1 AND value != ?",
-                (value, key, value)
-            )
-            if cursor.rowcount:
-                logger.info("Refreshed %s to the current shipped default", key)
 
         # Migrate old second_pass settings to verification settings
         try:
