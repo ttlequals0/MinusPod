@@ -209,3 +209,48 @@ class TestCategoryRepairTolerance:
         from ad_detector.prompts import parse_category_repair_response
         assert parse_category_repair_response('not json') == {}
         assert parse_category_repair_response('{}') == {}
+
+
+class TestCategoryResolvedFromAnyField:
+    """start, end and sponsor all tolerate the field names a model invents;
+    category was read with a single exact key. Observed dropped values:
+    {"type": "self_promo"} and {"category": "self-promotion"}, both valid.
+    """
+
+    def _resolve(self, ad):
+        from ad_detector.prompts import resolve_ad_category
+        return resolve_ad_category(ad)
+
+    def test_the_documented_key_wins(self):
+        assert self._resolve({'category': 'sponsor', 'type': 'ad'}) == 'sponsor'
+
+    def test_a_category_under_type_is_found(self):
+        assert self._resolve({'type': 'self_promo'}) == 'self_promo'
+
+    def test_the_spelled_out_form_is_the_same_category(self):
+        assert self._resolve({'category': 'self-promotion'}) == 'self_promo'
+        assert self._resolve({'type': 'Cross-Promotion'}) == 'cross_promo'
+
+    def test_other_key_names_are_searched(self):
+        assert self._resolve({'segment_type': 'interaction'}) == 'interaction'
+        assert self._resolve({'classification': 'sponsorship'}) == 'sponsor'
+
+    def test_an_is_it_an_ad_flag_is_not_a_category(self):
+        """`type` usually holds "ad" or "advertisement", which say whether the
+        span is an ad, not what kind of segment it is."""
+        for ad in ({'type': 'ad'}, {'type': 'advertisement'}, {'type': 'promo'}):
+            assert self._resolve(ad) is None, ad
+
+    def test_a_position_word_is_still_refused(self):
+        assert self._resolve({'category': 'pre-roll'}) is None
+        assert self._resolve({'type': 'mid-roll'}) is None
+
+    def test_nothing_category_like_resolves_to_nothing(self):
+        assert self._resolve({'start': 1.0, 'end': 2.0, 'advertiser': 'Acme'}) is None
+
+    def test_it_reaches_the_parsed_ad(self):
+        from ad_detector.prompts import parse_ads_from_response
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 100, 'end': 160, 'type': 'self_promo', 'confidence': 0.9,
+             'reason': 'house promo for the show newsletter'}]), 'slug', 'ep')
+        assert ads[0]['category'] == 'self_promo'

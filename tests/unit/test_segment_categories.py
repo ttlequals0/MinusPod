@@ -124,13 +124,16 @@ class TestParseAdsFromResponseCarriesCategory:
         assert len(ads) == 1
         assert ads[0]['category'] == 'cross_promo'
 
-    def test_unknown_category_passes_through_unvalidated(self):
+    def test_a_value_outside_the_vocabulary_counts_as_missing(self):
+        """It used to be carried through and normalized to sponsor at the merge
+        seam. Treating it as absent means the repair pass gets a chance at it,
+        and the merge seam still defaults to sponsor if that fails."""
         response = json.dumps([{
             "start": 100.0, "end": 160.0, "confidence": 0.92,
             "reason": "ad", "sponsor": "X", "category": "advertisement",
         }])
         ads = parse_ads_from_response(response)
-        assert ads[0]['category'] == 'advertisement'
+        assert 'category' not in ads[0]
 
     def test_missing_category_field_stays_absent(self):
         response = json.dumps([{

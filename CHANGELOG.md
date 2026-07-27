@@ -97,6 +97,15 @@ release notes.
   same-sponsor merging. It is rejected there now, matched with separators
   stripped so a run-together rendering still counts. Only an exact match is
   refused, so a brand that merely contains the show's name survives.
+- A segment category was only read from a field named exactly "category",
+  while start, end and the sponsor name are all matched however the model
+  spells them. Only Anthropic enforces the schema, so elsewhere the model
+  names fields freely, and a valid category sitting in "type", or spelled out
+  as "self-promotion", was dropped. It is now found wherever it appears and
+  validated against the vocabulary, so an is-it-an-ad flag of "ad" or a
+  position word like "pre-roll" still counts for nothing. A value outside the
+  vocabulary now counts as missing rather than passing through, which also
+  lets the repair pass have a go at it.
 - Per-category actions were not applying, because the categories never
   arrived. Only Anthropic enforces the category list on the model; on every
   other provider the follow-up call that fills in a missing category can answer

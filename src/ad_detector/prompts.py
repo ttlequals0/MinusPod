@@ -469,8 +469,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                         ad_entry['sponsor'] = sponsor_name
                     # Pass the LLM's raw category through unvalidated; the
                     # merge seam normalizes it against SEGMENT_CATEGORIES.
-                    if ad.get('category'):
-                        ad_entry['category'] = ad.get('category')
+                    resolved_category = resolve_ad_category(ad)
+                    if resolved_category:
+                        ad_entry['category'] = resolved_category
                     valid_ads.append(ad_entry)
                 except ValueError as e:
                     logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
@@ -567,15 +568,57 @@ def _repair_index(value):
     return None
 
 
+# Spelled-out forms of the exact vocabulary. The model reaches for the long
+# word ("self-promotion") as readily as the short one, and they mean the same
+# thing. Nothing here invents a category: a position word like "pre-roll" or a
+# bare "ad" is still refused.
+_CATEGORY_ALIASES = {
+    'self_promotion': 'self_promo',
+    'selfpromo': 'self_promo',
+    'cross_promotion': 'cross_promo',
+    'crosspromo': 'cross_promo',
+    'sponsorship': 'sponsor',
+}
+
+# Keys a category can arrive under. Only Anthropic enforces the schema, so on
+# every other provider the model names fields freely; the rest of this parser
+# already tolerates that for start, end and sponsor.
+_CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
+
+
 def _repair_category(value):
-    """A known category from a repair entry, or None. Spacing, case and
-    hyphens vary between providers ("Cross-Promo"); the vocabulary does not,
-    so only formatting is normalized. A position word like "pre-roll" is not
-    a category and stays rejected."""
+    """A known category from any field, or None. Spacing, case and hyphens
+    vary between providers ("Cross-Promo"); the vocabulary does not, so only
+    formatting and the spelled-out forms are normalized. A position word like
+    "pre-roll", or a bare "ad", is not a category and stays rejected."""
     if not isinstance(value, str):
         return None
     candidate = value.strip().lower().replace('-', '_').replace(' ', '_')
+    candidate = _CATEGORY_ALIASES.get(candidate, candidate)
     return candidate if candidate in SEGMENT_CATEGORIES else None
+
+
+def resolve_ad_category(ad: Dict):
+    """The segment category an ad object carries, wherever it put it.
+
+    "category" first, then the other keys a model uses for the same idea. The
+    value is validated against the vocabulary either way, so a `type` of "ad"
+    or "advertisement" contributes nothing while a `type` of "self_promo"
+    is taken at face value.
+    """
+    if not isinstance(ad, dict):
+        return None
+    direct = _repair_category(ad.get('category'))
+    if direct:
+        return direct
+    for key, value in ad.items():
+        kl = str(key).lower()
+        if kl == 'category' or not any(h in kl for h in _CATEGORY_KEY_HINTS):
+            continue
+        found = _repair_category(value)
+        if found:
+            return found
+    return None
 
 
 def parse_category_repair_response(response_text: str) -> Dict[int, str]:
