@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.4] - 2026-07-26
+
+### Changed
+
+- Dependency updates, rolled in from the ten open Dependabot pull requests
+  rather than merged one at a time. Python: anthropic 0.117.0 to 0.120.0,
+  openai 2.46.0 to 2.48.0. Frontend: recharts 3.9.2 to 3.10.1, swagger-ui-dist
+  5.32.8 to 5.32.11, wavesurfer.js 7.12.7 to 7.12.11, react-is 19.2.7 to
+  19.2.8, eslint 10.7.0 to 10.8.0. Actions: checkout 7.0.0 to 7.0.1,
+  setup-python 6.3.0 to 7.0.0, docker/login-action 4.4.0 to 4.5.1. The five
+  npm bumps share a lockfile, so they were applied as one relock instead of
+  five conflicting cherry-picks.
+
 ## [2.81.3] - 2026-07-26
 
 ### Changed

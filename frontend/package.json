@@ -18,12 +18,12 @@
     "pulltorefreshjs": "^0.1.22",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-is": "^19.2.7",
+    "react-is": "^19.2.8",
     "react-router": "^8.3.0",
-    "recharts": "^3.9.2",
-    "swagger-ui-dist": "^5.32.8",
+    "recharts": "^3.10.1",
+    "swagger-ui-dist": "^5.32.11",
     "tailwind-merge": "^3.6.0",
-    "wavesurfer.js": "^7.12.7"
+    "wavesurfer.js": "^7.12.11"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.5",
@@ -46,7 +46,7 @@
     "@typescript-eslint/eslint-plugin": "^8.61.1",
     "@typescript-eslint/parser": "^8.64.0",
     "@vitejs/plugin-react": "^6.0.3",
-    "eslint": "^10.7.0",
+    "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "happy-dom": "^20.10.6",
