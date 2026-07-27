@@ -1463,3 +1463,43 @@ class TestConfigurableDurationCeilings:
                          max_ad_duration_confirmed=350.0).validate(
             [dict(strong)]).ads[0]
         assert ad.get('held_for_review')
+
+
+class TestReasonDenyingAdContent:
+    """A reason that says there is no ad content must not become a marker.
+
+    The verification pass reads the already-cut audio, so a seam left by a
+    pass-1 cut looks like a mid-sentence break. The model reported one and
+    said so plainly ("no promotional copy is present in the transcript for
+    this gap"), but the phrase was not in the not-an-ad set, so a 17-second
+    stretch of an advice segment was flagged.
+    """
+
+    REASON = ("Ad break cut into the advice segment: segment breaks off "
+              "mid-sentence at 2980.9 and resumes at 2997.9 with the advice "
+              "already in progress; no promotional copy is present in the "
+              "transcript for this gap")
+
+    def test_a_reason_denying_promotional_copy_is_rejected(self):
+        ad = {'start': 3370.6, 'end': 3387.6, 'confidence': 0.8,
+              'reason': self.REASON}
+        result = AdValidator(3694.0, [], min_cut_confidence=0.80).validate([ad])
+        v = result.ads[0]['validation']
+        assert v['decision'] == Decision.REJECT.value
+        assert any('not an ad' in f for f in v['flags'])
+
+    def test_other_ways_of_denying_ad_content(self):
+        for reason in ('contains no promotional content',
+                       'no promotional language in this window',
+                       'no sponsor names, URLs, or promo codes appear'):
+            ad = {'start': 100.0, 'end': 160.0, 'confidence': 0.8, 'reason': reason}
+            result = AdValidator(3694.0, [], min_cut_confidence=0.80).validate([ad])
+            assert result.ads[0]['validation']['decision'] == Decision.REJECT.value, reason
+
+    def test_a_real_read_mentioning_no_promo_code_survives(self):
+        """The guard needs a content noun: an ad can legitimately be described
+        as having no promo code."""
+        ad = {'start': 100.0, 'end': 160.0, 'confidence': 0.9,
+              'reason': 'Acme sponsor read with no promotional code offered'}
+        result = AdValidator(3694.0, [], min_cut_confidence=0.80).validate([ad])
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value

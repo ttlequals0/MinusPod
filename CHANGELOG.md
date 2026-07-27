@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.10] - 2026-07-27
+
+### Fixed
+
+- A stretch of ordinary conversation could be flagged as an ad on the strength
+  of a seam. The verification pass reads the already-cut audio, so a pass-1 cut
+  leaves a mid-sentence break that looks like a removed ad. The model reported
+  one and said plainly that no promotional copy was present, but that phrasing
+  was missing from the set of reasons that mean "not an ad", so a 17-second
+  piece of an advice segment was held for review. A real read described as
+  having no promo code is still kept: the guard needs a content noun.
+
 ## [2.81.9] - 2026-07-27
 
 ### Added
