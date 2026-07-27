@@ -1611,3 +1611,41 @@ class TestCloseQueueRowsForEpisode:
         assert touched == 1
         assert self._queue_status(temp_db, pid_a, 'shared-id') == 'completed'
         assert self._queue_status(temp_db, pid_b, 'shared-id') == 'pending'
+
+
+class TestStalePromptRefresh:
+    """A prompt row still flagged is_default tracks the shipped text; one the
+    user edited is theirs and must survive an upgrade untouched."""
+
+    def _row(self, db, key):
+        cur = db.get_connection().execute(
+            "SELECT value, is_default FROM settings WHERE key = ?", (key,))
+        r = cur.fetchone()
+        return (r['value'], r['is_default']) if r else (None, None)
+
+    def test_a_stale_default_prompt_is_refreshed(self, temp_db):
+        from utils.constants import DEFAULT_SYSTEM_PROMPT
+        conn = temp_db.get_connection()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default)"
+                     " VALUES ('system_prompt', 'OLD PROMPT', 1)")
+        conn.commit()
+
+        temp_db._seed_default_settings(conn)
+        conn.commit()
+
+        value, _ = self._row(temp_db, 'system_prompt')
+        assert value == DEFAULT_SYSTEM_PROMPT
+        assert 'CATEGORY:' in value
+
+    def test_a_user_edited_prompt_is_left_alone(self, temp_db):
+        conn = temp_db.get_connection()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default)"
+                     " VALUES ('system_prompt', 'MY CUSTOM PROMPT', 0)")
+        conn.commit()
+
+        temp_db._seed_default_settings(conn)
+        conn.commit()
+
+        value, is_default = self._row(temp_db, 'system_prompt')
+        assert value == 'MY CUSTOM PROMPT'
+        assert is_default == 0

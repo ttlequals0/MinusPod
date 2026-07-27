@@ -11,6 +11,69 @@ release notes.
 
 ## [2.81.10] - 2026-07-27
 
+### Added
+
+- Feeds show whether Podping covers them. The line reads `Podping: last ping at
+  <time>` once a notification has arrived for that feed, `Podping: enabled, none
+  received yet` when the feed's own tag declares `usesPodping="true"` but nothing
+  has come in, and `Podping: never` otherwise. It stays hidden while the listener
+  is off, since that is an instance-wide setting rather than a fact about the
+  feed. The list views show a shorter form of the same line.
+- Ad length limits are settings now, global and per feed, in the UI and the
+  API. "Ad length needing a confirmed sponsor" (default 300s) and "Longest ad
+  to cut at all" (default 900s) sit in Settings under ad detection, and a feed
+  can override the first from its settings panel. A show with long ad blocks no
+  longer depends on the defaults happening to suit it.
+- The feeds API reports the fuller picture the line no longer shows.
+  `podpingCoverage` separates a publisher opt-out, a publisher opt-in with no
+  ping yet, a host seen pinging other feeds, and nothing known, and the parsed
+  declaration comes back as `podpingUses` and `podpingHiveAccounts`. A feed
+  declaring `usesPodping="true"` previously got no credit for it anywhere,
+  since the value was stored and never read back.
+- MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
+  accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
+  and MinusPod ignores podpings for that feed from anyone else. A feed
+  carrying `usesPodping="false"` is asking to be polled, so MinusPod skips
+  podping refreshes for it and reports it as declined. Feeds that say nothing
+  accept any sender, since the tag is optional and there is nothing to check
+  against. Scheduled polling stays the fallback either way, and the global
+  Podping toggle is still the master switch.
+- `GET /api/v1/podping/hosts` lists the domains the listener has seen sending
+  podpings, with first and last seen times, a ping count, and whether each
+  falls inside the active window. Counts are aggregated per domain as the
+  listener runs, so there is no per-notification history. It also answers
+  whether the listener is recording at all, since a feed reading as uncovered
+  otherwise looks identical to a listener seeing no traffic.
+
+### Changed
+
+- An ad past the length ceiling whose only fault is its length is held for
+  review instead of rejected. A reject left no marker at all, so a whole break
+  disappeared with nothing to look at or approve. Whether a long break was cut
+  came down to which side of a fixed 0.90 confidence line it landed on. One
+  episode's 415-second break was cut at 0.90. The next episode's 374-second
+  break was dropped just under it.
+- A feed's description is shown in full on its detail page instead of being
+  clipped to three lines.
+- Links in feed and episode descriptions are clickable. Descriptions were
+  flattened to plain text, which dropped the target of a link whose text is a
+  name rather than a URL, and left bare URLs unclickable. Both now render as
+  links, opening in a new tab. Only http, https, and mailto targets are
+  followed, so a javascript: or data: link in a publisher's feed stays inert
+  text. Descriptions are rebuilt as page elements rather than injected as
+  markup, so nothing in a feed can inject content into the page.
+- Paragraphs and list items in an episode description no longer run together.
+  Flattening the markup concatenated them, so the end of one paragraph
+  collided with the start of the next.
+- Dependency updates, rolled in from the ten open Dependabot pull requests
+  rather than merged one at a time. Python: anthropic 0.117.0 to 0.120.0,
+  openai 2.46.0 to 2.48.0. Frontend: recharts 3.9.2 to 3.10.1, swagger-ui-dist
+  5.32.8 to 5.32.11, wavesurfer.js 7.12.7 to 7.12.11, react-is 19.2.7 to
+  19.2.8, eslint 10.7.0 to 10.8.0. Actions: checkout 7.0.0 to 7.0.1,
+  setup-python 6.3.0 to 7.0.0, docker/login-action 4.4.0 to 4.5.1. The five
+  npm bumps share a lockfile, so they were applied as one relock instead of
+  five conflicting cherry-picks.
+
 ### Fixed
 
 - Per-category actions were not applying, because the categories never
@@ -22,7 +85,6 @@ release notes.
   category are accepted now ("Cross-Promo"), as is a quoted index, and anything
   still unusable is logged with what came back. A position word like "pre-roll"
   is still refused: it says where a segment is, not what it is.
-
 - A stretch of ordinary conversation could be flagged as an ad on the strength
   of a seam. The verification pass reads the already-cut audio, so a pass-1 cut
   leaves a mid-sentence break that looks like a removed ad. The model reported
@@ -30,28 +92,6 @@ release notes.
   was missing from the set of reasons that mean "not an ad", so a 17-second
   piece of an advice segment was held for review. A real read described as
   having no promo code is still kept: the guard needs a content noun.
-
-## [2.81.9] - 2026-07-27
-
-### Added
-
-- Ad length limits are settings now, global and per feed, in the UI and the
-  API. "Ad length needing a confirmed sponsor" (default 300s) and "Longest ad
-  to cut at all" (default 900s) sit in Settings under ad detection, and a feed
-  can override the first from its settings panel. A show with long ad blocks no
-  longer depends on the defaults happening to suit it.
-
-### Changed
-
-- An ad past the length ceiling whose only fault is its length is held for
-  review instead of rejected. A reject left no marker at all, so a whole break
-  disappeared with nothing to look at or approve. Whether a long break was cut
-  came down to which side of a fixed 0.90 confidence line it landed on. One
-  episode's 415-second break was cut at 0.90. The next episode's 374-second
-  break was dropped just under it.
-
-### Fixed
-
 - A whole ad break could be dropped for being long. An ad over five minutes is
   rejected unless its sponsor is "confirmed", and the only thing that counted
   as confirmation was the episode description, which many shows do not use for
@@ -61,11 +101,6 @@ release notes.
   sponsor named in the ad's own audio now counts as confirmation. The evidence
   has to be in the transcript, not the detector's description of it, so a
   passing mention in prose cannot lift the cap.
-
-## [2.81.8] - 2026-07-27
-
-### Fixed
-
 - Restoring full ad descriptions stopped the detector learning patterns from
   them. A description that mentions the transcript in passing ("overlapping
   timestamps in transcript") was classified as model reasoning rather than an
@@ -87,11 +122,6 @@ release notes.
 - Importing the app started the RSS refresh, queue processor and podping
   listener, which under test ran against the test database and made results
   depend on which module started first. They are not started under pytest.
-
-## [2.81.7] - 2026-07-27
-
-### Fixed
-
 - A marker could be left saying only its sponsor name, and a long ad with that
   shape was dropped outright. The name is both a prefix of its own description
   and a full word subset of it, so the duplicate check discarded the
@@ -110,11 +140,6 @@ release notes.
   crosses a window edge, and a note is one of the fields searched for a sponsor
   name, so that phrase was stored as the advertiser and offered to pattern
   learning as one. Continuation notes are rejected as sponsor values.
-
-## [2.81.6] - 2026-07-27
-
-### Fixed
-
 - A reprocess that auto-approved a held marker completed twice, writing two
   history rows and sending two notifications for one action. The second row
   carried no detection stats, because a recut does no detection. The pipeline
@@ -164,11 +189,6 @@ release notes.
   example.com") was harvested as a sponsor. Every break on that show then
   shared the token, which merged unrelated ads together. Domain labels formed
   from the show's own name are no longer treated as advertisers.
-
-## [2.81.5] - 2026-07-26
-
-### Fixed
-
 - Ad marker text was cut off with no way to read the rest, most visibly on
   mobile (#591). Two things caused it. The detector cut its own description to
   300 characters, and to 150 when combining it with a sponsor name, so the
@@ -178,55 +198,6 @@ release notes.
   whole, and long reasons and reviewer notes clamp to a few lines with a
   control to see the rest. Markers detected before this release keep whatever
   text was stored for them; only a reprocess recovers the full wording.
-
-### Changed
-
-- A feed's description is shown in full on its detail page instead of being
-  clipped to three lines.
-- Links in feed and episode descriptions are clickable. Descriptions were
-  flattened to plain text, which dropped the target of a link whose text is a
-  name rather than a URL, and left bare URLs unclickable. Both now render as
-  links, opening in a new tab. Only http, https, and mailto targets are
-  followed, so a javascript: or data: link in a publisher's feed stays inert
-  text. Descriptions are rebuilt as page elements rather than injected as
-  markup, so nothing in a feed can inject content into the page.
-- Paragraphs and list items in an episode description no longer run together.
-  Flattening the markup concatenated them, so the end of one paragraph
-  collided with the start of the next.
-
-## [2.81.4] - 2026-07-26
-
-### Changed
-
-- Dependency updates, rolled in from the ten open Dependabot pull requests
-  rather than merged one at a time. Python: anthropic 0.117.0 to 0.120.0,
-  openai 2.46.0 to 2.48.0. Frontend: recharts 3.9.2 to 3.10.1, swagger-ui-dist
-  5.32.8 to 5.32.11, wavesurfer.js 7.12.7 to 7.12.11, react-is 19.2.7 to
-  19.2.8, eslint 10.7.0 to 10.8.0. Actions: checkout 7.0.0 to 7.0.1,
-  setup-python 6.3.0 to 7.0.0, docker/login-action 4.4.0 to 4.5.1. The five
-  npm bumps share a lockfile, so they were applied as one relock instead of
-  five conflicting cherry-picks.
-
-## [2.81.3] - 2026-07-26
-
-### Changed
-
-- A feed that declares Podping now says so. The line reads
-  `Podping: enabled, none received yet` when the feed's own tag carries
-  `usesPodping="true"` but nothing has arrived for it, instead of the flat
-  `Podping: never` it shared with feeds nobody has ever pinged. Feeds with a
-  received ping still show its time, and everything else still reads never, so
-  the line stays one short phrase.
-
-## [2.81.2] - 2026-07-26
-
-### Changed
-
-- The per-feed Podping line reads `Podping: never` rather than
-  `Podping: none` when no ping has arrived.
-
-### Fixed
-
 - A feed's `<podcast:podping>` declaration was never read in steady state. The
   tag is parsed from the feed body, but a refresh that gets a 304 has no body
   and returns early, and most refreshes are 304s because a feed's RSS rarely
@@ -235,31 +206,6 @@ release notes.
   feed. A 304 now forces one full fetch when the declaration has never been
   read, the same way a missing cached artwork already does, and records that it
   did, so the extra fetch happens once per feed rather than every time.
-
-## [2.81.1] - 2026-07-26
-
-### Changed
-
-- The per-feed Podping line now answers one question instead of explaining
-  itself. It reads `Podping: last ping at <time>` when a ping has arrived and
-  `Podping: none` until then, and stays hidden while the listener is off, since
-  that is a global setting rather than a fact about the feed. The wording it
-  replaced described why a feed was uncovered, which read as a failure on feeds
-  that were fine.
-
-### Added
-
-- The feeds API reports the fuller picture the line no longer shows.
-  `podpingCoverage` separates a publisher opt-out, a publisher opt-in with no
-  ping yet, a host seen pinging other feeds, and nothing known, and the parsed
-  declaration comes back as `podpingUses` and `podpingHiveAccounts`. A feed
-  declaring `usesPodping="true"` previously got no credit for it anywhere,
-  since the value was stored and never read back.
-
-## [2.81.0] - 2026-07-26
-
-### Fixed
-
 - The Podping listener never acted on a single notification. It only accepted
   senders reachable from the `podping` account's posting authorities, but all
   live traffic comes from `podping.aaa` through `podping.eee`, which have their
@@ -268,44 +214,6 @@ release notes.
   consecutive Hive blocks found 41 podpings and all 41 were rejected. The
   reference watcher had already abandoned this check; MinusPod now does the
   same and filters on the operation id.
-
-### Added
-
-- MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
-  accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
-  and MinusPod ignores podpings for that feed from anyone else. A feed
-  carrying `usesPodping="false"` is asking to be polled, so MinusPod skips
-  podping refreshes for it and reports it as declined. Feeds that say nothing
-  accept any sender, since the tag is optional and there is nothing to check
-  against. Scheduled polling stays the fallback either way, and the global
-  Podping toggle is still the master switch.
-
-## [2.80.1] - 2026-07-26
-
-### Added
-
-- `GET /api/v1/podping/hosts` lists the domains the listener has seen sending
-  podpings, with first and last seen times, a ping count, and whether each
-  falls inside the active window. Counts are aggregated per domain as the
-  listener runs, so there is no per-notification history. It also answers
-  whether the listener is recording at all, since a feed reading as uncovered
-  otherwise looks identical to a listener seeing no traffic.
-
-## [2.80.0] - 2026-07-25
-
-### Added
-
-- Feeds show whether Podping covers them, in three states: a podping arrived
-  for this feed, the host sends podpings but none has arrived for this feed
-  yet, or the host has not been seen sending podpings so scheduled polling is
-  doing the work. The states come from what the listener sees on the Hive
-  chain rather than a bundled host list, the same list that just went stale in
-  the docs. A host counts as sending podpings only if it was
-  seen in the last 30 days, so a host that drops support decays back on its
-  own. The line is hidden when the Podping listener is disabled (#579).
-
-### Fixed
-
 - The tail re-transcription never ran on the local Whisper backend. When a
   quiet post-roll falls outside Whisper's VAD the transcript ends early, and
   the pass that re-reads that tail with VAD off failed with "No clip

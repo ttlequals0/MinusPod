@@ -203,3 +203,33 @@ class TestContinuationScaffoldingStrippedFromReason:
             {'start': 840, 'end': 900, 'sponsor': 'Acme',
              'note': 'Acme read that continues in next window'}]), 'slug', 'ep')
         assert 'continues in next window' in ads[0]['reason']
+
+
+class TestShowNameIsNotASponsor:
+    """A self-promo or listener-support read has no advertiser, so the model
+    puts the show's own name in the sponsor slot. Seen in production as a
+    Patreon thank-you credited to "Dailytechnewsshow"."""
+
+    SHOW = 'Daily Tech News Show'
+
+    def test_the_show_name_is_rejected(self):
+        from utils.constants import sanitize_sponsor_label
+        for label in ('Dailytechnewsshow', 'daily tech news show',
+                      'Daily-Tech-News-Show', '  Daily Tech News Show  '):
+            assert sanitize_sponsor_label(label, show_name=self.SHOW) is None, label
+
+    def test_a_real_sponsor_survives(self):
+        from utils.constants import sanitize_sponsor_label
+        for label in ('Squarespace', 'Morning Brew Daily', 'Cologuard'):
+            assert sanitize_sponsor_label(label, show_name=self.SHOW) == label
+
+    def test_without_a_show_name_nothing_changes(self):
+        from utils.constants import sanitize_sponsor_label
+        assert sanitize_sponsor_label('Dailytechnewsshow') == 'Dailytechnewsshow'
+
+    def test_a_sponsor_that_merely_contains_the_show_name_survives(self):
+        """Only an exact match counts; a brand is not the show because the
+        show's name appears inside it."""
+        from utils.constants import sanitize_sponsor_label
+        assert sanitize_sponsor_label('Daily Tech News Show Store',
+                                      show_name=self.SHOW) == 'Daily Tech News Show Store'

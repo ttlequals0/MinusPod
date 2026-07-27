@@ -186,6 +186,13 @@ class SettingSpec:
                     (None = absent from that block).
     payload_kind:   coercion for the defaults block: str|bool|int|float.
     payload_factory: overrides payload_kind coercion entirely.
+    refresh_default: re-seed this key from the shipped default on startup
+                    while the row is still flagged is_default. Set on the
+                    prompts: they are shipped text, and seeding only ever
+                    inserted, so an install kept whatever prompt existed when
+                    its database was created and never saw a later
+                    improvement. A user-edited row (is_default = 0) is never
+                    touched.
     """
     default: Optional[str] = None
     env: Optional[str] = None
@@ -201,21 +208,24 @@ class SettingSpec:
     payload_key: Optional[str] = None
     payload_kind: str = 'str'
     payload_factory: Optional[Callable[[], Any]] = None
+    refresh_default: bool = False
 
 
 SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     # -- Prompts --
     'system_prompt': SettingSpec(
         factory=_default_system_prompt, seeded=True, in_ad_reset=True,
+        refresh_default=True,
         payload_key='systemPrompt'),
     'verification_prompt': SettingSpec(
         factory=_default_verification_prompt, seeded=True, in_ad_reset=True,
+        refresh_default=True,
         payload_key='verificationPrompt'),
     'review_prompt': SettingSpec(
-        factory=_default_review_prompt, seeded=True,
+        factory=_default_review_prompt, seeded=True, refresh_default=True,
         payload_key='reviewPrompt'),
     'resurrect_prompt': SettingSpec(
-        factory=_default_resurrect_prompt, seeded=True,
+        factory=_default_resurrect_prompt, seeded=True, refresh_default=True,
         payload_key='resurrectPrompt'),
     # Per-pass prompt overrides: intentionally NOT resettable via
     # reset_setting (reset_prompts_only clears them explicitly; empty string
@@ -614,6 +624,13 @@ def iter_seed_defaults():
     """(key, value) pairs for schema seeding, in registry order."""
     return [(key, registry_default(key))
             for key, spec in SETTINGS_REGISTRY.items() if spec.seeded]
+
+
+def iter_refreshable_defaults():
+    """(key, value) pairs whose row should track the shipped default while the
+    user has not edited it."""
+    return [(key, registry_default(key))
+            for key, spec in SETTINGS_REGISTRY.items() if spec.refresh_default]
 
 
 class SettingsMixin:

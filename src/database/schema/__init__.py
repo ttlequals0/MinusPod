@@ -3182,7 +3182,8 @@ class SchemaMixin:
         defaults. Env-var overrides (RETENTION_PERIOD, WHISPER_MODEL, ...)
         are encoded in the registry entries themselves.
         """
-        from database.settings import iter_seed_defaults
+        from database.settings import (iter_seed_defaults,
+                                       iter_refreshable_defaults)
 
         for key, value in iter_seed_defaults():
             conn.execute(
@@ -3190,6 +3191,19 @@ class SchemaMixin:
                    ON CONFLICT(key) DO NOTHING""",
                 (key, value)
             )
+
+        # Insert-only seeding left an install on whatever prompt shipped when
+        # its database was created, still flagged is_default, so no later
+        # improvement ever reached it. Track the shipped text while the row is
+        # untouched; is_default = 0 means the user edited it and it is theirs.
+        for key, value in iter_refreshable_defaults():
+            cursor = conn.execute(
+                "UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP "
+                "WHERE key = ? AND is_default = 1 AND value != ?",
+                (value, key, value)
+            )
+            if cursor.rowcount:
+                logger.info("Refreshed %s to the current shipped default", key)
 
         # Migrate old second_pass settings to verification settings
         try:

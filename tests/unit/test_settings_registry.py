@@ -374,3 +374,32 @@ class TestGetDefaults:
         assert registry_default('min_cut_confidence') == '0.80'
         assert registry_default('whisper_language') == 'en'
         assert registry_default('audio_cue_freq_max_hz') == '8000'
+
+
+class TestShippedPromptsTrackTheDefault:
+    """Seeding only ever inserted, so an install kept whatever prompt shipped
+    when its database was created. One instance was still running an 8442-char
+    system prompt with no category guidance while the shipped default was
+    10408 chars and required a category on every ad, which is why per-category
+    actions never applied.
+    """
+
+    def test_the_prompts_are_marked_refreshable(self):
+        from database.settings import SETTINGS_REGISTRY
+        for key in ('system_prompt', 'verification_prompt',
+                    'review_prompt', 'resurrect_prompt'):
+            assert SETTINGS_REGISTRY[key].refresh_default, key
+
+    def test_nothing_else_is_refreshable(self):
+        """A user-visible tunable must not be silently reset on upgrade."""
+        from database.settings import SETTINGS_REGISTRY
+        refreshable = {k for k, s in SETTINGS_REGISTRY.items() if s.refresh_default}
+        assert refreshable == {'system_prompt', 'verification_prompt',
+                               'review_prompt', 'resurrect_prompt'}
+
+    def test_refreshable_defaults_report_current_text(self):
+        from database.settings import iter_refreshable_defaults
+        from utils.constants import DEFAULT_SYSTEM_PROMPT
+        values = dict(iter_refreshable_defaults())
+        assert values['system_prompt'] == DEFAULT_SYSTEM_PROMPT
+        assert 'CATEGORY:' in values['system_prompt']

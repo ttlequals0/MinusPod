@@ -112,16 +112,17 @@ def is_sponsor_reasoning_rationale(text) -> bool:
     return False
 
 
-def sanitize_sponsor_label(text) -> Optional[str]:
+def sanitize_sponsor_label(text, show_name: Optional[str] = None) -> Optional[str]:
     """Reject an LLM-mislabeled sponsor slot before it reaches a marker.
 
     Returns None when `text` is falsy, is reasoning prose caught by
-    is_sponsor_reasoning_rationale, or is a bare segment name (Claude
+    is_sponsor_reasoning_rationale, is a bare segment name (Claude
     sometimes echoes the show-segment title into the sponsor slot for one ad
     read, e.g. 'Xbox segment' instead of the actual advertiser -- matched by
-    a trailing "segment" word, case-insensitive). Otherwise returns `text`
-    unchanged. Used by ad_detector._merge_detection_results to keep junk
-    sponsor labels out of merged markers.
+    a trailing "segment" word, case-insensitive), or names the show itself.
+    Otherwise returns `text` unchanged. Used by
+    ad_detector._merge_detection_results to keep junk sponsor labels out of
+    merged markers.
     """
     if not text:
         return None
@@ -129,7 +130,27 @@ def sanitize_sponsor_label(text) -> Optional[str]:
         return None
     if re.search(r'\bsegment$', str(text).strip(), re.I):
         return None
+    if names_the_show(text, show_name):
+        return None
     return text
+
+
+def names_the_show(text, show_name: Optional[str]) -> bool:
+    """Whether a sponsor label is just the show's own name.
+
+    A self-promo or listener-support read has no advertiser, so the model
+    puts the show there ("Dailytechnewsshow" for a Patreon thank-you). That
+    is not a sponsor, and it pollutes pattern learning and same-sponsor
+    merging. Compared with separators stripped, so a slug-style rendering
+    still matches.
+    """
+    if not text or not show_name:
+        return False
+    squash = lambda v: re.sub(r'[^a-z0-9]', '', str(v).lower())
+    label, show = squash(text), squash(show_name)
+    if not label or not show:
+        return False
+    return label == show
 
 
 # First-pass-learning and verification-miss confidence floors. Single source

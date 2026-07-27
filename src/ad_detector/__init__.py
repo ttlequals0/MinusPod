@@ -1298,7 +1298,7 @@ class AdDetector:
             if foreign_language_ads:
                 final_ads = self._merge_detection_results(
                     final_ads + foreign_language_ads, segments=segments,
-                    action_map=action_map)
+                    action_map=action_map, podcast_name=podcast_name)
                 logger.info(f"[{slug}:{episode_id}] Merged {len(foreign_language_ads)} foreign language ads")
 
             total_ad_time = sum(ad['end'] - ad['start'] for ad in final_ads)
@@ -1832,7 +1832,8 @@ class AdDetector:
 
         # Merge overlapping ads
         all_ads = self._merge_detection_results(
-            all_ads, segments=segments, action_map=action_map)
+            all_ads, segments=segments, action_map=action_map,
+            podcast_name=podcast_name)
 
         # Log detection summary
         total = len(all_ads)
@@ -2217,7 +2218,8 @@ class AdDetector:
 
     def _merge_detection_results(self, ads: List[Dict],
                                  segments: Optional[List[Dict]] = None,
-                                 action_map: Optional[Dict[str, str]] = None) -> List[Dict]:
+                                 action_map: Optional[Dict[str, str]] = None,
+                                 podcast_name: Optional[str] = None) -> List[Dict]:
         """Merge overlapping ads from different detection stages.
 
         segments, when given, lets the merge verify transcript coverage of a
@@ -2385,7 +2387,8 @@ class AdDetector:
         # fingerprint/text_pattern matches keep their pattern's stored
         # category; anything unset or invalid falls through to 'sponsor'.
         for marker in merged:
-            marker['sponsor'] = sanitize_sponsor_label(marker.get('sponsor'))
+            marker['sponsor'] = sanitize_sponsor_label(
+                marker.get('sponsor'), show_name=podcast_name)
             marker['category'] = normalize_segment_category(marker.get('category'))
 
         return merged
