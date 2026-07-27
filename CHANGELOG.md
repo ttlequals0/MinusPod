@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.9] - 2026-07-27
+
+### Fixed
+
+- A whole ad break could be dropped for being long. An ad over five minutes is
+  rejected unless its sponsor is "confirmed", and the only thing that counted
+  as confirmation was the episode description, which many shows do not use for
+  sponsors. A 374-second break naming two sponsors from the registry was
+  rejected as too long, and the verification pass, which found the same break
+  independently and named all four advertisers in it, could not rescue it. A
+  sponsor named in the ad's own audio now counts as confirmation. The evidence
+  has to be in the transcript, not the detector's description of it, so a
+  passing mention in prose cannot lift the cap.
+
 ## [2.81.8] - 2026-07-27
 
 ### Fixed

@@ -116,7 +116,8 @@ class AdValidator:
                  cue_gate_enabled: bool = False,
                  splice_veto_enabled: bool = True,
                  veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS,
-                 differential_corr_max: float = 0.60):
+                 differential_corr_max: float = 0.60,
+                 sponsor_service=None):
         """Initialize validator.
 
         Args:
@@ -136,6 +137,9 @@ class AdValidator:
                 setting (threaded by the caller; the validator has no db
                 handle). A differential region corroborates a marker only
                 when its measured corr is <= this value.
+            sponsor_service: Sponsor registry, used to confirm a long ad names
+                a real advertiser when the episode description does not list
+                sponsors. Optional; without it only the description counts.
         """
         self.episode_duration = episode_duration
         self.segments = segments or []
@@ -150,6 +154,7 @@ class AdValidator:
         self.splice_veto_enabled = splice_veto_enabled
         self.veto_min_cut_seconds = veto_min_cut_seconds
         self.differential_corr_max = differential_corr_max
+        self.sponsor_service = sponsor_service
         self._audio_analysis = None
 
         if self.false_positive_corrections:
@@ -196,8 +201,34 @@ class AdValidator:
 
         return sponsors
 
+    def _registry_confirms(self, ad: Dict) -> bool:
+        """Whether the ad's own audio names a sponsor from the registry.
+
+        Confirmation raises the duration ceiling, and many shows never list
+        sponsors in the description, so a real multi-sponsor break was
+        rejected on length alone. The transcript is the evidence, not the
+        model's reason, so a passing mention in prose cannot lift the cap.
+        """
+        if not self.sponsor_service:
+            return False
+        ad_text = self._get_text_in_range(ad['start'], ad['end'])
+        if not ad_text:
+            return False
+        try:
+            found = self.sponsor_service.find_sponsor_in_text(ad_text)
+        except Exception as e:
+            logger.debug(f"Sponsor registry lookup failed: {e}")
+            return False
+        if found:
+            logger.info(
+                f"Sponsor '{found}' from the registry found in the ad audio "
+                f"({ad['start']:.1f}s-{ad['end']:.1f}s); treating as confirmed")
+            return True
+        return False
+
     def _is_sponsor_confirmed(self, ad: Dict) -> bool:
-        """Check if the ad's sponsor is confirmed in the episode description.
+        """Check if the ad's sponsor is confirmed in the episode description,
+        or failing that, named in the ad's own audio (see _registry_confirms).
 
         Args:
             ad: Ad marker with reason field
@@ -206,7 +237,7 @@ class AdValidator:
             True if sponsor name from ad matches a sponsor in description
         """
         if not self.description_sponsors:
-            return False
+            return self._registry_confirms(ad)
 
         # Extract sponsor from ad reason
         reason = ad.get('reason', '').lower()
@@ -224,7 +255,7 @@ class AdValidator:
                 logger.info(f"Sponsor '{sponsor}' found in ad transcript, confirmed in description")
                 return True
 
-        return False
+        return self._registry_confirms(ad)
 
     def _overlaps_corrections(self, corrections: List[Dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
@@ -447,7 +478,7 @@ class AdValidator:
             flags.append(f"ERROR: Very long ({duration:.1f}s)")
         elif duration > LONG_AD_WARN:
             if sponsor_confirmed:
-                flags.append(f"INFO: Long ({duration:.1f}s) but sponsor confirmed in description")
+                flags.append(f"INFO: Long ({duration:.1f}s) but sponsor confirmed")
             else:
                 flags.append(f"WARN: Long duration ({duration:.1f}s)")
 

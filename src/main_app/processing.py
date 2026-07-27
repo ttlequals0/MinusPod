@@ -998,6 +998,7 @@ def _build_validator(episode_duration, segments, episode_description, *,
         differential_corr_max=db.get_setting_float(
             'differential_measured_corr_max',
             registry_get_default('differential_measured_corr_max')),
+        sponsor_service=sponsor_service,
         **splice_kwargs,
     )
 

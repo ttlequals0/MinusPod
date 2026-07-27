@@ -1336,3 +1336,73 @@ def test_merge_never_crosses_held_boundary():
     merged = validator._merge_close_ads(ads, result)
     assert len(merged) == 2
     assert merged[0]['end'] == 160.0
+
+
+class TestRegistryConfirmsLongAds:
+    """A real multi-sponsor break was rejected on length alone.
+
+    The duration ceiling lifts when a sponsor is "confirmed", but the only
+    source of confirmation was the episode description, and many shows never
+    list sponsors there. A 374s break naming two registry sponsors was
+    rejected as "Very long", and the verification pass could not rescue it.
+    """
+
+    ADS_TEXT = ("head to the money zone. Are you ready to upgrade your home for way "
+                "less? Head to Wayfair.com right now to shop all things home. "
+                "I've been wearing Warby Parker frames for years, buy one pair and "
+                "get 20% off any additional pairs at warbyparker.com slash show.")
+
+    def _segments(self):
+        return [
+            {'start': 0.0, 'end': 1690.0, 'text': 'ordinary show content ' * 20},
+            {'start': 1692.8, 'end': 2066.3, 'text': self.ADS_TEXT},
+            {'start': 2067.0, 'end': 3600.0, 'text': 'more show content ' * 20},
+        ]
+
+    def _ad(self):
+        return {'start': 1692.8, 'end': 2066.3, 'confidence': 0.8,
+                'reason': 'Wayfair, Warby Parker: ad break', 'detection_stage': 'claude'}
+
+    class _Registry:
+        def find_sponsor_in_text(self, text):
+            low = (text or '').lower()
+            return 'Wayfair' if 'wayfair' in low else None
+
+    def test_long_break_is_rejected_without_the_registry(self):
+        v = AdValidator(3700.0, self._segments(), episode_description='',
+                        min_cut_confidence=0.80)
+        result = v.validate([self._ad()])
+        assert result.ads[0]['validation']['decision'] == 'REJECT'
+
+    def test_the_registry_confirms_it_and_it_is_accepted(self):
+        v = AdValidator(3700.0, self._segments(), episode_description='',
+                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+        result = v.validate([self._ad()])
+        assert result.ads[0]['validation']['decision'] == 'ACCEPT'
+
+    def test_a_break_naming_no_known_sponsor_is_still_rejected(self):
+        segs = self._segments()
+        segs[1]['text'] = 'just a very long stretch of ordinary conversation ' * 12
+        v = AdValidator(3700.0, segs, episode_description='',
+                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+        result = v.validate([self._ad()])
+        assert result.ads[0]['validation']['decision'] == 'REJECT'
+
+    def test_the_reason_alone_cannot_lift_the_cap(self):
+        """The transcript is the evidence; a model reason naming a brand is not
+        enough, or a passing mention in prose would raise the ceiling."""
+        segs = self._segments()
+        segs[1]['text'] = 'ordinary conversation with no brand named at all ' * 12
+        v = AdValidator(3700.0, segs, episode_description='',
+                        min_cut_confidence=0.80, sponsor_service=self._Registry())
+        assert v._is_sponsor_confirmed(self._ad()) is False
+
+    def test_a_registry_failure_does_not_break_validation(self):
+        class Boom:
+            def find_sponsor_in_text(self, text):
+                raise RuntimeError('registry down')
+
+        v = AdValidator(3700.0, self._segments(), episode_description='',
+                        min_cut_confidence=0.80, sponsor_service=Boom())
+        result = v.validate([self._ad()])
+        assert result.ads[0]['validation']['decision'] == 'REJECT'
