@@ -9,6 +9,29 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.7] - 2026-07-27
+
+### Fixed
+
+- A marker could be left saying only its sponsor name, and a long ad with that
+  shape was dropped outright. The name is both a prefix of its own description
+  and a full word subset of it, so the duplicate check discarded the
+  description that explained the read. The evidence gate then found nothing in
+  the bare name and rejected the ad. In production a 149-second sponsor read
+  went this way, surviving only because an overlapping detection window caught
+  it independently. The gate also now recognizes the pluralized field name the
+  model sometimes uses for the sponsor.
+- An episode row left in 'processing' by a killed worker only healed on the
+  next restart. The queue drainer's waiter polled the row's status alone, so it
+  sat on a job nothing was running for the full hard timeout, two hours by
+  default, then requeued and waited again. It now notices that no worker holds
+  the processing lock and requeues straight away. The reconciler that resets
+  those rows also runs on the drainer's periodic sweep, not only at startup.
+- The window prompt asks the model to note "continues in next" when an ad
+  crosses a window edge, and a note is one of the fields searched for a sponsor
+  name, so that phrase was stored as the advertiser and offered to pattern
+  learning as one. Continuation notes are rejected as sponsor values.
+
 ## [2.81.6] - 2026-07-27
 
 ### Fixed
@@ -54,24 +77,6 @@ release notes.
   anything downstream that split on the quotes recovered fragments like
   "s Diner". Several names are joined into one readable label instead. Other
   text fields are flattened the same way; a list in `end_text` used to raise.
-- A marker could be left saying only its sponsor name, and a long ad with that
-  shape was dropped outright. The name is both a prefix of its own description
-  and a full word subset of it, so the duplicate check discarded the
-  description that explained the read. The evidence gate then found nothing in
-  the bare name and rejected the ad. Found in production: a 149-second sponsor
-  read was rejected, and only survived because an overlapping detection window
-  caught it independently. The gate also now recognizes the pluralized field
-  name the model sometimes uses for the sponsor.
-- An episode row left in 'processing' by a killed worker only healed on the
-  next restart. The queue drainer's waiter polled the row's status alone, so it
-  sat on a job nothing was running for the full hard timeout, two hours by
-  default, then requeued and waited again. It now notices that no worker holds
-  the processing lock and requeues immediately, and the reconciler that resets
-  such rows runs on the drainer's periodic sweep rather than only at startup.
-- The window prompt asks the model to note "continues in next" when an ad
-  crosses a window edge, and a note is one of the fields searched for a sponsor
-  name, so that phrase was being stored as the advertiser and offered to
-  pattern learning as one. Continuation notes are rejected as sponsor values.
 - A play request for an episode with no database row yet lost its
   user-requested stamp, because the insert path did not carry the column the
   update path did. The drainer then discarded the queued row on a feed with
