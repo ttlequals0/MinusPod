@@ -25,6 +25,7 @@ from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window
 from utils.markers import mark_distinct_merge, note_merged_members
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
+from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
 
 from config import (
@@ -69,6 +70,7 @@ from utils.constants import (
     KNOWN_SHORT_BRANDS, canonical_sponsor,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
+    PATTERN_EVIDENCE_MAX_CHARS,
     sanitize_sponsor_label,
     SHOW_SEGMENTS_PROMPT_SECTION,
 )
@@ -430,6 +432,15 @@ def _cue_fusion_inputs(audio_analysis, segments):
         [], audio_analysis, total_duration=total_duration)
     pair_spans = [(a['start'], a['end']) for a in pair_ads]
     return cue_marks, pair_spans
+
+
+def _pattern_match_evidence(match, kind: str) -> str:
+    """Kind, quoted matched text, and score for the marker reason."""
+    pct = f'{match.confidence:.0%}'
+    matched = (getattr(match, 'matched_text', None) or '').strip()
+    if matched:
+        return f'{kind} "{truncate(matched, PATTERN_EVIDENCE_MAX_CHARS)}" {pct}'
+    return f'{kind} {pct}'
 
 
 class AdDetector:
@@ -1844,10 +1855,11 @@ class AdDetector:
         """Append a stage-1/2 pattern match to the ad and matched-region lists
         and record it for metrics and promotion. ``reason_suffix`` names the
         match kind in the no-sponsor fallback reason."""
+        evidence = _pattern_match_evidence(match, reason_suffix)
         if match.sponsor:
-            reason = f"{match.sponsor} (pattern #{match.pattern_id})"
+            reason = f"{match.sponsor} (pattern #{match.pattern_id}, {evidence})"
         else:
-            reason = f"Pattern #{match.pattern_id} ({reason_suffix})"
+            reason = f"Pattern #{match.pattern_id} ({evidence})"
 
         all_ads.append({
             'start': match.start,

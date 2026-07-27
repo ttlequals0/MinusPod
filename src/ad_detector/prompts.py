@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple
 
 from sponsor_service import SponsorService
 from utils.prompt import format_sponsor_block, render_prompt
+from utils.text import truncate
 from utils.time import parse_timestamp
 from utils.llm_response import extract_json_ads_array
 from utils.constants import (
@@ -171,6 +172,14 @@ def _flatten_ad_envelopes(ads: List) -> List:
     return flat
 
 
+def _as_text(value) -> str:
+    """Flatten an LLM field to text. A back-to-back break makes the model
+    answer a string field with a list, and str() would store the Python repr."""
+    if isinstance(value, (list, tuple)):
+        return ', '.join(str(v).strip() for v in value if v and str(v).strip())
+    return str(value).strip() if value else ''
+
+
 def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
                               sponsor_service=None) -> List[Dict]:
@@ -182,7 +191,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
     def get_valid_value(value):
         if not value:
             return None
-        str_value = str(value).strip()
+        str_value = _as_text(value)
         if len(str_value) < 2:
             return None
         if str_value.lower() in INVALID_SPONSOR_VALUES:
@@ -342,12 +351,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                             # Prefer longer descriptive text over short values
                             if description is None or len(val) > len(description):
                                 description = val
-                    # The description is kept whole. It used to be cut to 300
-                    # (and to 150 when combined with a sponsor), which put a
-                    # literal "..." in the UI with no fuller text to expand to
-                    # (#591). The UI clamps long reasons and offers to expand.
-                    if description and len(description) > REASON_DESCRIPTION_MAX:
-                        description = description[:REASON_DESCRIPTION_MAX - 3] + "..."
+                    # Kept whole (#591); the old 300/150 caps put a literal
+                    # "..." in the UI with no fuller text to expand to.
+                    description = truncate(description, REASON_DESCRIPTION_MAX)
 
                     # Combine sponsor + description in reason field
                     if description:
@@ -417,7 +423,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                         'end': end,
                         'confidence': norm_conf,
                         'reason': reason,
-                        'end_text': ad.get('end_text') or ''
+                        'end_text': _as_text(ad.get('end_text'))
                     }
                     # Store sponsor name separately for UI display
                     # (reuses sponsor_name captured above; ad is unmutated between)

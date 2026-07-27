@@ -9,10 +9,12 @@ from unittest.mock import MagicMock
 from text_pattern_matcher import (
     _split_sentences, _extract_intro_phrase, _extract_outro_phrase,
     TextPatternMatcher, AdPattern, TextMatch, MAX_MATCH_DURATION,
-    MIN_TEXT_LENGTH,
+    MIN_TEXT_LENGTH, FUZZY_DISCRIMINATIVE_LENGTH, required_fuzzy_score,
 )
 from ad_detector import _unpack_region, get_uncovered_portions, AdDetector
-from config import DEFAULT_AD_DURATION_ESTIMATE, TFIDF_MATCH_THRESHOLD
+from config import (
+    DEFAULT_AD_DURATION_ESTIMATE, TFIDF_MATCH_THRESHOLD, FUZZY_MATCH_THRESHOLD,
+)
 
 
 class TestSplitSentences:
@@ -200,7 +202,7 @@ class TestScanForBoundary:
             sponsor="test", scope="podcast",
         )
         # Mock _fuzzy_find to return a match at position 10
-        matcher._fuzzy_find = MagicMock(return_value=(10, 85))
+        matcher._fuzzy_find = MagicMock(return_value=(10, 95, 'visit our website today'))
         # Mock _char_pos_to_time to return known times
         matcher._char_pos_to_time = MagicMock(return_value=(50.0, 55.0))
 
@@ -218,7 +220,7 @@ class TestScanForBoundary:
             intro_variants=["brought to you by testco"],
             outro_variants=[], sponsor="test", scope="podcast",
         )
-        matcher._fuzzy_find = MagicMock(return_value=(5, 90))
+        matcher._fuzzy_find = MagicMock(return_value=(5, 95, 'brought to you by testco'))
         matcher._char_pos_to_time = MagicMock(return_value=(30.0, 35.0))
 
         full_text = "a" * 200
@@ -257,7 +259,7 @@ class TestScanForBoundary:
             sponsor="test", scope="podcast",
         )
         # Score below FUZZY_THRESHOLD * 100 (75)
-        matcher._fuzzy_find = MagicMock(return_value=(10, 50))
+        matcher._fuzzy_find = MagicMock(return_value=(10, 50, ''))
 
         result = matcher._scan_for_outro("a" * 200, {}, [], pattern, 0)
         assert result is None
@@ -634,3 +636,47 @@ class TestScoreWindowsBatched:
         assert [(m.pattern_id, m.confidence) for m in matches] == ref_matches
         assert all(m.match_type == 'content' for m in matches)
         assert all(m.sponsor == 'Acme' for m in matches)
+
+
+class TestRequiredFuzzyScore:
+    def test_long_phrase_keeps_the_base_threshold(self):
+        assert required_fuzzy_score(FUZZY_DISCRIMINATIVE_LENGTH) == FUZZY_MATCH_THRESHOLD * 100
+
+    def test_short_phrase_must_be_near_verbatim(self):
+        # Every measured false positive, with the score it reached.
+        for phrase, scored in [("If you know, you Vrbo.", 78.9),
+                               ("What's in your wallet?", 77.8),
+                               ("This is a BetterHelp ad", 78.3),
+                               ("This message is brought to you by AppleCard.", 79.5)]:
+            assert required_fuzzy_score(len(phrase)) > scored, phrase
+
+    def test_requirement_falls_as_the_phrase_grows(self):
+        assert (required_fuzzy_score(20) > required_fuzzy_score(40)
+                > required_fuzzy_score(59) > required_fuzzy_score(90))
+
+    def test_never_demands_a_perfect_score(self):
+        # A transcript never reproduces a phrase character for character.
+        assert required_fuzzy_score(10) < 100
+
+
+class TestFuzzyFindReportsWhatMatched:
+    def _matcher(self):
+        return TextPatternMatcher.__new__(TextPatternMatcher)
+
+    def test_returns_the_aligned_text_not_the_window(self):
+        text = ('so anyway we were talking about the weather for a while and '
+                'then he said go to squarespace.com slash rogan for a free '
+                'trial and then we moved on to something else entirely')
+        pos, score, matched = self._matcher()._fuzzy_find(
+            text, 'squarespace.com slash rogan for a free trial')
+
+        assert score > 90
+        assert 'squarespace' in matched
+        # The position points at the match, not at the start of the 50-char
+        # step window it was found in.
+        assert text[pos:pos + 11] == 'squarespace'
+
+    def test_empty_when_the_text_is_shorter_than_the_phrase(self):
+        pos, score, matched = self._matcher()._fuzzy_find(
+            'short', 'a much longer phrase than the text')
+        assert (pos, score, matched) == (0, 0, '')

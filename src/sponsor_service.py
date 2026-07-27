@@ -294,13 +294,33 @@ class SponsorService:
         return None
 
     @staticmethod
-    def extract_sponsors_from_transcript(text: str, ad_reason: str = None) -> set:
+    def own_site_tokens(podcast_name: str) -> set:
+        """Domain labels formed from the show's own name, not advertisers.
+
+        A host plugs their site inside a sponsor read ("Squarespace, the home
+        of my website, joerogan.com") and the domain harvest cannot tell that
+        from a brand, so the token is shared by every break on the show.
+        Runs of two or more words only, plus the whole name: a single word of
+        the title ("save" from "Pod Save America") can be a real advertiser.
+        """
+        words = re.findall(r'[a-z0-9]+', (podcast_name or '').lower())
+        runs = [''.join(words[i:j])
+                for i in range(len(words))
+                for j in range(i + 2, len(words) + 1)]
+        runs.append(''.join(words))
+        return {token for token in runs if len(token) >= 4}
+
+    @staticmethod
+    def extract_sponsors_from_transcript(text: str, ad_reason: str = None,
+                                         exclude: set = None) -> set:
         """Extract potential sponsor names from transcript text and optional ad reason.
 
         Returns a set of lowercase brand tokens harvested from:
         - URL/domain mentions (e.g., "vention" from "ventionteams.com")
         - "dot com" speech transcriptions
         - The ad_reason field (e.g., "Vention sponsor read")
+
+        ``exclude`` drops known non-advertiser tokens (see own_site_tokens).
 
         This is the multi-sponsor counterpart used by merge_same_sponsor_ads
         to test whether adjacent ad regions share a brand.
@@ -342,7 +362,7 @@ class SponsorService:
                     if len(brand) > 2 and brand not in NON_BRAND_WORDS:
                         sponsors.add(brand)
 
-        return sponsors
+        return sponsors - (exclude or set())
 
     # ========== CRUD Wrappers ==========
 

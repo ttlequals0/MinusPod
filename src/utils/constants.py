@@ -74,6 +74,11 @@ SPONSOR_MAX_NAME_CHARS = 60
 # (#591). This only guards against a pathological model response.
 REASON_DESCRIPTION_MAX = 2000
 
+# Quoted transcript text a pattern match carries into its reason. Long enough
+# for a reviewer to recognize the words, short enough that the reason stays
+# readable next to the sponsor and pattern id.
+PATTERN_EVIDENCE_MAX_CHARS = 120
+
 
 def is_sponsor_reasoning_rationale(text) -> bool:
     """True if `text` looks like an LLM reasoning sentence stored in a slot

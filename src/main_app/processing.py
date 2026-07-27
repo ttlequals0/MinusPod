@@ -836,7 +836,8 @@ def _setting_float(db, key: str, default: float, allow_zero: bool = False) -> fl
     return default
 
 
-def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=None):
+def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=None,
+                       podcast_name=None):
     """Apply the boundary refinement pipeline. Returns updated list.
 
     ``false_positive_corrections`` are threaded to the filler-gap merge so it
@@ -846,11 +847,13 @@ def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=No
     if all_ads and segments:
         all_ads = refine_ad_boundaries(all_ads, segments)
     if all_ads and segments:
-        all_ads = extend_ad_boundaries_by_content(all_ads, segments)
+        all_ads = extend_ad_boundaries_by_content(all_ads, segments,
+                                                  podcast_name=podcast_name)
     if all_ads:
         all_ads = snap_early_ads_to_zero(all_ads)
     if all_ads and segments:
-        all_ads = merge_same_sponsor_ads(all_ads, segments)
+        all_ads = merge_same_sponsor_ads(all_ads, segments,
+                                         podcast_name=podcast_name)
     if all_ads:
         min_content = _setting_float(db, 'min_content_between_ads_seconds',
                                      MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -1145,7 +1148,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 
     # Boundary refinement
     all_ads = _refine_boundaries(all_ads, segments, db=db,
-                                 false_positive_corrections=false_positive_corrections)
+                                 false_positive_corrections=false_positive_corrections,
+                                 podcast_name=podcast_name)
 
     # Heuristic pre/post-roll detection
     _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
@@ -1574,7 +1578,8 @@ def _find_master(all_ads, ad):
 
 
 def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validation,
-                          segments, audio_analysis_result, episode_duration):
+                          segments, audio_analysis_result, episode_duration,
+                          podcast_name=None):
     """Terminal boundary snap (spec 2.3b): pull a terminal cut's start back
     to the strongest deep-silence splice event. Runs after the reviewer,
     whose adjust verdicts are what move Dillon-style starts inside the ad
@@ -1594,7 +1599,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
                     if m.get('action_applied') != 'keep']
     snapped = snap_terminal_ad_to_splice(
         ads_to_remove, segments, events, episode_duration, window_s,
-        coverage_ads=coverage_ads,
+        coverage_ads=coverage_ads, podcast_name=podcast_name,
     )
     changed = False
     for old, new in zip(ads_to_remove, snapped):
@@ -1617,7 +1622,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
 
 
 def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation,
-                        segments):
+                        segments, podcast_name=None):
     """Re-run content-based end extension as the last step before cutting.
 
     This sweep exists to undo reviewer end-pullbacks: the reviewer can pull a
@@ -1636,7 +1641,7 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
         return ads_to_remove
 
     extended = extend_ad_boundaries_by_content(
-        ads_to_remove, segments, extend_start=False
+        ads_to_remove, segments, extend_start=False, podcast_name=podcast_name
     )
 
     changed = False
@@ -3804,14 +3809,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # reviewer-adjusted start can be pulled back to the splice point.
             ads_to_remove = _snap_terminal_starts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
-                segments, audio_analysis_result, episode_duration
+                segments, audio_analysis_result, episode_duration,
+                podcast_name=podcast_name
             )
 
             # Tail completion: final content-based end sweep after the reviewer,
             # which can pull cut ends back to the detector boundary and strand
             # the trailing CTA in the audio.
             ads_to_remove = _complete_cut_tails(
-                slug, episode_id, ads_to_remove, all_ads_with_validation, segments
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                segments, podcast_name=podcast_name
             )
 
             # Backstop: the late keep partition above should already have

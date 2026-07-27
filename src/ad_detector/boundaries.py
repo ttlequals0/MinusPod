@@ -305,7 +305,8 @@ def snap_early_ads_to_zero(ads: List[Dict], threshold: float = EARLY_AD_SNAP_THR
 
 
 def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict],
-                                    extend_start: bool = True) -> List[Dict]:
+                                    extend_start: bool = True,
+                                    podcast_name: str = None) -> List[Dict]:
     """Extend ad boundaries by checking adjacent segments for ad-like content.
 
     For each detected ad, examines transcript text immediately before and after
@@ -327,6 +328,7 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict],
     if not ads or not segments:
         return ads
 
+    own_site = SponsorService.own_site_tokens(podcast_name)
     extended = []
     for ad in ads:
         ad_copy = ad.copy()
@@ -335,7 +337,8 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict],
 
         # Get the ad's own text to extract sponsor names
         ad_text = get_transcript_text_for_range(segments, ad_start, ad_end).lower()
-        ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'))
+        ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'),
+                                            exclude=own_site)
 
         # Check text AFTER ad end for continuation
         after_text = get_transcript_text_for_range(
@@ -443,14 +446,16 @@ def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
     return False
 
 
-def extract_sponsor_names(text: str, ad_reason: str = None) -> set:
+def extract_sponsor_names(text: str, ad_reason: str = None,
+                          exclude: set = None) -> set:
     """Extract potential sponsor names from transcript text and ad reason.
 
     Thin delegation to SponsorService.extract_sponsors_from_transcript
     (canonical implementation). Retained as a module-level alias because
     several call sites and tests import this name directly.
     """
-    return SponsorService.extract_sponsors_from_transcript(text, ad_reason)
+    return SponsorService.extract_sponsors_from_transcript(
+        text, ad_reason, exclude=exclude)
 
 
 # --- Timestamp validation (Fix 1: Claude hallucination correction) ---
@@ -758,7 +763,8 @@ def _merge_ad_pair(current_ad: Dict, next_ad: Dict, gap_desc: str = "") -> None:
         current_ad['detection_stage'] = 'cue_pair'
 
 
-def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float = 300.0) -> List[Dict]:
+def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float = 300.0,
+                           podcast_name: str = None) -> List[Dict]:
     """Merge ads that mention the same sponsor.
 
     This handles cases where Claude fragments a long ad into multiple pieces
@@ -773,6 +779,8 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
         ads: List of detected ad segments (sorted by start time)
         segments: List of transcript segments
         max_gap: Maximum gap in seconds to consider for merging (default 5 minutes)
+        podcast_name: Show name, used to drop the host's own site from the
+            harvested tokens so it cannot look like a shared sponsor
 
     Returns:
         List of ads with same-sponsor segments merged
@@ -786,10 +794,11 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
     ads = sorted(ads, key=lambda x: x['start'])
 
     # Extract sponsor names for each ad (from transcript AND reason field)
+    own_site = SponsorService.own_site_tokens(podcast_name)
     ad_sponsors = []
     for ad in ads:
         ad_text = get_transcript_text_for_range(segments, ad['start'], ad['end'])
-        sponsors = extract_sponsor_names(ad_text, ad.get('reason'))
+        sponsors = extract_sponsor_names(ad_text, ad.get('reason'), exclude=own_site)
         ad_sponsors.append(sponsors)
         if sponsors:
             logger.debug(f"Ad {ad['start']:.1f}s-{ad['end']:.1f}s sponsors: {sponsors}")
@@ -829,7 +838,7 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
                 else:
                     # Longer gap - check if gap content mentions the sponsor
                     gap_text = get_transcript_text_for_range(segments, gap_start, gap_end)
-                    gap_sponsors = extract_sponsor_names(gap_text)
+                    gap_sponsors = extract_sponsor_names(gap_text, exclude=own_site)
 
                     if common_sponsors & gap_sponsors:
                         should_merge = True
@@ -1149,8 +1158,8 @@ def snap_terminal_ad_to_splice(ads: List[Dict], segments: List[Dict],
                                episode_duration: float,
                                window_s: float,
                                coverage_ads: Optional[List[Dict]] = None,
-                               eof_tolerance_s: float = TERMINAL_SNAP_EOF_TOLERANCE_SECONDS
-                               ) -> List[Dict]:
+                               eof_tolerance_s: float = TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
+                               podcast_name: str = None) -> List[Dict]:
     """Snap a terminal ad's start back to the strongest deep-silence splice.
 
     DAI post-roll blocks often begin at an encoded silence a few seconds
@@ -1183,7 +1192,9 @@ def snap_terminal_ad_to_splice(ads: List[Dict], segments: List[Dict],
                             if e.get('depth_dbfs') is not None else 0.0)
             ad_text = get_transcript_text_for_range(
                 segments, ad_copy['start'], ad_copy['end']).lower()
-            ad_sponsors = extract_sponsor_names(ad_text, ad_copy.get('reason'))
+            ad_sponsors = extract_sponsor_names(
+                ad_text, ad_copy.get('reason'),
+                exclude=SponsorService.own_site_tokens(podcast_name))
             for event in candidates:
                 if _span_blocked_by_content(segments, coverage, ad_sponsors,
                                             event['time'], ad_copy['start']):

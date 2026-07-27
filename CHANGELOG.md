@@ -31,6 +31,29 @@ release notes.
   pass, which leaves a live tag for input like `<scr<script>ipt>`. It reuses
   the shared helper that strips until the text stops changing. Flagged by
   CodeQL; the text was already escaped by React, so nothing was injectable.
+- Short pattern phrases matched arbitrary conversation. Fuzzy matching scores
+  the best substring alignment, so a 20-character phrase of common words
+  clears the flat threshold somewhere in any long transcript. On one episode
+  that held four sponsors on ordinary speech: "If you know, you Vrbo." aligned
+  to "feel. you know, you do", and "What's in your wallet?" to "what is your
+  website?". The score a phrase must reach now rises as the phrase gets
+  shorter, so a short one has to be near-verbatim. All four measured false
+  positives fall below the new bar; the genuine match in the same episode, a
+  156-character phrase, still matches.
+- A pattern match is timed against the words it aligned to rather than the
+  start of the block it was found in, which was placing matches off the ad.
+- A held pattern marker said only "Vrbo (pattern #485)", which left a reviewer
+  no way to judge it. The marker now quotes the transcript text the pattern
+  matched and the score, for example: `Squarespace (pattern #332, outro "slash
+  rogan for a free trial" 86%)`.
+- A back-to-back ad break made the model answer with a list of sponsors, which
+  was stored as its Python repr. The marker read `['Dodge', "The Farmer's
+  Dog"]`, and anything downstream that split on the quotes recovered fragments
+  like "s Dog". Several names are joined into one readable label instead.
+- A host's own site named inside a sponsor read (joerogan.com in a Squarespace
+  spot) was harvested as a sponsor. Every break on the show then shared that
+  token, which merged unrelated ads together. Tokens matching the show's own
+  name are no longer treated as advertisers.
 
 ## [2.81.5] - 2026-07-26
 
