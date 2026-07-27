@@ -74,9 +74,19 @@ export default function StatsPage() {
   const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
 
+  // itemStyle matters: without it the value line keeps recharts' dark default
+  // and is unreadable on the dark card. cursor replaces the default light grey
+  // rect, which read as a second bar rather than a hover highlight (#592).
   const tooltipStyle = useMemo(() => ({
-    contentStyle: { backgroundColor: theme.card || '#1a1a2e', border: `1px solid ${theme.border || '#333'}`, color: theme.foreground || '#fff' },
+    contentStyle: {
+      backgroundColor: theme.card || '#1a1a2e',
+      border: `1px solid ${theme.border || '#333'}`,
+      borderRadius: 8,
+      color: theme.foreground || '#fff',
+    },
     labelStyle: { color: theme.foreground || '#fff' },
+    itemStyle: { color: theme.foreground || '#fff' },
+    cursor: { fill: theme.border || '#333', opacity: 0.3 },
   }), [theme.card, theme.border, theme.foreground]);
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });

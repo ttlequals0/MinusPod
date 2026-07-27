@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.11] - 2026-07-27
+## [2.81.12] - 2026-07-27
 
 ### Added
 
@@ -76,6 +76,12 @@ release notes.
 
 ### Fixed
 
+- The bar chart tooltip on the stats page was unreadable and its hover
+  highlight looked like a second bar (#592). The value line kept the charting
+  library's dark default text on a dark card, and no hover cursor was set, so
+  the default light grey rect showed through at full strength. The tooltip now
+  takes the card's foreground colour and the cursor is the same subtle
+  theme-tinted fill the per-feed distribution chart already used.
 - Prompt improvements never reached an existing install. Seeding inserted each
   prompt row once and never touched it again, while the row stayed flagged as a
   default, so an install kept whatever prompt shipped when its database was

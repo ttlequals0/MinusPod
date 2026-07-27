@@ -1157,6 +1157,16 @@ class AdDetector:
                 f"[{slug}:{episode_id}] {window_label} category repair "
                 f"resolved {repaired}/{len(missing)}"
             )
+        if repaired == 0 and response.content:
+            # Nothing usable came back and the parser found no entries to
+            # reject either, so the response is not the shape it asks for at
+            # all. Only Anthropic enforces the schema; log what arrived so
+            # this is diagnosable instead of a bare zero.
+            logger.warning(
+                f"[{slug}:{episode_id}] {window_label} category repair "
+                f"returned nothing usable for {len(missing)} segment(s); "
+                f"raw response: {response.content[:300]!r}"
+            )
         return repaired
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
