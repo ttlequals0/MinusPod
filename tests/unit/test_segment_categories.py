@@ -341,7 +341,7 @@ def _dtns5317_raw_llm_detections():
     ]
 
 
-class TestDTNS5317IntroOutroSurviveFullPipeline:
+class TestIntroOutroSurviveFullPipeline:
     """End-to-end reproduction of DTNS 5317: the raw 9 LLM window
     detections, run through deduplicate_window_ads and
     _merge_detection_results with the feed's real action map, must keep

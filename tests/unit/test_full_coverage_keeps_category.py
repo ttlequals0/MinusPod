@@ -1,15 +1,15 @@
-"""DTNS 5317: daily-tech-news-show episode 3c0b827ef2c5, reprocessed with
-detect_show_segments=true and per-feed actions {cross_promo,intro,outro,
-recap,self_promo: keep; sponsor,interaction: remove}.
+"""A keep-resolving category must survive a fully covering pattern match.
 
-This is a second, independent layer from the window-dedup fix covered in
+Observed on a feed with detect_show_segments=true and per-feed actions
+{cross_promo,intro,outro,recap,self_promo: keep; sponsor,interaction: remove}.
+
+A second, independent layer from the window-dedup fix covered in
 test_ad_detector.py::TestDeduplicateWindowAdsActionGate and
-test_segment_categories.py::TestDTNS5317IntroOutroSurviveFullPipeline:
-process_transcript's pattern-merge step silently discards a Claude ad's
-category whenever its span is fully covered by an existing
-fingerprint/text_pattern match. Legacy patterns default to no category, so
-dropping the Claude ad here left only the pattern's uncategorized copy,
-losing a keep-resolving 'intro'/'outro' detection even when the
+test_segment_categories.py::TestIntroOutroSurviveFullPipeline:
+process_transcript's pattern-merge step silently discarded a Claude ad's
+category whenever its span was fully covered by an existing
+fingerprint/text_pattern match. An uncategorized pattern was all that
+remained, losing a keep-resolving 'intro'/'outro' detection even when the
 window-boundary dedup left it intact.
 """
 import os
@@ -26,7 +26,7 @@ SEGMENTS = [
     {'start': 166.6, 'end': 200.0, 'text': 'welcome back to the show with more news content'},
 ]
 
-DTNS_ACTION_MAP = {
+KEEP_SEGMENTS_ACTION_MAP = {
     'sponsor': 'remove', 'interaction': 'remove',
     'cross_promo': 'keep', 'self_promo': 'keep',
     'intro': 'keep', 'outro': 'keep', 'recap': 'keep',
@@ -69,7 +69,7 @@ class _LegacyPatternMatcher:
 
 
 def _run(detector, claude_ads):
-    detector.db = _FakeDb(DTNS_ACTION_MAP)
+    detector.db = _FakeDb(KEEP_SEGMENTS_ACTION_MAP)
     detector.audio_fingerprinter = None
     detector.text_pattern_matcher = _LegacyPatternMatcher()
     detector.pattern_service = None
@@ -78,9 +78,9 @@ def _run(detector, claude_ads):
          patch.object(detector, 'detect_ads',
                       return_value={'ads': claude_ads, 'status': 'success'}):
         return detector.process_transcript(
-            SEGMENTS, 'DTNS', 'DTNS 5317',
-            slug='daily-tech-news-show', episode_id='3c0b827ef2c5',
-            podcast_id='daily-tech-news-show', skip_patterns=False,
+            SEGMENTS, 'Example Podcast', 'Episode One',
+            slug='example-podcast', episode_id='a1b2c3d4e5f6',
+            podcast_id='example-podcast', skip_patterns=False,
             audio_path=None, dai_differential=None, keep_content=False,
         )
 
@@ -144,8 +144,8 @@ def test_no_action_map_preserves_pre_fix_drop_behavior():
          patch.object(detector, 'detect_ads',
                       return_value={'ads': [intro_ad], 'status': 'success'}):
         result = detector.process_transcript(
-            SEGMENTS, 'DTNS', 'DTNS 5317',
-            slug=None, episode_id='3c0b827ef2c5',
+            SEGMENTS, 'Example Podcast', 'Episode One',
+            slug=None, episode_id='a1b2c3d4e5f6',
             podcast_id=None, skip_patterns=False,
             audio_path=None, dai_differential=None, keep_content=False,
         )
