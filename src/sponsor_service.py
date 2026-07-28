@@ -9,6 +9,8 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
     NON_BRAND_WORDS,
+    REASON_DESCRIPTION_WORDS,
+    SPONSOR_DOMAIN_TLDS,
     is_sponsor_reasoning_rationale,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
@@ -19,6 +21,45 @@ logger = logging.getLogger(__name__)
 
 # Re-export for back-compat: callers may still do `from sponsor_service import SEED_SPONSORS`.
 __all__ = ['SponsorService', 'SEED_SPONSORS', 'SEED_NORMALIZATIONS']
+
+# A brand is a capitalized run; the run stops at a dot or slash so
+# "Patreon.com/Show" yields "Patreon".
+_BRAND_RUN_RE = re.compile(
+    r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
+_DOMAIN_RE = re.compile(
+    r'\b([A-Za-z0-9][A-Za-z0-9-]*)\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
+    re.IGNORECASE)
+_RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
+_SQUASH_RE = re.compile(r'[^a-z0-9]')
+# Longest a brand name is taken to be when no domain confirms where it ends;
+# beyond this the model is describing rather than naming.
+MAX_BRAND_WORDS = 4
+_LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
+
+
+def _brand_run_words(run: str) -> Optional[List[str]]:
+    """Words of `run` with leading filler dropped, or None if it names nothing.
+
+    Only INVALID_SPONSOR_CAPTURE_WORDS come off the front; trimming ad
+    vocabulary here cost the first word of real names ("Full Circle").
+    """
+    words = run.split()
+    while words and words[0].lower() in INVALID_SPONSOR_CAPTURE_WORDS:
+        words.pop(0)
+    if not words:
+        return None
+    run = ' '.join(words)
+    if len(run) < 3 or run.lower() in INVALID_SPONSOR_VALUES:
+        return None
+    parts = [p for p in _RUN_SPLIT_RE.split(run.lower()) if p]
+    if all(p in _LABELER_STOPWORDS for p in parts):
+        return None
+    return None if is_sponsor_reasoning_rationale(run) else words
+
+
+def _starts_any(domains):
+    """Predicate: some domain begins with the given brand head."""
+    return lambda head: any(d.startswith(head) for d in domains)
 
 
 class SponsorService:
@@ -270,16 +311,6 @@ class SponsorService:
 
         return None
 
-    # A brand is a capitalized run; a word stops the run at a dot or slash so
-    # "Patreon.com/Show" yields "Patreon".
-    _BRAND_RUN_RE = re.compile(r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
-    # Longest a brand name is taken to be when no domain confirms where it
-    # ends; beyond this the model is describing rather than naming.
-    MAX_BRAND_WORDS = 4
-    _DOMAIN_RE = re.compile(
-        r'\b([A-Za-z0-9][A-Za-z0-9-]*)\.(?:com|net|org|io|co|tv|fm|us|app|shop|store)\b',
-        re.IGNORECASE)
-
     @staticmethod
     def extract_sponsor_from_reason(text: str) -> Optional[str]:
         """Extract a sponsor name from an LLM ad-reason string.
@@ -287,10 +318,10 @@ class SponsorService:
         Matched by shape and corroboration rather than sentence structure: the
         model rewords the reason on every run, so patterns keyed to phrasings
         like "X sponsor read" only ever cover the samples they were written
-        for. A brand here is a capitalized run, preferred when a domain in the
-        same text agrees with it ("Jack Archer" with JackArcher.com), which is
-        the one signal that survives rewording. Returns the raw captured token
-        (case preserved) when valid, else None.
+        for. A brand here is a capitalized run, narrowed to the span a domain
+        in the same text agrees with ("Jack Archer" with JackArcher.com), which
+        is the one signal that survives rewording. Returns the raw captured
+        token (case preserved) when valid, else None.
         """
         if not text:
             return None
@@ -299,57 +330,32 @@ class SponsorService:
         if is_sponsor_reasoning_rationale(text):
             return None
 
-        domains = {m.group(1).lower().replace('-', '')
-                   for m in SponsorService._DOMAIN_RE.finditer(text)}
-
-        def usable(run: str) -> bool:
-            words = [w for w in re.split(r"[\s/'\u2019-]+", run.lower()) if w]
-            if not words or len(run.strip()) < 3:
-                return False
-            if run.lower() in INVALID_SPONSOR_VALUES:
-                return False
-            if words[0] in INVALID_SPONSOR_CAPTURE_WORDS:
-                return False
-            if all(w in NON_BRAND_WORDS for w in words):
-                return False
-            return not is_sponsor_reasoning_rationale(run)
-
-        runs = [m.group(0).strip() for m in SponsorService._BRAND_RUN_RE.finditer(text)]
-        # Drop leading words that are ad vocabulary ("Full ZipRecruiter" ->
-        # "ZipRecruiter"), which the model prepends freely.
-        trimmed = []
-        for run in runs:
-            words = run.split()
-            while words and words[0].lower() in NON_BRAND_WORDS:
-                words.pop(0)
-            if words:
-                trimmed.append(' '.join(words))
-        candidates = [r for r in trimmed if usable(r)]
-        if not candidates:
+        # The first advertiser named labels the break, so stop at the first
+        # usable run: a later one with a URL must not win the label.
+        words = next(
+            (w for w in (_brand_run_words(m.group(0))
+                         for m in _BRAND_RUN_RE.finditer(text)) if w),
+            None)
+        if not words:
             return None
 
-        # The first advertiser named labels the break. A domain is used to
-        # trim that name, never to promote a later one: picking whichever
-        # brand happened to have a URL made the second advertiser win.
-        run = candidates[0]
-        words = run.split()
-        # Longest agreement first: a domain equal to the head names exactly
-        # where the brand ends ("Jack Archer" against jackarcher.com), while a
-        # domain merely starting with it keeps a shorter prose form ("Hykes"
-        # against hykesusa.com). Shortest-first would cut "Jack Archer" to
-        # "Jack".
-        for count in range(len(words), 0, -1):
-            head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
-            if head and any(d == head for d in domains):
-                return ' '.join(words[:count])
-        for count in range(len(words), 0, -1):
-            head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
-            if head and any(d.startswith(head) for d in domains):
-                return ' '.join(words[:count])
+        domains = {m.group(1).lower().replace('-', '')
+                   for m in _DOMAIN_RE.finditer(text)}
+        # A domain names where the brand both starts and ends, so search spans
+        # rather than prefixes: that narrows "Full ZipRecruiter" without a
+        # blind leading trim. Leftmost and longest first, so "Jack Archer" is
+        # not cut to "Jack" nor "Belmont Park" to "Park".
+        spans = [(i, j) for i in range(len(words))
+                 for j in range(len(words), i, -1)]
+        for match_domain in (domains.__contains__, _starts_any(domains)):
+            for i, j in spans:
+                head = _SQUASH_RE.sub('', ' '.join(words[i:j]).lower())
+                if head and match_domain(head):
+                    return ' '.join(words[i:j])
         # Nothing agrees, so there is no signal for where the brand ends. Cap
         # it: past this a run is the model describing the product, not naming
         # a brand ("LEGO Land Discovery Center Westchester Ninjago event").
-        return ' '.join(words[:SponsorService.MAX_BRAND_WORDS])
+        return ' '.join(words[:MAX_BRAND_WORDS])
 
     @staticmethod
     def own_site_tokens(podcast_name: str) -> set:

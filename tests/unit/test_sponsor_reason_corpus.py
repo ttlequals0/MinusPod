@@ -7,16 +7,13 @@ a change to extraction is measured against variance rather than one example.
 """
 import os
 import sys
-import tempfile
-
-os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='reason_corpus_'))
-os.environ.setdefault('SECRET_KEY', 'test-secret')
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import pytest  # noqa: E402
 
 from sponsor_service import SponsorService  # noqa: E402
+from utils.constants import mentions_advertising  # noqa: E402
 
 # (reason, accepted answers). A tuple allows both the prose and the domain
 # spelling of a brand, which are equally defensible labels.
@@ -76,6 +73,11 @@ CORPUS = [
     ("Ad break: Host discusses the news at length", (None,)),
     ("Dynamically inserted pre-roll ads with no named brand at all", (None,)),
     ("Based on the volume anomaly observed in this segment", (None,)),
+    # An ad-vocabulary word can also open a real brand, so the label is only
+    # narrowed when a domain says where the brand starts.
+    ("Full ZipRecruiter sponsor read, includes ZipRecruiter.com/show URL",
+     ('ZipRecruiter',)),
+    ("Full Circle host-read sponsor spot", ('Full Circle',)),
 ]
 
 
@@ -86,4 +88,25 @@ def test_extraction_across_real_phrasings(reason, accepted):
 
 def test_the_corpus_is_not_quietly_shrinking():
     """A regression here is easiest to hide by deleting rows."""
-    assert len(CORPUS) >= 22
+    assert len(CORPUS) >= 24
+
+
+@pytest.mark.parametrize('reason', [
+    'Discussion of the guest new book about climate policy',
+    'Interview segment where the host asks about Congress',
+    'Regular editorial content covering the Supreme Court ruling',
+])
+def test_a_content_description_is_not_ad_evidence(reason):
+    """The labeler names the first capitalized word of any sentence, so the
+    detection gate must not read a label as proof the span is an ad."""
+    assert SponsorService.extract_sponsor_from_reason(reason) is not None
+    assert mentions_advertising(reason) is False
+
+
+@pytest.mark.parametrize('reason', [
+    'ZipRecruiter host-read sponsor segment with URL and call to action',
+    'Dynamically inserted pre-roll ads with no named brand at all',
+    'Network-inserted promo spot',
+])
+def test_a_reason_that_describes_an_ad_is_ad_evidence(reason):
+    assert mentions_advertising(reason) is True

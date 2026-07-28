@@ -28,6 +28,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
+    WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     coerce_bool_setting,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
@@ -956,20 +957,22 @@ def _apply_audio_fields(db, data):
 def _apply_transcribe_chunk_fields(db, data):
     """Chunked transcription tuning (parallel API path)."""
     parsed = {}
-    for field_name, db_key, max_val in (
-        ('transcribeMaxChunkSeconds', 'transcribe_max_chunk_seconds', 7200),
-        ('transcribeConcurrentChunks', 'transcribe_concurrent_chunks', 32),
-        ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 600),
+    for field_name, db_key, min_val, max_val in (
+        ('transcribeMaxChunkSeconds', 'transcribe_max_chunk_seconds', 1, 7200),
+        ('transcribeConcurrentChunks', 'transcribe_concurrent_chunks', 1, 32),
+        ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 1, 600),
+        ('whisperApiTimeoutSeconds', 'whisper_api_timeout_seconds',
+         WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX),
     ):
         if field_name not in data:
             continue
         try:
             value = int(data[field_name])
         except (TypeError, ValueError):
-            return json_response({'error': f'{field_name} must be a positive integer'}, 400)
-        if value < 1 or value > max_val:
+            return json_response({'error': f'{field_name} must be an integer'}, 400)
+        if not (min_val <= value <= max_val):
             return json_response(
-                {'error': f'{field_name} must be between 1 and {max_val}'}, 400
+                {'error': f'{field_name} must be between {min_val} and {max_val}'}, 400
             )
         parsed[db_key] = value
 
@@ -1161,17 +1164,6 @@ def _apply_whisper_fields(db, data):
         db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated skip_flac_compression to: {enabled}")
 
-    if 'whisperApiTimeoutSeconds' in data:
-        try:
-            timeout_val = int(data['whisperApiTimeoutSeconds'])
-        except (TypeError, ValueError):
-            return json_response(
-                {'error': 'whisperApiTimeoutSeconds must be a positive integer'}, 400)
-        if timeout_val < 30 or timeout_val > 3600:
-            return json_response(
-                {'error': 'whisperApiTimeoutSeconds must be between 30 and 3600'}, 400)
-        db.set_setting('whisper_api_timeout_seconds', str(timeout_val), is_default=False)
-        logger.info(f"Updated whisper_api_timeout_seconds to: {timeout_val}")
     return None
 
 
@@ -2447,10 +2439,8 @@ def update_reviewer_settings():
 # ========== Community-pattern sync settings ==========
 
 def _community_category_breakdown(db) -> Dict[str, int]:
-    """Per-category counts of currently-active (synced) community patterns.
-
-    Resolved the same way community_sync filters on category, so the counts
-    match what the toggles actually sync: an unset category reads as sponsor."""
+    """Per-category counts of active community patterns, resolved the same way
+    community_sync filters, so an unset category counts as sponsor there too."""
     breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}
     for pattern in db.get_patterns_by_source('community', active_only=True):
         breakdown[normalize_segment_category(pattern.get('category'))] += 1

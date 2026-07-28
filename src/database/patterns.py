@@ -22,9 +22,7 @@ def _parse_bounds(raw: Optional[str]) -> Optional[Dict]:
 def _row_with_category(row: Dict) -> Dict:
     """Drop a NULL or unrecognized `category` so an unclassified pattern is
     unset the same way an unclassified marker is: key absent, never
-    present-and-None. Present-and-None silently defeats every consumer
-    written as .get('category', default), which is how the community-sync
-    page 500ed. Action resolution normalizes at use time."""
+    present-and-None, which silently defeats a .get('category', default)."""
     if row.get('category') not in SEGMENT_CATEGORIES:
         row.pop('category', None)
     return row

@@ -47,6 +47,8 @@ from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_CONNECTION_TEST,
     HTTP_TIMEOUT_WHISPER,
+    WHISPER_API_TIMEOUT_MIN,
+    WHISPER_API_TIMEOUT_MAX,
     coerce_bool_setting,
     get_env_backed_int, MAX_AUDIO_DOWNLOAD_MB_MIN, MAX_AUDIO_DOWNLOAD_MB_ADVISORY,
 )
@@ -410,19 +412,19 @@ def _get_whisper_settings() -> Dict[str, str]:
     return defaults
 
 
-def _api_timeout(whisper_settings: Dict = None) -> float:
-    """Per-request timeout for the Whisper API upload.
+def _api_timeout(whisper_settings: Dict) -> float:
+    """Per-request Whisper upload timeout, clamped like the chunk settings.
 
     Operators running a local STT backend need longer than the default when a
-    chunk takes minutes to transcribe (#593). An unparseable value falls back
-    to the shipped default rather than failing the request.
+    chunk takes minutes to transcribe (#593). An env var or direct DB write
+    skips the API validator, so the range is enforced here too; an unparseable
+    value falls back to the shipped default rather than failing the request.
     """
-    raw = (whisper_settings or {}).get('api_timeout', HTTP_TIMEOUT_WHISPER)
     try:
-        value = float(raw)
+        value = float(whisper_settings.get('api_timeout'))
     except (TypeError, ValueError):
         return float(HTTP_TIMEOUT_WHISPER)
-    return value if value > 0 else float(HTTP_TIMEOUT_WHISPER)
+    return float(min(WHISPER_API_TIMEOUT_MAX, max(WHISPER_API_TIMEOUT_MIN, value)))
 
 
 def check_whisper_connectivity(timeout: float = 5.0) -> bool:

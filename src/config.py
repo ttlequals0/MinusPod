@@ -1020,6 +1020,11 @@ HTTP_TIMEOUT_WHISPER = 600            # Remote Whisper transcription upload
                                       # (multi-minute audio over slow network)
 HTTP_TIMEOUT_CONNECTION_TEST = 30.0   # Whisper /test-connection probe: 1s WAV
                                       # upload + inference, may cold-load model
+# Bounds on the operator-tunable override of HTTP_TIMEOUT_WHISPER (#593). The
+# API validator and the point-of-use clamp share these so an env var or direct
+# DB write cannot route around the range.
+WHISPER_API_TIMEOUT_MIN = 30
+WHISPER_API_TIMEOUT_MAX = 3600
 
 # ============================================================
 # Chunked Transcription (OOM prevention for long episodes)

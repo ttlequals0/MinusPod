@@ -534,3 +534,15 @@ def test_coerce_overrides_drops_non_list_aliases_and_tags():
         '3': {'sponsor_tags': ['universal', 42]},
     })
     assert out == {1: {}, 2: {}, 3: {}}
+
+
+def test_an_unset_category_is_omitted_not_exported_as_null():
+    """An explicit null re-imports as a present-and-None category, which is the
+    representation the pattern read layer drops on the way out."""
+    assert 'category' not in build_export_payload(_pattern(category=None), [_sponsor()])
+    assert 'category' not in build_export_payload(_pattern(), [_sponsor()])
+
+
+def test_a_set_category_still_exports():
+    payload = build_export_payload(_pattern(category='cross_promo'), [_sponsor()])
+    assert payload['category'] == 'cross_promo'

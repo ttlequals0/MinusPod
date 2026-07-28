@@ -980,7 +980,6 @@ class TestWhisperApiTimeoutIsTuneable:
         from transcriber import _api_timeout
 
         assert _api_timeout({}) == float(HTTP_TIMEOUT_WHISPER)
-        assert _api_timeout(None) == float(HTTP_TIMEOUT_WHISPER)
 
     def test_a_configured_value_wins(self):
         from transcriber import _api_timeout
@@ -992,5 +991,14 @@ class TestWhisperApiTimeoutIsTuneable:
         from config import HTTP_TIMEOUT_WHISPER
         from transcriber import _api_timeout
 
-        for bad in ('', 'abc', None, 0, -5):
+        for bad in ('', 'abc', None):
             assert _api_timeout({'api_timeout': bad}) == float(HTTP_TIMEOUT_WHISPER)
+
+    def test_a_value_outside_the_api_range_is_clamped_not_honored(self):
+        from config import WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX
+        from transcriber import _api_timeout
+
+        # An env var or direct DB write skips the API validator (#593).
+        assert _api_timeout({'api_timeout': 0}) == float(WHISPER_API_TIMEOUT_MIN)
+        assert _api_timeout({'api_timeout': -5}) == float(WHISPER_API_TIMEOUT_MIN)
+        assert _api_timeout({'api_timeout': 999999}) == float(WHISPER_API_TIMEOUT_MAX)

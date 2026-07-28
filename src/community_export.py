@@ -382,7 +382,7 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     # podcast's tag set (text_pattern_matcher._filter_patterns_by_scope),
     # not by the legacy scope column. Force global at the boundary.
 
-    return {
+    payload = {
         'scope': 'global',
         'text_template': text_template,
         'intro_variants': intro_variants,
@@ -392,10 +392,13 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
         'sponsor_aliases': sponsor_aliases,
         'sponsor_tags': sponsor_tags,
         'source_language': pattern.get('source_language'),
-        # Segment category (#565), when present. Omitting it stays backward
-        # compatible: import defaults a missing key to 'sponsor', same as a NULL column.
-        'category': pattern.get('category'),
     }
+    # Segment category (#565) only when set. Emitting an explicit null would
+    # re-import as a present-and-None category, the representation the pattern
+    # read layer exists to keep out; a missing key defaults to 'sponsor'.
+    if pattern.get('category'):
+        payload['category'] = pattern['category']
+    return payload
 
 
 def build_export_payload(

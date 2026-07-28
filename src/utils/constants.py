@@ -492,12 +492,43 @@ NON_BRAND_WORDS = frozenset({
     'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
     'complete', 'partial', 'full', 'brief', 'short', 'long',
     'message', 'insert', 'mid', 'roll', 'pre', 'post',
-    # Words the model reaches for when describing an ad's shape or evidence.
+})
+
+# Vocabulary the model reaches for when describing an ad's shape or evidence,
+# plus the pronouns it quotes ("We'll be right back"). Read only by the
+# sponsor labeler. Kept out of NON_BRAND_WORDS because that set also filters
+# boundary-relocation keywords, where losing "back" or "block" costs hits.
+REASON_DESCRIPTION_WORDS = frozenset({
     'orphaned', 'contiguous', 'dai', 'url', 'back', 'block', 'lead',
     'fragment', 'leftover', 'confirmed', 'merged', 'missed', 'spots',
-    # Pronouns and contraction tails: "We'll be right back" is the ad-break
-    # lead-in the model quotes, never an advertiser.
-    'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'its', 'to',
+    'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'to',
+})
+
+# Words that only appear in a reason when the model is describing advertising.
+AD_LANGUAGE_WORDS = frozenset({
+    'ad', 'ads', 'advert', 'adverts', 'advertisement', 'advertisements',
+    'advertiser', 'advertisers', 'advertising', 'sponsor', 'sponsors',
+    'sponsored', 'sponsorship', 'commercial', 'commercials', 'promo',
+    'promos', 'promotion', 'promotional', 'preroll', 'midroll', 'postroll',
+    'dai', 'endorsement', 'infomercial', 'spot', 'spots',
+})
+
+
+def mentions_advertising(text) -> bool:
+    """True if `text` calls the span an ad, the positive evidence the detection
+    gate needs. Separate from the sponsor labeler, which answers what the
+    advertiser is called and names the first capitalized word of any sentence.
+    """
+    if not text:
+        return False
+    return not AD_LANGUAGE_WORDS.isdisjoint(re.findall(r'[a-z]+', str(text).lower()))
+
+
+# TLDs a sponsor URL in an ad reason is written with. Wider than the spoken
+# "X dot com" set in community_tags, which reads transcript prose.
+SPONSOR_DOMAIN_TLDS = frozenset({
+    'com', 'net', 'org', 'io', 'co', 'tv', 'fm', 'us',
+    'app', 'shop', 'store', 'ai', 'edu',
 })
 
 # Classifications from LLM that indicate non-ad content

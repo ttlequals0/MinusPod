@@ -19,6 +19,7 @@ from utils.constants import (
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     SPONSOR_MAX_NAME_CHARS, REASON_DESCRIPTION_MAX,
     is_sponsor_reasoning_rationale,
+    mentions_advertising,
     NOT_AD_CLASSIFICATIONS,
 )
 from config import (
@@ -451,7 +452,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                         sponsor_service and
                         sponsor_service.find_sponsor_in_text(reason)
                     ) if reason else False
-                    has_ad_language = bool(extract_sponsor_from_text(reason)) if reason else False
+                    has_ad_language = mentions_advertising(reason)
 
                     if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
                         # Low confidence + no evidence = reject regardless of duration

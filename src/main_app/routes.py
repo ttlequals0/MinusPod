@@ -120,7 +120,7 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     """
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
     if original_feed:
-        parsed_feed = rss_parser.parse_feed(original_feed)
+        parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
         episodes = rss_parser.extract_episodes(original_feed, parsed_feed=parsed_feed)
         for ep in episodes:

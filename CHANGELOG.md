@@ -9,6 +9,36 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.23] - 2026-07-28
+
+### Fixed
+
+- A reason that only describes editorial content no longer counts as evidence
+  that the span is an ad. The gate was reading the sponsor labeler's output as
+  a yes/no on ad language, and that labeler names the first capitalized word of
+  any sentence, so "Discussion of the guest's new book" passed it and skipped
+  the low-confidence rejection. The gate now asks whether the reason mentions
+  advertising.
+- A sponsor label no longer loses its first word when that word also appears in
+  ad vocabulary. "Full Circle" was being cut to "Circle". The label is narrowed
+  only where a URL in the same reason says where the brand starts and ends, so
+  "Full ZipRecruiter sponsor read" with ZipRecruiter.com still resolves to
+  ZipRecruiter.
+- An uncategorized pattern exported to a community bundle now omits the
+  category key instead of writing an explicit null. Importing that null wrote a
+  present-and-None category back into the database, the representation the read
+  layer drops because it defeats a `.get('category', default)`.
+
+### Changed
+
+- The Whisper request timeout is validated in one place. Its range is a shared
+  constant applied by the API and at the point of use, so a value set through
+  `WHISPER_API_TIMEOUT` or written straight to the database is clamped the same
+  way the chunk settings are.
+- Words the model uses to describe an ad's shape ("orphaned", "back", "block")
+  are read only by the sponsor labeler. They had also been filtering
+  boundary-relocation keywords, where dropping them cost hits.
+
 ## [2.81.22] - 2026-07-28
 
 ### Added
