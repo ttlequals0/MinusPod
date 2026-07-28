@@ -195,15 +195,18 @@ def _strip_continuation_prefix(text: str) -> str:
     return _CONTINUATION_PREFIX_RE.sub('', text or '').lstrip()
 
 
-def _as_text(value) -> str:
+def _flatten(value) -> str:
     """Flatten an LLM field to text. A back-to-back break makes the model
-    answer a string field with a list, and str() would store the Python repr.
-    The window-continuation note the prompt asks for is dropped here so it
-    reaches neither the sponsor slot nor the reason a reader sees."""
+    answer a string field with a list, and str() would store the Python repr."""
     if isinstance(value, (list, tuple)):
-        joined = ', '.join(str(v).strip() for v in value if v and str(v).strip())
-        return _strip_continuation_prefix(joined)
-    return _strip_continuation_prefix(str(value).strip()) if value else ''
+        return ', '.join(str(v).strip() for v in value if v and str(v).strip())
+    return str(value).strip() if value else ''
+
+
+def _as_text(value) -> str:
+    """Flattened text with any leading window-continuation note dropped, so it
+    does not reach the reason a reader sees."""
+    return _strip_continuation_prefix(_flatten(value))
 
 
 def parse_ads_from_response(response_text: str, slug: str = None,
@@ -217,7 +220,11 @@ def parse_ads_from_response(response_text: str, slug: str = None,
     def get_valid_value(value):
         if not value:
             return None
-        str_value = _as_text(value)
+        str_value = _flatten(value)
+        # A continuation note is window bookkeeping, not a sponsor; trimming
+        # the prefix and keeping the remainder minted labels like 'window'.
+        if _CONTINUATION_PREFIX_RE.match(str_value):
+            return None
         if len(str_value) < 2:
             return None
         if str_value.lower() in INVALID_SPONSOR_VALUES:

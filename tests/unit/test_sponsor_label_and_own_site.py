@@ -129,6 +129,24 @@ class TestContinuationNotesAreNotSponsors:
 
         assert ads and ads[0].get('sponsor') is None
 
+    def test_an_embellished_continuation_note_is_not_a_sponsor(self):
+        """Stripping the prefix and keeping the remainder minted labels like
+        'window' and 'in next segment'."""
+        for note in ('continues in next window',
+                     'continued in next segment',
+                     'continues from previous; more detail'):
+            ads = parse_ads_from_response(json.dumps([
+                {'start': 100, 'end': 160, 'note': note, 'confidence': 0.9}]),
+                'slug', 'ep')
+            assert ads and ads[0].get('sponsor') is None, note
+
+    def test_a_listed_continuation_note_is_not_a_sponsor(self):
+        ads = parse_ads_from_response(json.dumps([
+            {'start': 100, 'end': 160, 'sponsor': ['continues in next window'],
+             'confidence': 0.9}]), 'slug', 'ep')
+
+        assert ads and ads[0].get('sponsor') is None
+
     def test_a_real_brand_in_a_note_still_counts(self):
         ads = parse_ads_from_response(json.dumps([
             {'start': 100, 'end': 160, 'note': 'Acme', 'confidence': 0.9}]),
