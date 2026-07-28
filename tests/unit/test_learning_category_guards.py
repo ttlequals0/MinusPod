@@ -5,10 +5,11 @@ Covers:
   never create a pattern_correction row (which also seeds cross-episode
   false-positive text, since both flow through the same
   create_pattern_correction call).
-- ad_patterns.category: additive NULL column; NULL reads back as 'sponsor';
-  the pattern learner stores a marker's category on newly created patterns.
-- Community sync: export includes category; import without one defaults to
-  'sponsor' via the same NULL read default.
+- ad_patterns.category: additive NULL column; NULL reads back as None and
+  only action resolution defaults it; the pattern learner stores a marker's
+  category on newly created patterns.
+- Community sync: export includes category; import without one leaves it
+  unset.
 - Kept markers still reach pattern learning: only correction/FP-text
   creation is guarded, not learning.
 """
@@ -166,12 +167,14 @@ class TestKeepMarkerCorrectionGuard:
 
 class TestPatternCategoryColumn:
 
-    def test_null_category_reads_as_sponsor(self, temp_db):
+    def test_null_category_reads_back_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(
             scope='podcast', text_template='x' * 60, podcast_id=SLUG,
         )
         pattern = temp_db.get_ad_pattern_by_id(pid)
-        assert pattern['category'] == 'sponsor'
+        assert pattern['category'] is None
+        # Action resolution still treats an unset category as a sponsor read.
+        assert normalize_segment_category(pattern['category']) == 'sponsor'
 
     def test_explicit_category_round_trips(self, temp_db):
         pid = temp_db.create_ad_pattern(
@@ -181,21 +184,21 @@ class TestPatternCategoryColumn:
         pattern = temp_db.get_ad_pattern_by_id(pid)
         assert pattern['category'] == 'cross_promo'
 
-    def test_unrecognized_category_normalizes_to_sponsor(self, temp_db):
+    def test_unrecognized_category_reads_back_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(
             scope='podcast', text_template='x' * 60, podcast_id=SLUG,
             category='not-a-real-category',
         )
         pattern = temp_db.get_ad_pattern_by_id(pid)
-        assert pattern['category'] == 'sponsor'
+        assert pattern['category'] is None
 
-    def test_list_patterns_also_defaults_null_category(self, temp_db):
+    def test_list_patterns_also_leaves_null_category_unset(self, temp_db):
         temp_db.create_ad_pattern(
             scope='podcast', text_template='x' * 60, podcast_id=SLUG,
         )
         rows = temp_db.get_ad_patterns(podcast_id=SLUG, active_only=False)
         assert len(rows) == 1
-        assert rows[0]['category'] == 'sponsor'
+        assert rows[0]['category'] is None
 
     def test_learner_stores_marker_category_on_new_pattern(self, temp_db):
         matcher = TextPatternMatcher(db=temp_db)
@@ -209,7 +212,7 @@ class TestPatternCategoryColumn:
         pattern = temp_db.get_ad_pattern_by_id(pattern_id)
         assert pattern['category'] == 'cross_promo'
 
-    def test_learner_with_no_category_defaults_sponsor(self, temp_db):
+    def test_learner_with_no_category_leaves_it_unset(self, temp_db):
         matcher = TextPatternMatcher(db=temp_db)
         pattern_id = matcher.create_pattern_from_ad(
             segments=[{'start': 0.0, 'end': 60.0, 'text': BETTERHELP_AD_TEXT}],
@@ -218,7 +221,7 @@ class TestPatternCategoryColumn:
         )
         assert pattern_id is not None
         pattern = temp_db.get_ad_pattern_by_id(pattern_id)
-        assert pattern['category'] == 'sponsor'
+        assert pattern['category'] is None
 
 
 # ========== 4. Community sync ==========
@@ -240,7 +243,7 @@ class TestCommunitySyncCategory:
         payload = build_export_payload(pattern, sponsors)
         assert payload['category'] == 'cross_promo'
 
-    def test_import_without_category_defaults_sponsor(self, temp_db):
+    def test_import_without_category_leaves_it_unset(self, temp_db):
         pattern_service = PatternService(temp_db)
         data = {
             'community_id': 'cid-no-category',
@@ -254,7 +257,7 @@ class TestCommunitySyncCategory:
         }
         pattern_id = pattern_service.import_community_pattern(data)
         pattern = temp_db.get_ad_pattern_by_id(pattern_id)
-        assert pattern['category'] == 'sponsor'
+        assert pattern['category'] is None
 
     def test_import_with_category_round_trips(self, temp_db):
         pattern_service = PatternService(temp_db)
@@ -273,7 +276,7 @@ class TestCommunitySyncCategory:
         pattern = temp_db.get_ad_pattern_by_id(pattern_id)
         assert pattern['category'] == 'self_promo'
 
-    def test_apply_manifest_import_without_category_defaults_sponsor(self, temp_db):
+    def test_apply_manifest_import_without_category_leaves_it_unset(self, temp_db):
         """End-to-end through the actual community_sync manifest applier;
         format/version keys are untouched by the category addition."""
         summary = apply_manifest(temp_db, {
@@ -298,7 +301,7 @@ class TestCommunitySyncCategory:
         assert summary['inserted'] == 1
         rows = temp_db.get_patterns_by_source('community', active_only=False)
         assert len(rows) == 1
-        assert rows[0]['category'] == 'sponsor'
+        assert rows[0]['category'] is None
 
 
 class TestCommunitySyncReimportPreservesCategory:
@@ -469,15 +472,14 @@ class TestPatternMatchCategoryInheritance:
         pattern = next(p for p in matcher._patterns if p.id == pid)
         assert pattern.category == 'cross_promo'
 
-    def test_load_patterns_null_category_defaults_sponsor(self, temp_db):
-        """Legacy/uncategorized pattern: NULL in the DB, normalized to
-        'sponsor' by get_ad_patterns' _row_with_category before AdPattern
-        ever sees it."""
+    def test_load_patterns_null_category_stays_unset(self, temp_db):
+        """A legacy pattern reaches the matcher with no category, so its
+        markers render as Uncategorized instead of claiming a sponsor read."""
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
         matcher = TextPatternMatcher(db=temp_db)
         matcher._load_patterns()
         pattern = next(p for p in matcher._patterns if p.id == pid)
-        assert pattern.category == 'sponsor'
+        assert pattern.category is None
 
     def test_find_phrase_matches_carries_pattern_category(self):
         """Pure unit test of the fuzzy phrase-match path (deterministic,
@@ -559,14 +561,14 @@ class TestPatternMatchCategoryInheritance:
         loaded = fp._load_fingerprints_from_db()
         assert loaded == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
 
-    def test_fingerprint_pattern_with_no_category_defaults_sponsor(self, temp_db):
+    def test_fingerprint_pattern_with_no_category_stays_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
 
         fp = AudioFingerprinter.__new__(AudioFingerprinter)
         fp.db = temp_db
         loaded = fp._load_fingerprints_from_db()
-        assert loaded == [(pid, 'AQAA', 12.0, None, 'sponsor')]
+        assert loaded == [(pid, 'AQAA', 12.0, None, None)]
 
 
 class TestKeepPartitionFromCategorizedDetection:
@@ -622,12 +624,12 @@ class TestPatternCategoryOnEndpoints:
         assert resp.status_code == 200, resp.data
         assert json.loads(resp.data)['category'] == 'self_promo'
 
-    def test_get_pattern_detail_null_category_defaults_sponsor(self, client, temp_db):
+    def test_get_pattern_detail_null_category_reads_back_unset(self, client, temp_db):
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
         with patch('api.patterns.get_database', return_value=temp_db):
             resp = client.get(f'/api/v1/patterns/{pid}')
         assert resp.status_code == 200, resp.data
-        assert json.loads(resp.data)['category'] == 'sponsor'
+        assert json.loads(resp.data)['category'] is None
 
     def test_export_patterns_includes_category(self, client, temp_db):
         temp_db.create_ad_pattern(

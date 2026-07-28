@@ -1887,9 +1887,8 @@ class AdDetector:
             'sponsor': match.sponsor,
             'detection_stage': detection_stage,
             'pattern_id': match.pattern_id,
-            # Category inherited from the matched pattern; None (pattern
-            # predates the category column) falls through to the merge
-            # seam's 'sponsor' default.
+            # Inherited from the matched pattern; None (pattern predates the
+            # category column) stays unset through the merge seam.
             'category': match.category,
         })
         pattern_matched_regions.append({

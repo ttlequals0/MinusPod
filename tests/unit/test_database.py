@@ -231,6 +231,24 @@ class TestAdPatternOperations:
         assert pattern_id is not None
         assert pattern_id > 0
 
+    def test_null_pattern_category_reads_back_as_none(self, temp_db):
+        """A pattern with no category must stay uncategorized on read."""
+        pattern_id = temp_db.create_ad_pattern(
+            scope='global', text_template='no category here')
+        assert temp_db.get_ad_pattern_by_id(pattern_id)['category'] is None
+
+    def test_invalid_stored_pattern_category_reads_back_as_none(self, temp_db):
+        pattern_id = temp_db.create_ad_pattern(
+            scope='global', text_template='bogus category here',
+            category='advertisement')
+        assert temp_db.get_ad_pattern_by_id(pattern_id)['category'] is None
+
+    def test_known_pattern_category_survives_the_read(self, temp_db):
+        pattern_id = temp_db.create_ad_pattern(
+            scope='global', text_template='a self promo read',
+            category='self_promo')
+        assert temp_db.get_ad_pattern_by_id(pattern_id)['category'] == 'self_promo'
+
     def test_create_podcast_scoped_pattern(self, temp_db):
         """Create pattern scoped to a podcast."""
         slug = 'pattern-podcast'
