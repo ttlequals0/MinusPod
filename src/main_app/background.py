@@ -199,8 +199,9 @@ def background_queue_processor():
                                 continue
                             orphan_polls += 1
                             if orphan_polls >= 2:
+                                row_status = episode.get('status') if episode else 'missing'
                                 refresh_logger.warning(
-                                    f"[{slug}:{episode_id}] Row says processing but no worker holds "
+                                    f"[{slug}:{episode_id}] Row says {row_status} but no worker holds "
                                     f"the lock after {waited}s; treating as orphaned"
                                 )
                                 break
@@ -227,6 +228,11 @@ def background_queue_processor():
                             # re-opens it as pending once the service is back.
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
+                        elif episode and episode['status'] == 'pending':
+                            # A cancel resets the row to pending; close the queue
+                            # row so the retry ladder cannot re-run the cancel.
+                            db.update_queue_status(queue_id, 'completed')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Cancelled; queue row closed")
                         else:
                             # Actually failed - get the real error message
                             error_msg = episode.get('error_message') if episode else None
@@ -284,6 +290,8 @@ def reset_stuck_processing_episodes():
     Episodes are marked permanently_failed only when retry_count (from real
     failures) reaches MAX_EPISODE_RETRIES.
     """
+    from processing_queue import ProcessingQueue
+
     conn = db.get_connection()
     cursor = conn.execute(
         """SELECT e.id, e.episode_id, e.retry_count, p.slug
@@ -294,10 +302,17 @@ def reset_stuck_processing_episodes():
     )
     stuck = cursor.fetchall()
 
+    queue = ProcessingQueue()
     reset_count = 0
     failed_count = 0
 
     for row in stuck:
+        # Age alone cannot distinguish a slow pass from a crash; the lock can.
+        # A row is only written at start and at ad_detection_status, so a long
+        # transcription looks stale while the job is very much alive.
+        if queue.is_processing(row['slug'], row['episode_id']):
+            continue
+
         current_retry_count = row['retry_count'] or 0
 
         if current_retry_count >= MAX_EPISODE_RETRIES:
@@ -331,7 +346,7 @@ def reset_stuck_processing_episodes():
 
     conn.commit()
 
-    if stuck:
+    if reset_count or failed_count:
         refresh_logger.info(
             f"Stuck episode cleanup: {reset_count} reset to pending, "
             f"{failed_count} marked permanently_failed"

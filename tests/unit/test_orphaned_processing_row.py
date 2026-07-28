@@ -96,3 +96,63 @@ class TestWaiterOrphanDetection:
 
         warnings = ' '.join(str(c) for c in log.warning.call_args_list)
         assert 'orphaned' not in warnings.lower()
+
+
+    def test_a_cancelled_job_closes_its_queue_row(self):
+        """A cancel resets the row to 'pending'. Marking the queue row failed
+        let reset_failed_queue_items re-run the episode the user cancelled."""
+        log, mock_db = self._drain_once(queue_says_processing=False,
+                                        episode_status='pending')
+
+        statuses = [call.args[1] for call in mock_db.update_queue_status.call_args_list]
+        assert 'completed' in statuses
+        assert 'failed' not in statuses
+
+    def test_the_orphan_warning_names_the_actual_status(self):
+        log, _ = self._drain_once(queue_says_processing=False,
+                                  episode_status='pending')
+
+        warnings = ' '.join(str(c) for c in log.warning.call_args_list)
+        assert 'says processing' not in warnings
+
+
+class TestSweepIsLockAware:
+    """Age alone cannot tell a slow pass from a crash; the lock can."""
+
+    def _sweep(self, lock_held):
+        conn = MagicMock()
+        conn.execute.return_value.fetchall.return_value = [
+            {'id': 1, 'episode_id': 'a1b2c3d4e5f6', 'retry_count': 0,
+             'slug': 'example-podcast'}
+        ]
+        mock_db = MagicMock()
+        mock_db.get_connection.return_value = conn
+        queue = MagicMock()
+        queue.is_processing.return_value = lock_held
+
+        with patch.object(background, 'db', mock_db), \
+             patch('processing_queue.ProcessingQueue', return_value=queue):
+            background.reset_stuck_processing_episodes()
+
+        return [c for c in conn.execute.call_args_list if 'UPDATE' in str(c)]
+
+    def test_a_row_whose_episode_holds_the_lock_is_left_alone(self):
+        assert self._sweep(lock_held=True) == []
+
+    def test_a_row_with_no_worker_on_it_is_still_reset(self):
+        assert self._sweep(lock_held=False)
+
+
+def test_finalize_clears_a_stale_crash_message():
+    """The sweep stamps 'Reset after worker crash'; a later successful run has
+    to clear it or a processed episode keeps reporting a crash."""
+    from main_app import processing
+
+    mock_db = MagicMock()
+    mock_storage = MagicMock()
+    with patch.object(processing, 'db', mock_db), \
+         patch.object(processing, 'storage', mock_storage):
+        processing._persist_episode_state(
+            'example-podcast', 'a1b2c3d4e5f6', 2, 1, 1, 100.0, 90.0, 1)
+
+    assert mock_db.upsert_episode.call_args.kwargs['error_message'] is None

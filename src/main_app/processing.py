@@ -2787,6 +2787,9 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         ads_removed=pass1_cut_count + verification_count,
         ads_removed_firstpass=first_pass_count,
         ads_removed_secondpass=verification_count,
+        # A successful finalize clears any message left by an earlier failure
+        # or by the stuck-row sweep.
+        error_message=None,
         reprocess_mode=None,
         reprocess_requested_at=None,
         deferred_at=None,
