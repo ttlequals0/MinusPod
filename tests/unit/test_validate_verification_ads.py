@@ -6,13 +6,17 @@ original-coordinates twin (e.g. after A+B merge, C paired with B's original).
 The fix carries each original through validation as a reference on the
 processed dict.
 """
+import threading
+from contextlib import ExitStack
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('validate_vads_test_')
 from main_app.processing import (
+    _drop_uncovered_pass2_ads,
     _gate_verification_ads_by_confidence,
     _validate_verification_ads,
 )
@@ -446,9 +450,7 @@ def test_auto_approve_files_correction(monkeypatch):
     db.get_false_positive_corrections.return_value = []
     db.get_confirmed_corrections.return_value = []
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
     monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
     monkeypatch.setattr(processing_mod, 'storage', MagicMock())
 
     hold = _diff_hold(4875.8, 5025.8)
@@ -468,9 +470,7 @@ def test_auto_approve_files_correction(monkeypatch):
 
 def test_auto_approve_noop_without_stamped_holds(monkeypatch):
     db = MagicMock()
-    recut = MagicMock()
     monkeypatch.setattr(processing_mod, 'db', db)
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
 
     n = processing_mod._file_corroborated_hold_approvals(
         's', 'ep1', [_diff_hold(1.0, 50.0), _held_marker(100.0, 160.0)])
@@ -508,10 +508,8 @@ def test_auto_approve_dedupes_existing_confirm(monkeypatch):
     db.get_confirmed_corrections.return_value = [
         {'start': 4875.8, 'end': 5025.8}]
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
     monkeypatch.setattr(processing_mod, 'db', db)
     monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
 
     hold = _diff_hold(4875.8, 5025.8)
     hold['pass2_corroborated'] = True
@@ -537,10 +535,8 @@ def test_auto_approve_files_confirm_despite_grazing_stale_confirm(monkeypatch):
     db.get_confirmed_corrections.return_value = [
         {'start': 1723.1, 'end': 1783.1}]
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
     monkeypatch.setattr(processing_mod, 'db', db)
     monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
 
     hold = _diff_hold(1648.3, 1755.7)
     hold['pass2_corroborated'] = True
@@ -563,10 +559,8 @@ def test_auto_approve_dedupes_confirm_covering_most_of_hold(monkeypatch):
     db.get_confirmed_corrections.return_value = [
         {'start': 1660.0, 'end': 1740.0}]
     db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
-    recut = MagicMock(return_value=True)
     monkeypatch.setattr(processing_mod, 'db', db)
     monkeypatch.setattr(processing_mod, 'storage', MagicMock())
-    monkeypatch.setattr(processing_mod, '_recut_episode', recut)
 
     hold = _diff_hold(1648.3, 1755.7)
     hold['pass2_corroborated'] = True
@@ -824,3 +818,132 @@ def test_recut_validator_receives_podcast_id(monkeypatch):
             'show', 'ep1', _segments(), 600.0, None, 0.8, podcast_id=7)
 
     assert seen.get('podcast_id') == 7
+
+
+# ---------- Guards on the filing helper and the fold that applies it ----------
+
+
+def test_drop_uncovered_handles_twinless_cut():
+    """_drop_uncovered_pass2_ads must tolerate a cut dict with no id-twin in
+    the processed/original map."""
+    covered = {'start': 100.0, 'end': 150.0}
+    filtered = {'start': 300.0, 'end': 305.0}
+    v_ads_to_cut = [covered, filtered]
+
+    _drop_uncovered_pass2_ads(
+        's', 'e', v_ads_to_cut, [], [{'start': 100.0, 'end': 150.0}],
+        [], [], total_duration=600.0,
+    )
+
+    assert v_ads_to_cut == [covered]
+    assert filtered['was_cut'] is False
+
+
+def test_filing_respects_human_reject(monkeypatch):
+    """A span the user explicitly rejected must never be auto-filed."""
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = [
+        {'start': 4880.0, 'end': 5020.0}]
+    db.get_confirmed_corrections.return_value = []
+    db.get_original_segments.return_value = [{'start': 0.0, 'end': 30.0}]
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', MagicMock())
+
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
+
+    assert n == 0
+    db.create_pattern_correction.assert_not_called()
+    assert hold['held_for_review'] is True
+
+
+def test_filing_skips_without_retained_original(monkeypatch):
+    """Missing retained original: nothing filed."""
+    db = MagicMock()
+    storage = MagicMock()
+    storage.get_original_path.return_value.exists.return_value = False
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, 'storage', storage)
+
+    hold = _diff_hold(4875.8, 5025.8)
+    hold['pass2_corroborated'] = True
+
+    n = processing_mod._file_corroborated_hold_approvals('s', 'ep1', [hold])
+
+    assert n == 0
+    db.create_pattern_correction.assert_not_called()
+
+
+def _run_fold_branch(recut_result=True):
+    """Drive process_episode far enough to reach the approval-recut fold.
+
+    Returns the patched seams so a test can assert on the recut and the
+    finalize that follows it.
+    """
+    segments = [{'start': 0.0, 'end': 30.0, 'text': 'spoken content here'}]
+    ad = {'start': 5.0, 'end': 25.0, 'confidence': 0.9, 'reason': 'ad',
+          'was_cut': True}
+
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        db = p(processing_mod, 'db')
+        p(processing_mod, 'status_service')
+        storage = p(processing_mod, 'storage')
+        audio_processor_mod = p(processing_mod, 'audio_processor')
+        p(processing_mod, 'start_episode_token_tracking')
+        p(processing_mod, 'get_available_memory_gb', return_value=None)
+        p(processing_mod, 'get_min_cut_confidence', return_value=0.8)
+        p(processing_mod, '_download_and_transcribe',
+          return_value=('/tmp/fold.mp3', segments))
+        p(processing_mod, '_run_differential_fetch', return_value=None)
+        p(processing_mod, '_run_audio_analysis', return_value=None)
+        p(processing_mod, 'load_positional_prior', return_value=None)
+        p(processing_mod, '_detect_ads_first_pass', return_value=([ad], 1, {}))
+        p(processing_mod, '_refine_and_validate', return_value=([ad], [ad]))
+        p(processing_mod, '_run_ad_reviewer',
+          side_effect=lambda s, e, pid, cut, allads, *a, **k: (cut, allads))
+        p(processing_mod, '_snap_terminal_starts',
+          side_effect=lambda s, e, cut, *a, **k: cut)
+        p(processing_mod, '_complete_cut_tails',
+          side_effect=lambda s, e, cut, *a, **k: cut)
+        ap_cls = p(processing_mod, 'AudioProcessor')
+        p(processing_mod, '_run_verification_pass',
+          return_value=(0, [], [], [], '/tmp/fold-cut.mp3', 0, True, 0))
+        p(processing_mod, '_generate_assets')
+        p(processing_mod, '_file_corroborated_hold_approvals', return_value=1)
+        recut = p(processing_mod, '_recut_episode', return_value=recut_result)
+        finalize = p(processing_mod, '_finalize_episode')
+        failure = p(processing_mod, '_handle_processing_failure')
+        p(processing_mod.shutil, 'move')
+        p(processing_mod.os, 'unlink')
+        p(processing_mod.os.path, 'exists', return_value=False)
+
+        db.get_episode.return_value = {}
+        db.get_podcast_by_slug.return_value = {'id': 1, 'slug': 'fold-feed'}
+        db.get_setting.return_value = 'false'
+        db.get_all_settings.return_value = {}
+        db.resolve_segment_actions.return_value = {}
+        audio_processor_mod.get_audio_duration.return_value = 30.0
+        ap = ap_cls.return_value
+        ap.process_episode.side_effect = (
+            lambda audio_path, segs: ('/tmp/fold-cut.mp3', list(segs)))
+        ap.get_audio_duration.return_value = 30.0
+        storage.get_episode_path.return_value = '/tmp/fold-final.mp3'
+
+        result = processing_mod.process_episode(
+            'fold-feed', 'ep1', 'https://example.com/ep1.mp3',
+            cancel_event=threading.Event())
+
+    return {'result': result, 'recut': recut, 'finalize': finalize,
+            'failure': failure}
+
+
+def test_fold_recut_runs_without_a_cancel_event():
+    """A cancel here reaches the background wrapper's cleanup, which deletes
+    the finished files."""
+    m = _run_fold_branch()
+
+    assert m['recut'].called
+    assert m['recut'].call_args.kwargs.get('cancel_event') is None
