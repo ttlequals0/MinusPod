@@ -497,7 +497,7 @@ NON_BRAND_WORDS = frozenset({
     'fragment', 'leftover', 'confirmed', 'merged', 'missed', 'spots',
     # Pronouns and contraction tails: "We'll be right back" is the ad-break
     # lead-in the model quotes, never an advertiser.
-    'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'its',
+    'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'its', 'to',
 })
 
 # Classifications from LLM that indicate non-ad content

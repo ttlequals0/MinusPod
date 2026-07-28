@@ -273,6 +273,9 @@ class SponsorService:
     # A brand is a capitalized run; a word stops the run at a dot or slash so
     # "Patreon.com/Show" yields "Patreon".
     _BRAND_RUN_RE = re.compile(r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
+    # Longest a brand name is taken to be when no domain confirms where it
+    # ends; beyond this the model is describing rather than naming.
+    MAX_BRAND_WORDS = 4
     _DOMAIN_RE = re.compile(
         r'\b([A-Za-z0-9][A-Za-z0-9-]*)\.(?:com|net|org|io|co|tv|fm|us|app|shop|store)\b',
         re.IGNORECASE)
@@ -325,26 +328,28 @@ class SponsorService:
         if not candidates:
             return None
 
-        # A domain naming the same brand is independent corroboration. An
-        # exact agreement wins; otherwise a domain that the run starts with
-        # marks where the brand ends ("Jack Archer Jet Setter" -> "Jack
-        # Archer" against jackarcher.com).
-        best_prefix = None
-        for run in candidates:
-            squashed = re.sub(r'[^a-z0-9]', '', run.lower())
-            if squashed in domains:
-                return run
-            words = run.split()
-            for count in range(len(words), 0, -1):
-                head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
-                if head and any(d.startswith(head) or head.startswith(d)
-                                for d in domains):
-                    if best_prefix is None:
-                        best_prefix = ' '.join(words[:count])
-                    break
-        if best_prefix:
-            return best_prefix
-        return candidates[0]
+        # The first advertiser named labels the break. A domain is used to
+        # trim that name, never to promote a later one: picking whichever
+        # brand happened to have a URL made the second advertiser win.
+        run = candidates[0]
+        words = run.split()
+        # Longest agreement first: a domain equal to the head names exactly
+        # where the brand ends ("Jack Archer" against jackarcher.com), while a
+        # domain merely starting with it keeps a shorter prose form ("Hykes"
+        # against hykesusa.com). Shortest-first would cut "Jack Archer" to
+        # "Jack".
+        for count in range(len(words), 0, -1):
+            head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
+            if head and any(d == head for d in domains):
+                return ' '.join(words[:count])
+        for count in range(len(words), 0, -1):
+            head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
+            if head and any(d.startswith(head) for d in domains):
+                return ' '.join(words[:count])
+        # Nothing agrees, so there is no signal for where the brand ends. Cap
+        # it: past this a run is the model describing the product, not naming
+        # a brand ("LEGO Land Discovery Center Westchester Ninjago event").
+        return ' '.join(words[:SponsorService.MAX_BRAND_WORDS])
 
     @staticmethod
     def own_site_tokens(podcast_name: str) -> set:

@@ -60,6 +60,17 @@ CORPUS = [
     ("Back-to-back host-read sponsor spots: Squarespace (promo code, "
      "Squarespace.com/show) followed by Dodge Charger Scat Pack (Dodge.com)",
      ('Squarespace',)),
+    # A later brand having a URL must not outrank the first one named.
+    ("Back-to-back host-read sponsor ads: IQ Bar (text keyword to 64000), "
+     "PestEase (Pesti.com/show), and Jack Archer (JackArcher.com promo code "
+     "GetJack)", ('IQ Bar',)),
+    # With no domain to say where the brand ends, the label is capped rather
+    # than running on through the product description.
+    ("Network-inserted pre-roll ads: LEGO Land Discovery Center Westchester "
+     "Ninjago event with 25% discount CTA, followed by Lincoln Tech",
+     ('LEGO Land Discovery Center',)),
+    ("Lincoln Tech dynamically-inserted sponsor spot (career training, "
+     "lincolntech.edu)", ('Lincoln Tech',)),
     # Reasons that name no advertiser must stay empty.
     ("mailing address mentioned in passing", (None,)),
     ("Ad break: Host discusses the news at length", (None,)),
@@ -75,4 +86,4 @@ def test_extraction_across_real_phrasings(reason, accepted):
 
 def test_the_corpus_is_not_quietly_shrinking():
     """A regression here is easiest to hide by deleting rows."""
-    assert len(CORPUS) >= 19
+    assert len(CORPUS) >= 22
