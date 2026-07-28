@@ -374,6 +374,13 @@ release notes.
   written as a slash-joined pair, "Acme/Acme Co", never matched at all, since
   none of them could cross a slash. A leading brand is now read as a last
   resort, and a slash pair reduces to its first form.
+- A break that named its advertisers after a colon ("Ad break with three
+  reads: Acme, Bravo, and Delta") matched no pattern, so the ad-evidence gate
+  saw no sponsor and dropped the break as content. One 158-second break with
+  three real advertisers went that way. The first advertiser named is now the
+  label, and the rest stay in the reason text. A hyphenated compound before
+  the word "sponsor" also captured a fragment, storing "read" as the
+  advertiser for "host-read sponsor spots".
 - The bar chart tooltip on the stats page was unreadable and its hover
   highlight looked like a second bar (#592). The value line kept the charting
   library's dark default text on a dark card, and no hover cursor was set, so

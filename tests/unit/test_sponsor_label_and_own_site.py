@@ -283,3 +283,39 @@ class TestBrandFurtherFromTheReadPhrase:
 
     def test_a_plain_leading_brand_is_unchanged(self):
         assert self._extract('Acme sponsor read') == 'Acme'
+
+
+class TestAdvertisersListedAfterAColon:
+    """A break that names its advertisers after a colon matched nothing, so
+    the ad-evidence gate saw no sponsor and dropped a real 158s break as
+    content. A hyphenated compound before "sponsor" also captured a fragment.
+    """
+
+    def _extract(self, text):
+        from sponsor_service import SponsorService
+        return SponsorService.extract_sponsor_from_reason(text)
+
+    def test_a_hyphenated_compound_does_not_yield_a_fragment(self):
+        """"host-read sponsor spots" stored "read" as the advertiser."""
+        assert self._extract(
+            'Ad break with host-read sponsor spots: IQ Bar (text Tosh to 64000)'
+        ) == 'IQ Bar'
+
+    def test_the_first_advertiser_of_a_list_becomes_the_label(self):
+        assert self._extract(
+            'Ad break with three DAI host/produced reads: Serval '
+            '(serval.com/tickets), Just Food for Dogs, and LifeLock'
+        ) == 'Serval'
+
+    def test_a_pre_roll_list_is_matched_too(self):
+        assert self._extract(
+            'Back-to-back dynamically-inserted pre-roll ads: Serval '
+            '(serval.com/tickets) and Lincoln Tech (lincolntech.edu), merged'
+        ) == 'Serval'
+
+    def test_a_non_brand_after_the_colon_is_refused(self):
+        assert self._extract('Ad break: Host discusses the news at length') is None
+        assert self._extract('Ad segment: This is regular content') is None
+
+    def test_a_colon_without_ad_context_is_refused(self):
+        assert self._extract('Chapter marker: Introduction to the topic') is None

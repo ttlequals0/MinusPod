@@ -284,7 +284,9 @@ class SponsorService:
             r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read',
             # \b after the alternation: without it "ad" matched inside
             # "address", so "mailing address" captured "mailing" as the brand.
-            r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)\b',
+            # The lookbehind stops the capture starting mid-compound: without
+            # it "host-read sponsor spots" stored "read" as the advertiser.
+            r'(?:this is (?:a|an) )?(?<![\w-])(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)\b',
             r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
             r'promoting\s+(\w+(?:\s+\w+)?)',
             r'brought to you by\s+(\w+(?:\s+\w+)?)',
@@ -293,6 +295,13 @@ class SponsorService:
             # read"). The tight patterns above need the brand within two words
             # of "sponsor read", and \w never matches the slash in a pair.
             r'^([A-Z][\w&.\'-]*(?:/[A-Z][\w&.\'-]*)?)\s+\w.*\b(?:sponsor|ad)\s+read\b',
+            # A break listing its advertisers after a colon ("Ad break with
+            # three reads: Acme (acme.com), Bravo ..."). Nothing matched these,
+            # so a genuine multi-sponsor break failed the ad-evidence gate and
+            # was dropped as content. The first brand named is the label; the
+            # rest stay in the reason text.
+            r'\b(?:ads?|sponsors?|promos?|reads?)\b[^:]*:\s*'
+            r'([A-Z][\w&.\'-]*(?:\s+[A-Z][\w&.\'-]*)*)',
         ]
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
