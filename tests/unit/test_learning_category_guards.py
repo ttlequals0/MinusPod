@@ -27,7 +27,8 @@ from unittest.mock import MagicMock, patch  # noqa: E402
 import pytest  # noqa: E402
 
 import main_app.processing as processing  # noqa: E402
-from ad_detector import AdDetector  # noqa: E402
+from ad_detector import AdDetector
+from config import normalize_segment_category  # noqa: E402
 from audio_fingerprinter import AudioFingerprinter, FingerprintMatch  # noqa: E402
 from community_export import build_export_payload  # noqa: E402
 from community_sync import apply_manifest  # noqa: E402
@@ -523,10 +524,12 @@ class TestPatternMatchCategoryInheritance:
         merged = det._merge_detection_results(all_ads, segments=[])
         assert merged[0]['category'] == 'self_promo'
 
-    def test_legacy_none_category_still_falls_back_to_sponsor_at_merge_seam(self):
+    def test_legacy_none_category_stays_uncategorized_at_merge_seam(self):
         """A match whose pattern genuinely has no category (category=None)
-        still gets the 'sponsor' default at the merge seam: the fix does
-        not change behavior for a pattern with no category."""
+        stays uncategorized at the merge seam rather than being relabelled
+        'sponsor', which would make it indistinguishable from a pattern that
+        really is a sponsor read. Action resolution still treats it as
+        sponsor, so cutting is unchanged."""
         det = AdDetector(api_key='test-key')
         all_ads, regions = [], []
         match = TextMatch(
@@ -535,7 +538,8 @@ class TestPatternMatchCategoryInheritance:
         )
         det._add_pattern_match(match, 'text_pattern', 'content', all_ads, regions, episode_id='ep1')
         merged = det._merge_detection_results(all_ads, segments=[])
-        assert merged[0]['category'] == 'sponsor'
+        assert 'category' not in merged[0]
+        assert normalize_segment_category(merged[0].get('category')) == 'sponsor'
 
     def test_fingerprint_pattern_linkage_carries_category(self, temp_db):
         """audio_fingerprints.pattern_id references ad_patterns.id, and

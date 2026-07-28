@@ -396,7 +396,7 @@ function PatternsPage() {
               <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
               <div className="flex items-center gap-2 flex-wrap">
                 <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
-                {pattern.category && <SegmentCategoryBadge category={pattern.category} />}
+                <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
                   <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-warning">
                     Manual
@@ -496,7 +496,7 @@ function PatternsPage() {
                   <td className="px-4 py-3 overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
                       <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
-                      {pattern.category && <SegmentCategoryBadge category={pattern.category} />}
+                      <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
                         <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-warning">
                           Manual

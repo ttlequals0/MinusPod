@@ -895,19 +895,25 @@ class PatternService:
                 # window. The brand should appear at least twice in any real
                 # sponsor read (intro + outro). Reuses count_brand_occurrences
                 # so aliases and whitespace variants both count.
+                #
+                # Sponsor reads only. A self-promo or interaction segment has
+                # no advertiser brand to repeat, so counting one rejected them
+                # for a reason that never applied.
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
-                window_text = extract_text_from_segments(segments, start_s, end_s)
-                sponsor_row = get_sponsor_row_or_stub(self.db, sponsor)
-                occurrences = count_brand_occurrences(window_text, sponsor_row)
-                if occurrences < 2:
-                    logger.info(
-                        f"[{slug}:{episode_id}] Rejecting verification miss for "
-                        f"'{sponsor}' (brand appears only {occurrences}x in "
-                        f"{start_s:.0f}-{end_s:.0f}s window - likely a host "
-                        f"name-drop, not a sponsor read)"
-                    )
-                    continue
+                category = ad.get('category')
+                if category is None or category == 'sponsor':
+                    window_text = extract_text_from_segments(segments, start_s, end_s)
+                    sponsor_row = get_sponsor_row_or_stub(self.db, sponsor)
+                    occurrences = count_brand_occurrences(window_text, sponsor_row)
+                    if occurrences < 2:
+                        logger.info(
+                            f"[{slug}:{episode_id}] Rejecting verification miss for "
+                            f"'{sponsor}' (brand appears only {occurrences}x in "
+                            f"{start_s:.0f}-{end_s:.0f}s window - likely a host "
+                            f"name-drop, not a sponsor read)"
+                        )
+                        continue
 
                 pattern_id = matcher.create_pattern_from_ad(
                     segments=segments,

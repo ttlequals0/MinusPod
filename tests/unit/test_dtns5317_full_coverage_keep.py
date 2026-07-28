@@ -102,10 +102,12 @@ def test_intro_fully_covered_by_legacy_pattern_still_survives_as_keep():
     assert by_cat['intro']['end'] == 166.6
 
     # The legacy pattern's own remove-resolving span still covers the
-    # pre-roll audio ahead of the intro, so nothing is left uncut.
-    assert 'sponsor' in by_cat
-    assert by_cat['sponsor']['start'] == 0.0
-    assert by_cat['sponsor']['end'] == 158.0
+    # pre-roll audio ahead of the intro, so nothing is left uncut. It has no
+    # category of its own (the pattern predates the column) and is no longer
+    # relabelled 'sponsor' to hide that.
+    assert None in by_cat
+    assert by_cat[None]['start'] == 0.0
+    assert by_cat[None]['end'] == 158.0
 
 
 def test_default_action_map_still_drops_fully_covered_claude_ad():
@@ -151,7 +153,7 @@ def test_no_action_map_preserves_pre_fix_drop_behavior():
     ads = result['ads']
     assert len(ads) == 1
     assert ads[0]['detection_stage'] == 'text_pattern'
-    # normalize_segment_category at the merge seam still stamps the
-    # default 'sponsor' regardless of action_map: only the Claude ad's
-    # own (now-lost) 'intro' category is gone.
-    assert ads[0]['category'] == 'sponsor'
+    # The surviving pattern match carries no category of its own, and the
+    # merge seam no longer invents one. Only the Claude ad's own (now-lost)
+    # 'intro' category is gone.
+    assert 'category' not in ads[0]

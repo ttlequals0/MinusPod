@@ -61,7 +61,13 @@ DEFAULT_SEGMENT_ACTION = 'remove'
 
 
 def normalize_segment_category(value: Any) -> str:
-    """Return value if it is a known segment category, else 'sponsor'."""
+    """Return value if it is a known segment category, else 'sponsor'.
+
+    For resolving a per-category action, where an unknown category has to
+    resolve to something and 'sponsor' is the conservative choice (cut it).
+    Do not use this to record or display a category: an unset one is left
+    unset so 'sponsor' keeps meaning a real sponsor read.
+    """
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
 
 

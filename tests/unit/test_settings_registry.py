@@ -85,7 +85,7 @@ SEED_SNAPSHOT = {
     'verification_miss_autocut_min_confidence': '0',
     'verification_miss_hold_min_confidence': '0.60',
     'verification_model': 'claude-sonnet-4-5-20250929',
-    'verification_prompt': ('sha256', '3abb0a639417e5c68c21fb59783b84836eb156244539b32e529701e9f77a3332'),
+    'verification_prompt': ('sha256', 'd806d3afc4c443cbac88157cb78b934b4b3f0d72587326485156e5168cd09a7b'),
     'volume_threshold_db': '3.0',
     'vtt_transcripts_enabled': 'true',
     'whisper_language': 'en',

@@ -9,6 +9,38 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.15] - 2026-07-27
+
+### Fixed
+
+- The verification pass could only return four of the seven segment
+  categories. `intro`, `outro` and `recap` were missing from the prompt added
+  in 2.81.13, so pass 2 could never produce them even though Settings exposes
+  a per-category action for each.
+
+- `sponsor` doubled as "no stage classified this", which made a real sponsor
+  read indistinguishable from a marker nobody looked at. It is why an episode
+  could show four sponsor markers while the detection pass had reported five
+  different categories. An unset category is now left unset and shows as
+  Uncategorized in the UI, on episode markers and on patterns alike. Cutting
+  is unchanged: resolving a per-category action still reads an unknown
+  category as sponsor, which is the conservative choice.
+
+- Two detection stages built markers with no category at all and leaned on
+  that default. A dynamically inserted block and a foreign-language ad block
+  are paid ads by definition, so both now say so at the point of detection
+  rather than inheriting it downstream. Cue-pair markers stay uncategorized,
+  which is the honest answer for a stage that only matches audio cues.
+
+- Patterns created before the category column reported themselves as sponsor
+  reads. They now show as Uncategorized, so it is visible which patterns
+  predate the column instead of them being quietly counted as sponsors.
+
+- Auto-created patterns from a verification miss were gated on the advertiser
+  brand appearing at least twice in the window. A self-promo or interaction
+  segment has no advertiser brand to repeat, so the check rejected them for a
+  reason that never applied to them. It now runs only for sponsor reads.
+
 ## [2.81.14] - 2026-07-27
 
 ### Added

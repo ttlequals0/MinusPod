@@ -106,13 +106,16 @@ BE ACCURATE: Don't invent ads. Many episodes will be completely clean after the 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}}
+Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction|intro|outro|recap", "reason": "brief description", "end_text": "last 3-5 words"}}
 
 "category" is REQUIRED on every object, the same as in the first pass. Use:
 - sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad
 - cross_promo: a produced segment promoting a different show
 - self_promo: the show promoting its own other content (another show, Patreon, merch, mailing list)
 - interaction: asking listeners to subscribe, rate, review, or follow the show
+- intro: the show's own opening billboard or theme
+- outro: the show's own sign-off, credits, or closing theme
+- recap: a summary of earlier content in the same episode
 An orphaned fragment left by a cut takes the category of the ad it belonged to.
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95

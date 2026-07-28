@@ -774,7 +774,7 @@ function EpisodeDetail() {
                       ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
-                  {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                  <SegmentCategoryBadge category={segment.category} />
                   {segment.actionApplied === 'keep' && <KeptBadge />}
                   {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                     <StageBadge stage={segment.detection_stage} />
@@ -1033,7 +1033,7 @@ function EpisodeDetail() {
                       <span className="font-mono text-sm">
                         {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                       </span>
-                      {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                      <SegmentCategoryBadge category={segment.category} />
                       {segment.actionApplied === 'keep' && <KeptBadge />}
                       {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
                         <StageBadge stage={segment.detection_stage} />
@@ -1184,7 +1184,7 @@ function EpisodeDetail() {
                     <span className="font-mono text-sm">
                       {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                     </span>
-                    {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                    <SegmentCategoryBadge category={segment.category} />
                     <KeptBadge />
                   </div>
                 </div>
@@ -1238,7 +1238,7 @@ function EpisodeDetail() {
                           <span className="font-mono text-sm">
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
-                          {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                          <SegmentCategoryBadge category={segment.category} />
                           {segment.actionApplied === 'keep' && <KeptBadge />}
                           <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-600 dark:text-red-400">
                             Not cut

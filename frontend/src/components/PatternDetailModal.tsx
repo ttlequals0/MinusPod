@@ -107,7 +107,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             Pattern #{pattern.id}
           </h2>
           <ScopeBadge pattern={pattern} />
-          {pattern.category && <SegmentCategoryBadge category={pattern.category} />}
+          <SegmentCategoryBadge category={pattern.category} />
         </div>
         <button
           onClick={onClose}

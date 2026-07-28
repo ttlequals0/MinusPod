@@ -370,6 +370,8 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
             'confidence': 0.95,
             'sponsor': None,
             'detection_stage': 'dai_differential',
+            # A dynamically inserted block is a paid ad by definition.
+            'category': 'sponsor',
         }
         if stage_overlap:
             ad['reason'] = ('Dynamically inserted: audio differs across '
@@ -2202,6 +2204,7 @@ class AdDetector:
                 'confidence': 0.95,  # High confidence for language detection
                 'reason': 'Non-English language segment (likely DAI ad)',
                 'detection_stage': 'language',
+                'category': 'sponsor',
                 'end_text': '[Foreign language content]'
             })
             return True
@@ -2415,13 +2418,20 @@ class AdDetector:
         # Sanitize every surviving marker's sponsor: strips reasoning prose
         # and bare segment names the merge above didn't already clean up
         # (e.g. a marker that never went through either merge pass). Also the
-        # single point that stamps a validated segment category:
-        # fingerprint/text_pattern matches keep their pattern's stored
-        # category; anything unset or invalid falls through to 'sponsor'.
+        # Single point that validates a segment category. An unset category is
+        # left unset rather than stamped 'sponsor': a marker from a stage that
+        # never classifies (cue_pair) or a pattern predating the category
+        # column is genuinely unknown, and recording it as a sponsor read made
+        # "sponsor" indistinguishable from "nobody looked". Cutting is
+        # unaffected, since action resolution still reads unknown as sponsor.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(
                 marker.get('sponsor'), show_name=podcast_name)
-            marker['category'] = normalize_segment_category(marker.get('category'))
+            raw_category = marker.get('category')
+            if raw_category is None:
+                marker.pop('category', None)
+            else:
+                marker['category'] = normalize_segment_category(raw_category)
             marker.pop(_CATEGORY_SPAN, None)
 
         return merged
