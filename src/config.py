@@ -1025,6 +1025,9 @@ HTTP_TIMEOUT_CONNECTION_TEST = 30.0   # Whisper /test-connection probe: 1s WAV
 # DB write cannot route around the range.
 WHISPER_API_TIMEOUT_MIN = 30
 WHISPER_API_TIMEOUT_MAX = 3600
+# The test-connection probe follows the request timeout but stops here, so a
+# hung backend cannot hold the settings page open for the full hour.
+CONNECTION_TEST_TIMEOUT_CEILING = 120.0
 
 # ============================================================
 # Chunked Transcription (OOM prevention for long episodes)

@@ -21,12 +21,16 @@ release notes.
 
 ### Fixed
 
-- A reason that only describes editorial content no longer counts as evidence
-  that the span is an ad. The gate was reading the sponsor labeler's output as
-  a yes/no on ad language, and that labeler names the first capitalized word of
-  any sentence, so "Discussion of the guest's new book" passed it and skipped
-  the low-confidence rejection. The gate now asks whether the reason mentions
-  advertising. A negated mention ("not a sponsor read") does not count either.
+- A reason that only describes editorial content no longer yields a sponsor
+  name, or counts as evidence the span is an ad. The labeler takes the first
+  capitalized word of any sentence, so "Discussion of the guest's new book"
+  gave "Discussion", and the detection gate read that name as proof the span
+  was an ad, skipping the low-confidence rejection. Prose that never mentions
+  advertising now names no advertiser, and the gate asks the question itself.
+  A negated mention ("not a sponsor read") does not count either.
+- The Settings test-connection probe follows the request timeout, capped at
+  120 seconds. A backend slow enough to need a raised timeout could also be
+  slow to cold-load a model, so the button failed while transcription worked.
 - A sponsor label no longer loses its first word when that word also appears in
   ad vocabulary. "Full Circle" was being cut to "Circle". The label is narrowed
   only where a URL in the same reason says where the brand starts and ends, so
@@ -39,9 +43,10 @@ release notes.
 
 ### Changed
 
-- Same-sponsor merging reads the brand from the reason the same way the marker
-  label does. It had its own pair of phrase patterns, so two ads for a brand
-  the marker had already named could fail to merge.
+- Same-sponsor merging, boundary relocation and pattern learning all read the
+  brand from a reason the same way the marker label does. Each had its own
+  rules, so an ad could merge, relocate or be learned under a name other than
+  the one on the marker.
 - `WHISPER_API_TIMEOUT` and a direct database write are clamped to the range
   the API enforces, the way the chunk settings already were.
 - Words the model uses to describe an ad's shape ("orphaned", "back", "block")

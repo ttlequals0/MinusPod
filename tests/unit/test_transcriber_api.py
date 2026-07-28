@@ -8,7 +8,7 @@ import requests as requests_lib
 
 from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
-    check_whisper_connectivity,
+    check_whisper_connectivity, _api_timeout,
     _whisper_api_rejects_word_timestamps,
     extract_audio_chunk,
     _ffmpeg_error_tail,
@@ -20,6 +20,9 @@ from config import (
     WHISPER_BACKEND_API,
     FFMPEG_CHUNK_TIMEOUT,
     FFMPEG_LONG_TIMEOUT,
+    HTTP_TIMEOUT_WHISPER,
+    WHISPER_API_TIMEOUT_MIN,
+    WHISPER_API_TIMEOUT_MAX,
 )
 
 
@@ -976,29 +979,37 @@ class TestWhisperApiTimeoutIsTuneable:
     per-request timeout was a fixed constant."""
 
     def test_the_shipped_default_is_used_when_unset(self):
-        from config import HTTP_TIMEOUT_WHISPER
-        from transcriber import _api_timeout
-
         assert _api_timeout({}) == float(HTTP_TIMEOUT_WHISPER)
 
     def test_a_configured_value_wins(self):
-        from transcriber import _api_timeout
-
         assert _api_timeout({'api_timeout': '1800'}) == 1800.0
         assert _api_timeout({'api_timeout': 900}) == 900.0
 
     def test_an_unusable_value_falls_back_rather_than_failing(self):
-        from config import HTTP_TIMEOUT_WHISPER
-        from transcriber import _api_timeout
-
         for bad in ('', 'abc', None):
             assert _api_timeout({'api_timeout': bad}) == float(HTTP_TIMEOUT_WHISPER)
 
     def test_a_value_outside_the_api_range_is_clamped_not_honored(self):
-        from config import WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX
-        from transcriber import _api_timeout
-
         # An env var or direct DB write skips the API validator (#593).
         assert _api_timeout({'api_timeout': 0}) == float(WHISPER_API_TIMEOUT_MIN)
         assert _api_timeout({'api_timeout': -5}) == float(WHISPER_API_TIMEOUT_MIN)
         assert _api_timeout({'api_timeout': 999999}) == float(WHISPER_API_TIMEOUT_MAX)
+
+
+class TestConnectionTestFollowsTheRequestTimeout:
+    """A backend slow enough to need a raised request timeout can also be slow
+    to cold-load, so the Settings probe must not fail while transcription works."""
+
+    def test_a_raised_request_timeout_raises_the_probe(self):
+        from transcriber import _connection_test_timeout
+        assert _connection_test_timeout({'api_timeout': 900}) == 120.0
+
+    def test_the_probe_never_drops_below_the_shipped_floor(self):
+        from config import HTTP_TIMEOUT_CONNECTION_TEST
+        from transcriber import _connection_test_timeout
+        assert _connection_test_timeout(
+            {'api_timeout': 30}) == HTTP_TIMEOUT_CONNECTION_TEST
+
+    def test_a_hung_backend_cannot_hold_the_settings_page_for_the_full_hour(self):
+        from transcriber import _connection_test_timeout
+        assert _connection_test_timeout({'api_timeout': 3600}) == 120.0

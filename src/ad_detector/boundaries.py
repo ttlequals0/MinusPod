@@ -482,6 +482,13 @@ def _extract_ad_keywords(ad: Dict) -> List[str]:
     if sponsor and sponsor.lower() not in {'unknown', 'none'}:
         keywords.add(sponsor.lower())
 
+    # The brand the reason names, resolved by the same labeler that names the
+    # marker. Kept alongside the broad sweep below, which casts wider but has
+    # no notion of which advertiser the reason named first.
+    reason_brand = SponsorService.extract_sponsor_from_reason(ad.get('reason'))
+    if reason_brand and len(reason_brand) >= MIN_KEYWORD_LENGTH:
+        keywords.add(reason_brand.lower())
+
     # Secondary: capitalized words from reason and end_text
     for field in ('reason', 'end_text'):
         text = ad.get(field, '')

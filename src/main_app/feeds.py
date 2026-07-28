@@ -312,7 +312,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # Discover all episodes from the feed (upsert as 'discovered').
         # Pass parsed_feed so extract_episodes does not re-parse the same
         # XML we already parsed above.
-        all_episodes = rss_parser.extract_episodes(feed_content, parsed_feed=parsed_feed)
+        all_episodes = rss_parser.extract_episodes(
+            feed_content, parsed_feed=parsed_feed, source=slug)
         inserted = db.bulk_upsert_discovered_episodes(slug, all_episodes)
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new episode(s)")

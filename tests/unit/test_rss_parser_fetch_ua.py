@@ -9,6 +9,8 @@ auto-derive a slug from the URL.
 """
 import logging
 import re
+
+import requests
 from unittest.mock import MagicMock, patch
 
 import defusedxml
@@ -49,8 +51,6 @@ class TestFetchFeedSendsAppUserAgent:
 
     def test_gzip_retry_also_passes_user_agent(self):
         """The gzip-fallback retry path inside fetch_feed must keep the UA."""
-        import requests
-
         rp = RSSParser()
         captured_headers = []
 

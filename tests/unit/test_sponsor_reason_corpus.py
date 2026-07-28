@@ -97,10 +97,10 @@ def test_the_corpus_is_not_quietly_shrinking():
     'Interview segment where the host asks about Congress',
     'Regular editorial content covering the Supreme Court ruling',
 ])
-def test_a_content_description_is_not_ad_evidence(reason):
-    """The labeler names the first capitalized word of any sentence, so the
-    detection gate must not read a label as proof the span is an ad."""
-    assert SponsorService.extract_sponsor_from_reason(reason) is not None
+def test_a_content_description_names_no_advertiser(reason):
+    """Prose that never mentions advertising names no advertiser, so the
+    capitalized word it opens with is not a brand."""
+    assert SponsorService.extract_sponsor_from_reason(reason) is None
     assert mentions_advertising(reason) is False
 
 
@@ -150,3 +150,12 @@ def test_merge_tokens_come_from_the_same_labeler_as_the_marker(reason, expected)
 def test_an_editorial_reason_contributes_no_merge_token(reason):
     """Otherwise two unrelated spans share a token and merge on it."""
     assert SponsorService.extract_sponsors_from_transcript('', reason) == set()
+
+
+def test_boundary_keywords_agree_with_the_marker_label():
+    """Two extractors used to read the same reason by different rules, so
+    relocation had no notion of which advertiser was named first."""
+    from ad_detector.boundaries import _extract_ad_keywords
+    reason = 'Back-to-back host-read sponsor ads for Chime (Chime.com/show)'
+    keywords = _extract_ad_keywords({'reason': reason})
+    assert SponsorService.extract_sponsor_from_reason(reason).lower() in keywords

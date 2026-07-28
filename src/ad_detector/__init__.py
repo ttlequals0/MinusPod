@@ -2009,7 +2009,7 @@ class AdDetector:
         # Tier 4: read a brand out of the prose. Last because the model's own
         # sponsor field outranks a name scraped from its explanation. The old
         # tier 3 here repeated tier 2's DB lookup, so it could never add a hit.
-        if not sponsor and reason_text and mentions_advertising(reason_text):
+        if not sponsor and reason_text:
             sponsor = SponsorService.extract_sponsor_from_reason(reason_text)
 
         if not sponsor:

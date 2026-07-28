@@ -328,6 +328,11 @@ class SponsorService:
         # advertiser, and a capitalized run inside it is just its first word.
         if is_sponsor_reasoning_rationale(text):
             return None
+        # Prose that never mentions advertising names no advertiser either.
+        # Without this the first capitalized word of any sentence becomes a
+        # brand: "Discussion of the guest's new book" gave "Discussion".
+        if not mentions_advertising(text):
+            return None
         # Input cap, same reason as the bounded quantifiers above: this runs on
         # whatever string the model put in the field.
         text = text[:REASON_DESCRIPTION_MAX]
@@ -412,11 +417,7 @@ class SponsorService:
         # a second pair of phrase patterns, which only matched the two
         # phrasings they were written for; merging then missed a brand the
         # marker was already labeled with.
-        # Gated on ad language: the labeler names the first capitalized word of
-        # any sentence, and an editorial reason must not hand two unrelated
-        # spans a shared token to merge on.
-        brand = (SponsorService.extract_sponsor_from_reason(ad_reason)
-                 if mentions_advertising(ad_reason) else None)
+        brand = SponsorService.extract_sponsor_from_reason(ad_reason)
         if brand:
             squashed = squash_brand(brand)
             if len(squashed) > 2 and squashed not in NON_BRAND_WORDS:

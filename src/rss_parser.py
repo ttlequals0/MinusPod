@@ -729,7 +729,8 @@ class RSSParser:
                 Passed explicitly, never stored on self - the module-level
                 singleton is shared across refresh worker threads.
         """
-        feed = parsed_feed if parsed_feed is not None else self.parse_feed(feed_content)
+        feed = (parsed_feed if parsed_feed is not None
+                else self.parse_feed(feed_content, source=slug))
         if not feed:
             return feed_content
 
@@ -1346,7 +1347,8 @@ class RSSParser:
             return None
         return seconds if seconds > 0 else None
 
-    def extract_episodes(self, feed_content: str, parsed_feed=None) -> List[Dict]:
+    def extract_episodes(self, feed_content: str, parsed_feed=None,
+                         source: str = None) -> List[Dict]:
         """Extract episode information from feed.
 
         Args:
@@ -1354,8 +1356,11 @@ class RSSParser:
             parsed_feed: Optional pre-parsed feedparser object. When supplied,
                 skips the internal parse_feed call so a single refresh cycle
                 does not pay the parse cost three times.
+            source: Feed identifier named in a parse warning from the fallback
+                re-parse below.
         """
-        feed = parsed_feed if parsed_feed is not None else self.parse_feed(feed_content)
+        feed = (parsed_feed if parsed_feed is not None
+                else self.parse_feed(feed_content, source=source))
         if not feed:
             return []
 
