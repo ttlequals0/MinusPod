@@ -319,3 +319,18 @@ class TestAdvertisersListedAfterAColon:
 
     def test_a_colon_without_ad_context_is_refused(self):
         assert self._extract('Chapter marker: Introduction to the topic') is None
+
+    def test_the_brand_capture_does_not_swallow_the_sentence(self):
+        """The brand-shape patterns must run case-sensitively. Under
+        re.IGNORECASE, [A-Z] matches any letter, so the capitalized-run
+        capture ran to the end of the clause."""
+        assert self._extract(
+            'Back-to-back dynamically inserted ads (audio confirmed DAI): '
+            'Hykes law enforcement boots with URL HykesUSA.com, followed by '
+            'Belmont Park Village luxury outlet promo'
+        ) == 'Hykes'
+
+    def test_a_multiword_brand_after_the_colon_is_kept_whole(self):
+        assert self._extract(
+            'Ad block: Belmont Park Village luxury outlet promo'
+        ) == 'Belmont Park Village'
