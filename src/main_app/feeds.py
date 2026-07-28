@@ -229,7 +229,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # success -- treating it as success would reset the failure counter
         # mid-outage. A clean parse of an empty placeholder feed still
         # counts as success.
-        parsed_feed = rss_parser.parse_feed(feed_content)
+        parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
         if not parsed_feed or (not parsed_feed.feed and not parsed_feed.entries
                                and getattr(parsed_feed, 'bozo', False)):
             refresh_logger.error(f"[{slug}] Fetched feed could not be parsed as RSS")
@@ -488,7 +488,7 @@ def rebuild_served_rss(slug, podcast=None):
         feed_content = rss_parser.fetch_feed(podcast['source_url'])
         if not feed_content:
             return False
-        parsed_feed = rss_parser.parse_feed(feed_content)
+        parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
         _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast)
         return True
     except Exception as e:

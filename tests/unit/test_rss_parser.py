@@ -105,3 +105,29 @@ class TestXxeStructuredEvent:
             or 'forbidden construct' in r.getMessage().lower()
         ]
         assert matches, "expected xml_forbidden_construct event in logs"
+
+
+class TestMalformedFeedIsAttributable:
+    """A malformed body and a gzip retry are logged separately and neither
+    named the feed, so a recurring pair could not be tied to one origin."""
+
+    def test_parse_warning_names_its_source_and_size(self, caplog):
+        parser = RSSParser()
+        with caplog.at_level(logging.WARNING):
+            parser.parse_feed('<rss><channel><title>x</title>',
+                              source='example-podcast')
+
+        warnings = [r.getMessage() for r in caplog.records
+                    if 'RSS parse warning' in r.getMessage()]
+        assert warnings, 'expected a bozo warning'
+        assert 'source=example-podcast' in warnings[0]
+        assert 'bytes=' in warnings[0]
+
+    def test_an_unattributed_parse_still_logs(self, caplog):
+        parser = RSSParser()
+        with caplog.at_level(logging.WARNING):
+            parser.parse_feed('<rss><channel><title>x</title>')
+
+        warnings = [r.getMessage() for r in caplog.records
+                    if 'RSS parse warning' in r.getMessage()]
+        assert warnings and 'source=unknown' in warnings[0]

@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.16] - 2026-07-28
+## [2.81.17] - 2026-07-28
 
 ### Added
 
@@ -354,6 +354,16 @@ release notes.
   value below the floor, so selecting "300" and typing "120" reverted the field
   on the first digit and mangled the rest of the entry. They accept a typed
   value and clamp it when you leave the field.
+- A malformed feed body and the gzip retry that preceded it were logged
+  without naming the feed, so a recurring pair could not be tied to one
+  origin. Both lines carry the feed now, and the parse warning reports the
+  body size with it.
+- A sponsor named at the front of the detector's reason text was missed when
+  the read was described further along, as in "Acme pest control sponsor
+  read". The patterns wanted the brand within two words of that phrase. A name
+  written as a slash-joined pair, "Acme/Acme Co", never matched at all, since
+  none of them could cross a slash. A leading brand is now read as a last
+  resort, and a slash pair reduces to its first form.
 - The bar chart tooltip on the stats page was unreadable and its hover
   highlight looked like a second bar (#592). The value line kept the charting
   library's dark default text on a dark card, and no hover cursor was set, so

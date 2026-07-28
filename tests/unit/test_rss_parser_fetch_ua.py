@@ -68,3 +68,28 @@ class TestFetchFeedSendsAppUserAgent:
         assert captured_headers[1].get('User-Agent') == APP_USER_AGENT
         # Retry also forces identity encoding.
         assert captured_headers[1].get('Accept-Encoding') == 'identity'
+
+    def test_gzip_retry_names_the_feed_it_retried(self, caplog):
+        """Three of these landed in a day with no way to tell which origin
+        produced them."""
+        import logging
+        import requests
+
+        rp = RSSParser()
+        calls = []
+
+        def fake_safe_get(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                raise requests.exceptions.ContentDecodingError("bad gzip")
+            return _ok_response()
+
+        with patch('rss_parser.safe_get', side_effect=fake_safe_get), \
+             patch('rss_parser.read_response_capped', return_value=b"<rss/>"), \
+             caplog.at_level(logging.WARNING):
+            rp.fetch_feed('https://feeds.example.com/show.xml')
+
+        gzip_warnings = [r.getMessage() for r in caplog.records
+                         if 'Gzip decompression failed' in r.getMessage()]
+        assert gzip_warnings
+        assert 'feeds.example.com' in gzip_warnings[0]

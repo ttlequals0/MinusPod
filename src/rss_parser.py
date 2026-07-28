@@ -286,7 +286,9 @@ class RSSParser:
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
             # Retry without accepting compressed responses
-            logger.warning(f"Gzip decompression failed, retrying without compression: {e}")
+            logger.warning(
+                "Gzip decompression failed, retrying without compression: "
+                "url=%s err=%s", safe_url_for_log(url), e)
             try:
                 response = safe_get(
                     url,
@@ -402,7 +404,9 @@ class RSSParser:
 
         except requests.exceptions.ContentDecodingError as e:
             # Retry without accepting compressed responses
-            logger.warning(f"Gzip decompression failed, retrying: {e}")
+            logger.warning(
+                "Gzip decompression failed, retrying: url=%s err=%s",
+                safe_url_for_log(url), e)
             try:
                 headers['Accept-Encoding'] = 'identity'
                 response = safe_get(
@@ -445,7 +449,7 @@ class RSSParser:
             _get_rss_circuit_breaker(url).record_failure()
             return None, None, None
 
-    def parse_feed(self, feed_content: str) -> Dict:
+    def parse_feed(self, feed_content: str, source: str = None) -> Dict:
         """Parse RSS feed content.
 
         XXE defence: ``defusedxml.defuse_stdlib()`` neutralises expat's
@@ -483,7 +487,11 @@ class RSSParser:
 
             feed = feedparser.parse(feed_content)
             if feed.bozo:
-                logger.warning(f"RSS parse warning: {feed.bozo_exception}")
+                # Named: a malformed body correlates with the gzip retry above,
+                # and without the feed there is no way to tie the two together.
+                logger.warning("RSS parse warning: source=%s bytes=%d err=%s",
+                               source or 'unknown', len(feed_content or ''),
+                               feed.bozo_exception)
 
             logger.debug(f"Parsed RSS feed: {feed.feed.get('title', 'Unknown')} with {len(feed.entries)} entries")
             return feed

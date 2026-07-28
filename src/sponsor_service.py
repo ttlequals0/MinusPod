@@ -288,6 +288,11 @@ class SponsorService:
             r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
             r'promoting\s+(\w+(?:\s+\w+)?)',
             r'brought to you by\s+(\w+(?:\s+\w+)?)',
+            # Last resort: a capitalized brand opening the text, with the read
+            # described further along ("Acme/Acme Co pest control sponsor
+            # read"). The tight patterns above need the brand within two words
+            # of "sponsor read", and \w never matches the slash in a pair.
+            r'^([A-Z][\w&.\'-]*(?:/[A-Z][\w&.\'-]*)?)\s+\w.*\b(?:sponsor|ad)\s+read\b',
         ]
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -304,7 +309,9 @@ class SponsorService:
                     continue
                 if ' ' in sponsor and sponsor == sponsor.lower():
                     continue
-                return sponsor
+                # "Acme/Acme Co" is one brand written two ways; the first is
+                # the one worth storing.
+                return sponsor.split('/')[0].strip() if '/' in sponsor else sponsor
         return None
 
     @staticmethod

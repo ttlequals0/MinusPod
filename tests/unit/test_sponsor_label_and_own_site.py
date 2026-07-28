@@ -254,3 +254,32 @@ class TestShowNameIsNotASponsor:
         from utils.constants import sanitize_sponsor_label
         assert sanitize_sponsor_label('Daily Tech News Show Store',
                                       show_name=self.SHOW) == 'Daily Tech News Show Store'
+
+
+class TestBrandFurtherFromTheReadPhrase:
+    """A brand can open the reason with the read described several words later,
+    and can be written as a slash-joined pair. The tight patterns need the
+    brand within two words of "sponsor read", and \\w never matches a slash."""
+
+    def _extract(self, text):
+        from sponsor_service import SponsorService
+        return SponsorService.extract_sponsor_from_reason(text)
+
+    def test_a_slash_joined_brand_reduces_to_its_first_form(self):
+        assert self._extract(
+            'PestEase/Pesti pest control sponsor read with a discount offer'
+        ) == 'PestEase'
+
+    def test_a_brand_separated_by_a_descriptor_is_found(self):
+        assert self._extract(
+            'Squarespace website builder sponsor read') == 'Squarespace'
+
+    def test_a_lowercase_opening_is_not_a_brand(self):
+        assert self._extract('the host reads a sponsor read') is None
+        assert self._extract('ad break sponsor read') is None
+
+    def test_the_mailing_address_regression_stays_fixed(self):
+        assert self._extract('mailing address mentioned in passing') is None
+
+    def test_a_plain_leading_brand_is_unchanged(self):
+        assert self._extract('Acme sponsor read') == 'Acme'
