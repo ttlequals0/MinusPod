@@ -435,6 +435,25 @@ class TestMergedSpanTakesTheDominantCategory:
         ])
         assert merged[0]['category'] == 'sponsor'
 
+    def test_an_uncategorized_extension_does_not_credit_the_incumbent(self):
+        """The incumbent's span was captured lazily at the first categorized
+        competitor, after an uncategorized member had already extended the
+        merged end, so it was credited audio it never classified."""
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 130.0, 'sponsor'),
+            self._ad(100.0, 300.0, None),
+            self._ad(130.0, 300.0, 'self_promo'),
+        ])
+        assert len(merged) == 1
+        assert merged[0]['category'] == 'self_promo'
+
+    def test_an_invalid_category_cannot_displace_a_valid_one(self):
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 130.0, 'self_promo'),
+            self._ad(100.0, 300.0, 'advertisement'),
+        ])
+        assert merged[0]['category'] == 'self_promo'
+
     def test_a_short_dominant_member_keeps_its_label(self):
         merged = self._detector()._merge_detection_results([
             self._ad(100.0, 190.0, 'cross_promo'),

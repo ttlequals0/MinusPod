@@ -37,6 +37,7 @@ from config import (
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     DEFAULT_SEGMENT_ACTION,
     normalize_segment_category,
+    SEGMENT_CATEGORIES,
     is_cue_backed,
     is_template_cue,
     MIN_OVERLAP_TOLERANCE,
@@ -439,6 +440,14 @@ def _cue_fusion_inputs(audio_analysis, segments):
 # Merge bookkeeping: how much audio the member that supplied the current
 # category covered. Stripped before markers are returned.
 _CATEGORY_SPAN = '_category_span'
+
+
+def _with_category_span(entry: Dict) -> Dict:
+    """Stamp a merge accumulator with the audio its own category covers, before
+    a later member extends the end past what that category classified."""
+    if entry.get('category') in SEGMENT_CATEGORIES:
+        entry[_CATEGORY_SPAN] = entry['end'] - entry['start']
+    return entry
 
 
 def _pattern_match_evidence(match, kind: str) -> str:
@@ -2257,7 +2266,7 @@ class AdDetector:
         # Sort by start time
         ads = sorted(ads, key=lambda x: x['start'])
 
-        merged = [ads[0].copy()]
+        merged = [_with_category_span(ads[0].copy())]
         for current in ads[1:]:
             last = merged[-1]
 
@@ -2300,7 +2309,7 @@ class AdDetector:
                 if (bool(last.get('differential_uncorroborated'))
                         != bool(current.get('differential_uncorroborated'))
                         and current['start'] >= last['end']):
-                    merged.append(current.copy())
+                    merged.append(_with_category_span(current.copy()))
                     continue
                 # Non-overlapping spans (touching or gapped) are distinct ads,
                 # not the same ad overlapping across stages. Touch counts too
@@ -2314,18 +2323,13 @@ class AdDetector:
                     # in so the protected union covers audio it adds past the
                     # recorded end (else a later trim could sever it).
                     note_merged_members(last, current)
-                # The category comes from whichever member covers the most
-                # audio, not whichever happened to sort first. A break holding
-                # a sponsor read and a cross-promo is labelled by the one that
-                # dominates it. Only members that named a category compete, so
-                # a categorized span is never displaced by one that said
-                # nothing. Actions cannot conflict here: a keep-resolving span
-                # is split out before this by split_conflicting_action_span.
+                # The label goes to the member classifying the most audio,
+                # ties to the incumbent, and a member naming nothing (or naming
+                # something outside the vocabulary) displaces nothing. Actions
+                # cannot conflict here: split_conflicting_action_span already
+                # separated a keep-resolving span.
                 cur_category = current.get('category')
-                if cur_category:
-                    if last.get('category') and _CATEGORY_SPAN not in last:
-                        # Incumbent's own span, before the end is extended below.
-                        last[_CATEGORY_SPAN] = last['end'] - last['start']
+                if cur_category in SEGMENT_CATEGORIES:
                     cur_span = current['end'] - current['start']
                     if cur_span > last.get(_CATEGORY_SPAN, 0.0):
                         last['category'] = cur_category
@@ -2410,7 +2414,7 @@ class AdDetector:
                         last['hold_reason'] = HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
                         last['was_cut'] = False
             else:
-                merged.append(current.copy())
+                merged.append(_with_category_span(current.copy()))
 
         merged = self._merge_overlapping_accepted_duplicates(merged, action_map=action_map)
 
