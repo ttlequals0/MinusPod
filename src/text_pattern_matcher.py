@@ -845,7 +845,7 @@ class TextPatternMatcher:
         search_region = full_text[search_start:search_end]
 
         for phrase in variants:
-            if len(phrase) < 10:
+            if len(phrase) < MIN_FUZZY_VARIANT_CHARS:
                 continue
             phrase_lower = phrase.lower()
             pos, score, matched = self._fuzzy_find(search_region, phrase_lower)

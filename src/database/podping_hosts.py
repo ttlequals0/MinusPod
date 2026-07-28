@@ -13,6 +13,11 @@ logger = logging.getLogger(__name__)
 class PodpingHostMixin:
     """Domains observed sending podpings on the Hive chain."""
 
+    @staticmethod
+    def podping_active_cutoff(days: int = PODPING_HOST_ACTIVE_DAYS) -> str:
+        """Oldest last_seen_at that still counts as active."""
+        return (datetime.now(timezone.utc) - timedelta(days=days)).strftime(ISO_FORMAT)
+
     def record_podping_hosts(self, counts: Dict[str, int]) -> None:
         """Upsert a batch of {domain: ping count} in one transaction, bounded
         against a sender flooding the table with fabricated domains."""
@@ -50,7 +55,7 @@ class PodpingHostMixin:
         needs this, not the whole active set."""
         if not domain:
             return False
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(ISO_FORMAT)
+        cutoff = self.podping_active_cutoff(days)
         row = self.get_connection().execute(
             "SELECT 1 FROM podping_hosts WHERE domain = ? AND last_seen_at >= ?",
             (domain, cutoff)).fetchone()
@@ -58,7 +63,7 @@ class PodpingHostMixin:
 
     def get_active_podping_domains(self, days: int = 30) -> set:
         """Domains seen within the window; empty set when the table is empty."""
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(ISO_FORMAT)
+        cutoff = self.podping_active_cutoff(days)
         cursor = self.get_connection().execute(
             "SELECT domain FROM podping_hosts WHERE last_seen_at >= ?", (cutoff,))
         return {row['domain'] for row in cursor.fetchall()}
@@ -66,7 +71,7 @@ class PodpingHostMixin:
     def count_active_podping_domains(self,
                                      days: int = PODPING_HOST_ACTIVE_DAYS) -> int:
         """How many domains are inside the window, without loading them all."""
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime(ISO_FORMAT)
+        cutoff = self.podping_active_cutoff(days)
         return self.get_connection().execute(
             "SELECT COUNT(*) AS n FROM podping_hosts WHERE last_seen_at >= ?",
             (cutoff,)).fetchone()['n']

@@ -168,6 +168,10 @@ class AdValidator:
         # A per-feed override or a pair stored before the API cross-check
         # existed can invert the two; confirming a sponsor must never lower
         # an ad's ceiling.
+        if max_ad_duration > max_ad_duration_confirmed:
+            logger.warning(
+                f"Confirmation threshold {max_ad_duration:.0f}s is above the "
+                f"hard ceiling {max_ad_duration_confirmed:.0f}s; using the ceiling")
         self.max_ad_duration = min(max_ad_duration, max_ad_duration_confirmed)
         self.max_ad_duration_confirmed = max_ad_duration_confirmed
         self._audio_analysis = None
@@ -222,8 +226,8 @@ class AdValidator:
         Confirmation raises the duration ceiling, and many shows never list
         sponsors in the description, so a real multi-sponsor break was
         rejected on length alone. The transcript is the evidence, not the
-        model's reason. Two mentions are required, the same bar pattern
-        learning uses: one organic brand mention inside a misdetected span of
+        model's reason. Two registry mentions are required, across one brand or
+        two: a single organic brand mention inside a misdetected span of
         several minutes is not a read.
         """
         if not self.sponsor_service:
@@ -233,11 +237,11 @@ class AdValidator:
             return False
         try:
             found = self.sponsor_service.find_sponsor_in_text(ad_text)
+            if not found:
+                return False
             mentions = self.sponsor_service.count_sponsor_mentions(ad_text)
         except Exception as e:
             logger.debug(f"Sponsor registry lookup failed: {e}")
-            return False
-        if not found:
             return False
         if mentions < 2:
             logger.info(

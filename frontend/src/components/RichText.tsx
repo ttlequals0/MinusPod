@@ -28,13 +28,10 @@ const CELL_TAGS = new Set(['TD', 'TH']);
 
 export function isSafeHref(href: string | null | undefined): boolean {
   if (!href) return false;
-  // Relative and protocol-relative hrefs resolve against this app's origin and
-  // render as broken links in a new tab, so they are not link material here.
-  if (!/^(https?:|mailto:)/i.test(href.trim())) return false;
   try {
-    // A base is required so relative hrefs resolve rather than throw.
-    const url = new URL(href, 'https://invalid.example');
-    return SAFE_PROTOCOLS.has(url.protocol);
+    // No base: a relative or protocol-relative href throws and is rejected.
+    // Those resolve against this app's own origin and render as broken links.
+    return SAFE_PROTOCOLS.has(new URL(href).protocol);
   } catch {
     return false;
   }

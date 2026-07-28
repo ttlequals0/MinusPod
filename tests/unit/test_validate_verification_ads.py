@@ -6,6 +6,7 @@ original-coordinates twin (e.g. after A+B merge, C paired with B's original).
 The fix carries each original through validation as a reference on the
 processed dict.
 """
+import inspect
 import threading
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
@@ -784,7 +785,8 @@ def test_pass1_validator_receives_podcast_id(monkeypatch):
     ads = [{'start': 10.0, 'end': 40.0, 'confidence': 0.9, 'reason': 'x'}]
     with pytest.raises(_CapturedBuild):
         processing_mod._refine_and_validate(
-            'show', 'ep1', ads, _segments(), None, None, 600.0, 0.8, 'Show')
+            'show', 'ep1', ads, _segments(), None, None, 600.0, 0.8, 'Show',
+            podcast_id=7)
 
     assert seen.get('podcast_id') == 7
 
@@ -798,7 +800,7 @@ def test_pass2_validator_receives_podcast_id(monkeypatch):
             'show', 'ep1', [{'start': 10.0, 'end': 40.0, 'confidence': 0.9}],
             [{'start': 10.0, 'end': 40.0}], _segments(),
             ads_to_remove=[], episode_description=None,
-            min_cut_confidence=0.8, db=_feed_db())
+            min_cut_confidence=0.8, db=_feed_db(), podcast_id=7)
 
     assert seen.get('podcast_id') == 7
 
@@ -901,7 +903,8 @@ def _run_fold_branch(recut_result=True):
         p(processing_mod, '_run_audio_analysis', return_value=None)
         p(processing_mod, 'load_positional_prior', return_value=None)
         p(processing_mod, '_detect_ads_first_pass', return_value=([ad], 1, {}))
-        p(processing_mod, '_refine_and_validate', return_value=([ad], [ad]))
+        refine = p(processing_mod, '_refine_and_validate',
+                   return_value=([ad], [ad]))
         p(processing_mod, '_run_ad_reviewer',
           side_effect=lambda s, e, pid, cut, allads, *a, **k: (cut, allads))
         p(processing_mod, '_snap_terminal_starts',
@@ -937,7 +940,7 @@ def _run_fold_branch(recut_result=True):
             cancel_event=threading.Event())
 
     return {'result': result, 'recut': recut, 'finalize': finalize,
-            'failure': failure}
+            'failure': failure, 'refine': refine}
 
 
 def test_fold_recut_runs_without_a_cancel_event():
@@ -966,11 +969,18 @@ def test_successful_fold_recut_does_not_finalize_twice():
     m['finalize'].assert_not_called()
 
 
-def test_capped_verification_count_matches_the_run_stats():
+def test_the_recut_run_stat_is_capped_with_the_history_row():
     """The history row caps the pass-2 share against the recut's own total;
-    run_stats has to report the same number."""
-    run_stats = {'verification_ads_cut': 5}
-    first, verification = processing_mod._split_recut_counts(3, 5, run_stats)
+    run_stats reports the same number, from the same source line."""
+    src = inspect.getsource(processing_mod._recut_episode)
+    split = src.split('_split_recut_counts(')[1]
 
-    assert (first, verification) == (0, 3)
-    assert run_stats['verification_ads_cut'] == 3
+    assert "run_stats['verification_ads_cut'] = verification_count" in split
+    assert processing_mod._split_recut_counts(3, 5) == (0, 3)
+
+
+def test_the_pipeline_hands_pass1_the_feeds_id():
+    """The forwarding tests above cannot see whether the pipeline supplies it."""
+    m = _run_fold_branch()
+
+    assert m['refine'].call_args.kwargs['podcast_id'] == 1

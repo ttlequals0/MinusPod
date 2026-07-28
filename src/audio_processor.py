@@ -118,7 +118,7 @@ class AudioProcessor:
         the render and the asset-timestamp math cannot disagree for
         default-constructed processors.
         """
-        return AudioMetadata.get_duration(self.replace_audio_path) or 1.0
+        return AudioMetadata.get_duration(self.resolve_replace_audio_path()) or 1.0
 
     def convert_to_mp3(self, input_path: str) -> Optional[str]:
         """Transcode an episode to MP3 at this instance's bitrate, with no

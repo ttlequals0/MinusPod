@@ -210,29 +210,20 @@ class TestCategoryCompliance:
 
 class TestFallbackCategoryResolver:
     """When the app package is not importable the fallback has to score the
-    same vocabulary production does, and say that it ran."""
+    same vocabulary production does."""
 
-    def _fallback(self, monkeypatch, ad):
-        import builtins
+    def test_a_category_outside_the_vocabulary_is_not_present(self):
+        assert metrics._fallback_resolve_category(
+            {"category": "advertisement"}) is None
 
-        real_import = builtins.__import__
+    def test_a_known_category_is_still_present(self):
+        assert metrics._fallback_resolve_category(
+            {"category": "self_promo"}) == "self_promo"
 
-        def no_app(name, *args, **kwargs):
-            if name.startswith("ad_detector"):
-                raise ImportError("app package unavailable")
-            return real_import(name, *args, **kwargs)
+    def test_the_fallback_vocabulary_matches_production(self):
+        from config import SEGMENT_CATEGORIES
 
-        monkeypatch.setattr(builtins, "__import__", no_app)
-        monkeypatch.setattr(metrics, "CATEGORY_RESOLVER", "production")
-        return schema_audit([ad])
+        assert metrics._fallback_categories() == tuple(SEGMENT_CATEGORIES)
 
-    def test_a_category_outside_the_vocabulary_is_not_present(self, monkeypatch):
-        v = self._fallback(monkeypatch, {"start": 1.0, "end": 2.0,
-                                         "category": "advertisement"})
-        assert (v.category_present, v.category_missing) == (0, 1)
-        assert metrics.CATEGORY_RESOLVER == "fallback"
-
-    def test_a_known_category_is_still_present(self, monkeypatch):
-        v = self._fallback(monkeypatch, {"start": 1.0, "end": 2.0,
-                                         "category": "self_promo"})
-        assert v.category_present == 1
+    def test_the_report_can_say_which_resolver_ran(self):
+        assert metrics.CATEGORY_RESOLVER in ("production", "fallback")

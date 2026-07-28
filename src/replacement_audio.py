@@ -92,8 +92,9 @@ def _source_of(path: str) -> str:
     return SOURCE_DEFAULT
 
 
-def describe() -> Dict[str, Any]:
-    """Metadata for the replacement audio currently in use."""
+def describe(probed: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Metadata for the replacement audio currently in use. ``probed`` reuses a
+    probe the caller already ran rather than spending another ffprobe."""
     path = get_replace_audio_path()
     source = _source_of(path)
     info: Dict[str, Any] = {
@@ -111,6 +112,9 @@ def describe() -> Dict[str, Any]:
     stat = os.stat(path)
     info['sizeBytes'] = stat.st_size
     info['updatedAt'] = int(stat.st_mtime)
+    if probed is not None:
+        info.update(probed)
+        return info
     try:
         info.update(probe_audio(path))
     except ReplacementAudioError as e:
@@ -190,17 +194,7 @@ def save_upload(raw: bytes) -> Dict[str, Any]:
         result.get('durationSeconds') or 0,
         result.get('channels'), result.get('sampleRateHz'),
     )
-    stat = os.stat(target)
-    return {
-        'source': SOURCE_UPLOADED,
-        'canRevert': True,
-        'exists': True,
-        'sizeBytes': stat.st_size,
-        'updatedAt': int(stat.st_mtime),
-        'durationSeconds': result.get('durationSeconds'),
-        'channels': result.get('channels'),
-        'sampleRateHz': result.get('sampleRateHz'),
-    }
+    return describe(probed=result)
 
 
 def revert() -> bool:

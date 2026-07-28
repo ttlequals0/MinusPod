@@ -1144,7 +1144,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
                           max_ad_duration_override=None, cue_gate_enabled=False,
-                          audio_analysis=None):
+                          audio_analysis=None, podcast_id=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     Returns (ads_to_remove, all_ads_with_validation).
@@ -1167,9 +1167,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     # Validation
     if not all_ads:
         return [], []
-
-    podcast_row = db.get_podcast_by_slug(slug)
-    podcast_id = podcast_row.get('id') if podcast_row else None
 
     validator = _build_validator(
         episode_duration, segments, episode_description,
@@ -1734,7 +1731,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 min_cut_confidence, db,
                                 processed_duration=None,
                                 max_ad_duration_override=None,
-                                cue_gate_enabled=False):
+                                cue_gate_enabled=False, podcast_id=None):
     """Validate pass-2 ad candidates against processed-coordinate validator.
 
     Maps pass-1 user FP corrections from original to processed coordinates,
@@ -1777,9 +1774,6 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # (post-cut timeline), so zones learned on original durations do not map.
     # splice_veto=False: pass 2 has no audio analysis, so the splice veto
     # could never corroborate and its settings reads are skipped.
-    podcast_row = db.get_podcast_by_slug(slug)
-    podcast_id = podcast_row.get('id') if podcast_row else None
-
     v_validator = _build_validator(
         processed_duration, verification_segments,
         episode_description,
@@ -2353,6 +2347,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     processed_duration=processed_duration,
                     max_ad_duration_override=max_ad_duration_override,
                     cue_gate_enabled=cue_gate_enabled,
+                    podcast_id=ctx.podcast_id,
                 )
 
             # Kept-span exclusion: must run before any finding is routed to
@@ -3036,17 +3031,13 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         audio_logger.info(f"[{slug}:{episode_id}] Recut: applied {applied} boundary adjustment(s)")
 
 
-def _split_recut_counts(total_cut, verification_count, run_stats=None):
+def _split_recut_counts(total_cut, verification_count):
     """Split a recut's cut total into (first pass, verification).
 
     ad_markers_json already holds the merged pass-2 spans, so a recut's own
     count is the total. Persistence adds the two back together, so the
-    verification share has to come out of the total, not on top of it.
-    run_stats is capped here too, so the run's stat and the history row
-    cannot report different pass-2 counts."""
+    verification share has to come out of the total, not on top of it."""
     verification_count = max(0, min(verification_count or 0, total_cut))
-    if run_stats is not None and 'verification_ads_cut' in run_stats:
-        run_stats['verification_ads_cut'] = verification_count
     return total_cut - verification_count, verification_count
 
 
@@ -3394,7 +3385,11 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
         not_cut_count = count_not_cut(all_ads_with_validation)
         first_pass_count, verification_count = _split_recut_counts(
-            pass1_cut_count, verification_count, run_stats)
+            pass1_cut_count, verification_count)
+        if run_stats is not None and 'verification_ads_cut' in run_stats:
+            # Capped here as well, or the run's stat and the history row report
+            # different pass-2 counts.
+            run_stats['verification_ads_cut'] = verification_count
         if run_stats is not None and original_duration and new_duration:
             # Recomputed here: the caller's copy predates the approvals this
             # recut just cut.
@@ -3807,6 +3802,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     max_ad_duration_override=max_ad_duration_override,
                     cue_gate_enabled=cue_gate_enabled,
                     audio_analysis=_val_audio_analysis,
+                    podcast_id=podcast_id,
                 )
 
                 # Late keep partition: _refine_and_validate's heuristic

@@ -86,7 +86,8 @@ def test_pruning_keeps_the_most_recently_seen_domains(db, monkeypatch):
 
     db.record_podping_hosts({'new1.example.com': 1, 'new2.example.com': 1})
 
-    assert 'old.example.com' not in {r['domain'] for r in db.get_podping_hosts()}
+    assert {r['domain'] for r in db.get_podping_hosts()} == {
+        'new1.example.com', 'new2.example.com'}
 
 
 def test_an_oversized_flush_is_trimmed_to_the_busiest_domains(db, monkeypatch):
@@ -95,9 +96,7 @@ def test_an_oversized_flush_is_trimmed_to_the_busiest_domains(db, monkeypatch):
     db.record_podping_hosts({f'h{i}.example.com': i for i in range(10)})
 
     kept = {r['domain'] for r in db.get_podping_hosts()}
-    assert len(kept) == 5
-    assert 'h9.example.com' in kept
-    assert 'h0.example.com' not in kept
+    assert kept == {f'h{i}.example.com' for i in range(5, 10)}
 
 
 def test_single_domain_active_lookup(db):

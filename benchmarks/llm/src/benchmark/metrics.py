@@ -185,28 +185,32 @@ KNOWN_OPTIONAL_KEYS = (
 ) + _production_known_keys()
 
 
-_FALLBACK_CATEGORIES = ("sponsor", "cross_promo", "self_promo", "interaction",
-                        "intro", "outro", "recap")
-
-# Which resolver scored the run. Without this the compliance figures differ
-# silently between an environment that can import the app and one that cannot.
-CATEGORY_RESOLVER = "production"
-
-
-def _resolve_category(ad: dict):
-    """The segment category an ad carries, using production's resolution so
-    the benchmark scores what the live parser accepts. Falls back to a
-    vocabulary-checked exact key when the app package is not importable."""
-    global CATEGORY_RESOLVER
+def _fallback_categories() -> tuple[str, ...]:
+    """Production's vocabulary, or a copy of it when config is not importable."""
     try:
-        from ad_detector.prompts import resolve_ad_category  # type: ignore[import-not-found]
+        from config import SEGMENT_CATEGORIES  # type: ignore[import-not-found]
+        return tuple(SEGMENT_CATEGORIES)
     except Exception:
-        CATEGORY_RESOLVER = "fallback"
-        value = ad.get("category")
-        if isinstance(value, str) and value.strip().lower() in _FALLBACK_CATEGORIES:
-            return value.strip().lower()
-        return None
-    return resolve_ad_category(ad)
+        return ("sponsor", "cross_promo", "self_promo", "interaction",
+                "intro", "outro", "recap")
+
+
+def _fallback_resolve_category(ad: dict):
+    value = ad.get("category")
+    if isinstance(value, str) and value.strip().lower() in _fallback_categories():
+        return value.strip().lower()
+    return None
+
+
+# Resolved once at import: which resolver scored the run. Without this the
+# compliance figures differ silently between an environment that can import the
+# app and one that cannot.
+try:
+    from ad_detector.prompts import resolve_ad_category as _resolve_category  # type: ignore[import-not-found]
+    CATEGORY_RESOLVER = "production"
+except Exception:
+    _resolve_category = _fallback_resolve_category
+    CATEGORY_RESOLVER = "fallback"
 
 
 def schema_audit(parsed_ads: list[dict]) -> SchemaViolations:

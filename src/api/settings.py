@@ -1204,35 +1204,40 @@ def _apply_max_ad_duration_fields(db, data):
     """Persist the ad-length ceilings. Past the first an ad needs a confirmed
     sponsor; past the second nothing helps. The pair is validated before either
     is written so confirmation can never lower an ad's allowed length."""
-    fields = (
-        ('maxAdDurationSeconds', 'max_ad_duration_seconds', MAX_AD_DURATION),
-        ('maxAdDurationConfirmedSeconds', 'max_ad_duration_confirmed_seconds',
-         MAX_AD_DURATION_CONFIRMED),
-    )
-    if not any(key in data for key, _, _ in fields):
+    def read(key, setting, default):
+        """(value, was sent) for one field, or a 400 response on a bad value."""
+        if key not in data:
+            return db.get_setting_float(setting, default), False, None
+        try:
+            value = float(data[key])
+        except (TypeError, ValueError):
+            return None, True, json_response({'error': f'{key} must be a number'}, 400)
+        if not math.isfinite(value) or value < 30.0 or value > 3600.0:
+            return None, True, json_response(
+                {'error': f'{key} must be between 30 and 3600'}, 400)
+        return value, True, None
+
+    threshold, threshold_sent, err = read(
+        'maxAdDurationSeconds', 'max_ad_duration_seconds', MAX_AD_DURATION)
+    if err:
+        return err
+    ceiling, ceiling_sent, err = read(
+        'maxAdDurationConfirmedSeconds', 'max_ad_duration_confirmed_seconds',
+        MAX_AD_DURATION_CONFIRMED)
+    if err:
+        return err
+    if not (threshold_sent or ceiling_sent):
         return None
-
-    resolved = {}
-    for key, setting, default in fields:
-        if key in data:
-            try:
-                value = float(data[key])
-            except (TypeError, ValueError):
-                return json_response({'error': f'{key} must be a number'}, 400)
-            if not math.isfinite(value) or value < 30.0 or value > 3600.0:
-                return json_response(
-                    {'error': f'{key} must be between 30 and 3600'}, 400)
-        else:
-            value = db.get_setting_float(setting, default)
-        resolved[key] = (setting, value, key in data)
-
-    if resolved['maxAdDurationSeconds'][1] > resolved['maxAdDurationConfirmedSeconds'][1]:
+    if threshold > ceiling:
         return json_response(
             {'error': 'maxAdDurationSeconds cannot exceed '
                       'maxAdDurationConfirmedSeconds'}, 400)
 
-    for setting, value, incoming in resolved.values():
-        if incoming:
+    for setting, value, sent in (
+        ('max_ad_duration_seconds', threshold, threshold_sent),
+        ('max_ad_duration_confirmed_seconds', ceiling, ceiling_sent),
+    ):
+        if sent:
             db.set_setting(setting, str(value), is_default=False)
             logger.info(f"Updated {setting} to: {value}")
     return None

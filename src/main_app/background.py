@@ -301,15 +301,15 @@ def reset_stuck_processing_episodes():
     )
     stuck = cursor.fetchall()
 
-    queue = ProcessingQueue()
+    # Age alone cannot distinguish a slow pass from a crash; the lock can. A row
+    # is only written at start and at ad_detection_status, so a long
+    # transcription looks stale while the job is very much alive.
+    current = ProcessingQueue().get_current()
     reset_count = 0
     failed_count = 0
 
     for row in stuck:
-        # Age alone cannot distinguish a slow pass from a crash; the lock can.
-        # A row is only written at start and at ad_detection_status, so a long
-        # transcription looks stale while the job is very much alive.
-        if queue.is_processing(row['slug'], row['episode_id']):
+        if current == (row['slug'], row['episode_id']):
             continue
 
         current_retry_count = row['retry_count'] or 0

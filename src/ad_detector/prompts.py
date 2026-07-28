@@ -34,10 +34,16 @@ logger = logging.getLogger('podcast.claude')
 # keeping rather than discarding.
 DUPLICATE_MIN_LENGTH_RATIO = 0.8
 
+def _singular(key: str) -> str:
+    """Drop one trailing plural. rstrip('s') stemmed 'names' to 'name' but also
+    'address' to 'addre'."""
+    lowered = key.lower()
+    return lowered[:-1] if lowered.endswith('s') else lowered
+
+
 # Sponsor field names with a trailing plural dropped, so the evidence gate
 # accepts the "sponsors" key extract_sponsor_name already reads.
-_SPONSOR_FIELD_STEMS = frozenset(
-    f.lower().rstrip('s') for f in SPONSOR_PRIORITY_FIELDS)
+_SPONSOR_FIELD_STEMS = frozenset(_singular(f) for f in SPONSOR_PRIORITY_FIELDS)
 
 
 # User prompt template (not configurable via UI - just formats the transcript)
@@ -190,20 +196,13 @@ _CONTINUATION_PREFIX_RE = re.compile(
     re.IGNORECASE)
 
 
-def _singular(key: str) -> str:
-    """Drop one trailing plural. rstrip('s') stemmed 'names' to 'name' but also
-    'products' to 'product' and 'address' to 'addre'."""
-    lowered = key.lower()
-    return lowered[:-1] if lowered.endswith('s') else lowered
-
-
 def _drop_leading(description: str, sponsor: str) -> str:
     """Drop a leading sponsor name from a description, so combining the two
     does not render "Acme: Acme ad for ...". Only on a word boundary: "Box"
     must not turn "Boxing gloves" into "ing gloves"."""
-    rest = description[len(sponsor):]
     if not description.lower().startswith(sponsor.lower()):
         return description
+    rest = description[len(sponsor):]
     if rest and rest[0].isalnum():
         return description
     return rest.lstrip(' :,-.').strip() or description

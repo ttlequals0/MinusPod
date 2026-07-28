@@ -214,7 +214,6 @@ class PodpingListener:
 
         self.host_buffer = {}
         self.host_flushed_at = 0.0
-        self._last_ping_write = {}  # slug -> time.time() of last stamp write
 
     def _default_rpc(self, method, params):
         """Default rpc: POST to the currently-selected node. Returns the
@@ -346,12 +345,10 @@ class PodpingListener:
         cooldown window. A burst therefore leaves the displayed last-ping time
         up to one cooldown behind the newest ping."""
         now = time.time()
-        if now - self._last_ping_write.get(slug, 0.0) > COOLDOWN_SECONDS:
-            self._last_ping_write[slug] = now
-            self.db.set_last_podping_at(slug)
         last = self.last_refresh.get(slug, 0.0)
         if now - last > COOLDOWN_SECONDS:
             self.last_refresh[slug] = now
+            self.db.set_last_podping_at(slug)
             logger.info(
                 "[%s] Podping received (reason=%s), refreshing feed",
                 slug, reason)

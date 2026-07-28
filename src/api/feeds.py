@@ -357,26 +357,23 @@ def _podcast_base_json(podcast, feed_url) -> dict:
 
 
 def _podping_context(db):
-    """(enabled, active domains) for one request; the set is empty when off.
-
-    For the list endpoint, where one set load amortizes over every feed."""
+    """(enabled, is-this-domain-active) for a whole list of feeds. One set load
+    amortizes over every feed."""
     if not db.get_setting_bool('podping_enabled', False):
-        return False, set()
-    return True, db.get_active_podping_domains(PODPING_HOST_ACTIVE_DAYS)
+        return False, lambda domain: False
+    active = db.get_active_podping_domains(PODPING_HOST_ACTIVE_DAYS)
+    return True, lambda domain: domain in active
 
 
-def _podping_context_for_feed(db, podcast):
-    """Same shape as _podping_context for a single feed: one indexed lookup
-    instead of materializing every active domain."""
+def _podping_context_for_feed(db):
+    """Same for one feed: an indexed lookup rather than the whole active set."""
     if not db.get_setting_bool('podping_enabled', False):
-        return False, set()
-    domain = feed_url_domain(podcast.get('source_url') or '')
-    if domain and db.is_podping_domain_active(domain, PODPING_HOST_ACTIVE_DAYS):
-        return True, {domain}
-    return True, set()
+        return False, lambda domain: False
+    return True, lambda domain: db.is_podping_domain_active(
+        domain, PODPING_HOST_ACTIVE_DAYS)
 
 
-def _podping_coverage(podcast, enabled, active_domains):
+def _podping_coverage(podcast, enabled, host_is_active):
     """Why this feed is or is not covered by podping, most specific first.
 
     None when the listener is off instance-wide: that is a global setting, not a
@@ -392,12 +389,12 @@ def _podping_coverage(podcast, enabled, active_domains):
     if podcast.get('podping_uses') == 1:
         return 'declared'
     domain = feed_url_domain(podcast.get('source_url') or '')
-    return 'host_active' if domain in active_domains else 'unseen'
+    return 'host_active' if domain and host_is_active(domain) else 'unseen'
 
 
 def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
-    enabled, active_domains = podping
+    enabled, host_is_active = podping
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
@@ -405,7 +402,7 @@ def _podcast_listing_fields(podcast, podping) -> dict:
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
         'lastPodpingAt': podcast.get('last_podping_at'),
-        'podpingCoverage': _podping_coverage(podcast, enabled, active_domains),
+        'podpingCoverage': _podping_coverage(podcast, enabled, host_is_active),
         'podpingUses': declaration['uses_podping'],
         'podpingHiveAccounts': declaration['hive_accounts'],
         'podpingCheckedAt': podcast.get('podping_checked_at'),
@@ -769,7 +766,7 @@ def get_feed(slug):
 
     return json_response({
         **_podcast_base_json(podcast, feed_url),
-        **_podcast_listing_fields(podcast, _podping_context_for_feed(db, podcast)),
+        **_podcast_listing_fields(podcast, _podping_context_for_feed(db)),
         'description': podcast.get('description'),
         'daiLikely': dai_likely,
         'websiteUrl': podcast.get('website_url'),

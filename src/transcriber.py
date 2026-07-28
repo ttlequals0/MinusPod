@@ -1518,9 +1518,9 @@ class Transcriber:
             if not preprocessed:
                 preprocessed_path = self.preprocess_audio(audio_path)
             transcribe_path = preprocessed_path if preprocessed_path else audio_path
-            if preprocessed_path:
-                # Clips must cover the file actually transcribed; loudnorm can
-                # shift the duration by tens of milliseconds.
+            if preprocessed_path and not vad_filter:
+                # The no-VAD clips must cover the file actually transcribed;
+                # loudnorm can shift the duration by tens of milliseconds.
                 audio_duration = (self.get_audio_duration(preprocessed_path)
                                   or audio_duration)
 
