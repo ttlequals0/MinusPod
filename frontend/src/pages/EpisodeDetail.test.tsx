@@ -818,9 +818,36 @@ describe('Kept segments section (2.78.3)', () => {
       keptMarkers: [{ start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' }],
     }));
     expect(await screen.findByTestId('kept-segments-section')).not.toBeNull();
-    expect(screen.getByText('Kept segments')).not.toBeNull();
+    expect(screen.getByText('Kept segments (1)')).not.toBeNull();
     expect(screen.getByText('Intro')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('offers a play button per row when the original audio is retained', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      hasOriginalAudio: true,
+      adMarkers: [],
+      keptMarkers: [
+        { start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' },
+        { start: 300.0, end: 330.0, confidence: 0.8, category: 'self_promo', actionApplied: 'keep' },
+      ],
+    }));
+    await screen.findByTestId('kept-segments-section');
+
+    expect(screen.getAllByRole('button', { name: /play|audition/i }).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('omits the play button when the original audio is gone', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      hasOriginalAudio: false,
+      adMarkers: [],
+      keptMarkers: [{ start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' }],
+    }));
+    await screen.findByTestId('kept-segments-section');
+
+    expect(screen.queryAllByRole('button', { name: /play|audition/i })).toHaveLength(0);
   });
 
   it('renders nothing when keptMarkers is empty', async () => {
@@ -829,7 +856,7 @@ describe('Kept segments section (2.78.3)', () => {
       expect(screen.getByText('Test Episode')).not.toBeNull();
     });
     expect(screen.queryByTestId('kept-segments-section')).toBeNull();
-    expect(screen.queryByText('Kept segments')).toBeNull();
+    expect(screen.queryByText(/^Kept segments/)).toBeNull();
   });
 
   it('renders nothing when keptMarkers is absent', async () => {

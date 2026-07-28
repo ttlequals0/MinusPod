@@ -9,6 +9,28 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.81.14] - 2026-07-27
+
+### Added
+
+- Kept segments on the episode page collapse, and each row has a play button.
+  The list was always open and unplayable, so a show with several kept
+  categories pushed the rest of the page down and gave no way to hear what had
+  been left in. It now matches Detections Not Cut next to it: a count in the
+  header, and the open or closed state is remembered. The play button uses the
+  retained original audio and only appears when that audio is still on disk.
+
+### Fixed
+
+- A verification-pass ad reported its category as the sponsor name, so the
+  logs read `Rejecting verification miss for 'self_promo'` and pattern
+  learning was handed a sponsor literally named after the category. The
+  sponsor scan falls back to any short string field that is not structural,
+  and while `type` and `classification` were on that exclusion list,
+  `category` was not. Nothing reached it until 2.81.13 started asking the
+  verification pass for a category. The two gates downstream rejected these
+  on their own merits, so no bad pattern was learned.
+
 ## [2.81.13] - 2026-07-27
 
 ### Added

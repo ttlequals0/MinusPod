@@ -452,3 +452,39 @@ class TestMergedSpanTakesTheDominantCategory:
             self._ad(110.0, 200.0, 'sponsor'),
         ])
         assert '_category_span' not in merged[0]
+
+
+class TestCategoryIsNotASponsorName:
+    """The sponsor scan falls back to any short string field, and 'category'
+    was not excluded, so a verification-pass ad reported sponsor='self_promo'."""
+
+    def _sponsor_for(self, ad):
+        parsed = parse_ads_from_response(json.dumps([ad]))
+        return parsed[0].get('sponsor') if parsed else None
+
+    def test_category_is_not_used_as_the_sponsor_name(self):
+        sponsor = self._sponsor_for({
+            'start': 10.0, 'end': 60.0, 'confidence': 0.95,
+            'category': 'self_promo',
+            'reason': 'Patreon promo',
+        })
+
+        assert sponsor != 'self_promo'
+
+    def test_a_real_sponsor_field_still_wins(self):
+        sponsor = self._sponsor_for({
+            'start': 10.0, 'end': 60.0, 'confidence': 0.95,
+            'category': 'sponsor', 'sponsor': 'Acme',
+            'reason': 'Acme host read',
+        })
+
+        assert sponsor == 'Acme'
+
+    def test_segment_type_is_not_used_either(self):
+        sponsor = self._sponsor_for({
+            'start': 10.0, 'end': 60.0, 'confidence': 0.95,
+            'segment_type': 'cross_promo',
+            'reason': 'Promo for another show',
+        })
+
+        assert sponsor != 'cross_promo'

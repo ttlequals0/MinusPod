@@ -1156,26 +1156,41 @@ function EpisodeDetail() {
       )}
 
       {episode.keptMarkers && episode.keptMarkers.length > 0 && (
-        <div className="bg-card rounded-lg border border-border p-6 mb-6" data-testid="kept-segments-section">
-          <h2 className="text-xl font-semibold text-foreground mb-4">
-            Kept segments
-          </h2>
-          <div className="space-y-3">
-            {episode.keptMarkers.map((segment, index) => (
-              <div
-                key={index}
-                className="p-3 bg-secondary/50 rounded-lg"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm">
-                    {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
-                  </span>
-                  {segment.category && <SegmentCategoryBadge category={segment.category} />}
-                  <KeptBadge />
+        <div className="mb-6" data-testid="kept-segments-section">
+          <CollapsibleSection
+            title={`Kept segments (${episode.keptMarkers.length})`}
+            subtitle="Detected, and left in the audio by your category actions"
+            defaultOpen={false}
+            storageKey="episode-kept-segments"
+          >
+            <div className="space-y-3">
+              {episode.keptMarkers.map((segment, index) => (
+                <div
+                  key={index}
+                  className="p-3 bg-secondary/50 rounded-lg"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    {episode.hasOriginalAudio && (
+                      <AuditionPlayButton
+                        playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
+                        onClick={() => markerAudition.toggle(
+                          `kept-${segment.start}-${segment.end}`,
+                          markerAudioUrl,
+                          segment.start,
+                          segment.end,
+                        )}
+                      />
+                    )}
+                    <span className="font-mono text-sm">
+                      {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                    </span>
+                    {segment.category && <SegmentCategoryBadge category={segment.category} />}
+                    <KeptBadge />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </CollapsibleSection>
         </div>
       )}
 

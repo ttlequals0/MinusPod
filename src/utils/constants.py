@@ -168,6 +168,11 @@ STRUCTURAL_FIELDS = frozenset({
     'confidence', 'end_text', 'is_ad', 'type', 'classification',
     'start_seconds', 'end_seconds', 'duration', 'duration_seconds',
     'music_bed', 'music_bed_confidence',
+    # 'category' joins its aliases 'type' and 'classification' here. The
+    # sponsor scan falls back to any short string field, so once the
+    # verification prompt started asking for a category, "self_promo" was
+    # being returned as the sponsor name.
+    'category', 'segment_type',
 })
 
 # Ordered list of field names to check for sponsor/advertiser name (priority order).
