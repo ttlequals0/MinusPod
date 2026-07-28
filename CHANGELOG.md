@@ -9,64 +9,31 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.15] - 2026-07-27
-
-### Fixed
-
-- The verification pass could only return four of the seven segment
-  categories. `intro`, `outro` and `recap` were missing from the prompt added
-  in 2.81.13, so pass 2 could never produce them even though Settings exposes
-  a per-category action for each.
-
-- `sponsor` doubled as "no stage classified this", which made a real sponsor
-  read indistinguishable from a marker nobody looked at. It is why an episode
-  could show four sponsor markers while the detection pass had reported five
-  different categories. An unset category is now left unset and shows as
-  Uncategorized in the UI, on episode markers and on patterns alike. Cutting
-  is unchanged: resolving a per-category action still reads an unknown
-  category as sponsor, which is the conservative choice.
-
-- Two detection stages built markers with no category at all and leaned on
-  that default. A dynamically inserted block and a foreign-language ad block
-  are paid ads by definition, so both now say so at the point of detection
-  rather than inheriting it downstream. Cue-pair markers stay uncategorized,
-  which is the honest answer for a stage that only matches audio cues.
-
-- Patterns created before the category column reported themselves as sponsor
-  reads. They now show as Uncategorized, so it is visible which patterns
-  predate the column instead of them being quietly counted as sponsors.
-
-- Auto-created patterns from a verification miss were gated on the advertiser
-  brand appearing at least twice in the window. A self-promo or interaction
-  segment has no advertiser brand to repeat, so the check rejected them for a
-  reason that never applied to them. It now runs only for sponsor reads.
-
-## [2.81.14] - 2026-07-27
+## [2.81.16] - 2026-07-27
 
 ### Added
 
-- Kept segments on the episode page collapse, and each row has a play button.
-  The list was always open and unplayable, so a show with several kept
-  categories pushed the rest of the page down and gave no way to hear what had
-  been left in. It now matches Detections Not Cut next to it: a count in the
-  header, and the open or closed state is remembered. The play button uses the
-  retained original audio and only appears when that audio is still on disk.
-
-### Fixed
-
-- A verification-pass ad reported its category as the sponsor name, so the
-  logs read `Rejecting verification miss for 'self_promo'` and pattern
-  learning was handed a sponsor literally named after the category. The
-  sponsor scan falls back to any short string field that is not structural,
-  and while `type` and `classification` were on that exclusion list,
-  `category` was not. Nothing reached it until 2.81.13 started asking the
-  verification pass for a category. The two gates downstream rejected these
-  on their own merits, so no bad pattern was learned.
-
-## [2.81.13] - 2026-07-27
-
-### Added
-
+- Feeds show whether Podping covers them. The line reads `Podping: last ping at
+  <time>` once a notification has arrived for that feed, `Podping: enabled, none
+  received yet` when the feed's own tag declares `usesPodping="true"` but nothing
+  has come in, and `Podping: never` otherwise. It stays hidden while the listener
+  is off, since that is an instance-wide setting rather than a fact about the
+  feed. The list views show a shorter form of the same line.
+- MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
+  accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
+  and MinusPod ignores podpings for that feed from anyone else. A feed
+  carrying `usesPodping="false"` is asking to be polled, so MinusPod skips
+  podping refreshes for it and reports it as declined. Feeds that say nothing
+  accept any sender, since the tag is optional and there is nothing to check
+  against. Scheduled polling stays the fallback either way, and the global
+  Podping toggle is still the master switch.
+- Ad length limits are settings now, global and per feed, in the UI and the
+  API. "Ad length needing a confirmed sponsor" (default 300s) and "Longest ad
+  to cut at all" (default 900s) sit in Settings under ad detection, and a feed
+  can override the first from its settings panel. A show with long ad blocks no
+  longer depends on the defaults happening to suit it. The two are validated
+  against each other: the confirmation threshold cannot be set above the hard
+  ceiling, since that would make confirming a sponsor shorten what may be cut.
 - The sound that plays where an ad was cut can be changed from Settings, under
   Audio. The section plays the current file, states its length, channels and
   sample rate, and takes an upload of MP3, WAV, M4A, OGG or FLAC. Uploads are
@@ -81,48 +48,18 @@ release notes.
 
   New endpoints: `GET`, `POST` and `DELETE /settings/replacement-audio`, plus
   `GET /settings/replacement-audio/file` for the preview.
-
-### Fixed
-
-- An uploaded replacement now survives a redeploy and applies without a
-  restart. Two things stood in the way. `assets/` is copied into the image by
-  the Dockerfile and is only a bind mount if the operator uncomments it, so
-  anything written there is lost on the next pull; uploads go to the data
-  volume instead. And the path was resolved once at import into a module
-  constant, so a swapped file kept rendering the old sound until the container
-  restarted. It is resolved per call now, and the duration used to place
-  chapters and cues reads the same path the renderer does, so the two cannot
-  disagree.
-
-## [2.81.12] - 2026-07-27
-
-### Added
-
-- Feeds show whether Podping covers them. The line reads `Podping: last ping at
-  <time>` once a notification has arrived for that feed, `Podping: enabled, none
-  received yet` when the feed's own tag declares `usesPodping="true"` but nothing
-  has come in, and `Podping: never` otherwise. It stays hidden while the listener
-  is off, since that is an instance-wide setting rather than a fact about the
-  feed. The list views show a shorter form of the same line.
-- Ad length limits are settings now, global and per feed, in the UI and the
-  API. "Ad length needing a confirmed sponsor" (default 300s) and "Longest ad
-  to cut at all" (default 900s) sit in Settings under ad detection, and a feed
-  can override the first from its settings panel. A show with long ad blocks no
-  longer depends on the defaults happening to suit it.
+- Kept segments on the episode page collapse, and each row has a play button.
+  The list was always open and unplayable, so a show with several kept
+  categories pushed the rest of the page down and gave no way to hear what had
+  been left in. It now matches Detections Not Cut next to it: a count in the
+  header, and the open or closed state is remembered. The play button uses the
+  retained original audio and only appears when that audio is still on disk.
 - The feeds API reports the fuller picture the line no longer shows.
   `podpingCoverage` separates a publisher opt-out, a publisher opt-in with no
   ping yet, a host seen pinging other feeds, and nothing known, and the parsed
   declaration comes back as `podpingUses` and `podpingHiveAccounts`. A feed
   declaring `usesPodping="true"` previously got no credit for it anywhere,
   since the value was stored and never read back.
-- MinusPod reads the upstream `<podcast:podping>` tag. A feed can name the
-  accounts allowed to podping it with `<podcast:hiveAccount account="...">`,
-  and MinusPod ignores podpings for that feed from anyone else. A feed
-  carrying `usesPodping="false"` is asking to be polled, so MinusPod skips
-  podping refreshes for it and reports it as declined. Feeds that say nothing
-  accept any sender, since the tag is optional and there is nothing to check
-  against. Scheduled polling stays the fallback either way, and the global
-  Podping toggle is still the master switch.
 - `GET /api/v1/podping/hosts` lists the domains the listener has seen sending
   podpings, with first and last seen times, a ping count, and whether each
   falls inside the active window. Counts are aggregated per domain as the
@@ -138,18 +75,24 @@ release notes.
   came down to which side of a fixed 0.90 confidence line it landed on. One
   episode's 415-second break was cut at 0.90. The next episode's 374-second
   break was dropped just under it.
+- A sponsor named in a long ad's own audio counts as confirmation of the read,
+  but it now takes two mentions rather than one. A misdetected span of several
+  minutes will often contain one organic brand mention, which is not evidence
+  of an ad read; a real read names its advertiser at least twice, the same bar
+  pattern learning already applies.
 - A feed's description is shown in full on its detail page instead of being
   clipped to three lines.
 - Links in feed and episode descriptions are clickable. Descriptions were
   flattened to plain text, which dropped the target of a link whose text is a
   name rather than a URL, and left bare URLs unclickable. Both now render as
-  links, opening in a new tab. Only http, https, and mailto targets are
+  links, opening in a new tab. Only absolute http, https, and mailto targets are
   followed, so a javascript: or data: link in a publisher's feed stays inert
-  text. Descriptions are rebuilt as page elements rather than injected as
-  markup, so nothing in a feed can inject content into the page.
+  text, and a relative link that would resolve against MinusPod's own address
+  is left as plain text. Descriptions are rebuilt as page elements rather than
+  injected as markup, so nothing in a feed can inject content into the page.
 - Paragraphs and list items in an episode description no longer run together.
   Flattening the markup concatenated them, so the end of one paragraph
-  collided with the start of the next.
+  collided with the start of the next. Table cells are separated too.
 - Dependency updates, rolled in from the ten open Dependabot pull requests
   rather than merged one at a time. Python: anthropic 0.117.0 to 0.120.0,
   openai 2.46.0 to 2.48.0. Frontend: recharts 3.9.2 to 3.10.1, swagger-ui-dist
@@ -161,44 +104,74 @@ release notes.
 
 ### Fixed
 
-- The bar chart tooltip on the stats page was unreadable and its hover
-  highlight looked like a second bar (#592). The value line kept the charting
-  library's dark default text on a dark card, and no hover cursor was set, so
-  the default light grey rect showed through at full strength. The tooltip now
-  takes the card's foreground colour and the cursor is the same subtle
-  theme-tinted fill the per-feed distribution chart already used.
+- The per-feed ad length override was stored, echoed back by the API and
+  documented, but never applied. The pipeline built its validator without the
+  feed's id, so every stage silently read the global setting instead. Raising
+  the limit on a show with long ad blocks did nothing until now. The per-feed
+  floor is 30 seconds, matching the global setting; a one-second value would
+  have held every ad on the feed.
+- `sponsor` doubled as "no stage classified this", which made a real sponsor
+  read indistinguishable from a marker nobody looked at. It is why an episode
+  could show four sponsor markers while the detection pass had reported five
+  different categories. An unset category is now left unset and shows as
+  Uncategorized in the UI, on episode markers and on patterns alike, including
+  the patterns that predate the category column. Cutting is unchanged:
+  resolving a per-category action still reads an unknown category as sponsor,
+  which is the conservative choice.
+- Two detection stages built markers with no category at all and leaned on
+  that default. A dynamically inserted block and a foreign-language ad block
+  are paid ads by definition, so both now say so at the point of detection
+  rather than inheriting it downstream. Cue-pair markers stay uncategorized,
+  which is the honest answer for a stage that only matches audio cues.
+- The verification pass could only return four of the seven segment
+  categories, so pass 2 could never produce `intro`, `outro` or `recap` even
+  though Settings exposes a per-category action for each.
+- A merged marker took the category of whichever member happened to sort
+  first. One episode detected a sponsor read, a self-promo and a cross-promo
+  and labelled all four surviving markers "sponsor". The label now goes to the
+  member that classified the most audio, counting only the audio that member
+  actually covered, and a member naming nothing, or naming something outside
+  the vocabulary, never displaces one that named a real category.
+- A verification-pass ad reported its category as the sponsor name, so the
+  logs read `Rejecting verification miss for 'self_promo'` and pattern
+  learning was handed a sponsor literally named after the category. The
+  sponsor scan falls back to any short string field that is not structural,
+  and while `type` and `classification` were on that exclusion list,
+  `category` was not. The two gates downstream rejected these on their own
+  merits, so no bad pattern was learned.
+- Auto-created patterns from a verification miss were gated on the advertiser
+  brand appearing at least twice in the window. A self-promo or interaction
+  segment has no advertiser brand to repeat, so the check rejected them for a
+  reason that never applied to them. It now runs only for sponsor reads.
+- The window-continuation note the prompt asks the model for ("continues in
+  next") reached the sponsor slot, and a note with anything after the phrase
+  still did: the phrase was stripped and whatever followed was kept, so
+  "continues in next window" became a sponsor named "window". A value that
+  opens with a continuation note is refused outright.
+- A marker could be left saying only its sponsor name, and a long ad with that
+  shape was dropped outright. The name is both a prefix of its own description
+  and a full word subset of it, so the duplicate check discarded the
+  description that explained the read. The evidence gate then found nothing in
+  the bare name and rejected the ad. A description that opens with the sponsor
+  name no longer repeats it either, so a marker reads "Acme: ad for listeners"
+  rather than "Acme: Acme ad for listeners". The gate also now recognizes the
+  pluralized field name the model sometimes uses for the sponsor.
 - Prompt improvements never reached an existing install. Seeding inserted each
   prompt row once and never touched it again, while the row stayed flagged as a
   default, so an install kept whatever prompt shipped when its database was
   created. The refresh runs on every boot: the seeding path it would naturally
   belong to returns early on any database that already has feeds in it, which
-  is every install that needs this. One instance was running an 8442-character system prompt with no
-  category section against a shipped default of 10408 that requires a category
-  on every ad, which is why per-category actions never applied there. A row
-  still flagged as a default now tracks the shipped text at startup; a prompt
-  you edited is yours and is left alone.
+  is every install that needs this. An install can be running an
+  8442-character system prompt with no category section against a shipped
+  default of 10408 that requires a category on every ad, which is why
+  per-category actions never applied there. A row still flagged as a default
+  now tracks the shipped text at startup; a prompt you edited is yours and is
+  left alone.
 - A self-promo or listener-support read has no advertiser, so the show's own
   name ended up in the sponsor slot, and from there in pattern learning and
   same-sponsor merging. It is rejected there now, matched with separators
   stripped so a run-together rendering still counts. Only an exact match is
   refused, so a brand that merely contains the show's name survives.
-- The verification pass never asked for a segment category, so every ad it
-  found arrived without one and fell back to the sponsor default even on a
-  provider that answers the first pass perfectly. It now asks for the same
-  four values the detection pass does, and says that a fragment left behind by
-  a cut takes the category of the ad it belonged to.
-- A merged marker took the category of whichever member happened to sort
-  first. One episode detected a sponsor read, a self-promo and a cross-promo
-  and labelled all four surviving markers "sponsor". The category now comes
-  from the member covering the most audio, and a member that named no category
-  never displaces one that did. Actions cannot conflict here, since a
-  keep-resolving span is split out before the merge.
-- The LLM benchmark now measures whether a model names a segment category, and
-  no longer penalizes the ones that do. "category" was absent from both the
-  required and the known-optional key sets, so a model omitting it was counted
-  as missing nothing while a model emitting it took an extra-key violation. It
-  resolves the category the same way the live parser does, so the report says
-  which models answer it and how much the parser's fallback is carrying.
 - A segment category was only read from a field named exactly "category",
   while start, end and the sponsor name are all matched however the model
   spells them. Only Anthropic enforces the schema, so elsewhere the model
@@ -225,14 +198,13 @@ release notes.
   piece of an advice segment was held for review. A real read described as
   having no promo code is still kept: the guard needs a content noun.
 - A whole ad break could be dropped for being long. An ad over five minutes is
-  rejected unless its sponsor is "confirmed", and the only thing that counted
-  as confirmation was the episode description, which many shows do not use for
+  rejected unless its sponsor is confirmed, and the only thing that counted as
+  confirmation was the episode description, which many shows do not use for
   sponsors. A 374-second break naming two sponsors from the registry was
   rejected as too long, and the verification pass, which found the same break
-  independently and named all four advertisers in it, could not rescue it. A
-  sponsor named in the ad's own audio now counts as confirmation. The evidence
-  has to be in the transcript, not the detector's description of it, so a
-  passing mention in prose cannot lift the cap.
+  independently and named all four advertisers in it, could not rescue it. The
+  ad's own audio counts as evidence now; the transcript is what is read, not
+  the detector's description of it.
 - Restoring full ad descriptions stopped the detector learning patterns from
   them. A description that mentions the transcript in passing ("overlapping
   timestamps in transcript") was classified as model reasoning rather than an
@@ -241,51 +213,95 @@ release notes.
   still decides at any length.
 - A word beginning with "ad" was read as the start of an advertisement, so
   "mailing address" stored "mailing" as the sponsor.
-- The window-continuation note the prompt asks the model for ("continues from
-  previous") reached the sponsor slot and the start of the marker text a
-  reader sees. It is dropped when the field is read.
+- An uploaded replacement now survives a redeploy and applies without a
+  restart. Two things stood in the way. `assets/` is copied into the image by
+  the Dockerfile and is only a bind mount if the operator uncomments it, so
+  anything written there is lost on the next pull; uploads go to the data
+  volume instead. And the path was resolved once at import into a module
+  constant, so a swapped file kept rendering the old sound until the container
+  restarted. It is resolved per call now, and the duration used to place
+  chapters and cues reads the same path the renderer does, so the two cannot
+  disagree.
+- Replacement audio uploads are restricted to the formats the page advertises.
+  ffmpeg decodes far more than those five, including playlist containers that
+  point at other files on the server, and a container is now checked before
+  anything is transcoded. Removing the current upload while a render is running
+  no longer fails that render: it falls back to the shipped sound.
 - A podping sent while the container was restarting was lost. The listener
   resumed at the chain head, and a podping is never resent, so every deploy
   left a gap. It now records the last block it read and resumes there, still
-  skipping a catch-up wider than the existing cap.
+  skipping a catch-up wider than the existing cap, and writes its position on
+  shutdown rather than only on the flush cadence.
+- The Podping listener never acted on a single notification. It only accepted
+  senders reachable from the `podping` account's posting authorities, but all
+  live traffic comes from `podping.aaa` through `podping.eee`, which have their
+  own keys and appear in no account's authority list. Every real podping was
+  dropped, silently, since the listener shipped in 2.77.1. Measuring 25
+  consecutive Hive blocks found 41 podpings and all 41 were rejected. The
+  reference watcher had already abandoned this check; MinusPod now does the
+  same and filters on the operation id. An operation signed with active
+  authority rather than posting authority is accepted as well.
 - The host coverage table ignored any notification whose reason the listener
   does not act on, so a sender using one would have been invisible. Hosts are
-  counted from all traffic; only the feed refresh is gated on the reason.
-- Importing the app started the RSS refresh, queue processor and podping
-  listener, which under test ran against the test database and made results
-  depend on which module started first. They are not started under pytest.
-- A marker could be left saying only its sponsor name, and a long ad with that
-  shape was dropped outright. The name is both a prefix of its own description
-  and a full word subset of it, so the duplicate check discarded the
-  description that explained the read. The evidence gate then found nothing in
-  the bare name and rejected the ad. In production a 149-second sponsor read
-  went this way, surviving only because an overlapping detection window caught
-  it independently. The gate also now recognizes the pluralized field name the
-  model sometimes uses for the sponsor.
+  counted from all traffic; only the feed refresh is gated on the reason. The
+  table is bounded, since anyone can podping any address: a single flush adds
+  at most 500 domains and the table keeps the 10,000 most recently seen.
+- The listener wrote more than it needed to. It stamped the last-ping time on
+  every matching notification rather than once per cooldown, rewrote its block
+  position every three seconds once the host buffer went quiet, reloaded every
+  feed's episode counts once a minute to read two columns, and re-read one
+  already-processed block on a restart that was already caught up.
+- A feed's `<podcast:podping>` declaration was never read in steady state. The
+  tag is parsed from the feed body, but a refresh that gets a 304 has no body
+  and returns early, and most refreshes are 304s because a feed's RSS rarely
+  changes. So the declaration stayed unread until a feed happened to publish,
+  which left the per-feed `hiveAccount` authorization inert on every existing
+  feed. A 304 now forces one full fetch when the declaration has never been
+  read, the same way a missing cached artwork already does, and records it on
+  the first fetch that succeeds.
+- The tail re-transcription failed on the local Whisper backend for any span
+  of 30 seconds or more. When a quiet post-roll falls outside Whisper's VAD the
+  transcript ends early, and the pass that re-reads that tail with VAD off
+  failed with "No clip timestamps found", because the batched pipeline builds
+  its chunks from VAD output and had none. Shorter tails used faster-whisper's
+  own single-clip fallback and were unaffected. The no-VAD path now supplies
+  its own 30 second clips covering the whole span, measured against the file
+  actually transcribed, so a quiet tail gets transcribed and reviewed instead
+  of reaching the detector with no text.
+- A failed tail re-transcription logged the same line as a tail that held no
+  speech, so the failure only showed up if you grepped for the transcriber's
+  own error. The two now log differently.
 - An episode row left in 'processing' by a killed worker only healed on the
   next restart. The queue drainer's waiter polled the row's status alone, so it
   sat on a job nothing was running for the full hard timeout, two hours by
   default, then requeued and waited again. It now notices that no worker holds
   the processing lock and requeues straight away. The reconciler that resets
-  those rows also runs on the drainer's periodic sweep, not only at startup.
-- The window prompt asks the model to note "continues in next" when an ad
-  crosses a window edge, and a note is one of the fields searched for a sponsor
-  name, so that phrase was stored as the advertiser and offered to pattern
-  learning as one. Continuation notes are rejected as sponsor values.
+  those rows also runs on the drainer's periodic sweep, not only at startup,
+  and skips any episode that currently holds the lock, so a slow transcription
+  is not mistaken for a crash. A run that finishes clears the crash message an
+  earlier sweep left on the row.
+- Cancelling an episode marked its queue row failed, and the retry ladder then
+  re-ran the episode the user had just cancelled. A cancel closes the queue row
+  now.
 - A reprocess that auto-approved a held marker completed twice, writing two
   history rows and sending two notifications for one action. The second row
   carried no detection stats, because a recut does no detection. The pipeline
-  finalized the run, then approved the holds and recut, and the recut
-  finalized again. Approvals are
-  now filed before the run finalizes and applied by the run's own recut, so
-  one reprocess is one completion carrying the post-approval numbers.
+  finalized the run, then approved the holds and recut, and the recut finalized
+  again. Approvals are now filed before the run finalizes and applied by the
+  run's own recut, so one reprocess is one completion carrying the
+  post-approval numbers. If that recut fails, the run still finalizes the audio
+  it already rendered rather than discarding it and reporting a failure.
 - An episode a listener asked for while the worker was busy was never
   processed. The just-in-time path recorded it only in the status file the UI
   reads, which nothing drains, so "queued at position 1" was display only and
   the episode depended on the client retrying at a moment the worker was free.
   It now goes on the work queue the background drainer reads. A play request is
   also marked user-requested, without which the drainer discards it on feeds
-  with auto-processing turned off, as the feed this surfaced on had.
+  with auto-processing turned off. A client polling that request every minute
+  no longer resets the queue's retry count on each poll.
+- Importing the app started the RSS refresh, queue processor and podping
+  listener, which under test ran against the test database and made results
+  depend on which module started first. They are not started under pytest.
 - The no-parser fallback for rendering descriptions stripped tags in a single
   pass, which leaves a live tag for input like `<scr<script>ipt>`. It reuses
   the shared helper that strips until the text stops changing. Flagged by
@@ -296,12 +312,13 @@ release notes.
   four sponsors on ordinary speech that way, a 22-character outro landing on
   "feel. you know, you do" and a 21-character one on "what is your website?".
   The score a phrase must reach now rises as the phrase gets shorter, so a
-  short one has to be near-verbatim. All four measured false positives fall
-  below the new bar; the genuine match in the same episode, a 156-character
-  phrase, still matches. All four came from community patterns, whose variants
-  are stored verbatim, so a length floor at learning time would not catch them:
-  locally learned variants already require 20 words for an intro, 15 for an
-  outro.
+  short one has to be near-verbatim, and a variant under 20 characters is not
+  matched at all: an exact substring scores full marks whatever the threshold.
+  All four measured false positives fall below the new bar; the genuine match
+  in the same episode, a 156-character phrase, still matches. All four came
+  from community patterns, whose variants are stored verbatim, so a length
+  floor at learning time would not catch them: locally learned variants
+  already require 20 words for an intro, 15 for an outro.
 - A pattern match is timed against the words it aligned to rather than the
   start of the block it was found in, which was placing matches off the ad.
 - A held pattern marker named only its sponsor and pattern id, which left a
@@ -330,32 +347,27 @@ release notes.
   whole, and long reasons and reviewer notes clamp to a few lines with a
   control to see the rest. Markers detected before this release keep whatever
   text was stored for them; only a reprocess recovers the full wording.
-- A feed's `<podcast:podping>` declaration was never read in steady state. The
-  tag is parsed from the feed body, but a refresh that gets a 304 has no body
-  and returns early, and most refreshes are 304s because a feed's RSS rarely
-  changes. So the declaration stayed unread until a feed happened to publish,
-  which left the per-feed `hiveAccount` authorization inert on every existing
-  feed. A 304 now forces one full fetch when the declaration has never been
-  read, the same way a missing cached artwork already does, and records that it
-  did, so the extra fetch happens once per feed rather than every time.
-- The Podping listener never acted on a single notification. It only accepted
-  senders reachable from the `podping` account's posting authorities, but all
-  live traffic comes from `podping.aaa` through `podping.eee`, which have their
-  own keys and appear in no account's authority list. Every real podping was
-  dropped, silently, since the listener shipped in 2.77.1. Measuring 25
-  consecutive Hive blocks found 41 podpings and all 41 were rejected. The
-  reference watcher had already abandoned this check; MinusPod now does the
-  same and filters on the operation id.
-- The tail re-transcription never ran on the local Whisper backend. When a
-  quiet post-roll falls outside Whisper's VAD the transcript ends early, and
-  the pass that re-reads that tail with VAD off failed with "No clip
-  timestamps found", because the batched pipeline builds its chunks from VAD
-  output and had none. The no-VAD path now supplies its own 30 second clips
-  covering the whole span, so a quiet tail gets transcribed and reviewed
-  instead of reaching the detector with no text.
-- A failed tail re-transcription logged the same line as a tail that held no
-  speech, so the failure only showed up if you grepped for the transcriber's
-  own error. The two now log differently.
+- The three ad-length fields in Settings rejected any keystroke that left the
+  value below the floor, so selecting "300" and typing "120" reverted the field
+  on the first digit and mangled the rest of the entry. They accept a typed
+  value and clamp it when you leave the field.
+- The bar chart tooltip on the stats page was unreadable and its hover
+  highlight looked like a second bar (#592). The value line kept the charting
+  library's dark default text on a dark card, and no hover cursor was set, so
+  the default light grey rect showed through at full strength. The tooltip now
+  takes the card's foreground colour and the cursor is the same subtle
+  theme-tinted fill the per-feed distribution chart already used.
+- A pattern id in marker text linked to the wrong place when the text held
+  more than one.
+- The play button on a kept segment announced itself as "Play this ad" to a
+  screen reader, on rows the section describes as content kept on purpose.
+- The LLM benchmark now measures whether a model names a segment category, and
+  no longer penalizes the ones that do. "category" was absent from both the
+  required and the known-optional key sets, so a model omitting it was counted
+  as missing nothing while a model emitting it took an extra-key violation. It
+  resolves the category the same way the live parser does, and the report says
+  which resolver scored the run, since an environment that cannot import the
+  app falls back to a simpler check.
 - The Podping host coverage list in the Podcasting 2.0 docs was stale and
   incomplete. It named seven hosts; measuring three days of Podping traffic
   on the Hive chain found thirteen, including PodServe, which sends more
