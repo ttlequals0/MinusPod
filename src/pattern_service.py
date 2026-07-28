@@ -891,14 +891,9 @@ class PatternService:
                     )
                     continue
 
-                # Final occurrence-count gate against the actual transcript
-                # window. The brand should appear at least twice in any real
-                # sponsor read (intro + outro). Reuses count_brand_occurrences
-                # so aliases and whitespace variants both count.
-                #
-                # Sponsor reads only. A self-promo or interaction segment has
-                # no advertiser brand to repeat, so counting one rejected them
-                # for a reason that never applied.
+                # Occurrence gate against the transcript window: a real sponsor
+                # read names the brand at least twice (intro + outro). Sponsor
+                # reads only, since a self-promo has no advertiser to repeat.
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
                 category = ad.get('category')

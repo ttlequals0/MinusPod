@@ -1174,10 +1174,9 @@ class AdDetector:
                 f"resolved {repaired}/{len(missing)}"
             )
         if repaired == 0 and response.content:
-            # Nothing usable came back and the parser found no entries to
-            # reject either, so the response is not the shape it asks for at
-            # all. Only Anthropic enforces the schema; log what arrived so
-            # this is diagnosable instead of a bare zero.
+            # No entries parsed and none rejected: the response is not the
+            # shape asked for. Only Anthropic enforces the schema, so log what
+            # arrived rather than reporting a bare zero.
             logger.warning(
                 f"[{slug}:{episode_id}] {window_label} category repair "
                 f"returned nothing usable for {len(missing)} segment(s); "
@@ -2418,15 +2417,10 @@ class AdDetector:
 
         merged = self._merge_overlapping_accepted_duplicates(merged, action_map=action_map)
 
-        # Sanitize every surviving marker's sponsor: strips reasoning prose
-        # and bare segment names the merge above didn't already clean up
-        # (e.g. a marker that never went through either merge pass). Also the
-        # Single point that validates a segment category. An unset category is
-        # left unset rather than stamped 'sponsor': a marker from a stage that
-        # never classifies (cue_pair) or a pattern predating the category
-        # column is genuinely unknown, and recording it as a sponsor read made
-        # "sponsor" indistinguishable from "nobody looked". Cutting is
-        # unaffected, since action resolution still reads unknown as sponsor.
+        # Single point that sanitizes a sponsor label and validates a category.
+        # An unset category stays unset: stamping it 'sponsor' made a real
+        # sponsor read indistinguishable from one nothing classified. Cutting
+        # is unaffected, action resolution still reads unset as sponsor.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(
                 marker.get('sponsor'), show_name=podcast_name)

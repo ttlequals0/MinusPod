@@ -595,10 +595,9 @@ def _repair_index(value):
     return None
 
 
-# Spelled-out forms of the exact vocabulary. The model reaches for the long
-# word ("self-promotion") as readily as the short one, and they mean the same
-# thing. Nothing here invents a category: a position word like "pre-roll" or a
-# bare "ad" is still refused.
+# Spelled-out forms of the exact vocabulary: the model reaches for
+# "self-promotion" as readily as "self_promo". A position word like "pre-roll"
+# or a bare "ad" is still refused.
 _CATEGORY_ALIASES = {
     'self_promotion': 'self_promo',
     'selfpromo': 'self_promo',

@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 
 from utils.time import utc_now_iso
 
-from .. import pricing
+from .. import metrics, pricing
 from ..corpus import Episode
 from .aggregate import (
     CALIBRATION_BIN_LABELS,
@@ -358,7 +358,8 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
             pct = 100.0 * s.category_present_total / categorized
             lines.append(
                 f"- Segment category named on {s.category_present_total}/{categorized} "
-                f"detections ({pct:.0f}%); the rest fall back to the sponsor default"
+                f"detections ({pct:.0f}%); the rest stay uncategorized "
+                f"(resolver: {metrics.CATEGORY_RESOLVER})"
             )
         if s.extra_key_names:
             lines.append(f"- Extra keys observed: {', '.join(sorted(s.extra_key_names))}")

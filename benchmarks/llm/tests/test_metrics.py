@@ -1,5 +1,6 @@
 import pytest
 
+from benchmark import metrics
 from benchmark.metrics import (
     BoundaryError,
     NoAdResult,
@@ -205,3 +206,33 @@ class TestCategoryCompliance:
         v = schema_audit([{"start": 1.0, "end": 2.0}])
         assert v.missing_required == 0
         assert v.category_missing == 1
+
+
+class TestFallbackCategoryResolver:
+    """When the app package is not importable the fallback has to score the
+    same vocabulary production does, and say that it ran."""
+
+    def _fallback(self, monkeypatch, ad):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def no_app(name, *args, **kwargs):
+            if name.startswith("ad_detector"):
+                raise ImportError("app package unavailable")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", no_app)
+        monkeypatch.setattr(metrics, "CATEGORY_RESOLVER", "production")
+        return schema_audit([ad])
+
+    def test_a_category_outside_the_vocabulary_is_not_present(self, monkeypatch):
+        v = self._fallback(monkeypatch, {"start": 1.0, "end": 2.0,
+                                         "category": "advertisement"})
+        assert (v.category_present, v.category_missing) == (0, 1)
+        assert metrics.CATEGORY_RESOLVER == "fallback"
+
+    def test_a_known_category_is_still_present(self, monkeypatch):
+        v = self._fallback(monkeypatch, {"start": 1.0, "end": 2.0,
+                                         "category": "self_promo"})
+        assert v.category_present == 1

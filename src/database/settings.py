@@ -187,12 +187,9 @@ class SettingSpec:
     payload_kind:   coercion for the defaults block: str|bool|int|float.
     payload_factory: overrides payload_kind coercion entirely.
     refresh_default: re-seed this key from the shipped default on startup
-                    while the row is still flagged is_default. Set on the
-                    prompts: they are shipped text, and seeding only ever
-                    inserted, so an install kept whatever prompt existed when
-                    its database was created and never saw a later
-                    improvement. A user-edited row (is_default = 0) is never
-                    touched.
+                    while the row is still flagged is_default, so an install
+                    picks up later improvements to shipped prompt text. A
+                    user-edited row (is_default = 0) is never touched.
     """
     default: Optional[str] = None
     env: Optional[str] = None

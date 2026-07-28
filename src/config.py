@@ -51,9 +51,9 @@ HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # _gate_verification_ads_by_confidence's fall-through in processing.py).
 HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
 
-# Segment categories (issue #565): what kind of content a marker spans.
-# normalize_segment_category stamps this at the ad_detector merge seam, so
-# 'category' is always one of these regardless of the producing stage.
+# Segment categories (issue #565): what kind of content a marker spans. A
+# marker may carry none: unset means no stage classified it, and only action
+# resolution defaults (see normalize_segment_category).
 SEGMENT_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction',
                       'intro', 'outro', 'recap')
 SEGMENT_ACTIONS = ('remove', 'beep', 'keep')

@@ -804,11 +804,9 @@ class AdValidator:
             self._mark_held(ad, flags, HOLD_REASON_MAX_DURATION)
             return Decision.REVIEW
 
-        # Rule 1b: a reject whose only fault is length is held, not dropped.
-        # It cleared every other check, and a plain reject leaves no marker at
-        # all, so a whole ad break disappeared with nothing to review. Applies
-        # to the global ceiling too, not just a per-feed cap. Low-confidence
-        # junk and non-duration errors (NOT_AD etc.) stay rejected.
+        # Rule 1b: a reject whose only fault is length is held, not dropped,
+        # since a plain reject leaves no marker and a whole ad break vanished
+        # with nothing to review. Low-confidence junk still rejects.
         if decision == Decision.REJECT and confidence >= REJECT_CONFIDENCE:
             error_flags = [f for f in flags if 'ERROR' in f]
             if error_flags and all('Very long' in f for f in error_flags):

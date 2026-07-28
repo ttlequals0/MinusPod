@@ -212,10 +212,9 @@ def background_queue_processor():
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
                         elif episode and episode['status'] == 'processing':
-                            # Still processing - don't mark as failed, let it continue.
-                            # Put back in queue to check again later; the next
-                            # claim restarts an orphan, since acquiring the lock
-                            # is what gates a start, not the row's status.
+                            # Still running: requeue rather than fail. The next
+                            # claim restarts an orphan, since the lock gates a
+                            # start, not the row's status.
                             db.update_queue_status(queue_id, 'pending')
                             if queue.is_processing(slug, episode_id):
                                 refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {waited}s, will check again later")

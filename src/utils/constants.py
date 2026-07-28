@@ -73,23 +73,18 @@ SPONSOR_REASONING_SUBSTRINGS = (
     'gap in transcript', 'volume anomaly',
 )
 
-# The substrings above identify text that is nothing but a rationale, so they
-# only decide for text short enough to be one. A full ad description runs to
-# hundreds of characters and can mention the transcript in passing ("Overlapping
-# timestamps in transcript ... appear to be duplicated audio channel text")
-# without being a rationale. A rationale-shaped prefix still decides at any
-# length.
+# The substrings above only decide for text short enough to be nothing but a
+# rationale; a full description can mention the transcript in passing. A
+# rationale-shaped prefix still decides at any length.
 SPONSOR_RATIONALE_SUBSTRING_MAX_CHARS = 200
 SPONSOR_MAX_NAME_CHARS = 60
 
 # Backstop on the detector's free-text reason. Generous on purpose: the old
-# 300/150 caps put a literal "..." in the UI with no fuller text behind it
-# (#591). This only guards against a pathological model response.
+# 300/150 caps put a literal "..." in the UI with nothing behind it (#591).
 REASON_DESCRIPTION_MAX = 2000
 
 # Max chars of quoted transcript text carried into a pattern match reason.
-# Above the phrase-variant cap, so a real quote is never cut down to a dangling
-# "..." the way #591's reasons were; only a pathological alignment trips it.
+# Above the phrase-variant cap, so only a pathological alignment trips it.
 PATTERN_EVIDENCE_MAX_CHARS = 220
 
 
@@ -168,10 +163,8 @@ STRUCTURAL_FIELDS = frozenset({
     'confidence', 'end_text', 'is_ad', 'type', 'classification',
     'start_seconds', 'end_seconds', 'duration', 'duration_seconds',
     'music_bed', 'music_bed_confidence',
-    # 'category' joins its aliases 'type' and 'classification' here. The
-    # sponsor scan falls back to any short string field, so once the
-    # verification prompt started asking for a category, "self_promo" was
-    # being returned as the sponsor name.
+    # 'category' and its aliases: the sponsor scan falls back to any short
+    # string field, so "self_promo" was being returned as the sponsor name.
     'category', 'segment_type',
 })
 

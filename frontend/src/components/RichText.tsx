@@ -3,12 +3,8 @@ import { ReactNode } from 'react';
 import { stripHtml } from '../utils/stripHtml';
 
 /**
- * Renders a feed or episode description with its links intact.
- *
- * Descriptions arrive as publisher HTML. Two shapes matter: real anchors whose
- * text is often a person's name rather than the URL, and bare URLs sitting in
- * plain text. Flattening to textContent loses the first and leaves the second
- * unclickable, so both are handled here.
+ * Renders a feed or episode description with its links intact: real anchors
+ * whose text is often a person's name, and bare URLs in plain text.
  *
  * Nothing is injected as HTML. The input is parsed, then rebuilt as React
  * elements with only http, https, and mailto hrefs allowed through, so a

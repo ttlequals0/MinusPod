@@ -20,6 +20,9 @@ def truncate(text: str, limit: int) -> str:
     """Cut text to limit characters, ellipsis included in the count."""
     if not text or len(text) <= limit:
         return text
+    # No room for the ellipsis: text[:limit - 3] would slice from the end.
+    if limit <= 3:
+        return text[:max(limit, 0)]
     return text[:limit - 3].rstrip() + '...'
 
 

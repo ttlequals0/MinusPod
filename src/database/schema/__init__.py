@@ -1258,9 +1258,8 @@ class SchemaMixin:
             logger.error(f"env-backed settings migration failed: {e}")
 
         # Shipped prompts track the current default while the row is still
-        # flagged is_default. Runs on every boot, idempotent, and deliberately
-        # not in _seed_default_settings: that path returns early on any
-        # database with podcasts in it, which is every install that needs this.
+        # flagged is_default. Not in _seed_default_settings: that path returns
+        # early on any database with podcasts in it.
         try:
             self._refresh_shipped_prompt_defaults(conn)
         except Exception as e:

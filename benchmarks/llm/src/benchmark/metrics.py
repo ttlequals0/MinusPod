@@ -148,12 +148,11 @@ class SchemaViolations:
     extra_keys: int = 0
     out_of_range: int = 0
     extra_key_names: list[str] = field(default_factory=list)
-    # Ads carrying a usable segment category, and ads carrying none. The
-    # prompt marks category REQUIRED, but it is counted separately from
-    # missing_required: an ad with no category is still a usable detection,
-    # it just falls back to the sponsor default and per-category actions
-    # stop meaning anything. Tracked so the report can say which models
-    # actually answer it, since only some providers enforce the schema.
+    # Ads carrying a usable segment category, and ads carrying none. Counted
+    # separately from missing_required: an ad with no category is still a
+    # usable detection, it just stays uncategorized and per-category actions
+    # stop meaning anything for it. Tracked so the report can say which
+    # models actually answer it; only some providers enforce the schema.
     category_present: int = 0
     category_missing: int = 0
 
@@ -186,15 +185,27 @@ KNOWN_OPTIONAL_KEYS = (
 ) + _production_known_keys()
 
 
+_FALLBACK_CATEGORIES = ("sponsor", "cross_promo", "self_promo", "interaction",
+                        "intro", "outro", "recap")
+
+# Which resolver scored the run. Without this the compliance figures differ
+# silently between an environment that can import the app and one that cannot.
+CATEGORY_RESOLVER = "production"
+
+
 def _resolve_category(ad: dict):
     """The segment category an ad carries, using production's resolution so
-    the benchmark scores what the live parser accepts, not a stricter shape.
-    Falls back to an exact key when the app package is not importable."""
+    the benchmark scores what the live parser accepts. Falls back to a
+    vocabulary-checked exact key when the app package is not importable."""
+    global CATEGORY_RESOLVER
     try:
         from ad_detector.prompts import resolve_ad_category  # type: ignore[import-not-found]
     except Exception:
+        CATEGORY_RESOLVER = "fallback"
         value = ad.get("category")
-        return value if isinstance(value, str) and value.strip() else None
+        if isinstance(value, str) and value.strip().lower() in _FALLBACK_CATEGORIES:
+            return value.strip().lower()
+        return None
     return resolve_ad_category(ad)
 
 
