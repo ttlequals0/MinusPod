@@ -3388,6 +3388,17 @@ paths:
                     or `auto` to let Whisper detect. Empty value resets to the default (`en`).
                     Applies to both local (faster-whisper) and remote OpenAI-compatible backends.
                   example: en
+                whisperApiTimeoutSeconds:
+                  type: integer
+                  minimum: 30
+                  maximum: 3600
+                  description: |
+                    Seconds to wait for each transcription request to the remote
+                    Whisper backend (issue #593). A slow self-hosted backend that
+                    returns 0 segments on larger chunks is hitting this limit;
+                    raise it or lower transcribeMaxChunkSeconds. A proxy in front
+                    of the backend may cut the request sooner than this value.
+                  example: 600
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
@@ -8351,6 +8362,14 @@ components:
             value:
               type: string
               description: ISO 639-1 code (e.g. `en`, `fi`) or `auto` for Whisper auto-detect
+            isDefault:
+              type: boolean
+        whisperApiTimeoutSeconds:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Seconds to wait for each remote Whisper transcription request.
             isDefault:
               type: boolean
         whisperComputeType:

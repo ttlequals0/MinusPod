@@ -330,6 +330,10 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
         payload_key='audioNormalizeIntensity'),
 
     # -- Transcription (seed uses the static default; reset honors env) --
+    'whisper_api_timeout_seconds': SettingSpec(
+        default='600', seeded=True, in_ad_reset=True,
+        reset_factory=lambda: os.environ.get('WHISPER_API_TIMEOUT', '600'),
+        payload_key='whisperApiTimeoutSeconds', payload_kind='int'),
     'transcribe_max_chunk_seconds': SettingSpec(
         default='600', seeded=True, in_ad_reset=True,
         reset_factory=lambda: os.environ.get('TRANSCRIBE_MAX_CHUNK_SECONDS', '600'),

@@ -376,6 +376,7 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
         'skip_flac_compression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
+        'api_timeout': os.environ.get('WHISPER_API_TIMEOUT') or HTTP_TIMEOUT_WHISPER,
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -399,10 +400,29 @@ def _get_whisper_settings() -> Dict[str, str]:
         skip_flac_raw = db.get_setting('skip_flac_compression')
         if skip_flac_raw is not None:
             defaults['skip_flac_compression'] = coerce_bool_setting(skip_flac_raw)
+
+        timeout_raw = db.get_setting('whisper_api_timeout_seconds')
+        if timeout_raw:
+            defaults['api_timeout'] = timeout_raw
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
     return defaults
+
+
+def _api_timeout(whisper_settings: Dict = None) -> float:
+    """Per-request timeout for the Whisper API upload.
+
+    Operators running a local STT backend need longer than the default when a
+    chunk takes minutes to transcribe (#593). An unparseable value falls back
+    to the shipped default rather than failing the request.
+    """
+    raw = (whisper_settings or {}).get('api_timeout', HTTP_TIMEOUT_WHISPER)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return float(HTTP_TIMEOUT_WHISPER)
+    return value if value > 0 else float(HTTP_TIMEOUT_WHISPER)
 
 
 def check_whisper_connectivity(timeout: float = 5.0) -> bool:
@@ -1070,7 +1090,7 @@ class Transcriber:
                             response = safe_post(
                                 url,
                                 trust=URLTrust.OPERATOR_CONFIGURED,
-                                timeout=HTTP_TIMEOUT_WHISPER,
+                                timeout=_api_timeout(whisper_settings),
                                 max_redirects=HTTP_MAX_REDIRECTS_API,
                                 files={'file': (os.path.basename(transcribe_path), audio_file)},
                                 data=form_data,

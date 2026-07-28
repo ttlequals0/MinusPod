@@ -401,6 +401,7 @@ export interface Settings {
   transcribeMaxChunkSeconds: SettingValueNumber;
   transcribeConcurrentChunks: SettingValueNumber;
   transcribeChunkOverlapSeconds: SettingValueNumber;
+  whisperApiTimeoutSeconds: SettingValueNumber;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -498,6 +499,7 @@ export interface Settings {
     transcribeMaxChunkSeconds: number;
     transcribeConcurrentChunks: number;
     transcribeChunkOverlapSeconds: number;
+    whisperApiTimeoutSeconds: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -571,6 +573,7 @@ export interface UpdateSettingsPayload {
   transcribeMaxChunkSeconds?: number;
   transcribeConcurrentChunks?: number;
   transcribeChunkOverlapSeconds?: number;
+  whisperApiTimeoutSeconds?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;

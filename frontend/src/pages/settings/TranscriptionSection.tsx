@@ -31,6 +31,8 @@ interface TranscriptionSectionProps {
   transcribeConcurrentChunks: number;
   onTranscribeConcurrentChunksChange: (value: number) => void;
   transcribeChunkOverlapSeconds: number;
+  whisperApiTimeoutSeconds: number;
+  onWhisperApiTimeoutSecondsChange: (value: number) => void;
   onTranscribeChunkOverlapSecondsChange: (value: number) => void;
   skipFlacCompression: boolean;
   onSkipFlacCompressionChange: (value: boolean) => void;
@@ -71,6 +73,8 @@ function TranscriptionSection({
   onTranscribeConcurrentChunksChange,
   transcribeChunkOverlapSeconds,
   onTranscribeChunkOverlapSecondsChange,
+  whisperApiTimeoutSeconds,
+  onWhisperApiTimeoutSecondsChange,
   skipFlacCompression,
   onSkipFlacCompressionChange,
   softTimeoutMinutes,
@@ -232,10 +236,27 @@ function TranscriptionSection({
                   />
                   <span className="text-sm text-muted-foreground">for word-boundary dedupe</span>
                 </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="whisperApiTimeoutSeconds" className="text-sm text-muted-foreground w-44">
+                    Request timeout:
+                  </label>
+                  <NumberInput
+                    id="whisperApiTimeoutSeconds"
+                    value={whisperApiTimeoutSeconds}
+                    min={30}
+                    max={3600}
+                    fallback={600}
+                    parse={(s) => parseInt(s, 10)}
+                    onCommit={onWhisperApiTimeoutSecondsChange}
+                  />
+                  <span className="text-sm text-muted-foreground">seconds to wait per chunk</span>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   These tune the parallel API path: chunks are extracted with ffmpeg and submitted to the
                   remote backend concurrently. Chunks are extracted as (max chunk + overlap), so for
-                  Parakeet's 30s ONNX cap set max chunk to 28 AND overlap to 1.
+                  Parakeet's 30s ONNX cap set max chunk to 28 AND overlap to 1. A slow backend that
+                  returns 0 segments on larger chunks is hitting the request timeout; raise it, or lower
+                  the chunk size. A proxy in front of the backend may cut the request sooner than this.
                 </p>
               </div>
             </div>

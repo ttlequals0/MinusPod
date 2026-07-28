@@ -67,6 +67,14 @@ release notes.
   whether the listener is recording at all, since a feed reading as uncovered
   otherwise looks identical to a listener seeing no traffic.
 
+- The time MinusPod waits for each transcription request to a remote Whisper
+  backend is a setting now, under Transcription (#593). A self-hosted backend
+  that needs minutes per chunk returned 0 segments and failed the job, with no
+  way to wait longer short of shrinking the chunk size. Default is unchanged at
+  600 seconds; `WHISPER_API_TIMEOUT` sets it from the environment. Note that a
+  proxy in front of the backend can still cut the request sooner, which looks
+  identical from here.
+
 ### Changed
 
 - An ad past the length ceiling whose only fault is its length is held for

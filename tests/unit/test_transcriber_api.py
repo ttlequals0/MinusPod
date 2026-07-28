@@ -969,3 +969,28 @@ class TestChunkedSinglePass:
         transcriber.preprocess_audio.assert_not_called()
         # The already-preprocessed chunk goes straight to the model
         assert mock_model.transcribe.call_args.args[0] == '/tmp/chunk.wav'
+
+
+class TestWhisperApiTimeoutIsTuneable:
+    """Issue #593: a local STT backend can take minutes per chunk, and the
+    per-request timeout was a fixed constant."""
+
+    def test_the_shipped_default_is_used_when_unset(self):
+        from config import HTTP_TIMEOUT_WHISPER
+        from transcriber import _api_timeout
+
+        assert _api_timeout({}) == float(HTTP_TIMEOUT_WHISPER)
+        assert _api_timeout(None) == float(HTTP_TIMEOUT_WHISPER)
+
+    def test_a_configured_value_wins(self):
+        from transcriber import _api_timeout
+
+        assert _api_timeout({'api_timeout': '1800'}) == 1800.0
+        assert _api_timeout({'api_timeout': 900}) == 900.0
+
+    def test_an_unusable_value_falls_back_rather_than_failing(self):
+        from config import HTTP_TIMEOUT_WHISPER
+        from transcriber import _api_timeout
+
+        for bad in ('', 'abc', None, 0, -5):
+            assert _api_timeout({'api_timeout': bad}) == float(HTTP_TIMEOUT_WHISPER)

@@ -80,6 +80,7 @@ SEED_SNAPSHOT = {
     'system_prompt': ('sha256', 'a15ad2a62cb242d11942e6d71f4f4b88e14c73e1418c50bccea8f08facbf0b92'),
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',
+    'whisper_api_timeout_seconds': '600',
     'transcribe_max_chunk_seconds': '600',
     'transition_threshold_db': '3.5',
     'verification_miss_autocut_min_confidence': '0',
@@ -100,6 +101,7 @@ EXPECTED_AD_RESET_KEYS = {
     'chapters_enabled', 'chapters_model',
     'min_cut_confidence', 'auto_process_enabled', 'audio_bitrate',
     'audio_normalize_enabled', 'audio_normalize_intensity',
+    'whisper_api_timeout_seconds',
     'transcribe_max_chunk_seconds', 'transcribe_concurrent_chunks',
     'transcribe_chunk_overlap_seconds', 'ad_detection_parallel_windows',
     'ad_reviewer_parallel_ads', 'max_artwork_bytes', 'max_rss_bytes',
@@ -362,11 +364,12 @@ class TestGetDefaults:
         # omitTemperature added after that (76 -> 77).
         # communitySyncCategories added after that (77 -> 78).
         # maxAdDurationSeconds + maxAdDurationConfirmedSeconds (78 -> 80).
+        # whisperApiTimeoutSeconds added after that (80 -> 81).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 80
+        assert len(payload_keys) == 81
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

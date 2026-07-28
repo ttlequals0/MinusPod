@@ -717,3 +717,27 @@ class TestAdLengthCeilingPair:
                                   'maxAdDurationConfirmedSeconds': 800}
                          ).status_code == 200
         assert self._current(client) == (240.0, 800.0)
+
+
+class TestWhisperApiTimeoutSetting:
+    """Issue #593: the per-request timeout for a remote Whisper backend."""
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_a_valid_timeout_persists(self, client):
+        assert self._put(client, {'whisperApiTimeoutSeconds': 1800}).status_code == 200
+        db = database.Database()
+        assert db.get_setting('whisper_api_timeout_seconds') == '1800'
+
+    def test_out_of_range_is_rejected(self, client):
+        for bad in (29, 3601):
+            resp = self._put(client, {'whisperApiTimeoutSeconds': bad})
+            assert resp.status_code == 400
+            assert 'between 30 and 3600' in json.loads(resp.data)['error']
+
+    def test_a_non_number_is_rejected(self, client):
+        resp = self._put(client, {'whisperApiTimeoutSeconds': 'soon'})
+        assert resp.status_code == 400

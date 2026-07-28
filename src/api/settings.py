@@ -360,6 +360,8 @@ def get_settings():
         except (ValueError, TypeError):
             return default
 
+    whisper_api_timeout_seconds = _db_int(
+        'whisper_api_timeout_seconds', registry_get_default('whisper_api_timeout_seconds'))
     transcribe_max_chunk_seconds = _db_int(
         'transcribe_max_chunk_seconds', registry_get_default('transcribe_max_chunk_seconds'))
     transcribe_concurrent_chunks = _db_int(
@@ -570,6 +572,7 @@ def get_settings():
         'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),
         'maxRssBytes': _sv('max_rss_bytes', max_rss_bytes),
         'maxAudioDownloadMb': _sv('max_audio_download_mb', max_audio_download_mb),
+        'whisperApiTimeoutSeconds': _sv('whisper_api_timeout_seconds', whisper_api_timeout_seconds),
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
         'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
@@ -1157,6 +1160,18 @@ def _apply_whisper_fields(db, data):
         enabled = coerce_bool_setting(data['skipFlacCompression'])
         db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated skip_flac_compression to: {enabled}")
+
+    if 'whisperApiTimeoutSeconds' in data:
+        try:
+            timeout_val = int(data['whisperApiTimeoutSeconds'])
+        except (TypeError, ValueError):
+            return json_response(
+                {'error': 'whisperApiTimeoutSeconds must be a positive integer'}, 400)
+        if timeout_val < 30 or timeout_val > 3600:
+            return json_response(
+                {'error': 'whisperApiTimeoutSeconds must be between 30 and 3600'}, 400)
+        db.set_setting('whisper_api_timeout_seconds', str(timeout_val), is_default=False)
+        logger.info(f"Updated whisper_api_timeout_seconds to: {timeout_val}")
     return None
 
 
