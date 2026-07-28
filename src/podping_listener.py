@@ -124,11 +124,14 @@ def extract_podping_events(block: dict) -> list[dict]:
             if not (op_id == 'podping' or (isinstance(op_id, str) and op_id.startswith('pp_'))):
                 continue
 
-            required_posting_auths = op_data.get('required_posting_auths', [])
-            if not isinstance(required_posting_auths, list):
+            # Podping signs with posting authority by convention, but an op
+            # signed with active authority is still a valid sender.
+            auth_lists = [op_data.get('required_posting_auths', []),
+                          op_data.get('required_auths', [])]
+            if any(not isinstance(a, list) for a in auth_lists):
                 continue
 
-            auth_strs = {a.lower() for a in required_posting_auths
+            auth_strs = {a.lower() for auths in auth_lists for a in auths
                          if isinstance(a, str)}
 
             json_string = op_data.get('json', '')
@@ -211,6 +214,7 @@ class PodpingListener:
 
         self.host_buffer = {}
         self.host_flushed_at = 0.0
+        self._last_ping_write = {}  # slug -> time.time() of last stamp write
 
     def _default_rpc(self, method, params):
         """Default rpc: POST to the currently-selected node. Returns the
@@ -255,7 +259,7 @@ class PodpingListener:
 
     def _refresh_feed_map(self):
         feed_map = {}
-        for podcast in self.db.get_all_podcasts():
+        for podcast in self.db.get_podcast_feed_urls():
             source_url = podcast.get('source_url')
             if source_url:
                 feed_map[normalize_feed_url(source_url)] = podcast['slug']
@@ -276,9 +280,10 @@ class PodpingListener:
             last = int(stored) if stored else 0
         except (TypeError, ValueError):
             last = 0
-        if last and 0 < head - last <= MAX_CATCHUP_BLOCKS:
-            logger.info("Podping listener resuming at block %d (%d behind head)",
-                        last + 1, head - last)
+        if last and 0 <= head - last <= MAX_CATCHUP_BLOCKS:
+            if head > last:
+                logger.info("Podping listener resuming at block %d (%d behind head)",
+                            last + 1, head - last)
             return last
         return head - 1
 
@@ -300,19 +305,21 @@ class PodpingListener:
         except Exception as exc:
             logger.debug("Could not persist podping block: %s", exc)
 
-    def _flush_host_buffer(self):
-        """Write buffered domain counts; keep the buffer on failure to retry."""
-        if not self.host_buffer:
-            return
-        # Stamped before the write so a failing db backs off to the flush
-        # interval instead of retrying, and logging, on every tick.
+    def _flush_host_buffer(self) -> bool:
+        """Write buffered domain counts; keep the buffer on failure to retry.
+
+        Stamped before the write so a failing db backs off to the flush
+        interval instead of retrying, and logging, on every tick."""
         self.host_flushed_at = time.time()
+        if not self.host_buffer:
+            return True
         try:
             self.db.record_podping_hosts(self.host_buffer)
         except Exception:
             logger.exception("Failed to record podping hosts; retrying next flush")
-            return
+            return False
         self.host_buffer = {}
+        return True
 
     def _feed_accepts(self, slug, auths):
         """Whether this feed's own <podcast:podping> declaration allows a ping
@@ -335,10 +342,13 @@ class PodpingListener:
         return True
 
     def _handle_match(self, slug, reason):
-        """Always stamp last_podping_at; refresh only outside the per-slug
-        cooldown window."""
-        self.db.set_last_podping_at(slug)
+        """Stamp last_podping_at and refresh, both outside the per-slug
+        cooldown window. A burst therefore leaves the displayed last-ping time
+        up to one cooldown behind the newest ping."""
         now = time.time()
+        if now - self._last_ping_write.get(slug, 0.0) > COOLDOWN_SECONDS:
+            self._last_ping_write[slug] = now
+            self.db.set_last_podping_at(slug)
         last = self.last_refresh.get(slug, 0.0)
         if now - last > COOLDOWN_SECONDS:
             self.last_refresh[slug] = now
@@ -397,7 +407,15 @@ class PodpingListener:
                             self._handle_match(slug, reason)
 
         if time.time() - self.host_flushed_at >= HOST_FLUSH_SECONDS:
-            self._flush_host_buffer()
+            # Block progress only advances past counts that reached the db,
+            # or a crash before the next flush would drop them silently.
+            if self._flush_host_buffer():
+                self._persist_block()
+
+    def final_flush(self):
+        """Write buffered counts and block progress on shutdown; without it
+        every clean deploy replayed the blocks since the last flush."""
+        if self._flush_host_buffer():
             self._persist_block()
 
 
@@ -433,3 +451,8 @@ def podping_listener_loop():
         except Exception:
             logger.exception("Podping listener loop iteration failed")
             background_module.shutdown_event.wait(timeout=60)
+
+    try:
+        listener.final_flush()
+    except Exception:
+        logger.exception("Podping listener shutdown flush failed")

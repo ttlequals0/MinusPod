@@ -3,8 +3,11 @@ import logging
 
 from flask import request
 
+from datetime import datetime, timedelta, timezone
+
 from api import api, get_database, json_response, log_request
 from config import PODPING_HOST_ACTIVE_DAYS
+from utils.time import ISO_FORMAT
 
 logger = logging.getLogger('podcast.api')
 
@@ -19,21 +22,24 @@ def list_podping_hosts():
     """
     db = get_database()
     limit = min(max(1, request.args.get('limit', 100, type=int)), 500)
-    active = db.get_active_podping_domains(PODPING_HOST_ACTIVE_DAYS)
+    # Compared per row rather than against a materialized set: the table is
+    # attacker-influenced and can hold far more domains than one page.
+    cutoff = (datetime.now(timezone.utc)
+              - timedelta(days=PODPING_HOST_ACTIVE_DAYS)).strftime(ISO_FORMAT)
 
     hosts = [{
         'domain': row['domain'],
         'firstSeenAt': row['first_seen_at'],
         'lastSeenAt': row['last_seen_at'],
         'pingCount': row['ping_count'],
-        'active': row['domain'] in active,
+        'active': (row['last_seen_at'] or '') >= cutoff,
     } for row in db.get_podping_hosts(limit)]
 
     return json_response({
         'hosts': hosts,
         'limit': limit,
         'totalDomains': db.count_podping_hosts(),
-        'activeDomains': len(active),
+        'activeDomains': db.count_active_podping_domains(PODPING_HOST_ACTIVE_DAYS),
         'activeWindowDays': PODPING_HOST_ACTIVE_DAYS,
         'listenerEnabled': db.get_setting_bool('podping_enabled', False),
     })

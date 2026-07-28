@@ -44,9 +44,17 @@ class FakeDb:
         self.stamped_slugs = []
         self.recorded_hosts = []
         self.settings = dict(settings or {})
+        self.setting_writes = []
+        self.heavy_podcast_reads = 0
+        self.record_fails = False
 
     def get_all_podcasts(self):
+        self.heavy_podcast_reads += 1
         return self.podcasts
+
+    def get_podcast_feed_urls(self):
+        return [{'slug': p['slug'], 'source_url': p.get('source_url')}
+                for p in self.podcasts]
 
     def get_all_podping_declarations(self):
         return self.declarations
@@ -55,6 +63,8 @@ class FakeDb:
         self.stamped_slugs.append(slug)
 
     def record_podping_hosts(self, counts):
+        if self.record_fails:
+            raise RuntimeError('db down')
         self.recorded_hosts.append(dict(counts))
 
     def get_setting(self, key):
@@ -62,6 +72,7 @@ class FakeDb:
 
     def set_setting(self, key, value, is_default=False):
         self.settings[key] = value
+        self.setting_writes.append((key, value))
 
 
 def _podping_op(auths, payload):
@@ -466,7 +477,8 @@ class TestTick:
 
 
 class TestCooldown:
-    def test_second_ping_within_cooldown_stamps_but_no_refresh(self):
+    def test_second_ping_within_cooldown_neither_stamps_nor_refreshes(self):
+        """A bursty sender drove one UPDATE plus commit per notification."""
         fake_db = FakeDb()
         refresh_mock = Mock()
         listener = PodpingListener(db=fake_db, refresh=refresh_mock, sleep=lambda s: None)
@@ -474,7 +486,7 @@ class TestCooldown:
         listener._handle_match('my-show', 'update')
         listener._handle_match('my-show', 'update')
 
-        assert fake_db.stamped_slugs == ['my-show', 'my-show']
+        assert fake_db.stamped_slugs == ['my-show']
         assert refresh_mock.call_count == 1
 
     def test_second_ping_within_cooldown_logs_debug_skip(self, caplog):
@@ -680,3 +692,105 @@ class TestRestartResume:
 
         calls = [c for c in rpc.calls if c[0] == 'condenser_api.get_block']
         assert len(calls) == 1
+
+
+class TestListenerWritePatterns:
+    """The listener runs a tick every 3 seconds, so anything unconditional in
+    a tick is a write every 3 seconds."""
+
+    def _listener(self, fake_db, head=5, block=None):
+        rpc = ScriptedRpc({
+            'condenser_api.get_dynamic_global_properties': {'head_block_number': head},
+            'condenser_api.get_block': {'transactions': [block] if block else []},
+        })
+        listener = PodpingListener(rpc=rpc, db=fake_db, refresh=Mock(),
+                                   sleep=lambda s: None)
+        listener.feed_map = {}
+        listener.feed_map_fetched_at = time.time()
+        return listener, rpc
+
+    def test_an_empty_buffer_tick_does_not_rewrite_the_block_setting(self):
+        fake_db = FakeDb()
+        listener, _ = self._listener(fake_db)
+        listener.host_flushed_at = 0
+
+        listener.tick()
+        writes_after_first = len(fake_db.setting_writes)
+        listener.tick()
+
+        assert len(fake_db.setting_writes) == writes_after_first
+
+    def test_a_failed_flush_does_not_advance_the_stored_block(self):
+        block = _podping_op(['delegate1'], {
+            'version': '1.0', 'iris': ['https://anchor.fm/x'], 'reason': 'update'})
+        fake_db = FakeDb()
+        fake_db.record_fails = True
+        listener, _ = self._listener(fake_db, block=block)
+        listener.host_flushed_at = 0
+
+        listener.tick()
+
+        assert 'podping_last_block' not in fake_db.settings
+
+    def test_the_last_ping_stamp_is_throttled_per_slug(self):
+        block = _podping_op(['delegate1'], {
+            'version': '1.0', 'iris': ['https://feeds.example.com/show'],
+            'reason': 'update'})
+        fake_db = FakeDb(podcasts=[
+            {'slug': 'my-show', 'source_url': 'https://feeds.example.com/show'}])
+        listener, _ = self._listener(fake_db, block=block)
+        listener._refresh_feed_map()
+
+        listener.tick()
+        listener.current_block = 4  # replay the same block
+        listener.tick()
+
+        assert fake_db.stamped_slugs == ['my-show']
+
+    def test_the_feed_map_reads_only_slug_and_url(self):
+        fake_db = FakeDb(podcasts=[
+            {'slug': 'my-show', 'source_url': 'https://feeds.example.com/show'}])
+        listener, _ = self._listener(fake_db)
+
+        listener._refresh_feed_map()
+
+        assert fake_db.heavy_podcast_reads == 0
+
+    def test_a_caught_up_restart_does_not_replay_the_head_block(self):
+        fake_db = FakeDb(settings={'podping_last_block': '5000'})
+        listener, rpc = self._listener(fake_db, head=5000)
+
+        listener.tick()
+
+        assert [c for c in rpc.calls if c[0] == 'condenser_api.get_block'] == []
+
+    def test_shutdown_flushes_and_persists(self):
+        block = _podping_op(['delegate1'], {
+            'version': '1.0', 'iris': ['https://anchor.fm/x'], 'reason': 'update'})
+        fake_db = FakeDb()
+        listener, _ = self._listener(fake_db, block=block)
+        listener.host_flushed_at = time.time()
+
+        listener.tick()          # inside the flush interval: nothing written yet
+        assert fake_db.recorded_hosts == []
+        listener.final_flush()
+
+        assert fake_db.recorded_hosts == [{'anchor.fm': 1}]
+        assert fake_db.settings.get('podping_last_block') == '5'
+
+
+class TestActiveAuthorityIsAccepted:
+    def test_an_op_signed_with_active_authority_carries_its_auths(self):
+        from podping_listener import extract_podping_events
+
+        events = extract_podping_events({'transactions': [{
+            'operations': [['custom_json', {
+                'id': 'podping',
+                'required_auths': ['podping.aaa'],
+                'required_posting_auths': [],
+                'json': json.dumps({'version': '1.0',
+                                    'iris': ['https://feeds.example.com/show'],
+                                    'reason': 'update'}),
+            }]]}]})
+
+        assert events[0]['auths'] == {'podping.aaa'}

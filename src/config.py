@@ -428,6 +428,10 @@ TAIL_RETRANSCRIBE_MAX_SECONDS = 600.0
 # A podping host counts as active only if seen within this window, so a host
 # that drops podping support decays back to uncovered (#579).
 PODPING_HOST_ACTIVE_DAYS = 30
+# Anyone can podping any IRI, so the host table is attacker-influenced input:
+# cap the rows kept and the domains one flush may add.
+PODPING_HOSTS_MAX_ROWS = 10000
+PODPING_HOSTS_FLUSH_MAX_DOMAINS = 500
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break

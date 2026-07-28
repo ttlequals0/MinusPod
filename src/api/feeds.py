@@ -357,10 +357,23 @@ def _podcast_base_json(podcast, feed_url) -> dict:
 
 
 def _podping_context(db):
-    """(enabled, active domains) for one request; the set is empty when off."""
+    """(enabled, active domains) for one request; the set is empty when off.
+
+    For the list endpoint, where one set load amortizes over every feed."""
     if not db.get_setting_bool('podping_enabled', False):
         return False, set()
     return True, db.get_active_podping_domains(PODPING_HOST_ACTIVE_DAYS)
+
+
+def _podping_context_for_feed(db, podcast):
+    """Same shape as _podping_context for a single feed: one indexed lookup
+    instead of materializing every active domain."""
+    if not db.get_setting_bool('podping_enabled', False):
+        return False, set()
+    domain = feed_url_domain(podcast.get('source_url') or '')
+    if domain and db.is_podping_domain_active(domain, PODPING_HOST_ACTIVE_DAYS):
+        return True, {domain}
+    return True, set()
 
 
 def _podping_coverage(podcast, enabled, active_domains):
@@ -756,7 +769,7 @@ def get_feed(slug):
 
     return json_response({
         **_podcast_base_json(podcast, feed_url),
-        **_podcast_listing_fields(podcast, _podping_context(db)),
+        **_podcast_listing_fields(podcast, _podping_context_for_feed(db, podcast)),
         'description': podcast.get('description'),
         'daiLikely': dai_likely,
         'websiteUrl': podcast.get('website_url'),

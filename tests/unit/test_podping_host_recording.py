@@ -12,7 +12,7 @@ class FakeDb:
     def __init__(self):
         self.recorded = []
 
-    def get_all_podcasts(self):
+    def get_podcast_feed_urls(self):
         return [{'slug': 'mine', 'source_url': 'https://feeds.megaphone.fm/mine'}]
 
     def get_all_podping_declarations(self):

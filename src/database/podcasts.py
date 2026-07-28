@@ -58,6 +58,13 @@ class PodcastMixin:
         """)
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_podcast_feed_urls(self) -> List[Dict]:
+        """slug + source_url only. The podping listener rebuilds its feed map
+        every minute and needs nothing from the episode aggregation."""
+        cursor = self.get_connection().execute(
+            "SELECT slug, source_url FROM podcasts")
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_custom_network_overrides(self) -> List[str]:
         """Distinct non-empty network_id_override values across all podcasts.
 
