@@ -633,3 +633,27 @@ class TestSplitSpansKeepTheirOwnCategoryReach:
         ])
 
         assert merged[0].get('category') is None
+
+
+class TestUnsetHasOneRepresentation:
+    """Unset category means the key is absent, for markers and pattern rows
+    alike. Present-and-None silently defeats .get('category', default)
+    consumers, which is how the community-sync page 500ed."""
+
+    def test_a_pattern_row_never_carries_a_none_category(self, temp_db):
+        for stored in (None, 'advertisement'):
+            pid = temp_db.create_ad_pattern(
+                scope='global', text_template=f'row for {stored} case ' * 3,
+                category=stored)
+            assert 'category' not in temp_db.get_ad_pattern_by_id(pid)
+
+    def test_markers_and_patterns_agree_on_absence(self, temp_db):
+        from main_app.processing import _stamp_pass2_marker_categories
+
+        pid = temp_db.create_ad_pattern(
+            scope='global', text_template='agreement row ' * 4)
+        marker = {'start': 1.0, 'end': 2.0}
+        _stamp_pass2_marker_categories([marker])
+
+        assert 'category' not in temp_db.get_ad_pattern_by_id(pid)
+        assert 'category' not in marker

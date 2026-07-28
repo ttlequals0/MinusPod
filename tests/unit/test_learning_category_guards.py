@@ -172,9 +172,9 @@ class TestPatternCategoryColumn:
             scope='podcast', text_template='x' * 60, podcast_id=SLUG,
         )
         pattern = temp_db.get_ad_pattern_by_id(pid)
-        assert pattern['category'] is None
+        assert 'category' not in pattern
         # Action resolution still treats an unset category as a sponsor read.
-        assert normalize_segment_category(pattern['category']) == 'sponsor'
+        assert normalize_segment_category(pattern.get('category')) == 'sponsor'
 
     def test_explicit_category_round_trips(self, temp_db):
         pid = temp_db.create_ad_pattern(
@@ -190,7 +190,7 @@ class TestPatternCategoryColumn:
             category='not-a-real-category',
         )
         pattern = temp_db.get_ad_pattern_by_id(pid)
-        assert pattern['category'] is None
+        assert 'category' not in pattern
 
     def test_list_patterns_also_leaves_null_category_unset(self, temp_db):
         temp_db.create_ad_pattern(
@@ -198,7 +198,7 @@ class TestPatternCategoryColumn:
         )
         rows = temp_db.get_ad_patterns(podcast_id=SLUG, active_only=False)
         assert len(rows) == 1
-        assert rows[0]['category'] is None
+        assert 'category' not in rows[0]
 
     def test_learner_stores_marker_category_on_new_pattern(self, temp_db):
         matcher = TextPatternMatcher(db=temp_db)
@@ -220,8 +220,7 @@ class TestPatternCategoryColumn:
             scope='podcast', podcast_id=SLUG, episode_id=EPISODE_ID,
         )
         assert pattern_id is not None
-        pattern = temp_db.get_ad_pattern_by_id(pattern_id)
-        assert pattern['category'] is None
+        assert 'category' not in temp_db.get_ad_pattern_by_id(pattern_id)
 
 
 # ========== 4. Community sync ==========
@@ -256,8 +255,7 @@ class TestCommunitySyncCategory:
             ),
         }
         pattern_id = pattern_service.import_community_pattern(data)
-        pattern = temp_db.get_ad_pattern_by_id(pattern_id)
-        assert pattern['category'] is None
+        assert 'category' not in temp_db.get_ad_pattern_by_id(pattern_id)
 
     def test_import_with_category_round_trips(self, temp_db):
         pattern_service = PatternService(temp_db)
@@ -301,7 +299,7 @@ class TestCommunitySyncCategory:
         assert summary['inserted'] == 1
         rows = temp_db.get_patterns_by_source('community', active_only=False)
         assert len(rows) == 1
-        assert rows[0]['category'] is None
+        assert 'category' not in rows[0]
 
 
 class TestCommunitySyncReimportPreservesCategory:
@@ -629,7 +627,8 @@ class TestPatternCategoryOnEndpoints:
         with patch('api.patterns.get_database', return_value=temp_db):
             resp = client.get(f'/api/v1/patterns/{pid}')
         assert resp.status_code == 200, resp.data
-        assert json.loads(resp.data)['category'] is None
+        # Absent, matching marker JSON; the frontend type is optional.
+        assert json.loads(resp.data).get('category') is None
 
     def test_export_patterns_includes_category(self, client, temp_db):
         temp_db.create_ad_pattern(

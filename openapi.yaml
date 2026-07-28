@@ -9149,8 +9149,9 @@ components:
           type: string
           enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
           description: |
-            What kind of content this pattern matches (issue #565). A NULL/legacy
-            row normalizes to 'sponsor' when read, so this is always present.
+            What kind of content this pattern matches (issue #565). Absent when
+            the pattern is unclassified (a legacy row or one synced without a
+            category); the UI shows such patterns as Uncategorized.
             Community-shared patterns carry their category through sync; a
             per-install community_sync_categories setting controls which
             categories are accepted from community sync.

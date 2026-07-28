@@ -356,9 +356,14 @@ release notes.
   value and clamp it when you leave the field.
 - The community-sync settings page returned 500 when any synced pattern had
   no category. The per-category breakdown used the value as a dict key, and
-  its `.get` default never applied, because the key is present and null rather
-  than absent. Uncategorized patterns count as sponsor there, matching how
-  sync itself filters on category.
+  its `.get` default never applied, because the key was present and null
+  rather than absent. Uncategorized patterns count as sponsor there, matching
+  how sync itself filters on category. Underneath it, an unset category had
+  two representations: markers dropped the key while pattern rows kept it as
+  null, and the null form silently defeats any consumer written with a `.get`
+  default. Pattern rows now drop the key too, so unset means absent
+  everywhere, including in the patterns API where the field was already
+  optional.
 - A malformed feed body and the gzip retry that preceded it were logged
   without naming the feed, so a recurring pair could not be tied to one
   origin. Both lines carry the feed now, and the parse warning reports the
