@@ -217,12 +217,14 @@ class AdValidator:
         return sponsors
 
     def _registry_confirms(self, ad: Dict) -> bool:
-        """Whether the ad's own audio names a sponsor from the registry.
+        """Whether the ad's own audio names sponsors from the registry.
 
         Confirmation raises the duration ceiling, and many shows never list
         sponsors in the description, so a real multi-sponsor break was
         rejected on length alone. The transcript is the evidence, not the
-        model's reason, so a passing mention in prose cannot lift the cap.
+        model's reason. Two mentions are required, the same bar pattern
+        learning uses: one organic brand mention inside a misdetected span of
+        several minutes is not a read.
         """
         if not self.sponsor_service:
             return False
@@ -231,15 +233,22 @@ class AdValidator:
             return False
         try:
             found = self.sponsor_service.find_sponsor_in_text(ad_text)
+            mentions = self.sponsor_service.count_sponsor_mentions(ad_text)
         except Exception as e:
             logger.debug(f"Sponsor registry lookup failed: {e}")
             return False
-        if found:
+        if not found:
+            return False
+        if mentions < 2:
             logger.info(
-                f"Sponsor '{found}' from the registry found in the ad audio "
-                f"({ad['start']:.1f}s-{ad['end']:.1f}s); treating as confirmed")
-            return True
-        return False
+                f"Sponsor '{found}' mentioned once in "
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s; not treating as confirmed")
+            return False
+        logger.info(
+            f"Registry sponsors named {mentions}x in the ad audio "
+            f"({ad['start']:.1f}s-{ad['end']:.1f}s), first '{found}'; "
+            f"treating as confirmed")
+        return True
 
     def _is_sponsor_confirmed(self, ad: Dict) -> bool:
         """Check if the ad's sponsor is confirmed in the episode description,

@@ -1369,9 +1369,17 @@ class TestRegistryConfirmsLongAds:
                 'reason': 'Wayfair, Warby Parker: ad break', 'detection_stage': 'claude'}
 
     class _Registry:
+        """Stands in for the seeded registry: both brands in ADS_TEXT are
+        seed sponsors, and 'warbyparker.com' matches the spaced name too."""
+
         def find_sponsor_in_text(self, text):
             low = (text or '').lower()
             return 'Wayfair' if 'wayfair' in low else None
+
+        def count_sponsor_mentions(self, text):
+            low = (text or '').lower()
+            return (low.count('wayfair') + low.count('warby parker')
+                    + low.count('warbyparker'))
 
     def test_long_break_is_held_without_the_registry(self):
         v = AdValidator(3700.0, self._segments(), episode_description='',
@@ -1512,3 +1520,30 @@ def test_effective_threshold_is_clamped_to_the_hard_ceiling():
                             max_ad_duration_confirmed=600.0)
     assert validator.max_ad_duration == 600.0
     assert validator.max_ad_duration_confirmed == 600.0
+
+
+class TestRegistryNeedsMoreThanOneMention:
+    """A misdetected span of several minutes will often contain one organic
+    brand mention; that is not a sponsor read."""
+
+    class _Registry:
+        def find_sponsor_in_text(self, text):
+            return 'Acme' if 'acme' in (text or '').lower() else None
+
+        def count_sponsor_mentions(self, text):
+            return (text or '').lower().count('acme')
+
+    def _validator(self, ad_text):
+        segments = [{'start': 0.0, 'end': 400.0, 'text': ad_text}]
+        return AdValidator(3600.0, segments, episode_description='',
+                           min_cut_confidence=0.80,
+                           sponsor_service=self._Registry())
+
+    def test_a_single_passing_mention_does_not_confirm(self):
+        v = self._validator('we talked about Acme once today and then moved on')
+        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is False
+
+    def test_a_repeated_mention_confirms(self):
+        v = self._validator('Acme protects you. Go to Acme dot com slash pod '
+                            'for twenty percent off your first order')
+        assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is True

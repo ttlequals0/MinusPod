@@ -209,6 +209,18 @@ class SponsorService:
 
         return None
 
+    def count_sponsor_mentions(self, text: str) -> int:
+        """Total registry brand mentions in text, summed over every sponsor.
+
+        Two mentions is the same evidence bar pattern learning uses; one
+        passing mention of one brand is not a sponsor read.
+        """
+        if not text:
+            return 0
+        self._refresh_cache_if_needed()
+        return sum(len(pattern.findall(text))
+                   for pattern in self._compiled_patterns.values())
+
     # ========== Export for Claude prompt / Whisper ==========
 
     def get_claude_sponsor_list(self) -> str:
