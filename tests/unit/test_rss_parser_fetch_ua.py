@@ -7,6 +7,8 @@ passed ``APP_USER_AGENT``; ``fetch_feed`` did not, which made
 the title-fetch step returned None and the endpoint then refused to
 auto-derive a slug from the URL.
 """
+import logging
+import re
 from unittest.mock import MagicMock, patch
 
 import defusedxml
@@ -14,6 +16,7 @@ defusedxml.defuse_stdlib()
 
 from config import APP_USER_AGENT
 from rss_parser import RSSParser
+from utils.http import safe_url_for_log
 
 
 def _ok_response(body: bytes = b"<rss><channel><title>X</title></channel></rss>"):
@@ -72,7 +75,6 @@ class TestFetchFeedSendsAppUserAgent:
     def test_gzip_retry_names_the_feed_it_retried(self, caplog):
         """Three of these landed in a day with no way to tell which origin
         produced them."""
-        import logging
         import requests
 
         rp = RSSParser()
@@ -92,4 +94,8 @@ class TestFetchFeedSendsAppUserAgent:
         gzip_warnings = [r.getMessage() for r in caplog.records
                          if 'Gzip decompression failed' in r.getMessage()]
         assert gzip_warnings
-        assert 'feeds.example.com' in gzip_warnings[0]
+        # Compared as a whole field rather than a substring: the point is that
+        # the scrubbed origin is reported, and a substring test would pass on
+        # any message that merely contained it.
+        logged_url = re.search(r'url=(\S+)', gzip_warnings[0]).group(1)
+        assert logged_url == safe_url_for_log('https://feeds.example.com/show.xml')
