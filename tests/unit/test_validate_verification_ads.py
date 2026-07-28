@@ -947,3 +947,30 @@ def test_fold_recut_runs_without_a_cancel_event():
 
     assert m['recut'].called
     assert m['recut'].call_args.kwargs.get('cancel_event') is None
+
+
+def test_failed_fold_recut_still_finalizes_the_run():
+    """The pass-1 plus pass-2 render is already complete when the approval
+    recut runs; a recut failure must not throw that away and fail the run."""
+    m = _run_fold_branch(recut_result=False)
+
+    assert m['result'] is True
+    m['finalize'].assert_called_once()
+    m['failure'].assert_not_called()
+
+
+def test_successful_fold_recut_does_not_finalize_twice():
+    m = _run_fold_branch(recut_result=True)
+
+    assert m['result'] is True
+    m['finalize'].assert_not_called()
+
+
+def test_capped_verification_count_matches_the_run_stats():
+    """The history row caps the pass-2 share against the recut's own total;
+    run_stats has to report the same number."""
+    run_stats = {'verification_ads_cut': 5}
+    first, verification = processing_mod._split_recut_counts(3, 5, run_stats)
+
+    assert (first, verification) == (0, 3)
+    assert run_stats['verification_ads_cut'] == 3

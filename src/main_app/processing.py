@@ -392,8 +392,9 @@ def _next_processed_version(episode_data):
     """Version for the output file. ``processed_at`` is cleared by the
     reprocess reset before processing starts, so it can't signal "been
     processed before"; ``processed_version`` is not reset and
-    ``reprocess_requested_at`` is set by the reprocess endpoints -- either
-    one means this run is a reprocess and the version bumps."""
+    ``reprocess_requested_at`` is set by the reprocess endpoints and by
+    a JIT play request (the user-intent mark the auto-process gate reads).
+    Either one means this run is a reprocess and the version bumps."""
     previous_version = (episode_data or {}).get('processed_version') or 0
     is_reprocess = (previous_version > 0
                     or bool((episode_data or {}).get('reprocess_requested_at')))
@@ -3035,13 +3036,17 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
         audio_logger.info(f"[{slug}:{episode_id}] Recut: applied {applied} boundary adjustment(s)")
 
 
-def _split_recut_counts(total_cut, verification_count):
+def _split_recut_counts(total_cut, verification_count, run_stats=None):
     """Split a recut's cut total into (first pass, verification).
 
     ad_markers_json already holds the merged pass-2 spans, so a recut's own
     count is the total. Persistence adds the two back together, so the
-    verification share has to come out of the total, not on top of it."""
+    verification share has to come out of the total, not on top of it.
+    run_stats is capped here too, so the run's stat and the history row
+    cannot report different pass-2 counts."""
     verification_count = max(0, min(verification_count or 0, total_cut))
+    if run_stats is not None and 'verification_ads_cut' in run_stats:
+        run_stats['verification_ads_cut'] = verification_count
     return total_cut - verification_count, verification_count
 
 
@@ -3254,7 +3259,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
-                    audio_cue_detections=0):
+                    audio_cue_detections=0, owns_failure=True):
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
@@ -3266,7 +3271,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     processed. See the re-partition block below for the exact rule.
 
     run_stats, verification_count, and audio_cue_detections are forwarded to
-    the history row, so a folded approval recut keeps the run's stats."""
+    the history row, so a folded approval recut keeps the run's stats.
+    owns_failure=False leaves the failure to the caller: a folded approval
+    recut runs after a complete render, which the caller still finalizes."""
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -3387,7 +3394,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         held_count = sum(1 for m in all_ads_with_validation if is_pending_review(m))
         not_cut_count = count_not_cut(all_ads_with_validation)
         first_pass_count, verification_count = _split_recut_counts(
-            pass1_cut_count, verification_count)
+            pass1_cut_count, verification_count, run_stats)
         if run_stats is not None and original_duration and new_duration:
             # Recomputed here: the caller's copy predates the approvals this
             # recut just cut.
@@ -3412,8 +3419,11 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     except ProcessingCancelled:
         raise
     except Exception as e:
-        _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
-                                    episode_data, e, start_time)
+        if owns_failure:
+            _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
+                                        episode_data, e, start_time)
+        else:
+            audio_logger.exception(f"[{slug}:{episode_id}] Recut failed: {e}")
         return False
     finally:
         if work_path and os.path.exists(work_path):
@@ -4059,11 +4069,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    start_time, cancel_event=None,
                                    run_stats=run_stats,
                                    verification_count=verification_count,
-                                   audio_cue_detections=audio_cue_count):
+                                   audio_cue_detections=audio_cue_count,
+                                   owns_failure=False):
                     return True
-                # The recut failed and left the episode marked failed; it owns
-                # the outcome, so do not also finalize this run as a success.
-                return False
+                # This run's render is complete; finalize it and leave the
+                # filed confirms for the next run to apply.
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Approval recut failed; finalizing "
+                    f"the pre-approval render"
+                )
 
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                pass1_cut_count, verification_count, first_pass_count,

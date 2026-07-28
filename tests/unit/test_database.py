@@ -1688,3 +1688,44 @@ class TestStalePromptRefresh:
         temp_db._refresh_shipped_prompt_defaults(conn)
 
         assert self._row(temp_db, 'system_prompt')[0] == DEFAULT_SYSTEM_PROMPT
+
+
+class TestAutoProcessQueueUpsert:
+    """Clients poll a busy play request every 60s, and every poll re-upserts
+    the queue row. Resetting attempts each time made the retry ladder endless
+    for an episode that keeps failing."""
+
+    def _row(self, temp_db, slug, episode_id):
+        return temp_db.get_connection().execute(
+            """SELECT q.* FROM auto_process_queue q
+               JOIN podcasts p ON q.podcast_id = p.id
+               WHERE p.slug = ? AND q.episode_id = ?""",
+            (slug, episode_id)).fetchone()
+
+    def _queue(self, temp_db, slug='queue-podcast', episode_id='a1b2c3d4e5f6'):
+        temp_db.upsert_episode_for_processing(
+            slug, episode_id, 'https://example.com/ep.mp3', 'Episode One')
+
+    def test_repeat_play_request_keeps_pending_attempts(self, temp_db):
+        temp_db.create_podcast('queue-podcast', 'https://example.com/f.xml', 'Q')
+        self._queue(temp_db)
+        temp_db.get_connection().execute(
+            "UPDATE auto_process_queue SET attempts = 2")
+        temp_db.get_connection().commit()
+
+        self._queue(temp_db)
+
+        assert self._row(temp_db, 'queue-podcast', 'a1b2c3d4e5f6')['attempts'] == 2
+
+    def test_upsert_after_a_failure_resets_attempts(self, temp_db):
+        temp_db.create_podcast('queue-podcast', 'https://example.com/f.xml', 'Q')
+        self._queue(temp_db)
+        temp_db.get_connection().execute(
+            "UPDATE auto_process_queue SET attempts = 3, status = 'failed'")
+        temp_db.get_connection().commit()
+
+        self._queue(temp_db)
+
+        row = self._row(temp_db, 'queue-podcast', 'a1b2c3d4e5f6')
+        assert row['attempts'] == 0
+        assert row['status'] == 'pending'

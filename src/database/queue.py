@@ -98,7 +98,8 @@ class QueueMixin:
                    VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL)
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                      status = 'pending',
-                     attempts = 0,
+                     attempts = CASE WHEN auto_process_queue.status = 'pending'
+                                     THEN auto_process_queue.attempts ELSE 0 END,
                      error_message = NULL,
                      original_url = excluded.original_url,
                      title = COALESCE(excluded.title, auto_process_queue.title),
