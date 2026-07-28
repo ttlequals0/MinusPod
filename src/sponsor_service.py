@@ -9,6 +9,7 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
     NON_BRAND_WORDS,
+    is_sponsor_reasoning_rationale,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
 )
@@ -269,70 +270,81 @@ class SponsorService:
 
         return None
 
+    # A brand is a capitalized run; a word stops the run at a dot or slash so
+    # "Patreon.com/Show" yields "Patreon".
+    _BRAND_RUN_RE = re.compile(r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
+    _DOMAIN_RE = re.compile(
+        r'\b([A-Za-z0-9][A-Za-z0-9-]*)\.(?:com|net|org|io|co|tv|fm|us|app|shop|store)\b',
+        re.IGNORECASE)
+
     @staticmethod
     def extract_sponsor_from_reason(text: str) -> Optional[str]:
-        """Extract sponsor name from descriptive reason / ad-classification text.
+        """Extract a sponsor name from an LLM ad-reason string.
 
-        Distinct from extract_sponsor_from_text: this targets short descriptive
-        strings produced by the LLM ("Acme sponsor read", "ad for Acme",
-        "promoting Acme") rather than full transcript text. Returns the raw
-        captured token (case preserved) when valid, else None.
+        Matched by shape and corroboration rather than sentence structure: the
+        model rewords the reason on every run, so patterns keyed to phrasings
+        like "X sponsor read" only ever cover the samples they were written
+        for. A brand here is a capitalized run, preferred when a domain in the
+        same text agrees with it ("Jack Archer" with JackArcher.com), which is
+        the one signal that survives rewording. Returns the raw captured token
+        (case preserved) when valid, else None.
         """
         if not text:
             return None
-        # (pattern, case_sensitive). The brand-shape patterns must not run
-        # under IGNORECASE: [A-Z] would match any letter there, so a
-        # capitalized-run capture would swallow the whole sentence.
-        patterns = [
-            (r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read', False),
-            # \b after the alternation: without it "ad" matched inside
-            # "address", so "mailing address" captured "mailing" as the brand.
-            # The lookbehind stops the capture starting mid-compound: without
-            # it "host-read sponsor spots" stored "read" as the advertiser.
-            (r'(?:this is (?:a|an) )?(?<![\w-])(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)\b', False),
-            (r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)', False),
-            (r'promoting\s+(\w+(?:\s+\w+)?)', False),
-            (r'brought to you by\s+(\w+(?:\s+\w+)?)', False),
-            # Last resort: a capitalized brand opening the text, with the read
-            # described further along ("Acme/Acme Co pest control sponsor
-            # read"). The tight patterns above need the brand within two words
-            # of "sponsor read", and \w never matches the slash in a pair.
-            (r'^([A-Z][\w&.\'-]*(?:/[A-Z][\w&.\'-]*)?)\s+\w.*\b(?:sponsor|ad)\s+read\b', True),
-            # A break listing its advertisers after a colon ("Ad break with
-            # three reads: Acme (acme.com), Bravo ..."). Nothing matched these,
-            # so a genuine multi-sponsor break failed the ad-evidence gate and
-            # was dropped as content. The first brand named is the label; the
-            # rest stay in the reason text.
-            (r'(?i:\b(?:ads?|sponsors?|promos?|reads?)\b[^:]*):\s*'
-             r'([A-Z][\w&.\'-]*(?:\s+[A-Z][\w&.\'-]*)*)', True),
-        ]
-        for pattern, case_sensitive in patterns:
-            match = re.search(pattern, text,
-                              0 if case_sensitive else re.IGNORECASE)
-            if match:
-                sponsor = match.group(1).strip()
-                if len(sponsor) < 2:
-                    continue
-                if sponsor.lower() in INVALID_SPONSOR_VALUES:
-                    continue
-                if sponsor.lower() in ('a', 'an', 'the', 'this', 'that', 'another', 'host'):
-                    continue
-                first_word = sponsor.split()[0].lower() if sponsor.split() else ''
-                if first_word in INVALID_SPONSOR_CAPTURE_WORDS:
-                    continue
-                # Every word is ad-domain vocabulary, so there is no brand in
-                # here: "Dynamically inserted ad block" stored "Dynamically
-                # inserted" as the advertiser. Reuses the same set the
-                # transcript extractor screens with.
-                words = [w for w in re.split(r'[\s/-]+', sponsor.lower()) if w]
-                if words and all(w in NON_BRAND_WORDS for w in words):
-                    continue
-                if ' ' in sponsor and sponsor == sponsor.lower():
-                    continue
-                # "Acme/Acme Co" is one brand written two ways; the first is
-                # the one worth storing.
-                return sponsor.split('/')[0].strip() if '/' in sponsor else sponsor
-        return None
+        # A reason that is entirely the model explaining itself names no
+        # advertiser, and a capitalized run inside it is just its first word.
+        if is_sponsor_reasoning_rationale(text):
+            return None
+
+        domains = {m.group(1).lower().replace('-', '')
+                   for m in SponsorService._DOMAIN_RE.finditer(text)}
+
+        def usable(run: str) -> bool:
+            words = [w for w in re.split(r"[\s/'\u2019-]+", run.lower()) if w]
+            if not words or len(run.strip()) < 3:
+                return False
+            if run.lower() in INVALID_SPONSOR_VALUES:
+                return False
+            if words[0] in INVALID_SPONSOR_CAPTURE_WORDS:
+                return False
+            if all(w in NON_BRAND_WORDS for w in words):
+                return False
+            return not is_sponsor_reasoning_rationale(run)
+
+        runs = [m.group(0).strip() for m in SponsorService._BRAND_RUN_RE.finditer(text)]
+        # Drop leading words that are ad vocabulary ("Full ZipRecruiter" ->
+        # "ZipRecruiter"), which the model prepends freely.
+        trimmed = []
+        for run in runs:
+            words = run.split()
+            while words and words[0].lower() in NON_BRAND_WORDS:
+                words.pop(0)
+            if words:
+                trimmed.append(' '.join(words))
+        candidates = [r for r in trimmed if usable(r)]
+        if not candidates:
+            return None
+
+        # A domain naming the same brand is independent corroboration. An
+        # exact agreement wins; otherwise a domain that the run starts with
+        # marks where the brand ends ("Jack Archer Jet Setter" -> "Jack
+        # Archer" against jackarcher.com).
+        best_prefix = None
+        for run in candidates:
+            squashed = re.sub(r'[^a-z0-9]', '', run.lower())
+            if squashed in domains:
+                return run
+            words = run.split()
+            for count in range(len(words), 0, -1):
+                head = re.sub(r'[^a-z0-9]', '', ' '.join(words[:count]).lower())
+                if head and any(d.startswith(head) or head.startswith(d)
+                                for d in domains):
+                    if best_prefix is None:
+                        best_prefix = ' '.join(words[:count])
+                    break
+        if best_prefix:
+            return best_prefix
+        return candidates[0]
 
     @staticmethod
     def own_site_tokens(podcast_name: str) -> set:

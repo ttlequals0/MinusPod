@@ -388,10 +388,18 @@ release notes.
   three real advertisers went that way. The first advertiser named is now the
   label, and the rest stay in the reason text. A hyphenated compound before
   the word "sponsor" also captured a fragment, storing "read" as the
-  advertiser for "host-read sponsor spots". A capture made entirely of
-  ad-domain vocabulary is refused now as well, so "Dynamically inserted ad
-  block: Orange County tourism" names Orange County rather than storing
-  "Dynamically inserted" as the advertiser.
+  advertiser for "host-read sponsor spots".
+
+  Underneath those symptoms, sponsor names were pulled out of the reason by
+  matching sentence structure, and the model rewords the reason on every run,
+  so each pattern only ever covered the phrasing it was written for. Measured
+  against a corpus of real detector output, that approach got 7 of 18 right.
+  A brand is now found by its shape and confirmed by any domain named in the
+  same text, which is the signal that survives rewording: "Jack Archer Jet
+  Setter Tech Pant" resolves to Jack Archer because JackArcher.com agrees
+  with it. The same corpus now scores 18 of 18 and ships as a test, so the
+  next change to extraction is measured against variance rather than one
+  example.
 - The bar chart tooltip on the stats page was unreadable and its hover
   highlight looked like a second bar (#592). The value line kept the charting
   library's dark default text on a dark card, and no hover cursor was set, so

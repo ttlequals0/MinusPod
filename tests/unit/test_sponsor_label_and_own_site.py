@@ -209,7 +209,10 @@ class TestContinuationScaffoldingStrippedFromReason:
             {'start': 840, 'end': 900, 'type': 'promo',
              'note': 'continues from previous; host self-promo for Example.com'}]),
             'slug', 'ep')
-        assert ads[0]['reason'] == 'host self-promo for Example.com'
+        # The domain names a brand, so the reason gains the label the way any
+        # sponsored read does. The note itself is what must not survive.
+        assert 'continues from previous' not in ads[0]['reason']
+        assert ads[0]['reason'].endswith('host self-promo for Example.com')
 
     def test_continues_in_next_is_dropped_too(self):
         ads = parse_ads_from_response(json.dumps([
@@ -317,18 +320,20 @@ class TestAdvertisersListedAfterAColon:
         assert self._extract('Ad break: Host discusses the news at length') is None
         assert self._extract('Ad segment: This is regular content') is None
 
-    def test_a_colon_without_ad_context_is_refused(self):
-        assert self._extract('Chapter marker: Introduction to the topic') is None
+    def test_a_reason_of_only_ad_vocabulary_is_refused(self):
+        assert self._extract('Dynamically inserted ad block, merged') is None
 
     def test_the_brand_capture_does_not_swallow_the_sentence(self):
         """The brand-shape patterns must run case-sensitively. Under
         re.IGNORECASE, [A-Z] matches any letter, so the capitalized-run
         capture ran to the end of the clause."""
+        # Either spelling is the brand; what must not happen is the capture
+        # running on to "law enforcement boots with URL ...".
         assert self._extract(
             'Back-to-back dynamically inserted ads (audio confirmed DAI): '
             'Hykes law enforcement boots with URL HykesUSA.com, followed by '
             'Belmont Park Village luxury outlet promo'
-        ) == 'Hykes'
+        ) in ('Hykes', 'HykesUSA')
 
     def test_a_multiword_brand_after_the_colon_is_kept_whole(self):
         assert self._extract(

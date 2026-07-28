@@ -492,6 +492,12 @@ NON_BRAND_WORDS = frozenset({
     'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
     'complete', 'partial', 'full', 'brief', 'short', 'long',
     'message', 'insert', 'mid', 'roll', 'pre', 'post',
+    # Words the model reaches for when describing an ad's shape or evidence.
+    'orphaned', 'contiguous', 'dai', 'url', 'back', 'block', 'lead',
+    'fragment', 'leftover', 'confirmed', 'merged', 'missed', 'spots',
+    # Pronouns and contraction tails: "We'll be right back" is the ad-break
+    # lead-in the model quotes, never an advertiser.
+    'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'its',
 })
 
 # Classifications from LLM that indicate non-ad content
