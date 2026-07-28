@@ -6,6 +6,7 @@ original-coordinates twin (e.g. after A+B merge, C paired with B's original).
 The fix carries each original through validation as a reference on the
 processed dict.
 """
+import pytest
 from unittest.mock import MagicMock
 
 from tests.app_bootstrap import bootstrap
@@ -751,3 +752,75 @@ def test_recut_split_survives_a_verification_count_over_the_total():
     assert processing_mod._split_recut_counts(3, 5) == (0, 3)
     assert processing_mod._split_recut_counts(4, 0) == (4, 0)
     assert processing_mod._split_recut_counts(4, None) == (4, 0)
+
+
+# ---------- Per-feed ad-length override reaches the validator ----------
+
+
+class _CapturedBuild(Exception):
+    """Stops the caller once _build_validator's kwargs have been captured."""
+
+
+def _capture_build(seen):
+    def capture(*args, **kwargs):
+        seen.update(kwargs)
+        raise _CapturedBuild()
+    return capture
+
+
+def _feed_db():
+    db = MagicMock()
+    db.get_false_positive_corrections.return_value = []
+    db.get_confirmed_corrections.return_value = []
+    db.get_podcast_by_slug.return_value = {'id': 7}
+    return db
+
+
+def test_pass1_validator_receives_podcast_id(monkeypatch):
+    """The per-feed ad-length override only applies when the validator is built
+    with the feed's id; a None podcast_id silently reads the global."""
+    seen = {}
+    monkeypatch.setattr(processing_mod, 'db', _feed_db())
+    monkeypatch.setattr(processing_mod, '_build_validator', _capture_build(seen))
+    monkeypatch.setattr(processing_mod, '_refine_boundaries',
+                        lambda ads, *a, **k: ads)
+    monkeypatch.setattr(processing_mod, '_apply_heuristic_rolls',
+                        lambda *a, **k: None)
+
+    ads = [{'start': 10.0, 'end': 40.0, 'confidence': 0.9, 'reason': 'x'}]
+    with pytest.raises(_CapturedBuild):
+        processing_mod._refine_and_validate(
+            'show', 'ep1', ads, _segments(), None, None, 600.0, 0.8, 'Show')
+
+    assert seen.get('podcast_id') == 7
+
+
+def test_pass2_validator_receives_podcast_id(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(processing_mod, '_build_validator', _capture_build(seen))
+
+    with pytest.raises(_CapturedBuild):
+        _validate_verification_ads(
+            'show', 'ep1', [{'start': 10.0, 'end': 40.0, 'confidence': 0.9}],
+            [{'start': 10.0, 'end': 40.0}], _segments(),
+            ads_to_remove=[], episode_description=None,
+            min_cut_confidence=0.8, db=_feed_db())
+
+    assert seen.get('podcast_id') == 7
+
+
+def test_recut_validator_receives_podcast_id(monkeypatch):
+    seen = {}
+    db = _feed_db()
+    db.get_episode.return_value = {
+        'ad_markers_json': '[{"start": 10.0, "end": 40.0, "confidence": 0.9}]'}
+    db.get_episode_audio_analysis.return_value = None
+    db.get_episode_dai_differential.return_value = None
+    monkeypatch.setattr(processing_mod, 'db', db)
+    monkeypatch.setattr(processing_mod, '_build_validator', _capture_build(seen))
+
+    with pytest.raises(_CapturedBuild):
+        processing_mod._build_recut_ad_list(
+            'show', 'ep1', _segments(), 600.0, None, 0.8, podcast_id=7)
+
+    assert seen.get('podcast_id') == 7

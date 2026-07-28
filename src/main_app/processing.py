@@ -1167,6 +1167,9 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     if not all_ads:
         return [], []
 
+    podcast_row = db.get_podcast_by_slug(slug)
+    podcast_id = podcast_row.get('id') if podcast_row else None
+
     validator = _build_validator(
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
@@ -1175,6 +1178,7 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         positional_prior=positional_prior,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
+        podcast_id=podcast_id,
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
@@ -1772,6 +1776,9 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # (post-cut timeline), so zones learned on original durations do not map.
     # splice_veto=False: pass 2 has no audio analysis, so the splice veto
     # could never corroborate and its settings reads are skipped.
+    podcast_row = db.get_podcast_by_slug(slug)
+    podcast_id = podcast_row.get('id') if podcast_row else None
+
     v_validator = _build_validator(
         processed_duration, verification_segments,
         episode_description,
@@ -1780,6 +1787,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
         splice_veto=False,
+        podcast_id=podcast_id,
     )
 
     # Pair each processed candidate with its original-coords twin before
@@ -3107,6 +3115,7 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         min_cut_confidence=min_cut_confidence,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
+        podcast_id=podcast_id,
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
