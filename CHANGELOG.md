@@ -109,13 +109,16 @@ release notes.
   feed's id, so every stage silently read the global setting instead. Raising
   the limit on a show with long ad blocks did nothing until now. The per-feed
   floor is 30 seconds, matching the global setting; a one-second value would
-  have held every ad on the feed.
+  have held every ad on the feed. It is also checked against the global hard
+  ceiling, since a higher value would be clamped back and the feed would show a
+  number it never uses.
 - `sponsor` doubled as "no stage classified this", which made a real sponsor
   read indistinguishable from a marker nobody looked at. It is why an episode
   could show four sponsor markers while the detection pass had reported five
-  different categories. An unset category is now left unset and shows as
-  Uncategorized in the UI, on episode markers and on patterns alike, including
-  the patterns that predate the category column. Cutting is unchanged:
+  different categories. An unset category, or one outside the vocabulary, is
+  now left unset and shows as Uncategorized in the UI, on episode markers and
+  on patterns alike, including the patterns that predate the category column.
+  Cutting is unchanged:
   resolving a per-category action still reads an unknown category as sponsor,
   which is the conservative choice.
 - Two detection stages built markers with no category at all and leaned on

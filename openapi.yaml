@@ -637,7 +637,7 @@ paths:
                     - 'null'
                   minimum: 30.0
                   maximum: 3600.0
-                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. null falls back to the global maxAdDurationSeconds setting.
+                  description: Per-feed length past which an ad must name a recognized sponsor to be cut; one that does not is held for review. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting.
                 cueGatedApproval:
                   type:
                     - boolean
@@ -7628,7 +7628,7 @@ components:
             - 'null'
           minimum: 30.0
           maximum: 3600.0
-          description: Per-feed length past which an ad must name a recognized sponsor to be cut. null falls back to the global maxAdDurationSeconds setting.
+          description: Per-feed length past which an ad must name a recognized sponsor to be cut. Must not exceed the global maxAdDurationConfirmedSeconds. null falls back to the global maxAdDurationSeconds setting.
         cueGatedApproval:
           type:
             - boolean
