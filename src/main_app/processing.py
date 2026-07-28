@@ -54,6 +54,7 @@ from config import (
     MIN_PRESERVED_CHAPTERS,
     count_not_cut, is_cue_backed, is_pending_review, is_template_cue,
     normalize_segment_category,
+    SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
     resolve_feed_processing_mode,
     resolve_chapters_mode,
@@ -1128,15 +1129,18 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
 
 
 def _stamp_pass2_marker_categories(markers):
-    """Stamp category via normalize_segment_category on pass-2 markers, at save time.
+    """Validate the category on pass-2 markers at save time.
 
-    Pass-2 verification markers never route through the pass-1 detector
-    merge seam that normally stamps category, so without this they would
-    persist with no category key. Mutates in place; returns markers for
-    chaining.
+    Pass-2 markers never route through the pass-1 merge seam that validates
+    category, so an unrecognized value would persist. An absent one stays
+    absent: the verification prompt asks for a category, and a marker that
+    came back without one is unclassified, not a sponsor read. Mutates in
+    place; returns markers for chaining.
     """
     for m in markers:
-        m['category'] = normalize_segment_category(m.get('category'))
+        if m.get('category') in SEGMENT_CATEGORIES:
+            continue
+        m.pop('category', None)
     return markers
 
 

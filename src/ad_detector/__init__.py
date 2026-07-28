@@ -2506,8 +2506,11 @@ class AdDetector:
                             # Neither side resolves to 'keep' (e.g. remove vs
                             # beep): no side is more "correct" to preserve,
                             # fall back to the higher-confidence contributor.
-                    combined['category'] = normalize_segment_category(
-                        category_source.get('category'))
+                    source_category = category_source.get('category')
+                    if source_category in SEGMENT_CATEGORIES:
+                        combined['category'] = source_category
+                    else:
+                        combined.pop('category', None)
                     result[i] = combined
                     del result[j]
                     changed = True

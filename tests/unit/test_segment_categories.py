@@ -565,3 +565,35 @@ class TestVerificationPromptCoversEveryCategory:
 
         missing = [c for c in SEGMENT_CATEGORIES if c not in DEFAULT_VERIFICATION_PROMPT]
         assert missing == []
+
+
+class TestUnsetStaysUnsetOnEverySavePath:
+    """The merge seam is not the only place a marker's category is settled."""
+
+    def test_a_pass2_marker_with_no_category_stays_unset(self):
+        from main_app.processing import _stamp_pass2_marker_categories
+
+        markers = [{'start': 1.0, 'end': 2.0},
+                   {'start': 3.0, 'end': 4.0, 'category': 'not-a-category'},
+                   {'start': 5.0, 'end': 6.0, 'category': 'outro'}]
+
+        _stamp_pass2_marker_categories(markers)
+
+        assert 'category' not in markers[0]
+        assert 'category' not in markers[1]
+        assert markers[2]['category'] == 'outro'
+
+    def test_the_duplicate_fold_does_not_invent_a_category(self):
+        from ad_detector import AdDetector
+
+        detector = AdDetector.__new__(AdDetector)
+        detector.pattern_service = None
+        folded = detector._merge_overlapping_accepted_duplicates([
+            {'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+             'was_cut': True, 'detection_stage': 'claude'},
+            {'start': 100.0, 'end': 200.0, 'confidence': 0.8,
+             'was_cut': True, 'detection_stage': 'text_pattern'},
+        ])
+
+        assert len(folded) == 1
+        assert folded[0].get('category') is None

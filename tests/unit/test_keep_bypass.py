@@ -568,22 +568,22 @@ class TestExcludeKeptSpansFromVerification:
 
 class TestStampPass2MarkerCategories:
     """Pass-2-created markers never route through the detector-merge
-    category-stamping seam, so _stamp_pass2_marker_categories stamps them
-    at save time instead."""
+    category-validating seam, so _stamp_pass2_marker_categories validates
+    them at save time instead."""
 
-    def test_stamps_default_category_when_missing(self):
+    def test_a_missing_category_stays_missing(self):
         markers = [{'start': 1.0, 'end': 2.0}]
 
         out = processing._stamp_pass2_marker_categories(markers)
 
         assert out is markers
-        assert markers[0]['category'] == 'sponsor'
+        assert 'category' not in markers[0]
 
-    def test_preserves_valid_category_normalizes_unknown(self):
+    def test_preserves_a_valid_category_and_drops_an_unknown_one(self):
         markers = [{'start': 1.0, 'end': 2.0, 'category': 'cross_promo'},
                   {'start': 3.0, 'end': 4.0, 'category': 'not-a-real-category'}]
 
         processing._stamp_pass2_marker_categories(markers)
 
         assert markers[0]['category'] == 'cross_promo'
-        assert markers[1]['category'] == 'sponsor'
+        assert 'category' not in markers[1]
