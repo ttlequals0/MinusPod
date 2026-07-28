@@ -11,6 +11,14 @@ release notes.
 
 ## [2.81.23] - 2026-07-28
 
+### Security
+
+- Sponsor extraction is bounded again. The domain pattern had an unbounded
+  character run, the polynomial-ReDoS shape fixed in 1.1.1, and the brand
+  search was quadratic in a reason's word count with no cap. A 32 KB reason
+  took 12 seconds and a 1500-word one 109 seconds; both now finish in under a
+  millisecond.
+
 ### Fixed
 
 - A reason that only describes editorial content no longer counts as evidence
@@ -18,7 +26,9 @@ release notes.
   a yes/no on ad language, and that labeler names the first capitalized word of
   any sentence, so "Discussion of the guest's new book" passed it and skipped
   the low-confidence rejection. The gate now asks whether the reason mentions
-  advertising.
+  advertising. A negated mention ("not a sponsor read") does not count either.
+- The pattern export endpoint omits an unset category instead of writing an
+  explicit null, matching the community bundle.
 - A sponsor label no longer loses its first word when that word also appears in
   ad vocabulary. "Full Circle" was being cut to "Circle". The label is narrowed
   only where a URL in the same reason says where the brand starts and ends, so

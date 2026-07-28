@@ -1339,10 +1339,11 @@ def export_patterns():
             'false_positive_count': pattern.get('false_positive_count', 0),
             'is_active': pattern.get('is_active', True),
             'created_at': pattern.get('created_at'),
-            # Already normalized to 'sponsor' for a NULL/legacy row by
-            # _row_with_category; read as-is (issue #565).
-            'category': pattern.get('category'),
         }
+        # Unset stays absent (issue #565). An explicit null re-imports as a
+        # present-and-None category, which _row_with_category exists to prevent.
+        if pattern.get('category'):
+            pattern_data['category'] = pattern['category']
 
         # Include network/podcast IDs for scoped patterns
         if pattern.get('network_id'):

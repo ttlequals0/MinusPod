@@ -7,6 +7,7 @@ a change to extraction is measured against variance rather than one example.
 """
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -110,3 +111,20 @@ def test_a_content_description_is_not_ad_evidence(reason):
 ])
 def test_a_reason_that_describes_an_ad_is_ad_evidence(reason):
     assert mentions_advertising(reason) is True
+
+
+@pytest.mark.parametrize('reason', [
+    'This is not a sponsor read, just an editorial discussion of the topic',
+    'Segment contains no advertisement, only listener questions',
+    'Never an ad, the host is quoting a press release',
+])
+def test_a_denial_that_the_span_is_an_ad_is_not_ad_evidence(reason):
+    assert mentions_advertising(reason) is False
+
+
+def test_extraction_stays_fast_on_a_hostile_reason():
+    """The domain regex and the span search are both bounded (1.1.1 ReDoS)."""
+    start = time.perf_counter()
+    SponsorService.extract_sponsor_from_reason('a-' * 20000)
+    SponsorService.extract_sponsor_from_reason(' '.join(['Word'] * 4000))
+    assert time.perf_counter() - start < 1.0

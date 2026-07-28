@@ -16,7 +16,6 @@ from api import (
     get_database, _enrich_models_with_pricing, limiter,
 )
 from config import (
-    normalize_segment_category,
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
     WHISPER_COMPUTE_TYPES,
     OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
@@ -2443,7 +2442,12 @@ def _community_category_breakdown(db) -> Dict[str, int]:
     community_sync filters, so an unset category counts as sponsor there too."""
     breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}
     for pattern in db.get_patterns_by_source('community', active_only=True):
-        breakdown[normalize_segment_category(pattern.get('category'))] += 1
+        category = pattern.get('category')
+        # Folded rather than passed to normalize_segment_category, whose
+        # docstring rules it out for a displayed count. The fold is still right
+        # here: community_sync's filter treats unset as sponsor, so this is the
+        # number of patterns the sponsor toggle actually syncs.
+        breakdown[category if category in SEGMENT_CATEGORIES else 'sponsor'] += 1
     return breakdown
 
 

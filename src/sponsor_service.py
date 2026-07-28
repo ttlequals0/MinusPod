@@ -10,6 +10,7 @@ from utils.constants import (
     INVALID_SPONSOR_CAPTURE_WORDS,
     NON_BRAND_WORDS,
     REASON_DESCRIPTION_WORDS,
+    REASON_DESCRIPTION_MAX,
     SPONSOR_DOMAIN_TLDS,
     is_sponsor_reasoning_rationale,
     SEED_SPONSORS,
@@ -26,14 +27,19 @@ __all__ = ['SponsorService', 'SEED_SPONSORS', 'SEED_NORMALIZATIONS']
 # "Patreon.com/Show" yields "Patreon".
 _BRAND_RUN_RE = re.compile(
     r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
+# Bounded quantifier: an unbounded run of [A-Za-z0-9-] here is the
+# py/polynomial-redos shape fixed in 1.1.1. 63 is the DNS label limit.
 _DOMAIN_RE = re.compile(
-    r'\b([A-Za-z0-9][A-Za-z0-9-]*)\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
+    r'\b([A-Za-z0-9][A-Za-z0-9-]{0,62})\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
     re.IGNORECASE)
 _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
 _SQUASH_RE = re.compile(r'[^a-z0-9]')
 # Longest a brand name is taken to be when no domain confirms where it ends;
 # beyond this the model is describing rather than naming.
 MAX_BRAND_WORDS = 4
+# Span search is quadratic in the run's word count, so bound the run. A brand
+# a domain agrees with is never this long; past here it is prose.
+MAX_SPAN_WORDS = 12
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 
 
@@ -313,15 +319,11 @@ class SponsorService:
 
     @staticmethod
     def extract_sponsor_from_reason(text: str) -> Optional[str]:
-        """Extract a sponsor name from an LLM ad-reason string.
+        """Extract a sponsor name from an LLM ad-reason string, else None.
 
-        Matched by shape and corroboration rather than sentence structure: the
-        model rewords the reason on every run, so patterns keyed to phrasings
-        like "X sponsor read" only ever cover the samples they were written
-        for. A brand here is a capitalized run, narrowed to the span a domain
-        in the same text agrees with ("Jack Archer" with JackArcher.com), which
-        is the one signal that survives rewording. Returns the raw captured
-        token (case preserved) when valid, else None.
+        A brand is a capitalized run narrowed to the span a domain in the same
+        text agrees with; the model rewords the reason on every run, so a
+        pattern keyed to a phrasing only covers the sample it was written for.
         """
         if not text:
             return None
@@ -329,6 +331,9 @@ class SponsorService:
         # advertiser, and a capitalized run inside it is just its first word.
         if is_sponsor_reasoning_rationale(text):
             return None
+        # Input cap, same reason as the bounded quantifiers above: this runs on
+        # whatever string the model put in the field.
+        text = text[:REASON_DESCRIPTION_MAX]
 
         # The first advertiser named labels the break, so stop at the first
         # usable run: a later one with a URL must not win the label.
@@ -345,13 +350,14 @@ class SponsorService:
         # rather than prefixes: that narrows "Full ZipRecruiter" without a
         # blind leading trim. Leftmost and longest first, so "Jack Archer" is
         # not cut to "Jack" nor "Belmont Park" to "Park".
-        spans = [(i, j) for i in range(len(words))
-                 for j in range(len(words), i, -1)]
+        span_words = words[:MAX_SPAN_WORDS]
+        spans = [(i, j) for i in range(len(span_words))
+                 for j in range(len(span_words), i, -1)]
         for match_domain in (domains.__contains__, _starts_any(domains)):
             for i, j in spans:
-                head = _SQUASH_RE.sub('', ' '.join(words[i:j]).lower())
+                head = _SQUASH_RE.sub('', ' '.join(span_words[i:j]).lower())
                 if head and match_domain(head):
-                    return ' '.join(words[i:j])
+                    return ' '.join(span_words[i:j])
         # Nothing agrees, so there is no signal for where the brand ends. Cap
         # it: past this a run is the model describing the product, not naming
         # a brand ("LEGO Land Discovery Center Westchester Ninjago event").

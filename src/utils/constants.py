@@ -504,6 +504,10 @@ REASON_DESCRIPTION_WORDS = frozenset({
     'we', 'll', 'i', 'you', 'they', 'he', 'she', 'it', 'to',
 })
 
+NEGATION_WORDS = frozenset({
+    'not', 'no', 'non', 'never', 'isnt', 'arent', 'wasnt', 'without',
+})
+
 # Words that only appear in a reason when the model is describing advertising.
 AD_LANGUAGE_WORDS = frozenset({
     'ad', 'ads', 'advert', 'adverts', 'advertisement', 'advertisements',
@@ -521,7 +525,12 @@ def mentions_advertising(text) -> bool:
     """
     if not text:
         return False
-    return not AD_LANGUAGE_WORDS.isdisjoint(re.findall(r'[a-z]+', str(text).lower()))
+    words = re.findall(r'[a-z]+', str(text).lower())
+    # A negated mention is the model saying the span is not an ad, so it is not
+    # evidence that it is. Two tokens back covers "not a sponsor read".
+    return any(w in AD_LANGUAGE_WORDS
+               and NEGATION_WORDS.isdisjoint(words[max(0, i - 2):i])
+               for i, w in enumerate(words))
 
 
 # TLDs a sponsor URL in an ad reason is written with. Wider than the spoken
