@@ -35,6 +35,7 @@ from positional_prior import compute_ad_distribution
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
 from utils.constants import EpisodeStatus
+from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import build_opml_xml, modified_feed_url
 from database.podcasts import EPISODE_STATUSES, PodcastMixin
@@ -136,7 +137,7 @@ def _validate_source_url(value):
     parser, content = _fetch_feed_content(url, timeout=15)
     if not content:
         return None, 'Could not fetch a valid RSS feed from this URL'
-    parsed = parser.parse_feed(content)
+    parsed = parser.parse_feed(content, source=safe_url_for_log(url))
     # parse_feed returns a feedparser object even for bozo input; requiring a
     # channel title or entries is what rejects HTML pages while still
     # accepting a legitimate zero-episode feed.
@@ -473,7 +474,8 @@ def add_feed():
         parser, feed_content = _fetch_feed_content(source_url)
 
         if feed_content:
-            parsed_feed = parser.parse_feed(feed_content)
+            parsed_feed = parser.parse_feed(
+                feed_content, source=safe_url_for_log(source_url))
             if parsed_feed and parsed_feed.feed:
                 title = parsed_feed.feed.get('title', '')
                 if title:
@@ -650,7 +652,8 @@ def import_opml():
             try:
                 feed_content = rss_parser.fetch_feed(source_url)
                 if feed_content:
-                    parsed_feed = rss_parser.parse_feed(feed_content)
+                    parsed_feed = rss_parser.parse_feed(
+                        feed_content, source=safe_url_for_log(source_url))
                     if parsed_feed and parsed_feed.feed:
                         fetched_title = parsed_feed.feed.get('title', '')
                         if fetched_title:

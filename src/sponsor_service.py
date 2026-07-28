@@ -12,7 +12,11 @@ from utils.constants import (
     REASON_DESCRIPTION_WORDS,
     REASON_DESCRIPTION_MAX,
     SPONSOR_DOMAIN_TLDS,
+    MAX_BRAND_WORDS,
+    MAX_SPAN_WORDS,
+    squash_brand,
     is_sponsor_reasoning_rationale,
+    mentions_advertising,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
 )
@@ -23,8 +27,8 @@ logger = logging.getLogger(__name__)
 # Re-export for back-compat: callers may still do `from sponsor_service import SEED_SPONSORS`.
 __all__ = ['SponsorService', 'SEED_SPONSORS', 'SEED_NORMALIZATIONS']
 
-# A brand is a capitalized run; the run stops at a dot or slash so
-# "Patreon.com/Show" yields "Patreon".
+# A brand is a capitalized run. Dot and slash are outside the character class,
+# so "Patreon.com/Show" breaks into "Patreon" and "Show" rather than one run.
 _BRAND_RUN_RE = re.compile(
     r"[A-Z][A-Za-z0-9&'\u2019-]*(?:\s+[A-Z][A-Za-z0-9&'\u2019-]*)*")
 # Bounded quantifier: an unbounded run of [A-Za-z0-9-] here is the
@@ -33,13 +37,6 @@ _DOMAIN_RE = re.compile(
     r'\b([A-Za-z0-9][A-Za-z0-9-]{0,62})\.(?:%s)\b' % '|'.join(sorted(SPONSOR_DOMAIN_TLDS)),
     re.IGNORECASE)
 _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
-_SQUASH_RE = re.compile(r'[^a-z0-9]')
-# Longest a brand name is taken to be when no domain confirms where it ends;
-# beyond this the model is describing rather than naming.
-MAX_BRAND_WORDS = 4
-# Span search is quadratic in the run's word count, so bound the run. A brand
-# a domain agrees with is never this long; past here it is prose.
-MAX_SPAN_WORDS = 12
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 
 
@@ -344,18 +341,17 @@ class SponsorService:
         if not words:
             return None
 
-        domains = {m.group(1).lower().replace('-', '')
-                   for m in _DOMAIN_RE.finditer(text)}
+        domains = {squash_brand(m.group(1)) for m in _DOMAIN_RE.finditer(text)}
         # A domain names where the brand both starts and ends, so search spans
         # rather than prefixes: that narrows "Full ZipRecruiter" without a
         # blind leading trim. Leftmost and longest first, so "Jack Archer" is
         # not cut to "Jack" nor "Belmont Park" to "Park".
         span_words = words[:MAX_SPAN_WORDS]
-        spans = [(i, j) for i in range(len(span_words))
+        spans = [(squash_brand(' '.join(span_words[i:j])), i, j)
+                 for i in range(len(span_words))
                  for j in range(len(span_words), i, -1)]
         for match_domain in (domains.__contains__, _starts_any(domains)):
-            for i, j in spans:
-                head = _SQUASH_RE.sub('', ' '.join(span_words[i:j]).lower())
+            for head, i, j in spans:
                 if head and match_domain(head):
                     return ' '.join(span_words[i:j])
         # Nothing agrees, so there is no signal for where the brand ends. Cap
@@ -412,23 +408,19 @@ class SponsorService:
             if len(sponsor) > 2:
                 sponsors.add(sponsor)
 
-        # Extract brand name from ad reason (e.g., "Vention sponsor read" -> "vention")
-        if ad_reason:
-            reason_lower = ad_reason.lower()
-            # Look for patterns like "X sponsor read", "X ad", "ad for X"
-            reason_patterns = [
-                r'^([a-z]+)\s+(?:sponsor|ad\b)',  # "Vention sponsor read"
-                r'(?:ad for|sponsor(?:ed by)?)\s+([a-z]+)',  # "ad for Vention"
-            ]
-            for pattern in reason_patterns:
-                match = re.search(pattern, reason_lower)
-                if match:
-                    brand = match.group(1)
-                    # Filter common non-brand vocabulary (e.g. "sponsor read",
-                    # "ad segment", "complete ad segment"). NON_BRAND_WORDS is
-                    # a superset of the original inline excluded_words list.
-                    if len(brand) > 2 and brand not in NON_BRAND_WORDS:
-                        sponsors.add(brand)
+        # Brand named in the ad reason. Shares the labeler rather than keeping
+        # a second pair of phrase patterns, which only matched the two
+        # phrasings they were written for; merging then missed a brand the
+        # marker was already labeled with.
+        # Gated on ad language: the labeler names the first capitalized word of
+        # any sentence, and an editorial reason must not hand two unrelated
+        # spans a shared token to merge on.
+        brand = (SponsorService.extract_sponsor_from_reason(ad_reason)
+                 if mentions_advertising(ad_reason) else None)
+        if brand:
+            squashed = squash_brand(brand)
+            if len(squashed) > 2 and squashed not in NON_BRAND_WORDS:
+                sponsors.add(squashed)
 
         return sponsors - (exclude or set())
 

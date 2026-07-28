@@ -71,6 +71,7 @@ from utils.constants import (
     KNOWN_SHORT_BRANDS, canonical_sponsor,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
+    mentions_advertising,
     PATTERN_EVIDENCE_MAX_CHARS,
     sanitize_sponsor_label,
     SHOW_SEGMENTS_PROMPT_SECTION,
@@ -1931,35 +1932,6 @@ class AdDetector:
                 text_parts.append(seg.get('text', ''))
         return ' '.join(text_parts).strip()
 
-    def _extract_sponsor_from_reason(self, reason: str) -> Optional[str]:
-        """Extract sponsor name from ad detection reason using known sponsors DB.
-
-        Args:
-            reason: Ad detection reason text (e.g., "ZipRecruiter host-read sponsor segment")
-
-        Returns:
-            Extracted sponsor name (normalized) or None
-        """
-        if not reason or not self.sponsor_service:
-            return None
-
-        # Reject garbage reason values before extraction
-        reason_lower = reason.lower().strip()
-        if reason_lower in INVALID_SPONSOR_VALUES or len(reason_lower) < 2:
-            logger.debug(f"Rejecting invalid reason for sponsor extraction: '{reason}'")
-            return None
-
-        # Use sponsor service to find canonical sponsor name from DB
-        sponsor = self.sponsor_service.find_sponsor_in_text(reason)
-        if sponsor:
-            # Validate extracted sponsor
-            sponsor_lower = sponsor.lower().strip()
-            if sponsor_lower in INVALID_SPONSOR_VALUES or len(sponsor_lower) < 2:
-                logger.debug(f"Rejecting invalid extracted sponsor: '{sponsor}'")
-                return None
-            return sponsor
-        return None
-
     def _ad_passes_learning_filters(self, ad: Dict, min_confidence: float) -> bool:
         """Apply basic eligibility filters before sponsor resolution.
 
@@ -2011,8 +1983,8 @@ class AdDetector:
 
         Tier 1: sponsor DB lookup on raw sponsor field
         Tier 2: sponsor DB lookup on reason text
-        Tier 3: extract from reason via regex patterns
-        Tier 4: use raw sponsor if it looks valid
+        Tier 3: use raw sponsor if it looks valid
+        Tier 4: read a brand out of the reason prose
 
         Returns the canonical sponsor name, or None if no usable sponsor.
         """
@@ -2028,15 +2000,17 @@ class AdDetector:
         if not sponsor and reason_text and self.sponsor_service:
             sponsor = self.sponsor_service.find_sponsor_in_text(reason_text)
 
-        # Tier 3: extract from reason via regex patterns
-        if not sponsor:
-            sponsor = self._extract_sponsor_from_reason(reason_text)
-
-        # Tier 4: use raw sponsor if it looks valid
+        # Tier 3: use raw sponsor if it looks valid
         if not sponsor and raw_sponsor:
             raw_lower = raw_sponsor.lower().strip()
             if raw_lower not in INVALID_SPONSOR_VALUES and len(raw_lower) >= 2:
                 sponsor = raw_sponsor
+
+        # Tier 4: read a brand out of the prose. Last because the model's own
+        # sponsor field outranks a name scraped from its explanation. The old
+        # tier 3 here repeated tier 2's DB lookup, so it could never add a hit.
+        if not sponsor and reason_text and mentions_advertising(reason_text):
+            sponsor = SponsorService.extract_sponsor_from_reason(reason_text)
 
         if not sponsor:
             return None

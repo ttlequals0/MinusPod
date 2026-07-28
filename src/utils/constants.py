@@ -89,6 +89,21 @@ REASON_DESCRIPTION_MAX = 2000
 # Above the phrase-variant cap, so only a pathological alignment trips it.
 PATTERN_EVIDENCE_MAX_CHARS = 220
 
+_SQUASH_RE = re.compile(r'[^a-z0-9]')
+
+# Longest a brand name is taken to be when no domain confirms where it ends;
+# beyond this the model is describing rather than naming.
+MAX_BRAND_WORDS = 4
+# The labeler's span search is quadratic in a run's word count, so bound it.
+# A brand a domain agrees with is never this long; past here it is prose.
+MAX_SPAN_WORDS = 12
+
+
+def squash_brand(text) -> str:
+    """Brand text reduced to comparable characters, so a slug-style rendering
+    still matches: "Jack Archer" and "jackarcher.com" both give 'jackarcher'."""
+    return _SQUASH_RE.sub('', str(text).lower())
+
 
 def is_sponsor_reasoning_rationale(text) -> bool:
     """True if `text` looks like an LLM reasoning sentence stored in a slot
@@ -143,8 +158,7 @@ def names_the_show(text, show_name: Optional[str]) -> bool:
     """
     if not text or not show_name:
         return False
-    squash = lambda v: re.sub(r'[^a-z0-9]', '', str(v).lower())
-    label, show = squash(text), squash(show_name)
+    label, show = squash_brand(text), squash_brand(show_name)
     if not label or not show:
         return False
     return label == show
@@ -533,11 +547,13 @@ def mentions_advertising(text) -> bool:
                for i, w in enumerate(words))
 
 
+# TLDs recognized in spoken "X dot com" transcript prose.
+DOMAIN_TLDS = frozenset({'com', 'org', 'net', 'io', 'co'})
+
 # TLDs a sponsor URL in an ad reason is written with. Wider than the spoken
-# "X dot com" set in community_tags, which reads transcript prose.
-SPONSOR_DOMAIN_TLDS = frozenset({
-    'com', 'net', 'org', 'io', 'co', 'tv', 'fm', 'us',
-    'app', 'shop', 'store', 'ai', 'edu',
+# set: a written URL carries TLDs a host would not say aloud.
+SPONSOR_DOMAIN_TLDS = DOMAIN_TLDS | frozenset({
+    'tv', 'fm', 'us', 'app', 'shop', 'store', 'ai', 'edu',
 })
 
 # Classifications from LLM that indicate non-ad content

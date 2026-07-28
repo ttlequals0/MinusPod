@@ -128,3 +128,25 @@ def test_extraction_stays_fast_on_a_hostile_reason():
     SponsorService.extract_sponsor_from_reason('a-' * 20000)
     SponsorService.extract_sponsor_from_reason(' '.join(['Word'] * 4000))
     assert time.perf_counter() - start < 1.0
+
+
+@pytest.mark.parametrize('reason,expected', [
+    ('ZipRecruiter host-read sponsor segment with URL and call to action',
+     {'ziprecruiter'}),
+    ('Vention sponsor read', {'vention'}),
+    ('ad for Vention', {'vention'}),
+    ('Back-to-back host-read sponsor ads for Chime (Chime.com/show)', {'chime'}),
+])
+def test_merge_tokens_come_from_the_same_labeler_as_the_marker(reason, expected):
+    """Two phrase patterns used to answer this separately, so merging missed a
+    brand the marker was already labeled with."""
+    assert SponsorService.extract_sponsors_from_transcript('', reason) == expected
+
+
+@pytest.mark.parametrize('reason', [
+    'Discussion of the guest new book about climate policy',
+    'Interview segment where the host asks about Congress',
+])
+def test_an_editorial_reason_contributes_no_merge_token(reason):
+    """Otherwise two unrelated spans share a token and merge on it."""
+    assert SponsorService.extract_sponsors_from_transcript('', reason) == set()

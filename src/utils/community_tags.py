@@ -10,6 +10,8 @@ from functools import lru_cache
 from typing import Dict, FrozenSet, List, Tuple
 
 from utils.app_version import APP_VERSION
+# Re-exported: community_pattern_validator imports DOMAIN_TLDS from here.
+from utils.constants import DOMAIN_TLDS  # noqa: F401
 
 _SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'seed_data')
 
@@ -227,7 +229,6 @@ TRAILING_TRUNCATION_STOPWORDS: FrozenSet[str] = frozenset({
     'slash', 'the', 'to',
 })
 
-DOMAIN_TLDS: FrozenSet[str] = frozenset({'com', 'org', 'net', 'io', 'co'})
 
 CANONICAL_DAYS: FrozenSet[str] = frozenset({
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',

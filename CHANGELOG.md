@@ -27,24 +27,23 @@ release notes.
   any sentence, so "Discussion of the guest's new book" passed it and skipped
   the low-confidence rejection. The gate now asks whether the reason mentions
   advertising. A negated mention ("not a sponsor read") does not count either.
-- The pattern export endpoint omits an unset category instead of writing an
-  explicit null, matching the community bundle.
 - A sponsor label no longer loses its first word when that word also appears in
   ad vocabulary. "Full Circle" was being cut to "Circle". The label is narrowed
   only where a URL in the same reason says where the brand starts and ends, so
   "Full ZipRecruiter sponsor read" with ZipRecruiter.com still resolves to
   ZipRecruiter.
-- An uncategorized pattern exported to a community bundle now omits the
-  category key instead of writing an explicit null. Importing that null wrote a
-  present-and-None category back into the database, the representation the read
-  layer drops because it defeats a `.get('category', default)`.
+- Both export paths omit an unset category rather than writing an explicit
+  null. Importing that null wrote a present-and-None category back into the
+  database, the representation the read layer drops because it defeats a
+  `.get('category', default)`.
 
 ### Changed
 
-- The Whisper request timeout is validated in one place. Its range is a shared
-  constant applied by the API and at the point of use, so a value set through
-  `WHISPER_API_TIMEOUT` or written straight to the database is clamped the same
-  way the chunk settings are.
+- Same-sponsor merging reads the brand from the reason the same way the marker
+  label does. It had its own pair of phrase patterns, so two ads for a brand
+  the marker had already named could fail to merge.
+- `WHISPER_API_TIMEOUT` and a direct database write are clamped to the range
+  the API enforces, the way the chunk settings already were.
 - Words the model uses to describe an ad's shape ("orphaned", "back", "block")
   are read only by the sponsor labeler. They had also been filtering
   boundary-relocation keywords, where dropping them cost hits.
