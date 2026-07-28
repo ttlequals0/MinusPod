@@ -2,15 +2,16 @@
 
 BatchedInferencePipeline builds its chunks from VAD speech timestamps. With
 vad_filter=False and no clip_timestamps it raises "No clip timestamps found",
-which transcribe() swallowed into a None return, so the tail re-transcription
-(spec 1.2) never produced segments on the local backend.
+which transcribe() swallowed into a None return. faster-whisper has its own
+single-clip fallback below the 30s chunk length, so the tail re-transcription
+(spec 1.2) failed on the local backend for any span of 30 seconds or more.
 """
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import transcriber as transcriber_mod
-from transcriber import Transcriber, WHISPER_CHUNK_SECONDS, _full_span_clips
+from transcriber import Transcriber, _full_span_clips
 
 
 def test_full_span_clips_splits_at_chunk_length():
@@ -51,12 +52,6 @@ def test_full_span_clips_unknown_duration(duration):
     assert _full_span_clips(duration) is None
 
 
-def test_no_clip_exceeds_the_encoder_window():
-    # A clip longer than this is silently truncated to its first 30s.
-    assert all(c['end'] - c['start'] <= WHISPER_CHUNK_SECONDS
-               for c in _full_span_clips(301.0))
-
-
 def _run_transcribe(vad_filter, duration=72.5):
     model = MagicMock()
     info = MagicMock(language='en', language_probability=0.99)
@@ -90,3 +85,28 @@ def test_vad_transcription_passes_no_clips():
 
 def test_novad_with_unknown_duration_falls_back_to_no_clips():
     assert _run_transcribe(vad_filter=False, duration=None)['clip_timestamps'] is None
+
+
+def test_clips_cover_the_preprocessed_file_not_the_raw_chunk():
+    """loudnorm can shift the duration by tens of milliseconds, and the sliver
+    past the raw chunk's duration would go untranscribed."""
+    model = MagicMock()
+    info = MagicMock(language='en', language_probability=0.99)
+    model.transcribe.return_value = (iter([]), info)
+    durations = {'/tail.wav': 60.0, '/tail.preprocessed.wav': 60.4}
+
+    with patch.object(transcriber_mod, '_get_whisper_settings',
+                      return_value={'backend': 'local', 'language': 'en'}), \
+         patch.object(transcriber_mod.WhisperModelSingleton,
+                      'get_batched_pipeline', return_value=model), \
+         patch.object(transcriber_mod.WhisperModelSingleton,
+                      'get_current_model_name', return_value='small'), \
+         patch.object(Transcriber, 'get_audio_duration',
+                      side_effect=lambda p: durations[p]), \
+         patch.object(Transcriber, 'preprocess_audio',
+                      return_value='/tail.preprocessed.wav'), \
+         patch.object(Transcriber, 'get_initial_prompt', return_value=''):
+        Transcriber().transcribe('/tail.wav', vad_filter=False)
+
+    clips = model.transcribe.call_args.kwargs['clip_timestamps']
+    assert clips[-1]['end'] == 60.4

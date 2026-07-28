@@ -931,8 +931,9 @@ def _full_span_clips(duration: Optional[float]) -> Optional[List[Dict]]:
          'end': min((i + 1) * WHISPER_CHUNK_SECONDS, duration)}
         for i in range(math.ceil(duration / WHISPER_CHUNK_SECONDS))
     ]
-    # A duration a hair past a chunk boundary leaves a sub-sample trailing
-    # clip, which the pipeline hits as an empty feature array and raises on.
+    # A trailing clip under MIN_CLIP_SECONDS is dropped: too short for a word,
+    # and a boundary-straddling sliver reaches the pipeline as an empty
+    # feature array and raises.
     return [c for c in clips
             if c['end'] - c['start'] >= MIN_CLIP_SECONDS] or None
 
@@ -1517,6 +1518,11 @@ class Transcriber:
             if not preprocessed:
                 preprocessed_path = self.preprocess_audio(audio_path)
             transcribe_path = preprocessed_path if preprocessed_path else audio_path
+            if preprocessed_path:
+                # Clips must cover the file actually transcribed; loudnorm can
+                # shift the duration by tens of milliseconds.
+                audio_duration = (self.get_audio_duration(preprocessed_path)
+                                  or audio_duration)
 
             # Create podcast-aware prompt with sponsor vocabulary
             initial_prompt = self.get_initial_prompt(podcast_name)
@@ -1564,6 +1570,9 @@ class Transcriber:
                             speech_pad_ms=600,  # Increased from 400 - more padding for ad segments
                             threshold=0.3  # Lower threshold = more sensitive to speech in ads
                         ) if vad_filter else None,
+                        # None here when duration probing failed: a no-VAD
+                        # span of 30s or more then still fails, and the caller
+                        # logs that as a failure rather than silence.
                         clip_timestamps=(
                             None if vad_filter
                             else _full_span_clips(audio_duration)),
