@@ -1179,6 +1179,7 @@ def snap_terminal_ad_to_splice(ads: List[Dict], segments: List[Dict],
     if not ads or not splice_events or episode_duration <= 0:
         return ads
     coverage = coverage_ads if coverage_ads is not None else ads
+    own_site = SponsorService.own_site_tokens(podcast_name)
     out = []
     for ad in ads:
         ad_copy = ad.copy()
@@ -1195,8 +1196,7 @@ def snap_terminal_ad_to_splice(ads: List[Dict], segments: List[Dict],
             ad_text = get_transcript_text_for_range(
                 segments, ad_copy['start'], ad_copy['end']).lower()
             ad_sponsors = extract_sponsor_names(
-                ad_text, ad_copy.get('reason'),
-                exclude=SponsorService.own_site_tokens(podcast_name))
+                ad_text, ad_copy.get('reason'), exclude=own_site)
             for event in candidates:
                 if _span_blocked_by_content(segments, coverage, ad_sponsors,
                                             event['time'], ad_copy['start']):

@@ -190,6 +190,25 @@ _CONTINUATION_PREFIX_RE = re.compile(
     re.IGNORECASE)
 
 
+def _singular(key: str) -> str:
+    """Drop one trailing plural. rstrip('s') stemmed 'names' to 'name' but also
+    'products' to 'product' and 'address' to 'addre'."""
+    lowered = key.lower()
+    return lowered[:-1] if lowered.endswith('s') else lowered
+
+
+def _drop_leading(description: str, sponsor: str) -> str:
+    """Drop a leading sponsor name from a description, so combining the two
+    does not render "Acme: Acme ad for ...". Only on a word boundary: "Box"
+    must not turn "Boxing gloves" into "ing gloves"."""
+    rest = description[len(sponsor):]
+    if not description.lower().startswith(sponsor.lower()):
+        return description
+    if rest and rest[0].isalnum():
+        return description
+    return rest.lstrip(' :,-.').strip() or description
+
+
 def _strip_continuation_prefix(text: str) -> str:
     """Drop a leading window-continuation note from description text."""
     return _CONTINUATION_PREFIX_RE.sub('', text or '').lstrip()
@@ -404,7 +423,8 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                         if reason and reason != 'Advertisement detected':
                             # Avoid duplication: check if description is essentially the same text
                             if not _text_is_duplicate(reason, description):
-                                reason = f"{reason}: {description}"
+                                description = _drop_leading(description, reason)
+                                reason = f"{reason}: {description}" if description else reason
                         elif not reason or reason == 'Advertisement detected':
                             reason = description
 
@@ -425,7 +445,7 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                     # instead of blocklisting content indicators (which keeps growing)
                     duration = end - start
                     has_sponsor_field = any(
-                        key.lower().rstrip('s') in _SPONSOR_FIELD_STEMS
+                        _singular(key) in _SPONSOR_FIELD_STEMS
                         and get_valid_value(val)
                         for key, val in ad.items()
                     )

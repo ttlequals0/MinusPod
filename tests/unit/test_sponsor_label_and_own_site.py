@@ -94,7 +94,10 @@ class TestReasonKeepsItsDescription:
     def test_description_survives_a_sponsor_name_prefix(self):
         ads = self._parse('sponsor')
         assert len(ads) == 1
-        assert ads[0]['reason'].startswith('Box: Box sponsor read begins')
+        # The name is not repeated, and the description it used to swallow
+        # is all still there.
+        assert ads[0]['reason'].startswith('Box: sponsor read begins')
+        assert 'box.com/AI' in ads[0]['reason']
 
     def test_a_pluralized_sponsor_key_still_counts_as_evidence(self):
         """The model writes "sponsors" sometimes. extract_sponsor_name already
@@ -214,7 +217,7 @@ class TestContinuationScaffoldingStrippedFromReason:
              'note': 'continues in next: Acme pitch with promo code SAVE'}]),
             'slug', 'ep')
         assert 'continues in next' not in ads[0]['reason']
-        assert 'Acme pitch with promo code SAVE' in ads[0]['reason']
+        assert ads[0]['reason'] == 'Acme: pitch with promo code SAVE'
 
     def test_a_description_that_merely_mentions_it_is_untouched(self):
         ads = parse_ads_from_response(json.dumps([

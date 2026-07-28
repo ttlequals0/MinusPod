@@ -83,6 +83,12 @@ MAX_SCAN_CHARS = 4000                 # ~4 minutes of speech, cap for paired bou
 FUZZY_DISCRIMINATIVE_LENGTH = 60
 
 
+# Shortest variant eligible for fuzzy matching. An exact substring scores 100,
+# above every scaled threshold, so a short verbatim-common phrase matched
+# anywhere it appeared; local extraction already floors well above this.
+MIN_FUZZY_VARIANT_CHARS = 20
+
+
 def required_fuzzy_score(phrase_len: int) -> float:
     """Score a phrase of this length must reach to count as a match."""
     base = FUZZY_THRESHOLD * 100
@@ -721,7 +727,7 @@ class TextPatternMatcher:
             for pattern in patterns:
                 # Check intro phrases
                 for intro in pattern.intro_variants:
-                    if len(intro) < 10:
+                    if len(intro) < MIN_FUZZY_VARIANT_CHARS:
                         continue
 
                     intro_lower = intro.lower()
@@ -755,7 +761,7 @@ class TextPatternMatcher:
 
                 # Check outro phrases
                 for outro in pattern.outro_variants:
-                    if len(outro) < 10:
+                    if len(outro) < MIN_FUZZY_VARIANT_CHARS:
                         continue
 
                     outro_lower = outro.lower()

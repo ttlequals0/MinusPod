@@ -64,3 +64,33 @@ def test_pathological_length_still_has_a_backstop():
 
 def test_backstop_is_far_above_the_old_caps():
     assert REASON_DESCRIPTION_MAX > 300
+
+
+def test_combined_reason_does_not_repeat_the_sponsor_prefix():
+    """A description that opens with the sponsor name rendered as
+    "BetterHelp: BetterHelp ad for ..." once the length-ratio gate stopped
+    treating it as a duplicate."""
+    ads = _parse({'start': 0, 'end': 30, 'confidence': 0.9,
+                  'sponsor': 'BetterHelp',
+                  'note': 'BetterHelp ad for listeners with a trial offer'})
+
+    assert ads[0]['reason'] == 'BetterHelp: ad for listeners with a trial offer'
+
+
+def test_a_sponsor_name_that_is_only_a_word_prefix_is_left_alone():
+    """Trimming on a bare prefix turned "Boxing gloves" into "ing gloves"."""
+    ads = _parse({'start': 0, 'end': 30, 'confidence': 0.9,
+                  'sponsor': 'Box',
+                  'note': 'Boxing gloves reviewed at length by the host'})
+
+    assert ads[0]['reason'] == (
+        'Box: Boxing gloves reviewed at length by the host')
+
+
+def test_a_description_not_starting_with_the_sponsor_is_untouched():
+    ads = _parse({'start': 0, 'end': 30, 'confidence': 0.9,
+                  'sponsor': 'BetterHelp',
+                  'note': 'Host reads a therapy ad with a discount code'})
+
+    assert ads[0]['reason'] == (
+        'BetterHelp: Host reads a therapy ad with a discount code')

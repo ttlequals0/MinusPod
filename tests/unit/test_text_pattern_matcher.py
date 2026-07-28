@@ -680,3 +680,24 @@ class TestFuzzyFindReportsWhatMatched:
         pos, score, matched = self._matcher()._fuzzy_find(
             'short', 'a much longer phrase than the text')
         assert (pos, score, matched) == (0, 0, '')
+
+
+def test_variants_shorter_than_the_floor_are_skipped():
+    """An exact substring scores 100, above every scaled threshold, so a short
+    verbatim-common variant matched anywhere it appeared. Local extraction
+    already floors well above this; community variants arrive verbatim."""
+    matcher = TextPatternMatcher(db=None)
+    short = AdPattern(id=1, text_template='x', intro_variants=['and we are back'],
+                      outro_variants=[], sponsor='Acme', scope='global')
+    long_enough = AdPattern(
+        id=2, text_template='x',
+        intro_variants=['this episode is brought to you by acme today'],
+        outro_variants=[], sponsor='Acme', scope='global')
+    text = ('and we are back with more of the show, and this episode is '
+            'brought to you by acme today with a discount code for you')
+    segments = [{'start': 0.0, 'end': 20.0, 'text': text}]
+    full_text = text + ' '
+    segment_map = [(0, len(full_text), 0)]
+
+    assert matcher._find_phrase_matches(full_text, segments, segment_map, [short]) == []
+    assert matcher._find_phrase_matches(full_text, segments, segment_map, [long_enough])
