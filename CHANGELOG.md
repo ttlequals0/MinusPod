@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.21] - 2026-07-28
+## [2.81.22] - 2026-07-28
 
 ### Added
 
@@ -399,7 +399,10 @@ release notes.
   Setter Tech Pant" resolves to Jack Archer because JackArcher.com agrees
   with it. The same corpus now scores 18 of 18 and ships as a test, so the
   next change to extraction is measured against variance rather than one
-  example.
+  example. A break naming several advertisers is labelled by the first one,
+  rather than by whichever happened to have a URL beside it, and a name that
+  no domain confirms is capped so the label stops at the brand instead of
+  running on through the product description.
 - The bar chart tooltip on the stats page was unreadable and its hover
   highlight looked like a second bar (#592). The value line kept the charting
   library's dark default text on a dark card, and no hover cursor was set, so
