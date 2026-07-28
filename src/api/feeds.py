@@ -27,6 +27,7 @@ from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     resolve_feed_processing_mode,
+    resolve_max_ad_duration_confirmed,
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
@@ -855,6 +856,14 @@ def update_feed(slug):
             v, err = _normalize_cue_float_override(data[json_key], json_key, lo, hi)
             if err:
                 return error_response(err, 400)
+            if json_key == 'maxAdDurationRejectOverride' and v is not None:
+                # Above the global hard ceiling the validator would clamp it
+                # back, so the feed would show a value it never uses.
+                ceiling = resolve_max_ad_duration_confirmed(db)
+                if v > ceiling:
+                    return error_response(
+                        f'maxAdDurationRejectOverride cannot exceed the global '
+                        f'maxAdDurationConfirmedSeconds ({ceiling:.0f})', 400)
             updates[db_col] = v
 
     if 'cueCreateFromPairsOverride' in data:

@@ -45,9 +45,11 @@ def test_periodic_block_resets_stuck_processing_rows():
 class TestWaiterOrphanDetection:
     """The waiter has to stop when nothing holds the processing lock."""
 
-    def _drain_once(self, queue_says_processing, episode_status='processing'):
+    def _drain_once(self, queue_says_processing, episode_status='processing',
+                    error_message=None):
         """Run one drain iteration and return the refresh log calls."""
-        episode = {'episode_id': 'a1b2c3d4e5f6', 'status': episode_status}
+        episode = {'episode_id': 'a1b2c3d4e5f6', 'status': episode_status,
+                   'error_message': error_message}
         queue_row = {
             'id': 7, 'podcast_slug': 'example-podcast',
             'episode_id': 'a1b2c3d4e5f6', 'original_url': 'https://e.test/a.mp3',
@@ -101,12 +103,25 @@ class TestWaiterOrphanDetection:
     def test_a_cancelled_job_closes_its_queue_row(self):
         """A cancel resets the row to 'pending'. Marking the queue row failed
         let reset_failed_queue_items re-run the episode the user cancelled."""
+        from utils.constants import CANCELED_ERROR_MESSAGE
+
         log, mock_db = self._drain_once(queue_says_processing=False,
-                                        episode_status='pending')
+                                        episode_status='pending',
+                                        error_message=CANCELED_ERROR_MESSAGE)
 
         statuses = [call.args[1] for call in mock_db.update_queue_status.call_args_list]
         assert 'completed' in statuses
         assert 'failed' not in statuses
+
+    def test_a_sweep_reset_row_is_not_mistaken_for_a_cancel(self):
+        """The stuck-row sweep writes 'pending' too, and that one still needs
+        the retry ladder."""
+        log, mock_db = self._drain_once(
+            queue_says_processing=False, episode_status='pending',
+            error_message='Reset after worker crash (no retry penalty)')
+
+        statuses = [call.args[1] for call in mock_db.update_queue_status.call_args_list]
+        assert 'failed' in statuses
 
     def test_the_orphan_warning_names_the_actual_status(self):
         log, _ = self._drain_once(queue_says_processing=False,

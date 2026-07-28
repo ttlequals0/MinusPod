@@ -77,6 +77,8 @@ SPONSOR_REASONING_SUBSTRINGS = (
 # rationale; a full description can mention the transcript in passing. A
 # rationale-shaped prefix still decides at any length.
 SPONSOR_RATIONALE_SUBSTRING_MAX_CHARS = 200
+CANCELED_ERROR_MESSAGE = 'Canceled by user'
+
 SPONSOR_MAX_NAME_CHARS = 60
 
 # Backstop on the detector's free-text reason. Generous on purpose: the old

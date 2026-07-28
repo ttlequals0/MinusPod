@@ -410,7 +410,6 @@ class TestMergedSpanTakesTheDominantCategory:
     """
 
     def _detector(self):
-        from ad_detector import AdDetector
         d = AdDetector.__new__(AdDetector)
         d.pattern_service = None
         return d
@@ -605,7 +604,6 @@ class TestSplitSpansKeepTheirOwnCategoryReach:
     need the same span stamp the append sites give theirs."""
 
     def _detector(self):
-        from ad_detector import AdDetector
         d = AdDetector.__new__(AdDetector)
         d.pattern_service = None
         return d

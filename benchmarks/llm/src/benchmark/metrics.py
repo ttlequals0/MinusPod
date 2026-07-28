@@ -150,9 +150,7 @@ class SchemaViolations:
     extra_key_names: list[str] = field(default_factory=list)
     # Ads carrying a usable segment category, and ads carrying none. Counted
     # separately from missing_required: an ad with no category is still a
-    # usable detection, it just stays uncategorized and per-category actions
-    # stop meaning anything for it. Tracked so the report can say which
-    # models actually answer it; only some providers enforce the schema.
+    # usable detection, it just stays uncategorized.
     category_present: int = 0
     category_missing: int = 0
 

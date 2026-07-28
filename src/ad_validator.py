@@ -169,7 +169,7 @@ class AdValidator:
         # existed can invert the two; confirming a sponsor must never lower
         # an ad's ceiling.
         if max_ad_duration > max_ad_duration_confirmed:
-            logger.warning(
+            logger.info(
                 f"Confirmation threshold {max_ad_duration:.0f}s is above the "
                 f"hard ceiling {max_ad_duration_confirmed:.0f}s; using the ceiling")
         self.max_ad_duration = min(max_ad_duration, max_ad_duration_confirmed)
@@ -223,12 +223,9 @@ class AdValidator:
     def _registry_confirms(self, ad: Dict) -> bool:
         """Whether the ad's own audio names sponsors from the registry.
 
-        Confirmation raises the duration ceiling, and many shows never list
-        sponsors in the description, so a real multi-sponsor break was
-        rejected on length alone. The transcript is the evidence, not the
-        model's reason. Two registry mentions are required, across one brand or
-        two: a single organic brand mention inside a misdetected span of
-        several minutes is not a read.
+        The transcript is the evidence, not the model's reason. Two registry
+        mentions are required, across one brand or two: a single organic
+        mention inside a span of several minutes is not a read.
         """
         if not self.sponsor_service:
             return False

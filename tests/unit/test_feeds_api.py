@@ -88,3 +88,32 @@ def test_patch_invalid_value_rejected_and_column_unchanged(app_client, seeded_fe
     assert 'error' in body
     assert 'chaptersMode' in body['error']
     assert seeded_feed['db'].get_podcast_by_slug(slug)['chapters_mode'] == 'generate'
+
+
+def test_a_reject_override_above_the_global_ceiling_is_rejected(app_client, seeded_feed):
+    """The validator clamps it back, so the feed would show a value it never
+    uses. The global hard ceiling defaults to 900s."""
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'maxAdDurationRejectOverride': 1200},
+                            headers=headers)
+
+    assert resp.status_code == 400
+    assert 'cannot exceed' in resp.get_json()['error']
+
+
+def test_a_reject_override_under_the_ceiling_is_accepted(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'maxAdDurationRejectOverride': 600},
+                            headers=headers)
+
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()[
+        'maxAdDurationRejectOverride'] == 600

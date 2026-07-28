@@ -88,7 +88,7 @@ from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
-from utils.constants import EpisodeStatus
+from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
@@ -230,7 +230,8 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
         # Reset DB status (before finally releases queue, preventing re-queue race)
         try:
-            db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value, error_message='Canceled by user')
+            db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value,
+                              error_message=CANCELED_ERROR_MESSAGE)
         except Exception as db_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
         status_service.complete_job()
@@ -1131,11 +1132,9 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
 def _stamp_pass2_marker_categories(markers):
     """Validate the category on pass-2 markers at save time.
 
-    Pass-2 markers never route through the pass-1 merge seam that validates
-    category, so an unrecognized value would persist. An absent one stays
-    absent: the verification prompt asks for a category, and a marker that
-    came back without one is unclassified, not a sponsor read. Mutates in
-    place; returns markers for chaining.
+    Pass-2 markers never route through the pass-1 merge seam, so an
+    unrecognized value would persist and an absent one must stay absent.
+    Mutates in place; returns markers for chaining.
     """
     for m in markers:
         if m.get('category') in SEGMENT_CATEGORIES:

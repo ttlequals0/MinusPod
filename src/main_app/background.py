@@ -5,7 +5,7 @@ import shutil
 import time
 
 from config import MAX_EPISODE_RETRIES
-from utils.constants import EpisodeStatus
+from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
 # the bottom of that file, so the apparent circular import is safe.
@@ -227,9 +227,11 @@ def background_queue_processor():
                             # re-opens it as pending once the service is back.
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
-                        elif episode and episode['status'] == 'pending':
-                            # A cancel resets the row to pending; close the queue
-                            # row so the retry ladder cannot re-run the cancel.
+                        elif (episode and episode['status'] == 'pending'
+                                and episode.get('error_message') == CANCELED_ERROR_MESSAGE):
+                            # Only a user cancel closes the row. The stuck-row
+                            # sweep also writes 'pending', and that one still
+                            # needs the retry ladder.
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Cancelled; queue row closed")
                         else:

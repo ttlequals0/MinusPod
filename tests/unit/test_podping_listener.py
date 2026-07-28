@@ -12,6 +12,7 @@ _test_data_dir = bootstrap('podping_listener_test_', passphrase='podping-listene
 
 from podping_listener import (
     PodpingListener,
+    extract_podping_events,
     podping_listener_loop,
     PODPING_NODES,
     ACTIONABLE_REASONS,
@@ -784,8 +785,6 @@ class TestListenerWritePatterns:
 
 class TestActiveAuthorityIsAccepted:
     def test_an_op_signed_with_active_authority_carries_its_auths(self):
-        from podping_listener import extract_podping_events
-
         events = extract_podping_events({'transactions': [{
             'operations': [['custom_json', {
                 'id': 'podping',

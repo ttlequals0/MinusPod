@@ -2327,10 +2327,8 @@ class AdDetector:
                     # recorded end (else a later trim could sever it).
                     note_merged_members(last, current)
                 # The label goes to the member classifying the most audio,
-                # ties to the incumbent, and a member naming nothing (or naming
-                # something outside the vocabulary) displaces nothing. Actions
-                # cannot conflict here: split_conflicting_action_span already
-                # separated a keep-resolving span.
+                # ties to the incumbent. A member naming nothing, or naming
+                # something outside the vocabulary, displaces nothing.
                 cur_category = current.get('category')
                 if cur_category in SEGMENT_CATEGORIES:
                     cur_span = current['end'] - current['start']
@@ -2422,9 +2420,8 @@ class AdDetector:
         merged = self._merge_overlapping_accepted_duplicates(merged, action_map=action_map)
 
         # Single point that sanitizes a sponsor label and validates a category.
-        # An unset category stays unset: stamping it 'sponsor' made a real
-        # sponsor read indistinguishable from one nothing classified. Cutting
-        # is unaffected, action resolution still reads unset as sponsor.
+        # An unset one stays unset: stamping 'sponsor' made a real sponsor read
+        # indistinguishable from one nothing classified.
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(
                 marker.get('sponsor'), show_name=podcast_name)

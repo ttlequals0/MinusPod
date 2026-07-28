@@ -174,9 +174,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 # Even on 304, ensure artwork is cached (may be missing after DB restore)
                 podcast = db.get_podcast_by_slug(slug)
                 # A 304 carries no body, so a steady-state feed would never
-                # have its <podcast:podping> tag ingested (#579). The stamp is
-                # written only on a successful full fetch, so a feed whose full
-                # fetch keeps failing retries once per cycle; accepted.
+                # have its <podcast:podping> tag ingested (#579). Stamped only
+                # on a successful fetch, so a failing feed retries each cycle.
                 forced_reason = None
                 if podcast and not podcast.get('artwork_cached'):
                     forced_reason = 'artwork missing'

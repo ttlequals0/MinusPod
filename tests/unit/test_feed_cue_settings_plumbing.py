@@ -172,3 +172,4 @@ def test_per_feed_create_from_pairs_on_calls_synthesis_with_feed_values():
     assert kwargs['min_break_s'] == feed_min_break
     assert kwargs['max_break_s'] == feed_max_break
     assert kwargs['max_break_fraction'] == feed_max_fraction
+
