@@ -104,6 +104,13 @@ class AudioProcessor:
         """
         return get_audio_duration(audio_path)
 
+    def resolve_replace_audio_path(self) -> str:
+        """This instance's replacement file, re-resolved when the captured one
+        vanished. A DELETE mid-render must degrade to the default, not fail."""
+        if os.path.exists(self.replace_audio_path):
+            return self.replace_audio_path
+        return get_replace_audio_path()
+
     def get_beep_duration(self) -> float:
         """Duration of this instance's replacement audio.
 
@@ -361,8 +368,9 @@ class AudioProcessor:
             shutil.copy2(input_path, output_path)
             return []
 
-        if not os.path.exists(self.replace_audio_path):
-            logger.error(f"Replace audio not found: {self.replace_audio_path}")
+        replace_audio_path = self.resolve_replace_audio_path()
+        if not os.path.exists(replace_audio_path):
+            logger.error(f"Replace audio not found: {replace_audio_path}")
             return None
 
         chapters_meta_path = None
@@ -495,7 +503,7 @@ class AudioProcessor:
             cmd = [
                 'ffmpeg', '-y',
                 '-i', input_path,
-                '-i', self.replace_audio_path,
+                '-i', replace_audio_path,
             ]
             if chapters_meta_path:
                 cmd += ['-f', 'ffmetadata', '-i', chapters_meta_path, '-map_chapters', '2']

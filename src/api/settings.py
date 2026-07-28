@@ -2659,9 +2659,13 @@ def upload_replacement_audio():
     upload = request.files.get('file')
     if upload is None:
         return error_response('an audio file is required (multipart field "file")', 400)
-    raw = upload.stream.read(replacement_audio.MAX_UPLOAD_BYTES + 1)
+    # Read whole so the rejection message can name the real size; Flask's
+    # MAX_CONTENT_LENGTH already bounds the request at 10 MB.
+    raw = upload.stream.read()
     try:
         info = replacement_audio.save_upload(raw)
+    except replacement_audio.ToolMissingError as e:
+        return error_response(str(e), 503)
     except replacement_audio.ReplacementAudioError as e:
         return error_response(str(e), 400)
     return json_response(info)

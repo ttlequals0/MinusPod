@@ -26,6 +26,13 @@ MAX_DURATION_SECONDS = 30.0
 MIN_DURATION_SECONDS = 0.05
 FFMPEG_TIMEOUT_S = 60
 
+# ffmpeg decodes far more than the five formats the UI advertises, including
+# playlist containers that pull in other local files. Values are ffprobe
+# format_name strings.
+ALLOWED_FORMATS = frozenset({
+    'mp3', 'wav', 'ogg', 'flac', 'mov,mp4,m4a,3gp,3g2,mj2',
+})
+
 SOURCE_UPLOADED = 'uploaded'
 # The image copies assets/ into assets_builtin/ too, so an operator cannot tell
 # a bind-mounted override from the shipped file. Both report as the default.
@@ -36,6 +43,10 @@ class ReplacementAudioError(Exception):
     """Upload rejected. The message is shown to the operator verbatim."""
 
 
+class ToolMissingError(ReplacementAudioError):
+    """ffmpeg or ffprobe is absent: a server misconfiguration, not a bad file."""
+
+
 def _run(cmd, input_bytes=None, op_desc='ffmpeg') -> bytes:
     try:
         proc = tracked_run(cmd, input=input_bytes, capture_output=True,
@@ -43,7 +54,7 @@ def _run(cmd, input_bytes=None, op_desc='ffmpeg') -> bytes:
     except subprocess.TimeoutExpired as e:
         raise ReplacementAudioError(f'{op_desc} timed out') from e
     except FileNotFoundError as e:
-        raise ReplacementAudioError(f'{op_desc} is not installed') from e
+        raise ToolMissingError(f'{op_desc} is not installed on the server') from e
     if proc.returncode != 0:
         stderr = (proc.stderr or b'').decode('utf-8', errors='replace')[:300]
         logger.warning("%s failed: %s", op_desc, stderr)
@@ -55,7 +66,7 @@ def probe_audio(path: str) -> Dict[str, Any]:
     """Duration, channel count and sample rate of an audio file."""
     out = _run([
         'ffprobe', '-v', 'error', '-select_streams', 'a:0',
-        '-show_entries', 'stream=channels,sample_rate:format=duration',
+        '-show_entries', 'stream=channels,sample_rate:format=duration,format_name',
         '-of', 'json', str(path),
     ], op_desc='ffprobe')
     try:
@@ -71,6 +82,7 @@ def probe_audio(path: str) -> Dict[str, Any]:
         'durationSeconds': round(float(duration), 3) if duration else None,
         'channels': int(stream.get('channels') or 0) or None,
         'sampleRateHz': int(stream.get('sample_rate') or 0) or None,
+        'formatName': parsed.get('format', {}).get('format_name'),
     }
 
 
@@ -120,6 +132,12 @@ def _validate_probe(info: Dict[str, Any]) -> None:
         raise ReplacementAudioError('That file is too short to hear.')
 
 
+def _validate_format(info: Dict[str, Any]) -> None:
+    if (info.get('formatName') or '') not in ALLOWED_FORMATS:
+        raise ReplacementAudioError(
+            'That file is not a supported format (MP3, WAV, M4A, OGG, FLAC).')
+
+
 def save_upload(raw: bytes) -> Dict[str, Any]:
     """Validate, transcode to MP3 and install an uploaded replacement.
 
@@ -145,6 +163,7 @@ def save_upload(raw: bytes) -> Dict[str, Any]:
     tmp_out = None
     try:
         info = probe_audio(src_path)
+        _validate_format(info)
         _validate_probe(info)
 
         # Encode into the data dir so the final rename cannot cross a
@@ -171,15 +190,25 @@ def save_upload(raw: bytes) -> Dict[str, Any]:
         result.get('durationSeconds') or 0,
         result.get('channels'), result.get('sampleRateHz'),
     )
-    return describe()
+    stat = os.stat(target)
+    return {
+        'source': SOURCE_UPLOADED,
+        'canRevert': True,
+        'exists': True,
+        'sizeBytes': stat.st_size,
+        'updatedAt': int(stat.st_mtime),
+        'durationSeconds': result.get('durationSeconds'),
+        'channels': result.get('channels'),
+        'sampleRateHz': result.get('sampleRateHz'),
+    }
 
 
 def revert() -> bool:
     """Remove an uploaded replacement so the next-best source applies again."""
-    target = get_uploaded_replace_audio_path()
-    if not target.exists():
+    try:
+        get_uploaded_replace_audio_path().unlink()
+    except FileNotFoundError:
         return False
-    target.unlink()
     logger.info("Replacement audio reverted to the shipped default")
     return True
 
@@ -190,10 +219,3 @@ def current_file() -> Tuple[Optional[str], Optional[str]]:
     if not os.path.exists(path):
         return None, None
     return path, 'audio/mpeg'
-
-
-__all__ = [
-    'MAX_DURATION_SECONDS', 'MAX_UPLOAD_BYTES', 'ReplacementAudioError',
-    'SOURCE_DEFAULT', 'SOURCE_UPLOADED', 'current_file', 'describe',
-    'probe_audio', 'revert', 'save_upload',
-]

@@ -56,10 +56,9 @@ function ReplacementAudioField() {
     setProgress(0);
   }, [data?.updatedAt]);
 
-  const settle = (next: { source: string }) => {
+  const settle = () => {
     setError(null);
     qc.invalidateQueries({ queryKey: ['replacementAudio'] });
-    return next;
   };
 
   const upload = useMutation({

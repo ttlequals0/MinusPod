@@ -1,5 +1,6 @@
 """Uploading a replacement beep has to persist, take effect without a restart,
 and never install a file that would wreck every cut."""
+import atexit
 import os
 import shutil
 import subprocess
@@ -9,14 +10,19 @@ from pathlib import Path
 
 import pytest
 
+# setdefault, like every other module: a hard assignment at collection time
+# overwrites whatever an earlier module set, and later tests then read this
+# module's temp dir.
 _test_data_dir = tempfile.mkdtemp(prefix='replacement_audio_test_')
 os.environ.setdefault('SECRET_KEY', 'test-secret')
-os.environ['MINUSPOD_DATA_DIR'] = _test_data_dir
+os.environ.setdefault('MINUSPOD_DATA_DIR', _test_data_dir)
+atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import replacement_audio as ra  # noqa: E402
 from audio_processor import (  # noqa: E402
+    get_data_dir,
     get_replace_audio_path,
     get_replacement_duration,
     get_uploaded_replace_audio_path,
@@ -77,7 +83,7 @@ class TestResolutionOrder:
         """assets/ is baked into the image, so an upload there dies on redeploy."""
         ra.save_upload(tmp_tone())
 
-        assert get_uploaded_replace_audio_path().parent == Path(_test_data_dir)
+        assert get_uploaded_replace_audio_path().parent == Path(get_data_dir())
 
     @requires_ffmpeg
     def test_revert_restores_the_default(self, tmp_tone):
@@ -147,11 +153,11 @@ class TestRejections:
         assert ra.describe()['durationSeconds'] == pytest.approx(2.0, abs=0.1)
 
     def test_no_temp_files_are_left_behind_after_a_rejection(self):
-        before = set(os.listdir(_test_data_dir))
+        before = set(os.listdir(get_data_dir()))
         with pytest.raises(ra.ReplacementAudioError):
             ra.save_upload(b'not audio')
 
-        assert set(os.listdir(_test_data_dir)) == before
+        assert set(os.listdir(get_data_dir())) == before
 
 
 class TestMetadata:
@@ -176,3 +182,48 @@ class TestMetadata:
         info = ra.save_upload(tmp_tone(channels=2))
 
         assert info['channels'] == 2
+
+
+class TestContainerAllowlist:
+    """ffmpeg reads playlist containers as valid audio input, which would let
+    an upload pull other local files into the transcoded output."""
+
+    @requires_ffmpeg
+    def test_a_playlist_container_is_rejected(self):
+        # Relative name: the upload is probed from the system temp dir, and
+        # ffmpeg refuses absolute paths in a concat list but not relative ones.
+        member = Path(tempfile.gettempdir()) / 'ra_playlist_member.wav'
+        _tone(str(member), seconds=0.5)
+        try:
+            playlist = b"ffconcat version 1.0\nfile 'ra_playlist_member.wav'\n"
+            with pytest.raises(ra.ReplacementAudioError, match='supported format'):
+                ra.save_upload(playlist)
+        finally:
+            member.unlink(missing_ok=True)
+
+    @requires_ffmpeg
+    def test_a_plain_wav_still_installs(self, tmp_tone):
+        info = ra.save_upload(tmp_tone(seconds=1.0))
+        assert info['source'] == ra.SOURCE_UPLOADED
+
+
+class TestRevertIsRaceSafe:
+    @requires_ffmpeg
+    def test_a_second_revert_returns_false_instead_of_raising(self, tmp_tone):
+        ra.save_upload(tmp_tone(seconds=1.0))
+
+        assert ra.revert() is True
+        assert ra.revert() is False
+
+
+class TestRendererSurvivesAMidRunDelete:
+    @requires_ffmpeg
+    def test_a_deleted_upload_falls_back_to_the_shipped_default(self, tmp_tone):
+        from audio_processor import AudioProcessor
+
+        ra.save_upload(tmp_tone(seconds=1.0))
+        processor = AudioProcessor()
+        assert processor.replace_audio_path == str(get_uploaded_replace_audio_path())
+        ra.revert()
+
+        assert processor.resolve_replace_audio_path() == str(get_replace_audio_path())
