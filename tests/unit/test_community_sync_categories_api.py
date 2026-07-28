@@ -125,3 +125,18 @@ class TestCommunitySyncEndpoint:
         assert body['categoryBreakdown']['sponsor'] == 1
         # Only the active cross_promo row counts; the deactivated one does not.
         assert body['categoryBreakdown']['cross_promo'] == 1
+
+    def test_an_uncategorized_community_pattern_does_not_500(self, client, temp_db):
+        """A community pattern with no category reads back as None. The
+        breakdown used it as a dict key, so the settings page returned 500."""
+        temp_db.create_ad_pattern(
+            scope='global', text_template='q' * 60,
+            source='community', community_id='cid-none',
+        )
+
+        with patch('api.settings.get_database', return_value=temp_db):
+            resp = client.get('/api/v1/settings/community-sync')
+
+        assert resp.status_code == 200, resp.data
+        # Counted as sponsor, matching how community_sync filters on category.
+        assert resp.get_json()['categoryBreakdown']['sponsor'] == 1

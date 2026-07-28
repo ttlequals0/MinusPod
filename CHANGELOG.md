@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.81.17] - 2026-07-28
+## [2.81.18] - 2026-07-28
 
 ### Added
 
@@ -354,6 +354,11 @@ release notes.
   value below the floor, so selecting "300" and typing "120" reverted the field
   on the first digit and mangled the rest of the entry. They accept a typed
   value and clamp it when you leave the field.
+- The community-sync settings page returned 500 when any synced pattern had
+  no category. The per-category breakdown used the value as a dict key, and
+  its `.get` default never applied, because the key is present and null rather
+  than absent. Uncategorized patterns count as sponsor there, matching how
+  sync itself filters on category.
 - A malformed feed body and the gzip retry that preceded it were logged
   without naming the feed, so a recurring pair could not be tied to one
   origin. Both lines carry the feed now, and the parse warning reports the

@@ -16,6 +16,7 @@ from api import (
     get_database, _enrich_models_with_pricing, limiter,
 )
 from config import (
+    normalize_segment_category,
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
     WHISPER_COMPUTE_TYPES,
     OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
@@ -2431,10 +2432,14 @@ def update_reviewer_settings():
 # ========== Community-pattern sync settings ==========
 
 def _community_category_breakdown(db) -> Dict[str, int]:
-    """Per-category counts of currently-active (synced) community patterns."""
+    """Per-category counts of currently-active (synced) community patterns.
+
+    Resolved the same way community_sync filters on category, so the counts
+    match what the toggles actually sync. An unset category reads as sponsor
+    there; the .get default never fired, since the key is present and None."""
     breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}
     for pattern in db.get_patterns_by_source('community', active_only=True):
-        breakdown[pattern.get('category', 'sponsor')] += 1
+        breakdown[normalize_segment_category(pattern.get('category'))] += 1
     return breakdown
 
 
