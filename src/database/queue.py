@@ -75,8 +75,9 @@ class QueueMixin:
         """Add or reset an episode in the auto-process queue to 'pending'.
 
         Unlike queue_episode_for_processing (which skips already-queued rows),
-        this method resets the status and attempt counter even when a completed
-        or failed row already exists.  Used by bulk process/reprocess actions
+        this method reopens a completed or failed row. Its attempt counter is
+        reset with it; a row already pending keeps its count, so a client
+        polling a busy play request cannot restart the retry ladder.  Used by bulk process/reprocess actions
         so re-queuing is reliable regardless of prior queue history.
 
         Returns queue row ID or None on failure.

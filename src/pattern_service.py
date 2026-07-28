@@ -892,8 +892,9 @@ class PatternService:
                     continue
 
                 # Occurrence gate against the transcript window: a real sponsor
-                # read names the brand at least twice (intro + outro). Sponsor
-                # reads only, since a self-promo has no advertiser to repeat.
+                # read names the brand at least twice (intro + outro). Skipped
+                # for a category with no advertiser to repeat, such as a
+                # self-promo.
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
                 category = ad.get('category')

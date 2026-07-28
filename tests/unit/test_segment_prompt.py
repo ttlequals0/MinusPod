@@ -179,12 +179,16 @@ class TestNormalizationIndependentOfFlag:
         for cat in SEGMENT_CATEGORIES:
             assert normalize_segment_category(cat) == cat
 
-    def test_merge_seam_normalizes_out_of_enum_value_regardless_of_flag(self):
+    def test_merge_seam_drops_an_out_of_enum_value_regardless_of_flag(self):
+        """Recording it as sponsor would make a real sponsor read
+        indistinguishable from a value nothing recognized."""
         det = AdDetector()
         ads = [{'start': 0.0, 'end': 10.0, 'confidence': 0.9,
                 'reason': 'test', 'category': 'not_a_real_category'}]
         merged = det._merge_detection_results(ads)
-        assert merged[0]['category'] == 'sponsor'
+        assert merged[0].get('category') is None
+        # Cutting is unchanged: action resolution still reads unset as sponsor.
+        assert normalize_segment_category(merged[0].get('category')) == 'sponsor'
 
 
 _WARNING_SEGMENTS = [

@@ -3254,7 +3254,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
-                    audio_cue_detections=0, owns_failure=True):
+                    audio_cue_detections=0, owns_failure=True, progress=None):
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
@@ -3267,8 +3267,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
     run_stats, verification_count, and audio_cue_detections are forwarded to
     the history row, so a folded approval recut keeps the run's stats.
-    owns_failure=False leaves the failure to the caller: a folded approval
-    recut runs after a complete render, which the caller still finalizes."""
+    owns_failure=False leaves the failure to the caller. ``progress`` is a dict
+    the recut stamps 'mutated' on before it overwrites the episode's markers or
+    audio, so a caller that means to fall back knows whether anything it would
+    finalize is still intact."""
 
     work_path = None
     episode_data = db.get_episode(slug, episode_id)
@@ -3349,6 +3351,10 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             master = _find_master(all_ads_with_validation, ad)
             if master is not None:
                 master['was_cut'] = False
+        # Past this point the recut owns the episode's markers and audio, so a
+        # later failure cannot be papered over by finalizing the earlier render.
+        if progress is not None:
+            progress['mutated'] = True
         storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
         new_duration = local_audio_processor.get_audio_duration(processed_path)
@@ -4064,19 +4070,30 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     slug, episode_id, all_ads_with_validation):
                 # No cancel_event: a cancel here reaches the background
                 # wrapper's cleanup, which deletes the finished files.
+                recut_progress = {}
                 if _recut_episode(slug, episode_id, episode_title,
                                    podcast_name, episode_description,
                                    start_time, cancel_event=None,
                                    run_stats=run_stats,
                                    verification_count=verification_count,
                                    audio_cue_detections=audio_cue_count,
-                                   owns_failure=False):
+                                   owns_failure=False,
+                                   progress=recut_progress):
                     return True
-                # This run's render is complete; finalize it and leave the
-                # filed confirms for the next run to apply.
+                if recut_progress.get('mutated'):
+                    # The recut already replaced the markers and the audio, so
+                    # this run's render is gone and only it can own the outcome.
+                    _handle_processing_failure(
+                        slug, episode_id, episode_title, podcast_name,
+                        db.get_episode(slug, episode_id),
+                        RuntimeError('Approval recut failed after rewriting the '
+                                     'episode'), start_time, run_stats=run_stats)
+                    return False
+                # Nothing was overwritten: finalize this run's render and leave
+                # the filed confirms for the next run to apply.
                 audio_logger.warning(
-                    f"[{slug}:{episode_id}] Approval recut failed; finalizing "
-                    f"the pre-approval render"
+                    f"[{slug}:{episode_id}] Approval recut failed before it "
+                    f"rewrote anything; finalizing this run's render"
                 )
 
             _finalize_episode(slug, episode_id, episode_title, podcast_name,

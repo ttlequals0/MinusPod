@@ -222,8 +222,7 @@ def _flatten(value) -> str:
 
 
 def _as_text(value) -> str:
-    """Flattened text with any leading window-continuation note dropped, so it
-    does not reach the reason a reader sees."""
+    """Flattened text with any leading window-continuation note dropped."""
     return _strip_continuation_prefix(_flatten(value))
 
 

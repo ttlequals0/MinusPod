@@ -446,8 +446,8 @@ class SchemaMixin:
         self._add_column_if_missing(conn, 'ad_patterns', 'content_hash', 'TEXT', ap_cols)
 
         # category (#565): segment category (sponsor/cross_promo/etc) the
-        # pattern was learned from. NULL/unknown reads as 'sponsor' via
-        # normalize_segment_category, so pre-migration rows behave unchanged.
+        # pattern was learned from. NULL or unknown reads back as None, so a
+        # pre-migration row shows as uncategorized rather than as a sponsor.
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'category', 'TEXT', ap_cols)
 

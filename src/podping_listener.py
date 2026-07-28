@@ -404,16 +404,17 @@ class PodpingListener:
                             self._handle_match(slug, reason)
 
         if time.time() - self.host_flushed_at >= HOST_FLUSH_SECONDS:
-            # Block progress only advances past counts that reached the db,
-            # or a crash before the next flush would drop them silently.
-            if self._flush_host_buffer():
-                self._persist_block()
+            # Block progress is delivery correctness and host counts are a
+            # statistics side table, so a failed flush must not hold the
+            # cursor back: a podping is never resent, a count is re-flushed.
+            self._flush_host_buffer()
+            self._persist_block()
 
     def final_flush(self):
         """Write buffered counts and block progress on shutdown; without it
         every clean deploy replayed the blocks since the last flush."""
-        if self._flush_host_buffer():
-            self._persist_block()
+        self._flush_host_buffer()
+        self._persist_block()
 
 
 def podping_listener_loop():

@@ -878,7 +878,7 @@ def test_filing_skips_without_retained_original(monkeypatch):
     db.create_pattern_correction.assert_not_called()
 
 
-def _run_fold_branch(recut_result=True):
+def _run_fold_branch(recut_result=True, recut_mutates=False):
     """Drive process_episode far enough to reach the approval-recut fold.
 
     Returns the patched seams so a test can assert on the recut and the
@@ -916,7 +916,13 @@ def _run_fold_branch(recut_result=True):
           return_value=(0, [], [], [], '/tmp/fold-cut.mp3', 0, True, 0))
         p(processing_mod, '_generate_assets')
         p(processing_mod, '_file_corroborated_hold_approvals', return_value=1)
-        recut = p(processing_mod, '_recut_episode', return_value=recut_result)
+
+        def _recut(*a, **k):
+            if recut_mutates:
+                k['progress']['mutated'] = True
+            return recut_result
+
+        recut = p(processing_mod, '_recut_episode', side_effect=_recut)
         finalize = p(processing_mod, '_finalize_episode')
         failure = p(processing_mod, '_handle_processing_failure')
         p(processing_mod.shutil, 'move')
@@ -952,14 +958,24 @@ def test_fold_recut_runs_without_a_cancel_event():
     assert m['recut'].call_args.kwargs.get('cancel_event') is None
 
 
-def test_failed_fold_recut_still_finalizes_the_run():
+def test_a_fold_recut_that_failed_before_touching_anything_still_finalizes():
     """The pass-1 plus pass-2 render is already complete when the approval
-    recut runs; a recut failure must not throw that away and fail the run."""
+    recut runs; a recut that failed early must not throw that away."""
     m = _run_fold_branch(recut_result=False)
 
     assert m['result'] is True
     m['finalize'].assert_called_once()
     m['failure'].assert_not_called()
+
+
+def test_a_fold_recut_that_failed_after_rewriting_owns_the_failure():
+    """Once the recut has overwritten the markers and the audio, this run's
+    render is gone; finalizing it would publish audio its markers contradict."""
+    m = _run_fold_branch(recut_result=False, recut_mutates=True)
+
+    assert m['result'] is False
+    m['finalize'].assert_not_called()
+    m['failure'].assert_called_once()
 
 
 def test_successful_fold_recut_does_not_finalize_twice():

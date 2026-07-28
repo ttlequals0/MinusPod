@@ -89,11 +89,12 @@ class TestMergeDetectionResultsStampsCategory:
             [_ad(10.0, 40.0, 'claude', category='cross_promo')])
         assert out[0]['category'] == 'cross_promo'
 
-    def test_llm_ad_unknown_category_normalizes_to_sponsor(self):
+    def test_llm_ad_unknown_category_is_left_unset(self):
         det = self._det()
         out = det._merge_detection_results(
             [_ad(10.0, 40.0, 'claude', category='advertisement')])
-        assert out[0]['category'] == 'sponsor'
+        # Recording it as sponsor would claim a classification nothing made.
+        assert out[0].get('category') is None
 
     def test_mixed_stage_ads_keep_valid_categories_and_leave_the_rest_unset(self):
         det = self._det()
@@ -529,11 +530,11 @@ class TestUncategorizedIsNotSponsor:
 
         assert out[0]['category'] == 'self_promo'
 
-    def test_an_invalid_category_still_falls_back(self):
+    def test_an_invalid_category_is_left_unset(self):
         out = AdDetector(api_key='test-key')._merge_detection_results(
             [_ad(10.0, 60.0, 'claude', category='not_a_real_category')])
 
-        assert out[0]['category'] == 'sponsor'
+        assert out[0].get('category') is None
 
     def test_action_resolution_still_reads_unknown_as_sponsor(self):
         """Cutting behaviour must not change: unknown stays conservative."""
@@ -597,3 +598,40 @@ class TestUnsetStaysUnsetOnEverySavePath:
 
         assert len(folded) == 1
         assert folded[0].get('category') is None
+
+
+class TestSplitSpansKeepTheirOwnCategoryReach:
+    """split_conflicting_action_span rewrites the accumulator, so its entries
+    need the same span stamp the append sites give theirs."""
+
+    def _detector(self):
+        from ad_detector import AdDetector
+        d = AdDetector.__new__(AdDetector)
+        d.pattern_service = None
+        return d
+
+    def _ad(self, start, end, category):
+        return {'start': start, 'end': end, 'confidence': 0.95,
+                'category': category, 'reason': f'{category} read',
+                'detection_stage': 'claude'}
+
+    def test_a_short_member_cannot_relabel_a_split_span(self):
+        actions = {'sponsor': 'remove', 'cross_promo': 'remove',
+                   'self_promo': 'remove', 'interaction': 'remove',
+                   'intro': 'keep', 'outro': 'remove', 'recap': 'remove'}
+
+        merged = self._detector()._merge_detection_results([
+            self._ad(0.0, 60.0, 'intro'),
+            self._ad(30.0, 300.0, 'sponsor'),
+            self._ad(295.0, 305.0, 'cross_promo'),
+        ], action_map=actions)
+
+        long_span = max(merged, key=lambda m: m['end'] - m['start'])
+        assert long_span['category'] == 'sponsor'
+
+    def test_an_unrecognized_category_is_not_recorded_as_sponsor(self):
+        merged = self._detector()._merge_detection_results([
+            self._ad(100.0, 200.0, 'advertisement'),
+        ])
+
+        assert merged[0].get('category') is None

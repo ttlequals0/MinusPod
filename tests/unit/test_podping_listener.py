@@ -720,7 +720,9 @@ class TestListenerWritePatterns:
 
         assert len(fake_db.setting_writes) == writes_after_first
 
-    def test_a_failed_flush_does_not_advance_the_stored_block(self):
+    def test_a_failed_flush_still_advances_the_stored_block(self):
+        """Block progress is delivery correctness; a podping is never resent,
+        while a host count the buffer still holds is re-flushed next tick."""
         block = _podping_op(['delegate1'], {
             'version': '1.0', 'iris': ['https://anchor.fm/x'], 'reason': 'update'})
         fake_db = FakeDb()
@@ -730,7 +732,8 @@ class TestListenerWritePatterns:
 
         listener.tick()
 
-        assert 'podping_last_block' not in fake_db.settings
+        assert fake_db.settings.get('podping_last_block') == '5'
+        assert listener.host_buffer == {'anchor.fm': 1}
 
     def test_the_last_ping_stamp_is_throttled_per_slug(self):
         block = _podping_op(['delegate1'], {

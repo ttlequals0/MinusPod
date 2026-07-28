@@ -112,12 +112,8 @@ class AudioProcessor:
         return get_replace_audio_path()
 
     def get_beep_duration(self) -> float:
-        """Duration of this instance's replacement audio.
-
-        Shares get_replacement_duration's AudioMetadata cache and fallback so
-        the render and the asset-timestamp math cannot disagree for
-        default-constructed processors.
-        """
+        """Duration of this instance's replacement audio, resolved the same way
+        the render resolves it so the two cannot read different files."""
         return AudioMetadata.get_duration(self.resolve_replace_audio_path()) or 1.0
 
     def convert_to_mp3(self, input_path: str) -> Optional[str]:

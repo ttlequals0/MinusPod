@@ -447,6 +447,8 @@ def _with_category_span(entry: Dict) -> Dict:
     a later member extends the end past what that category classified."""
     if entry.get('category') in SEGMENT_CATEGORIES:
         entry[_CATEGORY_SPAN] = entry['end'] - entry['start']
+    else:
+        entry.pop(_CATEGORY_SPAN, None)
     return entry
 
 
@@ -1101,8 +1103,8 @@ class AdDetector:
                 pass_label.lower(), len(windows), last_error, model)
             return [], all_raw_responses, failed_windows, failure, 0, 0, 0
 
-        # Count raw LLM markers missing "category" before normalize_segment_category
-        # (at the merge seam) papers over the gap with the 'sponsor' default.
+        # Raw LLM markers with no "category": the merge seam leaves these
+        # unset, so this counts what stays uncategorized end to end.
         category_total = len(all_window_ads)
         category_missing = sum(1 for ad in all_window_ads if 'category' not in ad)
 
@@ -1119,9 +1121,8 @@ class AdDetector:
         category-less on real episodes, so ask again narrowly instead.
 
         Mutates ``ads`` in place, setting 'category' on entries the response
-        resolves, and returns how many were repaired. Never raises: a failed
-        or malformed response leaves the rest to fall through to the
-        normalize_segment_category default ('sponsor') at the merge seam.
+        resolves, and returns how many were repaired. Never raises: what it
+        cannot repair stays uncategorized.
         """
         missing = [(i, ad) for i, ad in enumerate(ads) if 'category' not in ad]
         if not missing:
@@ -2285,8 +2286,11 @@ class AdDetector:
                     if new_last is None:
                         merged.pop()
                     else:
-                        merged[-1] = new_last
-                    merged.extend(new_entries)
+                        # Re-stamp: a split narrows the span its category
+                        # covers, and a stale figure would let a short member
+                        # relabel it later.
+                        merged[-1] = _with_category_span(new_last)
+                    merged.extend(_with_category_span(e) for e in new_entries)
                     logger.debug(
                         f"Not merging {last.get('category')!r} and "
                         f"{current.get('category')!r} (different resolved "
@@ -2424,11 +2428,8 @@ class AdDetector:
         for marker in merged:
             marker['sponsor'] = sanitize_sponsor_label(
                 marker.get('sponsor'), show_name=podcast_name)
-            raw_category = marker.get('category')
-            if raw_category is None:
+            if marker.get('category') not in SEGMENT_CATEGORIES:
                 marker.pop('category', None)
-            else:
-                marker['category'] = normalize_segment_category(raw_category)
             marker.pop(_CATEGORY_SPAN, None)
 
         return merged

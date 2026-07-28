@@ -15,7 +15,7 @@ from config import (
     DEFAULT_AD_DURATION_ESTIMATE, LONG_AD_WARN,
     TFIDF_MATCH_THRESHOLD as TFIDF_THRESHOLD,
     FUZZY_MATCH_THRESHOLD as FUZZY_THRESHOLD,
-    normalize_segment_category,
+    SEGMENT_CATEGORIES,
 )
 from community_export import count_brand_occurrences, brand_match_candidates, get_sponsor_row_or_stub
 from utils.text import extract_text_from_segments
@@ -1299,7 +1299,7 @@ class TextPatternMatcher:
                 created_from_episode_id=episode_id,
                 duration=duration,
                 source_language=get_pattern_language(self.db, slug=podcast_id),
-                category=normalize_segment_category(category) if category is not None else None,
+                category=category if category in SEGMENT_CATEGORIES else None,
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")
