@@ -111,3 +111,24 @@ describe('RichText block handling', () => {
     expect(container.textContent).not.toMatch(/\n\s*\n/);
   });
 });
+
+describe('RichText: table cells and relative links', () => {
+  it('separates table cells with whitespace', () => {
+    render(<RichText html="<table><tr><td>Cell1</td><td>Cell2</td></tr></table>" />);
+    expect(screen.getByText(/Cell1 Cell2/)).toBeDefined();
+  });
+
+  it('drops relative and protocol-relative hrefs, keeping their text', () => {
+    const { container } = render(
+      <RichText html='<a href="/local/page">Local</a> <a href="//evil.example">Other</a>' />,
+    );
+    expect(container.querySelectorAll('a').length).toBe(0);
+    expect(container.textContent).toContain('Local');
+    expect(container.textContent).toContain('Other');
+  });
+
+  it('still links an absolute href', () => {
+    const { container } = render(<RichText html='<a href="https://example.com">Site</a>' />);
+    expect(container.querySelector('a')?.getAttribute('href')).toBe('https://example.com');
+  });
+});

@@ -47,6 +47,9 @@ export interface Feed {
   // carries no such tag.
   podpingUses?: boolean | null;
   podpingHiveAccounts?: string[];
+  // When the feed's <podcast:podping> declaration was last read from a full
+  // fetch; null until one succeeds.
+  podpingCheckedAt?: string | null;
   createdAt?: string;
   lastEpisodeDate?: string;
   networkId?: string;
@@ -317,8 +320,8 @@ export interface AdSegment {
   // identified as the actual ad. Enables approving the trimmed span.
   reviewer_proposed_start?: number;
   reviewer_proposed_end?: number;
-  // What kind of content this span is (issue #565); defaults to 'sponsor'
-  // server-side so the key is always present in practice.
+  // What kind of content this span is (issue #565). Unset when no stage
+  // classified it; the UI shows Uncategorized.
   category?: SegmentCategory;
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.

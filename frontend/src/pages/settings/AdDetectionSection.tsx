@@ -107,17 +107,14 @@ function AdDetectionSection({
               <span className="ml-2 text-xs text-muted-foreground font-normal">Disabled</span>
             )}
           </label>
-          <input
-            type="number"
+          <NumberInput
             id="minContentBetweenAdsSeconds"
-            min="0"
-            max="60"
-            step="1"
             value={minContentBetweenAdsSeconds}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (!isNaN(v) && v >= 0 && v <= 60) onMinContentBetweenAdsSecondsChange(v);
-            }}
+            min={0}
+            max={60}
+            step={1}
+            fallback={0}
+            onCommit={onMinContentBetweenAdsSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
@@ -128,17 +125,14 @@ function AdDetectionSection({
           <label htmlFor="maxAdDurationSeconds" className="block text-sm font-medium text-foreground mb-2">
             Ad length needing a confirmed sponsor (s)
           </label>
-          <input
-            type="number"
+          <NumberInput
             id="maxAdDurationSeconds"
-            min="30"
-            max="3600"
-            step="10"
             value={maxAdDurationSeconds}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (!isNaN(v) && v >= 30 && v <= 3600) onMaxAdDurationSecondsChange(v);
-            }}
+            min={30}
+            max={3600}
+            step={10}
+            fallback={300}
+            onCommit={onMaxAdDurationSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">
@@ -149,17 +143,14 @@ function AdDetectionSection({
           <label htmlFor="maxAdDurationConfirmedSeconds" className="block text-sm font-medium text-foreground mb-2">
             Longest ad to cut at all (s)
           </label>
-          <input
-            type="number"
+          <NumberInput
             id="maxAdDurationConfirmedSeconds"
-            min="30"
-            max="3600"
-            step="10"
             value={maxAdDurationConfirmedSeconds}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (!isNaN(v) && v >= 30 && v <= 3600) onMaxAdDurationConfirmedSecondsChange(v);
-            }}
+            min={30}
+            max={3600}
+            step={10}
+            fallback={900}
+            onCommit={onMaxAdDurationConfirmedSecondsChange}
             className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <p className="mt-2 text-sm text-muted-foreground">

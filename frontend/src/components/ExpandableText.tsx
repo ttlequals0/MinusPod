@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 // Literal class names so Tailwind's scanner emits them; a template string
 // built from clampLines would not be generated.
@@ -29,6 +29,7 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text' }:
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const bodyId = useId();
 
   const measure = useCallback(() => {
     const el = ref.current;
@@ -53,7 +54,7 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text' }:
 
   return (
     <div className={className}>
-      <div ref={ref} className={`wrap-break-word ${clamp}`.trim()}>
+      <div id={bodyId} ref={ref} className={`wrap-break-word ${clamp}`.trim()}>
         {children}
       </div>
       {(overflows || expanded) && (
@@ -61,6 +62,7 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text' }:
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
+          aria-controls={bodyId}
           className="mt-1 text-xs text-primary hover:underline"
         >
           {expanded ? `Show less ${label}` : `Show full ${label}`}

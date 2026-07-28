@@ -22,9 +22,9 @@ function mockOverflow(overflowing: boolean) {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  // @ts-expect-error restoring the jsdom defaults
+  // @ts-expect-error restoring the happy-dom defaults
   delete window.HTMLElement.prototype.scrollHeight;
-  // @ts-expect-error restoring the jsdom defaults
+  // @ts-expect-error restoring the happy-dom defaults
   delete window.HTMLElement.prototype.clientHeight;
 });
 

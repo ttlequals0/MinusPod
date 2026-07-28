@@ -173,3 +173,35 @@ describe('AdDetectionSection: commit fires the batched save payload with camelCa
     });
   });
 });
+
+describe('AdDetectionSection: typing a value into the ad-length fields', () => {
+  it('accepts a value typed digit by digit through the floor', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    // "120" passes through "1" and "12", both under the 30 floor. Rejecting
+    // those keystrokes reverted the field and mangled the rest of the entry.
+    const field = screen.getByLabelText('Ad length needing a confirmed sponsor (s)');
+    await user.clear(field);
+    await user.type(field, '120');
+    field.blur();
+
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(committed!.maxAdDurationSeconds).toBe(120);
+  });
+
+  it('clamps an out-of-range entry on blur instead of dropping keystrokes', async () => {
+    let committed: TunablesState | null = null;
+    render(<Harness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    const field = screen.getByLabelText('Longest ad to cut at all (s)');
+    await user.clear(field);
+    await user.type(field, '5');
+    field.blur();
+
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(committed!.maxAdDurationConfirmedSeconds).toBe(30);
+  });
+});

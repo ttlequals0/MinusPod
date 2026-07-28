@@ -24,11 +24,17 @@ const TRAILING_PUNCT = /[.,;:!?)\]}>'"]+$/;
 
 /** Tags whose boundaries are a line break in the rendered text. */
 const BLOCK_TAGS = new Set([
-  'P', 'DIV', 'LI', 'TR', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE',
+  'P', 'DIV', 'LI', 'TR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE',
 ]);
+
+/** Tags whose boundary is a space, so a table row does not read "Cell1Cell2". */
+const CELL_TAGS = new Set(['TD', 'TH']);
 
 export function isSafeHref(href: string | null | undefined): boolean {
   if (!href) return false;
+  // Relative and protocol-relative hrefs resolve against this app's origin and
+  // render as broken links in a new tab, so they are not link material here.
+  if (!/^(https?:|mailto:)/i.test(href.trim())) return false;
   try {
     // A base is required so relative hrefs resolve rather than throw.
     const url = new URL(href, 'https://invalid.example');
@@ -104,6 +110,7 @@ function walk(node: Node, keyPrefix: string): ReactNode[] {
     if (el.tagName === 'LI') out.push('- ');
     out.push(...walk(el, key));
     if (isBlock) out.push('\n');
+    else if (CELL_TAGS.has(el.tagName)) out.push(' ');
   });
   return out;
 }
