@@ -334,3 +334,17 @@ class TestAdvertisersListedAfterAColon:
         assert self._extract(
             'Ad block: Belmont Park Village luxury outlet promo'
         ) == 'Belmont Park Village'
+
+    def test_a_capture_that_is_all_ad_vocabulary_is_refused(self):
+        """"Dynamically inserted ad block" stored "Dynamically inserted" as
+        the advertiser. Every word is ad-domain vocabulary, so the real brand
+        further along is used instead."""
+        assert self._extract(
+            "Dynamically inserted ad block after 'We'll be right back' "
+            'transition: Orange County tourism (pickocny.com), Mattress Warehouse'
+        ) == 'Orange County'
+
+    def test_a_reason_naming_no_brand_at_all_yields_nothing(self):
+        assert self._extract(
+            'Dynamically inserted pre-roll ads with no named brand at all'
+        ) is None

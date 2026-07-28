@@ -320,6 +320,13 @@ class SponsorService:
                 first_word = sponsor.split()[0].lower() if sponsor.split() else ''
                 if first_word in INVALID_SPONSOR_CAPTURE_WORDS:
                     continue
+                # Every word is ad-domain vocabulary, so there is no brand in
+                # here: "Dynamically inserted ad block" stored "Dynamically
+                # inserted" as the advertiser. Reuses the same set the
+                # transcript extractor screens with.
+                words = [w for w in re.split(r'[\s/-]+', sponsor.lower()) if w]
+                if words and all(w in NON_BRAND_WORDS for w in words):
+                    continue
                 if ' ' in sponsor and sponsor == sponsor.lower():
                     continue
                 # "Acme/Acme Co" is one brand written two ways; the first is

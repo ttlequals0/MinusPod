@@ -380,7 +380,10 @@ release notes.
   three real advertisers went that way. The first advertiser named is now the
   label, and the rest stay in the reason text. A hyphenated compound before
   the word "sponsor" also captured a fragment, storing "read" as the
-  advertiser for "host-read sponsor spots".
+  advertiser for "host-read sponsor spots". A capture made entirely of
+  ad-domain vocabulary is refused now as well, so "Dynamically inserted ad
+  block: Orange County tourism" names Orange County rather than storing
+  "Dynamically inserted" as the advertiser.
 - The bar chart tooltip on the stats page was unreadable and its hover
   highlight looked like a second bar (#592). The value line kept the charting
   library's dark default text on a dark card, and no hover cursor was set, so
