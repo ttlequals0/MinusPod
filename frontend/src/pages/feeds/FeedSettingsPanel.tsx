@@ -894,13 +894,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 description="Ads longer than this cap are held for review instead of cut. Changes apply on the next reprocess." />
 
               {/* Length past which an ad needs a confirmed sponsor */}
-              <CueOverrideRow label="Sponsor needed over" min={1} max={3600} step={1}
+              <CueOverrideRow label="Sponsor needed over" min={30} max={3600} step={1}
                 value={maxAdDurRejectInput} setValue={setMaxAdDurRejectInput}
                 feedValue={feed.maxAdDurationRejectOverride}
                 hint="s, empty = use global" placeholder="global"
                 disabled={updateMutation.isPending}
                 onBlur={() => commitFloat(maxAdDurRejectInput, feed.maxAdDurationRejectOverride,
-                  'maxAdDurationRejectOverride', 1, 3600,
+                  'maxAdDurationRejectOverride', 30, 3600,
                   () => setMaxAdDurRejectInput(s(feed.maxAdDurationRejectOverride)))}
                 description="Past this length an ad has to name a recognized sponsor to be cut; one that does not is held for review. Overrides the global setting for this feed." />
 

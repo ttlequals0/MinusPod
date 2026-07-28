@@ -1503,3 +1503,12 @@ class TestReasonDenyingAdContent:
               'reason': 'Acme sponsor read with no promotional code offered'}
         result = AdValidator(3694.0, [], min_cut_confidence=0.80).validate([ad])
         assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+
+
+def test_effective_threshold_is_clamped_to_the_hard_ceiling():
+    """An inverted pair stored before validation existed, or a per-feed
+    override above the global ceiling, must not make confirmation a penalty."""
+    validator = AdValidator(3600.0, [], None, max_ad_duration=1200.0,
+                            max_ad_duration_confirmed=600.0)
+    assert validator.max_ad_duration == 600.0
+    assert validator.max_ad_duration_confirmed == 600.0

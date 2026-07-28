@@ -165,7 +165,10 @@ class AdValidator:
         self.veto_min_cut_seconds = veto_min_cut_seconds
         self.differential_corr_max = differential_corr_max
         self.sponsor_service = sponsor_service
-        self.max_ad_duration = max_ad_duration
+        # A per-feed override or a pair stored before the API cross-check
+        # existed can invert the two; confirming a sponsor must never lower
+        # an ad's ceiling.
+        self.max_ad_duration = min(max_ad_duration, max_ad_duration_confirmed)
         self.max_ad_duration_confirmed = max_ad_duration_confirmed
         self._audio_analysis = None
 

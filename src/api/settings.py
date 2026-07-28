@@ -1202,23 +1202,39 @@ def _apply_ad_merge_fields(db, data):
 
 def _apply_max_ad_duration_fields(db, data):
     """Persist the ad-length ceilings. Past the first an ad needs a confirmed
-    sponsor; past the second nothing helps."""
-    for key, setting, lo, hi in (
-        ('maxAdDurationSeconds', 'max_ad_duration_seconds', 30.0, 3600.0),
+    sponsor; past the second nothing helps. The pair is validated before either
+    is written so confirmation can never lower an ad's allowed length."""
+    fields = (
+        ('maxAdDurationSeconds', 'max_ad_duration_seconds', MAX_AD_DURATION),
         ('maxAdDurationConfirmedSeconds', 'max_ad_duration_confirmed_seconds',
-         30.0, 3600.0),
-    ):
-        if key not in data:
-            continue
-        try:
-            value = float(data[key])
-        except (TypeError, ValueError):
-            return json_response({'error': f'{key} must be a number'}, 400)
-        if not math.isfinite(value) or value < lo or value > hi:
-            return json_response(
-                {'error': f'{key} must be between {lo:.0f} and {hi:.0f}'}, 400)
-        db.set_setting(setting, str(value), is_default=False)
-        logger.info(f"Updated {setting} to: {value}")
+         MAX_AD_DURATION_CONFIRMED),
+    )
+    if not any(key in data for key, _, _ in fields):
+        return None
+
+    resolved = {}
+    for key, setting, default in fields:
+        if key in data:
+            try:
+                value = float(data[key])
+            except (TypeError, ValueError):
+                return json_response({'error': f'{key} must be a number'}, 400)
+            if not math.isfinite(value) or value < 30.0 or value > 3600.0:
+                return json_response(
+                    {'error': f'{key} must be between 30 and 3600'}, 400)
+        else:
+            value = db.get_setting_float(setting, default)
+        resolved[key] = (setting, value, key in data)
+
+    if resolved['maxAdDurationSeconds'][1] > resolved['maxAdDurationConfirmedSeconds'][1]:
+        return json_response(
+            {'error': 'maxAdDurationSeconds cannot exceed '
+                      'maxAdDurationConfirmedSeconds'}, 400)
+
+    for setting, value, incoming in resolved.values():
+        if incoming:
+            db.set_setting(setting, str(value), is_default=False)
+            logger.info(f"Updated {setting} to: {value}")
     return None
 
 

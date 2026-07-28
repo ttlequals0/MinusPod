@@ -681,3 +681,39 @@ class TestSizeCapPutAtomicity:
             assert data['defaults']['maxArtworkBytes'] == 64 * 1024
         finally:
             del os.environ['MINUSPOD_MAX_ARTWORK_BYTES']
+
+
+class TestAdLengthCeilingPair:
+    """The needs-confirmation threshold must never exceed the hard ceiling;
+    otherwise confirming a sponsor lowers the ad's allowed length."""
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def _current(self, client):
+        db = database.Database()
+        return (db.get_setting_float('max_ad_duration_seconds', 300.0),
+                db.get_setting_float('max_ad_duration_confirmed_seconds', 900.0))
+
+    def test_inverted_pair_is_rejected_and_nothing_is_written(self, client):
+        before = self._current(client)
+        resp = self._put(client, {'maxAdDurationSeconds': 1200,
+                                  'maxAdDurationConfirmedSeconds': 600})
+        assert resp.status_code == 400
+        assert 'cannot exceed' in json.loads(resp.data)['error']
+        assert self._current(client) == before
+
+    def test_threshold_checked_against_the_stored_ceiling(self, client):
+        assert self._put(
+            client, {'maxAdDurationConfirmedSeconds': 600}).status_code == 200
+        resp = self._put(client, {'maxAdDurationSeconds': 900})
+        assert resp.status_code == 400
+        assert self._current(client)[0] != 900
+
+    def test_valid_pair_still_persists(self, client):
+        assert self._put(client, {'maxAdDurationSeconds': 240,
+                                  'maxAdDurationConfirmedSeconds': 800}
+                         ).status_code == 200
+        assert self._current(client) == (240.0, 800.0)
