@@ -103,7 +103,10 @@ def require_feed_key(f):
             # the intended 401. Anything non-64-hex can never match anyway.
             if not (expected and supplied and KEY_RE.fullmatch(supplied)
                     and secrets.compare_digest(supplied, expected)):
-                logger.warning(
+                # INFO, not WARNING: with feed auth on, every directory crawler
+                # and cold podcast client that lacks the key gets one of these,
+                # so it is expected traffic rather than an operator problem.
+                logger.info(
                     f"{request.method} {request.path} 401 no auth key "
                     f"provided or is invalid [{client_ip()}]")
                 abort(401)

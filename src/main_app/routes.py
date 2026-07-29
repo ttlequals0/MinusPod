@@ -259,7 +259,7 @@ def register_routes(app):
             # each probe would otherwise fire an outbound request per
             # subscribed feed. The scheduled refresher keeps feed_map
             # current within `RSS_REFRESH_INTERVAL`; a bogus slug just 404s.
-            feed_logger.warning(f"[{slug}] Feed not found (no refresh-on-miss)")
+            feed_logger.info(f"[{slug}] Feed not found (no refresh-on-miss)")
             abort(404)
 
         # Check if RSS cache exists or is stale
@@ -357,7 +357,7 @@ def register_routes(app):
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
+            feed_logger.info(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
             abort(404)
 
         # Check episode status
@@ -559,7 +559,9 @@ def register_routes(app):
         # KEY_RE prefilter: compare_digest raises on non-ASCII input.
         if not (KEY_RE.fullmatch(supplied)
                 and secrets.compare_digest(supplied, key)):
-            feed_logger.warning(
+            # INFO for the same reason as require_feed_key: an unauthenticated
+            # OPML fetch is expected traffic, not an operator problem.
+            feed_logger.info(
                 f"GET {request.path} 401 no auth key provided or is invalid "
                 f"[{client_ip()}]")
             abort(401)

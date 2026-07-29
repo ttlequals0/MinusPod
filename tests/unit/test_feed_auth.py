@@ -156,10 +156,14 @@ def test_decorator_fails_closed_on_empty_stored_key(flask_client):
 
 def test_decorator_logs_exact_line(flask_client, caplog):
     _set_auth(True, KEY)
-    with caplog.at_level('WARNING', logger='podcast.feed'):
+    with caplog.at_level('INFO', logger='podcast.feed'):
         flask_client.get('/some-feed')
-    assert any('no auth key provided or is invalid' in r.message
-               for r in caplog.records)
+    matching = [r for r in caplog.records
+                if 'no auth key provided or is invalid' in r.message]
+    assert matching
+    # INFO, not WARNING: an unauthenticated fetch is expected traffic once feed
+    # auth is on, and warning on every one buried the real warnings.
+    assert all(r.levelname == 'INFO' for r in matching)
     # the key value itself never appears in logs
     assert all(KEY not in r.message for r in caplog.records)
 
