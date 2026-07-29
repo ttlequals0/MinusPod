@@ -7,9 +7,10 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_feed_auth_key,
 )
+from config import SEGMENT_CATEGORIES
 from detection_review import (
-    filter_detections, flatten_detections, paginate, sort_detections,
-    summarize_detections,
+    UNSET_CATEGORY, filter_detections, flatten_detections, paginate,
+    sort_detections, summarize_cut_detections, summarize_detections,
 )
 from utils.episode_paths import episode_public_url
 
@@ -18,6 +19,7 @@ logger = logging.getLogger('podcast.api')
 VALID_STATUS = {'needs_review', 'pending', 'rejected', 'accepted', 'all'}
 VALID_SORT = {'date', 'confidence', 'podcast'}
 VALID_ORDER = {'asc', 'desc'}
+VALID_CATEGORY = set(SEGMENT_CATEGORIES) | {UNSET_CATEGORY}
 
 
 @api.route('/detections', methods=['GET'])
@@ -39,12 +41,21 @@ def list_detections():
     order = request.args.get('order', 'desc')
     if order not in VALID_ORDER:
         return error_response(f"Invalid order '{order}'", 400)
+    category = request.args.get('category') or None
+    if category is not None and category not in VALID_CATEGORY:
+        return error_response(f"Invalid category '{category}'", 400)
 
     rows = db.get_detection_rows()
     corrections = db.get_review_corrections()
     items = flatten_detections(rows, corrections)
     counts = summarize_detections(items)
     items = filter_detections(items, status=status, feed=feed, q=q)
+    # Summarised before the category filter so byCategory keeps every bucket
+    # while the podcast and search filters still narrow the header.
+    cut_summary = summarize_cut_detections(
+        [i for i in items if i['status'] == 'accepted'])
+    if category:
+        items = filter_detections(items, status='all', category=category)
     items = sort_detections(items, sort=sort, order=order)
     page_items, total, total_pages, page = paginate(items, page, limit)
 
@@ -65,4 +76,5 @@ def list_detections():
         'totalPages': total_pages,
         'limit': limit,
         'counts': counts,
+        'cutSummary': cut_summary,
     })

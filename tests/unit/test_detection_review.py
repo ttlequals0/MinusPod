@@ -1,7 +1,8 @@
 """Tests for the pure cross-episode detection aggregation logic."""
+from config import SEGMENT_CATEGORIES
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
-    summarize_detections,
+    summarize_cut_detections, summarize_detections,
 )
 import json
 
@@ -232,3 +233,86 @@ class TestSortAndPaginate:
         out = sort_detections(items, sort='confidence', order='asc')
         assert [(i['episodeId'], i['start']) for i in out] == [
             ('ep-1', 10.0), ('ep-1', 50.0), ('ep-2', 30.0)]
+
+
+CROSS_PROMO = {'start': 300.0, 'end': 340.0, 'confidence': 0.8,
+               'category': 'cross_promo', 'action_applied': 'remove',
+               'sponsor': 'The Daily Tech Show'}
+KEPT_OUTRO = {'start': 400.0, 'end': 420.0, 'confidence': 0.7,
+              'category': 'outro', 'action_applied': 'keep', 'was_cut': False}
+
+
+class TestCategoryFields:
+    def test_flatten_carries_category_and_action(self):
+        items = flatten_detections([_row(markers=[CROSS_PROMO])], [])
+        assert items[0]['category'] == 'cross_promo'
+        assert items[0]['actionApplied'] == 'remove'
+
+    def test_unset_category_stays_none(self):
+        items = flatten_detections([_row(markers=[ACCEPTED])], [])
+        assert items[0]['category'] is None
+        assert items[0]['actionApplied'] is None
+
+
+class TestCategoryFilter:
+    def _items(self):
+        return flatten_detections(
+            [_row(markers=[ACCEPTED, CROSS_PROMO, KEPT_OUTRO])], [])
+
+    def test_matches_one_category_exactly(self):
+        out = filter_detections(self._items(), status='all', category='cross_promo')
+        assert [i['start'] for i in out] == [300.0]
+
+    def test_none_matches_only_unset(self):
+        out = filter_detections(self._items(), status='all', category='none')
+        assert [i['start'] for i in out] == [10.0]
+
+    def test_absent_category_is_a_no_op(self):
+        assert len(filter_detections(self._items(), status='all')) == 3
+
+    def test_category_composes_with_status(self):
+        out = filter_detections(self._items(), status='accepted', category='cross_promo')
+        assert [i['start'] for i in out] == [300.0]
+
+
+class TestCutSummary:
+    def test_totals(self):
+        items = flatten_detections(
+            [_row(markers=[ACCEPTED, CROSS_PROMO]),
+             _row(slug='feed-b', episode_id='ep-2', markers=[CROSS_PROMO])], [])
+        cut = [i for i in items if i['status'] == 'accepted']
+        s = summarize_cut_detections(cut)
+        assert s['count'] == 3
+        assert s['durationSeconds'] == 110.0
+        assert s['byCategory']['cross_promo'] == 2
+        assert s['byCategory']['none'] == 1
+        assert s['distinctPodcasts'] == 2
+
+    def test_sponsor_count_is_case_insensitive_and_ignores_blanks(self):
+        items = [
+            {'start': 0, 'end': 10, 'sponsor': 'Acme', 'feedSlug': 'a'},
+            {'start': 0, 'end': 10, 'sponsor': 'acme  ', 'feedSlug': 'a'},
+            {'start': 0, 'end': 10, 'sponsor': '   ', 'feedSlug': 'a'},
+            {'start': 0, 'end': 10, 'sponsor': None, 'feedSlug': 'a'},
+        ]
+        assert summarize_cut_detections(items)['distinctSponsors'] == 1
+
+    def test_every_category_has_a_bucket_when_empty(self):
+        s = summarize_cut_detections([])
+        assert s['count'] == 0
+        assert s['durationSeconds'] == 0
+        assert s['byCategory']['none'] == 0
+        for cat in SEGMENT_CATEGORIES:
+            assert s['byCategory'][cat] == 0
+
+    def test_inverted_and_missing_bounds_contribute_no_duration(self):
+        items = [{'start': 50, 'end': 10, 'feedSlug': 'a'},
+                 {'start': None, 'end': None, 'feedSlug': 'a'}]
+        assert summarize_cut_detections(items)['durationSeconds'] == 0
+
+    def test_unknown_category_value_still_counted(self):
+        """A category added backend-side before this list knows about it must not
+        raise or vanish from the totals."""
+        s = summarize_cut_detections([{'start': 0, 'end': 5, 'category': 'brand_new'}])
+        assert s['byCategory']['brand_new'] == 1
+        assert s['count'] == 1

@@ -10,11 +10,15 @@ import json
 import math
 from typing import Dict, List, Optional, Tuple
 
-from config import is_pending_review
+from config import SEGMENT_CATEGORIES, is_pending_review
 
 # Same tolerance the reject path uses to clear held markers
 # (_clear_held_marker_on_reject in api/patterns.py).
 BOUNDS_TOLERANCE_S = 0.5
+
+# Filter value and summary key for markers no stage classified. Not a member of
+# SEGMENT_CATEGORIES: unset is the absence of a category, not a category.
+UNSET_CATEGORY = 'none'
 
 
 def marker_status(marker: Dict) -> str:
@@ -79,6 +83,8 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
                 'reason': marker.get('reason'),
                 'patternId': marker.get('pattern_id'),
                 'detectionStage': marker.get('detection_stage'),
+                'category': marker.get('category'),
+                'actionApplied': marker.get('action_applied'),
                 'status': marker_status(marker),
                 'resolution': marker_resolution(marker, episode_corrections),
             })
@@ -107,9 +113,40 @@ def summarize_detections(items: List[Dict]) -> Dict:
     return counts
 
 
+def summarize_cut_detections(items: List[Dict]) -> Dict:
+    """Totals for the Detected Ads header, over detections that were cut.
+
+    Callers pass the already-cut subset; this does not filter by status itself.
+    """
+    by_category = {cat: 0 for cat in SEGMENT_CATEGORIES}
+    by_category[UNSET_CATEGORY] = 0
+    duration = 0.0
+    sponsors = set()
+    podcasts = set()
+    for item in items:
+        key = item.get('category') or UNSET_CATEGORY
+        by_category[key] = by_category.get(key, 0) + 1
+        start, end = item.get('start'), item.get('end')
+        if start is not None and end is not None and end > start:
+            duration += end - start
+        sponsor = (item.get('sponsor') or '').strip().lower()
+        if sponsor:
+            sponsors.add(sponsor)
+        if item.get('feedSlug'):
+            podcasts.add(item['feedSlug'])
+    return {
+        'count': len(items),
+        'durationSeconds': round(duration, 3),
+        'byCategory': by_category,
+        'distinctSponsors': len(sponsors),
+        'distinctPodcasts': len(podcasts),
+    }
+
+
 def filter_detections(items: List[Dict], status: str = 'needs_review',
                       feed: Optional[str] = None,
-                      q: Optional[str] = None) -> List[Dict]:
+                      q: Optional[str] = None,
+                      category: Optional[str] = None) -> List[Dict]:
     out = items
     if status == 'needs_review':
         out = [i for i in out
@@ -117,6 +154,10 @@ def filter_detections(items: List[Dict], status: str = 'needs_review',
                and i['resolution'] == 'unresolved']
     elif status in ('pending', 'rejected', 'accepted'):
         out = [i for i in out if i['status'] == status]
+    if category == UNSET_CATEGORY:
+        out = [i for i in out if not i.get('category')]
+    elif category:
+        out = [i for i in out if i.get('category') == category]
     if feed:
         out = [i for i in out if i['feedSlug'] == feed]
     if q:

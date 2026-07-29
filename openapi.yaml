@@ -2904,6 +2904,14 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - name: category
+          in: query
+          description: >-
+            Filter by segment category. Use `none` for markers no detection
+            stage classified. Omit for every category.
+          schema:
+            type: string
+            enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, none]
       responses:
         '200':
           description: Paginated detection list
@@ -2931,6 +2939,24 @@ paths:
                       accepted: { type: integer }
                       confirmed: { type: integer }
                       dismissed: { type: integer }
+                  cutSummary:
+                    type: object
+                    description: >-
+                      Totals over detections that were cut. Computed after the
+                      feed and q filters but before the category filter, so the
+                      byCategory breakdown stays complete while the podcast
+                      selector still narrows it.
+                    properties:
+                      count: { type: integer }
+                      durationSeconds: { type: number }
+                      byCategory:
+                        type: object
+                        description: >-
+                          Count per segment category, plus a `none` key for
+                          markers with no category set.
+                        additionalProperties: { type: integer }
+                      distinctSponsors: { type: integer }
+                      distinctPodcasts: { type: integer }
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -8140,6 +8166,16 @@ components:
         reason: { type: string, nullable: true }
         patternId: { type: integer, nullable: true }
         detectionStage: { type: string, nullable: true }
+        category:
+          type: string
+          nullable: true
+          description: Segment category, or null when no stage classified the marker
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+        actionApplied:
+          type: string
+          nullable: true
+          description: Action the category resolved to for this marker
+          enum: [remove, beep, keep, null]
         status:
           type: string
           enum: [accepted, rejected, pending]
