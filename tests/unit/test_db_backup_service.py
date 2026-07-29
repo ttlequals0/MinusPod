@@ -394,24 +394,28 @@ def test_created_dest_dir_gets_0700(db, tmp_path):
 # Fix 3: plaintext WARN parity
 # ---------------------------------------------------------------------------
 
-def test_warns_when_passphrase_set(db, tmp_path, monkeypatch, caplog):
+def test_passphrase_set_reports_encrypted_not_exposed(db, tmp_path, monkeypatch, caplog):
+    """A configured passphrase means set_secret already encrypted the provider
+    keys, so the snapshot is the safe case. This used to warn, which pointed
+    operators at the wrong condition."""
     import logging
     monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'secret')
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert any('unencrypted SQLite file' in r.message for r in warnings)
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
-def test_no_warn_without_passphrase(db, tmp_path, monkeypatch, caplog):
+def test_no_secrets_stored_does_not_warn(db, tmp_path, monkeypatch, caplog):
+    """With no passphrase and no provider keys stored there is nothing exposed,
+    so the absence of a passphrase alone must not warn."""
     import logging
     monkeypatch.delenv('MINUSPOD_MASTER_PASSPHRASE', raising=False)
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert not any('unencrypted SQLite file' in r.message for r in warnings)
+    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
 
 
 # ---------------------------------------------------------------------------
@@ -439,3 +443,64 @@ def test_dest_writable_existing_non_dir(tmp_path):
     f = tmp_path / 'afile'
     f.write_text('x')
     assert dest_writable(f) is False
+
+
+# ---------------------------------------------------------------------------
+# Snapshot secret-state logging
+#
+# The old condition warned when MINUSPOD_MASTER_PASSPHRASE was set, which is
+# exactly when Database.set_secret has already stored provider keys as
+# ciphertext. The exposed case, no passphrase and therefore readable keys,
+# logged at INFO and said nothing.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _reset_secret_latch():
+    db_backup_service.reset_secret_state_log()
+    yield
+    db_backup_service.reset_secret_state_log()
+
+
+def test_warns_when_plaintext_secrets_are_present(db, caplog, monkeypatch):
+    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 2)
+    with caplog.at_level('DEBUG', logger='podcast.db_backup'):
+        backup_now(db)
+    warnings = [r for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1
+    assert 'plaintext' in warnings[0].getMessage()
+
+
+def test_no_warning_when_secrets_are_encrypted(db, caplog, monkeypatch):
+    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 0)
+    with caplog.at_level('DEBUG', logger='podcast.db_backup'):
+        backup_now(db)
+    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
+
+
+def test_passphrase_alone_does_not_warn(db, caplog, monkeypatch):
+    """A configured passphrase is the safe case and must not warn on its own."""
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-passphrase')
+    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 0)
+    with caplog.at_level('DEBUG', logger='podcast.db_backup'):
+        backup_now(db)
+    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+
+
+def test_warning_emitted_at_most_once_per_process(db, caplog, monkeypatch):
+    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 1)
+    with caplog.at_level('DEBUG', logger='podcast.db_backup'):
+        backup_now(db)
+        backup_now(db)
+    assert len([r for r in caplog.records if r.levelname == 'WARNING']) == 1
+
+
+def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch):
+    def boom(_db):
+        raise RuntimeError('crypto unavailable')
+
+    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', boom)
+    with caplog.at_level('DEBUG', logger='podcast.db_backup'):
+        summary = backup_now(db)
+    assert summary['mode'] == 'overwrite'
+    assert not [r for r in caplog.records if r.levelname == 'WARNING']

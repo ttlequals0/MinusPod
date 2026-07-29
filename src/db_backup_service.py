@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from secrets_crypto import count_plaintext_secrets
 from utils.cron import is_due
 from utils.db_backup import snapshot_database
 from utils.time import (
@@ -189,6 +190,50 @@ def _ensure_dest_dir(dest: Path) -> None:
         node = node / rel.parts[0]
 
 
+_secret_state_logged = False
+
+
+def reset_secret_state_log() -> None:
+    """Clear the once-per-process latch. For tests."""
+    global _secret_state_logged
+    _secret_state_logged = False
+
+
+def _log_snapshot_secret_state(db, final, summary) -> None:
+    """Log once per process what a snapshot exposes.
+
+    Provider secrets are ciphertext whenever MINUSPOD_MASTER_PASSPHRASE is set,
+    because Database.set_secret encrypts on write, so a configured passphrase is
+    the safe case. The exposed case is a snapshot taken with none, where the keys
+    are readable. The previous condition warned on exactly the wrong one.
+    """
+    global _secret_state_logged
+    if _secret_state_logged:
+        logger.debug('db_backup: %s', summary)
+        return
+    _secret_state_logged = True
+    try:
+        plaintext = count_plaintext_secrets(db)
+    except Exception as e:
+        logger.debug('db_backup: could not count plaintext secrets: %s', e)
+        logger.info('db_backup: %s', summary)
+        return
+    if plaintext:
+        logger.warning(
+            'db_backup: snapshot at %s holds %d provider secret(s) in plaintext. '
+            'Set MINUSPOD_MASTER_PASSPHRASE to encrypt them at rest; stored '
+            'values migrate on the next write. %s',
+            final, plaintext, summary,
+        )
+    else:
+        logger.info(
+            'db_backup: snapshot at %s has encrypted provider secrets. The '
+            'key-derivation salt is inside the file, so keep the passphrase '
+            'somewhere other than beside the backup. %s',
+            final, summary,
+        )
+
+
 def backup_now(db) -> Dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 
@@ -258,18 +303,7 @@ def backup_now(db) -> Dict[str, Any]:
         }
         db.set_setting('db_backup_last_error', '')
         db.set_setting('db_backup_last_summary', json.dumps(summary))
-        if os.environ.get('MINUSPOD_MASTER_PASSPHRASE'):
-            # Encryption-at-rest is configured for the download/cleanup paths,
-            # but scheduled snapshots are always plain. Surface the mismatch at
-            # WARN so it shows in operator dashboards filtering WARN-and-above.
-            logger.warning(
-                'db_backup: scheduled snapshot at %s is an unencrypted SQLite '
-                'file containing provider secrets (MINUSPOD_MASTER_PASSPHRASE '
-                'does not apply to scheduled backups): %s',
-                final, summary,
-            )
-        else:
-            logger.info('db_backup: %s', summary)
+        _log_snapshot_secret_state(db, final, summary)
         return summary
     finally:
         lock_fd.close()
