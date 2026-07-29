@@ -1318,17 +1318,54 @@ class Transcriber:
             logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
         return duration
 
+    # Largest batch size known to fit this device's VRAM. Recorded when an OOM
+    # forces a smaller batch, so later episodes do not repeat the failure.
+    BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
+
+    def _batch_size_ceiling(self) -> Optional[int]:
+        """Stored ceiling as a positive int, or None when unset or malformed."""
+        # Inline import: see _load_whisper_settings above, Database would be a
+        # circular import at module level.
+        from database import Database
+        try:
+            raw = Database().get_setting(self.BATCH_CEILING_SETTING)
+        except Exception as e:
+            logger.debug(f"Could not read batch size ceiling: {e}")
+            return None
+        if not raw:
+            return None
+        try:
+            return max(1, int(raw))
+        except (TypeError, ValueError):
+            return None
+
+    def record_batch_size_ceiling(self, batch_size: int) -> None:
+        """Lower the ceiling to batch_size. Ratchets down only: an OOM proves a
+        size does not fit, and a later larger candidate is not evidence it does.
+        """
+        from database import Database
+        candidate = max(1, int(batch_size))
+        existing = self._batch_size_ceiling()
+        value = min(existing, candidate) if existing else candidate
+        try:
+            Database().set_setting(self.BATCH_CEILING_SETTING, str(value))
+        except Exception as e:
+            logger.debug(f"Could not persist batch size ceiling: {e}")
+
     def get_batch_size_for_duration(self, duration_seconds: Optional[float]) -> int:
         """Get optimal batch size based on audio duration to prevent CUDA OOM."""
         if duration_seconds is None:
             # Default to conservative batch size if duration unknown
-            return 8
+            tier = 8
+        else:
+            tier = 4  # Fallback for very long episodes (> 120 min)
+            for threshold, batch_size in BATCH_SIZE_TIERS:
+                if duration_seconds < threshold:
+                    tier = batch_size
+                    break
 
-        for threshold, batch_size in BATCH_SIZE_TIERS:
-            if duration_seconds < threshold:
-                return batch_size
-
-        return 4  # Fallback for very long episodes (> 120 min)
+        ceiling = self._batch_size_ceiling()
+        return min(tier, ceiling) if ceiling else tier
 
     def clear_cuda_cache(self):
         """Clear CUDA cache to free GPU memory.
@@ -1713,6 +1750,9 @@ class Transcriber:
                             f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
                             f"Reducing batch size: {old_batch_size} -> {batch_size}"
                         )
+                        # Remember it so the next episode starts here instead of
+                        # repeating the same OOM.
+                        self.record_batch_size_ceiling(batch_size)
                         # Clear cache and retry
                         self.clear_cuda_cache()
                         continue
