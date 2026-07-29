@@ -1,6 +1,7 @@
 """Episode CRUD mixin for MinusPod database."""
 import json
 import logging
+import sqlite3
 from email.utils import parsedate_to_datetime
 from typing import ClassVar, Optional, Dict, List, Tuple
 
@@ -953,9 +954,11 @@ class EpisodeMixin:
         On conflict, backfills empty title/description from new data but
         never overwrites an existing episode's status or non-empty metadata.
         Returns count of newly inserted rows.
-        """
-        conn = self.get_connection()
 
+        Runs in an immediate transaction: a deferred begin upgrades to a write
+        lock at the first INSERT, and that upgrade fails instantly with
+        "database is locked" rather than waiting on busy_timeout (issue #566).
+        """
         podcast = self.get_podcast_by_slug(slug)
         if not podcast:
             logger.error(f"Cannot upsert discovered episodes: podcast not found: {slug}")
@@ -963,21 +966,41 @@ class EpisodeMixin:
 
         podcast_id = podcast['id']
         inserted = 0
+        skipped = 0
 
-        # Snapshot existing GUIDs so we can count real inserts. SQLite's
-        # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
-        # an UPSERT (and even for an UPDATE that sets every column to its
-        # current value), so it cannot distinguish "new" from "re-touched".
-        # The downstream log line "Discovered N new episode(s)" needs the
-        # real new-row count, not the upsert-touched count.
-        existing_ids = {
-            row['episode_id'] for row in conn.execute(
-                "SELECT episode_id FROM episodes WHERE podcast_id = ?",
-                (podcast_id,),
-            ).fetchall()
-        }
+        with self.transaction(immediate=True) as conn:
+            # Snapshot existing GUIDs so we can count real inserts. SQLite's
+            # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
+            # an UPSERT (and even for an UPDATE that sets every column to its
+            # current value), so it cannot distinguish "new" from "re-touched".
+            # The downstream log line "Discovered N new episode(s)" needs the
+            # real new-row count, not the upsert-touched count.
+            existing_ids = {
+                row['episode_id'] for row in conn.execute(
+                    "SELECT episode_id FROM episodes WHERE podcast_id = ?",
+                    (podcast_id,),
+                ).fetchall()
+            }
 
-        for ep in episodes:
+            for ep in episodes:
+                inserted, skipped = self._upsert_one_discovered_episode(
+                    conn, podcast_id, ep, existing_ids, inserted, skipped)
+
+        if skipped:
+            logger.warning(
+                f"[{slug}] skipped {skipped} of {len(episodes)} discovered "
+                f"episodes on per-row faults"
+            )
+        return inserted
+
+    def _upsert_one_discovered_episode(self, conn, podcast_id, ep, existing_ids,
+                                       inserted, skipped):
+        """Upsert one discovered episode. Returns the updated (inserted, skipped).
+
+        Lock errors propagate so the whole batch fails and the caller retries the
+        feed; only per-row data faults are counted as skipped.
+        """
+        try:
             iso_published = normalize_published_at(ep.get('published', '')) or None
 
             # Check for existing episode with same title+date but different ID
@@ -1007,48 +1030,49 @@ class EpisodeMixin:
                                AND episode_number IS NULL""",
                             (ep.get('episode_number'), podcast_id, current_id)
                         )
-                    continue  # Skip - episode already exists with different GUID
+                    # Episode already exists under a different GUID.
+                    return inserted, skipped
 
             tags_json = json.dumps(ep.get('tags') or [])
-            try:
-                cursor = conn.execute(
-                    """INSERT INTO episodes
-                       (podcast_id, episode_id, original_url, title, description,
-                        artwork_url, episode_number, published_at, rss_duration,
-                        upstream_chapters_url, tags, status)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
-                       ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
-                        episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
-                        published_at = COALESCE(excluded.published_at, episodes.published_at),
-                        rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
-                        upstream_chapters_url = COALESCE(excluded.upstream_chapters_url, episodes.upstream_chapters_url),
-                        original_url = COALESCE(episodes.original_url, excluded.original_url),
-                        title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
-                        description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
-                        artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
-                        tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
-                    (
-                        podcast_id,
-                        ep['id'],
-                        ep.get('url', ''),
-                        ep.get('title'),
-                        ep.get('description'),
-                        ep.get('artwork_url'),
-                        ep.get('episode_number'),
-                        iso_published,
-                        ep.get('rss_duration'),
-                        ep.get('upstream_chapters_url'),
-                        tags_json,
-                    )
+            cursor = conn.execute(
+                """INSERT INTO episodes
+                   (podcast_id, episode_id, original_url, title, description,
+                    artwork_url, episode_number, published_at, rss_duration,
+                    upstream_chapters_url, tags, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                   ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                    episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
+                    published_at = COALESCE(excluded.published_at, episodes.published_at),
+                    rss_duration = COALESCE(excluded.rss_duration, episodes.rss_duration),
+                    upstream_chapters_url = COALESCE(excluded.upstream_chapters_url, episodes.upstream_chapters_url),
+                    original_url = COALESCE(episodes.original_url, excluded.original_url),
+                    title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
+                    description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
+                    artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
+                    tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
+                (
+                    podcast_id,
+                    ep['id'],
+                    ep.get('url', ''),
+                    ep.get('title'),
+                    ep.get('description'),
+                    ep.get('artwork_url'),
+                    ep.get('episode_number'),
+                    iso_published,
+                    ep.get('rss_duration'),
+                    ep.get('upstream_chapters_url'),
+                    tags_json,
                 )
-                if cursor.rowcount > 0 and ep['id'] not in existing_ids:
-                    inserted += 1
-                    existing_ids.add(ep['id'])
-            except Exception as e:
-                logger.warning(f"Failed to upsert discovered episode {ep.get('id')}: {e}")
-
-        conn.commit()
-        return inserted
+            )
+            if cursor.rowcount > 0 and ep['id'] not in existing_ids:
+                inserted += 1
+                existing_ids.add(ep['id'])
+        except sqlite3.OperationalError:
+            raise
+        except Exception as e:
+            skipped += 1
+            logger.debug(f"Skipped discovered episode {ep.get('id')}: {e}")
+        return inserted, skipped
 
     def _reset_episode_to_discovered(self, slug: str, episode_id: str) -> None:
         """Clear episode_details and reset an episode back to 'discovered' state."""
