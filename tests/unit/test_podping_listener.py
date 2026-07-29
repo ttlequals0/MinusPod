@@ -1,5 +1,6 @@
 """Tests for PodpingListener and podping_listener_loop."""
 import json
+import logging
 import threading
 import time
 from unittest.mock import Mock
@@ -796,3 +797,49 @@ class TestActiveAuthorityIsAccepted:
             }]]}]})
 
         assert events[0]['auths'] == {'podping.aaa'}
+
+
+class TestNodeFailureLogging:
+    """One node failing while failover works is not actionable, and at the 60s
+    backoff cap it would print once a minute forever. Only losing every node
+    misses pings."""
+
+    def _listener(self):
+        return PodpingListener(rpc=lambda *a, **k: None, sleep=lambda s: None)
+
+    def test_first_failure_for_a_node_warns(self, caplog):
+        listener = self._listener()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            listener._node_failure('connection refused')
+        assert [r.levelname for r in caplog.records] == ['WARNING']
+
+    def test_repeat_failure_for_same_node_is_debug(self, caplog):
+        listener = self._listener()
+        listener._node_failure('connection refused')
+        # Walk back to the same node so the repeat is for an already-failed one.
+        listener.node_index = 0
+        # caplog.records spans the whole test, not just the with block.
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            listener._node_failure('connection refused')
+        assert [r.levelname for r in caplog.records] == ['DEBUG']
+
+    def test_losing_every_node_logs_error(self, caplog):
+        listener = self._listener()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            for _ in range(len(PODPING_NODES)):
+                listener._node_failure('connection refused')
+        assert [r.levelname for r in caplog.records][-1] == 'ERROR'
+        assert len([r for r in caplog.records if r.levelname == 'ERROR']) == 1
+
+    def test_success_clears_the_failed_set(self, caplog):
+        """After a success a node that fails again is news, so it warns."""
+        listener = PodpingListener(rpc=lambda *a, **k: {}, sleep=lambda s: None)
+        listener._node_failure('connection refused')
+        listener.node_index = 0
+        listener._call_rpc('some_method', {}, expected_type=dict)
+        assert listener._failed_nodes == set()
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            listener._node_failure('connection refused')
+        assert [r.levelname for r in caplog.records] == ['WARNING']
