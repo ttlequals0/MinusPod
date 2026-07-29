@@ -15,7 +15,9 @@ import logging
 
 import requests
 
-from utils.safe_http import read_response_capped, ResponseTooLargeError
+from utils.safe_http import (
+    IncompleteResponseError, read_response_capped, ResponseTooLargeError,
+)
 from utils.url import SSRFError
 
 logger = logging.getLogger(__name__)
@@ -73,7 +75,8 @@ def run_probe(send, timeout_seconds: float, log_context: str = '',
     status = response.status_code
     try:
         body_bytes = read_response_capped(response, PROBE_RESPONSE_CAP_BYTES)
-    except (ResponseTooLargeError, requests.RequestException):
+    except (ResponseTooLargeError, IncompleteResponseError,
+            requests.RequestException):
         body_bytes = None
     finally:
         response.close()

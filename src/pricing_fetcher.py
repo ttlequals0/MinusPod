@@ -29,6 +29,7 @@ from utils.http import safe_url_for_log
 from utils.safe_http import (
     URLTrust,
     safe_get,
+    IncompleteResponseError,
     read_response_capped,
     ResponseTooLargeError,
 )
@@ -78,7 +79,8 @@ def fetch_openrouter_pricing() -> List[Dict]:
     """
     try:
         body = _fetch_capped_body('https://openrouter.ai/api/v1/models')
-    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
+    except (SSRFError, requests.RequestException, ResponseTooLargeError,
+            IncompleteResponseError) as exc:
         raise ConnectionError(f"Failed to fetch OpenRouter pricing: {exc}") from exc
 
     results = []
@@ -137,7 +139,8 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
     """
     try:
         body = _fetch_capped_body(url)
-    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
+    except (SSRFError, requests.RequestException, ResponseTooLargeError,
+            IncompleteResponseError) as exc:
         raise ConnectionError(f"Failed to fetch pricing from {url}: {exc}") from exc
 
     from bs4 import BeautifulSoup
@@ -237,7 +240,8 @@ def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
     """
     try:
         body = _fetch_capped_body(LITELLM_PRICING_URL)
-    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
+    except (SSRFError, requests.RequestException, ResponseTooLargeError,
+            IncompleteResponseError) as exc:
         raise ConnectionError(f"Failed to fetch LiteLLM pricing: {exc}") from exc
 
     try:

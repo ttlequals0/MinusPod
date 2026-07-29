@@ -32,6 +32,7 @@ from utils.cron import is_due
 from utils.safe_http import (
     ResponseTooLargeError,
     URLTrust,
+    IncompleteResponseError,
     read_response_capped,
     safe_get,
 )
@@ -77,6 +78,8 @@ def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
             body = read_response_capped(resp, MANIFEST_MAX_BYTES)
         except ResponseTooLargeError as e:
             raise requests.RequestException(f'manifest exceeded size cap: {e}') from e
+        except IncompleteResponseError as e:
+            raise requests.RequestException(f'manifest body truncated: {e}') from e
     finally:
         resp.close()
     return json.loads(body.decode('utf-8'))
@@ -104,6 +107,8 @@ def _fetch_pattern_file(path: str) -> Dict[str, Any]:
             body = read_response_capped(resp, PATTERN_FILE_MAX_BYTES)
         except ResponseTooLargeError as e:
             raise requests.RequestException(f'pattern file exceeded size cap: {e}') from e
+        except IncompleteResponseError as e:
+            raise requests.RequestException(f'pattern file truncated: {e}') from e
     finally:
         resp.close()
     return json.loads(body.decode('utf-8'))

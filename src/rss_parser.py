@@ -21,7 +21,10 @@ from utils.feed_guid import compute_feed_guid
 from utils.time import parse_iso_datetime, parse_timestamp
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
-from utils.safe_http import ResponseTooLargeError, URLTrust, read_response_capped, safe_get
+from utils.safe_http import (
+    IncompleteResponseError, ResponseTooLargeError, URLTrust,
+    read_response_capped, safe_get,
+)
 
 
 _FEED_CONTENT_TYPES = frozenset({
@@ -65,6 +68,25 @@ def _content_type_looks_like_feed(header_value: str | None) -> bool:
     if not main_type:
         return True
     return main_type in _FEED_CONTENT_TYPES
+
+
+# Parse-error text that means the document ended mid-structure. feedparser sets
+# bozo for benign reasons too (encoding overrides, undeclared namespaces), so
+# only these signatures are treated as a truncated body.
+_TRUNCATION_MARKERS = (
+    'no element found',
+    'unclosed token',
+    'unexpected end of data',
+    'unexpected end of file',
+)
+
+
+def _is_truncation_error(exc) -> bool:
+    """True when a feedparser bozo_exception indicates a cut-off document."""
+    if exc is None:
+        return False
+    return any(marker in str(exc).lower() for marker in _TRUNCATION_MARKERS)
+
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +297,13 @@ class RSSParser:
                     )
                     _get_rss_circuit_breaker(url).record_failure()
                     return None
+                except IncompleteResponseError as e:
+                    logger.warning(
+                        "feed_body_truncated: url=%s err=%s",
+                        safe_url_for_log(url), e,
+                    )
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None
                 logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
                 _get_rss_circuit_breaker(url).record_success()
                 return body.decode('utf-8', errors='replace')
@@ -308,6 +337,11 @@ class RSSParser:
                 except ResponseTooLargeError:
                     logger.warning("feed_size_cap_exceeded: url=%s max=%d",
                                    safe_url_for_log(url), max_bytes)
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None
+                except IncompleteResponseError as e:
+                    logger.warning("feed_body_truncated: url=%s err=%s",
+                                   safe_url_for_log(url), e)
                     _get_rss_circuit_breaker(url).record_failure()
                     return None
                 finally:
@@ -391,6 +425,11 @@ class RSSParser:
                                safe_url_for_log(url), max_bytes)
                 _get_rss_circuit_breaker(url).record_failure()
                 return None, None, None
+            except IncompleteResponseError as e:
+                logger.warning("feed_body_truncated: url=%s err=%s",
+                               safe_url_for_log(url), e)
+                _get_rss_circuit_breaker(url).record_failure()
+                return None, None, None
             finally:
                 response.close()
 
@@ -430,6 +469,11 @@ class RSSParser:
                 except ResponseTooLargeError:
                     logger.warning("feed_size_cap_exceeded: url=%s max=%d",
                                    safe_url_for_log(url), max_bytes)
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None, None, None
+                except IncompleteResponseError as e:
+                    logger.warning("feed_body_truncated: url=%s err=%s",
+                                   safe_url_for_log(url), e)
                     _get_rss_circuit_breaker(url).record_failure()
                     return None, None, None
                 finally:
@@ -492,6 +536,16 @@ class RSSParser:
                 logger.warning("RSS parse warning: source=%s bytes=%d err=%s",
                                source or 'unknown', len(feed_content or ''),
                                feed.bozo_exception)
+                if _is_truncation_error(feed.bozo_exception):
+                    # A document that ends mid-element parses to a short entry
+                    # list. Accepting it would drop every episode past the cut,
+                    # so fail the parse and keep the stored episodes instead.
+                    logger.warning(
+                        "feed_document_truncated: source=%s bytes=%d entries=%d",
+                        source or 'unknown', len(feed_content or ''),
+                        len(feed.entries),
+                    )
+                    return None
 
             logger.debug(f"Parsed RSS feed: {feed.feed.get('title', 'Unknown')} with {len(feed.entries)} entries")
             return feed
