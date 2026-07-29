@@ -20,6 +20,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
 import { StageBadge } from '../../components/StageBadge';
 import { formatTimestamp, formatDate } from '../../utils/format';
+import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
 import { btnDestructive, btnOutline } from '../../components/buttonStyles';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
@@ -177,6 +178,7 @@ export default function AdReviewTab() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
   const [feed, setFeed] = useState('');
+  const [category, setCategory] = useState('');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<DetectionSort>('date');
@@ -250,11 +252,12 @@ export default function AdReviewTab() {
   });
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['detections', page, status, feed, debouncedQ, sort, order],
+    queryKey: ['detections', page, status, feed, category, debouncedQ, sort, order],
     queryFn: () => getDetections({
       page,
       status,
       feed: feed || undefined,
+      category: category || undefined,
       q: debouncedQ || undefined,
       sort,
       order,
@@ -332,6 +335,19 @@ export default function AdReviewTab() {
             <option value="">All podcasts</option>
             {sortedFeeds?.map((f) => (
               <option key={f.slug} value={f.slug}>{f.title}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label htmlFor="ad-review-category" className="text-sm text-muted-foreground shrink-0">Category</label>
+          <select
+            id="ad-review-category"
+            value={category}
+            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+            className="flex-1 sm:flex-none min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+          >
+            {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
+              <option key={value || 'all'} value={value}>{label}</option>
             ))}
           </select>
         </div>

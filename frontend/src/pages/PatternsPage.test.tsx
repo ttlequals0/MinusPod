@@ -80,3 +80,55 @@ describe('PatternsPage tabs', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 });
+
+describe('PatternsPage category filter', () => {
+  function pattern(id: number, category: string | null, sponsor: string) {
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null,
+      category,
+    };
+  }
+
+  function seed() {
+    mockGetPatterns.mockResolvedValue([
+      pattern(1, 'sponsor', 'Acme'),
+      pattern(2, 'cross_promo', 'Beta Co'),
+      pattern(3, null, 'Gamma Co'),
+    ]);
+  }
+
+  it('narrows the list to one category', async () => {
+    seed();
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findAllByText('Beta Co');
+    await user.selectOptions(screen.getByLabelText('Category:'), 'cross_promo');
+    expect(await screen.findAllByText('Beta Co')).not.toHaveLength(0);
+    expect(screen.queryByText('Acme')).toBeNull();
+    expect(screen.queryByText('Gamma Co')).toBeNull();
+  });
+
+  it('uncategorized shows only patterns with no category', async () => {
+    seed();
+    renderPage();
+    const user = userEvent.setup();
+    await screen.findAllByText('Gamma Co');
+    await user.selectOptions(screen.getByLabelText('Category:'), 'none');
+    expect(await screen.findAllByText('Gamma Co')).not.toHaveLength(0);
+    expect(screen.queryByText('Acme')).toBeNull();
+    expect(screen.queryByText('Beta Co')).toBeNull();
+  });
+
+  it('all categories keeps every pattern', async () => {
+    seed();
+    renderPage();
+    await screen.findAllByText('Acme');
+    expect(screen.queryAllByText('Beta Co')).not.toHaveLength(0);
+    expect(screen.queryAllByText('Gamma Co')).not.toHaveLength(0);
+  });
+});
