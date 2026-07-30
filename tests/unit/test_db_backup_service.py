@@ -446,12 +446,9 @@ def test_dest_writable_existing_non_dir(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Snapshot secret-state logging
-#
-# The old condition warned when MINUSPOD_MASTER_PASSPHRASE was set, which is
-# exactly when Database.set_secret has already stored provider keys as
-# ciphertext. The exposed case, no passphrase and therefore readable keys,
-# logged at INFO and said nothing.
+# Snapshot secret-state logging. The old condition warned when a passphrase was
+# set, which is exactly when the keys are already ciphertext, and stayed silent
+# when they were readable.
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)

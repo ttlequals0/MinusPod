@@ -647,7 +647,7 @@ def get_episode_split_candidates(slug, episode_id):
 
     Finds AD_TRANSITION_PHRASES in the span's transcript text and maps each
     match back to the start of the transcript segment it falls in, so the ad
-    editor opens with dividers where a split would actually cut. A span with no
+    editor opens with dividers where a split would cut. A span with no
     transition phrase returns one piece and no candidates, which is a valid
     answer rather than an error (issue #563).
     """

@@ -9,6 +9,82 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.82.0] - 2026-07-29
+
+### Added
+
+- Detected Ads tab on the patterns page: browse every ad that was cut,
+  across all feeds, filtered by podcast, segment category, and search,
+  sorted by date, confidence, or podcast. The header leads with total time
+  cut, then detection count, distinct sponsors, and distinct podcasts, with a
+  per-category breakdown. Rows play the span, open it in the waveform editor,
+  reject it (which recuts from the retained original so the audio comes back),
+  or split it.
+- Segment category filter on the patterns list and the ad review tab, with a
+  separate Uncategorized option for markers no detection stage classified.
+- Split a merged multi-sponsor ad marker into N single-sponsor ads
+  (issue #563). A new split-candidates endpoint finds ad-transition phrases in
+  the marker's transcript and maps each to a timestamp, so the editor opens
+  with dividers where a split would cut. Dividers are draggable and
+  keyboard-operable, each resulting ad takes its own sponsor, and saving
+  replaces the one marker with N markers and mints one pattern per piece.
+  Every piece must clear the minimum ad duration or the split is refused and
+  the marker is left untouched. This closes the issue: the automatic
+  multi-sponsor split shipped in 2.70.0 and the editor affordance for held and
+  not-cut rows in 2.72.0.
+- Configurable chapter density via four new LLM tunables: target chapter
+  length, transcript window per detection call, maximum chapters, and shortest
+  chapter. Available in Settings under LLM Tunables and via the settings API.
+
+### Fixed
+
+- Episode discovery silently dropped episodes when SQLite was busy. The upsert
+  ran on a bare connection, so the deferred transaction upgraded to a write
+  lock at the first insert, which fails immediately with "database is locked"
+  rather than waiting on busy_timeout, and a per-episode handler swallowed it.
+  A contended refresh logged one warning per episode and reported success
+  having discovered nothing. The batch now holds an immediate transaction,
+  lock failures abort it so the caller retries the feed, and per-row data
+  faults collapse into one summary warning.
+- A truncated feed response was parsed as a short but valid feed, so episodes
+  vanished from that feed on every refresh while the circuit breaker recorded a
+  success. The shared streaming reader enforced only an upper size bound and
+  returned whatever arrived; it now rejects a body that ends short of its
+  declared Content-Length, and both RSS fetch paths treat that as a fetch
+  failure so the stored episode list survives. A feed document whose parse
+  error signals truncation is likewise rejected rather than parsed partially.
+- Chapter generation capped every episode at 6 topic boundaries regardless of
+  length, and a single detection call over a long transcript clustered the
+  boundaries it did return, leaving hour-long chapters at the end. Detection
+  now runs per transcript window with the previous window's title carried
+  forward, and a failed window no longer discards the others' results.
+- Transcription repeated the same CUDA out-of-memory failures on every
+  episode. Batch size came from audio duration alone, so on a card where the
+  top tier never fits, each episode paid two OOM failures before settling on a
+  size that worked and then discarded that result. The working size is now
+  remembered per device.
+- The scheduled-backup warning about provider secrets fired on the wrong
+  condition. It warned when a master passphrase was configured, which is
+  exactly when those secrets are already encrypted at rest, and said nothing
+  in the case where they are stored in plaintext. It now warns when plaintext
+  secrets are present, names the remedy, and logs once per process rather than
+  once per backup.
+- Podping node failures logged a warning on every attempt, so a node that
+  stayed down printed once a minute indefinitely even though failover was
+  working. A node now warns on its first failure, repeats drop to debug, and
+  losing every node escalates to an error, which is the case that loses
+  pings.
+- Unauthenticated requests for feed assets and probes for unknown feed slugs
+  logged at warning level, putting routine internet background noise at the
+  same level as problems worth acting on. Both drop to info. Failed login
+  attempts stay at warning.
+- Waveform editor boundary pins declared themselves as sliders to assistive
+  technology but had no keyboard handling and no minimum or maximum, so they
+  were announced as operable and were not. Arrow keys now nudge them, Shift
+  takes a coarser step, and both bounds are exposed.
+- Scope, Origin, and Source filter labels on the patterns list were not
+  associated with their controls, so none were reachable by label.
+
 ## [2.81.23] - 2026-07-28
 
 ### Security

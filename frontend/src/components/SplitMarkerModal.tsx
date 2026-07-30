@@ -52,10 +52,9 @@ function piecesFrom(
   const bounds = [start, ...dividers, end];
   const out: PieceView[] = [];
   for (let i = 0; i < bounds.length - 1; i += 1) {
-    // Text comes from the server's original piece geometry, which is only a
-    // preview: after a drag the boundaries move but the words shown stay the
-    // nearest server piece's. Good enough to identify the sponsor, and it
-    // avoids a refetch on every pointer move.
+    // Text is a preview from the server's original geometry, so after a drag
+    // it stays the nearest piece's words. Enough to name the sponsor, and it
+    // avoids a refetch per pointer move.
     const nearest = base.find(
       (p) => p.end > bounds[i] && p.start < bounds[i + 1]);
     out.push({

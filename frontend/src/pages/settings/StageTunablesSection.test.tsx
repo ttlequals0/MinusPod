@@ -175,11 +175,9 @@ describe('chapter density controls', () => {
     }
   });
 
-  // Each field must reach the save payload. A key missing from DRAFT_KEYS is
-  // skipped by draftsEqual and buildPayload, and a key missing from
-  // buildBaseline has an undefined baseline; either way the field renders,
-  // accepts input, and silently never saves. Asserting the payload catches both
-  // without exporting internals.
+  // A key missing from DRAFT_KEYS or buildBaseline renders and accepts input
+  // but never saves. Asserting the payload catches both without exporting
+  // internals.
   it.each(FIELDS)('saves %s', async (label, payloadKey, value) => {
     let saved: UpdateSettingsPayload | null = null;
     render(<Harness onSave={(payload) => { saved = payload; }} />);

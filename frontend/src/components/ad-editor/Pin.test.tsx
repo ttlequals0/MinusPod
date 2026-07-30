@@ -25,7 +25,7 @@ function renderPin(over: Partial<React.ComponentProps<typeof Pin>> = {}) {
 }
 
 describe('Pin keyboard operation', () => {
-  it('is focusable, so the announced slider can actually be used', () => {
+  it('is focusable, so the announced slider can be used', () => {
     const { pin } = renderPin();
     expect(pin.getAttribute('tabIndex')).toBe('0');
   });

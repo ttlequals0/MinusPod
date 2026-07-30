@@ -241,7 +241,7 @@ class PodpingListener:
         One node failing while failover succeeds is not actionable, and at the
         60s backoff cap it would print once a minute forever. So a node warns on
         its first failure, repeats go to DEBUG, and only losing every node, which
-        is when pings are actually missed, escalates to ERROR.
+        is when pings are missed, escalates to ERROR.
         """
         node = PODPING_NODES[self.node_index]
         first_failure = node not in self._failed_nodes
