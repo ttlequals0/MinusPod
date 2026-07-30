@@ -23,7 +23,8 @@ release notes.
 - Segment category filter on the patterns list and the ad review tab, with a
   separate Uncategorized option for markers no detection stage classified.
 - Split a merged multi-sponsor ad marker into N single-sponsor ads
-  (issue #563). A new split-candidates endpoint finds ad-transition phrases in
+  (issue #563), from a Detected Ads row or from inside the boundary review
+  editor. A new split-candidates endpoint finds ad-transition phrases in
   the marker's transcript and maps each to a timestamp, so the editor opens
   with dividers where a split would cut. Dividers are draggable and
   keyboard-operable, each resulting ad takes its own sponsor, and saving
@@ -57,7 +58,10 @@ release notes.
   length, and a single detection call over a long transcript clustered the
   boundaries it did return, leaving hour-long chapters at the end. Detection
   now runs per transcript window with the previous window's title carried
-  forward, and a failed window no longer discards the others' results.
+  forward, and a failed window no longer discards the others' results. The
+  boundary parser also accepts timestamps past 99:59, which windowed
+  detection produces on every episode longer than that, and show-notes
+  timestamp anchors now reach every window instead of only the first.
 - Transcription repeated the same CUDA out-of-memory failures on every
   episode. Batch size came from audio duration alone, so on a card where the
   top tier never fits, each episode paid two OOM failures before settling on a
@@ -84,6 +88,27 @@ release notes.
   takes a coarser step, and both bounds are exposed.
 - Scope, Origin, and Source filter labels on the patterns list were not
   associated with their controls, so none were reachable by label.
+- Boundary heuristics could undo a cue-anchored edge and swallow neighbouring
+  audio, leaving a real ad in the episode. A text-pattern match landed on an
+  ad and cue snapping anchored its end to the feed's learned ad-break
+  stinger, then phrase refinement and the content-extension walk moved both
+  edges into surrounding speech, across a segment the detector had decided
+  to keep. The bloated marker was held for review because its edges were no
+  longer near any splice evidence, and a precise LLM detection of the same
+  ad had been dropped as redundant, so nothing was cut. Cue-snapped edges
+  are now pinned against phrase and content heuristics, the extension walk
+  stops at a neighbouring detection's span, and a learned template cue
+  firing at a marker edge now counts as splice evidence for the veto.
+- A marker could end past the end of the file. The validator clamps bounds
+  to the episode duration, but protected merge bookkeeping recorded before
+  the clamp let the reviewer re-expand the edge past it; the protected
+  bounds are now clamped the same way.
+- Requesting cover art for a feed slug that does not exist created that
+  slug's directory on disk, so scanner probes left orphan directories for
+  the refresh cycle to clean up. Artwork reads no longer create anything.
+- The corrections endpoint documentation described a request shape the
+  server never accepted; it now documents the real one, including the
+  trimmed-approval and split fields.
 
 ## [2.81.23] - 2026-07-28
 

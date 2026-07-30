@@ -1592,7 +1592,8 @@ paths:
           `split_points` (a list of times strictly inside the span) and an
           optional `pieces` array of `{sponsor}` overrides in piece order.
           Every resulting piece must be at least the minimum ad duration or the
-          request is rejected and the marker is left untouched. Pieces inherit
+          request is rejected and the marker is left untouched. A request whose
+          original_ad matches no persisted marker returns 404. Pieces inherit
           the original's category, detection stage, confidence, and cut state,
           so a split never silently changes whether the audio was removed.
           Correction rows use boundary_adjustment for the first piece and
@@ -3017,10 +3018,10 @@ paths:
                   cutSummary:
                     type: object
                     description: >-
-                      Totals over detections that were cut. Computed after the
-                      feed and q filters but before the category filter, so the
-                      byCategory breakdown stays complete while the podcast
-                      selector still narrows it.
+                      Totals over detections that were cut. Reflects the
+                      status, feed, and q filters but not the category filter,
+                      so the byCategory breakdown stays complete while the
+                      podcast selector still narrows it.
                     properties:
                       count: { type: integer }
                       durationSeconds: { type: number }
@@ -9321,38 +9322,65 @@ components:
     AdCorrection:
       type: object
       required:
-        - adIndex
-        - action
+        - type
       properties:
-        adIndex:
-          type: integer
-          description: Index of the ad in the episode's ad list
-        action:
+        type:
           type: string
-          enum: [confirm, reject, adjust]
+          enum: [confirm, reject, adjust, create, split]
           description: |
             - confirm: Mark detection as correct (creates/updates pattern).
-              Optionally pass adjustedStart/adjustedEnd to approve a trimmed
+              Optionally pass adjusted_start/adjusted_end to approve a trimmed
               sub-span of a held marker (e.g. the reviewer's proposed trim);
               the marker's boundaries move to the trimmed span before approval
               and only the ad portion is cut on recut.
             - reject: Mark as false positive (stores text for cross-episode exclusion)
             - adjust: Correct boundaries (also creates pattern from adjusted segment)
+            - create: Mark a brand-new ad the detector missed (top-level
+              start/end/sponsor/text_template, no original_ad)
+            - split: Replace one marker with N single-sponsor markers (see the
+              endpoint description)
+        original_ad:
+          type: object
+          description: >-
+            Existing marker to correct, matched by its start/end within
+            tolerance. Required for every type except create.
+          properties:
+            start:
+              type: number
+            end:
+              type: number
+            pattern_id:
+              type: integer
         sponsor:
           type: string
-          description: Sponsor name to associate (for confirm/adjust actions)
-        adjustedStart:
+          description: Sponsor name to associate (for confirm/adjust/create)
+        adjusted_start:
           type: number
           description: >-
             Corrected start time in seconds (required for adjust; optional for
             confirm as a trimmed approval, must lie within the original span
             and both bounds must be supplied together)
-        adjustedEnd:
+        adjusted_end:
           type: number
           description: >-
             Corrected end time in seconds (required for adjust; optional for
             confirm as a trimmed approval, must lie within the original span
             and both bounds must be supplied together)
+        split_points:
+          type: array
+          items:
+            type: number
+          description: split type only, divider times strictly inside the span
+        pieces:
+          type: array
+          items:
+            type: object
+            properties:
+              sponsor:
+                type:
+                  - string
+                  - 'null'
+          description: split type only, optional per-piece sponsor overrides
 
     ProcessingStatus:
       type: object
