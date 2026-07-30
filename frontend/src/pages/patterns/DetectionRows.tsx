@@ -148,7 +148,9 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           Not an ad
         </button>
       )}
-      {actions.onSplit && (
+      {/* Desktop rows only: a fourth card button shrinks the grow buttons
+          on narrow phones. Cards reach Split through Edit's editor. */}
+      {actions.onSplit && !isCard && (
         <button
           type="button"
           onClick={() => actions.onSplit?.(d)}

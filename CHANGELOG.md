@@ -97,8 +97,9 @@ release notes.
   longer near any splice evidence, and a precise LLM detection of the same
   ad had been dropped as redundant, so nothing was cut. Cue-snapped edges
   are now pinned against phrase and content heuristics, the extension walk
-  stops at a neighbouring detection's span, and a learned template cue
-  firing at a marker edge now counts as splice evidence for the veto.
+  stops at a neighbouring detection's span including segments the feed
+  keeps, and a learned template cue firing at a marker edge now counts as
+  splice evidence for the veto.
 - A marker could end past the end of the file. The validator clamps bounds
   to the episode duration, but protected merge bookkeeping recorded before
   the clamp let the reviewer re-expand the edge past it; the protected

@@ -842,19 +842,22 @@ def _setting_float(db, key: str, default: float, allow_zero: bool = False) -> fl
 
 
 def _refine_boundaries(all_ads, segments, db=None, false_positive_corrections=None,
-                       podcast_name=None):
+                       podcast_name=None, keep_ads=None):
     """Apply the boundary refinement pipeline. Returns updated list.
 
     ``false_positive_corrections`` are threaded to the filler-gap merge so it
     never collapses a span the user rejected (merging would dilute the
     validator's overlap ratio). ``podcast_name`` keeps the host's own site out
-    of the harvested sponsor tokens.
+    of the harvested sponsor tokens. ``keep_ads`` (partitioned out of
+    ``all_ads`` upstream) still act as extension barriers: a cut must not
+    grow into a span the feed keeps.
     """
     if all_ads and segments:
         all_ads = refine_ad_boundaries(all_ads, segments)
     if all_ads and segments:
         all_ads = extend_ad_boundaries_by_content(all_ads, segments,
-                                                  podcast_name=podcast_name)
+                                                  podcast_name=podcast_name,
+                                                  barriers=all_ads + list(keep_ads or []))
     if all_ads:
         all_ads = snap_early_ads_to_zero(all_ads)
     if all_ads and segments:
@@ -1147,8 +1150,11 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
                           max_ad_duration_override=None, cue_gate_enabled=False,
-                          audio_analysis=None, podcast_id=None):
+                          audio_analysis=None, podcast_id=None, keep_ads=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
+
+    ``keep_ads`` are the keep-partitioned markers, passed so boundary
+    extension treats them as barriers even though they left ``all_ads``.
 
     Returns (ads_to_remove, all_ads_with_validation).
     """
@@ -1161,7 +1167,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     # Boundary refinement
     all_ads = _refine_boundaries(all_ads, segments, db=db,
                                  false_positive_corrections=false_positive_corrections,
-                                 podcast_name=podcast_name)
+                                 podcast_name=podcast_name,
+                                 keep_ads=keep_ads)
 
     # Heuristic pre/post-roll detection
     _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
@@ -3804,6 +3811,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cue_gate_enabled=cue_gate_enabled,
                     audio_analysis=_val_audio_analysis,
                     podcast_id=podcast_id,
+                    keep_ads=keep_ads,
                 )
 
                 # Late keep partition: _refine_and_validate's heuristic

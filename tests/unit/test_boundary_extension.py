@@ -219,3 +219,21 @@ def test_refine_skips_cue_snapped_end():
 
     assert refine_ad_boundaries(pinned, segments)[0]['end'] == 120.0
     assert refine_ad_boundaries(free, segments)[0]['end'] > 120.0
+
+
+def test_barriers_outside_the_ads_list_still_block_extension():
+    # Keep-partitioned markers leave the ads list before refinement but must
+    # still stop the walk: a cut may not grow into a span the feed keeps.
+    segments = [
+        _seg(70.0, 99.0, 'support us at patreon dot com slash show'),
+        _seg(100.0, 120.0, 'sponsor read mentioning patreon dot com'),
+    ]
+    kept = {'start': 70.0, 'end': 100.0, 'category': 'self_promo',
+            'action_applied': 'keep'}
+    ads = [{'start': 100.0, 'end': 120.0}]
+
+    extended = extend_ad_boundaries_by_content(ads, segments,
+                                               barriers=ads + [kept])
+
+    assert extended[0]['start'] == 100.0
+    assert 'start_extended_by_content' not in extended[0]

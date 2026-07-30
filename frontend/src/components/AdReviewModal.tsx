@@ -1386,7 +1386,7 @@ function AdReviewModal({
                 <button
                   type="button"
                   onClick={() => setShowSplit(true)}
-                  className={`h-9 px-3 rounded-lg ${ghostBtn} text-sm whitespace-nowrap`}
+                  className={`h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm whitespace-nowrap`}
                   title="Split this ad block into separate ads"
                 >
                   Split
