@@ -144,3 +144,14 @@ def get_gpu_memory_info() -> dict:
         pass
 
     return {}
+
+
+def get_gpu_device_name() -> str:
+    """The active CUDA device's name, or 'cpu' when CUDA is unavailable."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_name(0)
+    except Exception:
+        pass
+    return 'cpu'

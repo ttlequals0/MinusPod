@@ -293,6 +293,11 @@ def _iter_plaintext_secret_rows(db):
         yield key, value
 
 
+def count_stored_secrets(db) -> int:
+    """Count known secret keys with any stored value, plaintext or ciphertext."""
+    return sum(1 for key in SECRET_SETTING_KEYS if db.get_setting(key))
+
+
 def count_plaintext_secrets(db) -> int:
     """Report how many known secret keys are still stored as plaintext.
 

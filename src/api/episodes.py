@@ -34,6 +34,17 @@ logger = logging.getLogger('podcast.api')
 REPROCESSABLE_STATUSES = ('processed', 'failed', 'permanently_failed', 'deferred')
 
 
+def _float_arg(name, default=None):
+    """Float query arg: missing or empty returns default, junk aborts 400."""
+    raw = request.args.get(name)
+    if raw is None or raw == '':
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        abort(400, description=f"{name} must be a number")
+
+
 def _check_recut_preconditions(db, slug, episode_id, episode):
     """Recut cuts the retained original from the saved detections and re-times
     the saved segments; it cannot run if any of those inputs are missing. Fail
@@ -549,15 +560,6 @@ def get_episode_peaks(slug, episode_id):
     if err is not None:
         return err
 
-    def _f(name, default=None):
-        raw = request.args.get(name)
-        if raw is None or raw == '':
-            return default
-        try:
-            return float(raw)
-        except ValueError:
-            abort(400, description=f"{name} must be a number")
-
     def _i(name, default):
         raw = request.args.get(name)
         if raw is None or raw == '':
@@ -567,8 +569,8 @@ def get_episode_peaks(slug, episode_id):
         except ValueError:
             abort(400, description=f"{name} must be an integer")
 
-    start_seconds = _f('start', 0.0) or 0.0
-    end_seconds = _f('end')
+    start_seconds = _float_arg('start', 0.0) or 0.0
+    end_seconds = _float_arg('end')
     resolution_ms = _i('resolution_ms', 50)
 
     try:
@@ -606,17 +608,8 @@ def get_episode_transcript_span(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
-    def _f(name, default=None):
-        raw = request.args.get(name)
-        if raw is None or raw == '':
-            return default
-        try:
-            return float(raw)
-        except ValueError:
-            abort(400, description=f"{name} must be a number")
-
-    start_seconds = _f('start', 0.0) or 0.0
-    end_seconds = _f('end')
+    start_seconds = _float_arg('start', 0.0) or 0.0
+    end_seconds = _float_arg('end')
     if end_seconds is None:
         return error_response('end is required', 400)
     if start_seconds < 0 or end_seconds <= start_seconds:
@@ -645,28 +638,16 @@ def get_episode_transcript_span(slug, episode_id):
 def get_episode_split_candidates(slug, episode_id):
     """Propose divider points for a marker spanning several sponsors.
 
-    Finds AD_TRANSITION_PHRASES in the span's transcript text and maps each
-    match back to the start of the transcript segment it falls in, so the ad
-    editor opens with dividers where a split would cut. A span with no
-    transition phrase returns one piece and no candidates, which is a valid
-    answer rather than an error (issue #563).
+    A span with no transition phrase returns one piece and no candidates,
+    a valid answer rather than an error (issue #563).
     """
     db = get_database()
     episode = db.get_episode(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
 
-    def _f(name):
-        raw = request.args.get(name)
-        if raw is None or raw == '':
-            return None
-        try:
-            return float(raw)
-        except ValueError:
-            abort(400, description=f"{name} must be a number")
-
-    start_seconds = _f('start')
-    end_seconds = _f('end')
+    start_seconds = _float_arg('start')
+    end_seconds = _float_arg('end')
     if start_seconds is None or end_seconds is None:
         return error_response('start and end are required', 400)
     if start_seconds < 0 or end_seconds <= start_seconds:

@@ -95,8 +95,26 @@ class TestValidation:
         assert resp.status_code == 400
         assert 'minimum ad duration' in resp.get_json()['error']
 
-    def test_two_points_too_close_together_are_rejected(self, app_client, merged):
+    def test_points_creating_sub_minimum_pieces_are_rejected(self, app_client, merged):
         assert _split(app_client, merged, [130.0, 132.0]).status_code == 400
+
+    def test_non_numeric_original_bounds_are_rejected(self, app_client, merged):
+        resp = _post(app_client, merged, {
+            'type': 'split',
+            'original_ad': {'start': 'abc', 'end': 190.0},
+            'split_points': [130.0],
+        })
+        assert resp.status_code == 400
+
+    def test_non_dict_piece_override_is_rejected(self, app_client, merged):
+        resp = _split(app_client, merged, [130.0], pieces=['Acme'])
+        assert resp.status_code == 400
+        assert 'pieces[0]' in resp.get_json()['error']
+
+    def test_non_string_sponsor_override_is_rejected(self, app_client, merged):
+        resp = _split(app_client, merged, [130.0], pieces=[{'sponsor': 5}])
+        assert resp.status_code == 400
+        assert 'sponsor' in resp.get_json()['error']
 
     def test_bounds_matching_no_marker_are_rejected(self, app_client, merged):
         resp = _post(app_client, merged, {
@@ -160,6 +178,18 @@ class TestSplitting:
             'SELECT correction_type FROM pattern_corrections WHERE episode_id = ?'
             ' ORDER BY id', (merged['episodeId'],)).fetchall()]
         assert types == ['boundary_adjustment', 'create', 'create']
+
+    def test_splitting_a_held_marker_keeps_pending_count_in_sync(self, app_client, merged):
+        held = dict(MERGED_MARKER, held_for_review=True, was_cut=False,
+                    hold_reason='low_confidence', approved=True)
+        merged['db'].save_episode_details(
+            merged['slug'], merged['episodeId'], ad_markers=[held],
+            pending_review_count=1)
+        assert _split(app_client, merged, [130.0]).status_code == 200
+        episode = merged['db'].get_episode(merged['slug'], merged['episodeId'])
+        assert episode['pending_review_count'] == 2
+        for m in _markers(merged):
+            assert 'approved' not in m
 
     def test_other_markers_on_the_episode_survive(self, app_client, merged):
         other = {'start': 900.0, 'end': 930.0, 'confidence': 0.8,

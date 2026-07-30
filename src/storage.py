@@ -161,9 +161,7 @@ class Storage:
         Validates ``slug`` against traversal patterns and confirms the
         resolved path stays under ``self.podcasts_dir``.
         """
-        if is_dangerous_slug(slug):
-            raise PathContainmentError(f"refusing dangerous slug {slug!r}")
-        podcast_dir = _safe_join_under(self.podcasts_dir, slug)
+        podcast_dir = self._podcast_path(slug)
         podcast_dir.mkdir(exist_ok=True)
 
         # Ensure episodes directory exists
@@ -171,6 +169,12 @@ class Storage:
         episodes_dir.mkdir(exist_ok=True)
 
         return podcast_dir
+
+    def _podcast_path(self, slug: str) -> Path:
+        """Validated, contained path for a slug; does not touch the disk."""
+        if is_dangerous_slug(slug):
+            raise PathContainmentError(f"refusing dangerous slug {slug!r}")
+        return _safe_join_under(self.podcasts_dir, slug)
 
     def load_data_json(self, slug: str) -> Dict[str, Any]:
         """Load episode data for a podcast from SQLite."""
@@ -506,9 +510,17 @@ class Storage:
             logger.error(f"[{slug}] Failed to save artwork: {e}")
             return False
 
+    def podcast_dir_if_exists(self, slug: str) -> Optional[Path]:
+        """get_podcast_dir without the mkdir: read paths must not create
+        directories for probed unknown slugs."""
+        podcast_dir = self._podcast_path(slug)
+        return podcast_dir if podcast_dir.is_dir() else None
+
     def get_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
         """Get cached artwork. Returns (data, content_type) or None."""
-        podcast_dir = self.get_podcast_dir(slug)
+        podcast_dir = self.podcast_dir_if_exists(slug)
+        if not podcast_dir:
+            return None
 
         for ext, content_type in [
             ('.jpg', 'image/jpeg'),
@@ -536,7 +548,9 @@ class Storage:
         disk as artwork-minuspod.jpg. Returns (jpeg_bytes, 'image/jpeg'), or None
         when there is no source artwork or compositing fails. save_artwork and the
         artwork refresh clear the cached variant so it recomposites."""
-        podcast_dir = self.get_podcast_dir(slug)
+        podcast_dir = self.podcast_dir_if_exists(slug)
+        if not podcast_dir:
+            return None
         variant_path = podcast_dir / _WATERMARK_VARIANT
 
         if variant_path.exists() and not self._watermark_variant_stale(

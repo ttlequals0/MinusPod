@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from secrets_crypto import count_plaintext_secrets
+from secrets_crypto import count_plaintext_secrets, count_stored_secrets
 from utils.cron import is_due
 from utils.db_backup import snapshot_database
 from utils.time import (
@@ -214,6 +214,7 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
     _secret_state_logged = True
     try:
         plaintext = count_plaintext_secrets(db)
+        stored = 0 if plaintext else count_stored_secrets(db)
     except Exception as e:
         logger.debug('db_backup: could not count plaintext secrets: %s', e)
         logger.info('db_backup: %s', summary)
@@ -225,11 +226,16 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
             'values migrate on the next write. %s',
             final, plaintext, summary,
         )
-    else:
+    elif stored:
         logger.info(
             'db_backup: snapshot at %s has encrypted provider secrets. The '
             'key-derivation salt is inside the file, so keep the passphrase '
             'somewhere other than beside the backup. %s',
+            final, summary,
+        )
+    else:
+        logger.info(
+            'db_backup: snapshot at %s contains no provider secrets. %s',
             final, summary,
         )
 

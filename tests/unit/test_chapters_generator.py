@@ -142,6 +142,19 @@ class TestDetectTopicBoundariesParsing:
         )
         assert [c['title'] for c in chapters] == ['Inside']
 
+    def test_accepts_three_digit_minutes(self):
+        """Windows past 100 minutes see unbounded-minute MM:SS markers, so
+        the model echoes lines like "135:42"; the parser must accept them."""
+        canned = "135:42 Late Show Topic\n"
+        gen, _ = _make_generator_with_stub(canned_text=canned)
+        chapters = gen._detect_topic_boundaries(
+            transcript='[135:00] x',
+            start_time=8100.0,
+            end_time=10800.0,
+            num_splits=1,
+        )
+        assert chapters == [{'original_time': 8142.0, 'title': 'Late Show Topic'}]
+
 
 class TestDetectTopicBoundariesDescription:
     """Episode description is injected into the prompt with an ordering instruction."""
@@ -457,7 +470,7 @@ class TestSharedLLMCallPath:
         gen._llm_client = client
         return gen, client
 
-    def test_boundary_failure_retries_then_returns_no_boundaries(self):
+    def test_boundary_failure_retries_then_returns_none(self):
         gen, client = self._failing_generator()
         with patch('utils.llm_call.is_retryable_error', return_value=True), \
              patch('utils.llm_call.calculate_backoff', return_value=0.0), \
@@ -468,7 +481,8 @@ class TestSharedLLMCallPath:
                 end_time=1800.0,
                 num_splits=3,
             )
-        assert chapters == []
+        # None signals a failed call (vs [] for a legitimately empty window).
+        assert chapters is None
         # 3 primary attempts (max_retries=2) + 2 secondary fallback retries.
         assert client.calls == 5
 
@@ -489,7 +503,7 @@ class TestSharedLLMCallPath:
         assert not any(ch['needs_title'] for ch in out)
         assert gen._title_generation_failed is True
 
-    def test_non_retryable_failure_fails_once_and_degrades(self):
+    def test_non_retryable_failure_fails_once(self):
         gen, client = self._failing_generator()
         with patch('utils.llm_call.is_retryable_error', return_value=False), \
              patch('chapters_generator.get_llm_max_retries', return_value=2):
@@ -499,7 +513,7 @@ class TestSharedLLMCallPath:
                 end_time=1800.0,
                 num_splits=3,
             )
-        assert chapters == []
+        assert chapters is None
         assert client.calls == 1
 
     def test_full_pipeline_degradation_reported_on_generator(self, caplog):
@@ -576,13 +590,12 @@ class TestEmptyTopicDetectionDegradation:
             for rec in caplog.records
         )
 
-    def test_raising_topic_detection_still_flags_degraded(self, monkeypatch):
-        """Existing exception-path behavior must be unchanged."""
+    def test_failed_detection_call_still_flags_degraded(self, monkeypatch):
+        """None (failed call) from _detect_topic_boundaries degrades the run."""
         gen = ChaptersGenerator(api_key='test')
         gen._llm_client = object()
         monkeypatch.setattr(
-            gen, '_detect_topic_boundaries',
-            lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('boom')),
+            gen, '_detect_topic_boundaries', lambda *a, **kw: None,
         )
 
         out = gen.generate_chapters(

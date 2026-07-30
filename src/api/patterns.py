@@ -802,17 +802,10 @@ def _validate_split_points(raw, start, end):
 
 def _submit_correction_split(db, pattern_service, slug, episode_id,
                              original_ad, data):
-    """Handle correction_type='split': replace one marker with N single-sponsor
-    ads (issue #563, option 1).
+    """Replace one marker with N single-sponsor ads (issue #563, option 1).
 
-    Each piece inherits the original's category, stage, confidence, and cut
-    state, so splitting does not silently change whether the audio was removed
-    or clear a pending review.
-
-    Correction rows use existing types, boundary_adjustment for the first piece
-    and create for the rest, because correction_type carries a CHECK constraint
-    that SQLite cannot alter in place; adding a value would mean rebuilding the
-    whole correction history table.
+    Correction rows reuse boundary_adjustment and create because
+    correction_type carries a CHECK constraint SQLite cannot alter in place.
     """
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -821,18 +814,26 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
     if err is not None:
         return err
 
-    marker = _find_marker_by_bounds(
-        db, slug, episode_id, original_start, original_end)
+    markers = _load_markers(db, slug, episode_id) or []
+    marker = _find_marker_in_list(markers, original_start, original_end)
     if marker is None:
         return error_response('No marker matches those boundaries', 404)
 
-    markers = _load_markers(db, slug, episode_id) or []
+    overrides = data.get('pieces') or []
+    if not isinstance(overrides, list):
+        return error_response('pieces must be a list', 400)
+    for i, override in enumerate(overrides):
+        if not isinstance(override, dict):
+            return error_response(f'pieces[{i}] must be an object', 400)
+        sponsor_override = override.get('sponsor')
+        if sponsor_override is not None and not isinstance(sponsor_override, str):
+            return error_response(f'pieces[{i}].sponsor must be a string', 400)
+
     transcript = db.get_transcript_for_timestamps(slug, episode_id)
     spans = extract_timed_spans_in_range(
         transcript or '', original_start, original_end)
     pieces = build_split_pieces(spans, original_start, original_end, points)
 
-    overrides = data.get('pieces') or []
     podcast = db.get_podcast_by_slug(slug)
     podcast_id_str = slug if podcast else None
 
@@ -856,6 +857,10 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
                 pattern_ids.append(piece_id)
 
         split_marker = dict(marker)
+        # Review bookkeeping belongs to the original span, not the pieces.
+        for stale in ('reviewer_original_start', 'reviewer_original_end',
+                      'approved'):
+            split_marker.pop(stale, None)
         split_marker.update({
             'start': piece['start'],
             'end': piece['end'],
@@ -879,7 +884,8 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
             if not (m.get('start') == marker.get('start')
                     and m.get('end') == marker.get('end'))]
     combined = sorted(kept + new_markers, key=lambda m: m.get('start', 0))
-    db.save_episode_details(slug, episode_id, ad_markers=combined)
+    db.save_episode_details(slug, episode_id, ad_markers=combined,
+                            pending_review_count=count_pending_review(combined))
 
     logger.info(
         f"CORRECTION: type=split, episode={slug}/{episode_id}, "
@@ -1140,6 +1146,16 @@ def _load_markers(db, slug, episode_id):
         return None
 
 
+def _find_marker_in_list(markers, start, end, tol=0.5):
+    """Bounds match within tolerance against an already-loaded marker list."""
+    for m in markers or []:
+        m_start, m_end = m.get('start'), m.get('end')
+        if (m_start is not None and m_end is not None
+                and abs(m_start - start) <= tol and abs(m_end - end) <= tol):
+            return m
+    return None
+
+
 def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
     """Find the persisted marker matching (start, end) within tolerance,
     regardless of pending-review state (unlike _matches_held_marker). A
@@ -1148,15 +1164,8 @@ def _find_marker_by_bounds(db, slug, episode_id, start, end, tol=0.5):
 
     Returns the marker dict, or None if no match.
     """
-    markers = _load_markers(db, slug, episode_id)
-    if not markers:
-        return None
-    for m in markers:
-        m_start, m_end = m.get('start'), m.get('end')
-        if (m_start is not None and m_end is not None
-                and abs(m_start - start) <= tol and abs(m_end - end) <= tol):
-            return m
-    return None
+    return _find_marker_in_list(
+        _load_markers(db, slug, episode_id), start, end, tol)
 
 
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
@@ -1383,6 +1392,11 @@ def submit_correction(slug, episode_id):
 
     if original_start is None or original_end is None:
         return error_response('Missing original ad boundaries', 400)
+    try:
+        original_start = original_ad['start'] = float(original_start)
+        original_end = original_ad['end'] = float(original_end)
+    except (TypeError, ValueError):
+        return error_response('Original ad boundaries must be numbers', 400)
 
     # A keep-resolved marker is a final per-feed decision to leave the
     # segment in; it's never pending review, so this guard only catches a

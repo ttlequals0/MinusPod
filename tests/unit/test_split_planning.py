@@ -117,6 +117,23 @@ class TestPieces:
         pieces = build_split_pieces(spans, 100.0, 190.0, [130.0])
         assert 'Acme' in pieces[0]['text']
         assert 'Beta Corp' in pieces[1]['text']
+        assert 'Beta Corp' not in pieces[0]['text']
+        assert 'Acme' not in pieces[1]['text']
+
+    def test_a_span_touching_a_boundary_lands_in_one_piece_only(self):
+        spans = _spans(THREE_ADS, 100.0, 190.0)
+        pieces = build_split_pieces(spans, 100.0, 190.0, [130.0, 160.0])
+        assert 'Beta Corp' not in pieces[0]['text']
+        assert 'Gamma Industries' not in pieces[1]['text']
+        assert 'Acme' not in pieces[1]['text']
+        assert 'Beta Corp' not in pieces[2]['text']
+
+    def test_sponsor_guess_does_not_leak_from_a_neighbouring_piece(self):
+        spans = _spans(THREE_ADS, 100.0, 190.0)
+        pieces = build_split_pieces(spans, 100.0, 190.0, [130.0, 160.0])
+        # Piece one has no URL or transition phrase, so no guess at all.
+        assert [p['sponsor'] for p in pieces] == [
+            None, 'Beta Corp', 'Gamma Industries']
 
     def test_boundaries_outside_the_span_are_ignored(self):
         spans = _spans(THREE_ADS, 100.0, 190.0)

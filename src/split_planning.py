@@ -77,9 +77,11 @@ def build_split_pieces(spans: List[Dict], start: float, end: float,
     pieces: List[Dict] = []
     for i in range(len(bounds) - 1):
         piece_start, piece_end = bounds[i], bounds[i + 1]
+        # Positive-measure overlap: a span that only touches a boundary
+        # belongs to its neighbour, not both pieces.
         text = ' '.join(
             span['text'] for span in spans
-            if span['end'] >= piece_start and span['start'] <= piece_end
+            if span['end'] > piece_start and span['start'] < piece_end
         )
         pieces.append({
             'start': piece_start,

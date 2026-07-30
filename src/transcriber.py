@@ -1,5 +1,6 @@
 """Transcription using Faster Whisper."""
 import io
+import json
 import logging
 import math
 import struct
@@ -16,7 +17,8 @@ from typing import List, Dict, Optional, Tuple
 from utils.audio import get_audio_duration
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionError
 from utils.time import format_vtt_timestamp
-from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
+from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
+                       get_gpu_device_name, get_gpu_memory_info)
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
 from utils.connection_probe import run_probe, parse_probe_json, rejected_detail
@@ -1318,13 +1320,19 @@ class Transcriber:
             logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
         return duration
 
-    # Largest batch size known to fit this device's VRAM. Recorded when an OOM
-    # forces a smaller batch, so later episodes do not repeat the failure.
+    # Largest batch size proven to fit this device's VRAM: recorded when a run
+    # completes after an OOM downshift, so later episodes start at a size that fits.
     BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
 
+    @staticmethod
+    def _batch_ceiling_device() -> str:
+        """Device name the stored ceiling applies to; VRAM differs per GPU model."""
+        return get_gpu_device_name()
+
     def _batch_size_ceiling(self) -> Optional[int]:
-        """Stored ceiling as a positive int, or None when unset or malformed."""
-        # Inline import: see _load_whisper_settings above, Database would be a
+        """Stored ceiling as a positive int, or None when unset, malformed, or
+        recorded for a different device."""
+        # Inline import: see _get_whisper_settings above, Database would be a
         # circular import at module level.
         from database import Database
         try:
@@ -1335,20 +1343,33 @@ class Transcriber:
         if not raw:
             return None
         try:
-            return max(1, int(raw))
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            parsed = None
+        if isinstance(parsed, dict):
+            if parsed.get('device') != self._batch_ceiling_device():
+                return None
+            size = parsed.get('size')
+        else:
+            # Legacy bare int from an earlier build: valid for the current
+            # device, rewritten in the new format on the next persist.
+            size = raw
+        try:
+            return max(1, int(size))
         except (TypeError, ValueError):
             return None
 
     def record_batch_size_ceiling(self, batch_size: int) -> None:
-        """Lower the ceiling to batch_size. Ratchets down only: an OOM proves a
-        size does not fit, and a later larger candidate is not evidence it does.
+        """Persist batch_size as this device's ceiling. Called only after a
+        completed run, since only completion proves a size fits; ratchets down.
         """
         from database import Database
         candidate = max(1, int(batch_size))
         existing = self._batch_size_ceiling()
         value = min(existing, candidate) if existing else candidate
+        payload = json.dumps({'device': self._batch_ceiling_device(), 'size': value})
         try:
-            Database().set_setting(self.BATCH_CEILING_SETTING, str(value))
+            Database().set_setting(self.BATCH_CEILING_SETTING, payload)
         except Exception as e:
             logger.debug(f"Could not persist batch size ceiling: {e}")
 
@@ -1614,6 +1635,9 @@ class Transcriber:
             else:
                 batch_size = 8  # Smaller batch for CPU
 
+            # Success-time ceiling recording needs the pre-downshift start size.
+            initial_batch_size = batch_size
+
             # Retry logic for CUDA OOM errors
             max_retries = 3
             retry_count = 0
@@ -1735,6 +1759,11 @@ class Transcriber:
                     duration_min = result[-1]['end'] / 60 if result else 0
                     logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
 
+                    if device == "cuda" and batch_size < initial_batch_size:
+                        # Completing at the downshifted size proves it fits;
+                        # failures never persist anything.
+                        self.record_batch_size_ceiling(batch_size)
+
                     return result
 
                 except Exception as inner_e:
@@ -1750,9 +1779,6 @@ class Transcriber:
                             f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
                             f"Reducing batch size: {old_batch_size} -> {batch_size}"
                         )
-                        # Remember it so the next episode starts here instead of
-                        # repeating the same OOM.
-                        self.record_batch_size_ceiling(batch_size)
                         # Clear cache and retry
                         self.clear_cuda_cache()
                         continue

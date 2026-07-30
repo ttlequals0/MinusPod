@@ -125,6 +125,8 @@ def test_fetch_manifest_accepts_body_over_old_cap(monkeypatch):
     assert 256 * 1024 < len(body) < community_sync.MANIFEST_MAX_BYTES
 
     class _FakeResp:
+        headers = {}
+
         def raise_for_status(self):
             pass
 

@@ -1,4 +1,6 @@
 """Tests for the pure cross-episode detection aggregation logic."""
+import pytest
+
 from config import SEGMENT_CATEGORIES
 from detection_review import (
     filter_detections, flatten_detections, paginate, sort_detections,
@@ -273,6 +275,17 @@ class TestCategoryFilter:
     def test_category_composes_with_status(self):
         out = filter_detections(self._items(), status='accepted', category='cross_promo')
         assert [i['start'] for i in out] == [300.0]
+
+    @pytest.mark.parametrize('category', list(SEGMENT_CATEGORIES) + ['none'])
+    def test_every_category_value_selects_only_its_markers(self, category):
+        markers = [dict(ACCEPTED, start=10.0 * (i + 1), end=10.0 * (i + 1) + 5.0,
+                        category=cat)
+                   for i, cat in enumerate(SEGMENT_CATEGORIES)]
+        markers.append({'start': 500.0, 'end': 510.0, 'confidence': 0.9})
+        items = flatten_detections([_row(markers=markers)], [])
+        out = filter_detections(items, status='all', category=category)
+        assert len(out) == 1
+        assert (out[0]['category'] or 'none') == category
 
 
 class TestCutSummary:

@@ -72,18 +72,8 @@ class _ChunkedResponse(Protocol):
 def read_response_capped(
     response: _ChunkedResponse, max_bytes: int, chunk_size: int = 65536
 ) -> bytes:
-    """Stream a response body, rejecting if it exceeds max_bytes or ends short
-    of a declared Content-Length.
-
-    Predictive check (``len(buf) + len(chunk) > max_bytes``) is done before
-    extending the buffer, so the cap is enforced on the exact byte count
-    rather than at chunk boundaries.
-
-    A short read raises rather than returning a partial body: a connection
-    truncated mid-body ends iter_content without raising, and the caller cannot
-    otherwise tell a whole document from a fragment. Bodies with no declared
-    length (chunked transfer) cannot be checked this way and are returned as-is.
-    """
+    """Stream a response body, raising above max_bytes or on a short read:
+    a connection truncated mid-body ends iter_content without raising."""
     buf = bytearray()
     for chunk in response.iter_content(chunk_size=chunk_size):
         if not chunk:
@@ -103,18 +93,9 @@ def read_response_capped(
 
 
 def _declared_length(response: _ChunkedResponse) -> Optional[int]:
-    """Content-Length as a byte count comparable to what iter_content yields.
-
-    Returns None when absent, malformed, or when the body was content-encoded:
-    iter_content decodes gzip, so Content-Length describes the encoded bytes and
-    the decoded count is a different number. On a small payload gzip overhead
-    makes the encoded size the larger of the two, which would read as a short
-    body and fail a perfectly good fetch.
-    """
-    try:
-        headers = response.headers
-    except AttributeError:
-        return None
+    """Declared Content-Length, or None when absent, malformed, or the body was
+    content-encoded: iter_content decodes gzip, so the header counts encoded bytes."""
+    headers = response.headers
     encoding = (headers.get('Content-Encoding') or '').strip().lower()
     if encoding and encoding != 'identity':
         return None

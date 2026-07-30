@@ -832,6 +832,30 @@ class TestNodeFailureLogging:
         assert [r.levelname for r in caplog.records][-1] == 'ERROR'
         assert len([r for r in caplog.records if r.levelname == 'ERROR']) == 1
 
+    def test_persistent_total_outage_logs_error_once_then_debug(self, caplog):
+        """Only the transition into all-failed is ERROR; while the outage
+        persists, repeats stay DEBUG instead of one ERROR per backoff cycle."""
+        listener = self._listener()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            for _ in range(len(PODPING_NODES) * 3):
+                listener._node_failure('connection refused')
+        levels = [r.levelname for r in caplog.records]
+        assert levels.count('ERROR') == 1
+        assert set(levels[len(PODPING_NODES):]) == {'DEBUG'}
+
+    def test_recovery_then_total_outage_escalates_again(self, caplog):
+        """A success clears the failed set, so the next total outage is a new
+        transition and earns its own ERROR."""
+        listener = PodpingListener(rpc=lambda *a, **k: {}, sleep=lambda s: None)
+        for _ in range(len(PODPING_NODES)):
+            listener._node_failure('connection refused')
+        listener._call_rpc('some_method', {}, expected_type=dict)
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG, logger='podcast.podping'):
+            for _ in range(len(PODPING_NODES)):
+                listener._node_failure('connection refused')
+        assert [r.levelname for r in caplog.records].count('ERROR') == 1
+
     def test_success_clears_the_failed_set(self, caplog):
         """After a success a node that fails again is news, so it warns."""
         listener = PodpingListener(rpc=lambda *a, **k: {}, sleep=lambda s: None)

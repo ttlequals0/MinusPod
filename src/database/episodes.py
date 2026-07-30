@@ -983,8 +983,10 @@ class EpisodeMixin:
             }
 
             for ep in episodes:
-                inserted, skipped = self._upsert_one_discovered_episode(
-                    conn, podcast_id, ep, existing_ids, inserted, skipped)
+                row_inserted, row_skipped = self._upsert_one_discovered_episode(
+                    conn, podcast_id, ep, existing_ids)
+                inserted += row_inserted
+                skipped += row_skipped
 
         if skipped:
             logger.warning(
@@ -993,9 +995,8 @@ class EpisodeMixin:
             )
         return inserted
 
-    def _upsert_one_discovered_episode(self, conn, podcast_id, ep, existing_ids,
-                                       inserted, skipped):
-        """Upsert one discovered episode. Returns the updated (inserted, skipped).
+    def _upsert_one_discovered_episode(self, conn, podcast_id, ep, existing_ids):
+        """Upsert one discovered episode. Returns an (inserted, skipped) delta.
 
         Lock errors propagate so the whole batch fails and the caller retries the
         feed; only per-row data faults are counted as skipped.
@@ -1031,7 +1032,7 @@ class EpisodeMixin:
                             (ep.get('episode_number'), podcast_id, current_id)
                         )
                     # Episode already exists under a different GUID.
-                    return inserted, skipped
+                    return 0, 0
 
             tags_json = json.dumps(ep.get('tags') or [])
             cursor = conn.execute(
@@ -1065,14 +1066,14 @@ class EpisodeMixin:
                 )
             )
             if cursor.rowcount > 0 and ep['id'] not in existing_ids:
-                inserted += 1
                 existing_ids.add(ep['id'])
+                return 1, 0
         except sqlite3.OperationalError:
             raise
         except Exception as e:
-            skipped += 1
             logger.debug(f"Skipped discovered episode {ep.get('id')}: {e}")
-        return inserted, skipped
+            return 0, 1
+        return 0, 0
 
     def _reset_episode_to_discovered(self, slug: str, episode_id: str) -> None:
         """Clear episode_details and reset an episode back to 'discovered' state."""

@@ -238,15 +238,14 @@ class PodpingListener:
     def _node_failure(self, message):
         """Log, rotate to the next node, and back off (5s/15s/60s, capped).
 
-        One node failing while failover succeeds is not actionable, and at the
-        60s backoff cap it would print once a minute forever. So a node warns on
-        its first failure, repeats go to DEBUG, and only losing every node, which
-        is when pings are missed, escalates to ERROR.
+        A node warns on its first failure, repeats go to DEBUG, and only the
+        transition into losing every node (when pings are missed) is an ERROR;
+        a success clears the state so the next total outage escalates again.
         """
         node = PODPING_NODES[self.node_index]
         first_failure = node not in self._failed_nodes
         self._failed_nodes.add(node)
-        if len(self._failed_nodes) >= len(PODPING_NODES):
+        if first_failure and len(self._failed_nodes) >= len(PODPING_NODES):
             logger.error(
                 "All %d podping nodes failed; pings are being missed. Last: %s: %s",
                 len(PODPING_NODES), node, message)

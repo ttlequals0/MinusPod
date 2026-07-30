@@ -32,7 +32,10 @@ def _clear_geometry():
 
 
 class ScriptedBoundaries:
-    """Returns one boundary per call, placed inside the requested window."""
+    """Returns one boundary per call, placed inside the requested window.
+
+    Mirrors the real contract: None for a failed LLM call, [] for a
+    legitimately empty window."""
 
     def __init__(self, fail_on=(), empty_on=()):
         self.calls = []
@@ -40,14 +43,16 @@ class ScriptedBoundaries:
         self.empty_on = set(empty_on)
 
     def __call__(self, transcript, start, end, num_splits,
-                 episode_description=None, hints=None, previous_title=None):
+                 episode_description=None, anchors=None, hints=None,
+                 previous_title=None):
         index = len(self.calls)
         self.calls.append({
             'start': start, 'end': end, 'num_splits': num_splits,
-            'previous_title': previous_title,
+            'episode_description': episode_description, 'anchors': anchors,
+            'hints': hints, 'previous_title': previous_title,
         })
         if index in self.fail_on:
-            raise RuntimeError('llm exploded')
+            return None
         if index in self.empty_on:
             return []
         return [{'original_time': start + (end - start) / 2,
@@ -69,11 +74,17 @@ def _generator(detector):
     return gen
 
 
+def _windowed(gen, duration=10000, **kwargs):
+    # Callers pass geometry in; resolve it here the way generate_chapters does.
+    target, window, max_boundaries, _ = resolve_chapter_geometry()
+    return gen._detect_boundaries_windowed(
+        _segments(duration), duration, target, window, max_boundaries, **kwargs)
+
+
 def test_a_long_episode_is_split_into_windows():
     _clear_geometry()
     detector = ScriptedBoundaries()
-    gen = _generator(detector)
-    gen._detect_boundaries_windowed(_segments(10000), 10000)
+    _windowed(_generator(detector))
     # 10000s at the 2700s default window is four windows.
     assert len(detector.calls) == 4
     assert detector.calls[0]['start'] == 0
@@ -83,7 +94,7 @@ def test_a_long_episode_is_split_into_windows():
 def test_windows_do_not_overlap_or_leave_gaps():
     _clear_geometry()
     detector = ScriptedBoundaries()
-    _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    _windowed(_generator(detector))
     for a, b in zip(detector.calls, detector.calls[1:]):
         assert a['end'] == b['start']
     assert detector.calls[-1]['end'] == 10000
@@ -92,7 +103,7 @@ def test_windows_do_not_overlap_or_leave_gaps():
 def test_boundaries_requested_scale_with_the_target():
     _clear_geometry()
     detector = ScriptedBoundaries()
-    _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    _windowed(_generator(detector))
     # A 2700s window at a 600s target asks for four.
     assert detector.calls[0]['num_splits'] == 4
 
@@ -101,7 +112,7 @@ def test_a_smaller_target_asks_for_more_boundaries():
     _clear_geometry()
     _set('chapter_target_seconds', 300)
     detector = ScriptedBoundaries()
-    _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    _windowed(_generator(detector))
     assert detector.calls[0]['num_splits'] == 9
     _clear_geometry()
 
@@ -109,16 +120,49 @@ def test_a_smaller_target_asks_for_more_boundaries():
 def test_previous_window_title_is_passed_forward():
     _clear_geometry()
     detector = ScriptedBoundaries()
-    _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    _windowed(_generator(detector))
     assert detector.calls[0]['previous_title'] is None
     assert detector.calls[1]['previous_title'] == 'Topic 0'
+
+
+def test_description_anchors_reach_their_window():
+    """Show-notes anchors past the first window must not be lost, and each
+    window gets only its own range."""
+    _clear_geometry()
+    detector = ScriptedBoundaries()
+    _windowed(_generator(detector), episode_description='55:00 Late Topic')
+    anchors_by_call = [c['anchors'] for c in detector.calls]
+    assert anchors_by_call[0] == []
+    assert ('55:00', 'Late Topic') in anchors_by_call[1]
+
+
+def test_anchorless_description_goes_to_window_zero_only():
+    """Prose without timestamps repeats no tokens across later windows."""
+    _clear_geometry()
+    detector = ScriptedBoundaries()
+    _windowed(_generator(detector), episode_description='A show about tech.')
+    assert detector.calls[0]['episode_description'] == 'A show about tech.'
+    assert all(c['episode_description'] is None for c in detector.calls[1:])
+
+
+def test_hints_are_filtered_to_each_window():
+    _clear_geometry()
+    hints = [
+        {'type': 'seam', 'time': 100.0, 'category': 'sponsor'},
+        {'type': 'range', 'start': 3000.0, 'end': 3030.0, 'category': 'sponsor'},
+    ]
+    detector = ScriptedBoundaries()
+    _windowed(_generator(detector), hints=hints)
+    assert detector.calls[0]['hints'] == [hints[0]]
+    assert detector.calls[1]['hints'] == [hints[1]]
+    assert detector.calls[2]['hints'] == []
 
 
 def test_one_failing_window_keeps_the_others():
     _clear_geometry()
     detector = ScriptedBoundaries(fail_on=(1,))
     gen = _generator(detector)
-    found = gen._detect_boundaries_windowed(_segments(10000), 10000)
+    found = _windowed(gen)
     assert len(found) == 3
     assert gen._topic_detection_failed is True
 
@@ -128,7 +172,7 @@ def test_one_empty_window_is_not_a_failure():
     _clear_geometry()
     detector = ScriptedBoundaries(empty_on=(2,))
     gen = _generator(detector)
-    found = gen._detect_boundaries_windowed(_segments(10000), 10000)
+    found = _windowed(gen)
     assert len(found) == 3
     assert gen._topic_detection_failed is False
 
@@ -137,7 +181,15 @@ def test_every_window_empty_is_a_failure():
     _clear_geometry()
     detector = ScriptedBoundaries(empty_on=(0, 1, 2, 3))
     gen = _generator(detector)
-    assert gen._detect_boundaries_windowed(_segments(10000), 10000) == []
+    assert _windowed(gen) == []
+    assert gen._topic_detection_failed is True
+
+
+def test_every_window_failing_is_a_failure():
+    _clear_geometry()
+    detector = ScriptedBoundaries(fail_on=(0, 1, 2, 3))
+    gen = _generator(detector)
+    assert _windowed(gen) == []
     assert gen._topic_detection_failed is True
 
 
@@ -145,7 +197,7 @@ def test_the_boundary_cap_stops_further_windows():
     _clear_geometry()
     _set('chapter_max_boundaries', 2)
     detector = ScriptedBoundaries()
-    found = _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    found = _windowed(_generator(detector))
     assert len(found) == 2
     assert len(detector.calls) == 2
     _clear_geometry()
@@ -157,7 +209,7 @@ def test_a_short_tail_window_is_skipped():
     _clear_geometry()
     detector = ScriptedBoundaries()
     # 2700 + 100: the second window is 100s, well under the 600s target.
-    _generator(detector)._detect_boundaries_windowed(_segments(2800), 2800)
+    _windowed(_generator(detector), duration=2800)
     assert len(detector.calls) == 1
 
 
@@ -167,7 +219,7 @@ def test_the_old_hardcoded_cap_is_gone():
     _set('chapter_window_seconds', 600)
     _set('chapter_target_seconds', 600)
     detector = ScriptedBoundaries()
-    found = _generator(detector)._detect_boundaries_windowed(_segments(10000), 10000)
+    found = _windowed(_generator(detector))
     assert len(found) > 6
     _clear_geometry()
 
@@ -205,3 +257,13 @@ class TestGeometryClamping:
         _clear_geometry()
         target, window, max_boundaries, min_duration = resolve_chapter_geometry()
         assert (target, window, max_boundaries, min_duration) == (600, 2700, 40, 180)
+
+
+def test_range_hint_straddling_a_seam_reaches_both_windows():
+    _clear_geometry()
+    hints = [{'type': 'range', 'start': 2690.0, 'end': 2712.0,
+              'category': 'sponsor'}]
+    detector = ScriptedBoundaries()
+    _windowed(_generator(detector), hints=hints)
+    assert detector.calls[0]['hints'] == hints
+    assert detector.calls[1]['hints'] == hints

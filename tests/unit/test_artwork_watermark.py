@@ -237,3 +237,12 @@ def test_feed_falls_back_to_upstream_when_no_cached_art():
     served = _serve(slug, watermark=True)
     assert 'https://example.com/art.png' in served
     assert 'cover-minuspod' not in served
+
+
+def test_unknown_slug_probe_creates_no_directory():
+    # A scanner probing cover art for a nonexistent feed must not create
+    # a podcast directory on disk (it shows up as an orphan later).
+    slug = 'probe-slug-never-added'
+    assert st.get_watermarked_artwork(slug) is None
+    assert st.get_artwork(slug) is None
+    assert not (st.podcasts_dir / slug).exists()

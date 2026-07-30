@@ -400,6 +400,7 @@ def test_passphrase_set_reports_encrypted_not_exposed(db, tmp_path, monkeypatch,
     operators at the wrong condition."""
     import logging
     monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'secret')
+    db.set_setting('anthropic_api_key', 'enc:v1:bm9uY2U=:Y3Q=')
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
@@ -416,6 +417,17 @@ def test_no_secrets_stored_does_not_warn(db, tmp_path, monkeypatch, caplog):
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
     assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_no_secrets_stored_reports_none_not_encrypted(db, tmp_path, caplog):
+    """Zero secret rows means 'has encrypted provider secrets' would be untrue;
+    the INFO line must say the snapshot contains none."""
+    import logging
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
+        backup_now(db)
+    assert any('contains no provider secrets' in r.getMessage() for r in caplog.records)
+    assert not any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -467,8 +479,8 @@ def test_warns_when_plaintext_secrets_are_present(db, caplog, monkeypatch):
     assert 'plaintext' in warnings[0].getMessage()
 
 
-def test_no_warning_when_secrets_are_encrypted(db, caplog, monkeypatch):
-    monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 0)
+def test_no_warning_when_secrets_are_encrypted(db, caplog):
+    db.set_setting('anthropic_api_key', 'enc:v1:bm9uY2U=:Y3Q=')
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
     assert not [r for r in caplog.records if r.levelname == 'WARNING']
