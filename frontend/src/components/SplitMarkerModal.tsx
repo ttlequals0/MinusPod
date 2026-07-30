@@ -15,7 +15,9 @@ import { usePeakSlice } from './ad-editor/usePeakSlice';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import ZoomControl from './ad-editor/ZoomControl';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
-import { formatTime } from '../utils/adReviewHelpers';
+import {
+  commitTimeInput, formatTime, timeInputKeyDown,
+} from '../utils/adReviewHelpers';
 import { btnGhost, btnOutline, btnPrimary } from './buttonStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
@@ -54,9 +56,17 @@ function piecesFrom(
   for (let i = 0; i < bounds.length - 1; i += 1) {
     // Text is a preview from the server's original geometry, so after a drag
     // it stays the nearest piece's words. Enough to name the sponsor, and it
-    // avoids a refetch per pointer move.
-    const nearest = base.find(
-      (p) => p.end > bounds[i] && p.start < bounds[i + 1]);
+    // avoids a refetch per pointer move. Most-overlapping wins, or a nudged
+    // divider flips the guess to whichever piece it barely touches.
+    let nearest: SplitPiece | undefined;
+    let bestOverlap = 0;
+    for (const p of base) {
+      const overlap = Math.min(p.end, bounds[i + 1]) - Math.max(p.start, bounds[i]);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        nearest = p;
+      }
+    }
     out.push({
       start: bounds[i],
       end: bounds[i + 1],
@@ -79,18 +89,24 @@ function PeakStrip({ peaks }: { peaks: number[] | null }) {
   if (!peaks || peaks.length === 0) {
     return <div className="h-20 bg-secondary rounded" />;
   }
-  const step = Math.max(1, Math.floor(peaks.length / 400));
+  // ~200 gapless bars: per-bar gaps at this density would out-measure the
+  // bars themselves on a phone-width strip and render as empty space.
+  const step = Math.max(1, Math.ceil(peaks.length / 200));
   const bars: number[] = [];
   for (let i = 0; i < peaks.length; i += step) {
-    bars.push(peaks[i]);
+    let v = 0;
+    for (let j = i; j < Math.min(i + step, peaks.length); j += 1) {
+      v = Math.max(v, peaks[j]);
+    }
+    bars.push(v);
   }
   const max = Math.max(...bars, 0.01);
   return (
-    <div className="h-20 bg-secondary rounded flex items-center gap-px overflow-hidden" aria-hidden>
+    <div className="h-20 bg-secondary rounded flex items-center overflow-hidden" aria-hidden>
       {bars.map((v, i) => (
         <div
           key={i}
-          className="flex-1 bg-primary/50"
+          className="flex-1 bg-primary/50 min-w-0"
           style={{ height: `${Math.max(2, (v / max) * 100)}%` }}
         />
       ))}
@@ -107,6 +123,9 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   const [dividers, setDividers] = useState<number[] | null>(null);
   // Sparse array parallel to pieces: sponsors[i] overrides piece i's sponsor.
   const [sponsors, setSponsors] = useState<Array<string | undefined>>([]);
+  // Draft text for the divider time inputs while one is being typed in;
+  // null re-derives every field from the divider values (drags stay live).
+  const [divInputs, setDivInputs] = useState<Record<number, string> | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -132,8 +151,10 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     end, (start + end) / 2, playheadRef, ZOOM_MIN, ZOOM_MAX,
     Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, end / span)),
   );
+  // Fetch peaks from episode start: usePeakSlice indexes by absolute time,
+  // so a window-scoped fetch would slice past the array and render nothing.
   const { peaks, peakResolutionMs } = usePeaks(
-    podcastSlug, episodeId, window_.windowStart, window_.windowEnd, 0);
+    podcastSlug, episodeId, 0, end, 0);
   const windowPeaks = usePeakSlice(
     peaks, peakResolutionMs, window_.windowStart, window_.windowEnd);
 
@@ -151,6 +172,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     const hi = i === next.length - 1 ? end : next[i + 1];
     next[i] = Math.min(Math.max(t, lo), hi);
     setDividers(next);
+    setDivInputs(null);
   };
 
   const addDivider = () => {
@@ -162,6 +184,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     });
     const mid = (pieces[best].start + pieces[best].end) / 2;
     setDividers([...effectiveDividers, mid].sort((a, b) => a - b));
+    setDivInputs(null);
     // Piece `best` splits in two; its new second half has no override yet.
     setSponsors((prev) => {
       const next = [...prev];
@@ -172,6 +195,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
   const removeDivider = (i: number) => {
     setDividers(effectiveDividers.filter((_, idx) => idx !== i));
+    setDivInputs(null);
     // Pieces i and i+1 merge; the merged piece keeps the earlier override.
     setSponsors((prev) => {
       const next = [...prev];
@@ -206,6 +230,33 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   const sponsorWrapRefs = useRef<Array<HTMLDivElement | null>>([]);
   const focusSponsor = (i: number) => {
     sponsorWrapRefs.current[i]?.querySelector('input')?.focus();
+  };
+
+  const timeInputCls = 'w-24 px-2 py-1.5 rounded-lg border border-input '
+    + 'bg-background text-foreground focus:outline-hidden focus:ring-2 '
+    + 'focus:ring-ring text-xs font-mono disabled:opacity-60';
+
+  // Editable divider time field; the outer block bounds render disabled.
+  const dividerField = (dividerIdx: number, label: string) => {
+    const t = effectiveDividers[dividerIdx];
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        aria-label={label}
+        className={timeInputCls}
+        value={divInputs?.[dividerIdx] ?? formatTime(t)}
+        onChange={(e) => setDivInputs({
+          ...(divInputs ?? {}), [dividerIdx]: e.target.value,
+        })}
+        onBlur={(e) => commitTimeInput(
+          e.target.value, t, end,
+          (v) => setDivider(dividerIdx, v),
+          () => setDivInputs(null),
+        )}
+        onKeyDown={timeInputKeyDown(t, () => setDivInputs(null))}
+      />
+    );
   };
 
   return (
@@ -320,8 +371,20 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                       `piece-${i}`, episodeOriginalUrl(podcastSlug, episodeId),
                       p.start, p.end)}
                   />
-                  <span className="text-xs font-mono text-muted-foreground w-32 shrink-0">
-                    {formatTime(p.start)} to {formatTime(p.end)}
+                  <span className="flex items-center gap-1 shrink-0">
+                    {i === 0 ? (
+                      <input type="text" disabled className={timeInputCls}
+                        aria-label={`Ad ${i + 1} start time`}
+                        title="The block's own start"
+                        value={formatTime(p.start)} readOnly />
+                    ) : dividerField(i - 1, `Ad ${i + 1} start time`)}
+                    <span className="text-xs text-muted-foreground">to</span>
+                    {i === pieces.length - 1 ? (
+                      <input type="text" disabled className={timeInputCls}
+                        aria-label={`Ad ${i + 1} end time`}
+                        title="The block's own end"
+                        value={formatTime(p.end)} readOnly />
+                    ) : dividerField(i, `Ad ${i + 1} end time`)}
                   </span>
                   <div
                     className="flex-1 min-w-[180px]"

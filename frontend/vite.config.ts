@@ -82,11 +82,16 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
+        // Dev-only: lets a dev server proxy an authenticated remote
+        // backend without the browser holding that session.
+        headers: process.env.VITE_PROXY_COOKIE
+          ? { cookie: process.env.VITE_PROXY_COOKIE }
+          : undefined,
       },
       '/health': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
       },
     },
