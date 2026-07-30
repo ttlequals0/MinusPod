@@ -148,6 +148,7 @@ def get_settings():
     from database import (
         DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
         DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
+        DEFAULT_CHAPTER_PROMPT,
     )
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from config import (
@@ -425,6 +426,7 @@ def get_settings():
     # contract, hence the same coalesce on system/verification below.
     review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
     resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
+    chapter_prompt = _setting_value(settings, 'chapter_prompt', DEFAULT_CHAPTER_PROMPT) or DEFAULT_CHAPTER_PROMPT
 
     # Audio cue detection experiment (#350)
     audio_cue_enabled = str(_setting_value(
@@ -477,10 +479,12 @@ def get_settings():
         'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
         'reviewPrompt': _sv('review_prompt', review_prompt),
         'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),
+        'chapterPrompt': _sv('chapter_prompt', chapter_prompt),
         'systemPromptOverride': _sv('system_prompt_override', _setting_value(settings, 'system_prompt_override', '') or ''),
         'verificationPromptOverride': _sv('verification_prompt_override', _setting_value(settings, 'verification_prompt_override', '') or ''),
         'reviewPromptOverride': _sv('review_prompt_override', _setting_value(settings, 'review_prompt_override', '') or ''),
         'resurrectPromptOverride': _sv('resurrect_prompt_override', _setting_value(settings, 'resurrect_prompt_override', '') or ''),
+        'chapterPromptOverride': _sv('chapter_prompt_override', _setting_value(settings, 'chapter_prompt_override', '') or ''),
         'claudeModel': _sv('claude_model', current_model),
         'verificationModel': _sv('verification_model', verification_model),
         'whisperModel': _sv('whisper_model', whisper_model),
@@ -642,7 +646,7 @@ def update_ad_detection_settings():
 
 
 def _apply_prompt_fields(db, data):
-    """Persist the four prompt strings.
+    """Persist the prompt strings.
 
     An empty/whitespace prompt is never valid (the runtime falls back to the
     default), so clearing a field and saving resets it to default rather than
@@ -653,6 +657,7 @@ def _apply_prompt_fields(db, data):
         ('verificationPrompt', 'verification_prompt', 'verification prompt'),
         ('reviewPrompt', 'review_prompt', 'review prompt'),
         ('resurrectPrompt', 'resurrect_prompt', 'resurrect prompt'),
+        ('chapterPrompt', 'chapter_prompt', 'chapter prompt'),
     ):
         if payload_key in data:
             if not str(data[payload_key] or '').strip():
@@ -668,6 +673,7 @@ def _apply_prompt_fields(db, data):
         ('verificationPromptOverride', 'verification_prompt_override'),
         ('reviewPromptOverride', 'review_prompt_override'),
         ('resurrectPromptOverride', 'resurrect_prompt_override'),
+        ('chapterPromptOverride', 'chapter_prompt_override'),
     ):
         if payload_key in data:
             db.set_setting(db_key, str(data[payload_key] or ''), is_default=False)
@@ -1625,10 +1631,12 @@ def reset_prompts_only():
     db.reset_setting('verification_prompt')
     db.reset_setting('review_prompt')
     db.reset_setting('resurrect_prompt')
+    db.reset_setting('chapter_prompt')
 
     # Clear per-pass overrides too (empty is the no-override default state).
     for key in ('system_prompt_override', 'verification_prompt_override',
-                'review_prompt_override', 'resurrect_prompt_override'):
+                'review_prompt_override', 'resurrect_prompt_override',
+                'chapter_prompt_override'):
         db.set_setting(key, '', is_default=True)
 
     logger.info("Reset prompts to defaults")

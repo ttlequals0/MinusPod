@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.82.0
+  version: 2.83.0
   contact:
     name: MinusPod
   license:
@@ -3451,6 +3451,12 @@ paths:
                 verificationPrompt:
                   type: string
                   description: System prompt for verification pass (post-cut re-detection of missed ads)
+                chapterPrompt:
+                  type: string
+                  description: Prompt template for chapter topic detection with placeholders {num_splits}, {segment_start}, {segment_end}, {continuation_block}, {description_block}, {hints_block}, {transcript}
+                chapterPromptOverride:
+                  type: string
+                  description: Optional override appended to the chapter topic-detection prompt (empty by default)
                 claudeModel:
                   type: string
                   description: AI model ID to use for first pass ad detection
@@ -8398,6 +8404,14 @@ components:
               type: string
             isDefault:
               type: boolean
+        chapterPrompt:
+          type: object
+          description: Prompt template for chapter topic detection with placeholders {num_splits}, {segment_start}, {segment_end}, {continuation_block}, {description_block}, {hints_block}, {transcript}.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
         systemPromptOverride:
           type: object
           description: |
@@ -8428,6 +8442,14 @@ components:
         resurrectPromptOverride:
           type: object
           description: Optional per-pass override appended to the resurrect prompt (empty by default).
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        chapterPromptOverride:
+          type: object
+          description: Optional override appended to the chapter topic-detection prompt (empty by default).
           properties:
             value:
               type: string
@@ -9025,6 +9047,8 @@ components:
             systemPrompt:
               type: string
             verificationPrompt:
+              type: string
+            chapterPrompt:
               type: string
             systemPromptOverride:
               type: string

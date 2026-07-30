@@ -368,10 +368,12 @@ export interface Settings {
   verificationPrompt: SettingValue;
   reviewPrompt: SettingValue;
   resurrectPrompt: SettingValue;
+  chapterPrompt: SettingValue;
   systemPromptOverride: SettingValue;
   verificationPromptOverride: SettingValue;
   reviewPromptOverride: SettingValue;
   resurrectPromptOverride: SettingValue;
+  chapterPromptOverride: SettingValue;
   enableAdReview: SettingValueBoolean;
   reviewModel: SettingValue;
   reviewMaxBoundaryShift: SettingValueNumber;
@@ -459,6 +461,7 @@ export interface Settings {
     verificationPrompt: string;
     reviewPrompt: string;
     resurrectPrompt: string;
+    chapterPrompt: string;
     enableAdReview: boolean;
     reviewModel: string;
     reviewMaxBoundaryShift: number;
@@ -540,10 +543,12 @@ export interface UpdateSettingsPayload {
   verificationPrompt?: string;
   reviewPrompt?: string;
   resurrectPrompt?: string;
+  chapterPrompt?: string;
   systemPromptOverride?: string;
   verificationPromptOverride?: string;
   reviewPromptOverride?: string;
   resurrectPromptOverride?: string;
+  chapterPromptOverride?: string;
   enableAdReview?: boolean;
   reviewModel?: string;
   reviewMaxBoundaryShift?: number;

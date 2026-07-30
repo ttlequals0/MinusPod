@@ -5,6 +5,7 @@ substitution rather than appending content unconditionally. ``str.replace``
 (not ``str.format``) is intentional so literal ``{{...}}`` JSON examples in
 prompt bodies stay intact.
 """
+import re
 
 SPONSOR_DATABASE_HEADER = (
     "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
@@ -22,6 +23,19 @@ def render_prompt(prompt: str, **vars: str) -> str:
     for name, value in vars.items():
         rendered = rendered.replace('{' + name + '}', value)
     return rendered
+
+
+def render_prompt_once(prompt: str, **vars: str) -> str:
+    """Single-pass ``{name}`` substitution over the template only.
+
+    Required when values carry untrusted text (transcripts, feed
+    descriptions): a substituted value is never rescanned, so it cannot
+    smuggle another placeholder into the prompt.
+    """
+    if not vars:
+        return prompt
+    pattern = re.compile('|'.join(r'\{' + re.escape(k) + r'\}' for k in vars))
+    return pattern.sub(lambda m: vars[m.group(0)[1:-1]], prompt)
 
 
 def format_sponsor_block(sponsor_list: str) -> str:

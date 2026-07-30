@@ -5,12 +5,14 @@ min(duration / 600, 6)) and clustered the boundaries it did return, leaving long
 untouched stretches at the end. Detection now runs a window at a time.
 """
 
+from types import SimpleNamespace
+
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('chapters_windowed_test_')
 
 import database  # noqa: E402
-from chapters_generator import ChaptersGenerator  # noqa: E402
+from chapters_generator import ChaptersGenerator, _format_hints_block  # noqa: E402
 from config import (  # noqa: E402
     STAGE_TUNABLE_PAYLOAD_KEYS, resolve_chapter_geometry,
 )
@@ -267,3 +269,103 @@ def test_range_hint_straddling_a_seam_reaches_both_windows():
     _windowed(_generator(detector), hints=hints)
     assert detector.calls[0]['hints'] == hints
     assert detector.calls[1]['hints'] == hints
+
+
+class _PromptCapture:
+    """Stub LLM client recording the prompt _detect_topic_boundaries sends."""
+
+    def __init__(self):
+        self.prompts = []
+
+    def messages_create(self, **kwargs):
+        self.prompts.append(kwargs['messages'][0]['content'])
+        return SimpleNamespace(content='05:30 Captured Topic')
+
+
+def _capture_prompt(**kwargs):
+    gen = ChaptersGenerator(api_key='test')
+    stub = _PromptCapture()
+    gen._llm_client = stub
+    gen._detect_topic_boundaries(
+        kwargs.pop('transcript', '[00:10] hello world'),
+        kwargs.pop('start', 0.0), kwargs.pop('end', 2700.0),
+        kwargs.pop('num_splits', 4), **kwargs)
+    return stub.prompts[0]
+
+
+class TestChapterPromptSetting:
+    """The chapter topic-detection prompt is an editable setting rendered via
+    render_prompt/apply_override, matching the other prompt settings."""
+
+    def teardown_method(self):
+        db = database.Database()
+        db.reset_setting('chapter_prompt')
+        db.set_setting('chapter_prompt_override', '', is_default=True)
+
+    def test_custom_prompt_setting_reaches_the_llm(self):
+        database.Database().set_setting(
+            'chapter_prompt', 'Find {num_splits} topics in: {transcript}',
+            is_default=False)
+        assert _capture_prompt() == 'Find 4 topics in: [00:10] hello world'
+
+    def test_override_is_appended(self):
+        database.Database().set_setting(
+            'chapter_prompt_override', 'Prefer interview boundaries.',
+            is_default=False)
+        assert _capture_prompt().endswith(
+            'ADDITIONAL INSTRUCTIONS (these take precedence):\n'
+            'Prefer interview boundaries.')
+
+    def test_default_render_matches_the_old_fstring(self):
+        """With neither setting customized, the rendered prompt must be
+        byte-identical to what the pre-setting f-string produced."""
+        hints = [{'type': 'seam', 'time': 100.0, 'category': 'sponsor'}]
+        prompt = _capture_prompt(hints=hints, previous_title='Ad Talk')
+
+        transcript = '[00:10] hello world'
+        num_splits, start_time, end_time = 4, 0.0, 2700.0
+        continuation_block = (
+            '\n\nThis segment continues the chapter "Ad Talk". Do not '
+            'emit a boundary for that same topic; only for a change away from it.')
+        description_block = ''
+        hints_block = _format_hints_block(hints)
+        expected = f"""Analyze this podcast transcript segment and identify {num_splits} major topic changes.
+
+The segment runs from {int(start_time/60)}:{int(start_time%60):02d} to {int(end_time//60)}:{int(end_time%60):02d}.
+
+For each topic change, provide the timestamp (from the [MM:SS] markers) and a short title (3-7 words).
+
+OUTPUT FORMAT:
+Return ONLY topic lines, one per line. No introduction, no explanation, no numbering.
+Each line must be exactly: MM:SS Topic Title Here
+
+Example:
+05:30 Discussion of AI Trends
+12:45 New Product Announcements
+
+Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.{continuation_block}{description_block}{hints_block}
+
+Transcript:
+{transcript}"""
+        assert prompt == expected
+
+
+class TestChapterPromptInjection:
+    def test_description_text_cannot_inject_placeholders(self):
+        """A feed-controlled value containing '{transcript}' stays literal."""
+        from utils.prompt import render_prompt_once
+        out = render_prompt_once(
+            'A {description_block} B {transcript}',
+            description_block='evil {transcript} evil',
+            transcript='THE TRANSCRIPT',
+        )
+        assert out == 'A evil {transcript} evil B THE TRANSCRIPT'
+
+    def test_override_position_comes_from_the_template_only(self):
+        """'{override}' inside rendered values is inert; only the operator's
+        template places the override."""
+        from utils.prompt import render_prompt_once, apply_override
+        template = apply_override('Base {transcript}', 'EXTRA')
+        out = render_prompt_once(template, transcript='has {override} inside')
+        assert out.count('EXTRA') == 1
+        assert '{override}' in out

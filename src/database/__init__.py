@@ -261,6 +261,29 @@ Validator-rejected segment: 200.0s - 215.0s (validator confidence 0.65)
 Output: []{sponsor_database}"""
 
 
+# Chapter topic-detection prompt. Rendered via utils.prompt.render_prompt with
+# the block placeholders below; must stay byte-identical to the pre-setting
+# f-string output when unset.
+DEFAULT_CHAPTER_PROMPT = """Analyze this podcast transcript segment and identify {num_splits} major topic changes.
+
+The segment runs from {segment_start} to {segment_end}.
+
+For each topic change, provide the timestamp (from the [MM:SS] markers) and a short title (3-7 words).
+
+OUTPUT FORMAT:
+Return ONLY topic lines, one per line. No introduction, no explanation, no numbering.
+Each line must be exactly: MM:SS Topic Title Here
+
+Example:
+05:30 Discussion of AI Trends
+12:45 New Product Announcements
+
+Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.{continuation_block}{description_block}{hints_block}
+
+Transcript:
+{transcript}"""
+
+
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
                FingerprintMixin, CueTemplateMixin, CueDetectionMixin,

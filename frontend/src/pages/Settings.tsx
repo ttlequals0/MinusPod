@@ -110,8 +110,10 @@ function Settings() {
 
   const [systemPrompt, setSystemPrompt] = useState('');
   const [verificationPrompt, setVerificationPrompt] = useState('');
+  const [chapterPrompt, setChapterPrompt] = useState('');
   const [systemPromptOverride, setSystemPromptOverride] = useState('');
   const [verificationPromptOverride, setVerificationPromptOverride] = useState('');
+  const [chapterPromptOverride, setChapterPromptOverride] = useState('');
   // Form state holds no hardcoded defaults: every field is hydrated from the
   // loaded settings (or the backend-provided `settings.defaults.*`) before the
   // form renders (the page returns a loader while `settingsLoading`, and the
@@ -438,8 +440,10 @@ function Settings() {
     // Prompts (no defaults: a cleared box round-trips as '').
     { key: 'systemPrompt', kind: 'str', value: systemPrompt, set: setSystemPrompt },
     { key: 'verificationPrompt', kind: 'str', value: verificationPrompt, set: setVerificationPrompt },
+    { key: 'chapterPrompt', kind: 'str', value: chapterPrompt, set: setChapterPrompt },
     { key: 'systemPromptOverride', kind: 'str', value: systemPromptOverride, set: setSystemPromptOverride },
     { key: 'verificationPromptOverride', kind: 'str', value: verificationPromptOverride, set: setVerificationPromptOverride },
+    { key: 'chapterPromptOverride', kind: 'str', value: chapterPromptOverride, set: setChapterPromptOverride },
     // Ad reviewer (nested `reviewer` state; updatePatterns/minTrimThreshold
     // save via /settings/reviewer and are diffed by reviewerPatternsChanged).
     { key: 'reviewPrompt', kind: 'str', value: reviewer.reviewPrompt, obj: 'reviewer', prop: 'reviewPrompt' },
@@ -679,6 +683,16 @@ function Settings() {
     // onSettled (not onSuccess): the PUT applies fields in phases and commits
     // each as it goes, so a 400 on a later field can still leave an earlier one
     // written. Re-hydrate on both outcomes so the section reflects what landed.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
+  // Chapter density fields save from the Transcripts & Chapters card; a
+  // separate mutation keeps its Saving/Saved state out of the LLM Tunables
+  // section (and vice versa).
+  const chapterGeometryMutation = useMutation({
+    mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
@@ -982,12 +996,16 @@ function Settings() {
       <PromptsSection
         systemPrompt={systemPrompt}
         verificationPrompt={verificationPrompt}
+        chapterPrompt={chapterPrompt}
         systemPromptOverride={systemPromptOverride}
         verificationPromptOverride={verificationPromptOverride}
+        chapterPromptOverride={chapterPromptOverride}
         onSystemPromptChange={setSystemPrompt}
         onVerificationPromptChange={setVerificationPrompt}
+        onChapterPromptChange={setChapterPrompt}
         onSystemPromptOverrideChange={setSystemPromptOverride}
         onVerificationPromptOverrideChange={setVerificationPromptOverride}
+        onChapterPromptOverrideChange={setChapterPromptOverride}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
       />
@@ -1029,6 +1047,20 @@ function Settings() {
         chaptersEnabled={chaptersEnabled}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
+        geometry={
+          settings?.stageTunables && settings?.stageTunableDefaults
+            ? {
+                tunables: settings.stageTunables,
+                defaults: settings.stageTunableDefaults,
+                onSave: (payload) => chapterGeometryMutation.mutate(payload),
+                saveIsPending: chapterGeometryMutation.isPending,
+                saveIsSuccess: chapterGeometryMutation.isSuccess,
+                saveError: chapterGeometryMutation.error
+                  ? (chapterGeometryMutation.error as Error).message
+                  : null,
+              }
+            : undefined
+        }
       />
 
       <CoverArtSection

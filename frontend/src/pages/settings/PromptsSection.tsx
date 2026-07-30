@@ -9,12 +9,16 @@ const OVERRIDE_HELP =
 interface PromptsSectionProps {
   systemPrompt: string;
   verificationPrompt: string;
+  chapterPrompt: string;
   systemPromptOverride: string;
   verificationPromptOverride: string;
+  chapterPromptOverride: string;
   onSystemPromptChange: (prompt: string) => void;
   onVerificationPromptChange: (prompt: string) => void;
+  onChapterPromptChange: (prompt: string) => void;
   onSystemPromptOverrideChange: (prompt: string) => void;
   onVerificationPromptOverrideChange: (prompt: string) => void;
+  onChapterPromptOverrideChange: (prompt: string) => void;
   onResetPrompts: () => void;
   resetIsPending: boolean;
 }
@@ -22,12 +26,16 @@ interface PromptsSectionProps {
 function PromptsSection({
   systemPrompt,
   verificationPrompt,
+  chapterPrompt,
   systemPromptOverride,
   verificationPromptOverride,
+  chapterPromptOverride,
   onSystemPromptChange,
   onVerificationPromptChange,
+  onChapterPromptChange,
   onSystemPromptOverrideChange,
   onVerificationPromptOverrideChange,
+  onChapterPromptOverrideChange,
   onResetPrompts,
   resetIsPending,
 }: PromptsSectionProps) {
@@ -62,6 +70,24 @@ function PromptsSection({
           label="Verification Override"
           value={verificationPromptOverride}
           onChange={onVerificationPromptOverrideChange}
+          rows={3}
+          helpText={OVERRIDE_HELP}
+        />
+
+        <PromptField
+          id="chapterPrompt"
+          label="Chapter Prompt"
+          value={chapterPrompt}
+          onChange={onChapterPromptChange}
+          helpText={'Instructions for chapter topic detection. Placeholders: {num_splits}, '
+            + '{segment_start}, {segment_end}, {continuation_block}, {description_block}, '
+            + '{hints_block}, {transcript}.'}
+        />
+        <PromptField
+          id="chapterPromptOverride"
+          label="Chapter Override"
+          value={chapterPromptOverride}
+          onChange={onChapterPromptOverrideChange}
           rows={3}
           helpText={OVERRIDE_HELP}
         />

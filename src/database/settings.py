@@ -92,6 +92,11 @@ def _default_resurrect_prompt() -> str:
     return DEFAULT_RESURRECT_PROMPT
 
 
+def _default_chapter_prompt() -> str:
+    from database import DEFAULT_CHAPTER_PROMPT
+    return DEFAULT_CHAPTER_PROMPT
+
+
 def _seed_env_openai_model() -> Optional[str]:
     """OPENAI_MODEL when the *env-configured* provider is non-Anthropic.
 
@@ -224,6 +229,9 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'resurrect_prompt': SettingSpec(
         factory=_default_resurrect_prompt, seeded=True, refresh_default=True,
         payload_key='resurrectPrompt'),
+    'chapter_prompt': SettingSpec(
+        factory=_default_chapter_prompt, seeded=True, refresh_default=True,
+        payload_key='chapterPrompt'),
     # Per-pass prompt overrides: intentionally NOT resettable via
     # reset_setting (reset_prompts_only clears them explicitly; empty string
     # is the no-override default state, not a registry default).
@@ -231,6 +239,7 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'verification_prompt_override': SettingSpec(resettable=False),
     'review_prompt_override': SettingSpec(resettable=False),
     'resurrect_prompt_override': SettingSpec(resettable=False),
+    'chapter_prompt_override': SettingSpec(resettable=False),
 
     # -- Models --
     'claude_model': SettingSpec(

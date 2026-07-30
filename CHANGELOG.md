@@ -9,6 +9,24 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.83.0] - 2026-07-30
+
+### Added
+
+- Editable chapter generation prompt: the topic-detection prompt is now a
+  settings-backed template (`chapterPrompt`) with placeholders for the split
+  count, segment range, continuation/description/hint blocks, and transcript,
+  plus a `chapterPromptOverride` appended at run time. Editable in Settings
+  under Prompts and included in the prompts reset; left at the default it
+  renders the same prompt as before.
+
+### Changed
+
+- The four Chapter Density tunables (target chapter length, transcript window,
+  maximum chapters, shortest chapter) moved from LLM Tunables to the
+  Transcripts & Chapters card, next to the Generate Chapters toggle, with
+  their own Save button. The settings API payload is unchanged.
+
 ## [2.82.0] - 2026-07-29
 
 ### Added

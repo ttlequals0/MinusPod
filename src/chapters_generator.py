@@ -9,6 +9,8 @@ from config import (
     normalize_segment_category, resolve_chapter_geometry,
     resolve_stage_tunables,
 )
+from database import Database, DEFAULT_CHAPTER_PROMPT
+from utils.prompt import render_prompt_once, apply_override
 from utils.time import parse_timestamp, adjust_timestamp, span_inside_any_cut
 from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
@@ -172,7 +174,6 @@ CHAPTERS_MODEL = _DEFAULT_CHAPTERS_MODEL
 def get_chapters_model() -> str:
     """Get configured chapters model from database or fall back to default."""
     try:
-        from database import Database
         db = Database()
 
         model = db.get_setting('chapters_model')
@@ -204,6 +205,8 @@ class ChaptersGenerator:
         self.api_key = api_key or get_api_key()
         self._llm_client_override: Optional[LLMClient] = None
         self._episode_id: Optional[str] = None
+        # (template, override), read once per run rather than per window.
+        self._chapter_prompt: Optional[Tuple[str, str]] = None
         # Set when topic detection or title generation fails and the run
         # degrades to a fallback; read after generate_chapters() so a
         # degraded run doesn't look like a normal short episode.
@@ -262,6 +265,19 @@ class ChaptersGenerator:
 
         return '\n'.join(lines)
 
+    def _load_chapter_prompt(self) -> Tuple[str, str]:
+        """The (template, override) settings pair, cached for the run."""
+        if self._chapter_prompt is None:
+            try:
+                db = Database()
+                template = db.get_setting('chapter_prompt') or DEFAULT_CHAPTER_PROMPT
+                override = db.get_setting('chapter_prompt_override') or ''
+            except Exception as e:
+                logger.warning(f"Could not load chapter prompt from DB: {e}")
+                template, override = DEFAULT_CHAPTER_PROMPT, ''
+            self._chapter_prompt = (template, override)
+        return self._chapter_prompt
+
     def _detect_topic_boundaries(
         self,
         transcript: str,
@@ -314,24 +330,20 @@ class ChaptersGenerator:
                 f"Episode description:\n{episode_description}"
             )
 
-        prompt = f"""Analyze this podcast transcript segment and identify {num_splits} major topic changes.
-
-The segment runs from {int(start_time/60)}:{int(start_time%60):02d} to {int(end_time//60)}:{int(end_time%60):02d}.
-
-For each topic change, provide the timestamp (from the [MM:SS] markers) and a short title (3-7 words).
-
-OUTPUT FORMAT:
-Return ONLY topic lines, one per line. No introduction, no explanation, no numbering.
-Each line must be exactly: MM:SS Topic Title Here
-
-Example:
-05:30 Discussion of AI Trends
-12:45 New Product Announcements
-
-Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.{continuation_block}{description_block}{hints_block}
-
-Transcript:
-{transcript}"""
+        # Override lands on the template BEFORE variables render, and
+        # substitution is single-pass: transcript, description, and title
+        # text can never inject or reposition a placeholder.
+        base_prompt, override = self._load_chapter_prompt()
+        prompt = render_prompt_once(
+            apply_override(base_prompt, override),
+            num_splits=str(num_splits),
+            segment_start=f"{int(start_time/60)}:{int(start_time%60):02d}",
+            segment_end=f"{int(end_time//60)}:{int(end_time%60):02d}",
+            continuation_block=continuation_block,
+            description_block=description_block,
+            hints_block=hints_block,
+            transcript=transcript,
+        )
 
         try:
             max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_boundary')

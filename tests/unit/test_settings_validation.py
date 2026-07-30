@@ -137,6 +137,67 @@ class TestReviewerPromptReset:
         assert response.status_code != 500, response.data
 
 
+class TestChapterPromptSettings:
+    """The chapter topic-detection prompt follows the same editable-prompt
+    contract as the four detection/reviewer prompts: GET exposes the default,
+    a blank save reverts to it, and the prompts reset restores both the
+    prompt and its override."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_chapter_prompt_default(self, client):
+        data = self._get_settings(client)
+        assert data['chapterPrompt']['value'] == database.DEFAULT_CHAPTER_PROMPT
+        assert data['chapterPromptOverride']['value'] == ''
+
+    def test_put_round_trips_prompt_and_override(self, client):
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'chapterPrompt': 'custom chapter prompt {transcript}',
+                'chapterPromptOverride': 'focus on interviews',
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+
+        data = self._get_settings(client)
+        assert data['chapterPrompt']['value'] == 'custom chapter prompt {transcript}'
+        assert data['chapterPrompt']['isDefault'] is False
+        assert data['chapterPromptOverride']['value'] == 'focus on interviews'
+
+    def test_blank_prompt_save_reverts_to_default(self, client):
+        db = database.Database()
+        db.set_setting('chapter_prompt', 'custom chapter', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'chapterPrompt': '   '}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+
+        data = self._get_settings(client)
+        assert data['chapterPrompt']['value'] == database.DEFAULT_CHAPTER_PROMPT
+        assert data['chapterPrompt']['isDefault'] is True
+
+    def test_prompts_reset_restores_prompt_and_clears_override(self, client):
+        db = database.Database()
+        db.set_setting('chapter_prompt', 'custom chapter', is_default=False)
+        db.set_setting('chapter_prompt_override', 'extra rules', is_default=False)
+
+        response = client.post('/api/v1/settings/prompts/reset')
+        assert response.status_code == 200, response.data
+
+        data = self._get_settings(client)
+        assert data['chapterPrompt']['value'] == database.DEFAULT_CHAPTER_PROMPT
+        assert data['chapterPrompt']['isDefault'] is True
+        assert data['chapterPromptOverride']['value'] == ''
+
+
 class TestWebhookUrlValidation:
     """Issue #158: webhooks must accept private-IP / non-default-port URLs
     (the OPERATOR_CONFIGURED trust posture used by LLM and Whisper base URLs)
