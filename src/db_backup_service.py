@@ -219,12 +219,14 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
         logger.debug('db_backup: could not count plaintext secrets: %s', e)
         logger.info('db_backup: %s', summary)
         return
+    # The counts stay out of the log lines: CodeQL classifies any value
+    # returned by a secret-named helper as sensitive, count or not.
     if plaintext:
         logger.warning(
-            'db_backup: snapshot at %s holds %d provider secret(s) in plaintext. '
+            'db_backup: snapshot at %s holds provider secrets in plaintext. '
             'Set MINUSPOD_MASTER_PASSPHRASE to encrypt them at rest; stored '
             'values migrate on the next write. %s',
-            final, plaintext, summary,
+            final, summary,
         )
     elif stored:
         logger.info(
