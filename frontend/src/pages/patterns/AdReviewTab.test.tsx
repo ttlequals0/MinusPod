@@ -277,7 +277,7 @@ describe('AdReviewTab row actions', () => {
     await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
     expect(
       await screen.findByText(
-        'Confirmed, but the recut did not start. The cut applies on the next reprocess.',
+        'Saved, but the recut did not start. The change applies on the next reprocess.',
       ),
     ).toBeTruthy();
     errSpy.mockRestore();

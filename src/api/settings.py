@@ -1441,19 +1441,22 @@ def _apply_stage_tunables(db, data):
         get_stage_tunable,
     )
 
+    # Effective value for a cross-field check: the submitted value when the
+    # payload carries one, else what is already stored. Both pairs below need
+    # this, so neither can be validated against a payload-only view.
+    def _effective(payload_key, db_key):
+        if payload_key in data:
+            raw = data[payload_key]
+            if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                return get_stage_tunable(db_key)
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return None
+        return get_stage_tunable(db_key)
+
     # overlap >= size would make the derived step <= 0 and break create_windows.
     if 'windowSizeSeconds' in data or 'windowOverlapSeconds' in data:
-        def _effective(payload_key, db_key):
-            if payload_key in data:
-                raw = data[payload_key]
-                if raw is None or (isinstance(raw, str) and raw.strip() == ""):
-                    return get_stage_tunable(db_key)
-                try:
-                    return int(raw)
-                except (TypeError, ValueError):
-                    return None
-            return get_stage_tunable(db_key)
-
         size_eff = _effective('windowSizeSeconds', 'window_size_seconds')
         overlap_eff = _effective('windowOverlapSeconds', 'window_overlap_seconds')
         if size_eff is not None and overlap_eff is not None and overlap_eff >= size_eff:
@@ -1467,21 +1470,10 @@ def _apply_stage_tunables(db, data):
     CHAPTER_GEOMETRY_KEYS = ('chapterTargetSeconds', 'chapterWindowSeconds',
                              'chapterMinDurationSeconds')
     if any(k in data for k in CHAPTER_GEOMETRY_KEYS):
-        def _chapter_eff(payload_key, db_key):
-            if payload_key in data:
-                raw = data[payload_key]
-                if raw is None or (isinstance(raw, str) and raw.strip() == ""):
-                    return get_stage_tunable(db_key)
-                try:
-                    return int(raw)
-                except (TypeError, ValueError):
-                    return None
-            return get_stage_tunable(db_key)
-
-        target_eff = _chapter_eff('chapterTargetSeconds', 'chapter_target_seconds')
-        window_eff = _chapter_eff('chapterWindowSeconds', 'chapter_window_seconds')
-        min_eff = _chapter_eff('chapterMinDurationSeconds',
-                               'chapter_min_duration_seconds')
+        target_eff = _effective('chapterTargetSeconds', 'chapter_target_seconds')
+        window_eff = _effective('chapterWindowSeconds', 'chapter_window_seconds')
+        min_eff = _effective('chapterMinDurationSeconds',
+                             'chapter_min_duration_seconds')
         # A target larger than the window means a window can never hold one
         # whole chapter.
         if target_eff is not None and window_eff is not None and target_eff > window_eff:

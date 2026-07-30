@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getDetections,
   type CutSummary,
@@ -8,7 +7,6 @@ import {
   type ReviewDetection,
 } from '../../api/detections';
 import { feedsQueryOptions, reprocessEpisode } from '../../api/feeds';
-import { submitCorrection, type PatternCorrection } from '../../api/patterns';
 import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import AdReviewModal, {
   type AdReviewItem,
@@ -18,17 +16,11 @@ import { Pagination } from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import { formatStatsDuration } from '../../utils/format';
-import {
-  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
-} from '../../utils/segmentCategory';
+import { UNSET_CATEGORY } from '../../utils/segmentCategory';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { DetectionRows } from './DetectionRows';
-
-const SORT_OPTIONS: Array<[DetectionSort, string]> = [
-  ['date', 'Published'],
-  ['confidence', 'Confidence'],
-  ['podcast', 'Podcast'],
-];
+import { DetectionFilterBar } from './DetectionFilterBar';
+import { useDetectionCorrections } from './useDetectionCorrections';
 
 function StatFigure({ label, value, lead = false }: {
   label: string;
@@ -108,7 +100,6 @@ export default function DetectedAdsTab() {
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
   const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const closeModal = () => setEditing(null);
 
   useEffect(() => {
@@ -119,51 +110,11 @@ export default function DetectedAdsTab() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const correctionMutation = useMutation({
-    mutationFn: async (args: {
-      d: ReviewDetection;
-      correction: PatternCorrection;
-      recut: boolean;
-    }) => {
-      await submitCorrection(args.d.feedSlug, args.d.episodeId, args.correction);
-    },
-    onMutate: () => {
-      setActionError(null);
-      audition.stop();
-    },
-    onSuccess: (_, vars) => {
-      setEditing(null);
-      queryClient.invalidateQueries({ queryKey: ['detections'] });
-      if (vars.recut) {
-        reprocessEpisode(vars.d.feedSlug, vars.d.episodeId, 'recut').catch(
-          (error) => {
-            console.error('Failed to trigger recut:', error);
-            setActionError('Saved, but the recut did not start. It applies on the next reprocess.');
-          },
-        );
-      }
-    },
-    onError: (error) => {
-      console.error('Failed to save correction:', error);
-      setActionError('Failed to save correction. Try again.');
-    },
-  });
-
-  const originalAdOf = (d: ReviewDetection) => ({
-    start: d.start,
-    end: d.end,
-    pattern_id: d.patternId ?? undefined,
-    confidence: d.confidence ?? undefined,
-    reason: d.reason ?? undefined,
-    sponsor: d.sponsor ?? undefined,
-  });
-
-  // These ads were cut, so rejecting one has to put the audio back: recut from
-  // the retained original.
-  const dismiss = (d: ReviewDetection) => correctionMutation.mutate({
-    d,
-    correction: { type: 'reject', original_ad: originalAdOf(d) },
-    recut: d.hasOriginalAudio,
+  const {
+    dismiss, adjust, busy, actionError, setActionError,
+  } = useDetectionCorrections({
+    stopAudition: audition.stop,
+    onSettled: () => setEditing(null),
   });
 
   const { data, isLoading, error } = useQuery({
@@ -188,73 +139,20 @@ export default function DetectedAdsTab() {
     <div>
       {data?.cutSummary && <CutStats summary={data.cutSummary} />}
 
-      <div className="bg-card rounded-lg border border-border p-4 mb-6 flex flex-wrap gap-4 items-center">
-        <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
-          <label htmlFor="detected-ads-feed" className="text-sm text-muted-foreground shrink-0">Podcast</label>
-          <select
-            id="detected-ads-feed"
-            value={feed}
-            onChange={(e) => { setFeed(e.target.value); setPage(1); }}
-            className="flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
-          >
-            <option value="">All podcasts</option>
-            {sortedFeeds?.map((f) => (
-              <option key={f.slug} value={f.slug}>{f.title}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="detected-ads-category" className="text-sm text-muted-foreground shrink-0">Category</label>
-          <select
-            id="detected-ads-category"
-            value={category}
-            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-            className="flex-1 sm:flex-none min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
-          >
-            {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
-              <option key={value || 'all'} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:flex-1 sm:min-w-[200px]">
-          <label htmlFor="detected-ads-q" className="text-sm text-muted-foreground shrink-0">Search</label>
-          <input
-            id="detected-ads-q"
-            type="text"
-            value={q}
-            onChange={(e) => { setQ(e.target.value); }}
-            placeholder="Sponsor or reason"
-            className="w-full min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
-          />
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="detected-ads-sort" className="text-sm text-muted-foreground shrink-0">Sort</label>
-          <select
-            id="detected-ads-sort"
-            value={sort}
-            onChange={(e) => {
-              setSort(e.target.value as DetectionSort);
-              setOrder('desc');
-              setPage(1);
-            }}
-            className="flex-1 min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
-          >
-            {SORT_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => { setOrder(order === 'desc' ? 'asc' : 'desc'); setPage(1); }}
-            aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
-            className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
-          >
-            {order === 'desc'
-              ? <ChevronDown className="w-4 h-4" aria-hidden />
-              : <ChevronUp className="w-4 h-4" aria-hidden />}
-          </button>
-        </div>
-      </div>
+      <DetectionFilterBar
+        idPrefix="detected-ads"
+        feeds={sortedFeeds}
+        feed={feed}
+        onFeedChange={(v) => { setFeed(v); setPage(1); }}
+        category={category}
+        onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        q={q}
+        onQChange={setQ}
+        sort={sort}
+        onSortChange={(v) => { setSort(v); setOrder('desc'); setPage(1); }}
+        order={order}
+        onOrderChange={(v) => { setOrder(v); setPage(1); }}
+      />
 
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
@@ -277,10 +175,11 @@ export default function DetectedAdsTab() {
             detections={data.detections}
             audition={audition}
             actions={{
-              onDismiss: dismiss,
+              // These ads were cut, so rejecting one has to put the audio back.
+              onDismiss: (d) => dismiss(d, d.hasOriginalAudio),
               onEdit: setEditing,
               onSplit: setSplitting,
-              busy: correctionMutation.isPending,
+              busy,
             }}
             showCategory
           />
@@ -335,19 +234,9 @@ export default function DetectedAdsTab() {
           onSubmit={(s: AdReviewSubmit) => {
             const d = editing;
             if (s.kind === 'adjust') {
-              correctionMutation.mutate({
-                d,
-                correction: {
-                  type: 'adjust',
-                  original_ad: originalAdOf(d),
-                  adjusted_start: s.adjustedStart,
-                  adjusted_end: s.adjustedEnd,
-                  sponsor: s.sponsor,
-                },
-                recut: false,
-              });
+              adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'reject') {
-              dismiss(d);
+              dismiss(d, d.hasOriginalAudio);
             } else {
               closeModal();
             }
