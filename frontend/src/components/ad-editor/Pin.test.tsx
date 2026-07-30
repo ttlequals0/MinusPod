@@ -78,6 +78,51 @@ describe('Pin keyboard operation', () => {
   });
 });
 
+describe('Pin absolute clamps', () => {
+  it('a start pin cannot be nudged below zero', async () => {
+    const { onChange, pin } = renderPin({ boundary: 0.5 });
+    const user = userEvent.setup();
+    pin.focus();
+    await user.keyboard('{Shift>}{ArrowLeft}{/Shift}');
+    expect(onChange).toHaveBeenCalledWith(0);
+  });
+
+  it('an end pin cannot be nudged past the audio end', async () => {
+    const { onChange, pin } = renderPin({
+      kind: 'end', boundary: 99.5, otherBoundary: 50, totalDuration: 100,
+    });
+    const user = userEvent.setup();
+    pin.focus();
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(onChange).toHaveBeenCalledWith(100);
+  });
+
+  it('skips the neighbour clamp when its bounds are inverted', async () => {
+    // A seeded piece already under the floor: lower (107) > upper (96).
+    const { onChange, pin } = renderPin({
+      kind: 'divider', otherBoundary: undefined, boundary: 101.5,
+      minBoundary: 100, maxBoundary: 103, minSeparation: 7,
+      windowStart: 50, windowDuration: 100,
+    });
+    const user = userEvent.setup();
+    pin.focus();
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(onChange).toHaveBeenCalledWith(102.5);
+  });
+
+  it('still clamps to the audio end when the neighbour bounds are inverted', async () => {
+    const { onChange, pin } = renderPin({
+      kind: 'divider', otherBoundary: undefined, boundary: 101.5,
+      minBoundary: 100, maxBoundary: 103, minSeparation: 7,
+      windowStart: 50, windowDuration: 100, totalDuration: 102,
+    });
+    const user = userEvent.setup();
+    pin.focus();
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(onChange).toHaveBeenCalledWith(102);
+  });
+});
+
 describe('Pin divider kind', () => {
   function renderDivider(over: Partial<React.ComponentProps<typeof Pin>> = {}) {
     return renderPin({

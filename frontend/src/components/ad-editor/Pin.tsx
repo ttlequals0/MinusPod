@@ -30,6 +30,9 @@ export interface PinProps {
   minBoundary?: number;
   maxBoundary?: number;
   minSeparation?: number;       // override the default 1.0s floor
+  // Audio length. Keyboard nudges clamp to [0, totalDuration] on top of the
+  // neighbour bounds; drag is already limited to the visible window.
+  totalDuration?: number;
 }
 
 export function Pin({
@@ -37,6 +40,7 @@ export function Pin({
   onChange, onDragMove, onDragStart, onDragEnd, otherBoundary,
   minBoundary, maxBoundary,
   minSeparation = DEFAULT_MIN_SEPARATION,
+  totalDuration,
 }: PinProps) {
   const [dragging, setDragging] = useState(false);
 
@@ -60,12 +64,20 @@ export function Pin({
 
   // The legal range for this pin, used by both drag and keyboard so they
   // cannot disagree.
-  const lowerBound = isDivider
+  const rawLower = isDivider
     ? (minBoundary ?? Number.NEGATIVE_INFINITY) + minSeparation
     : isStart ? Number.NEGATIVE_INFINITY : (otherBoundary ?? 0) + minSeparation;
-  const upperBound = isDivider
+  const rawUpper = isDivider
     ? (maxBoundary ?? Number.POSITIVE_INFINITY) - minSeparation
     : isStart ? (otherBoundary ?? 0) - minSeparation : Number.POSITIVE_INFINITY;
+  // A seeded piece under the separation floor inverts the neighbour range;
+  // clamping to it would snap the pin, so only the audio bound applies then.
+  const neighboursValid = rawLower <= rawUpper;
+  const lowerBound = neighboursValid ? Math.max(0, rawLower) : 0;
+  const upperBound = Math.min(
+    totalDuration ?? Number.POSITIVE_INFINITY,
+    neighboursValid ? rawUpper : Number.POSITIVE_INFINITY,
+  );
   const clamp = (t: number) => Math.min(Math.max(t, lowerBound), upperBound);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -150,12 +162,12 @@ export function Pin({
       {/* Compact circle pinhead at top. */}
       <div
         className={`absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white ${color} shadow-md ${
-          dragging ? `ring-4 ${ringColor} scale-125` : ''
-        } transition-transform`}
+          dragging ? `ring-4 ${ringColor} scale-125 motion-reduce:scale-100` : ''
+        } transition-transform motion-reduce:transition-none`}
       />
       {/* Time label -- only visible while dragging or on hover. */}
       <div
-        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-white text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none ${
+        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-white text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
           dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         }`}
       >

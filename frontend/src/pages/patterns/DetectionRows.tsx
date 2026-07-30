@@ -32,7 +32,7 @@ const ACTION_BADGE: Record<string, [string, string]> = {
 
 // Same audition key for the desktop row and its mobile card twin, so the
 // playing state stays in sync across the responsive variants.
-export const keyOf = (d: ReviewDetection, index: number) =>
+const keyOf = (d: ReviewDetection, index: number) =>
   `${d.feedSlug}-${d.episodeId}-${d.start}-${d.end}-${index}`;
 
 const timeLabel = (d: ReviewDetection) =>

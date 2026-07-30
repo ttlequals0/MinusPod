@@ -29,7 +29,24 @@ vi.mock('../../api/patterns', async (importOriginal) => ({
   submitCorrection: (...a: unknown[]) => mockSubmitCorrection(...a),
 }));
 // AdReviewModal renders WaveSurfer; its behavior is covered by its own tests.
-vi.mock('../../components/AdReviewModal', () => ({ default: () => null }));
+// The stub records its props so the wiring can be asserted.
+const reviewModalProps = vi.hoisted(
+  () => ({ current: null as Record<string, unknown> | null }));
+vi.mock('../../components/AdReviewModal', () => ({
+  default: (props: Record<string, unknown>) => {
+    reviewModalProps.current = props;
+    return null;
+  },
+}));
+vi.mock('../../components/SplitMarkerModal', () => ({
+  default: ({ onSplit }: {
+    onSplit: (r: { markerCount: number; patternIds: number[] }) => void;
+  }) => (
+    <button onClick={() => onSplit({ markerCount: 2, patternIds: [1, 2] })}>
+      finish split
+    </button>
+  ),
+}));
 
 function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
   return {
@@ -70,6 +87,7 @@ function renderTab() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reviewModalProps.current = null;
   mockGetFeedsResponse.mockResolvedValue({ feeds: [] });
   mockGetDetections.mockResolvedValue({
     detections: [detection()],
@@ -161,6 +179,47 @@ describe('DetectedAdsTab', () => {
     mockGetDetections.mockRejectedValue(new Error('boom'));
     renderTab();
     expect(await screen.findByText('Failed to load detected ads.')).toBeTruthy();
+  });
+
+  it('a finished split names the ad count and triggers the recut', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getAllByRole('button', { name: 'Split' })[0]);
+    await user.click(screen.getByRole('button', { name: 'finish split' }));
+    expect(await screen.findByText('Split into 2 ads.')).toBeTruthy();
+    await waitFor(() => expect(mockReprocess).toHaveBeenCalledWith(
+      'example-podcast', 'a1b2c3d4e5f6', 'recut'));
+  });
+
+  it('a split without retained audio defers the recut to the next reprocess', async () => {
+    mockGetDetections.mockResolvedValue({
+      detections: [detection({ hasOriginalAudio: false })],
+      total: 1, page: 1, totalPages: 1, limit: 20,
+      counts: {
+        total: 1, needsReview: 0, pending: 0, rejected: 0,
+        accepted: 1, confirmed: 0, dismissed: 0,
+      },
+      cutSummary: SUMMARY,
+    });
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getAllByRole('button', { name: 'Split' })[0]);
+    await user.click(screen.getByRole('button', { name: 'finish split' }));
+    expect(await screen.findByText(
+      'Split into 2 ads. The recut applies on the next reprocess.')).toBeTruthy();
+    expect(mockReprocess).not.toHaveBeenCalled();
+  });
+
+  it('opens the edit modal with Confirm hidden and a split handler', async () => {
+    renderTab();
+    const user = userEvent.setup();
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+    await waitFor(() => expect(reviewModalProps.current).not.toBeNull());
+    expect(reviewModalProps.current?.hideConfirm).toBe(true);
+    expect(typeof reviewModalProps.current?.onSplitSaved).toBe('function');
   });
 
   it('shows a beeped marker as beeped rather than as a plain cut', async () => {

@@ -86,7 +86,7 @@ describe('SplitMarkerModal', () => {
     renderModal();
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Ad 1 is 3.0s');
-    expect(alert.textContent).toContain('at least 7s');
+    expect(alert.textContent).toContain('4.0s short of the 7s minimum');
     expect(screen.getByRole('button', { name: 'Split into 2 ads' })
       .hasAttribute('disabled')).toBe(true);
   });
@@ -147,6 +147,73 @@ describe('SplitMarkerModal', () => {
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     await user.click(screen.getByRole('button', { name: 'Remove divider' }));
     expect(await screen.findByRole('button', { name: 'Split into 1 ad' })).toBeTruthy();
+  });
+
+  it('keeps a typed sponsor with its piece when a divider is added before it', async () => {
+    mockGetCandidates.mockResolvedValue({
+      episodeId: TARGET.episodeId, start: 100, end: 190,
+      candidates: [{ time: 160, phrase: 'brought to you by' }],
+      pieces: [
+        { start: 100, end: 160, text: 'Acme read', sponsor: 'Acme' },
+        { start: 160, end: 190, text: 'Beta read', sponsor: 'Beta Corp' },
+      ],
+    });
+    renderModal();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const second = screen.getAllByPlaceholderText('Sponsor')[1];
+    await user.clear(second);
+    await user.type(second, 'Custom Co');
+    // The longest piece is the first, so the new divider lands before the
+    // overridden piece and shifts it right.
+    await user.click(screen.getByRole('button', { name: 'Add divider' }));
+    await screen.findByRole('button', { name: 'Split into 3 ads' });
+    const inputs = screen.getAllByPlaceholderText('Sponsor') as HTMLInputElement[];
+    expect(inputs[2].value).toBe('Custom Co');
+    expect(inputs[1].value).toBe('Acme');
+  });
+
+  it('keeps a typed sponsor with its piece when a divider is removed', async () => {
+    renderModal();
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    await user.click(screen.getByRole('button', { name: 'Add divider' }));
+    await screen.findByRole('button', { name: 'Split into 3 ads' });
+    const third = screen.getAllByPlaceholderText('Sponsor')[2];
+    await user.clear(third);
+    await user.type(third, 'Custom Co');
+    // Removing the first divider merges the first two pieces; the typed
+    // sponsor stays with the last piece.
+    await user.click(screen.getAllByRole('button', { name: 'Remove divider' })[0]);
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const inputs = screen.getAllByPlaceholderText('Sponsor') as HTMLInputElement[];
+    expect(inputs).toHaveLength(2);
+    expect(inputs[1].value).toBe('Custom Co');
+    await user.click(screen.getByRole('button', { name: 'Split into 2 ads' }));
+    await waitFor(() => expect(mockSubmitSplit).toHaveBeenCalled());
+    expect(mockSubmitSplit.mock.calls[0][4]).toEqual(
+      [{ sponsor: 'Acme' }, { sponsor: 'Custom Co' }]);
+  });
+
+  it('surfaces a candidates load failure with a retry', async () => {
+    mockGetCandidates.mockRejectedValueOnce(new Error('boom'));
+    renderModal();
+    expect(await screen.findByText('Failed to load suggested dividers.')).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('button', { name: 'Split into 2 ads' })).toBeTruthy();
+  });
+
+  it('piece segments name the sponsor and clicking one focuses its input', async () => {
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const segments = within(screen.getByTestId('piece-strip')).getAllByRole('button');
+    expect(segments[1].textContent).toContain('Beta Corp');
+    expect(segments[1].textContent).toContain('60s');
+    const user = userEvent.setup();
+    await user.click(segments[1]);
+    const inputs = screen.getAllByPlaceholderText('Sponsor');
+    expect(document.activeElement).toBe(inputs[1]);
   });
 
   it('cancel closes without submitting', async () => {

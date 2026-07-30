@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { getTranscriptSpan } from '../api/feeds';
+import { startEpisodeRecut } from '../pages/patterns/useDetectionCorrections';
 import { getSponsors } from '../api/sponsors';
+import SplitMarkerModal from './SplitMarkerModal';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
@@ -92,6 +94,12 @@ interface Props {
   // detected span (plus 0.5s tolerance); enforcing it here keeps the
   // display honest instead of silently clamping at submit.
   boundsWindow?: { min: number; max: number };
+  // Detected Ads opens already-cut ads, where a plain confirm has nothing
+  // to do; the host disables it and only adjust/reject apply.
+  hideConfirm?: boolean;
+  // Called after the in-modal Split saves. When absent the modal refreshes
+  // queries and triggers the recut itself, then closes.
+  onSplitSaved?: (result: { markerCount: number; patternIds: number[] }) => void;
 }
 
 // Cap the default visible window. Some heuristic detections (notably
@@ -121,6 +129,7 @@ function AdReviewModal({
   audioMode = 'original', onAudioModeChange, hasOriginal = true,
   processedAudioUrl, episodeDuration,
   mode = 'review', onCreate, onAddNew, boundsWindow,
+  hideConfirm = false, onSplitSaved,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
@@ -227,6 +236,10 @@ function AdReviewModal({
   const positionBeforePinDragRef = useRef<number | null>(null);
   const [sponsorInput, setSponsorInput] = useState(item.sponsor ?? '');
   const [showSponsorPrompt, setShowSponsorPrompt] = useState(!item.sponsor);
+  // Review-mode Split: opens the same split editor Detected Ads uses, on
+  // this marker's detected bounds.
+  const [showSplit, setShowSplit] = useState(false);
+  const queryClient = useQueryClient();
   // Sponsor catalog for the SponsorInput combobox in create mode. Cached
   // under the same ['sponsors'] key PatternDetailModal uses, so remounting
   // the modal (every ad step) reuses the cached list instead of refetching.
@@ -707,7 +720,12 @@ function AdReviewModal({
             : null;
   const inputBorderClass = boundaryError ? 'border-rose-500' : 'border-border';
 
+  // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
+  // a plain confirm the host discards, so the button and C shortcut go inert.
+  const confirmInert = hideConfirm && !boundariesMoved;
+
   const handleConfirm = () => {
+    if (confirmInert) return;
     onSubmit(
       boundariesMoved
         ? {
@@ -724,10 +742,29 @@ function AdReviewModal({
     onSubmit({ kind: 'reject' });
   };
 
+  const handleSplitSaved = async (result: { markerCount: number; patternIds: number[] }) => {
+    setShowSplit(false);
+    if (onSplitSaved) {
+      onSplitSaved(result);
+      return;
+    }
+    // No host handler: refresh what a split can change and recut here. A recut
+    // failure only reaches the console; the modal has closed by then.
+    onClose();
+    if (hasOriginal) {
+      await startEpisodeRecut(queryClient, item.podcastSlug, item.episodeId);
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['detections'] });
+      queryClient.invalidateQueries({ queryKey: ['episode', item.podcastSlug, item.episodeId] });
+    }
+  };
+
   // ------------------------------------------------------------------
   // Hotkeys
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // The split editor is on top; its own handlers own the keyboard.
+      if (showSplit) return;
       const target = e.target as HTMLElement | null;
       const inField =
         target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
@@ -751,7 +788,7 @@ function AdReviewModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end]);
+  }, [onClose, sponsorInput, adStart, adEnd, item.start, item.end, showSplit]);
 
   // ------------------------------------------------------------------
   // Style helpers -- explicit hover treatments so buttons clearly
@@ -1009,6 +1046,7 @@ function AdReviewModal({
                     windowDuration={windowDuration}
                     containerRef={overlayRef}
                     otherBoundary={adEnd}
+                    totalDuration={totalDuration}
                     onChange={setAdStart}
                     onDragStart={onPinDragStart}
                     onDragMove={playWhileDrag ? onPinDragMove : undefined}
@@ -1021,6 +1059,7 @@ function AdReviewModal({
                     windowDuration={windowDuration}
                     containerRef={overlayRef}
                     otherBoundary={adStart}
+                    totalDuration={totalDuration}
                     onChange={setAdEnd}
                     onDragStart={onPinDragStart}
                     onDragMove={playWhileDrag ? onPinDragMove : undefined}
@@ -1343,10 +1382,22 @@ function AdReviewModal({
             </>
           ) : (
             <>
-              <div className="text-xs text-muted-foreground">
-                {boundariesMoved
-                  ? 'Confirm will save adjusted boundaries.'
-                  : 'Confirm will record this ad as-detected.'}
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSplit(true)}
+                  className={`h-9 px-3 rounded-lg ${ghostBtn} text-sm whitespace-nowrap`}
+                  title="Split this ad block into separate ads"
+                >
+                  Split
+                </button>
+                <div className="text-xs text-muted-foreground">
+                  {boundariesMoved
+                    ? 'Confirm will save adjusted boundaries.'
+                    : hideConfirm
+                      ? 'This ad is already cut. Move a boundary to save an adjustment.'
+                      : 'Confirm will record this ad as-detected.'}
+                </div>
               </div>
               {/* Equal-width buttons across viewports. Short labels
                   on mobile (so 3 fit on a 320-360px viewport), full
@@ -1364,9 +1415,13 @@ function AdReviewModal({
                   <span className="sm:hidden">Not an ad</span>
                   <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
                 </button>
-                <button type="button" onClick={handleConfirm} disabled={boundaryError !== null}
+                <button type="button" onClick={handleConfirm}
+                  disabled={boundaryError !== null || confirmInert}
                   className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
-                  title={boundaryError ?? "Save changes (C)"}>
+                  title={boundaryError
+                    ?? (confirmInert
+                      ? 'Already cut. Move a boundary to save an adjustment.'
+                      : 'Save changes (C)')}>
                   <span className="sm:hidden">Save</span>
                   <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
                 </button>
@@ -1375,6 +1430,18 @@ function AdReviewModal({
           )}
         </div>
       </div>
+      {showSplit && (
+        <SplitMarkerModal
+          target={{
+            podcastSlug: item.podcastSlug,
+            episodeId: item.episodeId,
+            start: item.start,
+            end: item.end,
+          }}
+          onClose={() => setShowSplit(false)}
+          onSplit={handleSplitSaved}
+        />
+      )}
     </div>
   );
 }

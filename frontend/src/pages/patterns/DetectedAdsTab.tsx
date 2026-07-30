@@ -6,7 +6,7 @@ import {
   type DetectionSort,
   type ReviewDetection,
 } from '../../api/detections';
-import { feedsQueryOptions, reprocessEpisode } from '../../api/feeds';
+import { feedsQueryOptions } from '../../api/feeds';
 import { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import AdReviewModal, {
   type AdReviewItem,
@@ -16,6 +16,7 @@ import { Pagination } from '../../components/Pagination';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import { formatStatsDuration } from '../../utils/format';
+import { sortFeeds } from '../../utils/feedSort';
 import { UNSET_CATEGORY } from '../../utils/segmentCategory';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { DetectionRows } from './DetectionRows';
@@ -100,6 +101,7 @@ export default function DetectedAdsTab() {
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
   const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const closeModal = () => setEditing(null);
 
   useEffect(() => {
@@ -111,11 +113,26 @@ export default function DetectedAdsTab() {
   }, [q]);
 
   const {
-    dismiss, adjust, busy, actionError, setActionError,
+    dismiss, adjust, triggerRecut, busy, actionError,
   } = useDetectionCorrections({
     stopAudition: audition.stop,
     onSettled: () => setEditing(null),
   });
+
+  // Shared by the row-level Split modal and the split launched from inside
+  // the review modal. The pieces replace a cut span, so the audio has to be
+  // rebuilt from the retained original for the new boundaries to apply.
+  const handleSplitSaved = (d: ReviewDetection) =>
+    (result: { markerCount: number; patternIds: number[] }) => {
+      setSplitting(null);
+      setEditing(null);
+      queryClient.invalidateQueries({ queryKey: ['detections'] });
+      const noun = result.markerCount === 1 ? 'ad' : 'ads';
+      setNotice(d.hasOriginalAudio
+        ? `Split into ${result.markerCount} ${noun}.`
+        : `Split into ${result.markerCount} ${noun}. The recut applies on the next reprocess.`);
+      if (d.hasOriginalAudio) triggerRecut(d);
+    };
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['detections', 'cut', page, feed, category, debouncedQ, sort, order],
@@ -131,9 +148,10 @@ export default function DetectedAdsTab() {
   });
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
-  const sortedFeeds = feeds
-    ? [...feeds].sort((a, b) => a.title.localeCompare(b.title))
-    : undefined;
+  const sortedFeeds = useMemo(
+    () => (feeds ? sortFeeds(feeds, 'title') : undefined),
+    [feeds],
+  );
 
   return (
     <div>
@@ -157,6 +175,9 @@ export default function DetectedAdsTab() {
       {actionError && (
         <div className="text-destructive text-sm mb-3">{actionError}</div>
       )}
+      {notice && (
+        <div className="text-success text-sm mb-3" role="status">{notice}</div>
+      )}
       {isLoading && <LoadingSpinner className="py-12" />}
       {error && (
         <div className="text-destructive text-sm">
@@ -176,9 +197,9 @@ export default function DetectedAdsTab() {
             audition={audition}
             actions={{
               // These ads were cut, so rejecting one has to put the audio back.
-              onDismiss: (d) => dismiss(d, d.hasOriginalAudio),
-              onEdit: setEditing,
-              onSplit: setSplitting,
+              onDismiss: (d) => { setNotice(null); dismiss(d, d.hasOriginalAudio); },
+              onEdit: (d) => { setNotice(null); setEditing(d); },
+              onSplit: (d) => { setNotice(null); setSplitting(d); },
               busy,
             }}
             showCategory
@@ -197,19 +218,7 @@ export default function DetectedAdsTab() {
             end: splitting.end,
           }}
           onClose={() => setSplitting(null)}
-          onSplit={() => {
-            const d = splitting;
-            setSplitting(null);
-            queryClient.invalidateQueries({ queryKey: ['detections'] });
-            // The pieces replace a cut span, so the audio has to be rebuilt
-            // from the retained original for the new boundaries to apply.
-            if (d.hasOriginalAudio) {
-              reprocessEpisode(d.feedSlug, d.episodeId, 'recut').catch((error) => {
-                console.error('Failed to trigger recut:', error);
-                setActionError('Split saved, but the recut did not start. It applies on the next reprocess.');
-              });
-            }
-          }}
+          onSplit={handleSplitSaved(splitting)}
         />
       )}
       {editing && (
@@ -231,14 +240,14 @@ export default function DetectedAdsTab() {
           processedAudioUrl={editing.processedUrl}
           onClose={closeModal}
           onSkip={closeModal}
+          hideConfirm
+          onSplitSaved={handleSplitSaved(editing)}
           onSubmit={(s: AdReviewSubmit) => {
             const d = editing;
             if (s.kind === 'adjust') {
               adjust(d, s.adjustedStart, s.adjustedEnd, s.sponsor);
             } else if (s.kind === 'reject') {
               dismiss(d, d.hasOriginalAudio);
-            } else {
-              closeModal();
             }
           }}
         />

@@ -1,8 +1,24 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ReviewDetection } from '../../api/detections';
 import { reprocessEpisode } from '../../api/feeds';
 import { submitCorrection, type PatternCorrection } from '../../api/patterns';
+
+// Refresh what a recut changes, then start it. Logs and resolves false when
+// the recut request fails; the caller picks how to surface that.
+export async function startEpisodeRecut(
+  queryClient: QueryClient, slug: string, episodeId: string,
+): Promise<boolean> {
+  queryClient.invalidateQueries({ queryKey: ['detections'] });
+  queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+  try {
+    await reprocessEpisode(slug, episodeId, 'recut');
+    return true;
+  } catch (error) {
+    console.error('Failed to trigger recut:', error);
+    return false;
+  }
+}
 
 interface Options {
   // Stops windowed preview playback before a refetch drops the playing row,
@@ -19,6 +35,13 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Fire-and-forget recut; a failure surfaces through actionError.
+  const triggerRecut = (d: Pick<ReviewDetection, 'feedSlug' | 'episodeId'>) => {
+    void startEpisodeRecut(queryClient, d.feedSlug, d.episodeId).then((ok) => {
+      if (!ok) setActionError('Saved, but the recut did not start. The change applies on the next reprocess.');
+    });
+  };
+
   const mutation = useMutation({
     mutationFn: async (args: {
       d: ReviewDetection;
@@ -34,14 +57,7 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
     onSuccess: (_, vars) => {
       onSettled?.();
       queryClient.invalidateQueries({ queryKey: ['detections'] });
-      if (vars.recut) {
-        reprocessEpisode(vars.d.feedSlug, vars.d.episodeId, 'recut').catch(
-          (error) => {
-            console.error('Failed to trigger recut:', error);
-            setActionError('Saved, but the recut did not start. The change applies on the next reprocess.');
-          },
-        );
-      }
+      if (vars.recut) triggerRecut(vars.d);
     },
     onError: (error) => {
       console.error('Failed to save correction:', error);
@@ -95,6 +111,7 @@ export function useDetectionCorrections({ stopAudition, onSettled }: Options) {
     approve,
     dismiss,
     adjust,
+    triggerRecut,
     busy: mutation.isPending,
     actionError,
     setActionError,

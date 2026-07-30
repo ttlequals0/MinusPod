@@ -47,7 +47,7 @@ interface PieceView {
 
 function piecesFrom(
   start: number, end: number, dividers: number[], base: SplitPiece[],
-  sponsors: Record<number, string>,
+  sponsors: Array<string | undefined>,
 ): PieceView[] {
   const bounds = [start, ...dividers, end];
   const out: PieceView[] = [];
@@ -105,11 +105,12 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   const audition = useAuditionPlayer();
 
   const [dividers, setDividers] = useState<number[] | null>(null);
-  const [sponsors, setSponsors] = useState<Record<number, string>>({});
+  // Sparse array parallel to pieces: sponsors[i] overrides piece i's sponsor.
+  const [sponsors, setSponsors] = useState<Array<string | undefined>>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['splitCandidates', podcastSlug, episodeId, start, end],
     queryFn: () => getSplitCandidates(podcastSlug, episodeId, start, end),
   });
@@ -144,8 +145,12 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
   const setDivider = (i: number, t: number) => {
     const next = [...effectiveDividers];
-    next[i] = t;
-    setDividers(next.sort((a, b) => a - b));
+    // Clamp within the raw neighbours instead of sorting, so divider order
+    // never changes after seeding and index-keyed sponsors stay aligned.
+    const lo = i === 0 ? start : next[i - 1];
+    const hi = i === next.length - 1 ? end : next[i + 1];
+    next[i] = Math.min(Math.max(t, lo), hi);
+    setDividers(next);
   };
 
   const addDivider = () => {
@@ -157,11 +162,22 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     });
     const mid = (pieces[best].start + pieces[best].end) / 2;
     setDividers([...effectiveDividers, mid].sort((a, b) => a - b));
+    // Piece `best` splits in two; its new second half has no override yet.
+    setSponsors((prev) => {
+      const next = [...prev];
+      next.splice(best + 1, 0, undefined);
+      return next;
+    });
   };
 
   const removeDivider = (i: number) => {
     setDividers(effectiveDividers.filter((_, idx) => idx !== i));
-    setSponsors({});
+    // Pieces i and i+1 merge; the merged piece keeps the earlier override.
+    setSponsors((prev) => {
+      const next = [...prev];
+      next.splice(i, 2, prev[i] ?? prev[i + 1]);
+      return next;
+    });
   };
 
   const submit = async () => {
@@ -182,8 +198,15 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   };
 
   const windowDuration = Math.max(0.001, window_.windowEnd - window_.windowStart);
-  const pctOf = (t: number) =>
-    ((t - window_.windowStart) / windowDuration) * 100;
+  // Clamped to the window so off-window pieces collapse to zero width
+  // instead of getting phantom widths that misalign the strip.
+  const pctOf = (t: number) => Math.min(100, Math.max(
+    0, ((t - window_.windowStart) / windowDuration) * 100));
+
+  const sponsorWrapRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const focusSponsor = (i: number) => {
+    sponsorWrapRefs.current[i]?.querySelector('input')?.focus();
+  };
 
   return (
     <Modal onClose={onClose} closeOnEscape panelClassName={`${modalPanel} max-w-4xl w-full`}>
@@ -197,7 +220,31 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
         {isLoading && <LoadingSpinner className="py-8" />}
 
-        {!isLoading && (
+        {isError && (
+          <div className="space-y-3">
+            <p className="text-sm text-destructive" role="alert">
+              Failed to load suggested dividers.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className={`px-3 py-1.5 text-sm rounded ${btnOutline}`}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className={`px-3 py-1.5 text-sm rounded ${btnGhost}`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!isLoading && !isError && (
           <>
             {data && data.candidates.length === 0 && dividers === null && (
               <p className="text-sm text-warning">
@@ -222,6 +269,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                   maxBoundary={i === effectiveDividers.length - 1
                     ? end : effectiveDividers[i + 1]}
                   minSeparation={MIN_PIECE_SECONDS}
+                  totalDuration={end}
                 />
               ))}
             </div>
@@ -229,20 +277,28 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             {/* The piece strip: one segment per resulting ad, gapped so the
                 boundaries read as boundaries rather than a colour change. */}
             <div className="flex gap-0.5 h-6" data-testid="piece-strip">
-              {pieces.map((p, i) => (
-                <div
-                  key={i}
-                  className={`rounded text-[10px] flex items-center justify-center overflow-hidden ${
-                    i === shortIdx
-                      ? 'bg-rose-500/30 border border-rose-500'
-                      : 'bg-primary/20'
-                  }`}
-                  style={{ width: `${Math.max(2, pctOf(p.end) - pctOf(p.start))}%` }}
-                  title={`${formatTime(p.start)} to ${formatTime(p.end)}`}
-                >
-                  {Math.round(p.end - p.start)}s
-                </div>
-              ))}
+              {pieces.map((p, i) => {
+                const width = pctOf(p.end) - pctOf(p.start);
+                // Off-window pieces get no segment; their rows below remain.
+                if (width <= 0) return null;
+                return (
+                  <button
+                    type="button"
+                    key={i}
+                    onClick={() => focusSponsor(i)}
+                    className={`rounded text-[10px] text-foreground flex items-center justify-center gap-1 px-1 overflow-hidden focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
+                      i === shortIdx
+                        ? 'bg-rose-500/30 border border-rose-500'
+                        : 'bg-primary/20'
+                    }`}
+                    style={{ width: `${Math.max(2, width)}%` }}
+                    title={`${formatTime(p.start)} to ${formatTime(p.end)}`}
+                  >
+                    {p.sponsor && <span className="truncate min-w-0">{p.sponsor}</span>}
+                    <span className="shrink-0">{Math.round(p.end - p.start)}s</span>
+                  </button>
+                );
+              })}
             </div>
 
             <ZoomControl
@@ -267,10 +323,17 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                   <span className="text-xs font-mono text-muted-foreground w-32 shrink-0">
                     {formatTime(p.start)} to {formatTime(p.end)}
                   </span>
-                  <div className="flex-1 min-w-[180px]">
+                  <div
+                    className="flex-1 min-w-[180px]"
+                    ref={(el) => { sponsorWrapRefs.current[i] = el; }}
+                  >
                     <SponsorInput
                       value={p.sponsor}
-                      onChange={(v) => setSponsors({ ...sponsors, [i]: v })}
+                      onChange={(v) => setSponsors((prev) => {
+                        const next = [...prev];
+                        next[i] = v;
+                        return next;
+                      })}
                       sponsors={sponsorOptions}
                       placeholder="Sponsor"
                     />
@@ -290,15 +353,16 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
             {shortIdx !== null && (
               <p className="text-sm text-destructive" role="alert">
-                Ad {shortIdx + 1} is {(pieces[shortIdx].end - pieces[shortIdx].start).toFixed(1)}s.
-                Ads must be at least {MIN_PIECE_SECONDS}s, so move that divider or remove it.
+                Ad {shortIdx + 1} is {(pieces[shortIdx].end - pieces[shortIdx].start).toFixed(1)}s,{' '}
+                {(MIN_PIECE_SECONDS - (pieces[shortIdx].end - pieces[shortIdx].start)).toFixed(1)}s
+                short of the {MIN_PIECE_SECONDS}s minimum. Move that divider or remove it.
               </p>
             )}
             {saveError && (
               <p className="text-sm text-destructive" role="alert">{saveError}</p>
             )}
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex items-center gap-2 pt-2 flex-wrap">
               <button
                 type="button"
                 onClick={addDivider}

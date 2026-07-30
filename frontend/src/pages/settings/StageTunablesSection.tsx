@@ -94,11 +94,8 @@ const OMIT_TEMPERATURE_KEY = 'omitTemperature';
 type DraftValue = number | string | boolean | null;
 type DraftRecord = Record<string, DraftValue>;
 
-// Every key this section edits, in a stable order. Used for diffing the draft
-// against the server baseline and for building the save payload.
-// Every key CHAPTER_GEOMETRY_FIELDS renders. A key missing from DRAFT_KEYS is
-// skipped by draftsEqual and by buildPayload, so the field would render, accept
-// input, and never save.
+// Every key CHAPTER_GEOMETRY_FIELDS renders; a key missing from DRAFT_KEYS
+// would render and accept input but never save.
 const CHAPTER_GEOMETRY_KEYS = [
   'chapterTargetSeconds',
   'chapterWindowSeconds',
@@ -106,6 +103,8 @@ const CHAPTER_GEOMETRY_KEYS = [
   'chapterMinDurationSeconds',
 ] as const;
 
+// Every key this section edits, in a stable order. Used for diffing the draft
+// against the server baseline and for building the save payload.
 const DRAFT_KEYS: string[] = [
   ...STAGES.flatMap((s) => [s.temperatureKey, s.maxTokensKey, s.budgetKey, s.levelKey] as string[]),
   'windowSizeSeconds',

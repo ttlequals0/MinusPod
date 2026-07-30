@@ -19,6 +19,7 @@ import {
 } from './DetectionRows';
 import { DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
+import { sortFeeds } from '../../utils/feedSort';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
@@ -71,9 +72,7 @@ export default function AdReviewTab() {
   });
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
-  const sortedFeeds = feeds
-    ? [...feeds].sort((a, b) => a.title.localeCompare(b.title))
-    : undefined;
+  const sortedFeeds = feeds ? sortFeeds(feeds, 'title') : undefined;
 
   const counts = data?.counts;
 
