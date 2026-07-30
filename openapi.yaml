@@ -1174,6 +1174,69 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/{episode_id}/split-candidates:
+    get:
+      tags:
+        - Episodes
+      summary: Proposed divider points for a multi-sponsor ad marker
+      description: |
+        Finds ad-transition phrases in the transcript spanning the requested
+        window and maps each match back to the start of the transcript segment
+        it falls in, so the ad editor opens with dividers where a split would
+        actually cut (issue #563).
+
+        A window with no transition phrase returns no candidates and a single
+        piece. That is a valid answer, not an error: the block may genuinely be
+        one ad, and the user can still add a divider by hand.
+
+        Candidates that would leave a piece shorter than the minimum ad
+        duration are omitted, so the editor never opens in an invalid state.
+      operationId: getEpisodeSplitCandidates
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - in: query
+          name: start
+          required: true
+          schema: { type: number }
+        - in: query
+          name: end
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Divider candidates and the pieces they would produce
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  start: { type: number }
+                  end: { type: number }
+                  candidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        time: { type: number }
+                        phrase:
+                          type: string
+                          description: The transition phrase that produced this candidate
+                  pieces:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start: { type: number }
+                        end: { type: number }
+                        text: { type: string }
+                        sponsor: { type: string, nullable: true }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /episodes/{slug}/{episode_id}/reprocess:
     post:
       tags:

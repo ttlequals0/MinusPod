@@ -127,13 +127,34 @@ def extract_text_in_range(
     Returns:
         Extracted text content, joined with spaces
     """
+    return ' '.join(
+        span['text']
+        for span in extract_timed_spans_in_range(
+            transcript, start, end, include_partial)
+    )
+
+
+def extract_timed_spans_in_range(
+    transcript: str,
+    start: float,
+    end: float,
+    include_partial: bool = True,
+) -> List[dict]:
+    """The timed spans extract_text_in_range joins, with their char offsets.
+
+    Each dict is {'start', 'end', 'text', 'offset'}, where offset is the index
+    of that span's text inside the joined string. Callers that need to map a
+    character position in the extracted text back to a timestamp use this;
+    extract_text_in_range delegates here so the two cannot drift apart.
+    """
     if not transcript:
-        return ''
+        return []
 
     # Pattern matches: [timestamp --> timestamp] text
     pattern = r'\[(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\s*-->\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\]\s*([^\[]+)'
 
-    segments: List[str] = []
+    spans: List[dict] = []
+    offset = 0
     for match in re.finditer(pattern, transcript):
         seg_start = parse_timestamp(match.group(1))
         seg_end = parse_timestamp(match.group(2))
@@ -143,15 +164,18 @@ def extract_text_in_range(
             continue
 
         if include_partial:
-            # Include if any overlap
-            if seg_end >= start and seg_start <= end:
-                segments.append(text)
+            in_range = seg_end >= start and seg_start <= end
         else:
-            # Include only if fully contained
-            if seg_start >= start and seg_end <= end:
-                segments.append(text)
+            in_range = seg_start >= start and seg_end <= end
+        if not in_range:
+            continue
 
-    return ' '.join(segments)
+        spans.append({'start': seg_start, 'end': seg_end,
+                      'text': text, 'offset': offset})
+        # +1 for the single space ' '.join inserts between spans.
+        offset += len(text) + 1
+
+    return spans
 
 
 def extract_text_from_segments(

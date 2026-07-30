@@ -18,9 +18,12 @@ from chapters_generator import ChaptersGenerator
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
+from split_planning import build_split_candidates, build_split_pieces
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
-from utils.text import parse_transcript_segments
+from utils.text import (
+    extract_timed_spans_in_range, parse_transcript_segments,
+)
 from utils.time import utc_now_iso
 
 logger = logging.getLogger('podcast.api')
@@ -634,6 +637,53 @@ def get_episode_transcript_span(slug, episode_id):
         'start': start_seconds,
         'end': end_seconds,
         'text': text or '',
+    })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/split-candidates', methods=['GET'])
+@log_request
+def get_episode_split_candidates(slug, episode_id):
+    """Propose divider points for a marker spanning several sponsors.
+
+    Finds AD_TRANSITION_PHRASES in the span's transcript text and maps each
+    match back to the start of the transcript segment it falls in, so the ad
+    editor opens with dividers where a split would actually cut. A span with no
+    transition phrase returns one piece and no candidates, which is a valid
+    answer rather than an error (issue #563).
+    """
+    db = get_database()
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    def _f(name):
+        raw = request.args.get(name)
+        if raw is None or raw == '':
+            return None
+        try:
+            return float(raw)
+        except ValueError:
+            abort(400, description=f"{name} must be a number")
+
+    start_seconds = _f('start')
+    end_seconds = _f('end')
+    if start_seconds is None or end_seconds is None:
+        return error_response('start and end are required', 400)
+    if start_seconds < 0 or end_seconds <= start_seconds:
+        return error_response('require 0 <= start < end', 400)
+
+    transcript = db.get_transcript_for_timestamps(slug, episode_id)
+    spans = extract_timed_spans_in_range(
+        transcript or '', start_seconds, end_seconds)
+    candidates = build_split_candidates(spans, start_seconds, end_seconds)
+    pieces = build_split_pieces(
+        spans, start_seconds, end_seconds, [c['time'] for c in candidates])
+    return json_response({
+        'episodeId': episode_id,
+        'start': start_seconds,
+        'end': end_seconds,
+        'candidates': candidates,
+        'pieces': pieces,
     })
 
 

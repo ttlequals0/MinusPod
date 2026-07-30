@@ -162,20 +162,16 @@ def _guess_sponsor_from_segment(segment: str) -> Optional[str]:
     return None
 
 
-def split_template_text(text: str) -> List[Dict]:
-    """Segment ad template text at AD_TRANSITION_PHRASES boundaries.
+def find_transition_offsets(text: str) -> List[int]:
+    """Character offsets of AD_TRANSITION_PHRASES matches in `text`.
 
-    Returns a list of {'text': str, 'sponsor': Optional[str]} segments, one
-    per detected sponsor block. Overlapping/nested phrase matches (e.g.
-    "brought to you by" inside "this episode is brought to you by") are
-    deduped to a single split point: the earliest offset, extending the
-    matched span to cover the longest phrase found there so a nested hit
-    doesn't register as a second split point.
+    Overlapping and nested matches (e.g. "brought to you by" inside "this
+    episode is brought to you by") collapse to one offset: the earliest, with
+    the cluster extended to the longest phrase found there so a nested hit does
+    not register as a second boundary.
 
-    Fewer than 2 distinct split points means no split is needed: the whole
-    text comes back as a single segment with sponsor=None. Segments below
-    MIN_TEXT_LENGTH are dropped (falling back to a single whole-text segment
-    if that drops everything).
+    Shared by split_template_text and the split-candidates endpoint, so the ad
+    editor proposes dividers at exactly the points a split would use.
     """
     text_lower = text.lower()
 
@@ -199,7 +195,25 @@ def split_template_text(text: str) -> List[Dict]:
         else:
             clusters.append((offset, offset + length))
 
-    split_offsets = [start for start, _ in clusters]
+    return [start for start, _ in clusters]
+
+
+def split_template_text(text: str) -> List[Dict]:
+    """Segment ad template text at AD_TRANSITION_PHRASES boundaries.
+
+    Returns a list of {'text': str, 'sponsor': Optional[str]} segments, one
+    per detected sponsor block. Overlapping/nested phrase matches (e.g.
+    "brought to you by" inside "this episode is brought to you by") are
+    deduped to a single split point: the earliest offset, extending the
+    matched span to cover the longest phrase found there so a nested hit
+    doesn't register as a second split point.
+
+    Fewer than 2 distinct split points means no split is needed: the whole
+    text comes back as a single segment with sponsor=None. Segments below
+    MIN_TEXT_LENGTH are dropped (falling back to a single whole-text segment
+    if that drops everything).
+    """
+    split_offsets = find_transition_offsets(text)
 
     if len(split_offsets) < 2:
         return [{'text': text, 'sponsor': None}]
