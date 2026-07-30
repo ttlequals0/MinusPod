@@ -17,7 +17,7 @@ from config import (
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
-    is_cue_backed,
+    is_cue_backed, is_template_cue, AUDIO_CUE_ROLE_NON_AD,
 )
 from utils.markers import mark_distinct_merge
 from utils.text import extract_text_from_segments
@@ -688,9 +688,10 @@ class AdValidator:
         """Return the strongest stored-audio evidence source near the ad's
         boundaries, or None.
 
-        Layer 1 checks DAI transition pairs and >= 12 dB volume anomalies
-        within +-5s of the ad start or end. Layer 2 adds splice_evidence
-        events (+-3s); Layer 3 adds dai_differential region overlap.
+        Layer 1 checks DAI transition pairs, ad-break template cues (role
+        non_ad excluded), and >= 12 dB volume anomalies within +-5s of the
+        ad start or end. Layer 2 adds splice_evidence events (+-3s);
+        Layer 3 adds dai_differential region overlap.
         """
         analysis = self._audio_analysis
         if not analysis:
@@ -702,16 +703,27 @@ class AdValidator:
             return (abs(t - ad['start']) <= window
                     or abs(t - ad['end']) <= window)
 
+        cue_hit = False
         volume_hit = False
         for sig in analysis.get('signals') or []:
             if not (near_edge(sig.get('start', 0.0)) or near_edge(sig.get('end', 0.0))):
                 continue
             if sig.get('signal_type') == 'dai_transition_pair':
                 return 'transition_pair'
+            # A learned ad-break template firing at an edge is splice
+            # evidence: the feed's own break stinger marks the boundary.
+            # Intro/outro cues (role non_ad, #350) never count as one.
+            details = sig.get('details') or {}
+            if (sig.get('signal_type') == 'audio_cue'
+                    and is_template_cue(details)
+                    and details.get('role') != AUDIO_CUE_ROLE_NON_AD):
+                cue_hit = True
             if sig.get('signal_type') in ('volume_increase', 'volume_decrease'):
-                deviation = (sig.get('details') or {}).get('deviation_db') or 0.0
+                deviation = details.get('deviation_db') or 0.0
                 if abs(deviation) >= self.CORROBORATION_MIN_VOLUME_STEP_DB:
                     volume_hit = True
+        if cue_hit:
+            return 'template_cue'
         if volume_hit:
             return 'volume_anomaly'
 
@@ -893,6 +905,15 @@ class AdValidator:
                 result.corrections.append(
                     f"Clamped end {original:.1f}s to duration {self.episode_duration:.1f}s"
                 )
+            # Protected merge bounds recorded before this clamp must not
+            # let the reviewer re-expand an edge past the file.
+            if (ad.get('merged_protected_start') is not None
+                    and ad['merged_protected_start'] < 0):
+                ad['merged_protected_start'] = 0.0
+            if (self.episode_duration > 0
+                    and ad.get('merged_protected_end') is not None
+                    and ad['merged_protected_end'] > self.episode_duration):
+                ad['merged_protected_end'] = self.episode_duration
         return ads
 
     def _extend_trailing_ad(self, ads: List[Dict],

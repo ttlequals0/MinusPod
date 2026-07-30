@@ -130,3 +130,92 @@ def test_text_has_ad_content_phone_patterns():
     assert _text_has_ad_content('call 1-800-grainger today')
     assert _text_has_ad_content('call one eight hundred grainger')
     assert not _text_has_ad_content('thank you for the job you do')
+
+
+def test_cue_snapped_end_is_not_extended():
+    # A template-cue-anchored end must not be moved by the content walk.
+    segments = [
+        _seg(95.0, 120.0, 'sponsor copy ends here'),
+        _seg(120.0, 126.0, 'go to example dot com slash offer'),
+    ]
+    ads = [{'start': 100.0, 'end': 120.0,
+            'cue_snap': {'end': {'cue_start': 120.1, 'template_id': 1}}}]
+
+    extended = extend_ad_boundaries_by_content(ads, segments)
+
+    assert extended[0]['end'] == 120.0
+    assert 'end_extended_by_content' not in extended[0]
+
+
+def test_cue_snapped_start_is_not_extended():
+    segments = [
+        _seg(90.0, 99.0, 'visit example dot com for a discount'),
+        _seg(100.0, 120.0, 'sponsor copy for example dot com'),
+    ]
+    ads = [{'start': 100.0, 'end': 120.0,
+            'cue_snap': {'start': {'cue_end': 99.9, 'template_id': 1}}}]
+
+    extended = extend_ad_boundaries_by_content(ads, segments)
+
+    assert extended[0]['start'] == 100.0
+    assert 'start_extended_by_content' not in extended[0]
+
+
+def test_start_walk_stops_at_neighbouring_detection():
+    # The walk must not swallow an adjacent detection's span; the neighbour
+    # is judged on its own and may resolve to keep (self_promo).
+    segments = [
+        _seg(70.0, 99.0, 'support us at patreon dot com slash show'),
+        _seg(100.0, 120.0, 'sponsor read mentioning patreon dot com'),
+    ]
+    ads = [
+        {'start': 70.0, 'end': 100.0, 'category': 'self_promo'},
+        {'start': 100.0, 'end': 120.0},
+    ]
+
+    extended = extend_ad_boundaries_by_content(ads, segments)
+
+    assert extended[1]['start'] == 100.0
+    assert 'start_extended_by_content' not in extended[1]
+
+
+def test_end_walk_stops_at_neighbouring_detection():
+    segments = [
+        _seg(95.0, 120.0, 'sponsor copy ends here'),
+        _seg(120.0, 126.0, 'go to example dot com slash offer'),
+        _seg(126.0, 140.0, 'more example dot com copy'),
+    ]
+    ads = [
+        {'start': 100.0, 'end': 120.0},
+        {'start': 126.0, 'end': 140.0},
+    ]
+
+    extended = extend_ad_boundaries_by_content(ads, segments)
+
+    assert extended[0]['end'] == 126.0
+
+
+def test_refine_skips_cue_snapped_end():
+    # Phrase refinement must not move an edge the cue snap anchored.
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    def _words(start, text):
+        words = []
+        t = start
+        for w in text.split():
+            words.append({'word': w, 'start': t, 'end': t + 0.4})
+            t += 0.5
+        return words
+
+    segments = [
+        {'start': 100.0, 'end': 119.5, 'text': 'sponsor copy here',
+         'words': _words(100.0, 'sponsor copy here')},
+        {'start': 120.5, 'end': 125.0, 'text': 'all right back to the show',
+         'words': _words(120.5, 'all right back to the show')},
+    ]
+    pinned = [{'start': 100.0, 'end': 120.0,
+               'cue_snap': {'end': {'cue_start': 120.1, 'template_id': 1}}}]
+    free = [{'start': 100.0, 'end': 120.0}]
+
+    assert refine_ad_boundaries(pinned, segments)[0]['end'] == 120.0
+    assert refine_ad_boundaries(free, segments)[0]['end'] > 120.0

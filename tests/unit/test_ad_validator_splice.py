@@ -192,3 +192,75 @@ class TestSpliceVeto:
         ad = result.ads[0]
         assert ad['validation']['decision'] == Decision.ACCEPT.value
         assert 'held_for_review' not in ad
+
+    def test_template_cue_near_edge_exempts_from_veto(self):
+        # A learned ad-break template firing at an edge is splice evidence;
+        # a long text_pattern cut bracketed by one must not be vetoed.
+        analysis = {
+            'signals': [{
+                'start': 1889.5, 'end': 1891.0,
+                'signal_type': 'audio_cue',
+                'confidence': 0.99,
+                'details': {'source': 'template', 'template_id': 1,
+                            'cue_type': 'ad_break_boundary'},
+            }],
+            'splice_evidence': {'version': 1, 'events': [],
+                                'calibration': {'status': 'calibrated'}},
+        }
+        result = self._validate(analysis)
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.ACCEPT.value
+        assert 'held_for_review' not in ad
+
+    def test_spectral_fallback_cue_does_not_exempt(self):
+        # Spectral cues (no template source) stay advisory: too coarse to
+        # count as splice evidence.
+        analysis = {
+            'signals': [{
+                'start': 1889.5, 'end': 1891.0,
+                'signal_type': 'audio_cue',
+                'confidence': 0.9,
+                'details': {'cue_type': 'ad_break_boundary'},
+            }],
+            'splice_evidence': {'version': 1, 'events': [],
+                                'calibration': {'status': 'calibrated'}},
+        }
+        result = self._validate(analysis)
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'
+
+    def test_non_ad_role_template_cue_does_not_exempt(self):
+        # A show intro/outro stinger (role non_ad, #350) at an edge is not
+        # ad-break evidence and must not lift the veto.
+        analysis = {
+            'signals': [{
+                'start': 1889.5, 'end': 1891.0,
+                'signal_type': 'audio_cue',
+                'confidence': 0.99,
+                'details': {'source': 'template', 'template_id': 2,
+                            'role': 'non_ad', 'cue_type': 'show_outro'},
+            }],
+            'splice_evidence': {'version': 1, 'events': [],
+                                'calibration': {'status': 'calibrated'}},
+        }
+        result = self._validate(analysis)
+        ad = result.ads[0]
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['hold_reason'] == 'no_splice_evidence'
+
+
+class TestProtectedBoundsClamp:
+    def test_merged_protected_end_clamped_to_duration(self):
+        # A protected member recorded past EOF must not survive validation,
+        # or the reviewer floor re-expands the marker beyond the file.
+        validator = AdValidator(episode_duration=2315.9)
+        ad = {'start': 2159.6, 'end': 2346.6, 'confidence': 0.9,
+              'reason': 'tail pattern', 'detection_stage': 'text_pattern',
+              'merged_distinct_ads': True,
+              'merged_protected_start': 2159.6,
+              'merged_protected_end': 2346.6}
+        result = validator.validate([ad])
+        out = result.ads[0]
+        assert out['end'] == 2315.9
+        assert out['merged_protected_end'] == 2315.9

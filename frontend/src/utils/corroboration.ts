@@ -2,6 +2,7 @@
 // backs a marker (key 'corroborated_by' on the ad dict).
 export type CorroborationSource =
   | 'transition_pair'
+  | 'template_cue'
   | 'volume_anomaly'
   | 'splice_evidence'
   | 'dai_differential';
@@ -10,6 +11,10 @@ export const CORROBORATION_META: Record<CorroborationSource, { label: string; ti
   transition_pair: {
     label: 'Corroborated: transition',
     title: 'A dynamic-ad transition pair sits within 5s of this ad boundary.',
+  },
+  template_cue: {
+    label: 'Corroborated: cue',
+    title: 'A learned ad-break cue template fires within 5s of this ad boundary.',
   },
   volume_anomaly: {
     label: 'Corroborated: volume',

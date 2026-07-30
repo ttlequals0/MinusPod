@@ -1653,23 +1653,15 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
     if not _ad_review_enabled(db):
         return ads_to_remove
 
+    # barriers: never extend a cut into the next detected ad; overlapping
+    # spans in combined_ads.json double-subtract in timestamp mapping.
     extended = extend_ad_boundaries_by_content(
-        ads_to_remove, segments, extend_start=False, podcast_name=podcast_name
+        ads_to_remove, segments, extend_start=False, podcast_name=podcast_name,
+        barriers=all_ads_with_validation,
     )
 
     changed = False
     for old, new in zip(ads_to_remove, extended):
-        if new['end'] <= old['end']:
-            continue
-        # Never extend a cut into the next detected ad: overlapping spans in
-        # combined_ads.json double-subtract in timestamp mapping.
-        next_start = min(
-            (m['start'] for m in all_ads_with_validation
-             if m.get('start') is not None and m['start'] >= old['end']),
-            default=None,
-        )
-        if next_start is not None and new['end'] > next_start:
-            new['end'] = next_start
         if new['end'] <= old['end']:
             continue
         changed = True

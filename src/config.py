@@ -169,6 +169,13 @@ def is_cue_backed(ad) -> bool:
             or ad.get('detection_stage') in ('cue_pair', 'manual'))
 
 
+def is_edge_cue_snapped(ad, edge: str) -> bool:
+    """True when the given edge ('start' or 'end') was snapped to a template
+    cue. A cue-anchored edge is measured evidence; text heuristics (phrase
+    refinement, content extension) must not move it."""
+    return bool((ad.get('cue_snap') or {}).get(edge))
+
+
 def is_pending_review(marker) -> bool:
     """A marker awaiting a human decision: held for review and not cut. Single
     source of truth for the pending-review bucket and count. Missing was_cut
