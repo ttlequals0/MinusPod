@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -8,6 +8,14 @@ import PatternsPage from './PatternsPage';
 const mockGetPatterns = vi.fn().mockResolvedValue([]);
 const mockGetDetections = vi.fn().mockResolvedValue({
   detections: [], total: 0, page: 1, totalPages: 1, limit: 20,
+  counts: {
+    total: 0, needsReview: 0, pending: 0, rejected: 0,
+    accepted: 0, confirmed: 0, dismissed: 0,
+  },
+  cutSummary: {
+    count: 0, durationSeconds: 0, byCategory: {},
+    distinctSponsors: 0, distinctPodcasts: 0,
+  },
 });
 
 vi.mock('../api/patterns', async (importOriginal) => ({
@@ -130,5 +138,27 @@ describe('PatternsPage category filter', () => {
     await screen.findAllByText('Acme');
     expect(screen.queryAllByText('Beta Co')).not.toHaveLength(0);
     expect(screen.queryAllByText('Gamma Co')).not.toHaveLength(0);
+  });
+});
+
+describe('PatternsPage detected ads tab', () => {
+  it('switches to the detected ads tab and requests cut detections', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('tab', { name: 'Detected Ads' }));
+    await waitFor(() => expect(mockGetDetections).toHaveBeenCalled());
+    expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ status: 'accepted' });
+  });
+
+  it('opens the detected ads tab from the url', async () => {
+    renderPage('/patterns?tab=detected-ads');
+    const tab = await screen.findByRole('tab', { name: 'Detected Ads' });
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('falls back to patterns for an unknown tab param', async () => {
+    renderPage('/patterns?tab=banana');
+    const tab = await screen.findByRole('tab', { name: 'Patterns' });
+    expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 });

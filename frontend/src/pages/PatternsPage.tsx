@@ -23,12 +23,13 @@ import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
+import DetectedAdsTab from './patterns/DetectedAdsTab';
 import { btnOutline } from '../components/buttonStyles';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
-type PatternsTab = 'patterns' | 'ad-review';
+type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads';
 
 function PatternsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
@@ -47,8 +48,9 @@ function PatternsPage() {
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const tabParam = searchParams.get('tab');
   const activeTab: PatternsTab =
-    searchParams.get('tab') === 'ad-review' ? 'ad-review' : 'patterns';
+    tabParam === 'ad-review' || tabParam === 'detected-ads' ? tabParam : 'patterns';
 
   const switchTab = (tab: PatternsTab) => {
     setSearchParams(tab === 'patterns' ? {} : { tab });
@@ -230,7 +232,11 @@ function PatternsPage() {
       />
 
       <div role="tablist" className="flex gap-1 border-b border-border mb-6">
-        {([['patterns', 'Patterns'], ['ad-review', 'Ad Review']] as const).map(
+        {([
+          ['patterns', 'Patterns'],
+          ['detected-ads', 'Detected Ads'],
+          ['ad-review', 'Ad Review'],
+        ] as const).map(
           ([key, label]) => (
             <button
               key={key}
@@ -249,6 +255,7 @@ function PatternsPage() {
         )}
       </div>
 
+      {activeTab === 'detected-ads' && <DetectedAdsTab />}
       {activeTab === 'ad-review' && <AdReviewTab />}
 
       {activeTab === 'patterns' && (<>
