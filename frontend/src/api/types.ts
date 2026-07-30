@@ -99,6 +99,9 @@ export interface Feed {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
   // Also detect intro/outro/recap/housekeeping segments. Off by default.
   detectShowSegments?: boolean | null;
+  // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
+  // upstream GUIDs through; new feeds are created with true.
+  ownEpisodeGuids?: boolean | null;
 }
 
 export interface AdDistributionZone {

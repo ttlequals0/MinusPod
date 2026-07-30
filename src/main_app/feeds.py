@@ -474,7 +474,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           parsed_feed=parsed_feed,
                                           title_override=(podcast or {}).get('title_override'),
                                           watermark_artwork=watermark_artwork,
-                                          feed_auth_key=feed_auth_key)
+                                          feed_auth_key=feed_auth_key,
+                                          own_episode_guids=(podcast or {}).get('own_episode_guids'))
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
 

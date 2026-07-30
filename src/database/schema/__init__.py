@@ -316,6 +316,9 @@ class SchemaMixin:
             ('skip_ad_detection', 'INTEGER'),
             # Per-feed chapter mode (#560)
             ('chapters_mode', 'TEXT'),
+            # Served-feed GUID scheme (#598): NULL/0 = upstream GUIDs,
+            # 1 = MinusPod episode ids. Existing feeds stay NULL (off).
+            ('own_episode_guids', 'INTEGER'),
             # Last received podping timestamp (podping-listener feature)
             ('last_podping_at', 'TEXT'),
             # Upstream <podcast:podping> declaration (#579). podping_uses is a

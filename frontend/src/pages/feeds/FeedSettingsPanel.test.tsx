@@ -399,6 +399,40 @@ describe('FeedSettingsPanel show-segments toggle (#565)', () => {
   });
 });
 
+describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
+  const TOGGLE_NAME = 'Serve MinusPod episode IDs';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders off when ownEpisodeGuids is unset', () => {
+    renderPanel(makeFeed());
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('renders on when ownEpisodeGuids is true', () => {
+    renderPanel(makeFeed({ ownEpisodeGuids: true }));
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('enabling fires updateFeed with ownEpisodeGuids true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { ownEpisodeGuids: true });
+  });
+
+  it('disabling fires ownEpisodeGuids false', async () => {
+    renderPanel(makeFeed({ ownEpisodeGuids: true }));
+    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { ownEpisodeGuids: false });
+  });
+});
+
 describe('FeedSettingsPanel re-render segments (#565)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

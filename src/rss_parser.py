@@ -752,7 +752,8 @@ class RSSParser:
                     parsed_feed=None,
                     title_override: Optional[str] = None,
                     watermark_artwork: bool = False,
-                    feed_auth_key: Optional[str] = None) -> str:
+                    feed_auth_key: Optional[str] = None,
+                    own_episode_guids: bool = False) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -782,6 +783,9 @@ class RSSParser:
                 keep ending in .jpg; podcast apps reject query strings there).
                 Passed explicitly, never stored on self - the module-level
                 singleton is shared across refresh worker threads.
+            own_episode_guids: When True, item GUIDs are the MinusPod episode
+                ids (isPermaLink="false") instead of upstream's entry ids
+                (#598), matching the DB-appended items.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -904,7 +908,12 @@ class RSSParser:
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(self._get_episode_description(entry))}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
-            lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
+            # Per-feed GUID scheme (#598): our stable episode id matches the
+            # DB-appended items; otherwise upstream's id passes through.
+            if own_episode_guids:
+                lines.append(f'  <guid isPermaLink="false">{episode_id}</guid>')
+            else:
+                lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
             lines.append(f'  <pubDate>{self._escape_xml(entry.get("published", ""))}</pubDate>')
 
             # Modified enclosure URL

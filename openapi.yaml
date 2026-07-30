@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.82.1
+  version: 2.82.2
   contact:
     name: MinusPod
   license:
@@ -683,6 +683,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
+                ownEpisodeGuids:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: When true, the served RSS uses MinusPod episode ids as item GUIDs instead of passing upstream GUIDs through (issue 598). Switching it on a feed with subscribers makes podcast apps treat every episode as new once. Null and false both mean upstream GUIDs. New feeds are created with true.
       responses:
         '200':
           description: Feed updated successfully
@@ -7826,6 +7831,11 @@ components:
             - boolean
             - 'null'
           description: Whether this feed detects intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
+        ownEpisodeGuids:
+          type:
+            - boolean
+            - 'null'
+          description: Whether the served RSS uses MinusPod episode ids as item GUIDs (issue 598). Null and false both mean upstream GUIDs pass through. New feeds are created with true.
 
     EpisodeSummary:
       type: object

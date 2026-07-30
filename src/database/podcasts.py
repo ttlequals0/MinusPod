@@ -173,10 +173,14 @@ class PodcastMixin:
         return float(val) if val is not None else None
 
     def create_podcast(self, slug: str, source_url: str, title: str = None) -> int:
-        """Create a new podcast. Returns podcast ID."""
+        """Create a new podcast. Returns podcast ID.
+
+        New feeds get own_episode_guids=1 (#598); existing rows stay NULL.
+        """
         conn = self.get_connection()
         cursor = conn.execute(
-            """INSERT INTO podcasts (slug, source_url, title) VALUES (?, ?, ?)""",
+            """INSERT INTO podcasts (slug, source_url, title, own_episode_guids)
+               VALUES (?, ?, ?, 1)""",
             (slug, source_url, title)
         )
         conn.commit()
@@ -198,7 +202,7 @@ class PodcastMixin:
                 'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'language_override', 'title_override', 'detection_mode',
-                'chapters_mode',
+                'chapters_mode', 'own_episode_guids',
                 'cue_template_score_override',
                 *self._CUE_OVERRIDE_COLS,
                 *self._SNAP_FLAG_COLS,

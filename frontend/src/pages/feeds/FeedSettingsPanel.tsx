@@ -642,6 +642,27 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Served-feed GUID scheme (#598) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <ToggleSwitch
+                  checked={feed.ownEpisodeGuids === true}
+                  onChange={(v) => updateMutation.mutate({ ownEpisodeGuids: v })}
+                  disabled={updateMutation.isPending}
+                  ariaLabel="Serve MinusPod episode IDs"
+                />
+                <span>Serve MinusPod episode IDs</span>
+              </label>
+              <p className="text-xs text-warning">
+                Uses MinusPod&apos;s own episode IDs as RSS GUIDs instead of the publisher&apos;s.
+                Switching this on an existing feed makes subscribed apps treat every
+                episode as new once. New feeds start with this on.
+              </p>
+            </div>
+          </div>
+
           {/* Feed tags (inline basic row; simple enough not to collapse) */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>

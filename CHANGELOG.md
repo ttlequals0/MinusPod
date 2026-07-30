@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.82.2] - 2026-07-30
+
+### Added
+
+- Per-feed switch to serve MinusPod episode ids as RSS item GUIDs (#598).
+  The served feed previously mixed GUID schemes: upstream entries kept the
+  publisher's GUID while DB-appended episodes used MinusPod ids. New feeds
+  serve MinusPod ids from the first fetch; existing feeds keep upstream
+  GUIDs unless the new "Serve MinusPod episode IDs" toggle in feed settings
+  is turned on. Caveat: switching an already-subscribed feed changes every
+  item GUID, so podcast apps treat each episode as new one time.
+
 ## [2.82.1] - 2026-07-30
 
 ### Added

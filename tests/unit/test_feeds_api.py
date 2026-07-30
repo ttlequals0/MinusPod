@@ -117,3 +117,54 @@ def test_a_reject_override_under_the_ceiling_is_accepted(app_client, seeded_feed
     assert resp.status_code == 200
     assert app_client.get(f'/api/v1/feeds/{slug}').get_json()[
         'maxAdDurationRejectOverride'] == 600
+
+
+# -- ownEpisodeGuids (#598) --
+
+@pytest.fixture
+def no_feed_refresh(monkeypatch):
+    """PATCHing ownEpisodeGuids force-refreshes the served feed; stub the fetch."""
+    import main_app.feeds as feeds_mod
+    monkeypatch.setattr(feeds_mod, 'refresh_rss_feed', lambda *a, **k: True)
+
+
+def test_new_feed_defaults_to_own_episode_guids(app_client, seeded_feed):
+    # create_podcast is the add-feed path, so a newly added feed starts True.
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{seeded_feed["slug"]}')
+    assert resp.status_code == 200
+    assert resp.get_json()['ownEpisodeGuids'] is True
+
+
+def test_patch_own_episode_guids_round_trip(app_client, seeded_feed, no_feed_refresh):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    for sent, stored in ((False, 0), (True, 1), (None, None)):
+        resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                                json={'ownEpisodeGuids': sent}, headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()['ownEpisodeGuids'] is sent
+        assert seeded_feed['db'].get_podcast_by_slug(slug)['own_episode_guids'] == stored
+
+
+def test_patch_own_episode_guids_rejects_non_bool(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'ownEpisodeGuids': 'yes'}, headers=headers)
+    assert resp.status_code == 400
+    assert 'ownEpisodeGuids' in resp.get_json()['error']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['own_episode_guids'] == 1
+
+
+def test_own_episode_guids_migration_idempotent(app_client, seeded_feed):
+    db = seeded_feed['db']
+    conn = db.get_connection()
+    cols = {row['name'] for row in conn.execute("PRAGMA table_info(podcasts)").fetchall()}
+    assert 'own_episode_guids' in cols
+    assert db._add_column_if_missing(conn, 'podcasts', 'own_episode_guids',
+                                     'INTEGER', cols) is False

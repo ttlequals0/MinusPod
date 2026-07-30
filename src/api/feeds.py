@@ -250,7 +250,7 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
 
 
 # (json_key, db_col) for the nullable-bool per-feed toggles: boundary-snap,
-# held-review, differential, pass-through, and skip-detection opt-ins.
+# held-review, differential, pass-through, skip-detection, and serving opt-ins.
 # NULL/0 read as off downstream. Pass-through/skip-detection/keep-content
 # are deliberately independent columns (issue #537) -- precedence between
 # them is resolved at processing time by resolve_feed_processing_mode.
@@ -262,6 +262,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('passthroughEnabled', 'passthrough_enabled'),
     ('skipAdDetection', 'skip_ad_detection'),
     ('detectShowSegments', 'detect_show_segments'),
+    ('ownEpisodeGuids', 'own_episode_guids'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -932,8 +933,10 @@ def update_feed(slug):
         # belong to the old host and could false-304 against the new one, and
         # the immediate refresh pulls from the new URL (podcast was re-read
         # above, so it carries the new value).
+        # own_episode_guids rewrites every item <guid> (#598).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
-                or 'title_override' in updates or 'source_url' in updates):
+                or 'title_override' in updates or 'source_url' in updates
+                or 'own_episode_guids' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
