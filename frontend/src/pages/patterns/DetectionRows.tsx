@@ -123,6 +123,10 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
     ? 'px-2 py-2.5 text-xs min-[370px]:px-2.5 min-[370px]:text-sm rounded touch-manipulation whitespace-nowrap text-center max-w-full overflow-hidden'
     : 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
   const undecided = d.resolution === 'unresolved';
+  // grow exists to balance the Confirm/Not-an-ad pair on review cards. With
+  // no Confirm (Detected Ads), a lone grow turns Not an ad into a full-width
+  // slab, so the buttons stay content-sized there.
+  const growCls = isCard && actions.onApprove ? 'grow ' : '';
   return (
     <div className={isCard ? 'flex flex-wrap items-center gap-1.5 min-[370px]:gap-2 pt-1' : 'flex items-center gap-1.5'}>
       {d.hasOriginalAudio && (
@@ -133,7 +137,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onApprove?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${isCard ? 'grow ' : ''}bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
+          className={`${btn} ${growCls}bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
         >
           Confirm ad
         </button>
@@ -143,14 +147,14 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onDismiss?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${isCard ? 'grow ' : ''}${btnDestructive} disabled:opacity-50`}
+          className={`${btn} ${growCls}${btnDestructive} disabled:opacity-50`}
         >
           Not an ad
         </button>
       )}
-      {/* Desktop rows only: a fourth card button shrinks the grow buttons
-          on narrow phones. Cards reach Split through Edit's editor. */}
-      {actions.onSplit && !isCard && (
+      {/* On review cards a fourth button would shrink the grow pair, and the
+          editor's Split covers them; content-sized cards have the room. */}
+      {actions.onSplit && (!isCard || !actions.onApprove) && (
         <button
           type="button"
           onClick={() => actions.onSplit?.(d)}
