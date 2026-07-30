@@ -398,7 +398,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                         return next;
                       })}
                       sponsors={sponsorOptions}
-                      placeholder="Sponsor"
+                      placeholder="Choose or type a sponsor"
                     />
                   </div>
                   {i > 0 && (

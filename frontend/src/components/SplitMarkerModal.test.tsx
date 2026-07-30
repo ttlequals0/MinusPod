@@ -161,14 +161,14 @@ describe('SplitMarkerModal', () => {
     renderModal();
     const user = userEvent.setup();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
-    const second = screen.getAllByPlaceholderText('Sponsor')[1];
+    const second = screen.getAllByPlaceholderText('Choose or type a sponsor')[1];
     await user.clear(second);
     await user.type(second, 'Custom Co');
     // The longest piece is the first, so the new divider lands before the
     // overridden piece and shifts it right.
     await user.click(screen.getByRole('button', { name: 'Add divider' }));
     await screen.findByRole('button', { name: 'Split into 3 ads' });
-    const inputs = screen.getAllByPlaceholderText('Sponsor') as HTMLInputElement[];
+    const inputs = screen.getAllByPlaceholderText('Choose or type a sponsor') as HTMLInputElement[];
     expect(inputs[2].value).toBe('Custom Co');
     expect(inputs[1].value).toBe('Acme');
   });
@@ -179,14 +179,14 @@ describe('SplitMarkerModal', () => {
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     await user.click(screen.getByRole('button', { name: 'Add divider' }));
     await screen.findByRole('button', { name: 'Split into 3 ads' });
-    const third = screen.getAllByPlaceholderText('Sponsor')[2];
+    const third = screen.getAllByPlaceholderText('Choose or type a sponsor')[2];
     await user.clear(third);
     await user.type(third, 'Custom Co');
     // Removing the first divider merges the first two pieces; the typed
     // sponsor stays with the last piece.
     await user.click(screen.getAllByRole('button', { name: 'Remove divider' })[0]);
     await screen.findByRole('button', { name: 'Split into 2 ads' });
-    const inputs = screen.getAllByPlaceholderText('Sponsor') as HTMLInputElement[];
+    const inputs = screen.getAllByPlaceholderText('Choose or type a sponsor') as HTMLInputElement[];
     expect(inputs).toHaveLength(2);
     expect(inputs[1].value).toBe('Custom Co');
     await user.click(screen.getByRole('button', { name: 'Split into 2 ads' }));
@@ -212,7 +212,7 @@ describe('SplitMarkerModal', () => {
     expect(segments[1].textContent).toContain('60s');
     const user = userEvent.setup();
     await user.click(segments[1]);
-    const inputs = screen.getAllByPlaceholderText('Sponsor');
+    const inputs = screen.getAllByPlaceholderText('Choose or type a sponsor');
     expect(document.activeElement).toBe(inputs[1]);
   });
 
