@@ -103,11 +103,22 @@ def read_response_capped(
 
 
 def _declared_length(response: _ChunkedResponse) -> Optional[int]:
-    """Content-Length as a non-negative int, or None when absent or malformed."""
+    """Content-Length as a byte count comparable to what iter_content yields.
+
+    Returns None when absent, malformed, or when the body was content-encoded:
+    iter_content decodes gzip, so Content-Length describes the encoded bytes and
+    the decoded count is a different number. On a small payload gzip overhead
+    makes the encoded size the larger of the two, which would read as a short
+    body and fail a perfectly good fetch.
+    """
     try:
-        raw = response.headers.get('Content-Length')
+        headers = response.headers
     except AttributeError:
         return None
+    encoding = (headers.get('Content-Encoding') or '').strip().lower()
+    if encoding and encoding != 'identity':
+        return None
+    raw = headers.get('Content-Length')
     if raw is None:
         return None
     try:

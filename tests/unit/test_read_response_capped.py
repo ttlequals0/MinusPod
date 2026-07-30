@@ -84,3 +84,30 @@ def test_size_cap_takes_precedence_over_completeness():
 def test_empty_chunks_are_skipped_and_not_counted():
     r = FakeResponse([b'abc', b'', b'def'], {'Content-Length': '6'})
     assert read_response_capped(r, 1000) == b'abcdef'
+
+
+class TestContentEncoding:
+    """iter_content decodes gzip, so Content-Length counts encoded bytes while
+    the buffer holds decoded ones. On a small payload the encoded size is the
+    larger, which would read as a short body."""
+
+    def test_gzipped_short_decoded_body_is_not_truncation(self):
+        r = FakeResponse([b'{"a":1}'],
+                         {'Content-Length': '27', 'Content-Encoding': 'gzip'})
+        assert read_response_capped(r, 1000) == b'{"a":1}'
+
+    def test_identity_encoding_still_checks_length(self):
+        r = FakeResponse([b'abc'],
+                         {'Content-Length': '6', 'Content-Encoding': 'identity'})
+        with pytest.raises(IncompleteResponseError):
+            read_response_capped(r, 1000)
+
+    def test_br_encoding_skips_the_check_too(self):
+        r = FakeResponse([b'abc'],
+                         {'Content-Length': '99', 'Content-Encoding': 'br'})
+        assert read_response_capped(r, 1000) == b'abc'
+
+    def test_size_cap_still_applies_to_an_encoded_body(self):
+        r = FakeResponse([b'a' * 10], {'Content-Encoding': 'gzip'})
+        with pytest.raises(ResponseTooLargeError):
+            read_response_capped(r, 5)
