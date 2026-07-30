@@ -21,6 +21,7 @@ import { formatStatsDuration } from '../../utils/format';
 import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
 } from '../../utils/segmentCategory';
+import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { DetectionRows } from './DetectionRows';
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
@@ -106,6 +107,7 @@ export default function DetectedAdsTab() {
   const queryClient = useQueryClient();
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
+  const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const closeModal = () => setEditing(null);
 
@@ -277,6 +279,7 @@ export default function DetectedAdsTab() {
             actions={{
               onDismiss: dismiss,
               onEdit: setEditing,
+              onSplit: setSplitting,
               busy: correctionMutation.isPending,
             }}
             showCategory
@@ -286,6 +289,30 @@ export default function DetectedAdsTab() {
       ))}
 
       {audition.audioElement}
+      {splitting && (
+        <SplitMarkerModal
+          target={{
+            podcastSlug: splitting.feedSlug,
+            episodeId: splitting.episodeId,
+            start: splitting.start,
+            end: splitting.end,
+          }}
+          onClose={() => setSplitting(null)}
+          onSplit={() => {
+            const d = splitting;
+            setSplitting(null);
+            queryClient.invalidateQueries({ queryKey: ['detections'] });
+            // The pieces replace a cut span, so the audio has to be rebuilt
+            // from the retained original for the new boundaries to apply.
+            if (d.hasOriginalAudio) {
+              reprocessEpisode(d.feedSlug, d.episodeId, 'recut').catch((error) => {
+                console.error('Failed to trigger recut:', error);
+                setActionError('Split saved, but the recut did not start. It applies on the next reprocess.');
+              });
+            }
+          }}
+        />
+      )}
       {editing && (
         <AdReviewModal
           item={{
