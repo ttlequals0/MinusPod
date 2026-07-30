@@ -1587,6 +1587,18 @@ paths:
           pattern per sponsor segment instead of a single oversized pattern; the
           response's patternIds lists every pattern created or reused this way, and
           pattern_id/sponsor still identify the sponsor-matched primary.
+        - split (2.82.0+): Replace one marker covering back-to-back ads with N
+          single-sponsor markers (issue #563). Send `original_ad` plus
+          `split_points` (a list of times strictly inside the span) and an
+          optional `pieces` array of `{sponsor}` overrides in piece order.
+          Every resulting piece must be at least the minimum ad duration or the
+          request is rejected and the marker is left untouched. Pieces inherit
+          the original's category, detection stage, confidence, and cut state,
+          so a split never silently changes whether the audio was removed.
+          Correction rows use boundary_adjustment for the first piece and
+          create for the rest: correction_type carries a CHECK constraint
+          SQLite cannot alter in place. Response carries markerCount and
+          patternIds.
       operationId: submitCorrections
       parameters:
         - $ref: '#/components/parameters/slug'

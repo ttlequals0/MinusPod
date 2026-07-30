@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    count_pending_review, is_pending_review,
+    MIN_AD_DURATION, count_pending_review, is_pending_review,
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
 from utils.time import utc_now_iso, parse_iso_datetime
@@ -13,8 +13,12 @@ from sponsor_normalize import get_or_create_known_sponsor
 from pattern_service import PatternService
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
+from split_planning import build_split_pieces
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
-from utils.text import BOUNDARY_SNAP_TOLERANCE_S, parse_transcript_segments
+from utils.text import (
+    BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
+    parse_transcript_segments,
+)
 from text_pattern_matcher import split_template_text, MAX_PATTERN_CHARS
 
 from flask import Response, request
@@ -772,6 +776,123 @@ def _submit_correction_create(db, slug, episode_id, data):
     })
 
 
+def _validate_split_points(raw, start, end):
+    """Coerce and check split points. Returns (points, error_response)."""
+    if not isinstance(raw, list) or not raw:
+        return None, error_response('split_points must be a non-empty list', 400)
+    try:
+        points = sorted(float(p) for p in raw)
+    except (TypeError, ValueError):
+        return None, error_response('split_points must be numbers', 400)
+
+    for p in points:
+        if not (start < p < end):
+            return None, error_response(
+                f'split point {p} is not inside ({start}, {end})', 400)
+
+    bounds = [start] + points + [end]
+    for i in range(len(bounds) - 1):
+        piece = bounds[i + 1] - bounds[i]
+        if piece < MIN_AD_DURATION:
+            return None, error_response(
+                f'piece {bounds[i]:.1f}s-{bounds[i + 1]:.1f}s is {piece:.1f}s, '
+                f'under the {MIN_AD_DURATION:.0f}s minimum ad duration', 400)
+    return points, None
+
+
+def _submit_correction_split(db, pattern_service, slug, episode_id,
+                             original_ad, data):
+    """Handle correction_type='split': replace one marker with N single-sponsor
+    ads (issue #563, option 1).
+
+    Each piece inherits the original's category, stage, confidence, and cut
+    state, so splitting does not silently change whether the audio was removed
+    or clear a pending review.
+
+    Correction rows use existing types, boundary_adjustment for the first piece
+    and create for the rest, because correction_type carries a CHECK constraint
+    that SQLite cannot alter in place; adding a value would mean rebuilding the
+    whole correction history table.
+    """
+    original_start = original_ad.get('start')
+    original_end = original_ad.get('end')
+    points, err = _validate_split_points(
+        data.get('split_points'), original_start, original_end)
+    if err is not None:
+        return err
+
+    marker = _find_marker_by_bounds(
+        db, slug, episode_id, original_start, original_end)
+    if marker is None:
+        return error_response('No marker matches those boundaries', 404)
+
+    markers = _load_markers(db, slug, episode_id) or []
+    transcript = db.get_transcript_for_timestamps(slug, episode_id)
+    spans = extract_timed_spans_in_range(
+        transcript or '', original_start, original_end)
+    pieces = build_split_pieces(spans, original_start, original_end, points)
+
+    overrides = data.get('pieces') or []
+    podcast = db.get_podcast_by_slug(slug)
+    podcast_id_str = slug if podcast else None
+
+    new_markers = []
+    pattern_ids = []
+    for i, piece in enumerate(pieces):
+        override = overrides[i] if i < len(overrides) else {}
+        sponsor = (override.get('sponsor') or piece['sponsor'] or '').strip()
+        piece_id = None
+        if piece['text'] and sponsor:
+            _, ids = _create_patterns_from_segments(
+                db, [{'text': piece['text'], 'sponsor': sponsor}],
+                scope='podcast', podcast_id_str=podcast_id_str,
+                network_id=None, episode_id=episode_id,
+                primary_sponsor=sponsor, created_by='user',
+                pattern_service=pattern_service,
+                log_context=f"split piece {i + 1} in {slug}/{episode_id}",
+            )
+            piece_id = ids[0] if ids else None
+            if piece_id is not None:
+                pattern_ids.append(piece_id)
+
+        split_marker = dict(marker)
+        split_marker.update({
+            'start': piece['start'],
+            'end': piece['end'],
+            'sponsor': sponsor or None,
+            'reason': f"Split from {original_start:.1f}s-{original_end:.1f}s block",
+            'pattern_id': piece_id,
+        })
+        new_markers.append(split_marker)
+
+        db.create_pattern_correction(
+            correction_type='boundary_adjustment' if i == 0 else 'create',
+            pattern_id=piece_id,
+            episode_id=episode_id,
+            original_bounds=({'start': original_start, 'end': original_end}
+                             if i == 0 else None),
+            corrected_bounds={'start': piece['start'], 'end': piece['end']},
+            text_snippet=piece['text'][:500],
+        )
+
+    kept = [m for m in markers
+            if not (m.get('start') == marker.get('start')
+                    and m.get('end') == marker.get('end'))]
+    combined = sorted(kept + new_markers, key=lambda m: m.get('start', 0))
+    db.save_episode_details(slug, episode_id, ad_markers=combined)
+
+    logger.info(
+        f"CORRECTION: type=split, episode={slug}/{episode_id}, "
+        f"{original_start:.1f}s-{original_end:.1f}s into {len(new_markers)} "
+        f"ads, patterns={pattern_ids}"
+    )
+    return json_response({
+        'message': f'Split into {len(new_markers)} ads',
+        'markerCount': len(new_markers),
+        'patternIds': pattern_ids,
+    })
+
+
 def _resolve_or_create_pattern_from_text(
     db, pattern_service, slug, episode_id, ad_text, original_ad, *, label
 ):
@@ -1244,7 +1365,7 @@ def submit_correction(slug, episode_id):
         return error_response('No data provided', 400)
 
     correction_type = data.get('type')
-    if correction_type not in ('confirm', 'reject', 'adjust', 'create'):
+    if correction_type not in ('confirm', 'reject', 'adjust', 'create', 'split'):
         return error_response('Invalid correction type', 400)
 
     # Get pattern service for recording corrections
@@ -1283,9 +1404,13 @@ def submit_correction(slug, episode_id):
         return _handle_adjust_correction(
             db, pattern_service, slug, episode_id, original_ad, data
         )
+    elif correction_type == 'split':
+        return _submit_correction_split(
+            db, pattern_service, slug, episode_id, original_ad, data
+        )
 
     # Exhaustive above: the earlier correction_type guard restricts values to
-    # create/confirm/reject/adjust. Kept as a defensive backstop so a future
+    # create/confirm/reject/adjust/split. Kept as a defensive backstop so a future
     # type added to validation but not to this dispatch returns 400, not a 500.
     return error_response('Invalid correction type', 400)
 

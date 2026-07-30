@@ -53,7 +53,7 @@ export interface AdPattern {
 }
 
 export interface PatternCorrection {
-  type: 'confirm' | 'reject' | 'adjust' | 'create';
+  type: 'confirm' | 'reject' | 'adjust' | 'create' | 'split';
   original_ad?: {
     start: number;
     end: number;
@@ -72,6 +72,36 @@ export interface PatternCorrection {
   text_template?: string;
   scope?: 'podcast' | 'global';
   reason?: string;
+  // 'split' type fields: divider times inside original_ad, plus optional
+  // per-piece sponsor overrides in piece order.
+  split_points?: number[];
+  pieces?: Array<{ sponsor?: string }>;
+}
+
+export interface SplitCandidate {
+  time: number;
+  phrase: string;
+}
+
+export interface SplitPiece {
+  start: number;
+  end: number;
+  text: string;
+  sponsor: string | null;
+}
+
+export interface SplitCandidatesResponse {
+  episodeId: string;
+  start: number;
+  end: number;
+  candidates: SplitCandidate[];
+  pieces: SplitPiece[];
+}
+
+export interface SplitCorrectionResult {
+  message: string;
+  markerCount: number;
+  patternIds: number[];
 }
 
 // Pattern Stats
@@ -170,6 +200,39 @@ export async function submitCorrection(
     method: 'POST',
     body: correction,
   });
+}
+
+export async function getSplitCandidates(
+  slug: string,
+  episodeId: string,
+  start: number,
+  end: number,
+): Promise<SplitCandidatesResponse> {
+  return apiRequest<SplitCandidatesResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/split-candidates`
+    + `?start=${start}&end=${end}`,
+  );
+}
+
+export async function submitSplit(
+  slug: string,
+  episodeId: string,
+  originalAd: { start: number; end: number },
+  splitPoints: number[],
+  pieces: Array<{ sponsor?: string }>,
+): Promise<SplitCorrectionResult> {
+  return apiRequest<SplitCorrectionResult>(
+    `/episodes/${slug}/${episodeId}/corrections`,
+    {
+      method: 'POST',
+      body: {
+        type: 'split',
+        original_ad: originalAd,
+        split_points: splitPoints,
+        pieces,
+      } satisfies PatternCorrection,
+    },
+  );
 }
 
 // Bulk + community-pattern API
