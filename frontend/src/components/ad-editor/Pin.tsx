@@ -9,8 +9,12 @@ import { formatTime } from '../../utils/adReviewHelpers';
 // 0.2s for short stingers; the ad editor leaves it at the 1.0s ad floor.
 const DEFAULT_MIN_SEPARATION = 1.0;
 
+// Keyboard nudge per Arrow press, and the coarser step Shift applies.
+const NUDGE_SECONDS = 0.1;
+const NUDGE_SECONDS_COARSE = 1.0;
+
 export interface PinProps {
-  kind: 'start' | 'end';
+  kind: 'start' | 'end' | 'divider';
   boundary: number;
   windowStart: number;
   windowDuration: number;
@@ -20,13 +24,18 @@ export interface PinProps {
   onDragMove?: (next: number) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
-  otherBoundary: number;        // for min-separation clamp
+  // start/end clamp against each other; a divider clamps against both
+  // neighbours instead, so it takes an explicit range.
+  otherBoundary?: number;
+  minBoundary?: number;
+  maxBoundary?: number;
   minSeparation?: number;       // override the default 1.0s floor
 }
 
 export function Pin({
   kind, boundary, windowStart, windowDuration, containerRef,
   onChange, onDragMove, onDragStart, onDragEnd, otherBoundary,
+  minBoundary, maxBoundary,
   minSeparation = DEFAULT_MIN_SEPARATION,
 }: PinProps) {
   const [dragging, setDragging] = useState(false);
@@ -40,9 +49,24 @@ export function Pin({
   const leftPct = Math.max(0, Math.min(1, relX)) * 100;
 
   const isStart = kind === 'start';
-  const color = isStart ? 'bg-emerald-500' : 'bg-rose-500';
-  const ringColor = isStart ? 'ring-emerald-500/40' : 'ring-rose-500/40';
-  const labelText = isStart ? 'START' : 'END';
+  const isDivider = kind === 'divider';
+  const color = isDivider
+    ? 'bg-amber-500'
+    : isStart ? 'bg-emerald-500' : 'bg-rose-500';
+  const ringColor = isDivider
+    ? 'ring-amber-500/40'
+    : isStart ? 'ring-emerald-500/40' : 'ring-rose-500/40';
+  const labelText = isDivider ? 'SPLIT' : isStart ? 'START' : 'END';
+
+  // The legal range for this pin, used by both drag and keyboard so they
+  // cannot disagree.
+  const lowerBound = isDivider
+    ? (minBoundary ?? Number.NEGATIVE_INFINITY) + minSeparation
+    : isStart ? Number.NEGATIVE_INFINITY : (otherBoundary ?? 0) + minSeparation;
+  const upperBound = isDivider
+    ? (maxBoundary ?? Number.POSITIVE_INFINITY) - minSeparation
+    : isStart ? (otherBoundary ?? 0) - minSeparation : Number.POSITIVE_INFINITY;
+  const clamp = (t: number) => Math.min(Math.max(t, lowerBound), upperBound);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -59,10 +83,8 @@ export function Pin({
     const computeBoundary = (clientX: number): number => {
       const xPct = (clientX - rect.left) / rect.width;
       const clampedPct = Math.max(0, Math.min(1, xPct));
-      const t = windowStart + clampedPct * windowDuration;
-      // Min-separation: never let start cross end (and vice-versa).
-      if (isStart) return Math.min(t, otherBoundary - minSeparation);
-      return Math.max(t, otherBoundary + minSeparation);
+      // Min-separation: never let a pin cross its neighbour.
+      return clamp(windowStart + clampedPct * windowDuration);
     };
 
     const handleMove = (ev: PointerEvent) => {
@@ -85,6 +107,19 @@ export function Pin({
     window.addEventListener('pointercancel', handleUp);
   };
 
+  // role="slider" without keys was a slider screen readers announced but nobody
+  // could operate. Arrows nudge, Shift takes the coarse step.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? NUDGE_SECONDS_COARSE : NUDGE_SECONDS;
+    let next: number | null = null;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = boundary - step;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = boundary + step;
+    if (next === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onChange(clamp(next));
+  };
+
   if (!visible) return null;
 
   // Compact pin: small colored circle pinhead, thin stem. The label
@@ -104,8 +139,13 @@ export function Pin({
         dragging ? 'cursor-grabbing' : ''
       }`}
       role="slider"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
       aria-label={`${labelText} pin · ${formatTime(boundary)}`}
       aria-valuenow={Math.round(boundary * 10) / 10}
+      aria-valuemin={Number.isFinite(lowerBound) ? lowerBound : undefined}
+      aria-valuemax={Number.isFinite(upperBound) ? upperBound : undefined}
+      aria-valuetext={formatTime(boundary)}
     >
       {/* Compact circle pinhead at top. */}
       <div
