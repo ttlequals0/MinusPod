@@ -3866,6 +3866,28 @@ paths:
                   nullable: true
                   enum: [none, low, medium, high]
                   description: Reasoning effort level for chapter boundary detection (non-Anthropic).
+                chapterTargetSeconds:
+                  type: integer
+                  description: >-
+                    Target chapter length in seconds (120-3600, default 600).
+                    Sets how many boundaries each transcript window is asked
+                    for. Must not exceed chapterWindowSeconds.
+                chapterWindowSeconds:
+                  type: integer
+                  description: >-
+                    Transcript window per boundary-detection call in seconds
+                    (600-10800, default 2700). One LLM call per window.
+                chapterMaxBoundaries:
+                  type: integer
+                  description: >-
+                    Ceiling on chapter boundaries per episode (1-200, default
+                    40). Was hardcoded to 6 before 2.82.0.
+                chapterMinDurationSeconds:
+                  type: integer
+                  description: >-
+                    Shortest chapter in seconds (30-900, default 180). Shorter
+                    chapters are absorbed into the previous one. Must not exceed
+                    chapterTargetSeconds.
                 chapterTitleTemperature:
                   type: number
                   description: Temperature (0.0-2.0) for chapter title generation.

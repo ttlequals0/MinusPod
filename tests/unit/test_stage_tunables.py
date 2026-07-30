@@ -43,7 +43,9 @@ class TestDefaults:
                     "CHAPTER_TITLE_MAX_TOKENS")
         with patch("database.Database", side_effect=Exception("no db in test")):
             assert config.get_stage_tunable("chapter_boundary_temperature") == 0.1
-            assert config.get_stage_tunable("chapter_boundary_max_tokens") == 300
+            # 1500 since 2.82.0: 300 truncated the response once the boundary
+            # count stopped being capped at 6.
+            assert config.get_stage_tunable("chapter_boundary_max_tokens") == 1500
             assert config.get_stage_tunable("chapter_title_temperature") == 0.3
             assert config.get_stage_tunable("chapter_title_max_tokens") == 500
 

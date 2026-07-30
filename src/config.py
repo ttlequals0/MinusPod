@@ -1286,7 +1286,9 @@ STAGE_TUNABLE_DEFAULTS = {
     'reviewer_reasoning_level': None,
     # chapter generation: boundary detection
     'chapter_boundary_temperature': 0.1,
-    'chapter_boundary_max_tokens': 300,
+    # 1500, not 300: at chapter_max_boundaries lines of "MM:SS Title" the old
+    # cap truncated the response. It never bound at the previous hard limit of 6.
+    'chapter_boundary_max_tokens': 1500,
     'chapter_boundary_reasoning_budget': None,
     'chapter_boundary_reasoning_level': None,
     # chapter generation: title generation
@@ -1294,6 +1296,12 @@ STAGE_TUNABLE_DEFAULTS = {
     'chapter_title_max_tokens': 500,
     'chapter_title_reasoning_budget': None,
     'chapter_title_reasoning_level': None,
+    # chapter density (global, not per-stage). Replaces a hardcoded
+    # min(duration / 600, 6) that capped every episode at 7 chapters.
+    'chapter_target_seconds': 600,
+    'chapter_window_seconds': 2700,
+    'chapter_max_boundaries': 40,
+    'chapter_min_duration_seconds': 180,
     # ollama context window (provider-scoped, not per-stage)
     'ollama_num_ctx': None,
     # detection window geometry (global, not per-stage)
@@ -1322,6 +1330,12 @@ STAGE_TUNABLE_RANGES = {
     'reviewer_max_tokens': (128, 32768),
     'chapter_boundary_max_tokens': (128, 32768),
     'chapter_title_max_tokens': (128, 32768),
+    # chapter density. Cross-field constraints (min <= target <= window) are
+    # enforced at the API layer, like the detection window pair below.
+    'chapter_target_seconds': (120, 3600),
+    'chapter_window_seconds': (600, 10800),
+    'chapter_max_boundaries': (1, 200),
+    'chapter_min_duration_seconds': (30, 900),
     # reasoning_budget (Anthropic extended thinking)
     'detection_reasoning_budget': (1024, 65536),
     'verification_reasoning_budget': (1024, 65536),
@@ -1490,10 +1504,30 @@ STAGE_TUNABLE_PAYLOAD_KEYS = (
     ('chapterTitleMaxTokens',          'chapter_title_max_tokens',        'int'),
     ('chapterTitleReasoningBudget',    'chapter_title_reasoning_budget',  'budget'),
     ('chapterTitleReasoningLevel',     'chapter_title_reasoning_level',   'level'),
+    ('chapterTargetSeconds',           'chapter_target_seconds',          'int'),
+    ('chapterWindowSeconds',           'chapter_window_seconds',          'int'),
+    ('chapterMaxBoundaries',           'chapter_max_boundaries',          'int'),
+    ('chapterMinDurationSeconds',      'chapter_min_duration_seconds',    'int'),
     ('ollamaNumCtx',                   'ollama_num_ctx',                  'ollama_ctx'),
     ('windowSizeSeconds',              'window_size_seconds',             'int'),
     ('windowOverlapSeconds',           'window_overlap_seconds',          'int'),
 )
+
+
+def resolve_chapter_geometry(settings: Optional[dict] = None):
+    """Read (target, window, max_boundaries, min_duration) for chapter density.
+
+    Clamped so a stored combination that slipped past API validation, or an env
+    override that never saw it, still yields workable geometry: target no larger
+    than the window, min_duration no larger than target.
+    """
+    target = get_stage_tunable('chapter_target_seconds', settings=settings)
+    window = get_stage_tunable('chapter_window_seconds', settings=settings)
+    max_boundaries = get_stage_tunable('chapter_max_boundaries', settings=settings)
+    min_duration = get_stage_tunable('chapter_min_duration_seconds', settings=settings)
+    target = min(target, window)
+    min_duration = min(min_duration, target)
+    return target, window, max_boundaries, min_duration
 
 
 def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):

@@ -1461,6 +1461,40 @@ def _apply_stage_tunables(db, data):
                 'error': 'windowOverlapSeconds must be less than windowSizeSeconds'
             }, 400)
 
+    # Chapter density geometry. Checked against effective values so a partial
+    # payload cannot pair a new value with a stored one into a combination that
+    # silently does nothing.
+    CHAPTER_GEOMETRY_KEYS = ('chapterTargetSeconds', 'chapterWindowSeconds',
+                             'chapterMinDurationSeconds')
+    if any(k in data for k in CHAPTER_GEOMETRY_KEYS):
+        def _chapter_eff(payload_key, db_key):
+            if payload_key in data:
+                raw = data[payload_key]
+                if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                    return get_stage_tunable(db_key)
+                try:
+                    return int(raw)
+                except (TypeError, ValueError):
+                    return None
+            return get_stage_tunable(db_key)
+
+        target_eff = _chapter_eff('chapterTargetSeconds', 'chapter_target_seconds')
+        window_eff = _chapter_eff('chapterWindowSeconds', 'chapter_window_seconds')
+        min_eff = _chapter_eff('chapterMinDurationSeconds',
+                               'chapter_min_duration_seconds')
+        # A target larger than the window means a window can never hold one
+        # whole chapter.
+        if target_eff is not None and window_eff is not None and target_eff > window_eff:
+            return json_response({
+                'error': 'chapterTargetSeconds must not exceed chapterWindowSeconds'
+            }, 400)
+        # A minimum above the target means the absorption pass eats every
+        # chapter the target asked for.
+        if min_eff is not None and target_eff is not None and min_eff > target_eff:
+            return json_response({
+                'error': 'chapterMinDurationSeconds must not exceed chapterTargetSeconds'
+            }, 400)
+
     # Coercion + provider-gating per kind. Each tuple is
     # (coerce_callable, error_message, provider_required, store_callable).
     # provider_required: 'anthropic' / 'not_anthropic' / 'ollama' / None.

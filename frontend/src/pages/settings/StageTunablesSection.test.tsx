@@ -36,6 +36,10 @@ const baseTunables: StageTunables = {
   ollamaNumCtx: entry(null),
   windowSizeSeconds: entry(null),
   windowOverlapSeconds: entry(null),
+  chapterTargetSeconds: entry(null),
+  chapterWindowSeconds: entry(null),
+  chapterMaxBoundaries: entry(null),
+  chapterMinDurationSeconds: entry(null),
 };
 
 const baseDefaults: Record<keyof StageTunables, number | string | null> = {
@@ -62,6 +66,10 @@ const baseDefaults: Record<keyof StageTunables, number | string | null> = {
   ollamaNumCtx: null,
   windowSizeSeconds: 600,
   windowOverlapSeconds: 180,
+  chapterTargetSeconds: 600,
+  chapterWindowSeconds: 2700,
+  chapterMaxBoundaries: 40,
+  chapterMinDurationSeconds: 180,
 };
 
 // openai-compatible renders the reasoning field as a <select> (not a number
@@ -142,5 +150,71 @@ describe('StageTunablesSection: Do not send temperature toggle', () => {
     for (const input of temperatureInputs) {
       expect(input.disabled).toBe(false);
     }
+  });
+});
+
+describe('chapter density controls', () => {
+  const FIELDS: Array<[string, string, number]> = [
+    ['Target chapter length (seconds)', 'chapterTargetSeconds', 900],
+    ['Transcript window (seconds)', 'chapterWindowSeconds', 3600],
+    ['Maximum chapters', 'chapterMaxBoundaries', 25],
+    ['Shortest chapter (seconds)', 'chapterMinDurationSeconds', 120],
+  ];
+
+  function inputFor(label: string): HTMLInputElement {
+    const heading = screen.getByText(label);
+    const group = heading.closest('div')?.parentElement as HTMLElement;
+    return group.querySelector('input[type="number"]') as HTMLInputElement;
+  }
+
+  it('renders all four density fields under their own heading', () => {
+    render(<Harness />);
+    expect(screen.getByText('Chapter Density')).toBeTruthy();
+    for (const [label] of FIELDS) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+  });
+
+  // Each field must reach the save payload. A key missing from DRAFT_KEYS is
+  // skipped by draftsEqual and buildPayload, and a key missing from
+  // buildBaseline has an undefined baseline; either way the field renders,
+  // accepts input, and silently never saves. Asserting the payload catches both
+  // without exporting internals.
+  it.each(FIELDS)('saves %s', async (label, payloadKey, value) => {
+    let saved: UpdateSettingsPayload | null = null;
+    render(<Harness onSave={(payload) => { saved = payload; }} />);
+    const user = userEvent.setup();
+
+    await user.clear(inputFor(label));
+    await user.type(inputFor(label), String(value));
+    await user.click(screen.getByRole('button', { name: 'Save LLM Tunables' }));
+
+    expect(saved).toEqual({ [payloadKey]: value });
+  });
+
+  it('blocks a save when the target exceeds the transcript window', async () => {
+    render(<Harness />);
+    const user = userEvent.setup();
+    await user.clear(inputFor('Transcript window (seconds)'));
+    await user.type(inputFor('Transcript window (seconds)'), '600');
+    await user.clear(inputFor('Target chapter length (seconds)'));
+    await user.type(inputFor('Target chapter length (seconds)'), '3600');
+    expect(screen.getByText(
+      'Target chapter length must not exceed the transcript window.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save LLM Tunables' })
+      .hasAttribute('disabled')).toBe(true);
+  });
+
+  it('blocks a save when the shortest chapter exceeds the target', async () => {
+    render(<Harness />);
+    const user = userEvent.setup();
+    await user.clear(inputFor('Target chapter length (seconds)'));
+    await user.type(inputFor('Target chapter length (seconds)'), '120');
+    await user.clear(inputFor('Shortest chapter (seconds)'));
+    await user.type(inputFor('Shortest chapter (seconds)'), '900');
+    expect(screen.getByText(
+      'Shortest chapter must not exceed the target chapter length.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save LLM Tunables' })
+      .hasAttribute('disabled')).toBe(true);
   });
 });

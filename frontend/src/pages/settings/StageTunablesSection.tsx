@@ -96,10 +96,21 @@ type DraftRecord = Record<string, DraftValue>;
 
 // Every key this section edits, in a stable order. Used for diffing the draft
 // against the server baseline and for building the save payload.
+// Every key CHAPTER_GEOMETRY_FIELDS renders. A key missing from DRAFT_KEYS is
+// skipped by draftsEqual and by buildPayload, so the field would render, accept
+// input, and never save.
+const CHAPTER_GEOMETRY_KEYS = [
+  'chapterTargetSeconds',
+  'chapterWindowSeconds',
+  'chapterMaxBoundaries',
+  'chapterMinDurationSeconds',
+] as const;
+
 const DRAFT_KEYS: string[] = [
   ...STAGES.flatMap((s) => [s.temperatureKey, s.maxTokensKey, s.budgetKey, s.levelKey] as string[]),
   'windowSizeSeconds',
   'windowOverlapSeconds',
+  ...CHAPTER_GEOMETRY_KEYS,
   PARALLEL_KEY,
   OMIT_TEMPERATURE_KEY,
 ];
@@ -120,6 +131,11 @@ function buildBaseline(
   }
   b.windowSizeSeconds = tunables.windowSizeSeconds?.value ?? null;
   b.windowOverlapSeconds = tunables.windowOverlapSeconds?.value ?? null;
+  // A key missing here has an undefined baseline, so the dirty check compares a
+  // number against undefined and the section reads as permanently unsaved.
+  for (const key of CHAPTER_GEOMETRY_KEYS) {
+    b[key] = tunables[key]?.value ?? null;
+  }
   b[PARALLEL_KEY] = parallelWindows;
   b[OMIT_TEMPERATURE_KEY] = omitTemperature;
   return b;
@@ -491,6 +507,103 @@ function WindowConfigBlock({
   );
 }
 
+
+// Density, not sampling: these are durations and a count, so they do not fit
+// StageBlock's temperature/maxTokens/budget/level shape and render as their own
+// group beside Chapter Boundary Detection, the way the window geometry does.
+const CHAPTER_GEOMETRY_FIELDS: Array<{
+  key: typeof CHAPTER_GEOMETRY_KEYS[number];
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  help: string;
+}> = [
+  {
+    key: 'chapterTargetSeconds', label: 'Target chapter length (seconds)',
+    min: 120, max: 3600, step: 30,
+    help: '120 to 3600. Default 600 (10 min). Lower means more chapters.',
+  },
+  {
+    key: 'chapterWindowSeconds', label: 'Transcript window (seconds)',
+    min: 600, max: 10800, step: 300,
+    help: '600 to 10800. Default 2700 (45 min). One LLM call per window.',
+  },
+  {
+    key: 'chapterMaxBoundaries', label: 'Maximum chapters',
+    min: 1, max: 200, step: 1,
+    help: '1 to 200. Default 40. Was hardcoded to 6 before 2.82.0.',
+  },
+  {
+    key: 'chapterMinDurationSeconds', label: 'Shortest chapter (seconds)',
+    min: 30, max: 900, step: 15,
+    help: '30 to 900. Default 180 (3 min). Shorter chapters merge into the previous one.',
+  },
+];
+
+function ChapterGeometryBlock({
+  tunables,
+  defaults,
+  draft,
+  crossFieldError,
+  setField,
+}: {
+  tunables: StageTunables;
+  defaults: Record<keyof StageTunables, number | string | null>;
+  draft: DraftRecord;
+  crossFieldError: string | null;
+  setField: (key: string, value: DraftValue) => void;
+}) {
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-3">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">Chapter Density</h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          How many chapters a long episode gets, and how much transcript each
+          detection call sees. Applies on the next episode.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {CHAPTER_GEOMETRY_FIELDS.map((field) => {
+          const env = readEnvOverride(tunables[field.key]);
+          const value = draft[field.key] as number | null;
+          return (
+            <div key={field.key}>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-foreground">
+                  {field.label}
+                </label>
+                <ResetButton
+                  disabled={value === null}
+                  onClick={() => setField(field.key, null)}
+                />
+              </div>
+              <DraftNumberInput
+                value={value}
+                fallback={defaults[field.key] as number | null}
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                parse={parseIntField}
+                onChange={(parsed) => setField(field.key, parsed)}
+                className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {env ? `Default from ${env}.` : field.help}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {crossFieldError && (
+        <p className="text-xs text-destructive">{crossFieldError}</p>
+      )}
+    </div>
+  );
+}
+
 function ConcurrencyConfigBlock({
   value,
   defaultValue,
@@ -619,6 +732,19 @@ function StageTunablesSection({
     sizeEff !== null && overlapEff !== null && overlapEff >= sizeEff
       ? 'Overlap must be less than window size.'
       : null;
+  const chapterEff = (key: typeof CHAPTER_GEOMETRY_KEYS[number]) =>
+    (draft[key] ?? defaults[key]) as number | null;
+  const chapterTargetEff = chapterEff('chapterTargetSeconds');
+  const chapterWindowEff = chapterEff('chapterWindowSeconds');
+  const chapterMinEff = chapterEff('chapterMinDurationSeconds');
+  let chapterError: string | null = null;
+  if (chapterTargetEff !== null && chapterWindowEff !== null
+      && chapterTargetEff > chapterWindowEff) {
+    chapterError = 'Target chapter length must not exceed the transcript window.';
+  } else if (chapterMinEff !== null && chapterTargetEff !== null
+      && chapterMinEff > chapterTargetEff) {
+    chapterError = 'Shortest chapter must not exceed the target chapter length.';
+  }
   const omitTemperatureDraft = draft[OMIT_TEMPERATURE_KEY] as boolean;
 
   return (
@@ -650,6 +776,13 @@ function StageTunablesSection({
           crossFieldError={crossFieldError}
           setField={setField}
         />
+        <ChapterGeometryBlock
+          tunables={tunables}
+          defaults={defaults}
+          draft={draft}
+          crossFieldError={chapterError}
+          setField={setField}
+        />
         <ConcurrencyConfigBlock
           value={draft[PARALLEL_KEY] as number}
           defaultValue={parallelWindowsDefault}
@@ -660,7 +793,7 @@ function StageTunablesSection({
           <button
             type="button"
             onClick={() => onSave(buildPayload(draft, serverBaseline))}
-            disabled={!dirty || saveIsPending || !!crossFieldError}
+            disabled={!dirty || saveIsPending || !!crossFieldError || !!chapterError}
             className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
           >
             {saveIsPending ? 'Saving...' : 'Save LLM Tunables'}

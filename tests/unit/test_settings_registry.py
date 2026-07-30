@@ -132,6 +132,8 @@ EXPECTED_AD_RESET_KEYS = {
     'reviewer_reasoning_budget', 'reviewer_reasoning_level',
     'chapter_boundary_temperature', 'chapter_boundary_max_tokens',
     'chapter_boundary_reasoning_budget', 'chapter_boundary_reasoning_level',
+    'chapter_target_seconds', 'chapter_window_seconds',
+    'chapter_max_boundaries', 'chapter_min_duration_seconds',
     'chapter_title_temperature', 'chapter_title_max_tokens',
     'chapter_title_reasoning_budget', 'chapter_title_reasoning_level',
     'ollama_num_ctx', 'window_size_seconds', 'window_overlap_seconds',

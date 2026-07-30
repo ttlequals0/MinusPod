@@ -639,6 +639,10 @@ export interface UpdateSettingsPayload {
   chapterBoundaryMaxTokens?: number | null;
   chapterBoundaryReasoningBudget?: number | null;
   chapterBoundaryReasoningLevel?: ReasoningLevel | null;
+  chapterTargetSeconds?: number | null;
+  chapterWindowSeconds?: number | null;
+  chapterMaxBoundaries?: number | null;
+  chapterMinDurationSeconds?: number | null;
   chapterTitleTemperature?: number | null;
   chapterTitleMaxTokens?: number | null;
   chapterTitleReasoningBudget?: number | null;
@@ -674,6 +678,10 @@ export interface StageTunables {
   chapterBoundaryMaxTokens: StageTunableEntry<number | null>;
   chapterBoundaryReasoningBudget: StageTunableEntry<number | null>;
   chapterBoundaryReasoningLevel: StageTunableEntry<ReasoningLevel | null>;
+  chapterTargetSeconds: StageTunableEntry<number | null>;
+  chapterWindowSeconds: StageTunableEntry<number | null>;
+  chapterMaxBoundaries: StageTunableEntry<number | null>;
+  chapterMinDurationSeconds: StageTunableEntry<number | null>;
   chapterTitleTemperature: StageTunableEntry<number | null>;
   chapterTitleMaxTokens: StageTunableEntry<number | null>;
   chapterTitleReasoningBudget: StageTunableEntry<number | null>;
