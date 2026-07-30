@@ -106,7 +106,7 @@ function PeakStrip({ peaks }: { peaks: number[] | null }) {
       {bars.map((v, i) => (
         <div
           key={i}
-          className="flex-1 bg-primary/50 min-w-0"
+          className="flex-1 bg-primary min-w-0"
           style={{ height: `${Math.max(2, (v / max) * 100)}%` }}
         />
       ))}
