@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export interface SponsorOption {
   id: number;
@@ -80,9 +81,13 @@ export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) 
             setOpen(false);
           }
         }}
-        className="w-full px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+        className="w-full pl-3 pr-8 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
         aria-autocomplete="list"
         aria-expanded={open}
+      />
+      <ChevronDown
+        className={`absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none transition-transform ${open ? 'rotate-180' : ''}`}
+        aria-hidden
       />
       {open && (filtered.length > 0 || (!exactMatch && trimmed.length > 0)) && (
         <ul

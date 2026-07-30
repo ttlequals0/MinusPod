@@ -387,7 +387,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     ) : dividerField(i, `Ad ${i + 1} end time`)}
                   </span>
                   <div
-                    className="flex-1 min-w-[180px]"
+                    className="flex-1 min-w-[180px] sm:max-w-72"
                     ref={(el) => { sponsorWrapRefs.current[i] = el; }}
                   >
                     <SponsorInput
