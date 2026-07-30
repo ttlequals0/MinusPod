@@ -27,6 +27,15 @@ release notes.
   Transcripts & Chapters card, next to the Generate Chapters toggle, with
   their own Save button. The settings API payload is unchanged.
 
+### Fixed
+
+- Feed descriptions were stored clipped to 500 characters, which read as
+  visible truncation on the feed page once the UI stopped line-clamping
+  them (#596). The stored bound is now 10000 characters, which no real
+  description reaches; the full text appears after the feed's next refresh.
+- A section header action, such as the model-list refresh, no longer
+  renders a button nested inside the section's toggle button.
+
 ## [2.82.0] - 2026-07-29
 
 ### Added

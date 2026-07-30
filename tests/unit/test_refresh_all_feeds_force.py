@@ -150,3 +150,42 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestFeedDescriptionLength(unittest.TestCase):
+    def setUp(self):
+        _feeds_module._refresh_coalesce.invalidate()
+
+    @patch('main_app.feeds.pattern_service')
+    @patch('main_app.feeds.status_service')
+    @patch('main_app.feeds.storage')
+    @patch('main_app.feeds.rss_parser')
+    @patch('main_app.feeds.db')
+    def test_long_description_is_not_clipped(
+        self, db, rss_parser, status_service, storage, pattern_service
+    ):
+        """#596: a description under the 10k bound is stored in full (the old
+        500-char cap showed up as visible truncation on the feed page)."""
+        from main_app.feeds import refresh_rss_feed
+
+        long_desc = 'word ' * 400  # 2000 chars, over the old cap
+        db.get_podcast_by_slug.return_value = {
+            'id': 1, 'feed_url': 'https://example.com/a.rss',
+            'etag': None, 'last_modified': None, 'artwork_cached': True,
+        }
+        db.get_episodes.return_value = ([], 0)
+        rss_parser.fetch_feed_conditional.return_value = (
+            '<rss/>', None, None)
+        parsed = MagicMock()
+        parsed.feed = {'description': long_desc, 'title': 'T', 'link': ''}
+        parsed.entries = []
+        rss_parser.parse_feed.return_value = parsed
+        rss_parser.extract_podcast_artwork_url.return_value = None
+        rss_parser.extract_podping_declaration.return_value = {}
+        storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
+
+        refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
+
+        self.assertTrue(db.update_podcast.called)
+        kwargs = db.update_podcast.call_args.kwargs
+        self.assertEqual(kwargs.get('description'), long_desc)

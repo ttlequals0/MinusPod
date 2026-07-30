@@ -240,7 +240,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             return False
         if parsed_feed and parsed_feed.feed:
             title = parsed_feed.feed.get('title')
-            description = parsed_feed.feed.get('description', '')[:500]
+            # 10k bounds a pathological feed without visibly truncating real
+            # descriptions (#596; the old 500 cap surfaced once the UI
+            # stopped line-clamping).
+            description = parsed_feed.feed.get('description', '')[:10000]
 
             # Extract artwork URL from RAW xml (feedparser corrupts the
             # channel image with the last per-episode itunes:image it sees).
