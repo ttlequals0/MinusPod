@@ -21,6 +21,13 @@ release notes.
   is turned on. Caveat: switching an already-subscribed feed changes every
   item GUID, so podcast apps treat each episode as new one time.
 
+### Fixed
+
+- Settings card carets behaved differently per card: half rotated in place
+  and half jumped down a line on expand, because an appearing subtitle grew
+  the header under a centered caret (#597). The caret is pinned to the
+  title line, so every card rotates in place.
+
 ## [2.82.1] - 2026-07-30
 
 ### Added

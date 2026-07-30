@@ -123,7 +123,7 @@ function CollapsibleSection({
       {/* The row div (not a wrapping button) carries the click target so a
           button passed via headerRight never nests inside a button. */}
       <div
-        className="w-full flex items-center justify-between p-4 sm:p-6 cursor-pointer"
+        className="w-full flex items-start justify-between p-4 sm:p-6 cursor-pointer"
         onClick={() => {
           // While searching, expansion follows the match, not isOpen, so a
           // toggle would silently flip the persisted state with no visible
@@ -145,7 +145,10 @@ function CollapsibleSection({
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </button>
-        <div className="flex items-center gap-2 ml-4 shrink-0">
+        {/* h-7 pins the cluster to the title line, so the caret rotates in
+            place instead of dropping when an expanded subtitle grows the
+            header (#597). */}
+        <div className="flex items-center gap-2 ml-4 shrink-0 h-7">
           {headerRight && (
             <div onClick={(e) => e.stopPropagation()}>
               {headerRight}
