@@ -9,6 +9,27 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.0] - 2026-07-31
+
+### Fixed
+
+- A feed that changed its cover art kept serving the old image (#596). The
+  refresh writes the new artwork URL to the podcast row before the download
+  step re-reads that row to decide whether the cover is already cached, so
+  the check compared the new URL against itself, always matched, and skipped
+  the fetch. A changed URL now forces the download.
+- Feed title, description, and artwork only refresh when the publisher's
+  body changes, so a steady feed answering 304 kept whatever it had when it
+  was added, including descriptions stored under the old 500-character cap.
+  Upgrading clears the conditional-GET validators once so every feed does a
+  single full fetch and picks up current metadata. Expect a one-time burst
+  of full fetches on that tick, which can trip the per-host circuit breaker
+  and raise a refresh-failure alert for feeds sharing a host; it clears on
+  the next cycle. Changes are logged, so a title, description, artwork, or
+  website edit upstream is visible in the refresh log. A publisher who
+  replaces the image at an unchanged URL is still not picked up, since
+  nothing revalidates the bytes behind a URL that did not change.
+
 ## [2.83.1] - 2026-07-31
 
 ### Added

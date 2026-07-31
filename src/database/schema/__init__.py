@@ -1319,6 +1319,13 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"legacy skip_second_pass reset failed: {e}")
 
+        # One full fetch per feed so stale metadata refreshes (#596).
+        try:
+            self._run_refresh_stale_feed_metadata(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"feed metadata refresh priming failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1768,6 +1775,29 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info("opus48-cost-fix: complete")
+
+    def _run_refresh_stale_feed_metadata(self, conn):
+        """One-time validator clear so every feed refreshes metadata once (#596).
+
+        A steady feed answers 304 forever, so title, description, and artwork
+        stay as they were when it was added.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'refresh_stale_feed_metadata'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        rows = self.clear_all_podcast_etags()
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('refresh_stale_feed_metadata')"
+        )
+        conn.commit()
+        logger.info(
+            "Migration: primed %d feed(s) for one full metadata refresh (#596)",
+            rows,
+        )
 
     def _run_reset_legacy_skip_second_pass(self, conn):
         """One-time reset of `podcasts.skip_second_pass` values from the old column.

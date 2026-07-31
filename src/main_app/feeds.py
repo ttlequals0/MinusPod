@@ -259,6 +259,23 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             # this feed, and whether it opts out entirely.
             podping = rss_parser.extract_podping_declaration(feed_content)
 
+            # Captured before the write below: download_artwork re-reads the
+            # row, so once the new URL is stored it compares it against itself.
+            prev = podcast or {}
+            artwork_changed = bool(artwork_url) and artwork_url != prev.get('artwork_url')
+            changed = [
+                name for name, before, after in (
+                    ('title', prev.get('title'), title),
+                    ('description', prev.get('description'), description),
+                    ('artwork', prev.get('artwork_url'), artwork_url),
+                    ('website', prev.get('website_url'), website_url),
+                )
+                if after and before != after
+            ]
+            if changed:
+                refresh_logger.info(
+                    f"[{slug}] Feed metadata changed upstream: {', '.join(changed)}")
+
             # Update podcast metadata (and ETag if available) in a single DB call
             update_kwargs = dict(
                 title=title,
@@ -269,6 +286,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     podping.get('uses_podping'), podping.get('hive_accounts')),
                 last_checked_at=utc_now_iso()
             )
+            if artwork_changed:
+                # Clear the cache flag with the URL: a download that then
+                # fails would otherwise leave the row claiming the new cover
+                # is cached, and no later refresh would retry it.
+                update_kwargs['artwork_cached'] = 0
             # On force=True, always overwrite the stored ETag/Last-Modified --
             # even with None -- so a server that drops the header on this
             # response can't cause the next conditional GET to send a stale
@@ -308,9 +330,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     f"network={network_info.get('network_id')}"
                 )
 
-            # Download artwork if available
+            # A changed URL forces the fetch: the row already carries it.
             if artwork_url:
-                storage.download_artwork(slug, artwork_url)
+                storage.download_artwork(slug, artwork_url,
+                                         force=artwork_changed)
 
         # Discover all episodes from the feed (upsert as 'discovered').
         # Pass parsed_feed so extract_episodes does not re-parse the same

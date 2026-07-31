@@ -642,7 +642,8 @@ class Storage:
         return any((podcast_dir / f"artwork{ext}").exists()
                    for ext in ('.jpg', '.png', '.gif', '.webp'))
 
-    def download_artwork(self, slug: str, artwork_url: str) -> bool:
+    def download_artwork(self, slug: str, artwork_url: str,
+                         force: bool = False) -> bool:
         """Download and cache podcast artwork.
 
         Content-Type header is advisory only; the saved bytes are validated
@@ -654,8 +655,10 @@ class Storage:
             return False
 
         try:
-            # Check if we already have this artwork on disk
-            podcast = self.db.get_podcast_by_slug(slug)
+            # Check if we already have this artwork on disk. Callers that
+            # already wrote the new URL to the row pass force, since the
+            # comparison below would then match the URL against itself.
+            podcast = None if force else self.db.get_podcast_by_slug(slug)
             if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
                 if self.get_artwork(slug) is not None:
                     logger.debug(f"[{slug}] Artwork already cached")
