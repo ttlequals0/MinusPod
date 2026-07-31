@@ -263,6 +263,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('skipAdDetection', 'skip_ad_detection'),
     ('detectShowSegments', 'detect_show_segments'),
     ('ownEpisodeGuids', 'own_episode_guids'),
+    ('skipSecondPass', 'skip_second_pass'),
 ]
 
 def _cue_override_fields(podcast) -> dict:

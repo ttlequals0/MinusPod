@@ -95,6 +95,7 @@ from .boundaries import (
     validate_ad_timestamps,
     _unpack_region,
     get_uncovered_portions,
+    tighten_pattern_regions,
     merge_same_sponsor_ads,
     merge_ads_across_short_content_gaps,
     deduplicate_window_ads,
@@ -1768,6 +1769,9 @@ class AdDetector:
         # Resolved once and reused below (the coverage-drop gate) and at the
         # final merge call: the feed's category->action map.
         action_map = self._resolve_segment_action_map(slug)
+
+        tighten_pattern_regions(claude_ads, pattern_matched_regions, all_ads,
+                                action_map, slug, episode_id)
 
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
         updated_patterns = set()

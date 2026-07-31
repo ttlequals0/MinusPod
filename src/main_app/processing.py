@@ -57,6 +57,7 @@ from config import (
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
     resolve_feed_processing_mode,
+    resolve_skip_second_pass,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
@@ -2244,7 +2245,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             original_segments=None, reuse_transcript=False,
                             max_ad_duration_override=None, cue_gate_enabled=False,
                             pass1_held_markers=None, pass1_kept_markers=None,
-                            skip_detection=False):
+                            skip_verification=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -2261,16 +2262,17 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     a verification finding overlapping one is dropped before it can be cut,
     held, or logged as a miss (see _exclude_kept_spans_from_verification).
 
-    ``skip_detection`` (#538) reports the pass as cleanly done with nothing
-    found; pass 2 is a second LLM scan, so skipping pass 1 alone would still
-    pay for it.
+    ``skip_verification`` covers both opt-outs the caller resolves: skipping
+    ad detection (#538), which would otherwise still pay for a second LLM
+    scan, and the per-feed skip of pass 2 alone (#599).
 
     Returns (verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held,
     processed_path, verification_cue_count, verification_ok,
-    v_corroborated_count).
+    v_corroborated_count). ``verification_ok`` is False when the pass did not
+    complete, skipped included, so callers do not report a clean scan.
     """
-    if skip_detection:
-        return 0, [], [], [], processed_path, 0, True, 0
+    if skip_verification:
+        return 0, [], [], [], processed_path, 0, False, 0
     slug = ctx.slug
     episode_id = ctx.episode_id
     podcast_name = ctx.podcast_name
@@ -3596,6 +3598,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # and a transcript, but the detection stages and the cut are skipped.
     skip_detection = processing_mode == PROCESSING_MODE_SKIP_DETECTION
 
+    # Skip verification (#599): pass 1 still runs and cuts, the second LLM
+    # sweep over its output does not.
+    skip_second_pass = resolve_skip_second_pass(podcast_settings)
+
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try
     # so the failure handler can persist whatever was gathered up to the
@@ -3603,6 +3609,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     run_stats = {'mode': reprocess_mode or 'auto'}
     if skip_detection:
         run_stats['detection_skipped'] = True
+    elif skip_second_pass:
+        # Not recorded alongside detection_skipped, which already implies it.
+        run_stats['verification_skipped'] = True
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
@@ -3944,6 +3953,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 m for m in all_ads_with_validation
                 if m.get('action_applied') == 'keep'
             ]
+            if skip_second_pass and not skip_detection:
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Verification pass skipped (per-feed setting)")
             verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = _run_verification_pass(
                 ctx, processed_path, applied_cuts,
                 skip_patterns, min_cut_confidence,
@@ -3956,7 +3968,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 cue_gate_enabled=cue_gate_enabled,
                 pass1_held_markers=pass1_held_markers,
                 pass1_kept_markers=pass1_kept_markers,
-                skip_detection=skip_detection,
+                skip_verification=skip_detection or skip_second_pass,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and
@@ -4058,7 +4070,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Recorded only when the pass actually completed: a crashed or
             # skipped scan must not read as a clean one (0 would be
             # indistinguishable).
-            if verification_ok and not skip_detection:
+            if verification_ok:
                 run_stats['verification_ads_cut'] = verification_count
             if new_duration:
                 run_stats['seconds_removed'] = round(original_duration - new_duration, 2)

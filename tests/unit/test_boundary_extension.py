@@ -237,3 +237,60 @@ def test_barriers_outside_the_ads_list_still_block_extension():
 
     assert extended[0]['start'] == 100.0
     assert 'start_extended_by_content' not in extended[0]
+
+
+class TestTightenPatternRegions:
+    """An oversized pattern span adopts the LLM bounds inside it (the
+    ZipRecruiter case: a 100s pattern marker over a 38s read got held for
+    no_splice_evidence while the 0.98-confidence LLM detection was dropped)."""
+
+    def _fixture(self, claude, region_end=601.1):
+        region = {'start': 501.1, 'end': region_end, 'pattern_id': 614}
+        marker = {'start': 501.1, 'end': region_end, 'pattern_id': 614,
+                  'detection_stage': 'text_pattern'}
+        return [dict(c) for c in claude], [region], [marker]
+
+    def test_single_tight_llm_ad_wins(self):
+        from ad_detector.boundaries import tighten_pattern_regions
+        claude, regions, ads = self._fixture(
+            [{'start': 501.1, 'end': 539.2, 'confidence': 0.98,
+              'category': 'sponsor'}])
+        tighten_pattern_regions(claude, regions, ads, None)
+        assert (ads[0]['start'], ads[0]['end']) == (501.1, 539.2)
+        assert (regions[0]['start'], regions[0]['end']) == (501.1, 539.2)
+
+    def test_matching_bounds_are_untouched(self):
+        from ad_detector.boundaries import tighten_pattern_regions
+        claude, regions, ads = self._fixture(
+            [{'start': 501.1, 'end': 539.2, 'confidence': 0.98,
+              'category': 'sponsor'}], region_end=545.0)
+        tighten_pattern_regions(claude, regions, ads, None)
+        assert ads[0]['end'] == 545.0
+
+    def test_two_llm_ads_inside_leave_the_region_alone(self):
+        from ad_detector.boundaries import tighten_pattern_regions
+        claude, regions, ads = self._fixture([
+            {'start': 501.1, 'end': 530.0, 'confidence': 0.98,
+             'category': 'sponsor'},
+            {'start': 560.0, 'end': 595.0, 'confidence': 0.97,
+             'category': 'sponsor'},
+        ])
+        tighten_pattern_regions(claude, regions, ads, None)
+        assert ads[0]['end'] == 601.1
+
+    def test_low_confidence_does_not_tighten(self):
+        from ad_detector.boundaries import tighten_pattern_regions
+        claude, regions, ads = self._fixture(
+            [{'start': 501.1, 'end': 539.2, 'confidence': 0.7,
+              'category': 'sponsor'}])
+        tighten_pattern_regions(claude, regions, ads, None)
+        assert ads[0]['end'] == 601.1
+
+    def test_keep_category_detection_does_not_tighten(self):
+        from ad_detector.boundaries import tighten_pattern_regions
+        claude, regions, ads = self._fixture(
+            [{'start': 501.1, 'end': 539.2, 'confidence': 0.98,
+              'category': 'self_promo'}])
+        tighten_pattern_regions(claude, regions, ads,
+                                {'self_promo': 'keep'})
+        assert ads[0]['end'] == 601.1

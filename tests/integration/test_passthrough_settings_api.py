@@ -79,3 +79,35 @@ def test_patch_skip_ad_detection_round_trip(app_client, seeded_feed):
                             json={'skipAdDetection': None}, headers=headers)
     assert resp.status_code == 200
     assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipAdDetection'] is None
+
+
+def test_patch_skip_second_pass_round_trip(app_client, seeded_feed):
+    """Issue #599: per-feed opt-out of the pass-2 verification scan."""
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipSecondPass': True}, headers=headers)
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipSecondPass'] is True
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipSecondPass': False}, headers=headers)
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipSecondPass'] is False
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipSecondPass': None}, headers=headers)
+    assert resp.status_code == 200
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['skipSecondPass'] is None
+
+
+def test_patch_skip_second_pass_rejects_non_bool(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipSecondPass': 'yes'}, headers=headers)
+    assert resp.status_code == 400

@@ -48,8 +48,11 @@ def _run_pipeline(skip_ad_detection):
         p(processing, '_snap_terminal_starts', return_value=[])
         p(processing, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
+        # Mirrors the real skip path: verification_ok is False when the
+        # pass did not run, so the caller records no verification stat.
         verify = p(processing, '_run_verification_pass',
-                   return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
+                   return_value=(0, [], [], [], '/tmp/cut.mp3', 0,
+                                 not skip_ad_detection, 0))
         generate_assets = p(processing, '_generate_assets')
         finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
@@ -87,7 +90,7 @@ class TestSkipAdDetection:
         m['refine'].assert_not_called()
         # The verification stage owns its skip: the flag is forwarded and the
         # stage early-returns (covered by test_verification_pass_early_return).
-        assert m['verify'].call_args.kwargs['skip_detection'] is True
+        assert m['verify'].call_args.kwargs['skip_verification'] is True
         m['generate_assets'].assert_called_once()
         # Stale markers from an earlier detection run describe cut audio and
         # must not survive next to the uncut file (mirrors pass-through).
@@ -111,14 +114,15 @@ class TestSkipAdDetection:
         m['detect'].assert_called_once()
         m['refine'].assert_called_once()
         m['verify'].assert_called_once()
-        assert m['verify'].call_args.kwargs['skip_detection'] is False
+        assert m['verify'].call_args.kwargs['skip_verification'] is False
         m['generate_assets'].assert_called_once()
         assert 'detection_skipped' not in m['finalize'].call_args.kwargs['run_stats']
 
     def test_verification_pass_early_return(self):
-        # skip_detection short-circuits before any transcription or LLM work;
-        # processed_path passes through untouched and the pass reports ok.
+        # skip_verification short-circuits before any transcription or LLM
+        # work; processed_path passes through and the pass reports not-ok so
+        # callers do not record a clean scan.
         result = processing._run_verification_pass(
             None, '/tmp/skip-cut.mp3', [], False, 0.8, None, None,
-            skip_detection=True)
-        assert result == (0, [], [], [], '/tmp/skip-cut.mp3', 0, True, 0)
+            skip_verification=True)
+        assert result == (0, [], [], [], '/tmp/skip-cut.mp3', 0, False, 0)

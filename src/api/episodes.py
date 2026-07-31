@@ -242,6 +242,7 @@ def _run_stats_to_api(stats):
     return {
         'mode': stats.get('mode'),
         'detectionSkipped': stats.get('detection_skipped'),
+        'verificationSkipped': stats.get('verification_skipped'),
         'downloadedDuration': stats.get('downloaded_duration'),
         'transcriptSegments': stats.get('transcript_segments'),
         'windows': stats.get('windows'),

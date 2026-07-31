@@ -114,7 +114,8 @@ def test_default_action_map_still_drops_fully_covered_claude_ad():
     """Regression: a plain sponsor-categorized (or uncategorized) Claude ad
     that is fully covered by a pattern match is still dropped in favor of
     the pattern's own marker: the fix only protects a non-default
-    (keep-resolving) category."""
+    (keep-resolving) category. The surviving marker adopts the LLM bounds
+    since the pattern span overshoots them materially."""
     detector = AdDetector(api_key='test-key')
     sponsor_ad = {'start': 10.0, 'end': 150.0, 'confidence': 0.9,
                   'reason': 'Sponsor read'}
@@ -124,7 +125,7 @@ def test_default_action_map_still_drops_fully_covered_claude_ad():
 
     assert len(ads) == 1
     assert ads[0]['detection_stage'] == 'text_pattern'
-    assert ads[0]['start'] == 0.0 and ads[0]['end'] == 166.6
+    assert ads[0]['start'] == 10.0 and ads[0]['end'] == 150.0
 
 
 def test_no_action_map_preserves_pre_fix_drop_behavior():

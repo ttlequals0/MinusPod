@@ -147,7 +147,7 @@ class TestProcessEpisodeModePlumbing:
         m = _run_pipeline(_row(skip=1, mode=DETECTION_MODE_KEEP_CONTENT))
         assert m['result'] is True
         m['detect'].assert_not_called()
-        assert m['verify'].call_args.kwargs['skip_detection'] is True
+        assert m['verify'].call_args.kwargs['skip_verification'] is True
 
     # The pipeline passes keep_content=None so the detector resolves the
     # mode from the DB at detection time -- a detection_mode toggle made
@@ -158,13 +158,13 @@ class TestProcessEpisodeModePlumbing:
         m = _run_pipeline(_row(mode=DETECTION_MODE_KEEP_CONTENT))
         assert m['result'] is True
         assert m['detect'].call_args.kwargs['keep_content'] is None
-        assert m['verify'].call_args.kwargs['skip_detection'] is False
+        assert m['verify'].call_args.kwargs['skip_verification'] is False
 
     def test_standard_mode_defers_resolution_to_detector(self):
         m = _run_pipeline(_row())
         assert m['result'] is True
         assert m['detect'].call_args.kwargs['keep_content'] is None
-        assert m['verify'].call_args.kwargs['skip_detection'] is False
+        assert m['verify'].call_args.kwargs['skip_verification'] is False
 
 
 INVERTED = [{'start': 0.0, 'end': 60.0, 'confidence': 0.9,

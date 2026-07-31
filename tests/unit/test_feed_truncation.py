@@ -41,6 +41,10 @@ def test_truncation_markers_recognised():
     assert _is_truncation_error(Exception('mismatched tag: no element found'))
     assert _is_truncation_error(Exception('unclosed token: line 4, column 67'))
     assert _is_truncation_error(Exception('Unexpected end of data'))
+    # A body cut mid-character: expat reports the partial multibyte sequence
+    # as an invalid token, not a missing element.
+    assert _is_truncation_error(
+        Exception('not well-formed (invalid token): line 5518, column 510'))
 
 
 def test_benign_bozo_causes_are_not_truncation():

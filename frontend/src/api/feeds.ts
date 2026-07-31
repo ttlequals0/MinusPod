@@ -235,6 +235,7 @@ export interface UpdateFeedPayload {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
   detectShowSegments?: boolean | null;
   ownEpisodeGuids?: boolean | null;
+  skipSecondPass?: boolean | null;
 }
 
 export interface Network {

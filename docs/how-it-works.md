@@ -17,18 +17,19 @@ Processing happens on-demand when you play an episode, or automatically when new
 
 | Feature | Description | Enable In |
 |---------|-------------|-----------|
-| **Verification Pass** | Post-cut re-detection catches missed ads by re-transcribing processed audio | Automatic |
+| **Verification Pass** | Post-cut re-detection catches missed ads by re-transcribing processed audio | Automatic, per-feed opt-out |
 | **Audio Enforcement** | Volume and transition signals programmatically validate and extend ad detections | Automatic |
 | **Pattern Learning** | System learns from corrections, patterns promote from podcast to network to global scope | Automatic |
 | **Confidence Thresholds** | >=80% confidence: cut (configurable); 50-79%: kept for review; <50%: rejected | Automatic |
 | **Keep Content Only** | Inverted detection: the model marks show content and the rest is removed, guarded by safety gates | Feed page > Feed Settings > Detection |
 | **Skip Ad Detection** | Transcripts and chapters only; no detection LLM calls, nothing cut | Feed page > Feed Settings > Advanced |
+| **Skip Verification Pass** | First pass still detects and cuts; the post-cut second sweep does not run | Feed page > Feed Settings > Advanced |
 
 See detailed sections below for configuration and usage.
 
 ### Verification Pass
 
-After the first pass detects and removes ads, a verification pipeline runs on the processed audio:
+After the first pass detects and removes ads, a verification pipeline runs on the processed audio, unless the feed has "Skip verification pass" set (see [Skip Verification Pass](#skip-verification-pass)):
 
 1. **Re-transcribe** - The processed audio is re-transcribed on CPU using Whisper
 2. **Audio Analysis** - Volume analysis and transition detection run on the processed audio
@@ -230,6 +231,14 @@ The mode is experimental: spot-check the first few episodes after enabling it.
 For shows that run no ads, detection is wasted LLM spend. The per-feed "Skip ad detection" toggle (Feed page > Feed Settings > Advanced) keeps transcription, transcripts, and chapters but skips every detection stage: no first-pass detection, no verification pass, no audio-cue analysis, no cross-fetch second download. Nothing is cut, so the served audio matches the original. Chapters still make their own LLM call.
 
 This differs from pass-through, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
+
+### Skip Verification Pass
+
+The verification pass is a second detection sweep over the already-cut audio, so an episode that runs it pays for ad detection twice. On a feed whose first pass is already reliable that is spend for nothing. The per-feed "Skip verification pass" toggle (Feed page > Feed Settings > Advanced) leaves the first pass untouched and declines the second sweep, which roughly halves the ad-detection LLM spend per episode. Chapters and the boundary reviewer make their own LLM calls either way, so the total episode cost drops by less than half.
+
+Two things change beyond the saving. Ads the first pass missed stay in the audio, since nothing re-scans the output. And a held differential detection that pass 2 would have corroborated and auto-approved now waits for you on the review queue instead, so a feed on this setting can accumulate holds that used to clear themselves.
+
+Runs that skipped the pass are labelled "(no verification)" in the episode's run list, and they record no verification result rather than a zero, which would have read as a clean second scan.
 
 When more than one of these per-feed controls is set, the most drastic one wins: pass-through beats skip ad detection, and skip ad detection beats the detection mode (a feed set to keep-content with skip on detects nothing). The settings panel points this out on the affected controls.
 

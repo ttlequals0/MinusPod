@@ -966,6 +966,29 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
+              {/* Skip verification pass (#599): pass 1 still cuts, pass 2 does not run */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification:</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <ToggleSwitch
+                      checked={feed.skipSecondPass === true}
+                      onChange={(v) => updateMutation.mutate({ skipSecondPass: v })}
+                      disabled={updateMutation.isPending}
+                      ariaLabel="Skip verification pass"
+                    />
+                    <span>Skip verification pass</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    The verification pass re-scans the cut audio for ads the first pass
+                    missed, at the cost of a second detection sweep. Turn this on for feeds
+                    where the first pass is already reliable. It roughly halves the
+                    ad-detection LLM spend. Held differential detections that the second
+                    pass would have confirmed then wait for you instead.
+                  </p>
+                </div>
+              </div>
+
               {/* Pass-through (#521): the feed opts out of processing entirely */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Pass-through:</span>

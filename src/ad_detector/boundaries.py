@@ -26,6 +26,7 @@ from config import (
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
     DEFAULT_SEGMENT_ACTION, normalize_segment_category,
+    PATTERN_TIGHTEN_MIN_EXCESS_SECONDS, PATTERN_TIGHTEN_MIN_CONFIDENCE,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -659,6 +660,49 @@ def _unpack_region(region) -> tuple:
     if isinstance(region, dict):
         return region['start'], region['end']
     return region[0], region[1]
+
+
+def tighten_pattern_regions(claude_ads: List[Dict], pattern_matched_regions: list,
+                            all_ads: List[Dict], action_map,
+                            slug=None, episode_id=None) -> None:
+    """Snap an oversized pattern span to the one LLM detection inside it.
+
+    A pattern span is minted from a stored average duration, so on a given
+    episode it can far overrun the actual read, while the LLM edges are
+    word-timestamped. Left oversized, the marker's edges sit far from any
+    splice evidence and the whole span gets held while the precise
+    detection is dropped as covered. Mutates the region and its marker.
+    """
+    for region in pattern_matched_regions:
+        inside = [
+            a for a in claude_ads
+            if a['start'] >= region['start'] - 1.0
+            and a['end'] <= region['end'] + 1.0
+            and (a.get('confidence') or 0) >= PATTERN_TIGHTEN_MIN_CONFIDENCE
+            and (action_map is None
+                 or resolve_category_action(a.get('category'), action_map)
+                 == DEFAULT_SEGMENT_ACTION)
+        ]
+        if len(inside) != 1:
+            continue
+        tight = inside[0]
+        excess = ((tight['start'] - region['start'])
+                  + (region['end'] - tight['end']))
+        if excess < PATTERN_TIGHTEN_MIN_EXCESS_SECONDS:
+            continue
+        for marker in all_ads:
+            if (marker.get('pattern_id') == region.get('pattern_id')
+                    and abs(marker['start'] - region['start']) < 0.01
+                    and abs(marker['end'] - region['end']) < 0.01):
+                logger.info(
+                    f"[{slug}:{episode_id}] Tightened pattern marker "
+                    f"{region['start']:.1f}s-{region['end']:.1f}s to LLM "
+                    f"bounds {tight['start']:.1f}s-{tight['end']:.1f}s "
+                    f"(pattern #{region.get('pattern_id')}, "
+                    f"overshoot {excess:.1f}s)")
+                marker['start'], marker['end'] = tight['start'], tight['end']
+                break
+        region['start'], region['end'] = tight['start'], tight['end']
 
 
 # --- Uncovered tail preservation (Fix 2) ---

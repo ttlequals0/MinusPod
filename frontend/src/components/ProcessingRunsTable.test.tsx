@@ -59,6 +59,19 @@ const skipDetectionRun: EpisodeProcessingRun = {
   },
 };
 
+const skipVerificationRun: EpisodeProcessingRun = {
+  ...skipDetectionRun,
+  runNumber: 4,
+  stats: {
+    mode: 'auto',
+    verificationSkipped: true,
+    downloadedDuration: 3305.7,
+    transcriptSegments: 132,
+    markers: { cut: 3, held: 0, notCut: 1 },
+    secondsRemoved: 180,
+  },
+};
+
 describe('ProcessingRunsTable', () => {
   it('renders full stats for a run with a blob', () => {
     render(<ProcessingRunsTable runs={[statsRun]} />);
@@ -84,6 +97,13 @@ describe('ProcessingRunsTable', () => {
     expect(screen.getByText('0 cut / 0 held / 0 kept')).toBeTruthy();
     // Windows, Stage hits, Second scan dash out: those stages never ran.
     expect(screen.queryByText(/fingerprint/)).toBeNull();
+    expect(screen.queryByText('clean')).toBeNull();
+  });
+
+  it('marks a skip-verification run instead of showing a clean second scan', () => {
+    render(<ProcessingRunsTable runs={[skipVerificationRun]} />);
+    expect(screen.getByText('(no verification)')).toBeTruthy();
+    expect(screen.getByText('3 cut / 0 held / 1 kept')).toBeTruthy();
     expect(screen.queryByText('clean')).toBeNull();
   });
 

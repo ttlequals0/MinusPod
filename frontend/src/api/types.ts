@@ -102,6 +102,8 @@ export interface Feed {
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
   // upstream GUIDs through; new feeds are created with true.
   ownEpisodeGuids?: boolean | null;
+  // Skip the pass-2 verification scan (#599). Null/false run it.
+  skipSecondPass?: boolean | null;
 }
 
 export interface AdDistributionZone {
@@ -217,6 +219,9 @@ export interface ProcessingRunStats {
   // Skip ad detection (#538): the run made no detection LLM calls and cut
   // nothing; stageHits/detected/verificationAdsCut are absent by design.
   detectionSkipped?: boolean | null;
+  // Skip verification (#599): pass 1 ran and cut, pass 2 did not, so
+  // verificationAdsCut is absent by design rather than 0.
+  verificationSkipped?: boolean | null;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   windows?: { total: number; failed: number } | null;

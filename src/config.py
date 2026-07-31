@@ -251,6 +251,8 @@ NETWORK_TO_GLOBAL_THRESHOLD = 2    # Networks needed for global promotion
 PROMOTION_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity for pattern merging
 SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promotion
 PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration correction
+PATTERN_TIGHTEN_MIN_EXCESS_SECONDS = 15.0  # Pattern span overshoot before LLM bounds win
+PATTERN_TIGHTEN_MIN_CONFIDENCE = 0.9       # LLM confidence needed to tighten a pattern span
 # Minimum fraction of a span a user correction must cover to match it.
 # Single source for the validator's force-accept checks and the
 # auto-approve idempotency check in processing.py: a correction that would
@@ -615,6 +617,15 @@ def resolve_feed_processing_mode(podcast_row):
     if podcast_row.get('detection_mode') == DETECTION_MODE_KEEP_CONTENT:
         return PROCESSING_MODE_KEEP_CONTENT
     return PROCESSING_MODE_STANDARD
+
+
+def resolve_skip_second_pass(podcast_row):
+    """Whether the feed opts out of the pass-2 verification scan (issue #599).
+
+    Per-feed only, like detect_show_segments: there is no global default that
+    could silently disable verification everywhere. NULL/0 runs pass 2.
+    """
+    return bool(podcast_row and podcast_row.get('skip_second_pass'))
 
 
 # Per-feed chapter mode (issue #560): whether to preserve publisher-embedded

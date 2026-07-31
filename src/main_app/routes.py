@@ -98,7 +98,9 @@ def log_request_detailed(f):
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
             if isinstance(e, NotFound):
-                feed_logger.warning(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{ip}] - {e}")
+                # Scanners probe unknown paths constantly, so a 404 to a
+                # stranger is not an operator problem.
+                feed_logger.info(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{ip}] - {e}")
             else:
                 feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{ip}] - {e}")
             raise

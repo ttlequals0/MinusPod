@@ -78,6 +78,9 @@ _TRUNCATION_MARKERS = (
     'unclosed token',
     'unexpected end of data',
     'unexpected end of file',
+    # A body cut mid-character leaves a partial multibyte sequence, which
+    # expat reports as an invalid token rather than a missing element.
+    'not well-formed (invalid token)',
 )
 
 

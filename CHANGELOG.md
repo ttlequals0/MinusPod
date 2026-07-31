@@ -9,6 +9,41 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.83.1] - 2026-07-31
+
+### Added
+
+- Per-feed "Skip verification pass" toggle (#599). The pass-2 verification
+  scan re-transcribes the cut audio and runs a second full detection sweep
+  over it, which roughly doubles the ad-detection LLM spend on every episode.
+  It had no toggle at any scope. Feed settings now has a per-feed switch that
+  skips it, so a feed whose first pass is already reliable pays for one
+  detection sweep instead of two. Held differential detections that pass 2
+  would have confirmed wait for a human instead. The toggle reuses a column
+  of the same name from the old two-pass era, so upgrading resets any value
+  left over from it and the toggle starts off on every feed. A skipped run
+  records no verification result rather than a zero, which would have read as
+  a clean second scan, and the run list labels it "(no verification)".
+
+### Fixed
+
+- An oversized learned-pattern span could swallow a precise LLM detection
+  and then hold the whole thing, leaving the ad in the audio. A pattern
+  span is minted from a stored average duration; on one episode it ran 62
+  seconds past the actual read, the exact 0.98-confidence LLM detection
+  inside it was dropped as already covered, and the bloated marker was held
+  because its edges sat far from any splice evidence. When exactly one
+  high-confidence cut-resolving LLM detection sits inside a pattern span
+  that materially overshoots it, the span now adopts the LLM bounds.
+- A feed body cut mid-character parsed as a short but valid feed. The
+  truncation detector matched the parser's missing-element errors but not
+  "not well-formed (invalid token)", which is what a partial multibyte
+  sequence produces; it is now treated as truncation, so the stored episode
+  list survives.
+- HTTP 404s from unknown-path scanner probes logged at warning in the
+  access log even after the application-level line was demoted; both now
+  log at info.
+
 ## [2.83.0] - 2026-07-31
 
 ### Added

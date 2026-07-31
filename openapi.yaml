@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.83.0
+  version: 2.83.1
   contact:
     name: MinusPod
   license:
@@ -683,6 +683,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
+                skipSecondPass:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: When true, the pass-2 verification scan of the cut audio is skipped, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
                 ownEpisodeGuids:
                   type:
                     - boolean
@@ -7840,6 +7845,11 @@ components:
             - boolean
             - 'null'
           description: Whether the served RSS uses MinusPod episode ids as item GUIDs (issue 598). Null and false both mean upstream GUIDs pass through. New feeds are created with true.
+        skipSecondPass:
+          type:
+            - boolean
+            - 'null'
+          description: Whether the pass-2 verification scan of the cut audio is skipped for this feed, which roughly halves the ad-detection LLM spend on feeds whose first pass is already reliable. Held differential detections that pass 2 would have confirmed then wait for a human. Null and false both mean the second pass runs.
 
     EpisodeSummary:
       type: object
@@ -8054,6 +8064,11 @@ components:
                 - boolean
                 - 'null'
               description: True when the run skipped ad detection because the feed has skipAdDetection set
+            verificationSkipped:
+              type:
+                - boolean
+                - 'null'
+              description: True when the run skipped the pass-2 verification scan because the feed has skipSecondPass set. Absent when detection was skipped outright, which already implies no verification.
             downloadedDuration:
               type: number
               description: ffprobe duration of the downloaded copy, in seconds
@@ -8099,8 +8114,10 @@ components:
                 notCut:
                   type: integer
             verificationAdsCut:
-              type: integer
-              description: Ads the second scan of the output audio found and cut; 0 means the scan came back clean
+              type:
+                - integer
+                - 'null'
+              description: Ads the second scan of the output audio found and cut. 0 means the scan ran and came back clean. Absent or null means the scan did not run, either because it was skipped (see verificationSkipped and detectionSkipped) or because it failed.
             secondsRemoved:
               type: number
 

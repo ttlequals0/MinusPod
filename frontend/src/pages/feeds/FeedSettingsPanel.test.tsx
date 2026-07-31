@@ -433,6 +433,40 @@ describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {
   });
 });
 
+describe('FeedSettingsPanel skip verification toggle (#599)', () => {
+  const TOGGLE_NAME = 'Skip verification pass';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders off when skipSecondPass is unset', () => {
+    renderPanel(makeFeed());
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('renders on when skipSecondPass is true', () => {
+    renderPanel(makeFeed({ skipSecondPass: true }));
+    const toggle = screen.getByRole('switch', { name: TOGGLE_NAME });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('enabling fires updateFeed with skipSecondPass true', async () => {
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { skipSecondPass: true });
+  });
+
+  it('disabling fires skipSecondPass false', async () => {
+    renderPanel(makeFeed({ skipSecondPass: true }));
+    await userEvent.click(screen.getByRole('switch', { name: TOGGLE_NAME }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { skipSecondPass: false });
+  });
+});
+
 describe('FeedSettingsPanel re-render segments (#565)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

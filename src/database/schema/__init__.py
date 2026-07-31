@@ -1311,6 +1311,14 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"sonnet5/fable5 token cost recompute failed: {e}")
 
+        # Clear stale skip_second_pass values left by the 0.1.165-0.1.242
+        # column (2.83.1), so #599 reintroduces the toggle off everywhere.
+        try:
+            self._run_reset_legacy_skip_second_pass(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"legacy skip_second_pass reset failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1760,6 +1768,37 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info("opus48-cost-fix: complete")
+
+    def _run_reset_legacy_skip_second_pass(self, conn):
+        """One-time reset of `podcasts.skip_second_pass` values from the old column.
+
+        The column shipped in 0.1.165 with the same name and meaning and was
+        orphaned in 0.1.242; issue #599 reuses it. An install from that window
+        where an operator turned it on would otherwise upgrade straight into a
+        silently disabled verification pass. Gated by `schema_migrations`, and
+        the write is absolute so a re-run is a no-op.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'reset_legacy_skip_second_pass'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        cur = conn.execute(
+            "UPDATE podcasts SET skip_second_pass = 0 "
+            "WHERE skip_second_pass IS NOT NULL AND skip_second_pass != 0"
+        )
+        if cur.rowcount:
+            logger.info(
+                "Migration: reset legacy skip_second_pass on %d feed(s) (#599)",
+                cur.rowcount,
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('reset_legacy_skip_second_pass')"
+        )
+        conn.commit()
 
     def _run_recompute_sonnet5_fable5_token_cost(self, conn):
         """One-time recompute of Sonnet 5 / Fable 5 token cost recorded as $0.
