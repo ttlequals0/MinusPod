@@ -396,15 +396,25 @@ def _podping_coverage(podcast, enabled, host_is_active):
     return 'host_active' if domain and host_is_active(domain) else 'unseen'
 
 
+def _feed_artwork_url(podcast) -> str:
+    """Proxy path when we hold the file, else an https publisher URL."""
+    proxied = f"/api/v1/feeds/{podcast['slug']}/artwork"
+    if get_storage().has_artwork(podcast['slug']):
+        return proxied
+    upstream = podcast.get('artwork_url') or ''
+    return upstream if upstream.startswith('https://') else proxied
+
+
 def _podcast_listing_fields(podcast, podping) -> dict:
     """Extra fields shared by the feed list and detail responses (not PATCH)."""
     enabled, host_is_active = podping
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
-        # Always the proxy path. Handing back the publisher's URL leaks an
-        # http:// image into an https page, which the browser blocks, and the
-        # endpoint serves the cached file whatever the flag says.
-        'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork",
+        # The proxy whenever we hold the file. A cover that was rejected at
+        # cache time has nothing to serve, so fall back to the publisher's
+        # URL, but only over https: an http:// image inside an https page is
+        # blocked by the browser and renders as a placeholder.
+        'artworkUrl': _feed_artwork_url(podcast),
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),

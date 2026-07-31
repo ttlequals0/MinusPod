@@ -201,10 +201,9 @@ def list_episodes(slug):
 
 
 def _secure_artwork_url(url):
-    """Publisher episode cover, or None when it would be blocked as mixed content.
+    """Publisher episode cover, or None when it is not https.
 
-    Unlike feed artwork there is no proxy endpoint to fall back to, so an
-    http:// cover is dropped and the client uses the feed's instead.
+    There is no episode artwork proxy, so the client uses the feed cover.
     """
     return url if (url or '').startswith('https://') else None
 

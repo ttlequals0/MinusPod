@@ -1,9 +1,4 @@
-"""Feed metadata refresh on re-fetch (#596).
-
-A changed cover URL was never re-downloaded: the refresh writes the new URL
-to the podcast row before download_artwork re-reads that row to decide
-whether the cover is cached, so the guard compared the URL against itself.
-"""
+"""Feed metadata refresh on re-fetch (#596)."""
 import sqlite3
 from unittest.mock import patch
 
@@ -41,11 +36,16 @@ def test_a_changed_cover_url_is_fetched_rather_than_read_as_cached():
 
     # Exactly what refresh does: store the new URL first, then download.
     mf.db.update_podcast(slug, artwork_url='https://example.com/new.png')
-    with patch.object(mf.storage, 'save_artwork') as save, \
-         patch.object(storage_mod, 'safe_get', side_effect=RuntimeError('fetched')):
+    with patch.object(storage_mod, 'safe_get',
+                      side_effect=RuntimeError('fetched')) as get:
         mf.storage.download_artwork(slug, 'https://example.com/new.png',
                                     force=True)
-    assert not save.called  # the stubbed fetch raised, which is the point
+    assert get.called, "force must skip the guard and actually fetch"
+
+    # Without force the guard matches the URL against itself and returns early.
+    with patch.object(storage_mod, 'safe_get') as get:
+        mf.storage.download_artwork(slug, 'https://example.com/new.png')
+    assert not get.called
 
 
 def test_an_unchanged_cover_url_is_not_refetched():
@@ -118,28 +118,6 @@ def etag_db_path(tmp_path):
 def _validators(conn):
     return {r[0]: (r[1], r[2]) for r in conn.execute(
         "SELECT slug, etag, last_modified_header FROM podcasts")}
-
-
-def test_migration_clears_validators_once_and_is_idempotent(etag_db_path):
-    """A steady feed answers 304 forever, so metadata never refreshes; the
-    one-shot drops the validators to force a single full fetch (#596)."""
-    from database import Database
-
-    Database._instance = None
-    try:
-        db = Database(data_dir=str(etag_db_path.parent))
-        conn = db.get_connection()
-        assert _validators(conn) == {'steady-a': (None, None),
-                                     'steady-b': (None, None)}
-
-        # The gate must survive: a validator earned after the migration is
-        # not wiped by a later boot.
-        conn.execute("UPDATE podcasts SET etag = '\"fresh\"' WHERE slug = 'steady-a'")
-        conn.commit()
-        db._run_schema_migrations()
-        assert _validators(db.get_connection())['steady-a'][0] == '"fresh"'
-    finally:
-        Database._instance = None
 
 
 def test_migration_queues_one_artwork_redownload(etag_db_path):
@@ -257,3 +235,18 @@ def test_episode_api_drops_an_insecure_cover_url():
     assert _secure_artwork_url('http://cdn.example/ep.jpg') is None
     assert _secure_artwork_url('https://cdn.example/ep.jpg') == 'https://cdn.example/ep.jpg'
     assert _secure_artwork_url(None) is None
+
+
+def test_feed_artwork_falls_back_to_an_https_publisher_url_when_uncached():
+    """A cover rejected at cache time has no file to proxy, so the endpoint
+    would 404; the publisher's https URL still renders."""
+    from api.feeds import _feed_artwork_url
+
+    assert _feed_artwork_url({
+        'slug': 'too-big', 'artwork_url': 'https://cdn.example/huge.gif',
+    }) == 'https://cdn.example/huge.gif'
+    # http would be blocked as mixed content, so keep the proxy and let the
+    # placeholder show rather than a broken image.
+    assert _feed_artwork_url({
+        'slug': 'insecure', 'artwork_url': 'http://cdn.example/c.jpg',
+    }) == '/api/v1/feeds/insecure/artwork'

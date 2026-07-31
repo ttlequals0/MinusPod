@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN, get_env_backed_int
 from defusedxml.common import DefusedXmlException
+from feedparser.sanitizer import _sanitize_html as sanitize_html
 from defusedxml.ElementTree import fromstring as defused_fromstring
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
@@ -169,6 +170,26 @@ _PC2_TXT_STRIP_PURPOSES = frozenset({
 #   image: emitted separately with the corrected artwork URL.
 #   new-feed-url: would tell apps to redirect MinusPod subscribers to the
 #     upstream feed. Mandatory strip; never carry through.
+def _sanitize_feed_html(html: str) -> str:
+    """Strip scripts and event handlers from publisher markup."""
+    if not html:
+        return ''
+    try:
+        return sanitize_html(html, 'utf-8', 'text/html')
+    except Exception:
+        # Never let a sanitizer edge case drop a whole description.
+        return html
+
+
+# Dropped before re-encoding an already-decoded body; see find_channel_element.
+_XML_ENCODING_DECL = re.compile(r'<\?xml[^>]*?\?>', re.IGNORECASE)
+
+# Self-closing is only safe on these; HTML ignores the solidus elsewhere.
+_HTML_VOID_ELEMENTS = frozenset({
+    'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+    'link', 'meta', 'param', 'source', 'track', 'wbr',
+})
+
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
 _ITUNES_CHANNEL_PASSTHROUGH = frozenset({
     "author", "summary", "subtitle", "owner",
@@ -605,16 +626,21 @@ class RSSParser:
 
     @staticmethod
     def find_channel_element(feed_content):
-        """Locate the <channel> element in raw feed bytes/str, or None.
+        """The <channel> element from raw feed bytes/str, or None.
 
-        Atom feeds have no <channel> at all, so None is a normal result and
-        callers must fall back rather than treat it as an error.
+        Atom has no <channel>, so None is a normal result, not an error.
         """
         if not feed_content:
             return None
         try:
-            payload = (feed_content.encode('utf-8')
-                       if isinstance(feed_content, str) else feed_content)
+            if isinstance(feed_content, str):
+                # The body was already decoded, so a declared non-UTF-8
+                # encoding would make expat decode these bytes twice and
+                # mojibake every accented character.
+                payload = _XML_ENCODING_DECL.sub(
+                    '', feed_content, count=1).encode('utf-8')
+            else:
+                payload = feed_content
             root = defused_fromstring(payload)
         except Exception:
             return None
@@ -628,10 +654,8 @@ class RSSParser:
     def _inner_markup(elem, _depth: int = 0) -> str:
         """Element text with inline child markup preserved.
 
-        ``elem.text`` alone truncates at the first child, so a publisher who
-        writes unescaped inline HTML ("Intro <b>bold</b> tail") would lose
-        everything after it. Depth-capped like the other serializers so a
-        hostile feed cannot blow the stack.
+        ``elem.text`` alone stops at the first child, losing the rest of a
+        description written as inline HTML. Depth-capped like the siblings.
         """
         if _depth > 16:
             return ''
@@ -647,23 +671,22 @@ class RSSParser:
                 for name, value in child.attrib.items()
                 if not name.startswith('{'))
             inner = RSSParser._inner_markup(child, _depth + 1)
-            parts.append(f'<{local}{attrs}>{inner}</{local}>' if inner
-                         else f'<{local}{attrs} />')
+            if inner or local.lower() not in _HTML_VOID_ELEMENTS:
+                # HTML ignores the solidus on a non-void tag, so emitting
+                # <iframe /> would swallow the rest of the description.
+                parts.append(f'<{local}{attrs}>{inner}</{local}>')
+            else:
+                parts.append(f'<{local}{attrs} />')
             parts.append(child.tail or '')
         return ''.join(parts)
 
     @staticmethod
     def extract_channel_metadata(feed_content, channel=None) -> Optional[dict]:
-        """Channel title/description/link/language from direct <channel> children.
+        """Channel metadata from the direct <channel> children.
 
-        feedparser flattens unknown channel-level containers into the feed
-        dict, so a <podcast:liveItem> overwrites the show's metadata with the
-        live episode's, and it aliases <description> onto <itunes:summary>.
-
-        Returns None when there is no <channel> (Atom, RDF) or the XML will
-        not parse, so callers fall back to feedparser per field. Only
-        unnamespaced tags count: <atom:link rel="self"> is a near-universal
-        direct child and would otherwise become the show's website.
+        feedparser flattens <podcast:liveItem> into the channel dict and
+        aliases <description> onto <itunes:summary>. None means no <channel>
+        (Atom, RDF) or unparseable XML; callers then fall back per field.
         """
         if channel is None:
             channel = RSSParser.find_channel_element(feed_content)
@@ -720,7 +743,10 @@ class RSSParser:
                        or fallback.get('author') or ''),
             'categories': (raw.get('categories')
                            or self._dedup_category_labels(fallback.get('tags'))),
-            'description': (self._get_channel_description(raw)
+            # Sanitized because the raw read bypasses feedparser, which
+            # stripped scripts and event handlers before this text reached
+            # the served feed. The fallback arrives sanitized already.
+            'description': (_sanitize_feed_html(self._get_channel_description(raw))
                             or self._get_channel_description(fallback)),
         }
 

@@ -1,10 +1,4 @@
-"""Tests for channel metadata read from raw <channel> children (#596).
-
-feedparser flattens channel-level containers it does not recognise. A
-Podcasting 2.0 <podcast:liveItem> carries its own title/description/link, so
-the live episode's blurb ends up reported as the show's description and its
-chat link as the show's website.
-"""
+"""Channel metadata read from the raw <channel> children (#596)."""
 import defusedxml
 defusedxml.defuse_stdlib()
 
@@ -201,3 +195,49 @@ class TestDescriptionFallbackChain:
         fields = parser.resolve_channel_fields(
             feed, parsed_feed=parser.parse_feed(feed))
         assert fields['description'] == 'ONLY SUBTITLE'
+
+
+class TestEncodingAndMarkupSafety:
+    def test_a_stale_encoding_declaration_does_not_mojibake_text(self):
+        # The body arrives already decoded, so re-encoding it as UTF-8 under a
+        # latin-1 declaration would decode the bytes a second time.
+        feed = ('<?xml version="1.0" encoding="ISO-8859-1"?>'
+                '<rss version="2.0"><channel>'
+                '<title>Caf\u00e9 Podcast</title>'
+                '<description>Espa\u00f1ol y caf\u00e9</description>'
+                '</channel></rss>')
+        meta = RSSParser.extract_channel_metadata(feed)
+        assert meta['title'] == 'Caf\u00e9 Podcast'
+        assert meta['description'] == 'Espa\u00f1ol y caf\u00e9'
+
+    def test_bytes_keep_their_declared_encoding(self):
+        feed = ('<?xml version="1.0" encoding="ISO-8859-1"?>'
+                '<rss version="2.0"><channel><title>Caf\u00e9</title>'
+                '</channel></rss>').encode('iso-8859-1')
+        assert RSSParser.extract_channel_metadata(feed)['title'] == 'Caf\u00e9'
+
+    def test_an_empty_non_void_element_does_not_swallow_the_rest(self):
+        # HTML ignores the solidus on a non-void tag, so <i ... /> would leave
+        # the element open and hide everything after it.
+        feed = """<?xml version="1.0"?><rss version="2.0"><channel>
+          <title>T</title>
+          <description>notes <i class="ic"></i>tail</description>
+          </channel></rss>"""
+        desc = RSSParser.extract_channel_metadata(feed)['description']
+        assert desc == 'notes <i class="ic"></i>tail'
+
+    def test_void_elements_stay_self_closing(self):
+        feed = """<?xml version="1.0"?><rss version="2.0"><channel>
+          <title>T</title><description>a<br/>b</description></channel></rss>"""
+        assert RSSParser.extract_channel_metadata(feed)['description'] == 'a<br />b'
+
+    def test_scripts_are_stripped_from_the_resolved_description(self):
+        # The raw read bypasses feedparser, which used to sanitize this.
+        feed = """<?xml version="1.0"?><rss version="2.0"><channel><title>T</title>
+          <description><![CDATA[<script>alert(1)</script>safe <b>text</b>]]></description>
+          </channel></rss>"""
+        parser = RSSParser()
+        fields = parser.resolve_channel_fields(
+            feed, parsed_feed=parser.parse_feed(feed))
+        assert fields['description'] == 'safe <b>text</b>'
+        assert 'alert(1)' not in parser.modify_feed(feed, 'a-slug')

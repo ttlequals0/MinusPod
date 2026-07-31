@@ -4,11 +4,9 @@ export function feedArtworkSrc(slug: string, feedArtworkUrl?: string | null): st
 }
 
 /**
- * Episode cover, falling back to the feed's.
- *
- * An insecure episode URL is dropped rather than rendered: the browser blocks
- * it as mixed content on an https page, and the resulting onError would show
- * the grey placeholder instead of the feed cover we already have.
+ * Episode cover, falling back to the feed's. An insecure URL is dropped
+ * rather than rendered: the browser blocks it, showing the grey placeholder
+ * instead of the feed cover we already have.
  */
 export function episodeArtworkSrc(
   slug: string,

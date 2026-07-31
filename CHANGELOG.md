@@ -15,8 +15,7 @@ release notes.
 
 - Episodes now show their own cover art in the episode list and on the
   episode page, falling back to the feed cover when an episode does not
-  declare one. An insecure episode cover URL is dropped rather than
-  rendered, since the browser blocks it as mixed content on an https page.
+  declare one.
 
 ### Fixed
 
@@ -24,27 +23,12 @@ release notes.
   the parsed feed dictionary (#596). The parser folds channel-level elements
   it does not recognise into the channel itself, so a feed carrying a
   Podcasting 2.0 `<podcast:liveItem>` reported the live episode's blurb as
-  the show description and its chat link as the show website, in the web UI
-  and in the feed served to podcast apps. This also separates `<description>`
-  from `<itunes:summary>`, which the parser had aliased onto each other: a
-  feed whose two differ will now publish the `<description>` it actually
-  declares, so some stored descriptions change on the next refresh.
-- The same flattening also gave the show the live item's author, which feeds
-  ad-platform and network detection, and mixed the live item's categories
-  into the feed's tags. Both now come from the channel's own elements.
-- The episode API no longer returns a cover URL that is not https. There is
-  no episode artwork proxy to fall back to, so an insecure URL would only be
-  blocked by the browser; clients use the feed cover instead. This matches
-  the rule the feed endpoint already follows.
-- Rows already holding a live item's description or link repair themselves:
-  a feed that has not yet had its metadata read from raw XML does one full
-  fetch the next time it answers 304, spread across normal refresh cycles
-  rather than all at once.
-
-## [2.83.2] - 2026-07-31
-
-### Fixed
-
+  the show description, its chat link as the show website, and its author
+  and categories as the show's, both in the web UI and in the feed served to
+  podcast apps. This also separates `<description>` from `<itunes:summary>`,
+  which the parser had aliased onto each other: a feed whose two differ now
+  publishes the `<description>` it actually declares, so some stored
+  descriptions change on the next refresh.
 - A feed that changed its cover art kept serving the old image (#596). The
   refresh writes the new artwork URL to the podcast row before the download
   step re-reads that row to decide whether the cover is already cached, so
@@ -54,21 +38,29 @@ release notes.
   cannot be repaired by change detection alone, since the stored URL is the
   new one while the image on disk is the old one, so upgrading also queues a
   single artwork re-download for every feed.
-- The feed API handed back the publisher's own artwork URL whenever the
-  cover was not cached, so an http:// cover arrived inside an https page and
-  the browser blocked it, leaving a placeholder. The response now always
-  points at the proxied artwork endpoint, which serves the cached file.
-- Feed title, description, and artwork only refresh when the publisher's
-  body changes, so a steady feed answering 304 kept whatever it had when it
+- "Refresh artwork" re-pulls the cover again. It read the stored URL back off
+  the row and passed it to the same guard that compares against that row, so
+  the check always matched and only the badge variant was rebuilt.
+- The feed API handed back the publisher's own artwork URL whenever the cover
+  was not cached, so an http:// cover arrived inside an https page and the
+  browser blocked it, leaving a placeholder. It now uses the proxied endpoint
+  whenever the file is on disk, and falls back to the publisher's URL only
+  over https, which keeps covers that were rejected at cache time rendering.
+- Feed title, description, and artwork only refreshed when the publisher's
+  body changed, so a steady feed answering 304 kept whatever it had when it
   was added, including descriptions stored under the old 500-character cap.
-  Upgrading clears the conditional-GET validators once so every feed does a
-  single full fetch and picks up current metadata. Expect a one-time burst
-  of full fetches on that tick, which can trip the per-host circuit breaker
-  and raise a refresh-failure alert for feeds sharing a host; it clears on
-  the next cycle. Changes are logged, so a title, description, artwork, or
-  website edit upstream is visible in the refresh log. A publisher who
-  replaces the image at an unchanged URL is still not picked up, since
-  nothing revalidates the bytes behind a URL that did not change.
+  A feed whose metadata has not yet been read this way now does one full
+  fetch the next time it answers 304, spread across normal refresh cycles.
+  Changes are logged, so a title, description, artwork, or website edit
+  upstream is visible in the refresh log. A publisher who replaces the image
+  at an unchanged URL is still not picked up, since nothing revalidates the
+  bytes behind a URL that did not change.
+- Feeds declaring an encoding they do not actually use no longer store
+  mojibake. The body is decoded once on fetch, and the channel read no
+  longer re-applies the declared encoding on top of that.
+- The episode API no longer returns a cover URL that is not https. There is
+  no episode artwork proxy to fall back to, so an insecure URL would only be
+  blocked by the browser; clients use the feed cover instead.
 
 ## [2.83.1] - 2026-07-31
 

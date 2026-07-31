@@ -125,9 +125,8 @@ function EpisodeDetail() {
     enabled: !!slug && !!episodeId,
   });
 
-  // Feed query is used only for its ``artworkUrl`` field; the API returns
-  // either the cached endpoint path or the upstream URL depending on cache
-  // state, mirroring the dashboard fallback chain.
+  // Fetched only for ``artworkUrl``, the fallback when the episode
+  // declares no cover of its own.
   const { data: feed } = useQuery({
     queryKey: ['feed', slug],
     queryFn: () => getFeed(slug!),

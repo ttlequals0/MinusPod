@@ -330,10 +330,8 @@ class SchemaMixin:
             # means never, which is what lets a 304 force one full fetch to
             # read it instead of waiting for the feed to change (#579).
             ('podping_checked_at', 'TEXT'),
-            # When channel metadata was last read from raw <channel> children
-            # rather than the feedparser dict. NULL means never, which lets a
-            # 304 force one full fetch to repair a row holding a live item's
-            # description or link (#596).
+            # When a full body was last read with the raw-<channel> logic.
+            # NULL lets a 304 force one full fetch to repair the row (#596).
             ('channel_metadata_at', 'TEXT'),
             # Per-feed segment category action overrides (issue #565): partial
             # JSON map of category -> action, merged over the global
@@ -1324,13 +1322,6 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"legacy skip_second_pass reset failed: {e}")
 
-        # One full fetch per feed so stale metadata refreshes (#596).
-        try:
-            self._run_refresh_stale_feed_metadata(conn)
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"feed metadata refresh priming failed: {e}")
-
         # Repair covers left stale by the skipped-download bug (#596).
         try:
             self._run_redownload_stale_artwork(conn)
@@ -1811,29 +1802,6 @@ class SchemaMixin:
         logger.info(
             "Migration: queued %d feed(s) for one artwork re-download (#596)",
             cur.rowcount,
-        )
-
-    def _run_refresh_stale_feed_metadata(self, conn):
-        """One-time validator clear so every feed refreshes metadata once (#596).
-
-        A steady feed answers 304 forever, so title, description, and artwork
-        stay as they were when it was added.
-        """
-        gate = conn.execute(
-            "SELECT 1 FROM schema_migrations WHERE name = 'refresh_stale_feed_metadata'"
-        ).fetchone()
-        if gate is not None:
-            return
-
-        rows = self.clear_all_podcast_etags()
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
-            "('refresh_stale_feed_metadata')"
-        )
-        conn.commit()
-        logger.info(
-            "Migration: primed %d feed(s) for one full metadata refresh (#596)",
-            rows,
         )
 
     def _run_reset_legacy_skip_second_pass(self, conn):
