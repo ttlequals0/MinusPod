@@ -1326,6 +1326,13 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"feed metadata refresh priming failed: {e}")
 
+        # Repair covers left stale by the skipped-download bug (#596).
+        try:
+            self._run_redownload_stale_artwork(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"artwork re-download priming failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1775,6 +1782,31 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info("opus48-cost-fix: complete")
+
+    def _run_redownload_stale_artwork(self, conn):
+        """One-time artwork_cached clear so every cover re-downloads once (#596).
+
+        While the changed-URL download was being skipped, the row stored the
+        new URL against the old image on disk, so change detection alone
+        cannot repair those feeds: the stored URL already matches.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'redownload_stale_artwork'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        cur = conn.execute(
+            "UPDATE podcasts SET artwork_cached = 0 WHERE artwork_cached")
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('redownload_stale_artwork')"
+        )
+        conn.commit()
+        logger.info(
+            "Migration: queued %d feed(s) for one artwork re-download (#596)",
+            cur.rowcount,
+        )
 
     def _run_refresh_stale_feed_metadata(self, conn):
         """One-time validator clear so every feed refreshes metadata once (#596).

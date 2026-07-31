@@ -98,14 +98,17 @@ def etag_db_path(tmp_path):
             source_url TEXT NOT NULL,
             title TEXT,
             etag TEXT,
-            last_modified_header TEXT
+            last_modified_header TEXT,
+            artwork_url TEXT,
+            artwork_cached INTEGER DEFAULT 0
         )
     """)
     conn.executemany(
         "INSERT INTO podcasts (slug, source_url, title, etag, "
-        "last_modified_header) VALUES (?, ?, ?, ?, ?)",
+        "last_modified_header, artwork_cached) VALUES (?, ?, ?, ?, ?, 1)",
         [('steady-a', 'https://example.com/a.xml', 'A', '"abc"', None),
-         ('steady-b', 'https://example.com/b.xml', 'B', None, 'Mon, 01 Jan 2026 00:00:00 GMT')],
+         ('steady-b', 'https://example.com/b.xml', 'B', None,
+          'Mon, 01 Jan 2026 00:00:00 GMT')],
     )
     conn.commit()
     conn.close()
@@ -135,5 +138,28 @@ def test_migration_clears_validators_once_and_is_idempotent(etag_db_path):
         conn.commit()
         db._run_schema_migrations()
         assert _validators(db.get_connection())['steady-a'][0] == '"fresh"'
+    finally:
+        Database._instance = None
+
+
+def test_migration_queues_one_artwork_redownload(etag_db_path):
+    """The skipped-download bug stored the new URL against the old image, so
+    change detection cannot repair those feeds; the flag clear does."""
+    from database import Database
+
+    Database._instance = None
+    try:
+        db = Database(data_dir=str(etag_db_path.parent))
+        conn = db.get_connection()
+        cached = [r[0] for r in conn.execute(
+            "SELECT artwork_cached FROM podcasts")]
+        assert cached == [0, 0]
+
+        # A cover cached after the migration is not cleared again on reboot.
+        conn.execute("UPDATE podcasts SET artwork_cached = 1 WHERE slug = 'steady-a'")
+        conn.commit()
+        db._run_schema_migrations()
+        again = dict(conn.execute("SELECT slug, artwork_cached FROM podcasts"))
+        assert again['steady-a'] == 1
     finally:
         Database._instance = None

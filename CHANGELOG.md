@@ -17,7 +17,11 @@ release notes.
   refresh writes the new artwork URL to the podcast row before the download
   step re-reads that row to decide whether the cover is already cached, so
   the check compared the new URL against itself, always matched, and skipped
-  the fetch. A changed URL now forces the download.
+  the fetch. A changed URL now forces the download, and the cache flag is
+  cleared with the URL so a failed download is retried. Feeds already stuck
+  cannot be repaired by change detection alone, since the stored URL is the
+  new one while the image on disk is the old one, so upgrading also queues a
+  single artwork re-download for every feed.
 - Feed title, description, and artwork only refresh when the publisher's
   body changes, so a steady feed answering 304 kept whatever it had when it
   was added, including descriptions stored under the old 500-character cap.
