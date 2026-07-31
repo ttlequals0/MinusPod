@@ -4,7 +4,10 @@ A changed cover URL was never re-downloaded: the refresh writes the new URL
 to the podcast row before download_artwork re-reads that row to decide
 whether the cover is cached, so the guard compared the URL against itself.
 """
+import sqlite3
 from unittest.mock import patch
+
+import pytest
 
 from tests.app_bootstrap import bootstrap
 
@@ -81,3 +84,56 @@ def test_refresh_forces_the_download_and_clears_the_cache_flag():
     assert not row['artwork_cached'], "a failed download must not look cached"
     assert row['description'] == 'New description'
     assert row['title'] == 'New title'
+
+
+@pytest.fixture
+def etag_db_path(tmp_path):
+    """A podcasts table whose feeds carry conditional-GET validators."""
+    path = tmp_path / 'podcast.db'
+    conn = sqlite3.connect(path)
+    conn.execute("""
+        CREATE TABLE podcasts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            source_url TEXT NOT NULL,
+            title TEXT,
+            etag TEXT,
+            last_modified_header TEXT
+        )
+    """)
+    conn.executemany(
+        "INSERT INTO podcasts (slug, source_url, title, etag, "
+        "last_modified_header) VALUES (?, ?, ?, ?, ?)",
+        [('steady-a', 'https://example.com/a.xml', 'A', '"abc"', None),
+         ('steady-b', 'https://example.com/b.xml', 'B', None, 'Mon, 01 Jan 2026 00:00:00 GMT')],
+    )
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _validators(conn):
+    return {r[0]: (r[1], r[2]) for r in conn.execute(
+        "SELECT slug, etag, last_modified_header FROM podcasts")}
+
+
+def test_migration_clears_validators_once_and_is_idempotent(etag_db_path):
+    """A steady feed answers 304 forever, so metadata never refreshes; the
+    one-shot drops the validators to force a single full fetch (#596)."""
+    from database import Database
+
+    Database._instance = None
+    try:
+        db = Database(data_dir=str(etag_db_path.parent))
+        conn = db.get_connection()
+        assert _validators(conn) == {'steady-a': (None, None),
+                                     'steady-b': (None, None)}
+
+        # The gate must survive: a validator earned after the migration is
+        # not wiped by a later boot.
+        conn.execute("UPDATE podcasts SET etag = '\"fresh\"' WHERE slug = 'steady-a'")
+        conn.commit()
+        db._run_schema_migrations()
+        assert _validators(db.get_connection())['steady-a'][0] == '"fresh"'
+    finally:
+        Database._instance = None
