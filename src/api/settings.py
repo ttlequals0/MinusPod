@@ -45,6 +45,7 @@ from config import (
 # settings would break boot -- keep this the only cross-submodule import.
 from api.podcast_search import resolve_search_provider
 from ad_detector import AdDetector
+from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
@@ -205,6 +206,9 @@ def get_settings():
         registry_default('artwork_watermark_enabled'))
     artwork_watermark_enabled = (
         artwork_watermark_value.lower() in ('true', '1', 'yes'))
+    artwork_badge_position = _setting_value(
+        settings, 'artwork_badge_position',
+        registry_default('artwork_badge_position'))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -501,6 +505,8 @@ def get_settings():
             'only_expose_processed_default', only_expose_processed_default),
         'artworkWatermarkEnabled': _sv(
             'artwork_watermark_enabled', artwork_watermark_enabled),
+        'artworkBadgePosition': _sv(
+            'artwork_badge_position', artwork_badge_position),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -781,7 +787,20 @@ def _apply_processing_flags(db, data):
     if 'artworkWatermarkEnabled' in data:
         value = 'true' if data['artworkWatermarkEnabled'] else 'false'
         db.set_setting('artwork_watermark_enabled', value, is_default=False)
+        # The badge state is part of the cover URL token, and a steady feed
+        # 304-skips the re-render that would move it, so apps would keep
+        # fetching the old image. Same reason as the feed-auth clear below.
+        db.clear_all_podcast_etags()
         logger.info(f"Updated artwork watermark to: {value}")
+
+    if 'artworkBadgePosition' in data:
+        if data['artworkBadgePosition'] not in BADGE_POSITIONS:
+            return error_response(
+                f'artworkBadgePosition must be one of: {", ".join(BADGE_POSITIONS)}', 400)
+        db.set_setting('artwork_badge_position', data['artworkBadgePosition'],
+                       is_default=False)
+        db.clear_all_podcast_etags()
+        logger.info(f"Updated artwork badge position to: {data['artworkBadgePosition']}")
 
     if 'feedAuthEnabled' in data:
         enabled = data['feedAuthEnabled']

@@ -418,6 +418,42 @@ class TestAudioBitrateValidation:
         assert data['audioBitrate']['isDefault'] is True
 
 
+class TestArtworkBadgePositionValidation:
+    """artworkBadgePosition round-trip + validation (issue #600)."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_default_bottom_right(self, client):
+        data = self._get_settings(client)
+        assert data['artworkBadgePosition']['value'] == 'bottom-right'
+        assert data['artworkBadgePosition']['isDefault'] is True
+        assert data['defaults']['artworkBadgePosition'] == 'bottom-right'
+
+    def test_put_persists_valid_position(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'artworkBadgePosition': 'top-left'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['artworkBadgePosition']['value'] == 'top-left'
+        assert data['artworkBadgePosition']['isDefault'] is False
+
+    def test_put_rejects_unknown_position(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'artworkBadgePosition': 'middle'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'artworkBadgePosition' in json.loads(resp.data)['error']
+
+
 class TestSkipFlacCompressionValidation:
     """skipFlacCompression boolean round-trip + reset.
 

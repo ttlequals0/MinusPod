@@ -123,7 +123,7 @@ If the passphrase is missing, the key inputs collapse to a "Setup required" note
 
 ### Cover art badge
 
-Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off by default. When on, MinusPod adds a small badge to the bottom-right corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. The badged image is served at `/<slug>/cover-minuspod.jpg`. A **Refresh all artwork** button in the same section re-renders every feed's cover art, which you run after toggling the setting or swapping the badge asset.
+Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off by default. When on, MinusPod adds a small badge to a corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. **Badge position** picks the corner: bottom-right (default), bottom-left, top-right, or top-left, which helps when the show's own logo sits under the badge. `ARTWORK_BADGE_POSITION` seeds it on a fresh deploy. The badged image is served at `/<slug>/cover-minuspod.jpg`. A **Refresh all artwork** button in the same section re-renders every feed's cover art, which you run after toggling the setting or swapping the badge asset.
 
 <img src="screenshots/cover-art-badge.png" width="200">
 

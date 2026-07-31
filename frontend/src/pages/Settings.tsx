@@ -7,7 +7,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { BadgePosition, LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -232,6 +232,7 @@ function Settings() {
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
+  const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
   const [audioBitrate, setAudioBitrate] = useState('');
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
   const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
@@ -486,6 +487,7 @@ function Settings() {
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
+    { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'maxFeedEpisodes', kind: 'val', useDefault: true, value: maxFeedEpisodes, set: setMaxFeedEpisodes },
@@ -1066,6 +1068,8 @@ function Settings() {
       <CoverArtSection
         artworkWatermarkEnabled={artworkWatermarkEnabled}
         onArtworkWatermarkEnabledChange={setArtworkWatermarkEnabled}
+        artworkBadgePosition={artworkBadgePosition}
+        onArtworkBadgePositionChange={setArtworkBadgePosition}
         maxArtworkBytes={maxArtworkBytes}
         onMaxArtworkBytesChange={setMaxArtworkBytes}
         onRefreshArtwork={() => refreshArtworkMutation.mutate()}

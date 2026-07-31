@@ -31,9 +31,14 @@ BADGE_REVISION = 2
 _ROOT = Path(__file__).resolve().parents[1]
 
 # Chip occupies this fraction of the cover's shorter side; padding is this
-# fraction of the cover width, in from the bottom-right edges.
+# fraction of the cover width, in from the chosen corner's edges.
 BADGE_SCALE = 0.18
 BADGE_PADDING = 0.05
+
+# Corner the badge sits in (issue #600): the fixed bottom-right placement
+# covered network logos on some shows. First entry is the default.
+BADGE_POSITIONS = ('bottom-right', 'bottom-left', 'top-right', 'top-left')
+DEFAULT_BADGE_POSITION = BADGE_POSITIONS[0]
 
 # Chip look. The waveform mark sits on a near-black rounded square with a
 # hairline hulu-green ring; a soft green halo lifts it off the cover on both
@@ -90,10 +95,16 @@ def badge_fingerprint() -> str:
     return _BADGE_FINGERPRINT
 
 
-def cover_badge_salt() -> str:
+def normalize_badge_position(position: Optional[str]) -> str:
+    """Configured corner, falling back to the default on an unknown value."""
+    return position if position in BADGE_POSITIONS else DEFAULT_BADGE_POSITION
+
+
+def cover_badge_salt(position: Optional[str] = DEFAULT_BADGE_POSITION) -> str:
     """Badge-identity salt folded into the cover-art cache-bust token. Changes
-    when the badge asset (badge_fingerprint) or the rendering revision changes."""
-    return f"{BADGE_REVISION}:{badge_fingerprint()}"
+    when the badge asset (badge_fingerprint), the rendering revision, or the
+    configured corner changes."""
+    return f"{BADGE_REVISION}:{badge_fingerprint()}:{normalize_badge_position(position)}"
 
 
 # Shape drawing is not antialiased in PIL; render the badge at this factor and
@@ -138,10 +149,12 @@ def _build_badge(chip_side: int, waveform: Image.Image) -> Tuple[Image.Image, in
     return layer, margin
 
 
-def composite_watermark(base_bytes: bytes) -> Optional[bytes]:
-    """Overlay the badge on the bottom-right of the cover. Returns JPEG bytes, or
-    None if the badge is unavailable or compositing fails (callers fall back to
-    the unmodified cover)."""
+def composite_watermark(base_bytes: bytes,
+                        position: Optional[str] = DEFAULT_BADGE_POSITION) -> Optional[bytes]:
+    """Overlay the badge on one corner of the cover. Returns JPEG bytes, or None
+    if the badge is unavailable or compositing fails (callers fall back to the
+    unmodified cover). An unknown position renders bottom-right."""
+    vertical, _, horizontal = normalize_badge_position(position).partition('-')
     badge_file = badge_path()
     if not badge_file:
         logger.warning("watermark_badge_missing")
@@ -155,13 +168,17 @@ def composite_watermark(base_bytes: bytes) -> Optional[bytes]:
         w, h = base.size
         chip_side = max(1, int(min(w, h) * BADGE_SCALE))
         badge, margin = _build_badge(chip_side, waveform)
-        pad = int(w * BADGE_PADDING)
+        # Inset off the shorter side so a wide or tall cover keeps a square
+        # corner inset; a width-derived pad pushed the badge off a banner.
+        pad = int(min(w, h) * BADGE_PADDING)
         # Inset the visible chip by `pad`; the layer is larger by `margin` on
         # every side (halo room), so shift the paste out by that margin. Paste
         # using the badge's own alpha as the mask -- no RGBA round-trip on the
         # (opaque) cover, and the JPEG output needs RGB anyway.
-        x = max(0, w - chip_side - pad - margin)
-        y = max(0, h - chip_side - pad - margin)
+        x = (max(0, w - chip_side - pad - margin) if horizontal == 'right'
+             else max(0, pad - margin))
+        y = (max(0, h - chip_side - pad - margin) if vertical == 'bottom'
+             else max(0, pad - margin))
         base.paste(badge, (x, y), badge)
 
         out = BytesIO()

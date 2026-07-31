@@ -1584,6 +1584,11 @@ def _validate_bool_string(value: str) -> bool:
     return str(value).strip().lower() in ('true', 'false', '1', '0', 'yes', 'no')
 
 
+def _validate_badge_position(value: str) -> bool:
+    from artwork_watermark import BADGE_POSITIONS  # lazy: keeps Pillow out of config import
+    return value in BADGE_POSITIONS
+
+
 # Truthy set shared by every boolean settings coercion. Mirror in
 # frontend code if the wire format ever needs to accept more variants.
 _TRUTHY_STRINGS = ('true', '1', 'yes')
@@ -1730,6 +1735,7 @@ ENV_BACKED_SETTINGS = (
     ('auto_process_enabled', 'AUTO_PROCESS_ENABLED', 'true', _validate_bool_string),
     ('feed_auth_enabled', 'FEED_AUTH_ENABLED', 'false', _validate_bool_string),
     ('artwork_watermark_enabled', 'ARTWORK_WATERMARK_ENABLED', 'false', _validate_bool_string),
+    ('artwork_badge_position', 'ARTWORK_BADGE_POSITION', 'bottom-right', _validate_badge_position),
 )
 
 

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.82.2
+  version: 2.83.0
   contact:
     name: MinusPod
   license:
@@ -3737,6 +3737,10 @@ paths:
                 artworkWatermarkEnabled:
                   type: boolean
                   description: When true, the served feed's channel cover art gets a MinusPod badge overlaid so the filtered feed is distinct in a podcast app (issue #420). Off by default.
+                artworkBadgePosition:
+                  type: string
+                  enum: [bottom-right, bottom-left, top-right, top-left]
+                  description: Corner the MinusPod badge is composited into (issue #600). Defaults to bottom-right.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -8951,6 +8955,15 @@ components:
               description: When true, overlays a MinusPod badge on the served feed's channel cover art (issue #420). Off by default.
             isDefault:
               type: boolean
+        artworkBadgePosition:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [bottom-right, bottom-left, top-right, top-left]
+              description: Corner the MinusPod badge is composited into (issue #600). Defaults to bottom-right.
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -9147,6 +9160,9 @@ components:
                 enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
             artworkWatermarkEnabled:
               type: boolean
+            artworkBadgePosition:
+              type: string
+              enum: [bottom-right, bottom-left, top-right, top-left]
             feedAuthEnabled:
               type: boolean
             minCutConfidence:

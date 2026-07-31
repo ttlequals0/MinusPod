@@ -432,6 +432,9 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
         payload_key='artworkWatermarkEnabled',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('artwork_watermark_enabled'))),
+    'artwork_badge_position': SettingSpec(
+        env_backed=True,
+        payload_key='artworkBadgePosition'),
     'audio_bitrate': SettingSpec(
         env_backed=True, seeded=True,
         in_ad_reset=True, payload_key='audioBitrate'),

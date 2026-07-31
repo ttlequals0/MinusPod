@@ -4,11 +4,14 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { BYTES_PER_MB } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
+import type { BadgePosition } from '../../api/types';
 
 
 interface CoverArtSectionProps {
   artworkWatermarkEnabled: boolean;
   onArtworkWatermarkEnabledChange: (enabled: boolean) => void;
+  artworkBadgePosition: BadgePosition;
+  onArtworkBadgePositionChange: (position: BadgePosition) => void;
   maxArtworkBytes: number;
   onMaxArtworkBytesChange: (bytes: number) => void;
   onRefreshArtwork: () => void;
@@ -18,6 +21,8 @@ interface CoverArtSectionProps {
 function CoverArtSection({
   artworkWatermarkEnabled,
   onArtworkWatermarkEnabledChange,
+  artworkBadgePosition,
+  onArtworkBadgePositionChange,
   maxArtworkBytes,
   onMaxArtworkBytesChange,
   onRefreshArtwork,
@@ -39,7 +44,28 @@ function CoverArtSection({
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Adds a small MinusPod badge to the bottom-right corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. Off by default.
+            Adds a small MinusPod badge to a corner of each served feed's cover art, so the filtered version is easy to tell apart from the original in your podcast app. Off by default.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="artworkBadgePosition" className="block text-sm font-medium text-foreground mb-2">
+            Badge position
+          </label>
+          <select
+            id="artworkBadgePosition"
+            value={artworkBadgePosition}
+            disabled={!artworkWatermarkEnabled}
+            onChange={(e) => onArtworkBadgePositionChange(e.target.value as BadgePosition)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+          >
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="top-right">Top right</option>
+            <option value="top-left">Top left</option>
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pick a corner that stays clear of the show's own logo. Existing covers keep the old corner until they re-render, so use Refresh all artwork below to rebuild them now.
           </p>
         </div>
 

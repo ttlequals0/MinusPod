@@ -79,6 +79,42 @@ def test_composite_badge_visible_on_black_cover():
     assert top_left < 10                         # black cover left untouched
 
 
+def test_composite_places_badge_in_the_requested_corner():
+    # Issue #600: the badge corner is configurable so it can be moved off a
+    # network logo. Each value must darken its own quadrant and leave the rest
+    # of the white cover untouched.
+    quadrants = {
+        'bottom-right': (200, 200, 400, 400),
+        'bottom-left': (0, 200, 200, 400),
+        'top-right': (200, 0, 400, 200),
+        'top-left': (0, 0, 200, 200),
+    }
+    for position, box in quadrants.items():
+        out = artwork_watermark.composite_watermark(_png(), position)
+        assert out is not None
+        composed = Image.open(io.BytesIO(out)).convert('RGB')
+        lum = [sum(p) / 3 for p in composed.crop(box).getdata()]
+        assert min(lum) < 40, position
+        for other, other_box in quadrants.items():
+            if other != position:
+                assert _region_mean(composed, other_box) > 250, f"{position}/{other}"
+
+
+def test_composite_falls_back_to_bottom_right_on_unknown_position():
+    default = artwork_watermark.composite_watermark(_png())
+    assert default is not None
+    assert artwork_watermark.composite_watermark(_png(), 'sideways') == default
+    assert artwork_watermark.composite_watermark(_png(), None) == default
+
+
+def test_cover_badge_salt_tracks_the_position():
+    default = artwork_watermark.cover_badge_salt()
+    assert default == artwork_watermark.cover_badge_salt('bottom-right')
+    assert artwork_watermark.cover_badge_salt('top-left') != default
+    # An unknown value renders bottom-right, so its salt must match it too.
+    assert artwork_watermark.cover_badge_salt('sideways') == default
+
+
 def test_composite_returns_none_when_badge_missing(monkeypatch):
     monkeypatch.setattr(artwork_watermark, 'badge_path', lambda: None)
     assert artwork_watermark.composite_watermark(_png()) is None
@@ -128,12 +164,35 @@ def test_badge_revision_bump_invalidates_cached_variant(monkeypatch):
     assert not st._watermark_variant_stale(podcast_dir, variant)
 
     import storage as storage_module
-    monkeypatch.setattr(storage_module, 'cover_badge_salt', lambda: '999:changed')
+    monkeypatch.setattr(storage_module, 'cover_badge_salt',
+                        lambda position=None: '999:changed')
     assert st._watermark_variant_stale(podcast_dir, variant)
 
     st.get_watermarked_artwork(slug)  # recomposites, rewrites the sidecar
     assert (podcast_dir / 'artwork-minuspod.salt').read_text() == '999:changed'
     assert not st._watermark_variant_stale(podcast_dir, variant)
+
+
+def test_position_change_recomposites_cached_variant():
+    # Issue #600: the position is part of the badge identity, so flipping the
+    # setting must invalidate the cached variant instead of serving the badge
+    # in the old corner from cache.
+    slug = 'wm-position'
+    st.db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    st.save_artwork(slug, _png(), 'image/png', 'https://example.com/art.png')
+    before = st.get_watermarked_artwork(slug)[0]
+    podcast_dir = st.get_podcast_dir(slug)
+    variant = podcast_dir / 'artwork-minuspod.jpg'
+
+    try:
+        st.db.set_setting('artwork_badge_position', 'top-left', is_default=False)
+        assert st._watermark_variant_stale(podcast_dir, variant)
+        after = st.get_watermarked_artwork(slug)[0]
+        assert after != before
+        assert (podcast_dir / 'artwork-minuspod.salt').read_text().endswith(':top-left')
+        assert not st._watermark_variant_stale(podcast_dir, variant)
+    finally:
+        st.db.set_setting('artwork_badge_position', 'bottom-right')
 
 
 def test_badge_halo_fades_within_layer():
@@ -246,3 +305,15 @@ def test_unknown_slug_probe_creates_no_directory():
     assert st.get_watermarked_artwork(slug) is None
     assert st.get_artwork(slug) is None
     assert not (st.podcasts_dir / slug).exists()
+
+
+def test_badge_stays_on_canvas_for_a_wide_cover():
+    # A width-derived inset pushed the top corners off a banner-shaped cover.
+    from PIL import Image as _Image
+    wide = _png(size=(2000, 100))
+    for position in artwork_watermark.BADGE_POSITIONS:
+        out = artwork_watermark.composite_watermark(wide, position=position)
+        assert out is not None
+        img = _Image.open(io.BytesIO(out)).convert('L')
+        dark = sum(1 for p in img.getdata() if p < 100)
+        assert dark > 0, f"badge invisible at {position}"

@@ -34,7 +34,7 @@ _SEED_ENV_VARS = (
     'AD_DETECTION_PARALLEL_WINDOWS', 'AD_REVIEWER_PARALLEL_ADS',
     'MINUSPOD_MAX_ARTWORK_BYTES', 'MINUSPOD_MAX_RSS_BYTES',
     'MAX_AUDIO_DOWNLOAD_MB', 'AUTO_PROCESS_ENABLED', 'FEED_AUTH_ENABLED',
-    'ARTWORK_WATERMARK_ENABLED',
+    'ARTWORK_WATERMARK_ENABLED', 'ARTWORK_BADGE_POSITION',
     'VAD_GAP_DETECTION_ENABLED', 'VAD_GAP_START_MIN_SECONDS',
     'VAD_GAP_MID_MIN_SECONDS', 'VAD_GAP_TAIL_MIN_SECONDS',
     'TRANSCRIBE_MAX_CHUNK_SECONDS', 'TRANSCRIBE_CONCURRENT_CHUNKS',
@@ -370,11 +370,12 @@ class TestGetDefaults:
         # maxAdDurationSeconds + maxAdDurationConfirmedSeconds (78 -> 80).
         # whisperApiTimeoutSeconds added after that (80 -> 81).
         # chapterPrompt added after that (81 -> 82).
+        # artworkBadgePosition added after that (82 -> 83).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 82
+        assert len(payload_keys) == 83
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

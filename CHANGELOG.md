@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.83.0] - 2026-07-31
+
+### Added
+
+- Cover-art badge corner is configurable (#600). The MinusPod badge was
+  pinned to the bottom-right, where it covered the network logo on some
+  shows. A new "Badge position" select under Settings > Cover Art picks
+  bottom-right (default), bottom-left, top-right, or top-left, and
+  `ARTWORK_BADGE_POSITION` seeds it on a fresh deploy. The corner is part
+  of the badge cache key, and changing it clears the feed validators so the
+  served feeds re-render with a fresh cover URL instead of waiting for the
+  publisher to change something.
+
 ## [2.82.2] - 2026-07-30
 
 ### Added

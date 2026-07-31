@@ -347,6 +347,8 @@ export interface SettingValueNumber {
 }
 
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
+// Corner the MinusPod cover-art badge renders in (issue #600).
+export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 export type WhisperBackend = 'local' | 'openai-api';
 
 export interface WhisperApiConfig {
@@ -390,6 +392,7 @@ export interface Settings {
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
+  artworkBadgePosition: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
   opmlModifiedUrl: string | null;
@@ -478,6 +481,7 @@ export interface Settings {
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
     artworkWatermarkEnabled: boolean;
+    artworkBadgePosition: string;
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
@@ -568,6 +572,7 @@ export interface UpdateSettingsPayload {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
   artworkWatermarkEnabled?: boolean;
+  artworkBadgePosition?: string;
   feedAuthEnabled?: boolean;
   audioBitrate?: string;
   audioNormalizeEnabled?: boolean;
