@@ -34,6 +34,7 @@ class TestFeed304Refresh(unittest.TestCase):
             'etag': '"abc123"', 'last_modified': None,
             'artwork_cached': True,
             'podping_checked_at': '2026-07-26T00:00:00Z',
+            'channel_metadata_at': '2026-07-26T00:00:00Z',
         }
         # Episodes exist
         db.get_episodes.return_value = ([], 5)

@@ -214,7 +214,7 @@ class PodcastMixin:
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'website_url', 'passthrough_enabled', 'skip_ad_detection',
                 'last_podping_at', 'podping_uses', 'podping_hive_accounts',
-                'podping_checked_at',
+                'podping_checked_at', 'channel_metadata_at',
                 'segment_category_actions', 'detect_show_segments',
                 'skip_second_pass',
             ):

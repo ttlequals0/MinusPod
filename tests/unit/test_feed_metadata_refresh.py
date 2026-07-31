@@ -179,3 +179,81 @@ def test_feed_response_never_hands_back_the_publisher_artwork_url():
     out = _podcast_listing_fields(row, (False, False))
     assert out['artworkUrl'] == '/api/v1/feeds/insecure-art/artwork'
     assert not out['artworkUrl'].startswith('http://')
+
+
+_LIVE_ITEM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="https://podcastindex.org/namespace/1.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+  <title>The Show</title>
+  <link>https://show.example/</link>
+  <description>What the show is about</description>
+  <podcast:liveItem status="live">
+    <title>Live now</title>
+    <link>https://chat.example/room</link>
+    <description>Tonight's live episode blurb</description>
+  </podcast:liveItem>
+</channel></rss>"""
+
+
+def test_refresh_stores_the_shows_metadata_not_a_live_items():
+    """feedparser folds <podcast:liveItem> children into the channel, so the
+    row would otherwise hold the live episode's blurb and chat link (#596)."""
+    slug = 'live-item-feed'
+    _seed(slug)
+
+    with patch.object(mf.rss_parser, 'fetch_feed_conditional',
+                      return_value=(_LIVE_ITEM_FEED, None, None)), \
+         patch.object(mf.storage, 'download_artwork', return_value=True):
+        mf.refresh_rss_feed(slug, f'https://example.com/{slug}.xml', force=True)
+
+    row = mf.db.get_podcast_by_slug(slug)
+    assert row['description'] == 'What the show is about'
+    assert row['website_url'] == 'https://show.example/'
+    assert row['title'] == 'The Show'
+    assert row['channel_metadata_at'], "a successful refresh must stamp the read"
+
+
+def test_a_304_forces_one_full_fetch_until_metadata_has_been_read():
+    """Rows written before the raw-XML read can hold a live item's blurb, and
+    a 304 carries no body to repair them."""
+    slug = 'never-read-metadata'
+    _seed(slug)
+    # podping already read, so this isolates the channel-metadata condition.
+    mf.db.update_podcast(slug, etag='"e1"', channel_metadata_at=None,
+                         podping_checked_at='2026-07-26T00:00:00Z')
+    mf.db.bulk_upsert_discovered_episodes(slug, [{
+        'id': 'a1b2c3d4e5f6', 'url': 'https://example.com/a.mp3',
+        'title': 'Ep', 'description': '', 'published': None}])
+
+    calls = []
+
+    def fake_fetch(url, etag=None, last_modified=None):
+        calls.append(etag)
+        if etag:
+            return (None, '"e1"', None)
+        return (_LIVE_ITEM_FEED, '"e2"', None)
+
+    with patch.object(mf.rss_parser, 'fetch_feed_conditional', fake_fetch), \
+         patch.object(mf.storage, 'download_artwork', return_value=True):
+        mf.refresh_rss_feed(slug, f'https://example.com/{slug}.xml')
+
+    assert calls == ['"e1"', None], "the 304 must be followed by a full fetch"
+    row = mf.db.get_podcast_by_slug(slug)
+    assert row['description'] == 'What the show is about'
+    assert row['channel_metadata_at']
+
+    # Stamped now, so the next 304 must not force a second fetch.
+    calls.clear()
+    mf._refresh_coalesce.invalidate()
+    with patch.object(mf.rss_parser, 'fetch_feed_conditional', fake_fetch):
+        mf.refresh_rss_feed(slug, f'https://example.com/{slug}.xml', force=False)
+    assert calls == ['"e2"']
+
+
+def test_episode_api_drops_an_insecure_cover_url():
+    """There is no episode artwork proxy, so an http:// cover would be blocked
+    as mixed content; the client falls back to the feed's instead."""
+    from api.episodes import _secure_artwork_url
+    assert _secure_artwork_url('http://cdn.example/ep.jpg') is None
+    assert _secure_artwork_url('https://cdn.example/ep.jpg') == 'https://cdn.example/ep.jpg'
+    assert _secure_artwork_url(None) is None

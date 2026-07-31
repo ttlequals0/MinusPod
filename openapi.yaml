@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.83.2
+  version: 2.83.3
   contact:
     name: MinusPod
   license:
@@ -7886,6 +7886,10 @@ components:
         pendingReviewCount:
           type: integer
           description: Number of ads held for human review (not yet approved or dismissed)
+        artworkUrl:
+          type: string
+          nullable: true
+          description: Episode cover declared by the publisher. Null when the episode declares none, or when the URL is not https and would be blocked as mixed content; clients fall back to the feed artwork.
         error:
           type: string
           nullable: true

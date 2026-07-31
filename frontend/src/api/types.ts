@@ -135,6 +135,7 @@ export interface Episode {
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
   error?: string | null;
+  artworkUrl?: string | null;
 }
 
 export interface EpisodeNeighbor {

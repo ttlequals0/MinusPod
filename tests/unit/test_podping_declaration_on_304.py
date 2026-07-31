@@ -48,7 +48,6 @@ def _refresh(podcast_row, slug):
     parsed.bozo = False
     rss_parser.parse_feed.return_value = parsed
     rss_parser.extract_podcast_artwork_url.return_value = None
-    rss_parser.extract_podcast_categories.return_value = []
     rss_parser.extract_episodes.return_value = []
     rss_parser.extract_podping_declaration.return_value = DECLARATION
 
@@ -86,6 +85,7 @@ def test_304_does_not_refetch_once_already_read():
     db, rss_parser = _refresh({
         'id': 1, 'etag': 'etag-1', 'last_modified_header': None,
         'artwork_cached': True, 'podping_checked_at': '2026-07-26T00:00:00Z',
+        'channel_metadata_at': '2026-07-26T00:00:00Z',
     }, 'already-read-feed')
     # Only the conditional GET: no forced second fetch.
     assert rss_parser.fetch_feed_conditional.call_count == 1

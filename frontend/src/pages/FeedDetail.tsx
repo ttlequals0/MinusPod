@@ -8,6 +8,7 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import PrevNextLink from '../components/PrevNextLink';
 import Artwork from '../components/Artwork';
+import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
@@ -229,7 +230,7 @@ function FeedDetail() {
   // Hover feedback only when the artwork is actually a link (#521).
   const feedArtwork = (
     <Artwork
-      src={feed.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
+      src={feedArtworkSrc(slug!, feed.artworkUrl)}
       alt={feed.title}
       className={`w-full h-full object-cover rounded-lg${
         feed.websiteUrl ? ' hover:opacity-90 transition-opacity' : ''}`}

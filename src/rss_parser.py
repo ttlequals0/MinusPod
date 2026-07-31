@@ -604,6 +604,127 @@ class RSSParser:
         return unknown
 
     @staticmethod
+    def find_channel_element(feed_content):
+        """Locate the <channel> element in raw feed bytes/str, or None.
+
+        Atom feeds have no <channel> at all, so None is a normal result and
+        callers must fall back rather than treat it as an error.
+        """
+        if not feed_content:
+            return None
+        try:
+            payload = (feed_content.encode('utf-8')
+                       if isinstance(feed_content, str) else feed_content)
+            root = defused_fromstring(payload)
+        except Exception:
+            return None
+        for child in root:
+            tag = getattr(child, 'tag', '')
+            if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
+                return child
+        return None
+
+    @staticmethod
+    def _inner_markup(elem, _depth: int = 0) -> str:
+        """Element text with inline child markup preserved.
+
+        ``elem.text`` alone truncates at the first child, so a publisher who
+        writes unescaped inline HTML ("Intro <b>bold</b> tail") would lose
+        everything after it. Depth-capped like the other serializers so a
+        hostile feed cannot blow the stack.
+        """
+        if _depth > 16:
+            return ''
+
+        parts = [elem.text or '']
+        for child in elem:
+            tag = getattr(child, 'tag', '')
+            if not isinstance(tag, str):
+                continue
+            local = tag.split('}', 1)[1] if tag.startswith('{') else tag
+            attrs = ''.join(
+                f' {name}="{RSSParser._escape_xml(value)}"'
+                for name, value in child.attrib.items()
+                if not name.startswith('{'))
+            inner = RSSParser._inner_markup(child, _depth + 1)
+            parts.append(f'<{local}{attrs}>{inner}</{local}>' if inner
+                         else f'<{local}{attrs} />')
+            parts.append(child.tail or '')
+        return ''.join(parts)
+
+    @staticmethod
+    def extract_channel_metadata(feed_content, channel=None) -> Optional[dict]:
+        """Channel title/description/link/language from direct <channel> children.
+
+        feedparser flattens unknown channel-level containers into the feed
+        dict, so a <podcast:liveItem> overwrites the show's metadata with the
+        live episode's, and it aliases <description> onto <itunes:summary>.
+
+        Returns None when there is no <channel> (Atom, RDF) or the XML will
+        not parse, so callers fall back to feedparser per field. Only
+        unnamespaced tags count: <atom:link rel="self"> is a near-universal
+        direct child and would otherwise become the show's website.
+        """
+        if channel is None:
+            channel = RSSParser.find_channel_element(feed_content)
+        if channel is None:
+            return None
+
+        itunes_prefix = '{' + _ITUNES_NS + '}'
+        plain = ('title', 'description', 'link', 'language', 'managingEditor')
+        namespaced = ('summary', 'subtitle', 'author')
+        meta: dict = {'categories': []}
+        for elem in channel:
+            tag = getattr(elem, 'tag', '')
+            if not isinstance(tag, str):
+                continue
+            local = tag[len(itunes_prefix):] if tag.startswith(itunes_prefix) else None
+            if local == 'category':
+                # The label lives in @text, and subcategories nest one deep.
+                for node in (elem, *elem):
+                    label = (node.get('text') or '').strip()
+                    if label and label not in meta['categories']:
+                        meta['categories'].append(label)
+                continue
+            if tag == 'category':
+                label = (elem.text or '').strip()
+                if label and label not in meta['categories']:
+                    meta['categories'].append(label)
+                continue
+            if tag in plain:
+                key = tag
+            elif local in namespaced:
+                key = 'itunes_' + local
+            else:
+                continue
+            if key in meta:
+                continue
+            value = RSSParser._inner_markup(elem).strip()
+            if value:
+                meta[key] = value
+        return meta
+
+    def resolve_channel_fields(self, feed_content, parsed_feed=None, channel=None) -> dict:
+        """Channel metadata with the raw <channel> children preferred.
+
+        Single place that layers the raw children over the feedparser dict,
+        so every consumer resolves them the same way.
+        """
+        raw = self.extract_channel_metadata(feed_content, channel=channel) or {}
+        fallback = getattr(parsed_feed, 'feed', None) or {}
+        return {
+            'title': raw.get('title') or fallback.get('title') or '',
+            'link': raw.get('link') or fallback.get('link') or '',
+            'language': raw.get('language') or fallback.get('language') or '',
+            'author': (raw.get('itunes_author') or raw.get('managingEditor')
+                       or fallback.get('author') or ''),
+            'categories': (raw.get('categories')
+                           or self._dedup_category_labels(fallback.get('tags'))),
+            'description': (self._get_channel_description(raw)
+                            or self._get_channel_description(fallback)),
+        }
+
+    @staticmethod
     def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> Optional[str]:
         """Channel-level podcast artwork URL.
 
@@ -629,19 +750,7 @@ class RSSParser:
 
         if channel is not None or isinstance(feed_content_or_parsed, (str, bytes)):
             if channel is None:
-                try:
-                    payload = (feed_content_or_parsed.encode('utf-8')
-                               if isinstance(feed_content_or_parsed, str)
-                               else feed_content_or_parsed)
-                    root = defused_fromstring(payload)
-                except Exception:
-                    return None
-
-                for child in list(root) if root is not None else []:
-                    tag = getattr(child, 'tag', '')
-                    if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
-                        channel = child
-                        break
+                channel = RSSParser.find_channel_element(feed_content_or_parsed)
                 if channel is None:
                     return None
 
@@ -699,20 +808,6 @@ class RSSParser:
                 seen.add(lab)
                 out.append(lab)
         return out
-
-    @staticmethod
-    def extract_podcast_categories(parsed_feed) -> List[str]:
-        """Extract iTunes category strings (top-level + subcategory) from a parsed feed.
-
-        Returns the raw category labels exactly as they appear in the feed.
-        Callers map them through `utils.community_tags.map_itunes_category`.
-        """
-        if not parsed_feed or not parsed_feed.feed:
-            return []
-        feed = parsed_feed.feed
-        # feedparser exposes RSS-level categories on .tags as a list of dicts.
-        tags = feed.get('tags', []) if hasattr(feed, 'get') else getattr(feed, 'tags', [])
-        return RSSParser._dedup_category_labels(tags)
 
     @staticmethod
     def extract_episode_categories(entry) -> List[str]:
@@ -803,33 +898,21 @@ class RSSParser:
                      f'xmlns:podcast="{_PODCAST_NS_CANONICAL}">')
         lines.append('<channel>')
 
-        # Copy channel metadata (escape XML entities to prevent invalid XML from & in URLs)
-        channel = feed.feed
+        # Located once and threaded through the metadata / artwork / PC2
+        # helpers; None makes each of them re-parse and log for itself.
+        channel_elem = self.find_channel_element(feed_content)
+
+        fields = self.resolve_channel_fields(feed_content, parsed_feed=feed,
+                                             channel=channel_elem)
         # Per-feed title override (#375): the rename must actually change the
         # channel title subscribers see, not just the DB/UI.
-        effective_title = title_override if (title_override or '').strip() else channel.get("title", "")
+        effective_title = (title_override if (title_override or '').strip()
+                           else fields['title'])
+        channel_link = fields['link']
         lines.append(f'<title>{self._escape_xml(effective_title)}</title>')
-        lines.append(f'<link>{self._escape_xml(channel.get("link", ""))}</link>')
-        lines.append(f'<description><![CDATA[{self._escape_cdata(self._get_channel_description(channel))}]]></description>')
-        lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
-
-        # Parse the raw feed XML once and locate <channel>, then thread the
-        # element through the channel-metadata / artwork / PC2 helpers so a
-        # single modify_feed call parses feed_content once instead of three
-        # times. On any parse failure channel_elem stays None and each helper
-        # falls back to its own re-parse (preserving error logging).
-        channel_elem = None
-        try:
-            _raw_payload = feed_content.encode('utf-8') if isinstance(feed_content, str) else feed_content
-            _raw_root = defused_fromstring(_raw_payload)
-        except Exception:
-            _raw_root = None
-        if _raw_root is not None:
-            for _child in list(_raw_root):
-                _tag = getattr(_child, 'tag', '')
-                if isinstance(_tag, str) and (_tag == 'channel' or _tag.endswith('}channel')):
-                    channel_elem = _child
-                    break
+        lines.append(f'<link>{self._escape_xml(channel_link)}</link>')
+        lines.append(f'<description><![CDATA[{self._escape_cdata(fields["description"])}]]></description>')
+        lines.append(f'<language>{self._escape_xml(fields["language"] or "en")}</language>')
 
         # Pass through standard RSS + iTunes channel metadata from upstream
         # (author, category, explicit, owner, etc.). Required by Apple
@@ -865,7 +948,6 @@ class RSSParser:
             artwork_url = f"{base}-{token}.jpg" if token else f"{base}.jpg"
         if artwork_url:
             channel_title = effective_title or ''
-            channel_link = channel.get('link', '') or ''
             lines.append('<image>')
             lines.append(f'  <url>{self._escape_xml(artwork_url)}</url>')
             lines.append(f'  <title>{self._escape_xml(channel_title)}</title>')
@@ -1084,7 +1166,8 @@ class RSSParser:
 
         return ''
 
-    def _escape_xml(self, text: str) -> str:
+    @staticmethod
+    def _escape_xml(text: str) -> str:
         """Escape XML special characters."""
         if not text:
             return ""
@@ -1262,18 +1345,7 @@ class RSSParser:
         if not feed_content:
             return
         if channel is None:
-            try:
-                payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
-                root = defused_fromstring(payload)
-            except Exception:
-                root = None
-
-            if root is not None:
-                for child in list(root):
-                    tag = getattr(child, "tag", "")
-                    if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
-                        channel = child
-                        break
+            channel = self.find_channel_element(feed_content)
 
         if channel is not None:
             itunes_prefix = "{" + _ITUNES_NS + "}"

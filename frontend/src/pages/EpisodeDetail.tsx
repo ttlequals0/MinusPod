@@ -8,6 +8,7 @@ import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBa
 import PrevNextLink from '../components/PrevNextLink';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Artwork from '../components/Artwork';
+import { episodeArtworkSrc } from '../utils/artworkUrl';
 import { EPISODE_STATUS_COLORS, isFailedStatus } from '../utils/episodeStatus';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_META } from '../utils/corroboration';
@@ -408,7 +409,7 @@ function EpisodeDetail() {
         <div className="flex gap-4">
           <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
             <Artwork
-              src={feed?.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
+              src={episodeArtworkSrc(slug!, episode.artworkUrl, feed?.artworkUrl)}
               alt="Podcast artwork"
               className="w-full h-full object-cover rounded-lg"
             />

@@ -330,6 +330,11 @@ class SchemaMixin:
             # means never, which is what lets a 304 force one full fetch to
             # read it instead of waiting for the feed to change (#579).
             ('podping_checked_at', 'TEXT'),
+            # When channel metadata was last read from raw <channel> children
+            # rather than the feedparser dict. NULL means never, which lets a
+            # 304 force one full fetch to repair a row holding a live item's
+            # description or link (#596).
+            ('channel_metadata_at', 'TEXT'),
             # Per-feed segment category action overrides (issue #565): partial
             # JSON map of category -> action, merged over the global
             # segment_category_actions setting at resolve time.

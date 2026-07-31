@@ -9,6 +9,38 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.83.3] - 2026-07-31
+
+### Added
+
+- Episodes now show their own cover art in the episode list and on the
+  episode page, falling back to the feed cover when an episode does not
+  declare one. An insecure episode cover URL is dropped rather than
+  rendered, since the browser blocks it as mixed content on an https page.
+
+### Fixed
+
+- Channel metadata is now read from the raw `<channel>` children instead of
+  the parsed feed dictionary (#596). The parser folds channel-level elements
+  it does not recognise into the channel itself, so a feed carrying a
+  Podcasting 2.0 `<podcast:liveItem>` reported the live episode's blurb as
+  the show description and its chat link as the show website, in the web UI
+  and in the feed served to podcast apps. This also separates `<description>`
+  from `<itunes:summary>`, which the parser had aliased onto each other: a
+  feed whose two differ will now publish the `<description>` it actually
+  declares, so some stored descriptions change on the next refresh.
+- The same flattening also gave the show the live item's author, which feeds
+  ad-platform and network detection, and mixed the live item's categories
+  into the feed's tags. Both now come from the channel's own elements.
+- The episode API no longer returns a cover URL that is not https. There is
+  no episode artwork proxy to fall back to, so an insecure URL would only be
+  blocked by the browser; clients use the feed cover instead. This matches
+  the rule the feed endpoint already follows.
+- Rows already holding a live item's description or link repair themselves:
+  a feed that has not yet had its metadata read from raw XML does one full
+  fetch the next time it answers 304, spread across normal refresh cycles
+  rather than all at once.
+
 ## [2.83.2] - 2026-07-31
 
 ### Fixed

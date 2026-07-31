@@ -5,6 +5,7 @@ import { Feed } from '../api/types';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
+import { feedArtworkSrc } from '../utils/artworkUrl';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
@@ -19,7 +20,7 @@ interface FeedListItemProps {
 }
 
 function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemProps) {
-  const artworkUrl = feed.artworkUrl || `/api/v1/feeds/${feed.slug}/artwork`;
+  const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
 
   return (
     <div className="bg-card rounded-lg border border-border p-3 flex items-center gap-3 sm:gap-4">

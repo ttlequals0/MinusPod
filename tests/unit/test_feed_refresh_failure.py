@@ -128,7 +128,6 @@ class TestFailureClassification:
             )
             rss_parser.extract_episodes.return_value = []
             rss_parser.extract_podcast_artwork_url.return_value = None
-            rss_parser.extract_podcast_categories.return_value = []
             if parse_raises is not None:
                 rss_parser.parse_feed.side_effect = parse_raises
             else:

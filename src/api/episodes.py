@@ -200,6 +200,15 @@ def list_episodes(slug):
     })
 
 
+def _secure_artwork_url(url):
+    """Publisher episode cover, or None when it would be blocked as mixed content.
+
+    Unlike feed artwork there is no proxy endpoint to fall back to, so an
+    http:// cover is dropped and the client uses the feed's instead.
+    """
+    return url if (url or '').startswith('https://') else None
+
+
 def _episode_base_json(ep):
     """Shared camelCase fields for the episode list and detail serializers.
 
@@ -228,7 +237,7 @@ def _episode_base_json(ep):
         # to mark cue templates or replay original audio) (#350).
         'hasOriginalAudio': bool(ep.get('original_file')),
         'error': ep.get('error_message'),
-        'artworkUrl': ep.get('artwork_url'),
+        'artworkUrl': _secure_artwork_url(ep.get('artwork_url')),
         'pendingReviewCount': ep.get('pending_review_count', 0),
     }
 

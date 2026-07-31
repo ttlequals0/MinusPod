@@ -4,6 +4,7 @@ import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS, isFailedStatus } from '..
 import { stripHtml } from '../utils/stripHtml';
 import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
+import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 
 interface EpisodeListProps {
@@ -101,8 +102,9 @@ function EpisodeRow({
         className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''}`}
       >
         <Artwork
-          src={feedArtworkUrl || `/api/v1/feeds/${feedSlug}/artwork`}
+          src={episodeArtworkSrc(feedSlug, episode.artworkUrl, feedArtworkUrl)}
           alt=""
+          loading="lazy"
           className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
