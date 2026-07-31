@@ -22,6 +22,10 @@ release notes.
   cannot be repaired by change detection alone, since the stored URL is the
   new one while the image on disk is the old one, so upgrading also queues a
   single artwork re-download for every feed.
+- The feed API handed back the publisher's own artwork URL whenever the
+  cover was not cached, so an http:// cover arrived inside an https page and
+  the browser blocked it, leaving a placeholder. The response now always
+  points at the proxied artwork endpoint, which serves the cached file.
 - Feed title, description, and artwork only refresh when the publisher's
   body changes, so a steady feed answering 304 kept whatever it had when it
   was added, including descriptions stored under the old 500-character cap.

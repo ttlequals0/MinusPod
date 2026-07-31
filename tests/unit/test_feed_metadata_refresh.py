@@ -163,3 +163,19 @@ def test_migration_queues_one_artwork_redownload(etag_db_path):
         assert again['steady-a'] == 1
     finally:
         Database._instance = None
+
+
+def test_feed_response_never_hands_back_the_publisher_artwork_url():
+    """An http:// cover in an https page is blocked by the browser, so the
+    response always points at the proxy regardless of the cache flag."""
+    from api.feeds import _podcast_listing_fields
+
+    row = {
+        'slug': 'insecure-art', 'artwork_cached': 0,
+        'artwork_url': 'http://www.example.com/cover-v1.jpg',
+        'source_url': 'https://example.com/f.xml',
+        'title': 'Insecure Art', 'description': '', 'website_url': None,
+    }
+    out = _podcast_listing_fields(row, (False, False))
+    assert out['artworkUrl'] == '/api/v1/feeds/insecure-art/artwork'
+    assert not out['artworkUrl'].startswith('http://')

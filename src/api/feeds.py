@@ -401,7 +401,10 @@ def _podcast_listing_fields(podcast, podping) -> dict:
     enabled, host_is_active = podping
     declaration = PodcastMixin._podping_declaration_from_row(podcast)
     return {
-        'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
+        # Always the proxy path. Handing back the publisher's URL leaks an
+        # http:// image into an https page, which the browser blocks, and the
+        # endpoint serves the cached file whatever the flag says.
+        'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork",
         'episodeCount': podcast.get('episode_count', 0),
         'processedCount': podcast.get('processed_count', 0),
         'lastRefreshed': podcast.get('last_checked_at'),
