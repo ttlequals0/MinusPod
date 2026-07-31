@@ -28,7 +28,8 @@ def seeded_detections(app_client):
     ]
     db.upsert_episode(slug, 'det-ep-1',
                       original_url='https://example.com/e1.mp3',
-                      title='Episode One', status='processed')
+                      title='Episode One', status='processed',
+                      original_duration=3600.0)
     db.save_episode_details(slug, 'det-ep-1', ad_markers=markers)
     yield {'slug': slug, 'db': db}
     db.delete_podcast(slug)
@@ -182,3 +183,13 @@ def test_cut_summary_survives_the_category_filter(app_client, seeded_categories)
     assert sorted(d['start'] for d in body['detections']) == [10.0, 300.0]
     assert body['cutSummary']['byCategory']['cross_promo'] == 1
     assert body['cutSummary']['count'] == 3
+
+
+def test_detections_carry_the_episode_duration(app_client, seeded_detections):
+    """The waveform editor slices its window against this; without it the
+    editor assumes a short default and opens on the wrong part of the
+    episode at max zoom."""
+    _csrf(app_client)
+    body = app_client.get('/api/v1/detections?status=all').get_json()
+    assert body['detections']
+    assert all(d['episodeDuration'] == 3600.0 for d in body['detections'])

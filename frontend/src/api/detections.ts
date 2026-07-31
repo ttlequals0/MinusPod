@@ -23,6 +23,7 @@ export interface ReviewDetection {
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;
+  episodeDuration: number | null;
   status: DetectionStatus;
   resolution: DetectionResolution;
 }

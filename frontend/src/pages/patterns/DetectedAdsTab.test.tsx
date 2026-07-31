@@ -53,6 +53,7 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
     feedSlug: 'example-podcast', feedTitle: 'The Daily Tech Show',
     episodeId: 'a1b2c3d4e5f6', episodeTitle: 'Episode One',
     publishDate: '2026-07-01T00:00:00Z', hasOriginalAudio: true,
+    episodeDuration: 3600,
     processedUrl: '/episodes/example-podcast/a1b2c3d4e5f6.mp3',
     start: 100, end: 130, confidence: 0.9,
     sponsor: 'Acme', reason: 'sponsor read',

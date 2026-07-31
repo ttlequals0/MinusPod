@@ -73,6 +73,10 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
                 'episodeTitle': row['episode_title'],
                 'publishDate': row.get('published_at') or row.get('created_at'),
                 'hasOriginalAudio': bool(row.get('original_file')),
+                # The waveform editor slices its window against this; without
+                # it the editor assumes a short default and opens on the wrong
+                # part of the episode at max zoom.
+                'episodeDuration': row.get('original_duration'),
                 # Consumed by the endpoint to build processedUrl, then dropped
                 # from the response.
                 'processedVersion': row.get('processed_version') or 0,

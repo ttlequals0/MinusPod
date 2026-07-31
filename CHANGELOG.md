@@ -43,6 +43,12 @@ release notes.
 - HTTP 404s from unknown-path scanner probes logged at warning in the
   access log even after the application-level line was demoted; both now
   log at info.
+- The waveform editor opened on the wrong part of the episode at maximum
+  zoom when reached from the Patterns page. Neither the Ad Review nor the
+  Detected Ads tab passed the episode length, so the editor fell back to
+  assuming a six-minute episode and clamped the window to the end of that
+  imaginary range. The detections API now carries the episode duration and
+  both tabs pass it through.
 
 ## [2.83.0] - 2026-07-31
 

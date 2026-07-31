@@ -235,6 +235,7 @@ export default function DetectedAdsTab() {
             patternId: editing.patternId,
             correctedBounds: null,
           } satisfies AdReviewItem}
+          episodeDuration={editing.episodeDuration ?? 0}
           hasOriginal={editing.hasOriginalAudio}
           audioMode={editing.hasOriginalAudio ? 'original' : 'processed'}
           processedAudioUrl={editing.processedUrl}
