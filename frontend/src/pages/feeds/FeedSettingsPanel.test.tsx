@@ -72,30 +72,33 @@ function renderPanel(feed: Feed) {
 
 const SELECT_NAME = 'Fetch each episode twice to find inserted ads';
 
-describe('FeedSettingsPanel pass-through toggle (#521)', () => {
+describe('FeedSettingsPanel processing mode preset', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders off when passthroughEnabled is unset', () => {
-    renderPanel(makeFeed());
-    const toggle = screen.getByRole('switch', { name: 'Serve episodes untouched' });
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  it('renders one select with the four presets', () => {
+    renderPanel(makeFeed({ processingMode: 'standard' }));
+    const select = screen.getByLabelText(/processing mode/i);
+    expect(select).toBeDefined();
+    for (const label of ['Standard', 'Keep content only', 'Skip ad detection', 'Pass-through']) {
+      expect(screen.getByRole('option', { name: new RegExp(label, 'i') })).toBeDefined();
+    }
   });
 
-  it('enabling fires updateFeed with passthroughEnabled true', async () => {
-    renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('switch', { name: 'Serve episodes untouched' }));
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { passthroughEnabled: true });
+  it('sends processingMode on change', async () => {
+    renderPanel(makeFeed({ processingMode: 'standard' }));
+    await userEvent.selectOptions(screen.getByLabelText(/processing mode/i), 'passthrough');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processingMode: 'passthrough' });
   });
 
-  it('disabling fires passthroughEnabled false', async () => {
-    renderPanel(makeFeed({ passthroughEnabled: true }));
-    const toggle = screen.getByRole('switch', { name: 'Serve episodes untouched' });
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    await userEvent.click(toggle);
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { passthroughEnabled: false });
+  it('does not render the legacy toggles', () => {
+    renderPanel(makeFeed({ processingMode: 'standard' }));
+    expect(screen.queryByRole('switch', { name: 'Skip ad detection' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Serve episodes untouched' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Detection' })).toBeNull();
   });
 });
 

@@ -227,6 +227,9 @@ export interface UpdateFeedPayload {
   differentialFetchEnabled?: boolean | null;
   passthroughEnabled?: boolean | null;
   skipAdDetection?: boolean | null;
+  // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
+  // Rejected by the backend if combined with any of those legacy fields.
+  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard';
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces

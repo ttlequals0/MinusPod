@@ -525,44 +525,55 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Per-feed detection mode (experimental keep-content inversion) */}
+          {/* Per-feed processing mode: single preset that resolves what used to
+              be three separate fields (detectionMode, skipAdDetection,
+              passthroughEnabled). Choosing a preset here canonicalizes storage;
+              those legacy fields stay available for external API callers. */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Detection:</span>
+            <label htmlFor="processing-mode" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+              Processing mode:
+            </label>
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <select
-                value={feed.detectionMode || 'blacklist'}
-                onChange={(e) => updateMutation.mutate({ detectionMode: e.target.value })}
+                id="processing-mode"
+                value={feed.processingMode || 'standard'}
+                onChange={(e) => updateMutation.mutate({
+                  processingMode: e.target.value as UpdateFeedPayload['processingMode'],
+                })}
                 disabled={updateMutation.isPending}
                 className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
               >
-                <option value="blacklist">Remove ads (default)</option>
+                <option value="standard">Standard (detect and cut ads)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
+                <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
+                <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
               </select>
-              {(feed.processingMode
-                ? feed.processingMode === 'skip_detection'
-                : feed.skipAdDetection === true) && (
-                <p className="text-xs text-warning">
-                  Ad detection is skipped for this feed (Advanced section), so this
-                  setting has no effect.
-                </p>
-              )}
-              {(feed.processingMode
-                ? feed.processingMode === 'standard'
-                : feed.skipAdDetection !== true && feed.detectionMode !== 'keep_content') && (
+              {feed.processingMode === 'standard' && (
                 <p className="text-xs text-muted-foreground">
-                  Keep content mode asks the model to mark the show&apos;s content and
-                  removes everything else. Falls back to normal ad removal if the
-                  labeling fails safety checks.
+                  Detects ads with the model and cuts them out. The default for most feeds.
                 </p>
               )}
-              {(feed.processingMode
-                ? feed.processingMode === 'keep_content'
-                : feed.skipAdDetection !== true && feed.detectionMode === 'keep_content') && (
+              {feed.processingMode === 'keep_content' && (
                 <p className="text-xs text-warning">
                   Removes everything the model does not mark as show content. For feeds with
                   unrecognizable inserted ads. Safety checks revert to normal removal when the
                   labeling looks off, but they can miss a single mislabeled stretch and cut real
                   audio. Check each episode.
+                </p>
+              )}
+              {feed.processingMode === 'skip_detection' && (
+                <p className="text-xs text-muted-foreground">
+                  Episodes are still transcribed and get chapters and a transcript, but nothing
+                  is scanned for ads and nothing is cut. For ad-free shows; skips the ad
+                  detection cost.
+                </p>
+              )}
+              {feed.processingMode === 'passthrough' && (
+                <p className="text-xs text-warning">
+                  Episodes are downloaded and served exactly as published: no transcription, ad
+                  detection, or cutting. The feed URL stays the same, so switching to another
+                  mode resumes processing for new episodes. Episodes already served untouched
+                  keep their original audio until you reprocess them.
                 </p>
               )}
             </div>
@@ -855,7 +866,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {/* Advanced settings (collapsible; rarely-changed knobs) */}
           <CollapsibleSection
             title="Advanced"
-            subtitle="Cut snapping, ad review holds, skip detection, pass-through, and cross-fetch"
+            subtitle="Cut snapping, ad review holds, and cross-fetch"
             defaultOpen={false}
             storageKey={`feed-advanced-${slug}`}
           >
@@ -944,28 +955,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              {/* Skip ad detection (#538): transcripts and chapters only */}
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Ad detection:</span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <ToggleSwitch
-                      checked={feed.skipAdDetection === true}
-                      onChange={(v) => updateMutation.mutate({ skipAdDetection: v })}
-                      disabled={updateMutation.isPending}
-                      ariaLabel="Skip ad detection"
-                    />
-                    <span>Skip ad detection</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
-                    Episodes are still transcribed and get chapters and a transcript, but
-                    nothing is scanned for ads and nothing is cut. For ad-free shows;
-                    skips the ad detection cost. Pass-through, when on, takes precedence
-                    and skips processing entirely.
-                  </p>
-                </div>
-              </div>
-
               {/* Skip verification pass (#599): pass 1 still cuts, pass 2 does not run */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification:</span>
@@ -985,25 +974,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     where the first pass is already reliable. It roughly halves the
                     ad-detection LLM spend. Held differential detections that the second
                     pass would have confirmed then wait for you instead.
-                  </p>
-                </div>
-              </div>
-
-              {/* Pass-through (#521): the feed opts out of processing entirely */}
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Pass-through:</span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <label className="flex items-center gap-2 cursor-pointer flex-wrap">
-                    <ToggleSwitch
-                      checked={feed.passthroughEnabled === true}
-                      onChange={(v) => updateMutation.mutate({ passthroughEnabled: v })}
-                      disabled={updateMutation.isPending}
-                      ariaLabel="Serve episodes untouched"
-                    />
-                    <span>Serve episodes untouched</span>
-                  </label>
-                  <p className="text-xs text-warning">
-                    Episodes are downloaded and served exactly as published: no transcription, ad detection, or cutting. The feed URL stays the same, so turning this off resumes processing for new episodes. Episodes served untouched keep their original audio until you reprocess them.
                   </p>
                 </div>
               </div>
