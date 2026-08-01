@@ -525,9 +525,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
-          {/* Per-feed processing mode: single preset that resolves what used to
-              be three separate fields (detectionMode, skipAdDetection,
-              passthroughEnabled). Choosing a preset here canonicalizes storage;
+          {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
               those legacy fields stay available for external API callers. */}
           <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
             <label htmlFor="processing-mode" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
