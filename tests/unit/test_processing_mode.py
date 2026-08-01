@@ -241,3 +241,44 @@ class TestProcessTranscriptKeepContentParam:
         result, kc, blk = _run_transcript(d, True, None)
         kc.assert_called_once()
         blk.assert_called_once()
+
+
+from api.feeds import _normalize_processing_mode
+
+
+class TestNormalizeProcessingMode:
+    @pytest.mark.parametrize('value,expected', [
+        (PROCESSING_MODE_PASSTHROUGH,
+         {'passthrough_enabled': 1, 'skip_ad_detection': 0, 'detection_mode': None}),
+        (PROCESSING_MODE_SKIP_DETECTION,
+         {'passthrough_enabled': 0, 'skip_ad_detection': 1, 'detection_mode': None}),
+        (PROCESSING_MODE_KEEP_CONTENT,
+         {'passthrough_enabled': 0, 'skip_ad_detection': 0,
+          'detection_mode': DETECTION_MODE_KEEP_CONTENT}),
+        (PROCESSING_MODE_STANDARD,
+         {'passthrough_enabled': 0, 'skip_ad_detection': 0, 'detection_mode': None}),
+    ])
+    def test_canonical_encoding(self, value, expected):
+        updates, err = _normalize_processing_mode(value)
+        assert err is None
+        assert updates == expected
+
+    @pytest.mark.parametrize('value', [
+        PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION,
+        PROCESSING_MODE_KEEP_CONTENT, PROCESSING_MODE_STANDARD,
+    ])
+    def test_round_trip_through_resolver(self, value):
+        updates, _ = _normalize_processing_mode(value)
+        assert resolve_feed_processing_mode(updates) == value
+
+    @pytest.mark.parametrize('bad', ['cue_only', 'PASSTHROUGH', 42, [], {}])
+    def test_invalid_values_rejected(self, bad):
+        updates, err = _normalize_processing_mode(bad)
+        assert updates is None
+        assert 'processingMode must be one of' in err
+
+    def test_none_and_empty_mean_standard(self):
+        for v in (None, ''):
+            updates, err = _normalize_processing_mode(v)
+            assert err is None
+            assert resolve_feed_processing_mode(updates) == PROCESSING_MODE_STANDARD
