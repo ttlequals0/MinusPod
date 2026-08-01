@@ -166,10 +166,8 @@ def _normalize_detection_mode(value):
     return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
 
 
-# Writable preset values and their canonical column encoding. The three
-# columns stay independent for legacy per-field PATCHes (issue #537); a
-# preset write canonicalizes all three so the select reads back what was
-# picked.
+# Canonical encoding for each preset; columns stay independent for legacy
+# per-field PATCHes (issue #537), preset write canonicalizes all three.
 _PROCESSING_MODE_UPDATES = {
     PROCESSING_MODE_PASSTHROUGH: {
         'passthrough_enabled': 1, 'skip_ad_detection': 0, 'detection_mode': None},

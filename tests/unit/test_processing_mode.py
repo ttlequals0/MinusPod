@@ -32,6 +32,7 @@ from config import (
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
+from api.feeds import _normalize_processing_mode
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -241,9 +242,6 @@ class TestProcessTranscriptKeepContentParam:
         result, kc, blk = _run_transcript(d, True, None)
         kc.assert_called_once()
         blk.assert_called_once()
-
-
-from api.feeds import _normalize_processing_mode
 
 
 class TestNormalizeProcessingMode:
