@@ -111,3 +111,69 @@ def test_patch_skip_second_pass_rejects_non_bool(app_client, seeded_feed):
     resp = app_client.patch(f'/api/v1/feeds/{slug}',
                             json={'skipSecondPass': 'yes'}, headers=headers)
     assert resp.status_code == 400
+
+
+class TestProcessingModePatch:
+    @pytest.mark.parametrize('mode', [
+        'passthrough', 'skip_detection', 'keep_content', 'standard'])
+    def test_patch_processing_mode_round_trips(self, app_client, seeded_feed, mode):
+        slug = seeded_feed['slug']
+        _authed(app_client)
+        headers = _csrf_headers(app_client)
+
+        resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                                json={'processingMode': mode}, headers=headers)
+        assert resp.status_code == 200
+        assert resp.get_json()['processingMode'] == mode
+
+    def test_preset_overwrites_layered_legacy_flags(self, app_client, seeded_feed):
+        # Layer skip under passthrough via legacy fields (issue #537), then
+        # a preset write canonicalizes: standard clears both.
+        slug = seeded_feed['slug']
+        _authed(app_client)
+        headers = _csrf_headers(app_client)
+
+        app_client.patch(f'/api/v1/feeds/{slug}',
+                         json={'skipAdDetection': True}, headers=headers)
+        app_client.patch(f'/api/v1/feeds/{slug}',
+                         json={'passthroughEnabled': True}, headers=headers)
+        resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                                json={'processingMode': 'standard'}, headers=headers)
+        body = resp.get_json()
+        assert body['processingMode'] == 'standard'
+        assert body['passthroughEnabled'] is False
+        assert body['skipAdDetection'] is False
+
+    def test_legacy_fields_still_layer(self, app_client, seeded_feed):
+        # Legacy per-field semantics unchanged: passthrough off reveals skip.
+        slug = seeded_feed['slug']
+        _authed(app_client)
+        headers = _csrf_headers(app_client)
+
+        app_client.patch(f'/api/v1/feeds/{slug}',
+                         json={'skipAdDetection': True, 'passthroughEnabled': True},
+                         headers=headers)
+        resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                                json={'passthroughEnabled': False}, headers=headers)
+        assert resp.get_json()['processingMode'] == 'skip_detection'
+
+    def test_mixing_preset_and_legacy_fields_rejected(self, app_client, seeded_feed):
+        slug = seeded_feed['slug']
+        _authed(app_client)
+        headers = _csrf_headers(app_client)
+
+        resp = app_client.patch(
+            f'/api/v1/feeds/{slug}',
+            json={'processingMode': 'standard', 'passthroughEnabled': True},
+            headers=headers)
+        assert resp.status_code == 400
+        assert 'processingMode' in resp.get_json()['error']
+
+    def test_invalid_preset_rejected(self, app_client, seeded_feed):
+        slug = seeded_feed['slug']
+        _authed(app_client)
+        headers = _csrf_headers(app_client)
+
+        resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                                json={'processingMode': 'bogus'}, headers=headers)
+        assert resp.status_code == 400

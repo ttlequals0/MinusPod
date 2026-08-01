@@ -883,6 +883,18 @@ def update_feed(slug):
             return error_response(title_err, 400)
         updates['title_override'] = title_val
 
+    if 'processingMode' in data:
+        legacy = [k for k in ('passthroughEnabled', 'skipAdDetection',
+                              'detectionMode') if k in data]
+        if legacy:
+            return error_response(
+                f"processingMode cannot be combined with {', '.join(legacy)}; "
+                f"send one or the other", 400)
+        mode_updates, mode_err = _normalize_processing_mode(data['processingMode'])
+        if mode_err:
+            return error_response(mode_err, 400)
+        updates.update(mode_updates)
+
     if 'detectionMode' in data:
         mode_val, mode_err = _normalize_detection_mode(data['detectionMode'])
         if mode_err:
