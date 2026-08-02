@@ -32,9 +32,9 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue match** - A place in an episode where a learned audio cue template was found, shown with its score and how detection used it. [Audio Cues > Cue matches on an episode](audio-cues.md#cue-matches-on-an-episode)
 
-**Cue-only** - The per-feed Processing mode that cuts from cue pairs and previously learned ad patterns, with no LLM reading the transcript. Requires an enabled ad-break-start and an enabled ad-break-end template on the feed. [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset)
+**Cue-only** - The experimental per-feed Processing mode that cuts from cue pairs and previously learned ad patterns, with no LLM reading the transcript. Requires an enabled ad-break-start and an enabled ad-break-end template on the feed. [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset)
 
-**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that mint an ad span between them without reading the transcript. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
+**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that mint an ad span between them without reading the transcript. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
 
 ## D
 

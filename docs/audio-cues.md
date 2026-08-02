@@ -304,6 +304,10 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
 
 ## Cue-only preset
 
+Cue-only is experimental, and the Processing mode select labels it that way.
+It is the one mode that can cut audio no language model has read, so treat the
+first episodes on a new feed as something to spot-check rather than trust.
+
 `cue_only` is a per-feed **Processing mode** that cuts from cue pairs and
 previously learned ad patterns: the model never sees the transcript.
 Fingerprint, text-pattern, and cross-fetch differential detection still run

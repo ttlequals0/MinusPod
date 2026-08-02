@@ -234,7 +234,8 @@ This differs from the Pass-through option on the same select, which serves episo
 
 ### Cue-Only Mode
 
-Cue-only cuts from cue pairs and previously learned ad patterns, with no LLM
+Cue-only is experimental, since it can cut audio no language model has read.
+It cuts from cue pairs and previously learned ad patterns, with no LLM
 reading the transcript. Fingerprint, text-pattern, and cross-fetch
 differential detection still run and can cut on their own; the LLM
 detection pass, the LLM boundary reviewer, the verification pass, and LLM
