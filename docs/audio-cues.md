@@ -343,7 +343,8 @@ works too, and skips the wait for local originals entirely.
 match and a "quiet" badge once it goes quiet: matched before, but zero
 above-threshold matches in the feed's last 5 telemetry-recorded episodes. A
 `cue_only` run also fires the `Cue Template Quiet` webhook and email event
-the first time an enabled template goes quiet, so a publisher swapping their
+while a previously-matching enabled template stays quiet, rate-limited to
+one alert per template every 5 minutes, so a publisher swapping their
 stinger does not silently stop cutting ads. See
 [API & Webhooks > Events](api-and-webhooks.md#events).
 
