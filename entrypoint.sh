@@ -48,7 +48,10 @@ if [[ "$(id -u)" == "0" ]]; then
         if [[ -n "$data_dir_uid" && "$data_dir_uid" != "0" && "$data_dir_uid" != "$APP_UID" ]]; then
             echo "WARN entrypoint: $DATA_DIR owned by uid=$data_dir_uid, not 0 or APP_UID=$APP_UID; chown will still run but verify this is intentional"
         fi
-        unowned_count=$(find "$DATA_DIR" -xdev \! -user "$APP_UID" -print 2>/dev/null | wc -l || echo 0)
+        # Fallback assigns rather than appends: under `set -o pipefail` a find
+        # that hits an unreadable entry fails the pipeline, and an inline
+        # `|| echo 0` would leave "0\n0" in the count (issue #604).
+        unowned_count=$(find "$DATA_DIR" -xdev \! -user "$APP_UID" -print 2>/dev/null | wc -l) || unowned_count=0
         if [[ "$unowned_count" -gt 0 ]]; then
             echo "entrypoint: migrating ownership of $unowned_count entries under $DATA_DIR to ${APP_UID}:${APP_GID}"
             find "$DATA_DIR" -xdev \! -user "$APP_UID" -exec chown -h "${APP_UID}:${APP_GID}" {} + 2>/dev/null || true

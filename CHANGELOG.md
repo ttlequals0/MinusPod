@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.1] - 2026-08-02
+
+### Fixed
+
+- Container startup no longer skips the data-directory ownership migration
+  when `find` cannot read part of the volume (issue #604). Under
+  `set -o pipefail` an unreadable entry failed the whole pipeline, and the
+  inline `|| echo 0` fallback appended a second value instead of replacing
+  the count, leaving `0\n0` for the numeric comparison to reject with an
+  arithmetic syntax error. Installs on network-mounted volumes (NFS with
+  root_squash, for example) hit this most often, which is also where the
+  ownership migration matters most.
+
 ## [2.84.0] - 2026-08-01
 
 ### Added
