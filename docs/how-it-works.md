@@ -234,9 +234,9 @@ This differs from the Pass-through option on the same select, which serves episo
 
 ### Cue-Only Mode
 
-Cue-only cuts entirely from paired audio-cue template matches, with no LLM
+Cue-only cuts from cue pairs and previously learned ad patterns, with no LLM
 reading the transcript. Fingerprint, text-pattern, and cross-fetch
-differential detection still run and can corroborate a cue pair; the LLM
+differential detection still run and can cut on their own; the LLM
 detection pass, the LLM boundary reviewer, the verification pass, and LLM
 redetection are all off. It requires at least one enabled ad-break-start and
 one enabled ad-break-end audio cue template on the feed. See

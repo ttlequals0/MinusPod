@@ -1,10 +1,4 @@
-"""Tests for the Cue Template Quiet notification event (issue #599).
-
-A cue-only feed's template that matched before but goes silent across the
-feed's recent episodes should raise an operator alert (webhook + email),
-deduped per template so one quiet template does not suppress alerts for
-another.
-"""
+"""Tests for the Cue Template Quiet notification event (issue #599)."""
 import os
 import tempfile
 from unittest.mock import patch

@@ -23,8 +23,8 @@ release notes.
   one "Processing mode" select covering all four states, replacing the old
   detection-mode dropdown plus the separate "Skip ad detection" and
   "Pass-through" toggles.
-- New `cue_only` processing mode: cuts come only from paired audio-cue
-  template matches, with no LLM detection call. It requires the feed to have
+- New `cue_only` processing mode: cuts come from cue pairs and previously
+  learned ad patterns, with no LLM detection call. It requires the feed to have
   at least one enabled `ad_break_start` template and one enabled
   `ad_break_end` template; enabling the mode is rejected with a 400
   otherwise, since a boundary-only cue (the `ad_break_boundary` type) can

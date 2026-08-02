@@ -9,10 +9,11 @@ duration.
 
 This breaks the original "cue is supporting evidence only" contract; that is
 why it is an opt-in setting (``audio_cue_create_from_pairs``). The contract
-when the setting is off is unchanged. When on, the synthesised ads carry a
-distinct ``reason`` and ``detection_stage`` so they show up in the ad
-editor as cue-only detections that the user can confirm or reject before
-they harden into patterns.
+when the setting is off is unchanged, except under the cue_only preset,
+which always forces synthesis with strict role matching regardless of the
+setting. When on, the synthesised ads carry a distinct ``reason`` and
+``detection_stage`` so they show up in the ad editor as cue-only detections
+that the user can confirm or reject before they harden into patterns.
 """
 from __future__ import annotations
 

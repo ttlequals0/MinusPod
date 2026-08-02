@@ -302,10 +302,10 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
 
 ## Cue-only preset
 
-`cue_only` is a per-feed **Processing mode** that cuts entirely from paired
-audio-cue template matches: the model never sees the transcript. Fingerprint,
-text-pattern, and cross-fetch differential detection still run and can
-corroborate a cue pair, but the LLM detection pass, the LLM boundary
+`cue_only` is a per-feed **Processing mode** that cuts from cue pairs and
+previously learned ad patterns: the model never sees the transcript.
+Fingerprint, text-pattern, and cross-fetch differential detection still run
+and can cut on their own, but the LLM detection pass, the LLM boundary
 reviewer, pass-2 verification, and LLM redetection are all off. Reprocessing
 an episode with the "Re-detect ads" mode returns a 409 on a `cue_only` feed,
 since there is no detection LLM call to rerun.
