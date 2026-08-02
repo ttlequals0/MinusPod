@@ -11,7 +11,10 @@ from api import (
     extract_transcript_segment, get_status_service,
     _resolve_original_audio,
 )
-from config import is_pending_review
+from config import (
+    is_pending_review, resolve_feed_processing_mode,
+    PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
+)
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
@@ -1121,6 +1124,16 @@ def retry_ad_detection(slug, episode_id):
     db = get_database()
     storage = get_storage()
 
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+    mode = resolve_feed_processing_mode(podcast)
+    if mode in (PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION,
+                PROCESSING_MODE_CUE_ONLY):
+        return error_response(
+            f'Feed processing mode is {mode}; LLM ad detection is disabled '
+            f'for this feed', 409)
+
     episode = db.get_episode(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
@@ -1137,9 +1150,7 @@ def retry_ad_detection(slug, episode_id):
         if not segments:
             return error_response('Could not parse transcript into segments', 400)
 
-        # Get podcast info
-        podcast = db.get_podcast_by_slug(slug)
-        podcast_name = podcast.get('title', slug) if podcast else slug
+        podcast_name = podcast.get('title', slug)
 
         # Retry ad detection with token tracking
         start_episode_token_tracking()

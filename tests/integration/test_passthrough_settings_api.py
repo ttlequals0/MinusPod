@@ -270,3 +270,27 @@ class TestCueOnlySafetyAndTranscription:
                             headers=_csrf_headers(client))
         assert resp.status_code == 200
         assert resp.get_json()['skipTranscription'] is True
+
+
+class TestRetryAdDetectionModeGuard:
+    def test_retry_ad_detection_blocked_for_cue_only(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _add_template(db, slug, 'ad_break_start')
+        _add_template(db, slug, 'ad_break_end')
+        client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'cue_only'},
+                     headers=_csrf_headers(client))
+        resp = client.post(f'/api/v1/feeds/{slug}/episodes/a1b2c3d4e5f6/retry-ad-detection',
+                           headers=_csrf_headers(client))
+        assert resp.status_code == 409
+        assert 'cue_only' in resp.get_json()['error']
+
+    def test_retry_ad_detection_blocked_for_skip_detection(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']
+        _authed(client)
+        client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'skip_detection'},
+                     headers=_csrf_headers(client))
+        resp = client.post(f'/api/v1/feeds/{slug}/episodes/a1b2c3d4e5f6/retry-ad-detection',
+                           headers=_csrf_headers(client))
+        assert resp.status_code == 409
+        assert 'skip_detection' in resp.get_json()['error']
