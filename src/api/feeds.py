@@ -189,6 +189,19 @@ def _cue_only_templates_ok(db, podcast):
                    "cannot pair safely without the LLM pass")
 
 
+def _normalize_cue_only_safety(value):
+    """Validate the per-feed cueOnlySafety override.
+
+    Returns (db_value, error). None or '' clears the override (stored NULL).
+    Any of CUE_ONLY_SAFETY_VALUES is stored as-is. Any other value is rejected.
+    """
+    if value in (None, ''):
+        return None, None
+    if value in CUE_ONLY_SAFETY_VALUES:
+        return value, None
+    return None, f"cueOnlySafety must be one of: {', '.join(CUE_ONLY_SAFETY_VALUES)}"
+
+
 def _normalize_chapters_mode(value):
     """Validate the per-feed chapters mode (issue #560).
 
@@ -897,14 +910,10 @@ def update_feed(slug):
         updates.update(mode_updates)
 
     if 'cueOnlySafety' in data:
-        v = data['cueOnlySafety']
-        if v in (None, ''):
-            updates['cue_only_safety'] = None
-        elif v in CUE_ONLY_SAFETY_VALUES:
-            updates['cue_only_safety'] = v
-        else:
-            return error_response(
-                f"cueOnlySafety must be one of: {', '.join(CUE_ONLY_SAFETY_VALUES)}", 400)
+        safety_val, safety_err = _normalize_cue_only_safety(data['cueOnlySafety'])
+        if safety_err:
+            return error_response(safety_err, 400)
+        updates['cue_only_safety'] = safety_val
 
     if 'detectionMode' in data:
         mode_val, mode_err = _normalize_detection_mode(data['detectionMode'])

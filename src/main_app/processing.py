@@ -851,14 +851,14 @@ def _quiet_templates_to_notify(activity, enabled_template_ids):
     return [a for a in activity if a['quiet'] and a['templateId'] in enabled_template_ids]
 
 
-def _notify_quiet_cue_templates(slug, podcast_name, podcast_id):
+def _notify_quiet_cue_templates(slug, podcast_name, podcast_id, cue_templates):
     """Fire Cue Template Quiet for each enabled template gone quiet on this feed.
 
     Best-effort (issue #599): a notification failure must not break the run.
     """
     try:
         activity = db.cue_template_recent_activity(podcast_id)
-        templates = {t['id']: t for t in db.list_cue_templates_for_feed_ui(podcast_id)}
+        templates = {t['id']: t for t in cue_templates}
         enabled_ids = {tid for tid, t in templates.items() if t.get('enabled')}
         for a in _quiet_templates_to_notify(activity, enabled_ids):
             fire_cue_template_quiet_event(
@@ -3862,8 +3862,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
 
+                cue_templates_for_feed = []
                 if cue_only and podcast_id:
-                    _notify_quiet_cue_templates(slug, podcast_name, podcast_id)
+                    cue_templates_for_feed = db.list_cue_templates_for_feed_ui(podcast_id)
+                    _notify_quiet_cue_templates(slug, podcast_name, podcast_id,
+                                                cue_templates_for_feed)
 
                 _detection_stats = (ad_result or {}).get('detection_stats') or {}
                 if 'windows_total' in _detection_stats:
@@ -3900,7 +3903,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cue_only_safety = resolve_cue_only_safety(podcast_settings)
                     if cue_only_safety == CUE_ONLY_SAFETY_HOLD_NEW and podcast_id is not None:
                         counts = db.cue_template_paired_episode_counts(podcast_id)
-                        enabled = db.list_cue_templates_for_feed_ui(podcast_id)
+                        enabled = cue_templates_for_feed
                         cue_unproven_ids = {
                             t['id'] for t in enabled if t.get('enabled')
                             and counts.get(t['id'], 0) < CUE_ONLY_PROVEN_EPISODES}

@@ -193,24 +193,26 @@ class CueDetectionMixin:
             """SELECT episode_id, MAX(created_at) AS seen FROM cue_detections
                WHERE podcast_id = ? GROUP BY episode_id
                ORDER BY seen DESC LIMIT ?""", (podcast_id, recent_episodes))]
+        # Recency folded into the grouped query (was one SELECT-1 per matched
+        # template); recent_hit_expr is only meaningful when recent is non-empty.
+        placeholders = ','.join('?' * len(recent))
+        recent_hit_expr = (
+            f"MAX(CASE WHEN {_ABOVE_THRESHOLD} AND episode_id IN ({placeholders}) "
+            f"THEN 1 ELSE 0 END)" if recent else "0"
+        )
+        params = (*recent, podcast_id) if recent else (podcast_id,)
         rows = conn.execute(
             f"""SELECT template_id,
                       MAX(CASE WHEN {_ABOVE_THRESHOLD} THEN created_at END) AS last_match,
-                      COUNT(DISTINCT CASE WHEN {_ABOVE_THRESHOLD} THEN episode_id END) AS matched
+                      COUNT(DISTINCT CASE WHEN {_ABOVE_THRESHOLD} THEN episode_id END) AS matched,
+                      {recent_hit_expr} AS recent_hit
                FROM cue_detections
                WHERE podcast_id = ? AND template_id IS NOT NULL
-               GROUP BY template_id""", (podcast_id,)).fetchall()
+               GROUP BY template_id""", params).fetchall()
         out = []
-        placeholders = ','.join('?' * len(recent))
         for r in rows:
-            quiet = False
-            if r['matched'] and recent:
-                hit = conn.execute(
-                    f"""SELECT 1 FROM cue_detections
-                       WHERE podcast_id = ? AND template_id = ? AND {_ABOVE_THRESHOLD}
-                       AND episode_id IN ({placeholders}) LIMIT 1""",
-                    (podcast_id, r['template_id'], *recent)).fetchone()
-                quiet = hit is None
+            # No episodes recorded yet -> quiet stays False regardless of matched.
+            quiet = bool(r['matched']) and bool(recent) and not bool(r['recent_hit'])
             out.append({'templateId': r['template_id'], 'lastMatchAt': r['last_match'],
                         'matchedEpisodes': r['matched'], 'quiet': quiet})
         return out

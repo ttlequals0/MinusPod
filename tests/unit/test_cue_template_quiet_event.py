@@ -138,11 +138,12 @@ class TestNotifyQuietCueTemplates:
                 {'templateId': 2, 'quiet': False, 'lastMatchAt': '2026-02-01T00:00:00Z',
                  'matchedEpisodes': 5},
             ]
-            db.list_cue_templates_for_feed_ui.return_value = [
+            cue_templates = [
                 {'id': 1, 'label': 'ding', 'enabled': True},
                 {'id': 2, 'label': 'dong', 'enabled': True},
             ]
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1)
+            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
+                                                    cue_templates=cue_templates)
 
         fire.assert_called_once_with('show-a', 'Show A', 1, 'ding', '2026-01-01T00:00:00Z')
 
@@ -153,10 +154,9 @@ class TestNotifyQuietCueTemplates:
                 {'templateId': 1, 'quiet': True, 'lastMatchAt': '2026-01-01T00:00:00Z',
                  'matchedEpisodes': 3},
             ]
-            db.list_cue_templates_for_feed_ui.return_value = [
-                {'id': 1, 'label': 'ding', 'enabled': False},
-            ]
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1)
+            cue_templates = [{'id': 1, 'label': 'ding', 'enabled': False}]
+            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
+                                                    cue_templates=cue_templates)
 
         fire.assert_not_called()
 
@@ -164,6 +164,7 @@ class TestNotifyQuietCueTemplates:
         with patch.object(processing, 'db') as db, \
              patch.object(processing, 'fire_cue_template_quiet_event') as fire:
             db.cue_template_recent_activity.side_effect = RuntimeError('boom')
-            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1)
+            processing._notify_quiet_cue_templates('show-a', 'Show A', podcast_id=1,
+                                                    cue_templates=[])
 
         fire.assert_not_called()

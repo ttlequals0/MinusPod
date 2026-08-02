@@ -365,6 +365,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   };
 
   const processingMode = feed.processingMode ?? 'standard';
+  const cueOnlyActive = processingMode === 'cue_only';
 
   return (
     <div className="mb-6">
@@ -1034,14 +1035,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
-                      checked={processingMode === 'cue_only' || feed.skipSecondPass === true}
+                      checked={cueOnlyActive || feed.skipSecondPass === true}
                       onChange={(v) => updateMutation.mutate({ skipSecondPass: v })}
-                      disabled={updateMutation.isPending || processingMode === 'cue_only'}
+                      disabled={updateMutation.isPending || cueOnlyActive}
                       ariaLabel="Skip verification pass"
                     />
                     <span>Skip verification pass</span>
                   </label>
-                  {processingMode === 'cue_only' ? (
+                  {cueOnlyActive ? (
                     <p className="text-xs text-muted-foreground">
                       Forced on by cue-only mode.
                     </p>
