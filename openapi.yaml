@@ -8129,7 +8129,17 @@ components:
               type:
                 - boolean
                 - 'null'
-              description: True when the run skipped the pass-2 verification scan because the feed has skipSecondPass set. Absent when detection was skipped outright, which already implies no verification.
+              description: True when the verification pass was skipped by the per-feed setting or by cue-only mode. Absent when detection was skipped outright, which already implies no verification.
+            cueOnly:
+              type:
+                - boolean
+                - 'null'
+              description: True when the run cut only from cue and learned-pattern evidence with no LLM call.
+            transcriptionSkipped:
+              type:
+                - boolean
+                - 'null'
+              description: True when the run skipped transcription; no transcript, generated chapters, or subtitles.
             downloadedDuration:
               type: number
               description: ffprobe duration of the downloaded copy, in seconds

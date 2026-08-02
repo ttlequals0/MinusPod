@@ -80,6 +80,20 @@ def test_force_without_templates_does_not_enable_spectral(temp_db):
     assert detector is None
 
 
+def test_non_forced_matcher_construction_error_returns_disabled(temp_db):
+    # Construction exceptions must not fall through to the spectral
+    # fallback even though the global toggle is on (main parity).
+    pid = temp_db.create_podcast('show-i', 'http://x/i.xml', 'Show I')
+    _add_template(temp_db, pid)
+    temp_db.set_setting('audio_cue_detection_enabled', 'true')
+    analyzer = AudioAnalyzer(db=temp_db)
+    with patch.object(AudioCueTemplateMatcher, '__init__',
+                       side_effect=RuntimeError('boom')):
+        enabled, detector = analyzer._load_cue_config(feed_id=pid)
+    assert enabled is False
+    assert detector is None
+
+
 def test_force_with_unusable_matcher_logs_and_reports_error(temp_db, caplog):
     # Templates present but the matcher can't use them (e.g. every template's
     # mfcc blob failed to parse): a cue-only run would otherwise cut nothing

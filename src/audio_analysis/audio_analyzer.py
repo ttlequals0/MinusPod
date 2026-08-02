@@ -137,7 +137,7 @@ class AudioAnalyzer:
         2. Otherwise fall back to the spectral burst detector.
 
         When the toggle is off, no cue detector runs, unless ``force`` is set
-        and the template matcher fails to load -- that failure is logged and,
+        and the template matcher fails to load: that failure is logged and,
         via ``errors``, surfaced on the analysis result rather than silent.
         Both detectors expose ``.detect(audio_path)`` and emit the same
         ``audio_cue`` ``AudioSegmentSignal``. Returns ``(enabled, detector)``;
@@ -171,8 +171,14 @@ class AudioAnalyzer:
                     logger.warning(
                         f"Cue detection: feed_id={feed_id} matcher construction "
                         f"failed: {e}")
-                    matcher = None
-                if matcher is not None and matcher.is_usable:
+                    if force:
+                        msg = (f"Cue detection: force requested for feed_id={feed_id} "
+                               f"but matcher construction failed: {e}")
+                        logger.error(msg)
+                        if errors is not None:
+                            errors.append(msg)
+                    return False, None
+                if matcher.is_usable:
                     logger.info(
                         f"Cue detection: using {len(templates)} per-feed "
                         f"template(s) for feed_id={feed_id}"

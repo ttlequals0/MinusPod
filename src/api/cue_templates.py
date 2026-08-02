@@ -328,7 +328,7 @@ def _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
 
 def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
     """409 message if this template mutation breaks a cue-only feed's role
-    coverage: the owning feed, or -- for a network-scope template -- any
+    coverage: the owning feed, or, for a network-scope template, any
     sibling feed on the same network that is also cue_only and relies on it.
 
     ``simulated_row`` is the template's post-change dict, or None to simulate
