@@ -619,6 +619,21 @@ def resolve_feed_processing_mode(podcast_row):
     return PROCESSING_MODE_STANDARD
 
 
+# Invariant: resolve_feed_processing_mode(updates) == mode for every entry
+# below (guarded by test_round_trip_through_resolver).
+PROCESSING_MODE_COLUMN_UPDATES = {
+    PROCESSING_MODE_PASSTHROUGH: {
+        'passthrough_enabled': 1, 'skip_ad_detection': 0, 'detection_mode': None},
+    PROCESSING_MODE_SKIP_DETECTION: {
+        'passthrough_enabled': 0, 'skip_ad_detection': 1, 'detection_mode': None},
+    PROCESSING_MODE_KEEP_CONTENT: {
+        'passthrough_enabled': 0, 'skip_ad_detection': 0,
+        'detection_mode': DETECTION_MODE_KEEP_CONTENT},
+    PROCESSING_MODE_STANDARD: {
+        'passthrough_enabled': 0, 'skip_ad_detection': 0, 'detection_mode': None},
+}
+
+
 def resolve_skip_second_pass(podcast_row):
     """Whether the feed opts out of the pass-2 verification scan (issue #599).
 

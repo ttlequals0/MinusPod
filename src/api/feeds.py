@@ -28,11 +28,8 @@ from config import (
     differential_fetch_effective,
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
-    PROCESSING_MODE_PASSTHROUGH,
-    PROCESSING_MODE_SKIP_DETECTION,
-    PROCESSING_MODE_KEEP_CONTENT,
     PROCESSING_MODE_STANDARD,
-    DETECTION_MODE_KEEP_CONTENT,
+    PROCESSING_MODE_COLUMN_UPDATES,
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
@@ -166,32 +163,14 @@ def _normalize_detection_mode(value):
     return None, f"detectionMode must be one of: {', '.join(DETECTION_MODES)}"
 
 
-# Canonical encoding for each preset; columns stay independent for legacy
-# per-field PATCHes (issue #537), preset write canonicalizes all three.
-_PROCESSING_MODE_UPDATES = {
-    PROCESSING_MODE_PASSTHROUGH: {
-        'passthrough_enabled': 1, 'skip_ad_detection': 0, 'detection_mode': None},
-    PROCESSING_MODE_SKIP_DETECTION: {
-        'passthrough_enabled': 0, 'skip_ad_detection': 1, 'detection_mode': None},
-    PROCESSING_MODE_KEEP_CONTENT: {
-        'passthrough_enabled': 0, 'skip_ad_detection': 0,
-        'detection_mode': DETECTION_MODE_KEEP_CONTENT},
-    PROCESSING_MODE_STANDARD: {
-        'passthrough_enabled': 0, 'skip_ad_detection': 0, 'detection_mode': None},
-}
-
-
 def _normalize_processing_mode(value):
     """Validate a writable processingMode and return its column updates."""
     if value in (None, ''):
         value = PROCESSING_MODE_STANDARD
-    try:
-        if value in _PROCESSING_MODE_UPDATES:
-            return dict(_PROCESSING_MODE_UPDATES[value]), None
-    except TypeError:
-        pass
+    if isinstance(value, str) and value in PROCESSING_MODE_COLUMN_UPDATES:
+        return dict(PROCESSING_MODE_COLUMN_UPDATES[value]), None
     return None, (f"processingMode must be one of: "
-                  f"{', '.join(sorted(_PROCESSING_MODE_UPDATES))}")
+                  f"{', '.join(sorted(PROCESSING_MODE_COLUMN_UPDATES))}")
 
 
 def _normalize_chapters_mode(value):

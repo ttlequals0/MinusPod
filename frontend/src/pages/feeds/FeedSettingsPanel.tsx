@@ -23,6 +23,35 @@ interface Props {
   slug: string;
 }
 
+// Hint shown below the processing-mode select, keyed by the resolved mode
+// (feed.processingMode ?? 'standard').
+const PROCESSING_MODE_HINTS: Record<NonNullable<Feed['processingMode']>, { text: string; className: string }> = {
+  standard: {
+    text: 'Detects ads with the model and cuts them out. The default for most feeds.',
+    className: 'text-xs text-muted-foreground',
+  },
+  keep_content: {
+    text: 'Removes everything the model does not mark as show content. For feeds with '
+      + 'unrecognizable inserted ads. Safety checks revert to normal removal when the '
+      + 'labeling looks off, but they can miss a single mislabeled stretch and cut real '
+      + 'audio. Check each episode.',
+    className: 'text-xs text-warning',
+  },
+  skip_detection: {
+    text: 'Episodes are still transcribed and get chapters and a transcript, but nothing '
+      + 'is scanned for ads and nothing is cut. For ad-free shows; skips the ad '
+      + 'detection cost.',
+    className: 'text-xs text-muted-foreground',
+  },
+  passthrough: {
+    text: 'Episodes are downloaded and served exactly as published: no transcription, ad '
+      + 'detection, or cutting. The feed URL stays the same, so switching to another '
+      + 'mode resumes processing for new episodes. Episodes already served untouched '
+      + 'keep their original audio until you reprocess them.',
+    className: 'text-xs text-warning',
+  },
+};
+
 // Props for the per-field cue override row. Defined at module scope so its
 // identity is stable across parent renders (avoids remount on every keystroke).
 interface CueOverrideRowProps {
@@ -317,6 +346,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     });
   };
 
+  const processingMode = feed.processingMode ?? 'standard';
+
   return (
     <div className="mb-6">
       <CollapsibleSection
@@ -534,7 +565,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <select
                 id="processing-mode"
-                value={feed.processingMode || 'standard'}
+                value={processingMode}
                 onChange={(e) => updateMutation.mutate({
                   processingMode: e.target.value as UpdateFeedPayload['processingMode'],
                 })}
@@ -546,34 +577,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
                 <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
               </select>
-              {feed.processingMode === 'standard' && (
-                <p className="text-xs text-muted-foreground">
-                  Detects ads with the model and cuts them out. The default for most feeds.
-                </p>
-              )}
-              {feed.processingMode === 'keep_content' && (
-                <p className="text-xs text-warning">
-                  Removes everything the model does not mark as show content. For feeds with
-                  unrecognizable inserted ads. Safety checks revert to normal removal when the
-                  labeling looks off, but they can miss a single mislabeled stretch and cut real
-                  audio. Check each episode.
-                </p>
-              )}
-              {feed.processingMode === 'skip_detection' && (
-                <p className="text-xs text-muted-foreground">
-                  Episodes are still transcribed and get chapters and a transcript, but nothing
-                  is scanned for ads and nothing is cut. For ad-free shows; skips the ad
-                  detection cost.
-                </p>
-              )}
-              {feed.processingMode === 'passthrough' && (
-                <p className="text-xs text-warning">
-                  Episodes are downloaded and served exactly as published: no transcription, ad
-                  detection, or cutting. The feed URL stays the same, so switching to another
-                  mode resumes processing for new episodes. Episodes already served untouched
-                  keep their original audio until you reprocess them.
-                </p>
-              )}
+              <p className={PROCESSING_MODE_HINTS[processingMode].className}>
+                {PROCESSING_MODE_HINTS[processingMode].text}
+              </p>
             </div>
           </div>
 
