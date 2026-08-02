@@ -51,7 +51,12 @@ if [[ "$(id -u)" == "0" ]]; then
         # Fallback assigns rather than appends: under `set -o pipefail` a find
         # that hits an unreadable entry fails the pipeline, and an inline
         # `|| echo 0` would leave "0\n0" in the count (issue #604).
-        unowned_count=$(find "$DATA_DIR" -xdev \! -user "$APP_UID" -print 2>/dev/null | wc -l) || unowned_count=0
+        if ! unowned_count=$(find "$DATA_DIR" -xdev \! -user "$APP_UID" -print 2>/dev/null | wc -l); then
+            # Say so rather than reporting a silent zero: a container without
+            # CAP_DAC_OVERRIDE cannot read every entry, so the scan is partial.
+            echo "WARN entrypoint: could not scan all of $DATA_DIR for ownership; skipping migration this boot"
+            unowned_count=0
+        fi
         if [[ "$unowned_count" -gt 0 ]]; then
             echo "entrypoint: migrating ownership of $unowned_count entries under $DATA_DIR to ${APP_UID}:${APP_GID}"
             find "$DATA_DIR" -xdev \! -user "$APP_UID" -exec chown -h "${APP_UID}:${APP_GID}" {} + 2>/dev/null || true

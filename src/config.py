@@ -1120,6 +1120,22 @@ WHISPER_COMPUTE_TYPE_DEFAULT = 'auto'
 # Fallback order when float16 init fails on CUDA (CC < 7.0: Pascal/Maxwell).
 WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN = ('int8_float16', 'int8', 'float32')
 
+# Devices CTranslate2 accepts from us. Anything else reaches it as an unknown
+# device string and kills model init, so resolve_whisper_device() drops to CPU.
+WHISPER_DEVICES = ('cpu', 'cuda')
+WHISPER_DEVICE_DEFAULT = 'cpu'
+
+
+def resolve_whisper_device():
+    """Validated WHISPER_DEVICE. An unrecognized value degrades to CPU (#605)."""
+    raw = (os.environ.get('WHISPER_DEVICE') or WHISPER_DEVICE_DEFAULT).strip().lower()
+    if raw in WHISPER_DEVICES:
+        return raw
+    _tunable_logger.warning(
+        "WHISPER_DEVICE=%r is not one of %s; transcribing on CPU instead",
+        raw, ', '.join(WHISPER_DEVICES))
+    return WHISPER_DEVICE_DEFAULT
+
 # VAD gap detector: catches audio regions Whisper's VAD dropped (sped-up
 # disclaimers, distorted ad tails) that the transcript-based ad detectors
 # never see. A "gap" is a span with no Whisper segment.

@@ -13,6 +13,17 @@ release notes.
 
 ### Fixed
 
+- An unrecognized `WHISPER_DEVICE` now transcribes on CPU with a warning
+  instead of failing every chunk (issue #605). CTranslate2 accepts only `cpu`
+  and `cuda`, and the value went to it unvalidated while the CUDA availability
+  check and the compute-type fallback were both keyed on the exact string
+  `cuda`, so a near miss such as `gpu` skipped every guard and left gaps in the
+  transcript. The system status endpoint now reports the effective device
+  rather than the raw setting.
+- The container startup ownership scan says so when it cannot read part of the
+  data directory, instead of reporting zero unowned files. A container without
+  `CAP_DAC_OVERRIDE` cannot traverse every entry, and a silent zero reads as
+  "nothing to migrate".
 - Ad detections are no longer dropped when a local model answers with the
   singular `{"ad": [...]}` wrapper instead of `{"ads": [...]}`. The response
   parser already accepted several wrapper spellings but not this one, so a

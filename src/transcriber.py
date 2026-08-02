@@ -34,6 +34,7 @@ from config import (
     WHISPER_COMPUTE_TYPES,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
+    resolve_whisper_device,
     CHUNK_OVERLAP_SECONDS,
     CHUNK_MIN_DURATION_SECONDS,
     CHUNK_MAX_DURATION_SECONDS,
@@ -832,7 +833,7 @@ class WhisperModelSingleton:
 
         if cls._instance is None:
             model_size = reload_model or cls.get_configured_model()
-            device = os.getenv("WHISPER_DEVICE", "cpu")
+            device = resolve_whisper_device()
             configured_compute_type = _get_whisper_compute_type()
 
             # Resolve device and the compute type 'auto' falls back to.
@@ -1626,7 +1627,7 @@ class Transcriber:
             initial_prompt = self.get_initial_prompt(podcast_name)
 
             # Adjust batch size based on device and audio duration
-            device = os.getenv("WHISPER_DEVICE", "cpu")
+            device = resolve_whisper_device()
             if device == "cuda":
                 # Use adaptive batch size based on duration to prevent OOM
                 batch_size = self.get_batch_size_for_duration(audio_duration)
@@ -2041,7 +2042,7 @@ class Transcriber:
 
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()
-        device = os.getenv("WHISPER_DEVICE", "cpu")
+        device = resolve_whisper_device()
 
         # Calculate optimal chunk duration based on available memory
         chunk_duration, memory_reason = calculate_optimal_chunk_duration(

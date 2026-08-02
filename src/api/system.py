@@ -15,6 +15,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time,
 )
+from config import resolve_whisper_device
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -112,7 +113,9 @@ def get_system_status():
         'settings': {
             'retentionDays': retention_days,
             'whisperModel': os.environ.get('WHISPER_MODEL', 'small'),
-            'whisperDevice': os.environ.get('WHISPER_DEVICE', 'cuda'),
+            # Effective device, not the raw env value: an unrecognized setting
+            # transcribes on CPU, and the UI should say so (#605).
+            'whisperDevice': resolve_whisper_device(),
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
         },
         'stats': {
