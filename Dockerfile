@@ -75,12 +75,15 @@ RUN pip install --no-cache-dir --upgrade pip==25.2 setuptools==80.9.0 \
 # Set working directory
 WORKDIR /app
 
-# Pre-install PyTorch 2.13.0 with CUDA 12.6 (bundled cuDNN 9 / cuBLAS via
+# Pre-install PyTorch 2.13.0 with CUDA 12.9 (bundled cuDNN 9 / cuBLAS via
 # pip nvidia-* deps). Stay on CUDA 12.x wheels: they run on driver >= 525,
 # while cu13x wheels raise the host driver floor to >= 580.
+# cu129 over cu126 for Blackwell (sm_120, RTX 50-series). It trades away the
+# sm_50/60/70 kernels cu126 carried, which only costs Maxwell/Pascal/Volta
+# their VRAM readings here: torch reports memory, ctranslate2 transcribes.
 RUN pip install --no-cache-dir \
-    torch==2.13.0+cu126 \
-    --extra-index-url https://download.pytorch.org/whl/cu126
+    torch==2.13.0+cu129 \
+    --extra-index-url https://download.pytorch.org/whl/cu129
 
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .

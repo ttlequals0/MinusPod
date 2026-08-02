@@ -10,7 +10,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` Whisper or long episodes
-- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). The image does not gate on driver version at startup; an older driver surfaces as a CUDA init error on the first transcription.
+- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). The image does not gate on driver version at startup; an older driver surfaces as a CUDA init error on the first transcription. PyTorch ships a CUDA 12.9 build covering Turing (sm_75) through Blackwell (sm_120). Older cards (Maxwell, Pascal, Volta) still transcribe, since CTranslate2 is compiled separately, but PyTorch prints an unsupported-architecture warning and VRAM-based chunk sizing may fall back to defaults.
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.

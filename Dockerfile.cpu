@@ -20,7 +20,8 @@
 #   - requirements.txt install step (verbatim).
 #   - Entrypoint, user/group creation, HEALTHCHECK, EXPOSE (verbatim).
 #   - Torch version: mirror with matching CPU wheel from
-#     https://download.pytorch.org/whl/cpu (no +cu126, no --extra-index-url).
+#     https://download.pytorch.org/whl/cpu (no +cuXXX local version, no
+#     --extra-index-url). Only the version has to match, not the CUDA build.
 #
 # DO NOT MIRROR:
 #   - The GPU file's NVIDIA base-image comment, LD_LIBRARY_PATH cuDNN/cuBLAS

@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.2] - 2026-08-02
+
+### Changed
+
+- The GPU image now ships PyTorch built against CUDA 12.9 instead of 12.6, so
+  it carries kernels for Blackwell cards (sm_120, the RTX 50 series) and for
+  sm_100. Still a CUDA 12.x wheel, so the driver floor stays at 525. The trade
+  is that CUDA 12.9 drops the sm_50, sm_60, and sm_70 kernels 12.6 carried, so
+  Maxwell, Pascal, and Volta cards will now print an unsupported-architecture
+  warning from PyTorch. Transcription is unaffected on those cards because
+  CTranslate2 does the transcribing and is compiled separately; PyTorch is
+  only used here to report VRAM, and a failed reading falls back to default
+  chunk sizing. The GPU image grows by about 1.6 GB.
+
 ## [2.84.1] - 2026-08-02
 
 ### Fixed
