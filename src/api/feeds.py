@@ -29,7 +29,11 @@ from config import (
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
     PROCESSING_MODE_STANDARD,
+    PROCESSING_MODE_CUE_ONLY,
     PROCESSING_MODE_COLUMN_UPDATES,
+    CUE_ONLY_SAFETY_VALUES,
+    audio_cue_type_role,
+    AUDIO_CUE_TYPE_DEFAULT,
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
@@ -173,6 +177,18 @@ def _normalize_processing_mode(value):
                   f"{', '.join(sorted(PROCESSING_MODE_COLUMN_UPDATES))}")
 
 
+def _cue_only_templates_ok(db, podcast):
+    """Cue-only needs one enabled start-role and one end-role template."""
+    rows = db.list_cue_templates_for_feed_ui(podcast['id'])
+    roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
+             for r in rows if r.get('enabled')}
+    if 'start' in roles and 'end' in roles:
+        return True, None
+    return False, ("cue_only needs at least one enabled 'ad-break start' and one "
+                   "'ad-break end' template on this feed; boundary-only cues "
+                   "cannot pair safely without the LLM pass")
+
+
 def _normalize_chapters_mode(value):
     """Validate the per-feed chapters mode (issue #560).
 
@@ -276,6 +292,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('detectShowSegments', 'detect_show_segments'),
     ('ownEpisodeGuids', 'own_episode_guids'),
     ('skipSecondPass', 'skip_second_pass'),
+    ('skipTranscription', 'skip_transcription'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -361,6 +378,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'segmentCategoryActions': _deserialize_segment_category_actions(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
+        'cueOnlySafety': podcast.get('cue_only_safety'),
         **_cue_override_fields(podcast),
         'sourceUrl': podcast['source_url'],
         'feedUrl': feed_url,
@@ -872,7 +890,21 @@ def update_feed(slug):
         mode_updates, mode_err = _normalize_processing_mode(data['processingMode'])
         if mode_err:
             return error_response(mode_err, 400)
+        if data['processingMode'] == PROCESSING_MODE_CUE_ONLY:
+            ok, why = _cue_only_templates_ok(db, podcast)
+            if not ok:
+                return error_response(why, 400)
         updates.update(mode_updates)
+
+    if 'cueOnlySafety' in data:
+        v = data['cueOnlySafety']
+        if v in (None, ''):
+            updates['cue_only_safety'] = None
+        elif v in CUE_ONLY_SAFETY_VALUES:
+            updates['cue_only_safety'] = v
+        else:
+            return error_response(
+                f"cueOnlySafety must be one of: {', '.join(CUE_ONLY_SAFETY_VALUES)}", 400)
 
     if 'detectionMode' in data:
         mode_val, mode_err = _normalize_detection_mode(data['detectionMode'])
@@ -914,6 +946,14 @@ def update_feed(slug):
         if err:
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
+
+    if data.get('skipTranscription'):
+        # Effective mode after this PATCH: an in-flight processingMode write wins.
+        effective = data.get('processingMode') if 'processingMode' in data else \
+            resolve_feed_processing_mode(podcast)
+        if effective != PROCESSING_MODE_CUE_ONLY:
+            return error_response(
+                'skipTranscription requires the cue_only processing mode', 400)
 
     for json_key, db_col in _NULLABLE_BOOL_FIELDS:
         if json_key in data:

@@ -177,3 +177,96 @@ class TestProcessingModePatch:
         resp = app_client.patch(f'/api/v1/feeds/{slug}',
                                 json={'processingMode': 'bogus'}, headers=headers)
         assert resp.status_code == 400
+
+
+def _add_template(db, slug, cue_type, enabled=1):
+    podcast = db.get_podcast_by_slug(slug)
+    template_id = db.create_cue_template(
+        podcast_id=podcast['id'], cue_type=cue_type,
+        source_episode_id='ep1', source_offset_s=1.0, duration_s=1.0,
+        sample_rate=22050, n_coeffs=13, mfcc_blob=b'\x00' * 52)
+    if not enabled:
+        db.update_cue_template(template_id, enabled=False)
+    return template_id
+
+
+class TestCueOnlyPatch:
+    def test_cue_only_rejected_without_role_typed_templates(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']
+        _authed(client)
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+        assert 'ad-break start' in resp.get_json()['error']
+
+    def test_cue_only_rejected_with_boundary_only(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _add_template(db, slug, 'ad_break_boundary')
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+
+    def test_cue_only_accepted_with_start_and_end(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _add_template(db, slug, 'ad_break_start')
+        _add_template(db, slug, 'ad_break_end')
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        assert resp.get_json()['processingMode'] == 'cue_only'
+
+    def test_disabled_templates_do_not_count(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _add_template(db, slug, 'ad_break_start', enabled=0)
+        _add_template(db, slug, 'ad_break_end')
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+
+
+class TestCueOnlySafetyAndTranscription:
+    def _enable_cue_only(self, client, slug, db):
+        _add_template(db, slug, 'ad_break_start')
+        _add_template(db, slug, 'ad_break_end')
+        client.patch(f'/api/v1/feeds/{slug}',
+                     json={'processingMode': 'cue_only'},
+                     headers=_csrf_headers(client))
+
+    def test_safety_round_trip_and_validation(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']
+        _authed(client)
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'cueOnlySafety': 'auto_cut'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        assert resp.get_json()['cueOnlySafety'] == 'auto_cut'
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'cueOnlySafety': 'bogus'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'cueOnlySafety': None},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        assert resp.get_json()['cueOnlySafety'] is None
+
+    def test_skip_transcription_requires_cue_only(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipTranscription': True},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+        self._enable_cue_only(client, slug, db)
+        resp = client.patch(f'/api/v1/feeds/{slug}',
+                            json={'skipTranscription': True},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        assert resp.get_json()['skipTranscription'] is True

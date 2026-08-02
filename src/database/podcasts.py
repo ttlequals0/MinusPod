@@ -216,7 +216,7 @@ class PodcastMixin:
                 'last_podping_at', 'podping_uses', 'podping_hive_accounts',
                 'podping_checked_at', 'channel_metadata_at',
                 'segment_category_actions', 'detect_show_segments',
-                'skip_second_pass',
+                'skip_second_pass', 'skip_transcription', 'cue_only_safety',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)
