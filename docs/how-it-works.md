@@ -21,8 +21,8 @@ Processing happens on-demand when you play an episode, or automatically when new
 | **Audio Enforcement** | Volume and transition signals programmatically validate and extend ad detections | Automatic |
 | **Pattern Learning** | System learns from corrections, patterns promote from podcast to network to global scope | Automatic |
 | **Confidence Thresholds** | >=80% confidence: cut (configurable); 50-79%: kept for review; <50%: rejected | Automatic |
-| **Keep Content Only** | Inverted detection: the model marks show content and the rest is removed, guarded by safety gates | Feed page > Feed Settings > Detection |
-| **Skip Ad Detection** | Transcripts and chapters only; no detection LLM calls, nothing cut | Feed page > Feed Settings > Advanced |
+| **Keep Content Only** | Inverted detection: the model marks show content and the rest is removed, guarded by safety gates | Feed page > Feed Settings > Processing mode |
+| **Skip Ad Detection** | Transcripts and chapters only; no detection LLM calls, nothing cut | Feed page > Feed Settings > Processing mode |
 | **Skip Verification Pass** | First pass still detects and cuts; the post-cut second sweep does not run | Feed page > Feed Settings > Advanced |
 
 See detailed sections below for configuration and usage.
@@ -220,7 +220,7 @@ Rejecting a differential detection as not an ad, held or not, still blocks that 
 
 Normal detection asks the model to find the ads. Keep content only flips the question: the model marks what is show content, and everything it does not mark is removed. This helps on feeds whose inserted ads never read like ads: cross-promos, host-read spots without sponsor language, or network filler that blends into the show.
 
-Enable it per feed at Feed page > Feed Settings > Detection. Cuts found this way get a teal "Keep-content" badge in the episode ad list, and they are excluded from text-pattern learning.
+Enable it per feed by setting **Processing mode** to Keep content only, at Feed page > Feed Settings. Cuts found this way get a teal "Keep-content" badge in the episode ad list, and they are excluded from text-pattern learning.
 
 Because the mode removes everything unmarked, a labeling mistake cuts real audio. Safety gates check each episode: the marked content must cover at least 55% of the runtime, no more than 45% may be removed in total, and no single cut may exceed 25% of the episode or 7 minutes. If any gate fails, or any transcript window comes back unlabeled, that episode falls back to normal ad removal. The fallback is silent and per-episode, so a feed on this mode can still produce normally-detected episodes.
 
@@ -228,9 +228,9 @@ The mode is experimental: spot-check the first few episodes after enabling it.
 
 ### Skip Ad Detection
 
-For shows that run no ads, detection is wasted LLM spend. The per-feed "Skip ad detection" toggle (Feed page > Feed Settings > Advanced) keeps transcription, transcripts, and chapters but skips every detection stage: no first-pass detection, no verification pass, no audio-cue analysis, no cross-fetch second download. Nothing is cut, so the served audio matches the original. Chapters still make their own LLM call.
+For shows that run no ads, detection is wasted LLM spend. Setting the per-feed **Processing mode** to Skip ad detection (Feed page > Feed Settings) keeps transcription, transcripts, and chapters but skips every detection stage: no first-pass detection, no verification pass, no audio-cue analysis, no cross-fetch second download. Nothing is cut, so the served audio matches the original. Chapters still make their own LLM call.
 
-This differs from pass-through, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
+This differs from the Pass-through option on the same select, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
 
 ### Skip Verification Pass
 
@@ -240,7 +240,7 @@ Two things change beyond the saving. Ads the first pass missed stay in the audio
 
 Runs that skipped the pass are labelled "(no verification)" in the episode's run list, and they record no verification result rather than a zero, which would have read as a clean second scan.
 
-When more than one of these per-feed controls is set, the most drastic one wins: pass-through beats skip ad detection, and skip ad detection beats the detection mode (a feed set to keep-content with skip on detects nothing). The settings panel points this out on the affected controls.
+The feed settings page exposes these as one **Processing mode** select, so a feed only ever runs one at a time, and each option's hint explains what it changes. The REST API still accepts the underlying per-field flags (`passthroughEnabled`, `skipAdDetection`, `detectionMode`) for external callers; when those are set independently of the select, the same precedence applies as before: pass-through beats skip ad detection, and skip ad detection beats the detection mode (a feed set to keep-content with skip on detects nothing).
 
 ---
 

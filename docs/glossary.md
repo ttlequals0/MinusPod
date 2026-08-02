@@ -78,6 +78,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. Only some hosts send them; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
 
+**Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), or pass-through. One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
+
 **Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified. [Web Interface > Processing stats](web-interface.md#processing-stats)

@@ -14,8 +14,7 @@ The server includes a web-based management UI at `/ui/`:
 - Source feed URL shown in Feed Settings with a copy button, and editable for when a publisher moves feeds or a CDN-wrapped URL keeps failing. The server fetches and parses the new URL before saving, so a typo cannot break the feed; existing episodes are kept (matched by GUID). The refresh log also prints which URL each feed pulls from
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
-- Per-feed detection mode: remove ads (default), or the experimental keep-content mode that marks show content and removes the rest (see [How It Works](how-it-works.md))
-- Per-feed skip ad detection (Advanced): episodes still get transcripts and chapters, but no ad detection runs and nothing is cut; for ad-free shows
+- Per-feed processing mode: one select with four presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), or pass-through (serves episodes exactly as published, with no transcription, detection, or cutting)
 - Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, detection, language, hide unprocessed, tags) sit at the top; cue tuning and the rarely-changed Advanced controls each fold into their own card
 - Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus totals for episodes processed, ads removed, time saved, and LLM cost
 - Dashboard feeds show compact per-status counts (for example "10 Disc / 2 Pend / 4 Comp") so feed health is visible without clicking in
@@ -50,7 +49,7 @@ Titles are capped at 500 characters and collapsed to one line, so a rename or a 
 
 The Sponsors page lists known sponsors, each with its linked ad-pattern count, created date, last-matched date, and tags. You can add and edit a sponsor's name, aliases, category, and tags, toggle it active or inactive, filter by tag, search by name, and reveal inactive sponsors.
 
-Deleting a sponsor is permanent. Ad patterns linked to it are not deleted -- their sponsor link is cleared (unlinked) so no pattern data is lost. The confirmation dialog shows how many patterns will be unlinked first.
+Deleting a sponsor is permanent. Ad patterns linked to it are not deleted: their sponsor link is cleared (unlinked) so no pattern data is lost. The confirmation dialog shows how many patterns will be unlinked first.
 
 A second tab manages name normalizations: regex rules that rewrite messy or inconsistent sponsor names into one canonical form before matching (for example collapsing `ag 1`, `ag-1`, and `ag one` to `ag1`).
 
@@ -118,10 +117,10 @@ The tab opens with "Needs review" selected. That filter shows detections that ar
 
 Each row has up to four actions:
 
-- Play -- auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
-- Approve -- records a confirm correction. Triggers an immediate recut if the original audio is present; otherwise the cut applies on the next reprocess.
-- Dismiss -- records a rejection and leaves the audio unchanged.
-- Edit -- opens the waveform editor so you can adjust the ad boundaries before deciding.
+- **Play** - auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
+- **Approve** - records a confirm correction. Triggers an immediate recut if the original audio is present; otherwise the cut applies on the next reprocess.
+- **Dismiss** - records a rejection and leaves the audio unchanged.
+- **Edit** - opens the waveform editor so you can adjust the ad boundaries before deciding.
 
 Approve and Dismiss only appear for unresolved detections; the resolution badge replaces them once a decision is recorded.
 
@@ -146,7 +145,7 @@ The episode list shows an amber "N held" chip for any episode with pending held 
 
 Every processing run records what it actually worked with, and the episode page shows it in a "Processing stats" section at the bottom, collapsed by default. One row per run: when it ran, the length of the downloaded copy, how many detection windows the LLM answered, hits per detection stage, the final cut / held / kept split, ad time removed, the second-scan result, and token cost. Runs from before 2.53.0 and recuts only carry the basic columns.
 
-Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download -- the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
+Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
 
 Completed episodes also state the verification result under the header: whether the second scan of the output audio found anything left to cut.
 
