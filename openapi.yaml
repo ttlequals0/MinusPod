@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.83.3
+  version: 2.84.0
   contact:
     name: MinusPod
   license:
@@ -549,7 +549,7 @@ paths:
                     - blacklist
                     - keep_content
                     - null
-                  description: Per-feed ad-detection mode. 'keep_content' (experimental) has the LLM label show content and removes everything else; null or 'blacklist' is the default, which labels and removes ads.
+                  description: Per-feed ad-detection mode. 'keep_content' (experimental) has the LLM label show content and removes everything else; null or 'blacklist' is the default, which labels and removes ads. Prefer processingMode; kept for per-field compatibility.
                 chaptersMode:
                   type:
                     - string
@@ -648,16 +648,24 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed cross-fetch differential setting. When on, each episode is fetched a second time with a different podcast-client User-Agent and the two files are diffed to find dynamically inserted audio. Null means auto, which runs the stage on feeds that look DAI-served; false always disables it.
+                processingMode:
+                  type: string
+                  enum:
+                    - passthrough
+                    - skip_detection
+                    - keep_content
+                    - standard
+                  description: Writable processing-mode preset. Sets passthroughEnabled, skipAdDetection, and detectionMode together. Cannot be combined with those fields in one request.
                 passthroughEnabled:
                   type:
                     - boolean
                     - 'null'
-                  description: When true, episodes on this feed are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
+                  description: When true, episodes on this feed are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing. Prefer processingMode; kept for per-field compatibility.
                 skipAdDetection:
                   type:
                     - boolean
                     - 'null'
-                  description: When true, episodes on this feed are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. For ad-free shows. Null and false both mean normal processing.
+                  description: When true, episodes on this feed are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. For ad-free shows. Null and false both mean normal processing. Prefer processingMode; kept for per-field compatibility.
                 maxEpisodes:
                   type:
                     - integer
@@ -7687,7 +7695,7 @@ components:
             - blacklist
             - keep_content
             - null
-          description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior.
+          description: Per-feed ad-detection mode. 'keep_content' (experimental) labels show content and removes everything else; null or 'blacklist' is the default ad-removal behavior. Prefer processingMode; kept for per-field compatibility.
         chaptersMode:
           type:
             - string
@@ -7705,7 +7713,7 @@ components:
             - skip_detection
             - keep_content
             - standard
-          description: Effective processing mode resolved from the per-feed flags, with precedence passthrough > skip_detection > keep_content > standard. Read-only; set via passthroughEnabled, skipAdDetection, and detectionMode.
+          description: Effective processing mode resolved from the per-feed flags, with precedence passthrough > skip_detection > keep_content > standard. Writable. PATCHing it sets the underlying flags canonically. Cannot be combined with passthroughEnabled, skipAdDetection, or detectionMode in one request.
         cueTemplateScoreOverride:
           type:
             - number
@@ -7809,12 +7817,12 @@ components:
           type:
             - boolean
             - 'null'
-          description: When true, episodes are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing.
+          description: When true, episodes are downloaded and served exactly as published, with no transcription, detection, or cutting. Null and false both mean normal processing. Prefer processingMode; kept for per-field compatibility.
         skipAdDetection:
           type:
             - boolean
             - 'null'
-          description: When true, episodes are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. Null and false both mean normal processing.
+          description: When true, episodes are transcribed and get chapters and a transcript, but ad detection is skipped and nothing is cut. Null and false both mean normal processing. Prefer processingMode; kept for per-field compatibility.
         maxEpisodes:
           type:
             - integer

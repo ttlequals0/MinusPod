@@ -9,6 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.0] - 2026-08-01
+
+### Added
+
+- Per-feed processing mode is now a single writable preset instead of three
+  separate controls. `processingMode` on the feed PATCH endpoint accepts
+  `standard`, `keep_content`, `skip_detection`, or `passthrough` and writes
+  the underlying `passthroughEnabled`, `skipAdDetection`, and `detectionMode`
+  columns canonically in one request; sending it together with any of those
+  three fields is rejected with a 400. The three legacy fields are still
+  accepted on their own for existing API callers. Feed settings now offers
+  one "Processing mode" select covering all four states, replacing the old
+  detection-mode dropdown plus the separate "Skip ad detection" and
+  "Pass-through" toggles.
+
 ## [2.83.3] - 2026-07-31
 
 ### Added
