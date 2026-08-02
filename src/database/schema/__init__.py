@@ -340,6 +340,9 @@ class SchemaMixin:
             # Per-feed opt-in for show-segment (intro/outro/recap) detection
             # (issue #565); NULL/0 = off, 1 = on, no global to inherit.
             ('detect_show_segments', 'INTEGER'),
+            # Cue-only mode: transcription opt-out and safety policy
+            ('skip_transcription', 'INTEGER'),
+            ('cue_only_safety', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

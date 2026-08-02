@@ -28,7 +28,13 @@ from config import (
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
     PROCESSING_MODE_STANDARD,
+    PROCESSING_MODE_CUE_ONLY,
+    DETECTION_MODE_CUE_ONLY,
+    CUE_ONLY_SAFETY_HOLD_NEW,
+    CUE_ONLY_SAFETY_AUTO_CUT,
     resolve_feed_processing_mode,
+    resolve_skip_transcription,
+    resolve_cue_only_safety,
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
@@ -280,3 +286,36 @@ class TestNormalizeProcessingMode:
             updates, err = _normalize_processing_mode(v)
             assert err is None
             assert resolve_feed_processing_mode(updates) == PROCESSING_MODE_STANDARD
+
+
+class TestCueOnlyResolution:
+    def test_detection_mode_cue_only_resolves(self):
+        row = {'passthrough_enabled': None, 'skip_ad_detection': None,
+               'detection_mode': DETECTION_MODE_CUE_ONLY}
+        assert resolve_feed_processing_mode(row) == PROCESSING_MODE_CUE_ONLY
+
+    def test_passthrough_and_skip_still_shadow_cue_only(self):
+        base = {'detection_mode': DETECTION_MODE_CUE_ONLY}
+        assert resolve_feed_processing_mode(
+            {**base, 'passthrough_enabled': 1}) == PROCESSING_MODE_PASSTHROUGH
+        assert resolve_feed_processing_mode(
+            {**base, 'skip_ad_detection': 1}) == PROCESSING_MODE_SKIP_DETECTION
+
+    def test_cue_only_round_trips_through_encoder(self):
+        from config import PROCESSING_MODE_COLUMN_UPDATES
+        updates = PROCESSING_MODE_COLUMN_UPDATES[PROCESSING_MODE_CUE_ONLY]
+        assert resolve_feed_processing_mode(updates) == PROCESSING_MODE_CUE_ONLY
+
+    def test_resolve_skip_transcription(self):
+        assert resolve_skip_transcription({'skip_transcription': 1}) is True
+        assert resolve_skip_transcription({'skip_transcription': 0}) is False
+        assert resolve_skip_transcription({}) is False
+        assert resolve_skip_transcription(None) is False
+
+    def test_resolve_cue_only_safety_default_and_values(self):
+        assert resolve_cue_only_safety(None) == CUE_ONLY_SAFETY_HOLD_NEW
+        assert resolve_cue_only_safety({}) == CUE_ONLY_SAFETY_HOLD_NEW
+        assert resolve_cue_only_safety(
+            {'cue_only_safety': 'auto_cut'}) == CUE_ONLY_SAFETY_AUTO_CUT
+        assert resolve_cue_only_safety(
+            {'cue_only_safety': 'bogus'}) == CUE_ONLY_SAFETY_HOLD_NEW

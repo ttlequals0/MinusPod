@@ -71,6 +71,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     max_ad_duration_reject_override REAL,
     cue_gated_approval INTEGER DEFAULT 0,
     skip_second_pass INTEGER DEFAULT 0,
+    skip_transcription INTEGER,
+    cue_only_safety TEXT,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
