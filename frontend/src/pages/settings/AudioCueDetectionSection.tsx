@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
+import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 
 export interface AudioCueState {
   enabled: boolean;
@@ -266,6 +267,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                     <span className="text-sm font-medium text-foreground">
                       Create ads from cue pairs
                     </span>
+                    <ExperimentalBadge />
                   </label>
                   <p className="mt-2 text-sm text-muted-foreground ml-14">
                     When two high-confidence cues bracket a break the model missed, create a cue-only ad for the reviewer to check. Off by default - turn it on once you trust the matcher on this feed.

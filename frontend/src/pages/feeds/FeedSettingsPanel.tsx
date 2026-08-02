@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
+import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
@@ -596,7 +597,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
                 <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
                 <option value="cue_only" disabled={!cueOnlyEligible}>
-                  Cue-only (cut from audio cue templates, no LLM)
+                  Cue-only (cut from audio cue templates, no LLM) (experimental)
                 </option>
               </select>
               {!cueOnlyEligible && (
@@ -877,6 +878,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <ExperimentalBadge />
                   <TriStateSelect
                     value={feed.cueCreateFromPairsOverride}
                     onChange={(next) => updateMutation.mutate({ cueCreateFromPairsOverride: next })}

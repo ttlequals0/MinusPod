@@ -295,10 +295,12 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   synthesized ad.
 - **Cue-pair maximum break (fraction of episode)** - reject a cue pair spanning
   more than this fraction of the episode. 0 disables it.
-- **Create ads from cue pairs** - off by default. When two high-confidence cues
-  bracket a plausible break the model missed, synthesize a cue-only ad for that
-  span. The reviewer still evaluates it. This relaxes the "cue is supporting
-  evidence only" rule, so leave it off until you trust the matcher on a feed.
+- **Create ads from cue pairs** - experimental, off by default. When two
+  high-confidence cues bracket a plausible break the model missed, synthesize a
+  cue-only ad for that span. The reviewer still evaluates it. This relaxes the
+  "cue is supporting evidence only" rule, so leave it off until you trust the
+  matcher on a feed. The UI labels this and the cue-only preset as experimental,
+  since both can cut audio on cue evidence the LLM never reviewed.
 
 ## Cue-only preset
 

@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.3] - 2026-08-02
+
+### Changed
+
+- Cue-driven ad cutting is now labelled experimental in the UI: the global
+  "Create ads from cue pairs" toggle, the per-feed pair-synthesis override, and
+  the cue-only processing preset. These are the paths that can cut audio from
+  audio-cue evidence alone, without an LLM reading the span. Cue snapping and
+  silence snapping are deliberately not labelled, since they only move the
+  edges of a cut the detector already found.
+
 ## [2.84.2] - 2026-08-02
 
 ### Changed

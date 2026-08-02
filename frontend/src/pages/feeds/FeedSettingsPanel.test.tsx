@@ -586,6 +586,27 @@ describe('FeedSettingsPanel cue-only mode controls', () => {
   });
 });
 
+describe('FeedSettingsPanel experimental labelling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+    mockListCueTemplates.mockResolvedValue([]);
+    localStorage.setItem('feed-settings-test-feed', 'true');
+  });
+
+  it('marks the cue_only preset experimental', async () => {
+    renderPanel(makeFeed());
+    const option = await screen.findByRole('option', { name: /cue-only/i });
+    expect(option.textContent).toMatch(/experimental/i);
+  });
+
+  it('marks pair synthesis experimental, since it cuts on cue evidence alone', async () => {
+    renderPanel(makeFeed());
+    await waitFor(() => expect(screen.queryAllByText(/^Experimental$/).length).toBeGreaterThan(0));
+  });
+});
+
 describe('FeedSettingsPanel re-render segments (#565)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
