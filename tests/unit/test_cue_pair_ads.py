@@ -360,3 +360,30 @@ def test_diag_returns_tuple_even_with_no_analysis():
     ads, diag = _synth_impl([{'start': 0, 'end': 1}], None)
     assert ads == [{'start': 0, 'end': 1}]
     assert diag == {}
+
+
+# ---------------------------------------------------------------------------
+# Strict-role pairing (cue_only preset): only 'start' opens, only 'end' closes.
+# ---------------------------------------------------------------------------
+
+def test_strict_roles_excludes_boundary_from_pairing():
+    # One boundary cue at 100s and one end cue at 200s: default mode pairs
+    # them (boundary can open); strict mode must not (boundary cannot open).
+    result = _result_with(
+        _typed_cue(100.0, 101.0, role='boundary'),
+        _typed_cue(200.0, 201.0, role='end'),
+    )
+    ads = synthesize_ads_from_cue_pairs([], result)
+    assert len(ads) == 1
+    ads_strict = synthesize_ads_from_cue_pairs([], result, strict_roles=True)
+    assert ads_strict == []
+
+
+def test_strict_roles_start_end_pair_still_synthesizes():
+    result = _result_with(
+        _typed_cue(100.0, 101.0, role='start'),
+        _typed_cue(200.0, 201.0, role='end'),
+    )
+    ads = synthesize_ads_from_cue_pairs([], result, strict_roles=True)
+    assert len(ads) == 1
+    assert ads[0]['detection_stage'] == 'cue_pair'

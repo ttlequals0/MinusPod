@@ -657,13 +657,18 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             skip_patterns, audio_analysis_result,
                             progress_callback, cancel_event=None,
                             positional_prior_hint="", dai_differential=None,
-                            keep_content=None):
+                            keep_content=None, skip_llm=False,
+                            force_create_from_pairs=False,
+                            strict_pair_roles=False, episode_duration=0.0):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     ``keep_content``: None lets the detector resolve the per-feed mode from
     the DB at detection time (the pipeline passes None so a detection_mode
     toggle during the minutes-long download/transcription window is
     honored); True/False forces the mode without a DB read.
+    ``skip_llm``/``force_create_from_pairs``/``strict_pair_roles``: cue_only
+    preset plumbing. ``episode_duration`` backstops the cue-pair fraction
+    guard when transcription (and its segment list) is skipped.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -683,6 +688,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         ctx=ctx,
         positional_prior_hint=positional_prior_hint,
         keep_content=keep_content,
+        skip_llm=skip_llm,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -726,16 +732,17 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     # enable per the audio_cue_create_from_pairs setting once the matcher is
     # trusted. The reviewer still evaluates every synthesized ad (issue #350).
     cue_pair_skip_diagnostics = {}
-    if audio_analysis_result and cue_settings['create_from_pairs']:
+    if audio_analysis_result and (cue_settings['create_from_pairs'] or force_create_from_pairs):
         try:
             updated, cue_pair_skip_diagnostics = synthesize_ads_from_cue_pairs(
                 first_pass_ads, audio_analysis_result,
                 min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
                 min_break_s=cue_settings['pair_min_break'],
                 max_break_s=cue_settings['pair_max_break'],
-                total_duration=(segments[-1]['end'] if segments else 0.0),
+                total_duration=(segments[-1]['end'] if segments else episode_duration),
                 max_break_fraction=cue_settings['pair_max_break_fraction'],
                 orient_window_s=db.get_setting_float('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS),
+                strict_roles=strict_pair_roles,
             )
             added = len(updated) - len(first_pass_ads)
             if added:

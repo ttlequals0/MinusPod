@@ -1501,7 +1501,8 @@ class AdDetector:
                           *,
                           ctx=None,
                           positional_prior_hint: str = "",
-                          keep_content: Optional[bool] = None) -> Dict:
+                          keep_content: Optional[bool] = None,
+                          skip_llm: bool = False) -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1529,6 +1530,8 @@ class AdDetector:
                  resolve_feed_processing_mode). None resolves the per-feed
                  detection mode from the DB, preserving the behavior for
                  callers that do not run inside the pipeline.
+            skip_llm: cue_only preset. When True, stage 3 never runs (no
+                 keep-content, no blacklist Claude call).
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -1708,49 +1711,54 @@ class AdDetector:
         # nothing or trips the safety gates, fall through to normal blacklist
         # detection so we never silently delete real show audio.
         result = None
-        if keep_content is None:
-            # Backward-compatible default for callers that don't pass the
-            # orchestrator-resolved mode (e.g. the retry-detection API):
-            # resolve per-feed from the DB as before. self.db is already
-            # built by the initialize_client() call at the top of this
-            # method; this idempotent call is only a belt-and-suspenders
-            # guard that also preserves test stubs.
-            self._ensure_deps()
-            keep_content = (resolve_detection_mode(self.db, slug)
-                            == DETECTION_MODE_KEEP_CONTENT)
-        if keep_content:
-            logger.info(f"[{slug}:{episode_id}] Stage 3: keep-content (whitelist) mode")
-            try:
-                self.initialize_client()
-                model = self.get_model()
-                kc_desc = ""
-                if podcast_description:
-                    kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
-                if episode_description:
-                    kc_desc += f"Episode Description:\n{episode_description}\n"
-                inverted = self._detect_keep_content_ads(
-                    segments, model=model, slug=slug, episode_id=episode_id,
-                    podcast_name=podcast_name, episode_title=episode_title,
-                    description_section=kc_desc,
-                    llm_timeout=get_llm_timeout(), max_retries=get_llm_max_retries(),
-                )
-                if inverted is not None:
-                    result = {"ads": inverted, "status": "success",
-                              "raw_response": "", "prompt": "keep-content inversion",
-                              "model": model}
-            except Exception as e:
-                logger.warning(f"[{slug}:{episode_id}] keep-content errored, "
-                               f"falling back to blacklist: {e}")
+        if skip_llm:
+            # cue_only preset: stages 1/2/2.5 ran above; the LLM never does.
+            result = {"ads": [], "status": "llm_skipped",
+                      "raw_response": "", "prompt": "", "model": None}
+        else:
+            if keep_content is None:
+                # Backward-compatible default for callers that don't pass the
+                # orchestrator-resolved mode (e.g. the retry-detection API):
+                # resolve per-feed from the DB as before. self.db is already
+                # built by the initialize_client() call at the top of this
+                # method; this idempotent call is only a belt-and-suspenders
+                # guard that also preserves test stubs.
+                self._ensure_deps()
+                keep_content = (resolve_detection_mode(self.db, slug)
+                                == DETECTION_MODE_KEEP_CONTENT)
+            if keep_content:
+                logger.info(f"[{slug}:{episode_id}] Stage 3: keep-content (whitelist) mode")
+                try:
+                    self.initialize_client()
+                    model = self.get_model()
+                    kc_desc = ""
+                    if podcast_description:
+                        kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
+                    if episode_description:
+                        kc_desc += f"Episode Description:\n{episode_description}\n"
+                    inverted = self._detect_keep_content_ads(
+                        segments, model=model, slug=slug, episode_id=episode_id,
+                        podcast_name=podcast_name, episode_title=episode_title,
+                        description_section=kc_desc,
+                        llm_timeout=get_llm_timeout(), max_retries=get_llm_max_retries(),
+                    )
+                    if inverted is not None:
+                        result = {"ads": inverted, "status": "success",
+                                  "raw_response": "", "prompt": "keep-content inversion",
+                                  "model": model}
+                except Exception as e:
+                    logger.warning(f"[{slug}:{episode_id}] keep-content errored, "
+                                   f"falling back to blacklist: {e}")
 
-        # Blacklist default (or keep-content fallback): normal ad detection.
-        if result is None:
-            result = self.detect_ads(
-                segments, podcast_name, episode_title, slug, episode_id, episode_description,
-                podcast_description=podcast_description,
-                progress_callback=progress_callback,
-                audio_analysis=audio_analysis,
-                positional_prior_hint=positional_prior_hint
-            )
+            # Blacklist default (or keep-content fallback): normal ad detection.
+            if result is None:
+                result = self.detect_ads(
+                    segments, podcast_name, episode_title, slug, episode_id, episode_description,
+                    podcast_description=podcast_description,
+                    progress_callback=progress_callback,
+                    audio_analysis=audio_analysis,
+                    positional_prior_hint=positional_prior_hint
+                )
 
         if result is None:
             result = {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}

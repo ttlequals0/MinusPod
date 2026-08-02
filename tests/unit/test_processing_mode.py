@@ -250,6 +250,30 @@ class TestProcessTranscriptKeepContentParam:
         blk.assert_called_once()
 
 
+class TestProcessTranscriptSkipLlm:
+    def test_skip_llm_never_calls_stage3(self):
+        d = _make_detector()
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(d, 'initialize_client'))
+            kc = stack.enter_context(patch.object(d, '_detect_keep_content_ads'))
+            blk = stack.enter_context(patch.object(d, 'detect_ads'))
+            result = d.process_transcript(
+                SEGMENTS, 'Pod', 'Ep', 'slug', 'ep1', skip_llm=True)
+        kc.assert_not_called()
+        blk.assert_not_called()
+        assert result['status'] == 'llm_skipped'
+        assert result['detection_stats']['claude_matches'] == 0
+
+    def test_skip_llm_tolerates_empty_segments(self):
+        d = _make_detector()
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(d, 'initialize_client'))
+            result = d.process_transcript(
+                [], 'Pod', 'Ep', 'slug', 'ep1', skip_llm=True)
+        assert result['status'] == 'llm_skipped'
+        assert result['ads'] == []
+
+
 class TestNormalizeProcessingMode:
     @pytest.mark.parametrize('value,expected', [
         (PROCESSING_MODE_PASSTHROUGH,
