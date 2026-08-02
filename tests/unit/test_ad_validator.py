@@ -9,6 +9,7 @@ from ad_validator import AdValidator, Decision, ValidationResult
 from config import (
     HOLD_REASON_MAX_DURATION, HOLD_REASON_NO_CUE,
     HOLD_REASON_UNCORROBORATED_TAIL,
+    HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
 )
 
 
@@ -956,6 +957,49 @@ class TestCueGatedApproval:
         ad = result.ads[0]
         assert not ad.get('held_for_review')
         assert ad['validation']['decision'] == Decision.ACCEPT.value
+
+
+class TestCueOnlySafetyHold:
+    """Rule 6: cue-only run safety holds (hold_new / auto_cut)."""
+
+    def _ad(self, confidence=0.87, t1=7, t2=8, start=100.0, end=160.0, **kwargs):
+        base = {'start': start, 'end': end, 'confidence': confidence,
+                'reason': 'audio_cue_pair', 'detection_stage': 'cue_pair',
+                'cue_pair': {'start': {'template_id': t1}, 'end': {'template_id': t2}}}
+        base.update(kwargs)
+        return base
+
+    def test_hold_new_holds_unproven_template(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_only_safety='hold_new',
+                                cue_unproven_template_ids={7})
+        result = validator.validate([self._ad()])
+        ad = result.ads[0]
+        assert ad.get('held_for_review') is True
+        assert ad.get('hold_reason') == HOLD_REASON_CUE_TEMPLATE_UNPROVEN
+
+    def test_hold_new_passes_proven_templates(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_only_safety='hold_new',
+                                cue_unproven_template_ids=set())
+        result = validator.validate([self._ad()])
+        assert not result.ads[0].get('held_for_review')
+
+    def test_auto_cut_holds_below_raised_floor(self):
+        # start=360.0 -> position 0.10 sits in the no-boost gap between the
+        # PRE_ROLL and MID_ROLL zones, so adjusted confidence == input.
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_only_safety='auto_cut',
+                                cue_unproven_template_ids={7})
+        held = validator.validate([self._ad(confidence=0.87, start=360.0, end=420.0)])
+        assert held.ads[0]['hold_reason'] == HOLD_REASON_CUE_LOW_CONFIDENCE
+        ok = validator.validate([self._ad(confidence=0.92, start=360.0, end=420.0)])
+        assert not ok.ads[0].get('held_for_review')
+
+    def test_no_safety_mode_means_no_rule6(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[])
+        result = validator.validate([self._ad(confidence=0.87, start=360.0, end=420.0)])
+        assert not result.ads[0].get('held_for_review')
 
 
 class TestAudioCorroborationSource:

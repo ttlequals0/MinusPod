@@ -18,6 +18,9 @@ from config import (
     SPLICE_CORROBORATION_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
     is_cue_backed, is_template_cue, AUDIO_CUE_ROLE_NON_AD,
+    CUE_ONLY_SAFETY_HOLD_NEW, CUE_ONLY_SAFETY_AUTO_CUT,
+    CUE_ONLY_AUTOCUT_CONFIDENCE,
+    HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
 )
 from utils.markers import mark_distinct_merge
 from utils.text import extract_text_from_segments
@@ -118,6 +121,8 @@ class AdValidator:
                  positional_prior=None,
                  max_ad_duration_override: float = None,
                  cue_gate_enabled: bool = False,
+                 cue_only_safety: str = None,
+                 cue_unproven_template_ids: set = None,
                  splice_veto_enabled: bool = True,
                  veto_min_cut_seconds: float = VETO_MIN_CUT_SECONDS,
                  differential_corr_max: float = 0.60,
@@ -139,6 +144,10 @@ class AdValidator:
                               ad-break zones; replaces the global position boosts
             max_ad_duration_override: Per-feed cap in seconds; None = no cap
             cue_gate_enabled: When True, ads without cue evidence are held for review
+            cue_only_safety: Cue-only run safety policy ('hold_new' or
+                'auto_cut'); None on non-cue-only runs, where Rule 6 is inert
+            cue_unproven_template_ids: Template ids without enough paired
+                history yet; only consulted under 'hold_new'
             differential_corr_max: Resolved differential_measured_corr_max
                 setting (threaded by the caller; the validator has no db
                 handle). A differential region corroborates a marker only
@@ -161,6 +170,8 @@ class AdValidator:
         self.positional_prior = positional_prior
         self.max_ad_duration_override = max_ad_duration_override
         self.cue_gate_enabled = cue_gate_enabled
+        self.cue_only_safety = cue_only_safety
+        self.cue_unproven_template_ids = cue_unproven_template_ids or set()
         self.splice_veto_enabled = splice_veto_enabled
         self.veto_min_cut_seconds = veto_min_cut_seconds
         self.differential_corr_max = differential_corr_max
@@ -841,6 +852,25 @@ class AdValidator:
         if self.cue_gate_enabled and decision == Decision.ACCEPT:
             if not is_cue_backed(ad):
                 self._mark_held(ad, flags, HOLD_REASON_NO_CUE)
+                return Decision.REVIEW
+
+        # Rule 6: cue-only run safety. Only set on cue_only runs; inert
+        # otherwise. hold_new holds cue_pair markers built from an unproven
+        # template, auto_cut instead raises the auto-cut confidence floor.
+        if (self.cue_only_safety and decision != Decision.REJECT
+                and ad.get('detection_stage') == 'cue_pair'):
+            pair = ad.get('cue_pair') or {}
+            edge_templates = {
+                (pair.get('start') or {}).get('template_id'),
+                (pair.get('end') or {}).get('template_id'),
+            } - {None}
+            if (self.cue_only_safety == CUE_ONLY_SAFETY_HOLD_NEW
+                    and edge_templates & self.cue_unproven_template_ids):
+                self._mark_held(ad, flags, HOLD_REASON_CUE_TEMPLATE_UNPROVEN)
+                return Decision.REVIEW
+            if (self.cue_only_safety == CUE_ONLY_SAFETY_AUTO_CUT
+                    and confidence < CUE_ONLY_AUTOCUT_CONFIDENCE):
+                self._mark_held(ad, flags, HOLD_REASON_CUE_LOW_CONFIDENCE)
                 return Decision.REVIEW
 
         # Rule 3: zero-splice-evidence veto (spec 2.3c). A long LLM/pattern

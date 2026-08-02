@@ -169,6 +169,18 @@ class CueDetectionMixin:
             (podcast_id,)).fetchall()
         return [(r['match_score'], r['verdict']) for r in rows]
 
+    def cue_template_paired_episode_counts(self, podcast_id: int) -> Dict[int, int]:
+        """Distinct episodes per template with a paired outcome; cue-only safety input."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT template_id, COUNT(DISTINCT episode_id) AS n
+               FROM cue_detections
+               WHERE podcast_id = ? AND template_id IS NOT NULL AND outcome = 'pair'
+               GROUP BY template_id""",
+            (podcast_id,),
+        ).fetchall()
+        return {r['template_id']: r['n'] for r in rows}
+
     def cue_template_verdict_scores(self, podcast_id: int) -> List[Dict]:
         """Reviewed scores grouped per template, for verdict hints."""
         conn = self.get_connection()

@@ -138,6 +138,26 @@ def test_labeled_scores_exclude_pending_and_below_threshold(temp_db):
     assert sorted(labeled) == [(0.7, 'rejected'), (0.9, 'confirmed')]
 
 
+def test_cue_template_paired_episode_counts(temp_db):
+    pid = temp_db.create_podcast('feed', 'http://x/rss', 'Feed')
+    temp_db.record_cue_detections(pid, 'ep1', [
+        {'template_id': 7, 'label': 'ding', 'start_s': 1, 'end_s': 2,
+         'match_score': 0.9, 'outcome': 'pair'},
+        {'template_id': 7, 'label': 'ding', 'start_s': 5, 'end_s': 6,
+         'match_score': 0.9, 'outcome': 'pair'},
+    ])
+    temp_db.record_cue_detections(pid, 'ep2', [
+        {'template_id': 7, 'label': 'ding', 'start_s': 1, 'end_s': 2,
+         'match_score': 0.9, 'outcome': 'pair'},
+    ])
+    temp_db.record_cue_detections(pid, 'ep3', [
+        {'template_id': 7, 'label': 'ding', 'start_s': 1, 'end_s': 2,
+         'match_score': 0.9, 'outcome': 'snap'},
+    ])
+    counts = temp_db.cue_template_paired_episode_counts(pid)
+    assert counts == {7: 2}
+
+
 def test_template_verdict_scores_grouped(temp_db):
     pid = temp_db.create_podcast('gfeed', 'http://x/rss', 'Feed')
     temp_db.record_cue_detections(pid, 'ep1', [
