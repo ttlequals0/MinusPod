@@ -53,7 +53,13 @@ MAX_PATTERN_CHARS = 3500
 
 # Words a sponsor-name guess after a transition phrase should never be (the
 # first word is usually an article or filler, not the brand).
-_SPONSOR_GUESS_SKIP_WORDS = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
+# Compared case-folded (see _guess_sponsor_from_segment). Credit verbs are
+# here because show credits follow the sponsor read, so the word after a
+# transition phrase is often "produced" rather than a brand.
+_SPONSOR_GUESS_SKIP_WORDS = {
+    'the', 'our', 'a', 'an', 'and', 'today', 'this',
+    'produced', 'hosted', 'edited', 'written', 'presented',
+}
 
 # Base vocabulary for TF-IDF - common terms in podcast ads
 # These ensure the vectorizer recognizes ad-related words even without patterns
@@ -157,7 +163,14 @@ def _guess_sponsor_from_segment(segment: str) -> Optional[str]:
             words = after.strip().split()
             if words:
                 candidate = words[0].strip('.,!?:')
-                if candidate and candidate not in _SPONSOR_GUESS_SKIP_WORDS:
+                # Compare folded: the transcript capitalizes sentence-initial
+                # words, so a raw compare let "The" and "Today" through as
+                # sponsor names. INVALID_SPONSOR_VALUES is the same vocabulary
+                # the detector and pattern creation already reject.
+                folded = candidate.lower()
+                if (candidate
+                        and folded not in _SPONSOR_GUESS_SKIP_WORDS
+                        and folded not in INVALID_SPONSOR_VALUES):
                     return candidate.title()
     return None
 

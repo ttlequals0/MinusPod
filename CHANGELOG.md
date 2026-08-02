@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.4] - 2026-08-02
+
+### Fixed
+
+- Sponsor guessing no longer treats a capitalized filler word as a brand.
+  The word after an ad transition phrase was compared against the skip list
+  with its original case, so a transcript reading "brought to you by The
+  folks at ..." produced a sponsor named "The", and "by Today Show" produced
+  "Today". Split patterns feed this name to the known-sponsor table, so a
+  junk brand could be created there. The comparison now folds case and also
+  rejects the shared extraction-failure vocabulary the detector and pattern
+  creation already use, plus show-credit verbs such as "produced", which
+  follow the sponsor read closely enough to be picked up as brands.
+
 ## [2.84.3] - 2026-08-02
 
 ### Changed
