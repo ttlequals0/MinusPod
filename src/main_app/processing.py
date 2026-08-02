@@ -3906,16 +3906,18 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     keep_ads = keep_ads + late_keep_ads
             _check_cancel(cancel_event, slug, episode_id)
 
-            # No-op when enable_ad_review is off (the default).
-            ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
-                slug, episode_id, podcast_id, ads_to_remove,
-                all_ads_with_validation, segments, podcast_name,
-                episode_title, episode_description, podcast_description,
-                min_cut_confidence, pass_num=1,
-                pass_model=ad_detector.get_model(),
-                audio_analysis=audio_analysis_result,
-                cue_gate_enabled=cue_gate_enabled,
-            )
+            # cue_only skips this outright: the mode promises zero LLM calls.
+            # Otherwise a no-op when enable_ad_review is off (the default).
+            if not cue_only:
+                ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
+                    slug, episode_id, podcast_id, ads_to_remove,
+                    all_ads_with_validation, segments, podcast_name,
+                    episode_title, episode_description, podcast_description,
+                    min_cut_confidence, pass_num=1,
+                    pass_model=ad_detector.get_model(),
+                    audio_analysis=audio_analysis_result,
+                    cue_gate_enabled=cue_gate_enabled,
+                )
             _check_cancel(cancel_event, slug, episode_id)
 
             # Fold keep-action markers back into the saved marker list now

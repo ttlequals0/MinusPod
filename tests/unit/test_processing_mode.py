@@ -84,7 +84,8 @@ class TestResolveFeedProcessingMode:
         assert resolve_feed_processing_mode(row) == PROCESSING_MODE_STANDARD
 
 
-def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None):
+def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
+                   enable_ad_review=False):
     """Drive process_episode with all stages stubbed (mirrors
     test_skip_ad_detection's harness) and return the interesting mocks."""
     with ExitStack() as stack:
@@ -103,7 +104,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None):
         p(processing, 'load_positional_prior', return_value=None)
         detect = p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
         refine = p(processing, '_refine_and_validate', return_value=([], []))
-        p(processing, '_run_ad_reviewer', return_value=([], []))
+        reviewer = p(processing, '_run_ad_reviewer', return_value=([], []))
         p(processing, '_snap_terminal_starts', return_value=[])
         p(processing, '_complete_cut_tails', return_value=[])
         local_ap_cls = p(processing, 'AudioProcessor')
@@ -117,7 +118,11 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None):
 
         db.get_episode.return_value = {}
         db.get_podcast_by_slug.return_value = podcast_row
-        db.get_setting.return_value = 'false'
+        if enable_ad_review:
+            db.get_setting.side_effect = (
+                lambda key, *a, **k: 'true' if key == 'enable_ad_review' else 'false')
+        else:
+            db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
         db.cue_template_paired_episode_counts.return_value = cue_template_counts or {}
         db.list_cue_templates_for_feed_ui.return_value = cue_templates or []
@@ -130,7 +135,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None):
             'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
-            'dat': dat, 'db': db}
+            'dat': dat, 'db': db, 'reviewer': reviewer}
 
 
 def _row(pt=None, skip=None, mode=None):
@@ -439,3 +444,15 @@ class TestCueOnlyPipelineWiring:
     def test_standard_mode_never_sets_skip_transcription(self):
         m = _run_pipeline(_row())
         assert m['dat'].call_args.kwargs['skip_transcription'] is False
+
+    def test_cue_only_skips_ad_reviewer_even_when_enabled(self):
+        # The mode promises zero LLM calls, so the guard must bypass
+        # _run_ad_reviewer regardless of the enable_ad_review setting.
+        m = _run_pipeline(_row(mode=DETECTION_MODE_CUE_ONLY), enable_ad_review=True)
+        assert m['result'] is True
+        m['reviewer'].assert_not_called()
+
+    def test_standard_mode_still_invokes_ad_reviewer_when_enabled(self):
+        m = _run_pipeline(_row(), enable_ad_review=True)
+        assert m['result'] is True
+        m['reviewer'].assert_called_once()
