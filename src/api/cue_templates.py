@@ -311,12 +311,9 @@ def create_cue_template(slug):
 _CUE_ONLY_ROLE_LABELS = {'start': "ad-break start", 'end': "ad-break end"}
 
 
-def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
-    """409 message if this template mutation breaks a cue-only feed's role coverage.
-
-    ``simulated_row`` is the template's post-change dict, or None to simulate
-    deletion. Only feeds currently in cue_only mode are checked.
-    """
+def _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row):
+    """Missing cue-only roles this feed would have after the mutation, or None
+    if the feed is not cue_only. ``simulated_row``: see _cue_only_eligibility_conflict."""
     slug = db.get_podcast_slug(podcast_id)
     podcast = db.get_podcast_by_slug(slug) if slug else None
     if not podcast or resolve_feed_processing_mode(podcast) != PROCESSING_MODE_CUE_ONLY:
@@ -326,13 +323,37 @@ def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
         simulated = [r for r in rows if r['id'] != template_id]
     else:
         simulated = [simulated_row if r['id'] == template_id else r for r in rows]
-    missing = cue_only_missing_roles(simulated)
-    if not missing:
+    return cue_only_missing_roles(simulated)
+
+
+def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
+    """409 message if this template mutation breaks a cue-only feed's role
+    coverage: the owning feed, or -- for a network-scope template -- any
+    sibling feed on the same network that is also cue_only and relies on it.
+
+    ``simulated_row`` is the template's post-change dict, or None to simulate
+    deletion.
+    """
+    missing = _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
+    if missing:
+        names = ' and '.join(_CUE_ONLY_ROLE_LABELS[role] for role in sorted(missing))
+        return (f"this feed is cue_only and this change would leave it without an "
+                f"enabled {names} template; switch the feed off cue-only first, "
+                f"or enable another template of that role")
+
+    template = db.get_cue_template(template_id)
+    if not template or template.get('scope') != 'network' or not template.get('network_id'):
         return None
-    names = ' and '.join(_CUE_ONLY_ROLE_LABELS[role] for role in sorted(missing))
-    return (f"this feed is cue_only and this change would leave it without an "
-            f"enabled {names} template; switch the feed off cue-only first, "
-            f"or enable another template of that role")
+    for sibling in db.feeds_sharing_network(template['network_id'], podcast_id):
+        sib_missing = _cue_only_missing_roles_for_feed(
+            db, sibling['id'], template_id, simulated_row)
+        if sib_missing:
+            names = ' and '.join(_CUE_ONLY_ROLE_LABELS[role] for role in sorted(sib_missing))
+            return (f"this template is network-scope; feed '{sibling['slug']}' is "
+                    f"cue_only and this change would leave it without an enabled "
+                    f"{names} template; switch that feed off cue-only first, or "
+                    f"enable another template of that role")
+    return None
 
 
 @api.route('/cue-templates/<int:template_id>', methods=['PATCH'])
@@ -365,9 +386,8 @@ def update_cue_template_route(template_id):
     if enabled is not None and not isinstance(enabled, bool):
         return error_response('enabled must be true or false', 400)
 
-    # Cue-only eligibility: an enable/retype change must not leave the owning
-    # feed without an enabled start-role or end-role template. Checked before
-    # any write, mirroring the scope validation below.
+    # Cue-only eligibility: must not leave this feed, or a network-scope
+    # sibling, without an enabled start/end template. Checked before any write.
     if new_cue_type is not None or enabled is not None:
         simulated_row = dict(
             row,

@@ -354,3 +354,54 @@ class TestCueOnlyTemplateEligibilityGuard:
         resp = client.patch(f'/api/v1/cue-templates/{start_id}', json={'enabled': False},
                             headers=_csrf_headers(client))
         assert resp.status_code == 200
+
+
+class TestCueOnlyNetworkSiblingEligibilityGuard:
+    """A network-scope template mutation must also be checked against every
+    sibling feed on the same network, not just the owning feed."""
+
+    @pytest.fixture
+    def sibling(self, seeded_feed):
+        db = seeded_feed['db']
+        slug = 'pt-api-sibling'
+        db.create_podcast(slug, 'https://example.com/sibling.xml', 'Sibling')
+        db.update_podcast(seeded_feed['slug'], network_id='net-x')
+        db.update_podcast(slug, network_id='net-x')
+        yield slug
+        db.delete_podcast(slug)
+
+    def _network_end_template(self, db, owner_slug):
+        podcast = db.get_podcast_by_slug(owner_slug)
+        return db.create_cue_template(
+            podcast_id=podcast['id'], cue_type='ad_break_end',
+            source_episode_id='ep1', source_offset_s=1.0, duration_s=1.0,
+            sample_rate=22050, n_coeffs=13, mfcc_blob=b'\x00' * 52,
+            scope='network', network_id='net-x')
+
+    def test_disable_shared_end_template_rejected_naming_sibling(
+            self, app_client, seeded_feed, sibling):
+        client = app_client; owner_slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        end_id = self._network_end_template(db, owner_slug)
+        _add_template(db, sibling, 'ad_break_start')
+        client.patch(f'/api/v1/feeds/{sibling}', json={'processingMode': 'cue_only'},
+                     headers=_csrf_headers(client))
+
+        resp = client.patch(f'/api/v1/cue-templates/{end_id}', json={'enabled': False},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 409
+        assert sibling in resp.get_json()['error']
+
+    def test_disable_shared_end_template_succeeds_when_sibling_has_own(
+            self, app_client, seeded_feed, sibling):
+        client = app_client; owner_slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        end_id = self._network_end_template(db, owner_slug)
+        _add_template(db, sibling, 'ad_break_start')
+        _add_template(db, sibling, 'ad_break_end')
+        client.patch(f'/api/v1/feeds/{sibling}', json={'processingMode': 'cue_only'},
+                     headers=_csrf_headers(client))
+
+        resp = client.patch(f'/api/v1/cue-templates/{end_id}', json={'enabled': False},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200

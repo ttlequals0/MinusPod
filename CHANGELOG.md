@@ -55,7 +55,8 @@ release notes.
   deletes, not just on the `processingMode` PATCH. Disabling, retyping, or
   deleting a `cue_only` feed's last enabled `ad_break_start` or
   `ad_break_end` template returns a 409 instead of silently leaving the feed
-  unable to cut anything.
+  unable to cut anything; a network-scope template mutation checks every
+  sibling feed on the network too, not just the template's owner.
 
 ## [2.83.3] - 2026-07-31
 

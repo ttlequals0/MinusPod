@@ -406,10 +406,16 @@ class TestCueOnlyPipelineWiring:
         assert m['verify'].call_args.kwargs['skip_verification'] is True
         assert m['refine'].call_args.kwargs['cue_only_safety'] == CUE_ONLY_SAFETY_HOLD_NEW
         assert m['refine'].call_args.kwargs['cue_unproven_template_ids'] == set()
+        assert m['refine'].call_args.kwargs['apply_heuristic_rolls'] is False
         run_stats = m['finalize'].call_args.kwargs['run_stats']
         assert run_stats['cue_only'] is True
         assert run_stats['verification_skipped'] is True
         assert 'transcription_skipped' not in run_stats
+
+    def test_standard_mode_wires_apply_heuristic_rolls_true(self):
+        m = _run_pipeline(_row())
+        assert m['result'] is True
+        assert m['refine'].call_args.kwargs['apply_heuristic_rolls'] is True
 
     def test_cue_only_safety_hold_new_collects_unproven_template_ids(self):
         row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), cue_only_safety='hold_new')
@@ -458,3 +464,30 @@ class TestCueOnlyPipelineWiring:
         m = _run_pipeline(_row(), enable_ad_review=True)
         assert m['result'] is True
         m['reviewer'].assert_called_once()
+
+
+class TestRefineAndValidateHeuristicRollGating:
+    """apply_heuristic_rolls=False (cue_only) must skip regex pre/post-roll
+    and VAD-gap synthesis entirely, since those markers carry no cue or
+    pattern-DB evidence. Calls _refine_and_validate directly with an empty
+    all_ads list so the function returns before touching the validator."""
+
+    def _call(self, **kwargs):
+        with patch.object(processing, '_apply_heuristic_rolls') as rolls, \
+             patch.object(processing, 'db') as db:
+            db.get_false_positive_corrections.return_value = []
+            db.get_confirmed_corrections.return_value = []
+            result = processing._refine_and_validate(
+                'slug', 'ep1', [], SEGMENTS, '/tmp/a.mp3',
+                'desc', 100.0, 0.8, 'Pod', **kwargs)
+        return result, rolls
+
+    def test_cue_only_never_calls_apply_heuristic_rolls(self):
+        result, rolls = self._call(apply_heuristic_rolls=False)
+        rolls.assert_not_called()
+        assert result == ([], [])
+
+    def test_standard_mode_calls_apply_heuristic_rolls(self):
+        result, rolls = self._call()
+        rolls.assert_called_once()
+        assert result == ([], [])

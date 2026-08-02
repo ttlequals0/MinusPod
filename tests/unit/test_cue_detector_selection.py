@@ -4,6 +4,9 @@ Verifies the gating decision: the master ``audio_cue_detection_enabled`` toggle
 controls whether any cue detector runs, per-feed templates take precedence when
 present, and the spectral detector is the fallback otherwise.
 """
+import logging
+from unittest.mock import PropertyMock, patch
+
 import numpy as np
 
 from audio_analysis.audio_analyzer import AudioAnalyzer
@@ -75,3 +78,22 @@ def test_force_without_templates_does_not_enable_spectral(temp_db):
     enabled, detector = analyzer._load_cue_config(feed_id=pid, force=True)
     assert enabled is False
     assert detector is None
+
+
+def test_force_with_unusable_matcher_logs_and_reports_error(temp_db, caplog):
+    # Templates present but the matcher can't use them (e.g. every template's
+    # mfcc blob failed to parse): a cue-only run would otherwise cut nothing
+    # from templates with no signal that anything went wrong.
+    pid = temp_db.create_podcast('show-f', 'http://x/f.xml', 'Show F')
+    _add_template(temp_db, pid)
+    analyzer = AudioAnalyzer(db=temp_db)
+    errors = []
+    with patch.object(AudioCueTemplateMatcher, 'is_usable',
+                      new_callable=PropertyMock, return_value=False):
+        with caplog.at_level(logging.ERROR, logger='podcast.audio_analysis'):
+            enabled, detector = analyzer._load_cue_config(
+                feed_id=pid, force=True, errors=errors)
+    assert enabled is False
+    assert detector is None
+    assert any('no usable matcher' in r.message for r in caplog.records)
+    assert any('no usable matcher' in e for e in errors)

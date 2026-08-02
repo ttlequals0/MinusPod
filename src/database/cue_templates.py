@@ -168,6 +168,18 @@ class CueTemplateMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def feeds_sharing_network(self, network_id: str, exclude_podcast_id: int) -> List[Dict]:
+        """(id, slug) for every feed whose effective network (override, else
+        auto-detected) equals ``network_id``, excluding one podcast id."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT id, slug FROM podcasts
+               WHERE id != :exclude_id
+                 AND COALESCE(NULLIF(network_id_override, ''), network_id) = :network_id""",
+            {'exclude_id': exclude_podcast_id, 'network_id': network_id},
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
     def update_cue_template(
         self,
         template_id: int,

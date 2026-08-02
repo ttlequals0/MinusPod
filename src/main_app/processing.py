@@ -1208,13 +1208,16 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           podcast_name, skip_patterns=False, positional_prior=None,
                           max_ad_duration_override=None, cue_gate_enabled=False,
                           audio_analysis=None, podcast_id=None, keep_ads=None,
-                          cue_only_safety=None, cue_unproven_template_ids=None):
+                          cue_only_safety=None, cue_unproven_template_ids=None,
+                          apply_heuristic_rolls=True):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are the keep-partitioned markers, passed so boundary
     extension treats them as barriers even though they left ``all_ads``.
     ``cue_only_safety``/``cue_unproven_template_ids`` pass through to the
-    validator; both None outside cue_only runs.
+    validator; both None outside cue_only runs. ``apply_heuristic_rolls``
+    is False under cue_only, where cuts must come only from cue and
+    pattern-DB evidence.
 
     Returns (ads_to_remove, all_ads_with_validation).
     """
@@ -1231,8 +1234,10 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                                  keep_ads=keep_ads)
 
     # Heuristic pre/post-roll detection
-    _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
-                            episode_duration, skip_patterns, db)
+    if apply_heuristic_rolls:
+        # cue_only cuts only from cue and pattern evidence.
+        _apply_heuristic_rolls(slug, episode_id, all_ads, segments, podcast_name,
+                                episode_duration, skip_patterns, db)
 
     # Validation
     if not all_ads:
@@ -3639,7 +3644,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     podcast_description = podcast_settings.get('description') if podcast_settings else None
 
     # Effective per-feed mode, resolved once from the row above. The
-    # precedence (passthrough > skip-detection > keep-content > standard)
+    # precedence (passthrough > skip-detection > keep-content > cue_only > standard)
     # lives in resolve_feed_processing_mode; the branches below check the
     # resolved mode, never the raw columns.
     processing_mode = resolve_feed_processing_mode(podcast_settings)
@@ -3927,6 +3932,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     keep_ads=keep_ads,
                     cue_only_safety=cue_only_safety,
                     cue_unproven_template_ids=cue_unproven_ids,
+                    apply_heuristic_rolls=not cue_only,
                 )
 
                 # Late keep partition: _refine_and_validate's heuristic
