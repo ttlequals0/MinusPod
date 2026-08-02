@@ -38,7 +38,7 @@ from config import (
 )
 from ad_detector import AdDetector
 import main_app.processing as processing
-from api.feeds import _normalize_processing_mode
+from api.feeds import _normalize_processing_mode, _normalize_detection_mode
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -270,12 +270,13 @@ class TestNormalizeProcessingMode:
     @pytest.mark.parametrize('value', [
         PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION,
         PROCESSING_MODE_KEEP_CONTENT, PROCESSING_MODE_STANDARD,
+        PROCESSING_MODE_CUE_ONLY,
     ])
     def test_round_trip_through_resolver(self, value):
         updates, _ = _normalize_processing_mode(value)
         assert resolve_feed_processing_mode(updates) == value
 
-    @pytest.mark.parametrize('bad', ['cue_only', 'PASSTHROUGH', 42, [], {}])
+    @pytest.mark.parametrize('bad', ['PASSTHROUGH', 42, [], {}])
     def test_invalid_values_rejected(self, bad):
         updates, err = _normalize_processing_mode(bad)
         assert updates is None
@@ -286,6 +287,11 @@ class TestNormalizeProcessingMode:
             updates, err = _normalize_processing_mode(v)
             assert err is None
             assert resolve_feed_processing_mode(updates) == PROCESSING_MODE_STANDARD
+
+    def test_detection_mode_cue_only_rejected(self):
+        value, err = _normalize_detection_mode('cue_only')
+        assert value is None
+        assert 'detectionMode must be one of' in err
 
 
 class TestCueOnlyResolution:

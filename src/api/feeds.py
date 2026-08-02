@@ -29,7 +29,6 @@ from config import (
     resolve_feed_processing_mode,
     resolve_max_ad_duration_confirmed,
     PROCESSING_MODE_STANDARD,
-    PROCESSING_MODE_CUE_ONLY,
     PROCESSING_MODE_COLUMN_UPDATES,
 )
 from differential_fetcher import is_likely_dai_feed
@@ -165,17 +164,13 @@ def _normalize_detection_mode(value):
 
 
 def _normalize_processing_mode(value):
-    """Validate a writable processingMode (legacy PATCH field) and return column updates.
-
-    Rejects cue_only: that mode is set only through the validated preset, not the
-    legacy PATCH field. Accepts: passthrough, skip_detection, keep_content, standard.
-    """
+    """Validate a writable processingMode and return its column updates."""
     if value in (None, ''):
         value = PROCESSING_MODE_STANDARD
-    if isinstance(value, str) and value in PROCESSING_MODE_COLUMN_UPDATES and value != PROCESSING_MODE_CUE_ONLY:
+    if isinstance(value, str) and value in PROCESSING_MODE_COLUMN_UPDATES:
         return dict(PROCESSING_MODE_COLUMN_UPDATES[value]), None
     return None, (f"processingMode must be one of: "
-                  f"{', '.join(sorted(k for k in PROCESSING_MODE_COLUMN_UPDATES if k != PROCESSING_MODE_CUE_ONLY))}")
+                  f"{', '.join(sorted(PROCESSING_MODE_COLUMN_UPDATES))}")
 
 
 def _normalize_chapters_mode(value):
