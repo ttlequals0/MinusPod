@@ -294,3 +294,63 @@ class TestRetryAdDetectionModeGuard:
                            headers=_csrf_headers(client))
         assert resp.status_code == 409
         assert 'skip_detection' in resp.get_json()['error']
+
+
+class TestCueOnlyTemplateEligibilityGuard:
+    """A template mutation must not silently break cue-only eligibility."""
+
+    def _enable_cue_only(self, client, slug, db):
+        start_id = _add_template(db, slug, 'ad_break_start')
+        end_id = _add_template(db, slug, 'ad_break_end')
+        client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'cue_only'},
+                     headers=_csrf_headers(client))
+        return start_id, end_id
+
+    def test_disable_last_end_template_rejected(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _, end_id = self._enable_cue_only(client, slug, db)
+        resp = client.patch(f'/api/v1/cue-templates/{end_id}', json={'enabled': False},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 409
+
+    def test_retype_last_end_template_rejected(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _, end_id = self._enable_cue_only(client, slug, db)
+        resp = client.patch(f'/api/v1/cue-templates/{end_id}', json={'cueType': 'show_intro'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 409
+
+    def test_delete_last_end_template_rejected(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _, end_id = self._enable_cue_only(client, slug, db)
+        resp = client.delete(f'/api/v1/cue-templates/{end_id}',
+                             headers=_csrf_headers(client))
+        assert resp.status_code == 409
+
+    def test_disable_retype_delete_succeed_on_standard_feed(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        disable_id = _add_template(db, slug, 'ad_break_end')
+        retype_id = _add_template(db, slug, 'ad_break_end')
+        delete_id = _add_template(db, slug, 'ad_break_end')
+        resp = client.patch(f'/api/v1/cue-templates/{disable_id}', json={'enabled': False},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        resp = client.patch(f'/api/v1/cue-templates/{retype_id}',
+                            json={'cueType': 'show_intro'}, headers=_csrf_headers(client))
+        assert resp.status_code == 200
+        resp = client.delete(f'/api/v1/cue-templates/{delete_id}',
+                             headers=_csrf_headers(client))
+        assert resp.status_code == 200
+
+    def test_disable_start_with_second_enabled_start_succeeds(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        start_id, _ = self._enable_cue_only(client, slug, db)
+        _add_template(db, slug, 'ad_break_start')
+        resp = client.patch(f'/api/v1/cue-templates/{start_id}', json={'enabled': False},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200

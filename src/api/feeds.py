@@ -32,8 +32,7 @@ from config import (
     PROCESSING_MODE_CUE_ONLY,
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
-    audio_cue_type_role,
-    AUDIO_CUE_TYPE_DEFAULT,
+    cue_only_missing_roles,
 )
 from differential_fetcher import is_likely_dai_feed
 from positional_prior import compute_ad_distribution
@@ -180,9 +179,7 @@ def _normalize_processing_mode(value):
 def _cue_only_templates_ok(db, podcast):
     """Cue-only needs one enabled start-role and one end-role template."""
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
-    roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
-             for r in rows if r.get('enabled')}
-    if 'start' in roles and 'end' in roles:
+    if not cue_only_missing_roles(rows):
         return True, None
     return False, ("cue_only needs at least one enabled 'ad-break start' and one "
                    "'ad-break end' template on this feed; boundary-only cues "

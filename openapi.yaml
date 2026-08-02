@@ -6151,8 +6151,10 @@ paths:
         '409':
           description: >
             sourceOffsetS or durationS supplied but the template has no source
-            episode, or the source episode original audio has been aged out;
-            re-extraction is not possible.
+            episode, or the source episode original audio has been aged out
+            (re-extraction is not possible); or the owning feed is in
+            cue_only mode and this enabled/cueType change would leave it
+            without an enabled ad_break_start or ad_break_end template.
     delete:
       tags: [AudioCueTemplates]
       summary: Delete a cue template
@@ -6177,6 +6179,11 @@ paths:
                     type: integer
         '404':
           description: Template not found
+        '409':
+          description: >
+            The owning feed is in cue_only mode and deleting this template
+            would leave it without an enabled ad_break_start or
+            ad_break_end template.
 
   /cue-templates/{templateId}/export:
     get:

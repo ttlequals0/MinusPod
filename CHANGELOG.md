@@ -49,6 +49,14 @@ release notes.
   cut audio. Runs are labeled "(cue-only)" and, when transcription is
   skipped, also "(no transcript)" in the episode's run list.
 
+### Fixed
+
+- Cue-only template eligibility is now enforced on template edits and
+  deletes, not just on the `processingMode` PATCH. Disabling, retyping, or
+  deleting a `cue_only` feed's last enabled `ad_break_start` or
+  `ad_break_end` template returns a 409 instead of silently leaving the feed
+  unable to cut anything.
+
 ## [2.83.3] - 2026-07-31
 
 ### Added

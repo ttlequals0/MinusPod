@@ -63,6 +63,7 @@ from config import (
     resolve_skip_second_pass,
     resolve_skip_transcription,
     resolve_cue_only_safety,
+    cue_only_missing_roles,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
@@ -3867,6 +3868,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cue_templates_for_feed = db.list_cue_templates_for_feed_ui(podcast_id)
                     _notify_quiet_cue_templates(slug, podcast_name, podcast_id,
                                                 cue_templates_for_feed)
+                    if cue_only_missing_roles(cue_templates_for_feed):
+                        # Near-unreachable: the API guard blocks the mutation that
+                        # would cause this. Belt-and-suspenders log only.
+                        audio_logger.error(
+                            f"[{slug}:{episode_id}] cue_only feed has no enabled "
+                            f"start/end templates; no cuts will be produced")
 
                 _detection_stats = (ad_result or {}).get('detection_stats') or {}
                 if 'windows_total' in _detection_stats:

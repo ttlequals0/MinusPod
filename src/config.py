@@ -1022,6 +1022,16 @@ def is_transition_cue(details):
 AUDIO_CUE_START_EDGE_ROLES = ('start', 'boundary')
 AUDIO_CUE_END_EDGE_ROLES = ('end', 'boundary')
 
+CUE_ONLY_REQUIRED_ROLES = ('start', 'end')
+
+
+def cue_only_missing_roles(rows):
+    """Required cue-only roles (start/end) with no enabled template in rows."""
+    roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
+             for r in rows if r.get('enabled')}
+    return set(CUE_ONLY_REQUIRED_ROLES) - roles
+
+
 # ============================================================
 # Audio Processing
 # ============================================================
