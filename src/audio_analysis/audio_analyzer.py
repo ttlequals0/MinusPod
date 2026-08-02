@@ -318,7 +318,7 @@ class AudioAnalyzer:
         # Resolve per-run component config up front so independent components
         # can be scheduled together. These are DB reads only -- no audio I/O.
         cue_enabled, cue_detector = self._load_cue_config(
-            feed_id=feed_id, force=force_cue_detection, errors=result.errors)
+            feed_id=feed_id, force=force_cue_detection, errors=errors)
         silence_detector = self._load_silence_config(feed_id=feed_id)
         splice_enabled = self._splice_enabled()
 
