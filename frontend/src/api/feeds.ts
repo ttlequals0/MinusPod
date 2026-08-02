@@ -229,7 +229,10 @@ export interface UpdateFeedPayload {
   skipAdDetection?: boolean | null;
   // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
   // Rejected by the backend if combined with any of those legacy fields.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard';
+  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  // Cue-only mode fields; the backend rejects them outside cue_only.
+  cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
+  skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces

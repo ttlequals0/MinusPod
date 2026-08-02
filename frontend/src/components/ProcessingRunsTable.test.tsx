@@ -72,6 +72,19 @@ const skipVerificationRun: EpisodeProcessingRun = {
   },
 };
 
+const cueOnlyRun: EpisodeProcessingRun = {
+  ...skipDetectionRun,
+  runNumber: 5,
+  stats: {
+    mode: 'auto',
+    cueOnly: true,
+    transcriptionSkipped: true,
+    downloadedDuration: 3305.7,
+    markers: { cut: 2, held: 0, notCut: 0 },
+    secondsRemoved: 120,
+  },
+};
+
 describe('ProcessingRunsTable', () => {
   it('renders full stats for a run with a blob', () => {
     render(<ProcessingRunsTable runs={[statsRun]} />);
@@ -105,6 +118,12 @@ describe('ProcessingRunsTable', () => {
     expect(screen.getByText('(no verification)')).toBeTruthy();
     expect(screen.getByText('3 cut / 0 held / 1 kept')).toBeTruthy();
     expect(screen.queryByText('clean')).toBeNull();
+  });
+
+  it('marks a cue-only run with no transcript', () => {
+    render(<ProcessingRunsTable runs={[cueOnlyRun]} />);
+    expect(screen.getByText('(cue-only)')).toBeTruthy();
+    expect(screen.getByText('(no transcript)')).toBeTruthy();
   });
 
   it('notes a large gap between downloaded and declared duration', () => {

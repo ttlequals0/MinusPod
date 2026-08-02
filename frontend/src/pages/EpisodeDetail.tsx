@@ -15,7 +15,7 @@ import { CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment } from '../api/types';
+import type { AdSegment, Feed } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -37,6 +37,16 @@ function btnLabel(status: string, idle: string): string {
   if (status === 'error') return 'Error!';
   return idle;
 }
+
+// Modes with LLM ad detection disabled server-side; retrying detection 409s.
+const REDETECT_DISABLED_MODES = new Set<Feed['processingMode']>([
+  'passthrough', 'skip_detection', 'cue_only',
+]);
+const REDETECT_DISABLED_MODE_LABELS: Partial<Record<NonNullable<Feed['processingMode']>, string>> = {
+  passthrough: 'pass-through',
+  skip_detection: 'skip ad detection',
+  cue_only: 'cue-only',
+};
 
 function btnClass(status: string, idleClass: string): string {
   if (status === 'success') return 'bg-green-700 text-white';
@@ -522,8 +532,11 @@ function EpisodeDetail() {
                     {episode.transcriptAvailable && (
                       <button
                         onClick={() => reprocessMutation.mutate('llm')}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border"
-                        title="Re-run ad detection and re-cut using the existing transcript (skips re-transcription)"
+                        disabled={REDETECT_DISABLED_MODES.has(feed?.processingMode)}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        title={feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
+                          ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
+                          : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)'}
                       >
                         <div className="font-medium">Re-detect Ads</div>
                         <div className="text-xs text-muted-foreground">Keep transcript, re-cut</div>
@@ -999,11 +1012,19 @@ function EpisodeDetail() {
                 ? 'A standalone catch from the verification pass, held for a second opinion'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Audio differs across fetches with no corroborating signal'
+                : segment.hold_reason === 'cue_template_unproven'
+                ? "This cue template hasn't cut a confirmed ad yet"
+                : segment.hold_reason === 'cue_low_confidence'
+                ? 'The cue match fell below the cut-confidence threshold'
                 : 'Held for manual review';
               const holdLabel = segment.hold_reason === 'verification_miss'
                 ? 'Verification catch'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Differential hold'
+                : segment.hold_reason === 'cue_template_unproven'
+                ? 'Unproven cue'
+                : segment.hold_reason === 'cue_low_confidence'
+                ? 'Low-confidence cue'
                 : 'Held';
               const rowStatus = rowSaveStatus(segment);
               const heldKey = `held-${segment.start}-${segment.end}`;

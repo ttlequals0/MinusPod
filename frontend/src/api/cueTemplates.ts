@@ -72,6 +72,11 @@ export interface CueTemplate {
   weakCue?: boolean;
   longCapture?: boolean;
   captureWarnSeconds?: number;
+  // Health telemetry (cue-only preset): last match, match count, and
+  // whether it has gone quiet (no recent matches) and may need recapture.
+  lastMatchAt?: string | null;
+  matchedEpisodes?: number;
+  quiet?: boolean;
 }
 
 export interface CueTemplateListResponse {

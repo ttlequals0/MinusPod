@@ -7,4 +7,5 @@ export const EVENT_OPTIONS: { value: string; label: string }[] = [
   { value: 'Rate Limit Structural', label: 'Rate Limit Structural' },
   { value: 'Feed Refresh Failed', label: 'Feed Refresh Failed' },
   { value: 'Update Available', label: 'Update Available' },
+  { value: 'Cue Template Quiet', label: 'Cue Template Quiet' },
 ];

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
+import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
@@ -48,6 +49,12 @@ const PROCESSING_MODE_HINTS: Record<NonNullable<Feed['processingMode']>, { text:
       + 'detection, or cutting. The feed URL stays the same, so switching to another '
       + 'mode resumes processing for new episodes. Episodes already served untouched '
       + 'keep their original audio until you reprocess them.',
+    className: 'text-xs text-warning',
+  },
+  cue_only: {
+    text: 'Cuts come only from this feed\'s ad-break start and end cue templates: no '
+      + 'model call, no verification pass, and no LLM redetection. Needs one enabled '
+      + 'ad-break start template and one enabled ad-break end template.',
     className: 'text-xs text-warning',
   },
 };
@@ -138,6 +145,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     queryKey: ['settings'],
     queryFn: getSettings,
   });
+
+  // Cue-only mode needs at least one enabled ad-break-start and ad-break-end
+  // template; fetched here to gray out the option before the user picks it.
+  const { data: cueTemplates } = useQuery({
+    queryKey: ['cueTemplates', slug],
+    queryFn: () => listCueTemplates(slug),
+    enabled: panelOpen,
+  });
+  const hasEnabledCueTemplate = (cueType: 'ad_break_start' | 'ad_break_end') =>
+    (cueTemplates ?? []).some((t) => t.cueType === cueType && t.enabled);
+  const cueOnlyEligible = hasEnabledCueTemplate('ad_break_start') && hasEnabledCueTemplate('ad_break_end');
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
@@ -576,10 +594,61 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <option value="keep_content">Keep content only (experimental)</option>
                 <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
                 <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
+                <option value="cue_only" disabled={!cueOnlyEligible}>
+                  Cue-only (cut from audio cue templates, no LLM)
+                </option>
               </select>
+              {!cueOnlyEligible && (
+                <p className="text-xs text-muted-foreground">
+                  Cue-only needs one enabled ad-break start template and one enabled
+                  ad-break end template. Mark one of each below to turn it on.
+                </p>
+              )}
               <p className={PROCESSING_MODE_HINTS[processingMode].className}>
                 {PROCESSING_MODE_HINTS[processingMode].text}
               </p>
+              {processingMode === 'cue_only' && (
+                <div className="flex flex-col gap-3 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                    <label htmlFor="cue-only-safety" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">
+                      Cue-only safety:
+                    </label>
+                    <select
+                      id="cue-only-safety"
+                      value={feed.cueOnlySafety ?? 'hold_new'}
+                      onChange={(e) => updateMutation.mutate({
+                        cueOnlySafety: e.target.value as NonNullable<UpdateFeedPayload['cueOnlySafety']>,
+                      })}
+                      disabled={updateMutation.isPending}
+                      className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 disabled:opacity-50"
+                    >
+                      <option value="hold_new">Hold new templates for review</option>
+                      <option value="auto_cut">Auto-cut at high confidence</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+                    <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+                      Transcription:
+                    </span>
+                    <div className="flex flex-col gap-1 flex-1 min-w-0">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <ToggleSwitch
+                          checked={feed.skipTranscription === true}
+                          onChange={(v) => updateMutation.mutate({ skipTranscription: v })}
+                          disabled={updateMutation.isPending}
+                          ariaLabel="Skip transcription"
+                        />
+                        <span>Skip transcription</span>
+                      </label>
+                      <p className="text-xs text-warning">
+                        Generated chapters stop. Chapters already published by the show
+                        still shift to match the cut audio. These episodes lose
+                        transcript search and subtitles.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -965,20 +1034,26 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
-                      checked={feed.skipSecondPass === true}
+                      checked={processingMode === 'cue_only' || feed.skipSecondPass === true}
                       onChange={(v) => updateMutation.mutate({ skipSecondPass: v })}
-                      disabled={updateMutation.isPending}
+                      disabled={updateMutation.isPending || processingMode === 'cue_only'}
                       ariaLabel="Skip verification pass"
                     />
                     <span>Skip verification pass</span>
                   </label>
-                  <p className="text-xs text-muted-foreground">
-                    The verification pass re-scans the cut audio for ads the first pass
-                    missed, at the cost of a second detection sweep. Turn this on for feeds
-                    where the first pass is already reliable. It roughly halves the
-                    ad-detection LLM spend. Held differential detections that the second
-                    pass would have confirmed then wait for you instead.
-                  </p>
+                  {processingMode === 'cue_only' ? (
+                    <p className="text-xs text-muted-foreground">
+                      Forced on by cue-only mode.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      The verification pass re-scans the cut audio for ads the first pass
+                      missed, at the cost of a second detection sweep. Turn this on for feeds
+                      where the first pass is already reliable. It roughly halves the
+                      ad-detection LLM spend. Held differential detections that the second
+                      pass would have confirmed then wait for you instead.
+                    </p>
+                  )}
                 </div>
               </div>
 

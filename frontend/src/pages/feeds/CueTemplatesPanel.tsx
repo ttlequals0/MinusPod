@@ -415,10 +415,19 @@ function CueTemplatesPanel({ slug }: Props) {
                             NETWORK
                           </span>
                         )}
+                        {t.quiet && (
+                          <span
+                            className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning align-middle"
+                            title="No matches in recent episodes. Recapture this cue to keep it working."
+                          >
+                            quiet
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {t.durationS.toFixed(2)}s - marked at {formatTime(t.sourceOffsetS)}
                         {t.sourceEpisodeId ? ` of episode ${t.sourceEpisodeId.slice(0, 8)}` : ''}
+                        {t.lastMatchAt ? ` - last match ${formatDate(t.lastMatchAt)}` : ''}
                       </p>
                     </>
                   )}

@@ -90,7 +90,13 @@ export interface Feed {
   // What the pipeline will actually do, resolved server-side from the
   // passthrough/skip/detection-mode columns (each mode shadows the later
   // ones). Absent on older backends; fall back to the raw columns.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard';
+  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  // Cue-only mode: how newly-created (unproven) cue templates are treated.
+  // Null/absent behaves as 'hold_new'. Ignored outside cue_only mode.
+  cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
+  // Cue-only mode: skip transcription entirely. Null/false transcribes as
+  // usual. Only meaningful under cue_only; ignored otherwise.
+  skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
   // Per-feed segment-action overrides (issue #565): only overridden
@@ -223,6 +229,10 @@ export interface ProcessingRunStats {
   // Skip verification (#599): pass 1 ran and cut, pass 2 did not, so
   // verificationAdsCut is absent by design rather than 0.
   verificationSkipped?: boolean | null;
+  // Cue-only mode: the run cut only from cue templates, no LLM call.
+  cueOnly?: boolean;
+  // Cue-only mode with transcription skipped: no transcript, chapters, or subtitles.
+  transcriptionSkipped?: boolean;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   windows?: { total: number; failed: number } | null;
@@ -321,7 +331,9 @@ export interface AdSegment {
     | 'reviewer_contradiction'
     | 'no_splice_evidence'
     | 'verification_miss'
-    | 'differential_uncorroborated';
+    | 'differential_uncorroborated'
+    | 'cue_template_unproven'
+    | 'cue_low_confidence';
   // Set when a confirm correction matched this held marker (issue #509);
   // approved holds wait for a recut to apply.
   approved?: boolean;

@@ -72,6 +72,12 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                     {s?.verificationSkipped && (
                       <span className="text-muted-foreground"> (no verification)</span>
                     )}
+                    {s?.cueOnly && (
+                      <span className="text-muted-foreground"> (cue-only)</span>
+                    )}
+                    {s?.transcriptionSkipped && (
+                      <span className="text-muted-foreground"> (no transcript)</span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 whitespace-nowrap">{formatDateTime(run.processedAt)}</td>
                   <td className="py-2 pr-4 whitespace-nowrap">
