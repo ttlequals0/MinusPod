@@ -121,13 +121,15 @@ class AudioAnalyzer:
 
         return settings
 
-    def _load_cue_config(self, feed_id: Optional[int] = None):
+    def _load_cue_config(self, feed_id: Optional[int] = None, force: bool = False):
         """Resolve the audio cue detector for this run (issue #350).
 
         This analyzer is a long-lived singleton, so reading the settings here --
         not at construction -- lets the Settings toggle take effect without a
         container restart. Gated by the master ``audio_cue_detection_enabled``
-        toggle. When it is on:
+        toggle, unless ``force`` is set (cue-only preset runs): force bypasses
+        the toggle for the template path only, since forcing the spectral
+        fallback would mint pair candidates from coarse bursts.
 
         1. If the feed has at least one enabled cue template, use the per-feed
            template matcher -- it finds the exact user-marked sound.
@@ -143,7 +145,9 @@ class AudioAnalyzer:
         if not self.db:
             return False, None
         try:
-            if not self.db.get_setting_bool('audio_cue_detection_enabled', default=False):
+            globally_enabled = self.db.get_setting_bool(
+                'audio_cue_detection_enabled', default=False)
+            if not force and not globally_enabled:
                 return False, None
 
             # Per-feed templates take precedence when the feed has any enabled.
@@ -171,6 +175,10 @@ class AudioAnalyzer:
                     f"Cue detection: feed_id={feed_id} templates failed to "
                     "load; falling back to spectral detector"
                 )
+
+            # Force alone must never activate the spectral fallback.
+            if not globally_enabled:
+                return False, None
 
             from config import (
                 AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
@@ -248,6 +256,7 @@ class AudioAnalyzer:
         run_parallel: bool = False,
         status_callback: Optional[callable] = None,
         feed_id: Optional[int] = None,
+        force_cue_detection: bool = False,
     ) -> AudioAnalysisResult:
         """
         Run audio analysis (volume + transition detection).
@@ -259,6 +268,8 @@ class AudioAnalyzer:
             status_callback: Optional callback(stage, progress) for status updates
             feed_id: Optional feed PK; when set, selects the per-feed cue
                 template matcher over the spectral fallback (issue #350)
+            force_cue_detection: Bypass the global cue toggle for the
+                per-feed template path (cue-only preset runs)
 
         Returns:
             AudioAnalysisResult with all detected signals
@@ -290,7 +301,8 @@ class AudioAnalyzer:
 
         # Resolve per-run component config up front so independent components
         # can be scheduled together. These are DB reads only -- no audio I/O.
-        cue_enabled, cue_detector = self._load_cue_config(feed_id=feed_id)
+        cue_enabled, cue_detector = self._load_cue_config(
+            feed_id=feed_id, force=force_cue_detection)
         silence_detector = self._load_silence_config(feed_id=feed_id)
         splice_enabled = self._splice_enabled()
 

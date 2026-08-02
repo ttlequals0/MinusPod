@@ -496,7 +496,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
     return audio_path, segments
 
 
-def _run_audio_analysis(slug, episode_id, audio_path, segments):
+def _run_audio_analysis(slug, episode_id, audio_path, segments, force_cue_detection=False):
     """Pipeline stage: Run volume + transition detection on audio."""
     status_service.update_job_stage("pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
@@ -509,6 +509,7 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments):
             audio_path,
             transcript_segments=segments,
             feed_id=feed_id,
+            force_cue_detection=force_cue_detection,
             status_callback=lambda stage, progress: status_service.update_job_stage(stage, progress)
         )
         if result.signals:

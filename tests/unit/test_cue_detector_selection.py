@@ -58,3 +58,20 @@ def test_no_feed_id_falls_back_to_spectral(temp_db):
     enabled, detector = analyzer._load_cue_config(feed_id=None)
     assert enabled is True
     assert isinstance(detector, AudioCueDetector)
+
+
+def test_force_bypasses_toggle_with_templates(temp_db):
+    pid = temp_db.create_podcast('show-d', 'http://x/d.xml', 'Show D')
+    _add_template(temp_db, pid)  # toggle stays off
+    analyzer = AudioAnalyzer(db=temp_db)
+    enabled, detector = analyzer._load_cue_config(feed_id=pid, force=True)
+    assert enabled is True
+    assert isinstance(detector, AudioCueTemplateMatcher)
+
+
+def test_force_without_templates_does_not_enable_spectral(temp_db):
+    pid = temp_db.create_podcast('show-e', 'http://x/e.xml', 'Show E')
+    analyzer = AudioAnalyzer(db=temp_db)
+    enabled, detector = analyzer._load_cue_config(feed_id=pid, force=True)
+    assert enabled is False
+    assert detector is None
