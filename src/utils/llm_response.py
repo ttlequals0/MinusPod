@@ -90,7 +90,9 @@ def extract_json_ads_array(
         if isinstance(parsed, dict):
             if 'window' in parsed and isinstance(parsed['window'], dict):
                 window = parsed['window']
-                for key in ['ads_detected', 'ads', 'advertisement_segments',
+                # Include singular "ad" — local models (e.g. qwen2.5 via Ollama)
+                # often return {"ad": [...]} instead of {"ads": [...]}.
+                for key in ['ads_detected', 'ads', 'ad', 'advertisement_segments',
                             'ads_and_sponsorships', 'segments']:
                     if key in window and isinstance(window[key], list):
                         ads = window[key]
@@ -98,7 +100,7 @@ def extract_json_ads_array(
                             ads = [s for s in ads
                                    if isinstance(s, dict) and s.get('type') == 'advertisement']
                         return ads, f"json_object_window_{key}"
-            ad_keys = ['ads', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
+            ad_keys = ['ads', 'ad', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
             for key in ad_keys:
                 if key in parsed and isinstance(parsed[key], list):
                     return parsed[key], f"json_object_{key}_key"

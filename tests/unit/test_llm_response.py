@@ -245,3 +245,14 @@ def test_salvage_recovers_array_wrapped_truncation():
     assert ads[0]["start"] == 1320.4
     assert ads[0]["end"] == 1514.02
     assert ads[0]["confidence"] == 0.92
+
+def test_extract_json_ads_array_accepts_singular_ad_key():
+    """Local Ollama models often return {"ad": [...]} instead of {"ads": [...]}."""
+    from utils.llm_response import extract_json_ads_array
+
+    ads, method = extract_json_ads_array(
+        '{"ad":[{"start":964.0,"end":1015.0,"sponsor":"Mr. Doodle"}]}'
+    )
+    assert ads == [{"start": 964.0, "end": 1015.0, "sponsor": "Mr. Doodle"}]
+    assert method == "json_object_ad_key"
+
