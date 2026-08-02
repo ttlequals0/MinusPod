@@ -13,6 +13,13 @@ release notes.
 
 ### Fixed
 
+- Ad detections are no longer dropped when a local model answers with the
+  singular `{"ad": [...]}` wrapper instead of `{"ads": [...]}`. The response
+  parser already accepted several wrapper spellings but not this one, so a
+  window with real detections parsed as zero ads. Seen with Ollama models
+  such as qwen2.5, which have no strict schema enforcement to hold them to
+  the requested key. Thanks to @combwizard for the report and the fix
+  (PR #603).
 - Container startup no longer skips the data-directory ownership migration
   when `find` cannot read part of the volume (issue #604). Under
   `set -o pipefail` an unreadable entry failed the whole pipeline, and the
