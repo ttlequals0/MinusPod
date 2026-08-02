@@ -251,6 +251,8 @@ def _run_stats_to_api(stats):
         'mode': stats.get('mode'),
         'detectionSkipped': stats.get('detection_skipped'),
         'verificationSkipped': stats.get('verification_skipped'),
+        'cueOnly': stats.get('cue_only'),
+        'transcriptionSkipped': stats.get('transcription_skipped'),
         'downloadedDuration': stats.get('downloaded_duration'),
         'transcriptSegments': stats.get('transcript_segments'),
         'windows': stats.get('windows'),

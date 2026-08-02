@@ -30,6 +30,8 @@ STATS_API = {
     'mode': 'auto',
     'detectionSkipped': None,
     'verificationSkipped': None,
+    'cueOnly': None,
+    'transcriptionSkipped': None,
     'downloadedDuration': 3305.7,
     'transcriptSegments': 132,
     'windows': {'total': 7, 'failed': 0},

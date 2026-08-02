@@ -49,6 +49,9 @@ from config import (
     PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE,
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
+    PROCESSING_MODE_CUE_ONLY,
+    CUE_ONLY_SAFETY_HOLD_NEW,
+    CUE_ONLY_PROVEN_EPISODES,
     CHAPTERS_MODE_AUTO,
     CHAPTERS_MODE_OFF,
     MIN_PRESERVED_CHAPTERS,
@@ -58,6 +61,8 @@ from config import (
     DEFAULT_SEGMENT_ACTION,
     resolve_feed_processing_mode,
     resolve_skip_second_pass,
+    resolve_skip_transcription,
+    resolve_cue_only_safety,
     resolve_chapters_mode,
     resolve_feed_cue_settings,
     resolve_silence_snap_tunables,
@@ -404,11 +409,25 @@ def _next_processed_version(episode_data):
     return previous_version + 1 if is_reprocess else 0
 
 
-def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
+def _download_and_transcribe(slug, episode_id, episode_url, podcast_name,
+                              skip_transcription=False):
     """Pipeline stage: Download audio and get/create transcript segments.
+
+    ``skip_transcription``: cue_only preset opt-out; goes straight to
+    audio acquisition and returns (audio_path, []) without transcribing.
 
     Returns (audio_path, segments) or raises on failure.
     """
+    if skip_transcription:
+        original_path = storage.get_original_path(slug, episode_id)
+        if original_path and os.path.exists(original_path):
+            audio_path = _copy_retained_original_to_temp(original_path)
+            audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        else:
+            audio_path = _download_episode_audio(episode_url)
+        audio_logger.info(f"[{slug}:{episode_id}] Transcription skipped (per-feed setting)")
+        return audio_path, []
+
     segments = None
     transcript_text = storage.get_transcript(slug, episode_id)
 
@@ -985,7 +1004,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
                      false_positive_corrections, min_cut_confidence,
                      max_ad_duration_override, cue_gate_enabled,
                      confirmed_corrections=None, positional_prior=None,
-                     splice_veto=True, podcast_id=None):
+                     splice_veto=True, podcast_id=None,
+                     cue_only_safety=None, cue_unproven_template_ids=None):
     """Single construction point for AdValidator; owns the splice-veto
     settings reads. Per-site differences are stated by the callers:
 
@@ -1020,6 +1040,8 @@ def _build_validator(episode_duration, segments, episode_description, *,
         sponsor_service=sponsor_service,
         max_ad_duration=max_ad_duration,
         max_ad_duration_confirmed=max_ad_duration_confirmed,
+        cue_only_safety=cue_only_safety,
+        cue_unproven_template_ids=cue_unproven_template_ids,
         **splice_kwargs,
     )
 
@@ -1159,11 +1181,14 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False, positional_prior=None,
                           max_ad_duration_override=None, cue_gate_enabled=False,
-                          audio_analysis=None, podcast_id=None, keep_ads=None):
+                          audio_analysis=None, podcast_id=None, keep_ads=None,
+                          cue_only_safety=None, cue_unproven_template_ids=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     ``keep_ads`` are the keep-partitioned markers, passed so boundary
     extension treats them as barriers even though they left ``all_ads``.
+    ``cue_only_safety``/``cue_unproven_template_ids`` pass through to the
+    validator; both None outside cue_only runs.
 
     Returns (ads_to_remove, all_ads_with_validation).
     """
@@ -1196,6 +1221,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         max_ad_duration_override=max_ad_duration_override,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
+        cue_only_safety=cue_only_safety,
+        cue_unproven_template_ids=cue_unproven_template_ids,
     )
     validation_result = validator.validate(all_ads, audio_analysis=audio_analysis)
 
@@ -3610,6 +3637,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # sweep over its output does not.
     skip_second_pass = resolve_skip_second_pass(podcast_settings)
 
+    # Cue-only preset: skip the LLM and pass 2; skip transcription too if
+    # the feed also opts into that.
+    cue_only = processing_mode == PROCESSING_MODE_CUE_ONLY
+    skip_transcription_active = cue_only and resolve_skip_transcription(podcast_settings)
+
     # Per-run pipeline stats (#519), recorded as JSON with the history row
     # and renamed to API casing in api/episodes.py. Defined before the try
     # so the failure handler can persist whatever was gathered up to the
@@ -3620,6 +3652,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     elif skip_second_pass:
         # Not recorded alongside detection_skipped, which already implies it.
         run_stats['verification_skipped'] = True
+    if cue_only:
+        run_stats['cue_only'] = True
+        run_stats['verification_skipped'] = True
+    if skip_transcription_active:
+        run_stats['transcription_skipped'] = True
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
@@ -3643,7 +3680,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         db.upsert_episode(slug, episode_id, **upsert_kwargs)
 
         # Stage 1: Download and transcribe
-        audio_path, segments = _download_and_transcribe(slug, episode_id, episode_url, podcast_name)
+        audio_path, segments = _download_and_transcribe(
+            slug, episode_id, episode_url, podcast_name,
+            skip_transcription=skip_transcription_active)
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1b: Cross-fetch differential (Layer 3, per-feed opt-in).
@@ -3690,7 +3729,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # detection is skipped)
             audio_analysis_result = None
             if not skip_detection:
-                audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
+                audio_analysis_result = _run_audio_analysis(
+                    slug, episode_id, audio_path, segments,
+                    force_cue_detection=cue_only)
             # Block on the differential fetch before its result is consumed.
             # No timeout: the serial call blocked until fetch_and_diff's own
             # internal timeouts resolved, and the join preserves that. An
@@ -3789,6 +3830,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     # None = resolve fresh from the DB at detection time, so a
                     # detection_mode toggle during download/transcription is honored.
                     keep_content=None,
+                    skip_llm=cue_only,
+                    force_create_from_pairs=cue_only,
+                    strict_pair_roles=cue_only,
+                    episode_duration=episode_duration,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -3819,6 +3864,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 max_ad_duration_override = resolve_max_ad_duration_override(db, podcast_id)
                 cue_gate_enabled = resolve_cue_gated_approval(db, podcast_id)
 
+                # Cue-only safety: hold_new (default) holds ads whose only
+                # backing template lacks enough proven pairs; auto_cut skips this.
+                cue_only_safety = None
+                cue_unproven_ids = set()
+                if cue_only:
+                    cue_only_safety = resolve_cue_only_safety(podcast_settings)
+                    if cue_only_safety == CUE_ONLY_SAFETY_HOLD_NEW and podcast_id is not None:
+                        counts = db.cue_template_paired_episode_counts(podcast_id)
+                        enabled = db.list_cue_templates_for_feed_ui(podcast_id)
+                        cue_unproven_ids = {
+                            t['id'] for t in enabled if t.get('enabled')
+                            and counts.get(t['id'], 0) < CUE_ONLY_PROVEN_EPISODES}
+
                 # Stage 4: Refine and validate
                 ads_to_remove, all_ads_with_validation = _refine_and_validate(
                     slug, episode_id, all_ads, segments, audio_path,
@@ -3829,6 +3887,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     audio_analysis=_val_audio_analysis,
                     podcast_id=podcast_id,
                     keep_ads=keep_ads,
+                    cue_only_safety=cue_only_safety,
+                    cue_unproven_template_ids=cue_unproven_ids,
                 )
 
                 # Late keep partition: _refine_and_validate's heuristic
@@ -3976,7 +4036,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 cue_gate_enabled=cue_gate_enabled,
                 pass1_held_markers=pass1_held_markers,
                 pass1_kept_markers=pass1_kept_markers,
-                skip_verification=skip_detection or skip_second_pass,
+                skip_verification=skip_detection or skip_second_pass or cue_only,
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and

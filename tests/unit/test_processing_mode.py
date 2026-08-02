@@ -84,7 +84,7 @@ class TestResolveFeedProcessingMode:
         assert resolve_feed_processing_mode(row) == PROCESSING_MODE_STANDARD
 
 
-def _run_pipeline(podcast_row):
+def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None):
     """Drive process_episode with all stages stubbed (mirrors
     test_skip_ad_detection's harness) and return the interesting mocks."""
     with ExitStack() as stack:
@@ -96,13 +96,13 @@ def _run_pipeline(podcast_row):
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)
-        p(processing, '_download_and_transcribe',
-          return_value=('/tmp/mode.mp3', SEGMENTS))
+        dat = p(processing, '_download_and_transcribe',
+                return_value=('/tmp/mode.mp3', SEGMENTS))
         p(processing, '_run_differential_fetch', return_value=None)
-        p(processing, '_run_audio_analysis', return_value=None)
+        analyze = p(processing, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
         detect = p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
-        p(processing, '_refine_and_validate', return_value=([], []))
+        refine = p(processing, '_refine_and_validate', return_value=([], []))
         p(processing, '_run_ad_reviewer', return_value=([], []))
         p(processing, '_snap_terminal_starts', return_value=[])
         p(processing, '_complete_cut_tails', return_value=[])
@@ -110,7 +110,7 @@ def _run_pipeline(podcast_row):
         verify = p(processing, '_run_verification_pass',
                    return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
         p(processing, '_generate_assets')
-        p(processing, '_finalize_episode')
+        finalize = p(processing, '_finalize_episode')
         p(processing.shutil, 'move')
         p(processing.os, 'unlink')
         p(processing.os.path, 'exists', return_value=False)
@@ -119,6 +119,8 @@ def _run_pipeline(podcast_row):
         db.get_podcast_by_slug.return_value = podcast_row
         db.get_setting.return_value = 'false'
         db.get_all_settings.return_value = {}
+        db.cue_template_paired_episode_counts.return_value = cue_template_counts or {}
+        db.list_cue_templates_for_feed_ui.return_value = cue_templates or []
         audio_processor.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.return_value = ('/tmp/cut.mp3', [])
@@ -126,7 +128,9 @@ def _run_pipeline(podcast_row):
         storage.get_episode_path.return_value = '/tmp/final.mp3'
         result = processing.process_episode(
             'mode-feed', 'ep1', 'https://example.com/ep1.mp3')
-    return {'result': result, 'detect': detect, 'verify': verify}
+    return {'result': result, 'detect': detect, 'verify': verify,
+            'analyze': analyze, 'refine': refine, 'finalize': finalize,
+            'dat': dat, 'db': db}
 
 
 def _row(pt=None, skip=None, mode=None):
@@ -349,3 +353,89 @@ class TestCueOnlyResolution:
             {'cue_only_safety': 'auto_cut'}) == CUE_ONLY_SAFETY_AUTO_CUT
         assert resolve_cue_only_safety(
             {'cue_only_safety': 'bogus'}) == CUE_ONLY_SAFETY_HOLD_NEW
+
+
+class TestCueOnlyPipelineWiring:
+    def test_download_and_transcribe_skip_returns_empty_segments(self):
+        with patch.object(processing, '_download_episode_audio', return_value='/tmp/a.mp3'), \
+             patch.object(processing.storage, 'get_original_path', return_value=None), \
+             patch.object(processing.transcriber, 'transcribe_chunked') as tr:
+            path, segments = processing._download_and_transcribe(
+                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+        tr.assert_not_called()
+        assert path == '/tmp/a.mp3'
+        assert segments == []
+
+    def test_download_and_transcribe_skip_reuses_retained_original(self):
+        with patch.object(processing, '_download_episode_audio') as dl, \
+             patch.object(processing.storage, 'get_original_path', return_value='/tmp/orig.mp3'), \
+             patch.object(processing.os.path, 'exists', return_value=True), \
+             patch.object(processing, '_copy_retained_original_to_temp',
+                          return_value='/tmp/copy.mp3') as copy, \
+             patch.object(processing.transcriber, 'transcribe_chunked') as tr:
+            path, segments = processing._download_and_transcribe(
+                'slug', 'ep1', 'http://example.com/e.mp3', 'Pod', skip_transcription=True)
+        dl.assert_not_called()
+        copy.assert_called_once_with('/tmp/orig.mp3')
+        tr.assert_not_called()
+        assert path == '/tmp/copy.mp3'
+        assert segments == []
+
+    def test_run_stats_to_api_carries_cue_only_flags(self):
+        from api.episodes import _run_stats_to_api
+        out = _run_stats_to_api({'mode': 'auto', 'cue_only': True,
+                                 'transcription_skipped': True})
+        assert out['cueOnly'] is True
+        assert out['transcriptionSkipped'] is True
+
+    def test_cue_only_mode_wires_detection_and_analysis(self):
+        m = _run_pipeline(_row(mode=DETECTION_MODE_CUE_ONLY))
+        assert m['result'] is True
+        assert m['analyze'].call_args.kwargs['force_cue_detection'] is True
+        detect_kwargs = m['detect'].call_args.kwargs
+        assert detect_kwargs['skip_llm'] is True
+        assert detect_kwargs['force_create_from_pairs'] is True
+        assert detect_kwargs['strict_pair_roles'] is True
+        assert detect_kwargs['episode_duration'] == 100.0
+        assert m['verify'].call_args.kwargs['skip_verification'] is True
+        assert m['refine'].call_args.kwargs['cue_only_safety'] == CUE_ONLY_SAFETY_HOLD_NEW
+        assert m['refine'].call_args.kwargs['cue_unproven_template_ids'] == set()
+        run_stats = m['finalize'].call_args.kwargs['run_stats']
+        assert run_stats['cue_only'] is True
+        assert run_stats['verification_skipped'] is True
+        assert 'transcription_skipped' not in run_stats
+
+    def test_cue_only_safety_hold_new_collects_unproven_template_ids(self):
+        row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), cue_only_safety='hold_new')
+        m = _run_pipeline(
+            row, cue_template_counts={1: 1},
+            cue_templates=[{'id': 1, 'enabled': 1},
+                           {'id': 2, 'enabled': 1},
+                           {'id': 3, 'enabled': 0}])
+        assert m['result'] is True
+        unproven = m['refine'].call_args.kwargs['cue_unproven_template_ids']
+        # id 1 has 1 paired episode (< CUE_ONLY_PROVEN_EPISODES): unproven.
+        # id 2 has no recorded pairs: unproven. id 3 is disabled: excluded.
+        assert unproven == {1, 2}
+
+    def test_cue_only_safety_auto_cut_skips_template_lookup(self):
+        row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), cue_only_safety='auto_cut')
+        m = _run_pipeline(row)
+        assert m['result'] is True
+        m['db'].cue_template_paired_episode_counts.assert_not_called()
+        m['db'].list_cue_templates_for_feed_ui.assert_not_called()
+        assert m['refine'].call_args.kwargs['cue_only_safety'] == CUE_ONLY_SAFETY_AUTO_CUT
+        assert m['refine'].call_args.kwargs['cue_unproven_template_ids'] == set()
+
+    def test_cue_only_with_skip_transcription_records_stat_and_threads_flag(self):
+        row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), skip_transcription=1)
+        m = _run_pipeline(row)
+        assert m['result'] is True
+        assert m['dat'].call_args.kwargs['skip_transcription'] is True
+        run_stats = m['finalize'].call_args.kwargs['run_stats']
+        assert run_stats['transcription_skipped'] is True
+        assert run_stats['cue_only'] is True
+
+    def test_standard_mode_never_sets_skip_transcription(self):
+        m = _run_pipeline(_row())
+        assert m['dat'].call_args.kwargs['skip_transcription'] is False
