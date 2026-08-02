@@ -126,6 +126,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         db.get_all_settings.return_value = {}
         db.cue_template_paired_episode_counts.return_value = cue_template_counts or {}
         db.list_cue_templates_for_feed_ui.return_value = cue_templates or []
+        db.cue_template_recent_activity.return_value = []
         audio_processor.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.return_value = ('/tmp/cut.mp3', [])
@@ -427,8 +428,9 @@ class TestCueOnlyPipelineWiring:
         row = dict(_row(mode=DETECTION_MODE_CUE_ONLY), cue_only_safety='auto_cut')
         m = _run_pipeline(row)
         assert m['result'] is True
+        # The unproven-ids lookup (hold_new only) is skipped; the quiet-template
+        # drift check calls list_cue_templates_for_feed_ui regardless of safety mode.
         m['db'].cue_template_paired_episode_counts.assert_not_called()
-        m['db'].list_cue_templates_for_feed_ui.assert_not_called()
         assert m['refine'].call_args.kwargs['cue_only_safety'] == CUE_ONLY_SAFETY_AUTO_CUT
         assert m['refine'].call_args.kwargs['cue_unproven_template_ids'] == set()
 

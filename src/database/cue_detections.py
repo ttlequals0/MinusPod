@@ -181,6 +181,40 @@ class CueDetectionMixin:
         ).fetchall()
         return {r['template_id']: r['n'] for r in rows}
 
+    def cue_template_recent_activity(self, podcast_id: int,
+                                     recent_episodes: int = 5) -> List[Dict]:
+        """Per-template last match / quiet flag for drift surfacing (issue #599).
+
+        Quiet: matched at least once ever, but zero above-threshold rows in
+        the feed's ``recent_episodes`` most recently-seen episodes.
+        """
+        conn = self.get_connection()
+        recent = [r['episode_id'] for r in conn.execute(
+            """SELECT episode_id, MAX(created_at) AS seen FROM cue_detections
+               WHERE podcast_id = ? GROUP BY episode_id
+               ORDER BY seen DESC LIMIT ?""", (podcast_id, recent_episodes))]
+        rows = conn.execute(
+            f"""SELECT template_id,
+                      MAX(CASE WHEN {_ABOVE_THRESHOLD} THEN created_at END) AS last_match,
+                      COUNT(DISTINCT CASE WHEN {_ABOVE_THRESHOLD} THEN episode_id END) AS matched
+               FROM cue_detections
+               WHERE podcast_id = ? AND template_id IS NOT NULL
+               GROUP BY template_id""", (podcast_id,)).fetchall()
+        out = []
+        placeholders = ','.join('?' * len(recent))
+        for r in rows:
+            quiet = False
+            if r['matched'] and recent:
+                hit = conn.execute(
+                    f"""SELECT 1 FROM cue_detections
+                       WHERE podcast_id = ? AND template_id = ? AND {_ABOVE_THRESHOLD}
+                       AND episode_id IN ({placeholders}) LIMIT 1""",
+                    (podcast_id, r['template_id'], *recent)).fetchone()
+                quiet = hit is None
+            out.append({'templateId': r['template_id'], 'lastMatchAt': r['last_match'],
+                        'matchedEpisodes': r['matched'], 'quiet': quiet})
+        return out
+
     def cue_template_verdict_scores(self, podcast_id: int) -> List[Dict]:
         """Reviewed scores grouped per template, for verdict hints."""
         conn = self.get_connection()

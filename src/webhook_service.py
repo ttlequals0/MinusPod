@@ -29,6 +29,7 @@ EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
 EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
 EVENT_FEED_REFRESH_FAILED = 'Feed Refresh Failed'
 EVENT_UPDATE_AVAILABLE = 'Update Available'
+EVENT_CUE_TEMPLATE_QUIET = 'Cue Template Quiet'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
     EVENT_EPISODE_FAILED,
@@ -37,6 +38,7 @@ VALID_EVENTS = {
     EVENT_LIMIT_EXCEEDED,
     EVENT_FEED_REFRESH_FAILED,
     EVENT_UPDATE_AVAILABLE,
+    EVENT_CUE_TEMPLATE_QUIET,
 }
 
 _sandbox_env = SandboxedEnvironment()
@@ -125,6 +127,11 @@ _ALERT_SAMPLE_CONTEXTS = {
         'channel': 'stable',
         'release_date': '2026-07-22',
         'release_url': 'https://github.com/ttlequals0/MinusPod/releases/tag/v2.74.0',
+    },
+    EVENT_CUE_TEMPLATE_QUIET: {
+        'podcast': {'name': 'My Favorite Podcast', 'slug': 'my-favorite-podcast'},
+        'template': {'id': 3, 'label': 'break stinger'},
+        'last_match_at': '2026-03-01T00:00:00Z',
     },
 }
 
@@ -475,6 +482,20 @@ def fire_update_available_event(version, channel, release_date, url):
         'release_url': url,
     }, f"update {version} ({channel})",
         dedup_key=f"update:{version}")
+
+
+def fire_cue_template_quiet_event(slug, podcast_name, template_id, template_label,
+                                  last_match_at):
+    """Fire a cue-template-quiet webhook: a cue-only feed's template stopped
+    matching recent episodes. Deduped per template."""
+    context = {
+        'podcast': {'name': podcast_name, 'slug': slug},
+        'template': {'id': template_id, 'label': template_label},
+        'last_match_at': last_match_at,
+    }
+    return _fire_alert_event(EVENT_CUE_TEMPLATE_QUIET, context,
+                             f"template {template_id} on {slug}",
+                             dedup_key=f"cue-quiet:{slug}:{template_id}")
 
 
 def render_template_preview(template_string):

@@ -102,7 +102,10 @@ from utils.language import get_feed_language_override
 from utils.text import (
     parse_transcript_segments,
 )
-from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
+from webhook_service import (
+    fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED,
+    fire_cue_template_quiet_event,
+)
 
 audio_logger = logging.getLogger('podcast.audio')
 
@@ -841,6 +844,28 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             )
 
     return first_pass_ads, len(first_pass_ads), ad_result
+
+
+def _quiet_templates_to_notify(activity, enabled_template_ids):
+    """Quiet cue-template activity rows whose template is currently enabled."""
+    return [a for a in activity if a['quiet'] and a['templateId'] in enabled_template_ids]
+
+
+def _notify_quiet_cue_templates(slug, podcast_name, podcast_id):
+    """Fire Cue Template Quiet for each enabled template gone quiet on this feed.
+
+    Best-effort (issue #599): a notification failure must not break the run.
+    """
+    try:
+        activity = db.cue_template_recent_activity(podcast_id)
+        templates = {t['id']: t for t in db.list_cue_templates_for_feed_ui(podcast_id)}
+        enabled_ids = {tid for tid, t in templates.items() if t.get('enabled')}
+        for a in _quiet_templates_to_notify(activity, enabled_ids):
+            fire_cue_template_quiet_event(
+                slug, podcast_name, a['templateId'],
+                templates.get(a['templateId'], {}).get('label'), a['lastMatchAt'])
+    except Exception as e:
+        audio_logger.warning(f"[{slug}] Cue template quiet check skipped: {e}")
 
 
 def _vad_gap_enabled(db) -> bool:
@@ -3836,6 +3861,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     episode_duration=episode_duration,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
+
+                if cue_only and podcast_id:
+                    _notify_quiet_cue_templates(slug, podcast_name, podcast_id)
 
                 _detection_stats = (ad_result or {}).get('detection_stats') or {}
                 if 'windows_total' in _detection_stats:

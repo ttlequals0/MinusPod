@@ -156,6 +156,9 @@ def _template_to_meta_dict(row: dict) -> dict:
         'createdBy': row.get('created_by'),
         'hasAudio': bool(row.get('pcm_blob')) or bool(row.get('has_audio')),
         'scoreThreshold': row.get('score_threshold'),
+        'lastMatchAt': None,
+        'matchedEpisodes': 0,
+        'quiet': False,
     }
 
 
@@ -173,10 +176,16 @@ def list_cue_templates(slug):
     if not podcast:
         return error_response('feed not found', 404)
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
+    activity = {a['templateId']: a for a in db.cue_template_recent_activity(podcast['id'])}
     templates = []
     for r in rows:
         meta = _template_to_meta_dict(r)
         meta['owned'] = r['podcast_id'] == podcast['id']
+        a = activity.get(r['id'])
+        if a:
+            meta['lastMatchAt'] = a['lastMatchAt']
+            meta['matchedEpisodes'] = a['matchedEpisodes']
+            meta['quiet'] = a['quiet']
         templates.append(meta)
     return json_response({'templates': templates})
 

@@ -31,7 +31,7 @@ SMTP_TIMEOUT_SECONDS = 10
 VALID_SECURITY = ('none', 'starttls', 'ssl')
 DEFAULT_EVENTS = [
     'Episode Failed', 'Auth Failure', 'Limit Exceeded', 'Rate Limit Structural',
-    'Feed Refresh Failed', 'Update Available',
+    'Feed Refresh Failed', 'Update Available', 'Cue Template Quiet',
 ]
 # Repo layout: <root>/src/email_service.py and <root>/static/ui/logo.png.
 # Container layout: /app/src/email_service.py and /app/static/ui/logo.png.
@@ -200,6 +200,23 @@ def _fmt_feed_refresh_failed(ctx):
                            'detail.')
 
 
+def _fmt_cue_template_quiet(ctx):
+    podcast = ctx.get('podcast', {})
+    template = ctx.get('template', {})
+    subject = f"[MinusPod] Cue Template Quiet: {podcast.get('name', 'unknown')}"
+    rows = [
+        ('Podcast', f"{_value(podcast.get('name'))} ({_value(podcast.get('slug'))})"),
+        ('Template', _value(template.get('label'))),
+        ('Template ID', _value(template.get('id'))),
+        ('Last matched', _value(ctx.get('last_match_at'))),
+        ('Timestamp', _value(ctx.get('timestamp'))),
+    ]
+    return subject, rows, ('This cue template has stopped matching recent '
+                           'episodes on a cue-only feed. The publisher may '
+                           'have changed the sound; recapture the cue or '
+                           'review the feed.')
+
+
 def _fmt_update_available(ctx):
     version = _value(ctx.get('version'))
     subject = f"[MinusPod] Update Available: {version}"
@@ -221,6 +238,7 @@ FORMATTERS = {
     'Rate Limit Structural': _fmt_rate_limit_structural,
     'Feed Refresh Failed': _fmt_feed_refresh_failed,
     'Update Available': _fmt_update_available,
+    'Cue Template Quiet': _fmt_cue_template_quiet,
 }
 
 
