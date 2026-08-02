@@ -300,6 +300,62 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   span. The reviewer still evaluates it. This relaxes the "cue is supporting
   evidence only" rule, so leave it off until you trust the matcher on a feed.
 
+## Cue-only preset
+
+`cue_only` is a per-feed **Processing mode** that cuts entirely from paired
+audio-cue template matches: the model never sees the transcript. Fingerprint,
+text-pattern, and cross-fetch differential detection still run and can
+corroborate a cue pair, but the LLM detection pass, the LLM boundary
+reviewer, pass-2 verification, and LLM redetection are all off. Reprocessing
+an episode with the "Re-detect ads" mode returns a 409 on a `cue_only` feed,
+since there is no detection LLM call to rerun.
+
+Turning the mode on requires at least one enabled **Ad-break start** template
+and one enabled **Ad-break end** template on the feed; the select disables
+the option, and the API rejects the PATCH with a 400, until both exist. An
+**Ad-break boundary (both ends)** template alone is not enough: that cue type
+plays at both edges of a break, so without the model reading the transcript
+to confirm ad content in between, two boundary hits on either side of a
+stretch of show content could pair into a false cut. Requiring one start-role
+and one end-role template rules that out, since a start cue and an end cue
+only pair across an actual break.
+
+**Safety policy.** The per-feed **Cue-only safety** select controls how much
+a new or shaky template is trusted:
+
+- **Hold new templates for review** (`hold_new`, the default) - a template's
+  synthesized cuts are held for review until it has matched a paired
+  start/end cue on 3 episodes. Holds carry the `cue_template_unproven`
+  reason.
+- **Auto-cut at high confidence** (`auto_cut`) - synthesized cuts apply
+  immediately, but a pair scoring below 0.90 confidence is still held, with
+  the `cue_low_confidence` reason.
+
+**Bootstrap workflow.** Cue templates can only be marked from an episode's
+retained original audio, so a brand-new feed needs a few processed episodes
+before you can mark the start and end cues. Run several episodes in **Skip
+ad detection** mode (or standard mode) first, mark the cues once you have
+retained originals to pick from, then switch the feed to `cue_only`.
+Importing templates exported from another install (see Managing cues above)
+works too, and skips the wait for local originals entirely.
+
+**Drift detection.** The Audio Cue Templates panel shows each template's last
+match and a "quiet" badge once it goes quiet: matched before, but zero
+above-threshold matches in the feed's last 5 telemetry-recorded episodes. A
+`cue_only` run also fires the `Cue Template Quiet` webhook and email event
+the first time an enabled template goes quiet, so a publisher swapping their
+stinger does not silently stop cutting ads. See
+[API & Webhooks > Events](api-and-webhooks.md#events).
+
+**Transcription toggle.** The per-feed **Skip transcription** toggle (only
+available under `cue_only`) skips the Whisper pass entirely. Generated
+chapters stop, and those episodes lose transcript search and VTT subtitles.
+Publisher chapters still work: both embedded ID3 chapters and linked
+Podcasting 2.0 JSON chapters are remapped onto the cut audio using the cue
+timestamps, with no transcript needed. Runs are labeled "(cue-only)" in the
+episode's run list, and additionally "(no transcript)" when transcription is
+skipped.
+
 ## Per-feed overrides
 
 Per-feed controls sit on the feed detail page under Feed settings:
@@ -323,6 +379,10 @@ Per-feed controls sit on the feed detail page under Feed settings:
   silence. See Silence snap above.
 - **Snap to content transitions** (`transitionSnapEnabled`) - off by default.
   Content-transition cues may snap ad edges the same way boundary cues do.
+- **Cue-only safety** (`cueOnlySafety`) - `cue_only` feeds only. `hold_new`
+  (default) or `auto_cut`; see Cue-only preset above.
+- **Skip transcription** (`skipTranscription`) - `cue_only` feeds only. See
+  Cue-only preset above.
 
 Overrides are set at `PATCH /api/v1/feeds/<slug>` and apply to episodes
 processed after the change.

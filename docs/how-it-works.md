@@ -232,6 +232,18 @@ For shows that run no ads, detection is wasted LLM spend. Setting the per-feed *
 
 This differs from the Pass-through option on the same select, which serves episodes untouched and skips processing entirely: no transcript, no chapters.
 
+### Cue-Only Mode
+
+Cue-only cuts entirely from paired audio-cue template matches, with no LLM
+reading the transcript. Fingerprint, text-pattern, and cross-fetch
+differential detection still run and can corroborate a cue pair; the LLM
+detection pass, the LLM boundary reviewer, the verification pass, and LLM
+redetection are all off. It requires at least one enabled ad-break-start and
+one enabled ad-break-end audio cue template on the feed. See
+[Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset) for
+the template requirement, the per-feed safety policy, the bootstrap
+workflow, and the transcription toggle.
+
 ### Skip Verification Pass
 
 The verification pass is a second detection sweep over the already-cut audio, so an episode that runs it pays for ad detection twice. On a feed whose first pass is already reliable that is spend for nothing. The per-feed "Skip verification pass" toggle (Feed page > Feed Settings > Advanced) leaves the first pass untouched and declines the second sweep, which roughly halves the ad-detection LLM spend per episode. Chapters and the boundary reviewer make their own LLM calls either way, so the total episode cost drops by less than half.
@@ -240,7 +252,7 @@ Two things change beyond the saving. Ads the first pass missed stay in the audio
 
 Runs that skipped the pass are labelled "(no verification)" in the episode's run list, and they record no verification result rather than a zero, which would have read as a clean second scan.
 
-The feed settings page exposes these as one **Processing mode** select, so a feed only ever runs one at a time, and each option's hint explains what it changes. The REST API still accepts the underlying per-field flags (`passthroughEnabled`, `skipAdDetection`, `detectionMode`) for external callers; when those are set independently of the select, the same precedence applies as before: pass-through beats skip ad detection, and skip ad detection beats the detection mode (a feed set to keep-content with skip on detects nothing).
+The feed settings page exposes standard, keep-content, skip ad detection, pass-through, and cue-only as one **Processing mode** select, so a feed only ever runs one at a time, and each option's hint explains what it changes. The REST API still accepts the underlying per-field flags (`passthroughEnabled`, `skipAdDetection`, `detectionMode`) for external callers; when those are set independently of the select, the same precedence applies as before: pass-through beats skip ad detection, skip ad detection beats keep-content, and keep-content beats cue-only (a feed set to keep-content with skip on detects nothing).
 
 ---
 

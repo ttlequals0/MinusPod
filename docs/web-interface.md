@@ -14,7 +14,7 @@ The server includes a web-based management UI at `/ui/`:
 - Source feed URL shown in Feed Settings with a copy button, and editable for when a publisher moves feeds or a CDN-wrapped URL keeps failing. The server fetches and parses the new URL before saving, so a typo cannot break the feed; existing episodes are kept (matched by GUID). The refresh log also prints which URL each feed pulls from
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
-- Per-feed processing mode: one select with four presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), or pass-through (serves episodes exactly as published, with no transcription, detection, or cutting)
+- Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (serves episodes exactly as published, with no transcription, detection, or cutting), or cue-only (cuts only from paired audio-cue templates, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
 - Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, processing mode, language, hide unprocessed, tags) sit at the top; cue tuning and the rarely-changed Advanced controls each fold into their own card
 - Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus totals for episodes processed, ads removed, time saved, and LLM cost
 - Dashboard feeds show compact per-status counts (for example "10 Disc / 2 Pend / 4 Comp") so feed health is visible without clicking in
@@ -128,7 +128,7 @@ Corrections go through the same per-episode corrections endpoint used on the epi
 
 ### Audio Cue Templates
 
-If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, the cross-episode scan, the window optimizer, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md).
+If a show plays a recurring ding or stinger around its ad breaks, you can teach MinusPod that exact sound and have it snap cuts to the chime. Marking a cue, the find-audio-cues scan, the cross-episode scan, the window optimizer, cue types, and cue management are all covered in [Audio Cue Detection](audio-cues.md). Each template row shows its last match date and, once it has matched before but produced no above-threshold matches in the feed's last 5 episodes, an amber "quiet" badge, so a publisher swapping their stinger shows up before a cue-only feed silently stops cutting ads.
 
 ### Held for Review
 

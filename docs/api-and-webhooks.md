@@ -97,6 +97,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
 | `Feed Refresh Failed` | A feed's upstream RSS fetch fails 3 times in a row. One alert per feed per 5 minutes, with a shared burst cap so an outage that breaks every feed at once sends one alert, not one per feed. |
 | `Update Available` | The daily update check finds a newer release on the selected channel (`stable` or `edge`); fires once per version |
+| `Cue Template Quiet` | An enabled audio cue template on a `cue_only` feed has matched before but has zero above-threshold matches across the feed's last 5 telemetry-recorded episodes. Rate-limited to one alert per template per 5 minutes. |
 
 The **Test** button sends one sample payload per event the webhook is subscribed to, each shaped like that event's real payload (see Default Payloads below) with `test: true` set. A webhook subscribed to three events gets three test deliveries in one click; a custom payload template renders against each event's own variable set (episode-shaped for `Episode Processed`/`Episode Failed`, provider-shaped for the alert events, and so on).
 
@@ -106,7 +107,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, or `Update Available` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, or `Cue Template Quiet` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -183,6 +184,18 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `channel` | string | Channel the release was found on: `stable` or `edge` |
 | `release_date` | string/null | Release date (`YYYY-MM-DD`) |
 | `release_url` | string/null | GitHub release page URL |
+
+**Cue Template Quiet events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Cue Template Quiet` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
+| `podcast.slug` | string | Feed slug |
+| `template.id` | int | Cue template ID |
+| `template.label` | string | Cue template label |
+| `last_match_at` | string/null | Timestamp of the template's last above-threshold match before it went quiet |
 
 ### Default Payloads
 
@@ -311,6 +324,24 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "channel": "stable",
   "release_date": "2026-07-22",
   "release_url": "https://github.com/ttlequals0/MinusPod/releases/tag/v2.74.0"
+}
+```
+
+**Cue Template Quiet:**
+
+```json
+{
+  "event": "Cue Template Quiet",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "podcast": {
+    "name": "My Favorite Podcast",
+    "slug": "my-favorite-podcast"
+  },
+  "template": {
+    "id": 3,
+    "label": "break stinger"
+  },
+  "last_match_at": "2026-03-01T00:00:00Z"
 }
 ```
 

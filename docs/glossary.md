@@ -32,6 +32,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue match** - A place in an episode where a learned audio cue template was found, shown with its score and how detection used it. [Audio Cues > Cue matches on an episode](audio-cues.md#cue-matches-on-an-episode)
 
+**Cue-only** - The per-feed Processing mode that cuts entirely from paired audio-cue template matches, with no LLM reading the transcript. Requires an enabled ad-break-start and an enabled ad-break-end template on the feed. [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset)
+
+**Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that mint an ad span between them without reading the transcript. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
+
 ## D
 
 **DAI (dynamic ad insertion)** - Ads spliced into the audio by the publisher's server at download time, so every download can carry a different ad load. This is why the same episode can be 46 minutes one fetch and 55 the next. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
@@ -78,7 +82,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Podping** - An opt-in listener that watches the Hive blockchain for publish notifications and refreshes a matching feed immediately instead of waiting for the next scheduled poll. Only some hosts send them; polling continues either way. [Podcasting 2.0 > Podping](podcasting-2.0.md#podping)
 
-**Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), or pass-through. One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
+**Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), pass-through, or cue-only (cuts from paired audio-cue templates, no LLM call). One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
 
 **Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 

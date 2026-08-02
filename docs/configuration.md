@@ -129,7 +129,7 @@ Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off 
 
 ### Pass-through mode
 
-Pass-through is one of the four presets on each feed's **Processing mode** select (Feed Settings), alongside standard, keep content only, and skip ad detection. Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and served exactly as published, with no transcription, ad detection, or cutting. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
+Pass-through is one of the five presets on each feed's **Processing mode** select (Feed Settings), alongside standard, keep content only, skip ad detection, and cue-only. Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and served exactly as published, with no transcription, ad detection, or cutting. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
 
 The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and switching to another mode resumes full processing for new episodes. Two caveats: enclosures that are not MP3 get converted to MP3 (the serving stack requires it), and the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the feed is on Pass-through, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
 
@@ -220,7 +220,7 @@ Reprocessing an episode re-runs detection without re-fetching it from the source
 - **Reprocess** (default) - uses the learned pattern database plus the LLM. Fastest option for routine re-detection.
 - **Full Analysis** - skips the pattern database for a fresh LLM-only pass.
 - **Recut Audio** - re-cuts the retained original from the episode's current ad list and re-times the saved transcript, without re-transcribing or calling the LLM. Use it after editing ads by hand to regenerate the output file. Because no LLM runs, generated chapters are not refreshed: the rebuilt file carries the source feed's own chapters remapped to the new cut, and the podcast:chapters JSON keeps its old timestamps. Run Regenerate Chapters afterward if chapters matter for the episode.
-- **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped, and it is also offered for failed episodes that still have a transcript. Use it to iterate on detection settings or models without paying for transcription each time.
+- **Re-detect Ads** - reruns detection and re-cuts using the transcript already saved for the episode, skipping the transcription step that dominates processing time on local hardware. Requires an existing transcript; episodes without one are skipped, and it is also offered for failed episodes that still have a transcript. Use it to iterate on detection settings or models without paying for transcription each time. Not available on a `cue_only` feed (returns a 409): cue-only has no detection LLM call to rerun, so **Recut Audio** is the equivalent action after editing ad markers by hand.
 
 ## Community Patterns (Optional)
 

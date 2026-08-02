@@ -23,6 +23,31 @@ release notes.
   one "Processing mode" select covering all four states, replacing the old
   detection-mode dropdown plus the separate "Skip ad detection" and
   "Pass-through" toggles.
+- New `cue_only` processing mode: cuts come only from paired audio-cue
+  template matches, with no LLM detection call. It requires the feed to have
+  at least one enabled `ad_break_start` template and one enabled
+  `ad_break_end` template; enabling the mode is rejected with a 400
+  otherwise, since a boundary-only cue (the `ad_break_boundary` type) can
+  pair across show content without an LLM pass to catch the mistake.
+  Fingerprint, text-pattern, and cross-fetch differential detection still
+  run; the LLM detection pass, LLM reviewer, pass-2 verification, and LLM
+  redetection are all off in this mode (redetection returns a 409).
+- Per-feed `cueOnlySafety` policy for `cue_only` feeds. `hold_new` (the
+  default) holds a template's synthesized cuts for review until it has 3
+  episodes with a paired start/end match; `auto_cut` cuts immediately but
+  still holds any pair scoring below 0.90 confidence. Holds carry the new
+  `cue_template_unproven` or `cue_low_confidence` reason.
+- Cue template drift detection: the template list now shows each template's
+  last match and a "quiet" badge, and a `cue_only` run fires the new
+  `Cue Template Quiet` webhook and email event when a previously-matching
+  enabled template records no matches across the feed's last 5
+  telemetry-recorded episodes.
+- Per-feed `skipTranscription` toggle, valid only under `cue_only` mode.
+  Skipping transcription stops generated chapters and removes transcript
+  search and VTT subtitles for those episodes, but publisher chapters
+  (embedded ID3 or linked Podcasting 2.0 JSON) still get remapped onto the
+  cut audio. Runs are labeled "(cue-only)" and, when transcription is
+  skipped, also "(no transcript)" in the episode's run list.
 
 ## [2.83.3] - 2026-07-31
 
