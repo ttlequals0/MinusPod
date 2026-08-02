@@ -588,9 +588,8 @@ def resolve_detection_mode(db, slug):
 
 # Per-feed processing mode: the effective pipeline behavior resolved from
 # three independent podcasts columns (passthrough_enabled, skip_ad_detection,
-# detection_mode). The columns are deliberately NOT exclusive (issue #537):
-# a user can leave skip-detection set while temporarily enabling passthrough;
-# precedence decides which one wins.
+# detection_mode). Columns remain independent for legacy per-field writes (issue #537),
+# but a processingMode preset write canonicalizes all three.
 PROCESSING_MODE_PASSTHROUGH = 'passthrough'
 PROCESSING_MODE_SKIP_DETECTION = 'skip_detection'
 PROCESSING_MODE_KEEP_CONTENT = 'keep_content'

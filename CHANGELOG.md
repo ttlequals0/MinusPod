@@ -19,7 +19,7 @@ release notes.
   the underlying `passthroughEnabled`, `skipAdDetection`, and `detectionMode`
   columns canonically in one request; sending it together with any of those
   three fields is rejected with a 400. The three legacy fields are still
-  accepted on their own for existing API callers. Feed settings now offers
+  accepted on their own for existing API callers. Feed settings now offer
   one "Processing mode" select covering all four states, replacing the old
   detection-mode dropdown plus the separate "Skip ad detection" and
   "Pass-through" toggles.

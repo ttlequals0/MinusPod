@@ -264,8 +264,8 @@ def _normalize_cue_float_override(value, field_name, lo, hi):
 # (json_key, db_col) for the nullable-bool per-feed toggles: boundary-snap,
 # held-review, differential, pass-through, skip-detection, and serving opt-ins.
 # NULL/0 read as off downstream. Pass-through/skip-detection/keep-content
-# are deliberately independent columns (issue #537) -- precedence between
-# them is resolved at processing time by resolve_feed_processing_mode.
+# are independent columns (issue #537) for legacy per-field writes; a
+# processingMode preset write canonicalizes all three instead.
 _NULLABLE_BOOL_FIELDS = [
     ('silenceSnapEnabled',       'silence_snap_enabled'),
     ('transitionSnapEnabled',    'transition_snap_enabled'),
