@@ -21,6 +21,14 @@ logger = logging.getLogger(__name__)
 # skip the wasted round-trip. See _call_anthropic.
 _ANTHROPIC_TEMPERATURE_DEPRECATED: set[str] = set()
 
+# Models that reject an explicit `thinking` disable (Fable 5 always reasons).
+_ANTHROPIC_THINKING_REQUIRED: set[str] = set()
+
+_ANTHROPIC_DROPPABLE_PARAMS: dict[str, set[str]] = {
+    "temperature": _ANTHROPIC_TEMPERATURE_DEPRECATED,
+    "thinking": _ANTHROPIC_THINKING_REQUIRED,
+}
+
 
 @dataclass(frozen=True)
 class LLMResponse:
@@ -93,45 +101,39 @@ async def _call_anthropic(
     from anthropic import APIStatusError, APIConnectionError, APITimeoutError, RateLimitError
 
     client = AsyncAnthropic(api_key=secret(provider.api_key_env), timeout=timeout)
-    # Anthropic deprecated `temperature` for the Claude 4.x family; the API
-    # returns 400 "`temperature` is deprecated for this model.". We memoize
-    # per model so each affected model burns at most one wasted round-trip
-    # for the lifetime of the process; subsequent calls skip `temperature`
-    # upfront. Mirrors the response_format fallback in _call_openai_compatible
-    # but cached so a full sweep doesn't 400-then-200 every Anthropic call.
-    skip_temperature = model_id in _ANTHROPIC_TEMPERATURE_DEPRECATED
+    # Disable thinking so the 5 family, which reasons by default, is scored on
+    # the same output budget as the 4.x rows. Rejections are memoized per model.
     kwargs: dict[str, Any] = dict(
         model=model_id,
         max_tokens=max_tokens,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
-    if not skip_temperature:
+    if model_id not in _ANTHROPIC_TEMPERATURE_DEPRECATED:
         kwargs["temperature"] = temperature
-    try:
-        msg = await client.messages.create(**kwargs)
-    except (RateLimitError, APITimeoutError, APIConnectionError) as e:
-        raise LLMTransientError(str(e)) from e
-    except APIStatusError as e:
-        if (
-            getattr(e, "status_code", 0) == 400
-            and "temperature" in str(e).lower()
-            and "temperature" in kwargs
-        ):
-            _ANTHROPIC_TEMPERATURE_DEPRECATED.add(model_id)
-            kwargs.pop("temperature", None)
-            try:
-                msg = await client.messages.create(**kwargs)
-            except (RateLimitError, APITimeoutError, APIConnectionError) as e2:
-                raise LLMTransientError(str(e2)) from e2
-            except APIStatusError as e2:
-                if 500 <= getattr(e2, "status_code", 0) < 600:
-                    raise LLMTransientError(str(e2)) from e2
-                raise LLMNonRetryableError(str(e2)) from e2
-        else:
-            if 500 <= getattr(e, "status_code", 0) < 600:
+    if model_id not in _ANTHROPIC_THINKING_REQUIRED:
+        kwargs["thinking"] = {"type": "disabled"}
+
+    while True:
+        try:
+            msg = await client.messages.create(**kwargs)
+            break
+        except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+            raise LLMTransientError(str(e)) from e
+        except APIStatusError as e:
+            status = getattr(e, "status_code", 0)
+            if 500 <= status < 600:
                 raise LLMTransientError(str(e)) from e
-            raise LLMNonRetryableError(str(e)) from e
+            # Each pass pops a key, so this terminates.
+            rejected = next(
+                (p for p in _ANTHROPIC_DROPPABLE_PARAMS
+                 if status == 400 and p in kwargs and p in str(e).lower()),
+                None,
+            )
+            if rejected is None:
+                raise LLMNonRetryableError(str(e)) from e
+            _ANTHROPIC_DROPPABLE_PARAMS[rejected].add(model_id)
+            kwargs.pop(rejected)
 
     text = "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
     return LLMResponse(
