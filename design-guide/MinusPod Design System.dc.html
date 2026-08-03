@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+:root{
+--background:210 17% 95%;--foreground:213 10% 17%;--card:0 0% 100%;--card-foreground:213 10% 17%;
+--primary:194 66% 45%;--primary-foreground:0 0% 100%;--secondary:210 10% 90%;--secondary-foreground:213 10% 17%;
+--muted:210 10% 90%;--muted-foreground:210 5% 45%;--accent:210 10% 92%;--accent-foreground:213 10% 17%;
+--destructive:1 82% 55%;--destructive-foreground:0 0% 100%;--success:142.3 100% 32.6%;--warning:30.1 100% 44.2%;
+--border:210 15% 85%;--input:210 15% 85%;--ring:194 66% 45%;--radius:0.5rem;
+--c-blue:#2563eb;--c-yellow:#ca8a04;--c-purple:#9333ea;--c-red:#dc2626;--c-teal:#0f766e;
+}
+body{margin:0;font-family:'Roboto',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:hsl(var(--primary));text-decoration:none}
+a:hover{text-decoration:underline}
+@keyframes ds-spin{to{transform:rotate(360deg)}}
+@keyframes scale-in{0%{transform:scale(0);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+</style>
+</helmet>
+<div style="{{ themeStyle }}">
+<div style="min-height:100vh;background:hsl(var(--background));color:hsl(var(--foreground))">
+
+<header style="position:sticky;top:0;z-index:40;background:hsl(var(--card));border-bottom:1px solid hsl(var(--border))">
+  <div style="max-width:1120px;margin:0 auto;padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="display:flex;align-items:baseline;gap:10px;min-width:0">
+      <span style="font-size:16px;font-weight:700;white-space:nowrap">MinusPod</span>
+      <span style="font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap">Design System</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <select value="{{ themeId }}" onChange="{{ onTheme }}" style="padding:8px 12px;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid hsl(var(--border));font-size:14px;font-family:inherit">
+        <sc-for list="{{ themeOptions }}" as="t" hint-placeholder-count="3">
+          <option value="{{ t.id }}">{{ t.label }}</option>
+        </sc-for>
+      </select>
+      <button onClick="{{ toggleMode }}" aria-label="Toggle light/dark" style="padding:8px;border-radius:6px;border:none;background:transparent;color:hsl(var(--muted-foreground));cursor:pointer;display:flex" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">{{ modeIcon }}</button>
+    </div>
+  </div>
+  <nav style="max-width:1120px;margin:0 auto;padding:0 20px 10px;display:flex;gap:4px;overflow-x:auto">
+    <a href="#tokens" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Tokens</a>
+    <a href="#buttons" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Buttons</a>
+    <a href="#forms" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Forms</a>
+    <a href="#badges" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Badges</a>
+    <a href="#cards" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Cards</a>
+    <a href="#tables" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Tables</a>
+    <a href="#nav" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Nav &amp; Tabs</a>
+    <a href="#overlays" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Overlays</a>
+    <a href="#rules" style="padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;color:hsl(var(--muted-foreground));white-space:nowrap" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent));text-decoration:none">Rules</a>
+  </nav>
+</header>
+
+<main style="max-width:1120px;margin:0 auto;padding:32px 20px 80px;display:flex;flex-direction:column;gap:48px">
+
+<div style="display:flex;flex-direction:column;gap:8px">
+  <h1 style="margin:0;font-size:24px;font-weight:700">UI reference</h1>
+  <p style="margin:0;font-size:14px;color:hsl(var(--muted-foreground));max-width:70ch;text-wrap:pretty">The single template to follow when adding or updating screens. Everything here is extracted from the live frontend code: <span style="font-family:ui-monospace,monospace;font-size:13px">index.css</span>, <span style="font-family:ui-monospace,monospace;font-size:13px">themes.ts</span>, <span style="font-family:ui-monospace,monospace;font-size:13px">buttonStyles.ts</span>, and the shared components. Switch theme and mode above &mdash; every element must hold up in all of them, so build only with tokens.</p>
+</div>
+
+<section id="tokens" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Color tokens</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">HSL CSS variables, themed at runtime. Always paired: a surface token with its <span style="font-family:ui-monospace,monospace;font-size:13px">-foreground</span>. Never hardcode grays or brand hues.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--background));color:hsl(var(--foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">background</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">page canvas + foreground</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--card));color:hsl(var(--card-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">card</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">panels, modals, rows</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">primary</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">CTA, active state, links</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">secondary</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">secondary + outline buttons</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--muted));color:hsl(var(--muted-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">muted</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">table heads, quiet text</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--accent));color:hsl(var(--accent-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">accent</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">hover fill for ghost/menus</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground));display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">destructive</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">delete, errors</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--success));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">success</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">completed states</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--warning));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;border-bottom:1px solid hsl(var(--border))">Aa</div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">warning</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">degraded, experimental</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--background));display:flex;align-items:center;justify-content:center;border-bottom:1px solid hsl(var(--border))"><div style="width:70%;height:0;border-top:2px solid hsl(var(--border))"></div></div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">border / input</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">1px card + field borders</div></div></div>
+    <div style="border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden"><div style="height:56px;background:hsl(var(--background));display:flex;align-items:center;justify-content:center;border-bottom:1px solid hsl(var(--border))"><div style="width:32px;height:32px;border-radius:6px;background:hsl(var(--card));box-shadow:0 0 0 2px hsl(var(--ring))"></div></div><div style="padding:8px 10px;background:hsl(var(--card))"><div style="font-family:ui-monospace,monospace;font-size:12px">ring</div><div style="font-size:11px;color:hsl(var(--muted-foreground))">focus-visible outline</div></div></div>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">
+    <div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Type scale</div>
+      <div style="font-size:24px;font-weight:700;line-height:1.3">Page title &mdash; 24 bold</div>
+      <div style="font-size:18px;font-weight:600;line-height:1.5">Section title &mdash; 18 semibold</div>
+      <div style="font-size:14px;line-height:1.5">Body &amp; controls &mdash; 14 regular</div>
+      <div style="font-size:12px;color:hsl(var(--muted-foreground));line-height:1.5">Meta, badges, captions &mdash; 12</div>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Radius</div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div style="text-align:center"><div style="width:56px;height:40px;border-radius:4px;background:hsl(var(--secondary));border:1px solid hsl(var(--border))"></div><div style="font-size:11px;color:hsl(var(--muted-foreground));margin-top:4px">4px buttons, badges</div></div>
+        <div style="text-align:center"><div style="width:56px;height:40px;border-radius:6px;background:hsl(var(--secondary));border:1px solid hsl(var(--border))"></div><div style="font-size:11px;color:hsl(var(--muted-foreground));margin-top:4px">6px nav items</div></div>
+        <div style="text-align:center"><div style="width:56px;height:40px;border-radius:8px;background:hsl(var(--secondary));border:1px solid hsl(var(--border))"></div><div style="font-size:11px;color:hsl(var(--muted-foreground));margin-top:4px">8px cards, inputs, modals</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">Spacing</div>
+      <div style="font-size:13px;color:hsl(var(--muted-foreground));line-height:1.7">Card padding <b style="color:hsl(var(--foreground))">16px</b> (24px on desktop settings cards)<br>Grid / stack gap <b style="color:hsl(var(--foreground))">16px</b>, tight clusters <b style="color:hsl(var(--foreground))">8px</b><br>Section bottom margin <b style="color:hsl(var(--foreground))">24px</b><br>Page gutter <b style="color:hsl(var(--foreground))">16px</b> mobile &rarr; 32px desktop, max-width 1280px</div>
+    </div>
+  </div>
+</section>
+
+<section id="buttons" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Buttons</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Five recipes, all in <span style="font-family:ui-monospace,monospace;font-size:13px">buttonStyles.ts</span> &mdash; import them, never restyle. Outline renders as Secondary on purpose (the old bordered recipe vanished in dark mode). Sizing stays at the call site.</p>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground));transition:background .15s" style-hover="background:hsl(var(--primary) / 0.9)">Primary</button>
+      <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));transition:background .15s" style-hover="background:hsl(var(--secondary) / 0.8)">Secondary / Outline</button>
+      <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--muted-foreground));transition:all .15s" style-hover="background:hsl(var(--accent));color:hsl(var(--foreground))">Ghost</button>
+      <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground));transition:background .15s" style-hover="background:hsl(var(--destructive) / 0.9)">Destructive</button>
+      <button disabled="{{ true }}" style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground));opacity:0.5">Disabled</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <button style="padding:12px 16px;font-size:14px;font-weight:500;border-radius:8px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))" style-hover="background:hsl(var(--primary) / 0.9)">Form submit &mdash; px-4 py-3 rounded-lg</button>
+      <button style="padding:8px 16px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">Toolbar &mdash; px-4 py-2</button>
+      <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">Compact &mdash; px-3 py-1.5</button>
+      <button aria-label="Delete" title="Icon-only: h-8 w-8, aria-label required" style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))" style-hover="background:hsl(var(--destructive) / 0.9)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+      <button aria-label="Search" style="padding:8px;border-radius:6px;border:none;cursor:pointer;background:transparent;color:hsl(var(--muted-foreground));display:inline-flex" style-hover="background:hsl(var(--accent));color:hsl(var(--foreground))"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
+    </div>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto">
+btnPrimary&nbsp;&nbsp;&nbsp;&nbsp;= bg-primary text-primary-foreground hover:bg-primary/90<br>
+btnSecondary&nbsp;&nbsp;= bg-secondary text-secondary-foreground hover:bg-secondary/80<br>
+btnOutline&nbsp;&nbsp;&nbsp;&nbsp;= btnSecondary&nbsp;&nbsp;<i>(alias, kept for intent)</i><br>
+btnGhost&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= text-muted-foreground hover:text-foreground hover:bg-accent<br>
+<span>btn</span><span>Destructive</span> = bg-destructive text-destructive-foreground hover:bg-destructive/90<br>
+call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-colors
+    </div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><b style="color:hsl(var(--foreground))">Mobile:</b> collapse to icon-only 32&times;32 (<span style="font-family:ui-monospace,monospace;font-size:12px">h-8 w-8</span>) with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span>; show the text label from <span style="font-family:ui-monospace,monospace;font-size:12px">sm:</span> up (<span style="font-family:ui-monospace,monospace;font-size:12px">hidden sm:inline</span>). Keep the surrounding row&rsquo;s tap target &ge;44px with padding/gap.</div>
+  </div>
+</section>
+
+<section id="forms" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Inputs &amp; forms</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Text/number fields sit on <span style="font-family:ui-monospace,monospace;font-size:13px">background</span> with an <span style="font-family:ui-monospace,monospace;font-size:13px">input</span> border and 8px radius. Selects are the one exception: <span style="font-family:ui-monospace,monospace;font-size:13px">secondary</span> fill, 4px radius. Focus is always <span style="font-family:ui-monospace,monospace;font-size:13px">ring-2 ring-ring</span>, never a recolored border. Numeric fields go through <span style="font-family:ui-monospace,monospace;font-size:13px">NumberInput</span>, checkboxes through <span style="font-family:ui-monospace,monospace;font-size:13px">Checkbox</span>.</p>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;font-weight:500">Text input</label>
+      <input type="text" placeholder="https://example.com/feed.xml" style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">px-3 py-2 rounded-lg border-input bg-background</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;font-weight:500">Number input</label>
+      <input type="number" value="30" style="width:96px;box-sizing:border-box;padding:6px 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">w-24 px-3 py-1.5 &mdash; use the NumberInput component</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;font-weight:500">Select</label>
+      <select style="width:100%;padding:8px 12px;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid hsl(var(--border));font-size:14px;font-family:inherit">
+        <option>All Status</option><option>Completed</option><option>Failed</option>
+      </select>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">px-3 py-2 rounded bg-secondary border-border text-sm</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <label style="font-size:13px;font-weight:500">Checkbox</label>
+      <label onClick="{{ toggleCheckA }}" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+        <span style="{{ checkAStyle }}">{{ checkAMark }}</span>Keep original audio
+      </label>
+      <label onClick="{{ toggleCheckB }}" style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:14px">
+        <span style="{{ checkBStyle }}">{{ checkBMark }}</span>Notify on completion
+      </label>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">16&times;16, rounded-sm, 2px border; checked = primary fill</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;font-weight:500">Inline error</label>
+      <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);color:hsl(var(--destructive));font-size:14px;text-align:center">Invalid password</div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">bg-destructive/10 text-destructive rounded-lg p-3</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label style="font-size:13px;font-weight:500">Loading</label>
+      <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+        <div style="width:16px;height:16px;border:2px solid hsl(var(--muted));border-top-color:hsl(var(--primary));border-radius:50%;animation:ds-spin 1s linear infinite"></div>
+        <div style="width:32px;height:32px;border:2px solid hsl(var(--muted));border-top-color:hsl(var(--primary));border-radius:50%;animation:ds-spin 1s linear infinite"></div>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))">LoadingSpinner sm / md; skeletons use animate-pulse rows</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="badges" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Badges &amp; status</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">One shape everywhere: <span style="font-family:ui-monospace,monospace;font-size:13px">px-2 py-0.5 text-xs rounded</span> with a 20% tint fill. Status colors come from <span style="font-family:ui-monospace,monospace;font-size:13px">episodeStatus.ts</span> &mdash; the only place raw palette hues (blue, yellow, purple, teal) are allowed.</p>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(59,130,246,.2);color:var(--c-blue)">discovered</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--muted));color:hsl(var(--muted-foreground))">pending</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(234,179,8,.2);color:var(--c-yellow)">processing</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">completed</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:hsl(var(--destructive) / 0.2);color:hsl(var(--destructive))">failed</span>
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(168,85,247,.2);color:var(--c-purple)">queued (offline)</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(20,184,166,.15);color:var(--c-teal)">community v3 &middot; a1b2c3</span>
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(245,158,11,.2);color:hsl(var(--warning))">Experimental</span>
+      <span style="font-size:12px;color:hsl(var(--warning))">Refresh failing</span>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; inline warnings are plain text-warning, no fill</span>
+    </div>
+    <div style="font-size:13px;color:hsl(var(--muted-foreground))">Big stat numbers reuse the same hues as text-only: <span style="color:hsl(var(--success));font-weight:700">128</span> <span style="color:var(--c-red);font-weight:700">4</span> <span style="color:var(--c-yellow);font-weight:700">2</span> &mdash; never introduce a new hue for a new state; extend <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> instead.</div>
+  </div>
+</section>
+
+<section id="cards" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Cards</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Every panel is <span style="font-family:ui-monospace,monospace;font-size:13px">bg-card rounded-lg border border-border</span> &mdash; no shadows at rest (shadows mean overlay). Action footers sit on <span style="font-family:ui-monospace,monospace;font-size:13px">bg-secondary/50</span> with a top border.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
+      <div style="display:flex">
+        <div style="width:96px;height:96px;flex-shrink:0;background:repeating-linear-gradient(45deg,hsl(var(--muted)),hsl(var(--muted)) 8px,hsl(var(--accent)) 8px,hsl(var(--accent)) 16px);display:flex;align-items:center;justify-content:center"><span style="font-family:ui-monospace,monospace;font-size:10px;color:hsl(var(--muted-foreground))">artwork</span></div>
+        <div style="flex:1;padding:16px;min-width:0">
+          <div style="font-size:16px;font-weight:600;color:hsl(var(--foreground));cursor:pointer" style-hover="color:hsl(var(--primary))">The Example Show</div>
+          <div style="font-size:14px;color:hsl(var(--muted-foreground));margin-top:4px">142 episodes</div>
+          <div style="font-size:12px;color:hsl(var(--muted-foreground));margin-top:4px">Updated Aug 1, 2026</div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;background:hsl(var(--secondary) / 0.5);border-top:1px solid hsl(var(--border));display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))">Copy URL</span>
+        <div style="display:flex;gap:8px">
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))" style-hover="background:hsl(var(--primary) / 0.9)">Refresh</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))" style-hover="background:hsl(var(--destructive) / 0.9)">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px">
+        <div style="font-size:24px;font-weight:700">1,284</div>
+        <div style="font-size:14px;color:hsl(var(--muted-foreground))">Total Processed</div>
+      </div>
+      <div style="background:hsl(var(--primary) / 0.05);border:1px solid hsl(var(--primary));border-radius:8px;padding:16px;cursor:pointer">
+        <div style="font-size:24px;font-weight:700;color:hsl(var(--success))">1,262</div>
+        <div style="font-size:14px;color:hsl(var(--muted-foreground))">Completed &mdash; selected filter card: border-primary bg-primary/5</div>
+      </div>
+    </div>
+    <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:12px;display:flex;align-items:center;gap:12px;align-self:start">
+      <div style="width:40px;height:40px;border-radius:4px;flex-shrink:0;background:repeating-linear-gradient(45deg,hsl(var(--muted)),hsl(var(--muted)) 6px,hsl(var(--accent)) 6px,hsl(var(--accent)) 12px)"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">List row variant &mdash; p-3, 40px art</div>
+        <div style="font-size:12px;color:hsl(var(--muted-foreground))">142 episodes &middot; Updated Aug 1</div>
+      </div>
+      <button aria-label="Refresh" style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--primary));color:hsl(var(--primary-foreground));flex-shrink:0" style-hover="background:hsl(var(--primary) / 0.9)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+    </div>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px">
+    <div onClick="{{ toggleCollapse }}" style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 20px;cursor:pointer">
+      <div>
+        <div style="font-size:18px;font-weight:600">Collapsible section (Settings)</div>
+        <sc-if value="{{ collapseOpen }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:hsl(var(--muted-foreground));margin-top:2px">Subtitle only shows while expanded; open state persists to localStorage</div></sc-if>
+      </div>
+      <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="{{ chevronStyle }}"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+    </div>
+    <sc-if value="{{ collapseOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:0 20px 16px;font-size:14px;color:hsl(var(--muted-foreground))">Body content. Use <span style="font-family:ui-monospace,monospace;font-size:12px">CollapsibleSection</span> for every Settings group so search, bulk expand/collapse, and persistence keep working.</div>
+    </sc-if>
+  </div>
+</section>
+
+<section id="tables" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Tables &amp; lists</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Desktop: table inside a card, <span style="font-family:ui-monospace,monospace;font-size:13px">thead bg-muted/50</span>, uppercase 12px headers, rows divided by <span style="font-family:ui-monospace,monospace;font-size:13px">divide-border</span> with <span style="font-family:ui-monospace,monospace;font-size:13px">hover:bg-muted/50</span>. Below <span style="font-family:ui-monospace,monospace;font-size:13px">sm</span> the table is hidden and replaced by stacked cards &mdash; never a horizontally scrolled full table on phones. Low-priority columns drop at <span style="font-family:ui-monospace,monospace;font-size:13px">md</span>/<span style="font-family:ui-monospace,monospace;font-size:13px">lg</span> first.</p>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead><tr style="background:hsl(var(--muted) / 0.5)">
+        <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:500;color:hsl(var(--muted-foreground));text-transform:uppercase;letter-spacing:0.05em">Podcast</th>
+        <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:500;color:hsl(var(--muted-foreground));text-transform:uppercase;letter-spacing:0.05em;cursor:pointer" title="Sortable: SortHeader adds an arrow">Processed &darr;</th>
+        <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:500;color:hsl(var(--muted-foreground));text-transform:uppercase;letter-spacing:0.05em">Ads</th>
+        <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:500;color:hsl(var(--muted-foreground));text-transform:uppercase;letter-spacing:0.05em">Status</th>
+      </tr></thead>
+      <tbody>
+        <tr style="border-top:1px solid hsl(var(--border))" style-hover="background:hsl(var(--muted) / 0.5)">
+          <td style="padding:12px 16px"><span style="color:hsl(var(--primary));cursor:pointer" style-hover="text-decoration:underline">The Example Show</span></td>
+          <td style="padding:12px 16px;color:hsl(var(--muted-foreground));white-space:nowrap">Aug 2, 14:03</td>
+          <td style="padding:12px 16px">4</td>
+          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">Completed</span></td>
+        </tr>
+        <tr style="border-top:1px solid hsl(var(--border))" style-hover="background:hsl(var(--muted) / 0.5)">
+          <td style="padding:12px 16px"><span style="color:hsl(var(--primary));cursor:pointer" style-hover="text-decoration:underline">Weekly Deep Dive</span></td>
+          <td style="padding:12px 16px;color:hsl(var(--muted-foreground));white-space:nowrap">Aug 2, 09:41</td>
+          <td style="padding:12px 16px">0</td>
+          <td style="padding:12px 16px"><span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(239,68,68,.2);color:var(--c-red)" title="Error message goes in title">Failed</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start">
+    <div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:hsl(var(--muted-foreground))">Same row on mobile (&lt; sm) &mdash; card, not table:</div>
+      <div style="max-width:340px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px">
+          <span style="color:hsl(var(--primary));font-size:14px;font-weight:500">The Example Show</span>
+          <span style="padding:2px 8px;font-size:12px;border-radius:4px;background:rgba(34,197,94,.2);color:hsl(var(--success))">Completed</span>
+        </div>
+        <div style="color:hsl(var(--primary));font-size:14px;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ep. 214 &mdash; The one about consistency</div>
+        <div style="display:flex;gap:16px;font-size:12px;color:hsl(var(--muted-foreground))"><span>Aug 2, 14:03</span><span>3m 12s</span><span>Ads: 4</span></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:hsl(var(--muted-foreground))">Pagination &mdash; card strip, Secondary buttons, Primary = current:</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px">
+        <span style="font-size:14px;color:hsl(var(--muted-foreground))">Page 2 of 14 (271 total)</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">Previous</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">1</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">2</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">3</button>
+          <span style="padding:6px 4px;color:hsl(var(--muted-foreground))">...</span>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="nav" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Navigation, tabs &amp; toggles</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Top nav: ghost links, active = solid primary pill. Page-level views split with underline tabs. Compact binary choices (grid/list, sort) use a joined segmented toggle where active is also solid primary. Below <span style="font-family:ui-monospace,monospace;font-size:13px">sm</span> the nav collapses behind the hamburger into a stacked list.</p>
+  </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Dashboard</span>
+      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Patterns</span>
+      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">History</span>
+      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Settings</span>
+    </div>
+    <div style="border-bottom:1px solid hsl(var(--border));display:flex">
+      <button onClick="{{ tab0 }}" style="{{ tabStyle0 }}">Text patterns</button>
+      <button onClick="{{ tab1 }}" style="{{ tabStyle1 }}">Audio cues</button>
+      <button onClick="{{ tab2 }}" style="{{ tabStyle2 }}">Sponsors</button>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;border:1px solid hsl(var(--border));border-radius:4px;overflow:hidden">
+        <button aria-label="Grid view" style="padding:8px;border:none;cursor:pointer;background:hsl(var(--primary));color:hsl(var(--primary-foreground));display:flex"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg></button>
+        <button aria-label="List view" style="padding:8px;border:none;cursor:pointer;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));display:flex" style-hover="background:hsl(var(--secondary) / 0.8)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">Segmented toggle: joined buttons in one bordered rounded box, no gaps</span>
+    </div>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto">
+nav active&nbsp;&nbsp;= px-3 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground<br>
+nav idle&nbsp;&nbsp;&nbsp;&nbsp;= same sizing + btnGhost<br>
+tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm font-medium border-b-2 -mb-px; active: border-primary text-primary
+    </div>
+  </div>
+</section>
+
+<section id="overlays" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Overlays: modals, menus, toasts</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">All dialogs go through the shared <span style="font-family:ui-monospace,monospace;font-size:13px">Modal</span> / <span style="font-family:ui-monospace,monospace;font-size:13px">ConfirmModal</span>: backdrop <span style="font-family:ui-monospace,monospace;font-size:13px">bg-black/50 z-50 p-4</span>, panel = card + <span style="font-family:ui-monospace,monospace;font-size:13px">shadow-xl</span>, actions right-aligned in a bordered footer, Cancel (outline) before the confirm. Toasts stack <span style="font-family:ui-monospace,monospace;font-size:13px">fixed bottom-4 right-4</span>.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start">
+    <div style="background:hsl(var(--muted) / 0.4);border:1px dashed hsl(var(--border));border-radius:8px;padding:24px;display:flex;justify-content:center">
+      <div style="max-width:360px;width:100%;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2),0 8px 10px -6px rgba(0,0,0,0.2)">
+        <div style="padding:16px;border-bottom:1px solid hsl(var(--border))"><span style="font-size:16px;font-weight:600">Delete feed?</span></div>
+        <div style="padding:16px;font-size:14px">This removes the feed and all processed episodes. The original RSS feed is not affected.</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:16px;border-top:1px solid hsl(var(--border))">
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))" style-hover="background:hsl(var(--secondary) / 0.8)">Cancel</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))" style-hover="background:hsl(var(--destructive) / 0.9)">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="position:relative;align-self:flex-start">
+        <button onClick="{{ toggleDropdown }}" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))" style-hover="background:hsl(var(--primary) / 0.9)">Refresh <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="{{ ddChevron }}"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path></svg></button>
+        <sc-if value="{{ dropdownOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:0;top:calc(100% + 4px);width:224px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.15);z-index:10;overflow:hidden">
+            <button onClick="{{ toggleDropdown }}" style="display:block;width:100%;padding:8px 16px;text-align:left;border:none;background:transparent;cursor:pointer;font-family:inherit" style-hover="background:hsl(var(--accent))"><span style="display:block;font-size:14px;font-weight:500;color:hsl(var(--foreground))">Refresh</span><span style="display:block;font-size:12px;color:hsl(var(--muted-foreground))">Check for new episodes</span></button>
+            <button onClick="{{ toggleDropdown }}" style="display:block;width:100%;padding:8px 16px;text-align:left;border:none;border-top:1px solid hsl(var(--border));background:transparent;cursor:pointer;font-family:inherit" style-hover="background:hsl(var(--accent))"><span style="display:block;font-size:14px;font-weight:500;color:hsl(var(--foreground))">Force refresh</span><span style="display:block;font-size:12px;color:hsl(var(--muted-foreground))">Bypass cache</span></button>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <div style="max-width:384px;background:hsl(var(--destructive) / 0.1);border:1px solid hsl(var(--destructive));color:hsl(var(--destructive));border-radius:8px;padding:16px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.15);font-size:14px;display:flex;align-items:flex-start;gap:12px"><span style="flex:1">Refresh failed: upstream returned 503</span><button aria-label="Dismiss" style="border:none;background:none;cursor:pointer;color:hsl(var(--destructive) / 0.7);padding:0;display:flex" style-hover="color:hsl(var(--destructive))"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path></svg></button></div>
+        <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.15);font-size:14px">Click delete again to confirm</div>
+      </div>
+      <div style="font-size:12px;color:hsl(var(--muted-foreground))">Menus: DropdownMenu component &mdash; w-56 card, shadow-lg, title 14/500 + subtitle 12 muted, align right by default (left when the trigger sits on the row&rsquo;s left edge). Destructive actions confirm via click-again toast (3s) or ConfirmModal, never window.confirm.</div>
+    </div>
+  </div>
+</section>
+
+<section id="rules" style="display:flex;flex-direction:column;gap:16px">
+  <div>
+    <h2 style="margin:0;font-size:18px;font-weight:600">Do / Don&rsquo;t</h2>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground))">The consistency rules that keep new features looking native.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px">
+    <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px">
+      <div style="font-size:13px;font-weight:700;color:hsl(var(--success));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">Do</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9;color:hsl(var(--foreground))">
+        <li>Import button recipes from <span style="font-family:ui-monospace,monospace;font-size:12px">buttonStyles.ts</span>; add only sizing at the call site.</li>
+        <li>Use token colors so every theme works; check dark + Obsidian before shipping.</li>
+        <li>Build mobile-first: table &rarr; cards below <span style="font-family:ui-monospace,monospace;font-size:12px">sm</span>, labels &rarr; icons with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span>.</li>
+        <li>Reuse shared components: Modal, DropdownMenu, Checkbox, NumberInput, Pagination, CollapsibleSection, LoadingSpinner.</li>
+        <li>Give every interactive element <span style="font-family:ui-monospace,monospace;font-size:12px">transition-colors</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">disabled:opacity-50</span>, and <span style="font-family:ui-monospace,monospace;font-size:12px">focus:ring-2 ring-ring</span>.</li>
+        <li>Put error detail in <span style="font-family:ui-monospace,monospace;font-size:12px">title=</span> on a short badge/label.</li>
+        <li>Add new statuses to <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> / <span style="font-family:ui-monospace,monospace;font-size:12px">segmentCategory.ts</span> maps, not inline.</li>
+      </ul>
+    </div>
+    <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px">
+      <div style="font-size:13px;font-weight:700;color:hsl(var(--destructive));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">Don&rsquo;t</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9;color:hsl(var(--foreground))">
+        <li>Hardcode <span style="font-family:ui-monospace,monospace;font-size:12px">gray-*</span> / <span style="font-family:ui-monospace,monospace;font-size:12px">white</span> / hex colors &mdash; they break 19 of 20 themes.</li>
+        <li>Invent a bordered &ldquo;outline&rdquo; button; <span style="font-family:ui-monospace,monospace;font-size:12px">btnOutline</span> is Secondary by design.</li>
+        <li>Add shadows to resting cards &mdash; shadow-lg/xl marks overlays only.</li>
+        <li>Mix badge shapes: it&rsquo;s always <span style="font-family:ui-monospace,monospace;font-size:12px">px-2 py-0.5 text-xs rounded</span> + 20% tint.</li>
+        <li>Use more than one Primary action per card/row; pair it with Secondary or Ghost.</li>
+        <li>Ship a desktop table without its mobile card variant.</li>
+        <li>Use <span style="font-family:ui-monospace,monospace;font-size:12px">rounded-full</span> pills, gradients, or new fonts &mdash; Roboto only.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;slate&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;slate&quot;,&quot;catppuccin-mocha&quot;,&quot;dracula&quot;,&quot;nord&quot;,&quot;gruvbox&quot;,&quot;solarized&quot;,&quot;tokyo-night&quot;,&quot;github-dark&quot;,&quot;unifi&quot;,&quot;hulu&quot;,&quot;obsidian&quot;]},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;]}}">
+class Component extends DCLogic {
+  state = {
+    themeId: null, mode: null,
+    tab: 0, checkA: true, checkB: false,
+    dropdownOpen: false, collapseOpen: true,
+  };
+
+  static SLATE_LIGHT = {
+    background: '210 17% 95%', foreground: '213 10% 17%', card: '0 0% 100%', 'card-foreground': '213 10% 17%',
+    primary: '194 66% 45%', 'primary-foreground': '0 0% 100%', secondary: '210 10% 90%', 'secondary-foreground': '213 10% 17%',
+    muted: '210 10% 90%', 'muted-foreground': '210 5% 45%', accent: '210 10% 92%', 'accent-foreground': '213 10% 17%',
+    destructive: '1 82% 55%', 'destructive-foreground': '0 0% 100%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%',
+    border: '210 15% 85%', input: '210 15% 85%', ring: '194 66% 45%',
+  };
+  static SLATE_DARK = {
+    background: '213 10% 17%', foreground: '0 0% 67%', card: '210 8% 25%', 'card-foreground': '0 0% 100%',
+    primary: '194 66% 61%', 'primary-foreground': '213 10% 17%', secondary: '210 6% 34%', 'secondary-foreground': '0 0% 80%',
+    muted: '210 6% 34%', 'muted-foreground': '0 0% 60%', accent: '210 8% 30%', 'accent-foreground': '0 0% 100%',
+    destructive: '1 82% 65%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%',
+    border: '210 8% 22%', input: '210 8% 22%', ring: '194 66% 61%',
+  };
+
+  static THEMES = [
+    { id: 'slate', label: 'Slate (default)', light: Component.SLATE_LIGHT, dark: Component.SLATE_DARK },
+    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha',
+      light: { background: '220 23% 95%', foreground: '234 16% 35%', card: '220 23% 98%', 'card-foreground': '234 16% 35%', primary: '266 85% 58%', 'primary-foreground': '220 23% 95%', secondary: '223 16% 88%', 'secondary-foreground': '234 16% 35%', muted: '223 16% 88%', 'muted-foreground': '233 10% 47%', accent: '220 22% 92%', 'accent-foreground': '234 16% 35%', destructive: '347 87% 44%', 'destructive-foreground': '0 0% 100%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%', border: '225 14% 82%', input: '225 14% 82%', ring: '266 85% 58%' },
+      dark: { background: '240 21% 15%', foreground: '226 64% 88%', card: '240 21% 20%', 'card-foreground': '226 64% 88%', primary: '267 84% 81%', 'primary-foreground': '240 21% 15%', secondary: '240 21% 20%', 'secondary-foreground': '226 64% 88%', muted: '237 16% 23%', 'muted-foreground': '227 35% 72%', accent: '240 21% 25%', 'accent-foreground': '226 64% 88%', destructive: '343 81% 75%', 'destructive-foreground': '240 21% 15%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '237 16% 23%', input: '237 16% 23%', ring: '267 84% 81%' } },
+    { id: 'dracula', label: 'Dracula', light: null,
+      dark: { background: '231 15% 18%', foreground: '60 30% 96%', card: '232 14% 22%', 'card-foreground': '60 30% 96%', primary: '265 89% 78%', 'primary-foreground': '231 15% 18%', secondary: '232 14% 22%', 'secondary-foreground': '60 30% 96%', muted: '230 14% 28%', 'muted-foreground': '228 8% 60%', accent: '232 14% 26%', 'accent-foreground': '60 30% 96%', destructive: '0 100% 67%', 'destructive-foreground': '60 30% 96%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '230 14% 25%', input: '230 14% 25%', ring: '265 89% 78%' } },
+    { id: 'nord', label: 'Nord',
+      light: { background: '219 28% 94%', foreground: '220 16% 22%', card: '219 28% 98%', 'card-foreground': '220 16% 22%', primary: '213 32% 52%', 'primary-foreground': '0 0% 100%', secondary: '219 28% 88%', 'secondary-foreground': '220 16% 22%', muted: '219 28% 88%', 'muted-foreground': '220 16% 46%', accent: '219 28% 91%', 'accent-foreground': '220 16% 22%', destructive: '354 42% 56%', 'destructive-foreground': '0 0% 100%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%', border: '220 17% 82%', input: '220 17% 82%', ring: '213 32% 52%' },
+      dark: { background: '220 16% 22%', foreground: '219 28% 88%', card: '222 16% 28%', 'card-foreground': '219 28% 88%', primary: '213 32% 52%', 'primary-foreground': '0 0% 100%', secondary: '222 16% 28%', 'secondary-foreground': '219 28% 88%', muted: '220 17% 32%', 'muted-foreground': '219 14% 60%', accent: '222 16% 32%', 'accent-foreground': '219 28% 88%', destructive: '354 42% 56%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '220 17% 27%', input: '220 17% 27%', ring: '213 32% 52%' } },
+    { id: 'gruvbox', label: 'Gruvbox',
+      light: { background: '44 87% 94%', foreground: '0 0% 16%', card: '47 80% 90%', 'card-foreground': '0 0% 16%', primary: '24 88% 45%', 'primary-foreground': '44 87% 94%', secondary: '44 60% 84%', 'secondary-foreground': '0 0% 16%', muted: '44 60% 84%', 'muted-foreground': '0 0% 36%', accent: '44 70% 88%', 'accent-foreground': '0 0% 16%', destructive: '6 96% 30%', 'destructive-foreground': '44 87% 94%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%', border: '42 38% 76%', input: '42 38% 76%', ring: '24 88% 45%' },
+      dark: { background: '0 0% 16%', foreground: '42 46% 81%', card: '20 5% 22%', 'card-foreground': '42 46% 81%', primary: '27 99% 55%', 'primary-foreground': '0 0% 16%', secondary: '20 5% 22%', 'secondary-foreground': '42 46% 81%', muted: '21 6% 28%', 'muted-foreground': '34 22% 55%', accent: '20 5% 26%', 'accent-foreground': '42 46% 81%', destructive: '6 96% 59%', 'destructive-foreground': '0 0% 16%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '20 5% 25%', input: '20 5% 25%', ring: '27 99% 55%' } },
+    { id: 'solarized', label: 'Solarized',
+      light: { background: '44 87% 94%', foreground: '192 81% 14%', card: '44 87% 98%', 'card-foreground': '192 81% 14%', primary: '205 70% 48%', 'primary-foreground': '44 87% 94%', secondary: '46 42% 86%', 'secondary-foreground': '192 81% 14%', muted: '46 42% 86%', 'muted-foreground': '194 14% 40%', accent: '46 42% 90%', 'accent-foreground': '192 81% 14%', destructive: '1 71% 52%', 'destructive-foreground': '44 87% 94%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%', border: '46 42% 80%', input: '46 42% 80%', ring: '205 70% 48%' },
+      dark: { background: '192 81% 14%', foreground: '44 87% 94%', card: '192 100% 11%', 'card-foreground': '44 87% 94%', primary: '205 70% 48%', 'primary-foreground': '192 81% 14%', secondary: '192 100% 11%', 'secondary-foreground': '44 87% 94%', muted: '194 14% 20%', 'muted-foreground': '180 7% 56%', accent: '192 49% 18%', 'accent-foreground': '44 87% 94%', destructive: '1 71% 52%', 'destructive-foreground': '44 87% 94%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '194 14% 20%', input: '194 14% 20%', ring: '205 70% 48%' } },
+    { id: 'tokyo-night', label: 'Tokyo Night', light: null,
+      dark: { background: '235 18% 14%', foreground: '226 63% 82%', card: '235 18% 19%', 'card-foreground': '226 63% 82%', primary: '230 94% 82%', 'primary-foreground': '235 18% 14%', secondary: '235 18% 19%', 'secondary-foreground': '226 63% 82%', muted: '234 16% 23%', 'muted-foreground': '228 20% 55%', accent: '235 18% 24%', 'accent-foreground': '226 63% 82%', destructive: '348 86% 61%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '234 16% 22%', input: '234 16% 22%', ring: '230 94% 82%' } },
+    { id: 'github-dark', label: 'GitHub Dark', light: null,
+      dark: { background: '215 21% 11%', foreground: '213 14% 77%', card: '216 18% 16%', 'card-foreground': '213 14% 77%', primary: '212 92% 66%', 'primary-foreground': '0 0% 100%', secondary: '216 18% 16%', 'secondary-foreground': '213 14% 77%', muted: '215 14% 21%', 'muted-foreground': '213 10% 52%', accent: '216 18% 20%', 'accent-foreground': '213 14% 77%', destructive: '0 72% 51%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '215 14% 19%', input: '215 14% 19%', ring: '212 92% 66%' } },
+    { id: 'unifi', label: 'UniFi',
+      light: { background: '220 14% 96%', foreground: '220 9% 18%', card: '0 0% 100%', 'card-foreground': '220 9% 18%', primary: '216 98% 52%', 'primary-foreground': '0 0% 100%', secondary: '218 14% 90%', 'secondary-foreground': '220 9% 18%', muted: '218 14% 90%', 'muted-foreground': '220 9% 44%', accent: '218 14% 93%', 'accent-foreground': '220 9% 18%', destructive: '4 90% 58%', 'destructive-foreground': '0 0% 100%', success: '142.3 100% 32.6%', warning: '30.1 100% 44.2%', border: '218 14% 84%', input: '218 14% 84%', ring: '216 98% 52%' },
+      dark: { background: '225 6% 13%', foreground: '220 9% 82%', card: '225 6% 17%', 'card-foreground': '220 9% 82%', primary: '216 98% 52%', 'primary-foreground': '0 0% 100%', secondary: '225 6% 17%', 'secondary-foreground': '220 9% 82%', muted: '225 6% 22%', 'muted-foreground': '220 9% 55%', accent: '225 6% 22%', 'accent-foreground': '220 9% 82%', destructive: '4 90% 58%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '225 6% 20%', input: '225 6% 20%', ring: '216 98% 52%' } },
+    { id: 'hulu', label: 'Hulu', light: null,
+      dark: { background: '240 6% 6%', foreground: '0 0% 98%', card: '240 6% 10%', 'card-foreground': '0 0% 98%', primary: '148 81% 50%', 'primary-foreground': '240 6% 6%', secondary: '240 6% 14%', 'secondary-foreground': '0 0% 92%', muted: '240 6% 12%', 'muted-foreground': '240 4% 62%', accent: '148 40% 16%', 'accent-foreground': '148 80% 88%', destructive: '0 72% 55%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '240 6% 18%', input: '240 6% 14%', ring: '148 81% 50%' } },
+    { id: 'obsidian', label: 'Obsidian', light: null,
+      dark: { background: '222 18% 2%', foreground: '210 14% 92%', card: '222 16% 6%', 'card-foreground': '210 14% 92%', primary: '188 72% 56%', 'primary-foreground': '200 30% 6%', secondary: '222 14% 10%', 'secondary-foreground': '210 14% 92%', muted: '222 14% 9%', 'muted-foreground': '215 12% 60%', accent: '222 14% 12%', 'accent-foreground': '210 16% 96%', destructive: '0 72% 58%', 'destructive-foreground': '0 0% 100%', success: '150.1 95.6% 44.8%', warning: '43.6 100% 50%', border: '222 12% 16%', input: '222 12% 14%', ring: '188 72% 56%' } },
+  ];
+
+  renderVals() {
+    const themeId = this.state.themeId ?? this.props.theme ?? 'slate';
+    const mode = this.state.mode ?? this.props.mode ?? 'light';
+    const t = Component.THEMES.find((x) => x.id === themeId) || Component.THEMES[0];
+    // Match the app: themes without a light palette fall back to default Slate light.
+    const vars = mode === 'dark' ? (t.dark || Component.SLATE_DARK) : (t.light || Component.SLATE_LIGHT);
+    const themeStyle = {};
+    for (const k in vars) themeStyle['--' + k] = vars[k];
+    const dk = mode === 'dark';
+    themeStyle['--c-blue'] = dk ? '#60a5fa' : '#2563eb';
+    themeStyle['--c-yellow'] = dk ? '#facc15' : '#ca8a04';
+    themeStyle['--c-purple'] = dk ? '#c084fc' : '#9333ea';
+    themeStyle['--c-red'] = dk ? '#f87171' : '#dc2626';
+    themeStyle['--c-teal'] = dk ? '#2dd4bf' : '#0f766e';
+    themeStyle.colorScheme = dk ? 'dark' : 'light';
+
+    const sun = React.createElement('svg', { width: 20, height: 20, fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 2 },
+      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' }));
+    const moon = React.createElement('svg', { width: 20, height: 20, fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 2 },
+      React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z' }));
+
+    const checkBase = {
+      width: '16px', height: '16px', borderRadius: '2px', display: 'inline-flex',
+      alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .15s',
+      fontSize: '11px', fontWeight: 700,
+    };
+    const checkOn = { ...checkBase, background: 'hsl(var(--primary))', border: '2px solid hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' };
+    const checkOff = { ...checkBase, background: 'transparent', border: '2px solid hsl(var(--muted-foreground) / 0.4)', color: 'transparent' };
+
+    const tabBase = {
+      padding: '8px 16px', fontSize: '14px', fontWeight: 500, background: 'transparent',
+      cursor: 'pointer', fontFamily: 'inherit', border: 'none', borderBottom: '2px solid transparent',
+      marginBottom: '-1px', color: 'hsl(var(--muted-foreground))', transition: 'color .15s',
+    };
+    const tabActive = { ...tabBase, borderBottomColor: 'hsl(var(--primary))', color: 'hsl(var(--primary))' };
+    const tab = this.state.tab;
+
+    return {
+      themeId, themeStyle,
+      themeOptions: Component.THEMES.map((x) => ({ id: x.id, label: x.label })),
+      onTheme: (e) => this.setState({ themeId: e.target.value }),
+      toggleMode: () => this.setState({ mode: mode === 'dark' ? 'light' : 'dark' }),
+      modeIcon: mode === 'dark' ? sun : moon,
+      checkAStyle: this.state.checkA ? checkOn : checkOff,
+      checkBStyle: this.state.checkB ? checkOn : checkOff,
+      checkAMark: this.state.checkA ? '\u2713' : '',
+      checkBMark: this.state.checkB ? '\u2713' : '',
+      toggleCheckA: () => this.setState((s) => ({ checkA: !s.checkA })),
+      toggleCheckB: () => this.setState((s) => ({ checkB: !s.checkB })),
+      tabStyle0: tab === 0 ? tabActive : tabBase,
+      tabStyle1: tab === 1 ? tabActive : tabBase,
+      tabStyle2: tab === 2 ? tabActive : tabBase,
+      tab0: () => this.setState({ tab: 0 }),
+      tab1: () => this.setState({ tab: 1 }),
+      tab2: () => this.setState({ tab: 2 }),
+      dropdownOpen: this.state.dropdownOpen,
+      toggleDropdown: () => this.setState((s) => ({ dropdownOpen: !s.dropdownOpen })),
+      ddChevron: { transition: 'transform .15s', transform: this.state.dropdownOpen ? 'rotate(180deg)' : 'none' },
+      collapseOpen: this.state.collapseOpen,
+      toggleCollapse: () => this.setState((s) => ({ collapseOpen: !s.collapseOpen })),
+      chevronStyle: { color: 'hsl(var(--muted-foreground))', transition: 'transform .2s', transform: this.state.collapseOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 },
+    };
+  }
+}
+</script>
+</body>
+</html>
