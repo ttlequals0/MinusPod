@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,7 @@ import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
-import { btnDestructive, btnGhost, btnGhostDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { Modal } from '../components/Modal';
 
 function reprocessModeLabel(mode: string): string {
@@ -85,7 +85,10 @@ function FeedDetail() {
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [showDeleteFeedConfirm, setShowDeleteFeedConfirm] = useState(false);
+  // Delete confirms by a second click within 3s, matching the dashboard.
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
@@ -134,11 +137,31 @@ function FeedDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteFeed(slug!),
+    onMutate: () => setActionError(null),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate('/');
     },
+    onError: (err) => {
+      setDeleteConfirm(false);
+      setActionError((err as Error).message);
+    },
   });
+
+  // The timer outlives the page on a successful delete, which navigates away.
+  useEffect(() => () => {
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+  }, []);
+
+  const handleDeleteFeed = () => {
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    if (deleteConfirm) {
+      deleteMutation.mutate();
+    } else {
+      setDeleteConfirm(true);
+      deleteTimerRef.current = setTimeout(() => setDeleteConfirm(false), 3000);
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug!, data),
@@ -387,7 +410,9 @@ function FeedDetail() {
               icon-only delete stays the same height as the labelled ones. */}
           <div className="flex flex-wrap justify-end gap-2">
             <DropdownMenu
-              triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
+              triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
+                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
+              )}
               triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
@@ -420,7 +445,9 @@ function FeedDetail() {
               ]}
             />
             <DropdownMenu
-              triggerLabel={refreshMutation.isPending ? 'Refreshing...' : 'Refresh Feed'}
+              triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
+                <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
+              )}
               triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
               disabled={refreshMutation.isPending}
               title="Refresh feed"
@@ -437,19 +464,16 @@ function FeedDetail() {
                 },
               ]}
             />
-            {/* Kept apart from the two routine actions, and quiet at rest, so
-                the destructive one never reads as the obvious next click. The
-                rule only separates anything while the row is intact; once the
-                group wraps it would strand a stray mark on its own line. */}
-            <span aria-hidden="true" className="hidden sm:block w-px self-stretch bg-border mx-1" />
+            {/* Same button and confirm flow as the dashboard's feed cards. */}
             <button
-              onClick={() => setShowDeleteFeedConfirm(true)}
-              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnGhostDestructive} transition-colors whitespace-nowrap`}
+              onClick={handleDeleteFeed}
+              disabled={deleteMutation.isPending}
+              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors`}
               title="Delete feed"
               aria-label="Delete feed"
             >
-              <Trash2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Delete feed</span>
+              <Trash2 className="w-4 h-4 sm:hidden" />
+              <span className="hidden sm:inline">Delete</span>
             </button>
           </div>
         </div>
@@ -709,40 +733,6 @@ function FeedDetail() {
         </Modal>
       )}
 
-      {/* Delete Feed Confirmation Modal */}
-      {showDeleteFeedConfirm && (
-        <Modal onClose={() => setShowDeleteFeedConfirm(false)} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">Delete feed</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Deleting {feedDisplayTitle(feed)} removes its episodes, processed audio, and
-              processing history. Any job running for this feed is cancelled, and the
-              subscription URL stops working immediately. You cannot undo this.
-            </p>
-            {deleteMutation.isError && (
-              <p className="text-sm text-destructive mb-4">
-                The feed was not deleted: {(deleteMutation.error as Error).message}
-              </p>
-            )}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteFeedConfirm(false)}
-                className={`px-4 py-2 rounded ${btnSecondary}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
-                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50`}
-              >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete feed'}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
       {/* Bulk Action Result Modal */}
       {bulkResult && (
         <Modal onClose={() => setBulkResult(null)} panelClassName="max-w-md w-full">
@@ -768,6 +758,31 @@ function FeedDetail() {
           </div>
         </Modal>
       )}
+      {/* Same bottom-right confirm/error toasts the dashboard uses. */}
+      {(deleteConfirm || actionError) && (
+        <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
+          {actionError && (
+            <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
+              <span className="flex-1">{actionError}</span>
+              <button
+                onClick={() => setActionError(null)}
+                aria-label="Dismiss error"
+                className="shrink-0 text-destructive/70 hover:text-destructive"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
+          {deleteConfirm && (
+            <div className="bg-card border border-border rounded-lg p-4 shadow-lg">
+              <p className="text-sm text-foreground">Click delete again to confirm</p>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

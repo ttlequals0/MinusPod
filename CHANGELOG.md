@@ -22,8 +22,8 @@ release notes.
   dropped first. Generated RSS still points episode art at the publisher,
   where podcast apps fetch it without trouble.
 - A Delete feed button on the feed page, so removing a feed no longer means
-  going back to the dashboard first. It confirms in a dialog that says what
-  goes with the feed.
+  going back to the dashboard first. It is the same button and the same
+  click-twice confirm the dashboard already uses.
 
 ### Fixed
 
