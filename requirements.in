@@ -25,7 +25,7 @@ beautifulsoup4>=4.15.0
 pillow>=12.3.0
 
 # Utilities
-feedparser==6.0.12
+feedparser==6.0.14
 python-slugify==8.0.4
 
 # Audio analysis (torch 2.13.0+cu126 pre-installed in Dockerfile)
