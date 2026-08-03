@@ -13,6 +13,11 @@ release notes.
 
 ### Fixed
 
+- `react-dom` is pinned to the same version as `react` again. A dependency
+  bump moved `react` to 19.2.8 and left `react-dom` at 19.2.7, and React
+  refuses to run when the two differ, which stopped every frontend test file
+  from loading. Production builds strip that check, so the shipped UI was not
+  affected, but the mismatch is unsupported either way.
 - A podcast whose artwork URL serves the wrong content type is no longer
   refetched on every feed refresh. The download failed, left the cached flag
   unset, and so ran again the next cycle, costing a request and a warning
