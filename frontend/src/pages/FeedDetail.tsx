@@ -380,7 +380,12 @@ function FeedDetail() {
               labelClassName="text-sm"
             />
           </div>
-          <div className="flex gap-2">
+          {/* Wraps rather than overflowing: every child is whitespace-nowrap, so
+              without this the group keeps its intrinsic width and pushes the last
+              button through the card's padding on a narrow screen. No
+              items-center, so the buttons keep flex's default stretch and the
+              icon-only delete stays the same height as the labelled ones. */}
+          <div className="flex flex-wrap justify-end gap-2">
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
               triggerClassName={`px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap`}
@@ -433,8 +438,10 @@ function FeedDetail() {
               ]}
             />
             {/* Kept apart from the two routine actions, and quiet at rest, so
-                the destructive one never reads as the obvious next click. */}
-            <span aria-hidden="true" className="w-px self-stretch bg-border mx-1" />
+                the destructive one never reads as the obvious next click. The
+                rule only separates anything while the row is intact; once the
+                group wraps it would strand a stray mark on its own line. */}
+            <span aria-hidden="true" className="hidden sm:block w-px self-stretch bg-border mx-1" />
             <button
               onClick={() => setShowDeleteFeedConfirm(true)}
               className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnGhostDestructive} transition-colors whitespace-nowrap`}
