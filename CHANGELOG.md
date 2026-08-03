@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.84.5] - 2026-08-02
+
+### Fixed
+
+- The experimental label on the per-feed pair-synthesis override no longer
+  pushes its dropdown out of line with the rest of the cue tuning controls.
+  It now sits at the end of the row, after the "Empty = use global" hint.
+
 ## [2.84.4] - 2026-08-02
 
 ### Fixed
