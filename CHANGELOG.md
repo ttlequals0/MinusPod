@@ -13,6 +13,16 @@ release notes.
 
 ### Fixed
 
+- A podcast whose artwork URL serves the wrong content type is no longer
+  refetched on every feed refresh. The download failed, left the cached flag
+  unset, and so ran again the next cycle, costing a request and a warning
+  every few minutes for as long as the publisher's host stayed broken. A
+  failed URL is now remembered for six hours. Changing the artwork URL, or
+  refreshing artwork by hand, retries at once.
+- Container startup reports when it cannot change ownership of entries under
+  the data directory, rather than continuing silently (issue #604). A
+  container that dropped `CAP_CHOWN` fails every entry, and without the
+  warning the only symptom was the app being unable to write.
 - Sponsor guessing no longer treats a capitalized filler word as a brand.
   The word after an ad transition phrase was compared against the skip list
   with its original case, so a transcript reading "brought to you by The

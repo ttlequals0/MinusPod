@@ -56,6 +56,16 @@ def test_find_success_counts_entries():
     assert 'COUNT=[3]' in result.stdout
 
 
+def test_chown_failure_is_reported():
+    # A container without CAP_CHOWN fails every entry; `|| true` used to hide
+    # that, leaving the app unable to write with no explanation (issue #604).
+    text = ENTRYPOINT.read_text()
+    chown_line = next(ln for ln in text.splitlines()
+                      if '-exec chown' in ln and not ln.strip().startswith('#'))
+    assert '|| true' not in chown_line, 'chown failure must not be swallowed'
+    assert 'could not change ownership' in text
+
+
 def test_no_inline_echo_fallback_on_a_pipeline():
     # The construct that caused #604: `| wc -l || echo 0` inside $( ).
     assert not re.search(r'\|\s*wc -l\s*\|\|\s*echo', ENTRYPOINT.read_text())

@@ -59,7 +59,12 @@ if [[ "$(id -u)" == "0" ]]; then
         fi
         if [[ "$unowned_count" -gt 0 ]]; then
             echo "entrypoint: migrating ownership of $unowned_count entries under $DATA_DIR to ${APP_UID}:${APP_GID}"
-            find "$DATA_DIR" -xdev \! -user "$APP_UID" -exec chown -h "${APP_UID}:${APP_GID}" {} + 2>/dev/null || true
+            # Say when the chown could not run. A container that dropped
+            # CAP_CHOWN fails every entry here, and staying silent leaves the
+            # app unable to write with no explanation (issue #604).
+            if ! find "$DATA_DIR" -xdev \! -user "$APP_UID" -exec chown -h "${APP_UID}:${APP_GID}" {} + 2>/dev/null; then
+                echo "WARN entrypoint: could not change ownership of some entries under $DATA_DIR (missing CAP_CHOWN?); the app may fail to write there"
+            fi
         fi
     fi
 

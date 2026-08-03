@@ -41,6 +41,11 @@ _ALLOWED_IMAGE_TYPES = frozenset({
 # TTL for get_storage_stats(); disk usage does not change second-to-second
 # and the walk is thousands of stat() calls.
 STORAGE_STATS_TTL_SECONDS = 45
+# A feed whose artwork URL serves the wrong content type fails identically on
+# every refresh, so retrying each cycle only burns a request and a log line.
+# Long enough to stop the churn, short enough that a publisher fix is picked
+# up the same day. A forced refresh ignores it.
+ARTWORK_FAILURE_TTL_SECONDS = 6 * 3600
 
 # Cached cover-art badge variant (issue #420), one per podcast dir.
 _WATERMARK_VARIANT = "artwork-minuspod.jpg"
@@ -153,6 +158,11 @@ class Storage:
         # duplicating it.
         self._storage_stats_cache = TTLCache(STORAGE_STATS_TTL_SECONDS)
         self._storage_stats_lock = threading.Lock()
+
+        # Artwork URLs that failed validation, so a broken one is not refetched
+        # on every feed refresh. Keyed by slug and URL, so a changed URL retries
+        # at once.
+        self._artwork_failure_cache = TTLCache(ARTWORK_FAILURE_TTL_SECONDS)
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -654,6 +664,19 @@ class Storage:
         if not artwork_url:
             return False
 
+        failure_key = f"{slug}\n{artwork_url}"
+        if not force and self._artwork_failure_cache.get(failure_key):
+            logger.debug(
+                f"[{slug}] Skipping artwork retry, this URL failed recently")
+            return False
+
+        ok = self._download_artwork_uncached(slug, artwork_url, force)
+        self._artwork_failure_cache.set(failure_key, not ok)
+        return ok
+
+    def _download_artwork_uncached(self, slug: str, artwork_url: str,
+                                   force: bool) -> bool:
+        """Fetch, validate, and save artwork. See download_artwork."""
         try:
             # Check if we already have this artwork on disk. Callers that
             # already wrote the new URL to the row pass force, since the
