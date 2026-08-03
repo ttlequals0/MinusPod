@@ -32,7 +32,9 @@
     "minimatch": ">=3.1.3",
     "picomatch": ">=2.3.2",
     "esbuild": ">=0.27.0",
-    "@babel/core": "^7.29.6"
+    "@babel/core": "^7.29.6",
+    "brace-expansion": ">=5.0.9",
+    "postcss": ">=8.5.23"
   },
   "devDependencies": {
     "@babel/core": "^7.29.6",
