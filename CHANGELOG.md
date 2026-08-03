@@ -9,6 +9,35 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.85.0] - 2026-08-03
+
+### Added
+
+- Episode covers are fetched and cached by MinusPod rather than loaded from
+  the publisher. Publishers reject images requested with a cross-site
+  Referer, which is what a browser sends for a hot-linked image, so covers
+  that worked for months turn into grey placeholders with nothing in the
+  logs to explain it. Serving them ourselves also keeps listener IPs off
+  the publisher. Cached covers are capped per feed, least recently served
+  dropped first. Generated RSS still points episode art at the publisher,
+  where podcast apps fetch it without trouble.
+- A Delete feed button on the feed page, so removing a feed no longer means
+  going back to the dashboard first. It confirms in a dialog that says what
+  goes with the feed.
+
+### Fixed
+
+- Deleting a feed no longer leaves rows pointing at it. Ad patterns and ad
+  reviewer log entries key on the slug as plain text with no foreign key, so
+  they outlived the feed, as did the fingerprints and corrections hanging
+  off those patterns. A re-added feed takes the same slug, so it inherited
+  the old feed's patterns and applied one show's learning to another.
+  Feed-scoped patterns now go with the feed; wider-scoped ones keep their
+  learning and drop the dead reference.
+- Endpoints podcast apps fetch no longer set a session and CSRF cookie
+  neither can use. The session cookie carried a `Vary: Cookie` that stopped
+  any CDN caching cover art and audio.
+
 ## [2.84.5] - 2026-08-02
 
 ### Fixed

@@ -102,7 +102,7 @@ function EpisodeRow({
         className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''}`}
       >
         <Artwork
-          src={episodeArtworkSrc(feedSlug, episode.artworkUrl, feedArtworkUrl)}
+          src={episodeArtworkSrc(feedSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}
           alt=""
           loading="lazy"
           className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"

@@ -12,6 +12,7 @@ import type { Feed } from '../api/types';
 
 vi.mock('react-router', () => ({
   useParams: () => ({ slug: 'test-feed' }),
+  useNavigate: () => vi.fn(),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),

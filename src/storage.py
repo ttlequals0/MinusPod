@@ -47,6 +47,29 @@ STORAGE_STATS_TTL_SECONDS = 45
 # up the same day. A forced refresh ignores it.
 ARTWORK_FAILURE_TTL_SECONDS = 6 * 3600
 
+# Extension per stored image type, and the reverse lookup used to find a
+# cached cover when only the base name is known.
+_EXTENSION_BY_TYPE = {
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+}
+_ARTWORK_EXTENSIONS = (
+    ('.jpg', 'image/jpeg'),
+    ('.png', 'image/png'),
+    ('.gif', 'image/gif'),
+    ('.webp', 'image/webp'),
+)
+
+# Per-feed episode covers live here, one file per episode id (issue #617).
+_EPISODE_ARTWORK_DIR = "episode-artwork"
+# Per-feed ceiling on that directory. Publisher episode covers run large (a
+# 3000x3000 JPEG is ~600 KB), and a long back catalogue would otherwise grow
+# without limit, so the least recently served files are dropped past this.
+EPISODE_ARTWORK_CACHE_BYTES = 64 * 1024 * 1024
+
 # Cached cover-art badge variant (issue #420), one per podcast dir.
 _WATERMARK_VARIANT = "artwork-minuspod.jpg"
 # Sidecar recording the cover_badge_salt the cached variant was rendered with.
@@ -478,14 +501,7 @@ class Storage:
         try:
             podcast_dir = self.get_podcast_dir(slug)
 
-            extension_by_type = {
-                'image/png': '.png',
-                'image/gif': '.gif',
-                'image/webp': '.webp',
-                'image/jpeg': '.jpg',
-                'image/jpg': '.jpg',
-            }
-            ext = extension_by_type.get(content_type.lower(), '.jpg')
+            ext = _EXTENSION_BY_TYPE.get(content_type.lower(), '.jpg')
 
             artwork_path = podcast_dir / f"artwork{ext}"
 
@@ -534,18 +550,198 @@ class Storage:
         if not podcast_dir:
             return None
 
-        for ext, content_type in [
-            ('.jpg', 'image/jpeg'),
-            ('.png', 'image/png'),
-            ('.gif', 'image/gif'),
-            ('.webp', 'image/webp'),
-        ]:
+        for ext, content_type in _ARTWORK_EXTENSIONS:
             artwork_path = podcast_dir / f"artwork{ext}"
             if artwork_path.exists():
                 with open(artwork_path, 'rb') as f:
                     return f.read(), content_type
 
         return None
+
+    # ---------- Episode covers (issue #617) ----------
+
+    def _episode_artwork_dir(self, slug: str, create: bool = False) -> Optional[Path]:
+        """The feed's episode-cover directory, or None when the feed has none."""
+        podcast_dir = (self.get_podcast_dir(slug) if create
+                       else self.podcast_dir_if_exists(slug))
+        if not podcast_dir:
+            return None
+        art_dir = _safe_join_under(podcast_dir, _EPISODE_ARTWORK_DIR)
+        if create:
+            art_dir.mkdir(exist_ok=True)
+        return art_dir
+
+    def get_episode_artwork(self, slug: str,
+                            episode_id: str) -> Optional[Tuple[bytes, str]]:
+        """Cached episode cover. Returns (data, content_type) or None.
+
+        Serving bumps the mtime so eviction can drop the covers nobody is
+        looking at rather than the oldest episodes.
+        """
+        if not is_valid_episode_id(episode_id):
+            return None
+        art_dir = self._episode_artwork_dir(slug)
+        if not art_dir or not art_dir.is_dir():
+            return None
+
+        for ext, content_type in _ARTWORK_EXTENSIONS:
+            path = art_dir / f"{episode_id}{ext}"
+            if path.exists():
+                with open(path, 'rb') as f:
+                    data = f.read()
+                try:
+                    os.utime(path, None)
+                except OSError:
+                    pass
+                return data, content_type
+
+        return None
+
+    def download_episode_artwork(self, slug: str, episode_id: str,
+                                 artwork_url: str) -> bool:
+        """Fetch and cache one episode's cover.
+
+        Shares the validation contract of ``download_artwork``: file-magic
+        allowlist, size cap, and a failure cache so a host that blocks or
+        404s is not re-fetched on every page load. Deliberately does not
+        touch the badge variant, which is podcast-level and unaffected.
+        """
+        if not artwork_url or not is_valid_episode_id(episode_id):
+            return False
+
+        failure_key = f"{slug}\n{episode_id}\n{artwork_url}"
+        if self._artwork_failure_cache.get(failure_key):
+            logger.debug(
+                f"[{slug}:{episode_id}] Skipping episode artwork retry, "
+                f"this URL failed recently")
+            return False
+
+        ok = self._download_episode_artwork_uncached(slug, episode_id, artwork_url)
+        self._artwork_failure_cache.set(failure_key, not ok)
+        return ok
+
+    def _download_episode_artwork_uncached(self, slug: str, episode_id: str,
+                                          artwork_url: str) -> bool:
+        """Fetch, validate, and save one episode cover. See
+        download_episode_artwork."""
+        try:
+            logger.info(f"[{slug}:{episode_id}] Downloading episode artwork from "
+                        f"{safe_url_for_log(artwork_url)}")
+
+            headers = {
+                'User-Agent': BROWSER_USER_AGENT,
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
+            try:
+                response = safe_get(
+                    artwork_url,
+                    trust=URLTrust.FEED_CONTENT,
+                    max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                    timeout=HTTP_TIMEOUT_FETCH,
+                    stream=True,
+                    headers=headers,
+                )
+            except SSRFError as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] SSRF blocked in "
+                    f"download_episode_artwork: {e}")
+                return False
+            response.raise_for_status()
+
+            declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
+                logger.warning(
+                    "[%s:%s] episode_artwork_rejected_content_type declared=%s url=%s",
+                    slug, episode_id, declared_type, artwork_url,
+                )
+                return False
+
+            max_bytes = _max_artwork_bytes()
+            try:
+                image_data = read_response_capped(response, max_bytes, chunk_size=65536)
+            except ResponseTooLargeError:
+                logger.warning(
+                    "[%s:%s] episode_artwork_size_cap_exceeded max=%d url=%s",
+                    slug, episode_id, max_bytes, artwork_url,
+                )
+                return False
+
+            detected = _detect_image_mime(image_data)
+            if not detected:
+                logger.warning(
+                    "[%s:%s] episode_artwork_rejected_magic declared=%s url=%s",
+                    slug, episode_id, declared_type, artwork_url,
+                )
+                return False
+
+            return self._save_episode_artwork(slug, episode_id, image_data, detected)
+
+        except Exception as e:
+            logger.warning(
+                f"[{slug}:{episode_id}] Failed to download episode artwork: {e}")
+            return False
+
+    def _save_episode_artwork(self, slug: str, episode_id: str,
+                              image_data: bytes, content_type: str) -> bool:
+        """Write one episode cover, replacing any stale extension, then trim
+        the feed's cache back under EPISODE_ARTWORK_CACHE_BYTES."""
+        art_dir = self._episode_artwork_dir(slug, create=True)
+        if art_dir is None:
+            return False
+
+        ext = _EXTENSION_BY_TYPE.get(content_type.lower(), '.jpg')
+        artwork_path = _safe_join_under(art_dir, f"{episode_id}{ext}")
+
+        with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                         dir=art_dir, suffix='.tmp') as tmp:
+            tmp.write(image_data)
+            tmp_path = tmp.name
+        os.replace(tmp_path, artwork_path)
+
+        for old_ext, _ in _ARTWORK_EXTENSIONS:
+            old_path = art_dir / f"{episode_id}{old_ext}"
+            if old_path.exists() and old_path != artwork_path:
+                old_path.unlink()
+
+        self._evict_episode_artwork(art_dir)
+        return True
+
+    def _evict_episode_artwork(self, art_dir: Path) -> int:
+        """Drop least-recently-served covers until the directory fits the cap.
+        Returns the number of files removed."""
+        known_suffixes = {ext for ext, _ in _ARTWORK_EXTENSIONS}
+        entries = []
+        total = 0
+        for path in art_dir.iterdir():
+            # Skip .tmp files: another thread is mid-write, and unlinking one
+            # would break the os.replace it is about to do.
+            if not path.is_file() or path.suffix not in known_suffixes:
+                continue
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            entries.append((stat.st_mtime, stat.st_size, path))
+            total += stat.st_size
+
+        if total <= EPISODE_ARTWORK_CACHE_BYTES:
+            return 0
+
+        removed = 0
+        for _, size, path in sorted(entries):
+            if total <= EPISODE_ARTWORK_CACHE_BYTES:
+                break
+            try:
+                path.unlink()
+            except OSError:
+                continue
+            total -= size
+            removed += 1
+
+        if removed:
+            logger.info("episode_artwork_evicted count=%d dir=%s", removed, art_dir.name)
+        return removed
 
     def clear_watermark_cache(self, slug: str) -> None:
         """Drop the cached MinusPod badge variant (issue #420) so it recomposites

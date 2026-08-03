@@ -418,7 +418,7 @@ function EpisodeDetail() {
         <div className="flex gap-4">
           <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
             <Artwork
-              src={episodeArtworkSrc(slug!, episode.artworkUrl, feed?.artworkUrl)}
+              src={episodeArtworkSrc(slug!, episode.id, episode.artworkUrl, feed?.artworkUrl)}
               alt="Podcast artwork"
               className="w-full h-full object-cover rounded-lg"
             />

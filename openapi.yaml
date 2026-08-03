@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.84.5
+  version: 2.85.0
   contact:
     name: MinusPod
   license:
@@ -1003,6 +1003,39 @@ paths:
                 $ref: '#/components/schemas/EpisodeDetail'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/artwork:
+    get:
+      tags:
+        - Episodes
+      summary: Get episode artwork
+      description: >
+        Returns the episode's cover, fetching and caching it from the
+        publisher on first request. Publishers block images requested with a
+        cross-site Referer, so the web UI asks here instead of loading them
+        from the publisher directly. The URL comes from the episode record,
+        never from the caller. Redirects to the feed cover when the episode
+        has no cover of its own or the publisher refuses the fetch.
+      operationId: getEpisodeArtwork
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: Artwork image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '302':
+          description: No episode cover available; redirects to the feed cover
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /feeds/{slug}/episodes/{episode_id}/transcript:
     get:

@@ -10,3 +10,7 @@ export const btnSecondary = 'bg-secondary text-secondary-foreground hover:bg-sec
 export const btnOutline = btnSecondary;
 export const btnGhost = 'text-muted-foreground hover:text-foreground hover:bg-accent';
 export const btnDestructive = 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
+// Destructive actions that sit next to ordinary ones, where a solid fill would
+// pull more weight than the primary action on the page. Reads as quiet until
+// hovered; keep the solid recipe for the confirm step itself.
+export const btnGhostDestructive = 'text-destructive hover:bg-destructive/10';

@@ -8,6 +8,10 @@ type ArtworkProps = ImgHTMLAttributes<HTMLImageElement>;
 function Artwork({ onError, ...rest }: ArtworkProps) {
   return (
     <img
+      // Covers we could not cache fall back to the publisher's own URL, and
+      // publishers reject a cross-site Referer (#617). Sending none gets the
+      // image instead of a 403. Before the spread, so callers can override.
+      referrerPolicy="no-referrer"
       {...rest}
       onError={(e) => {
         (e.target as HTMLImageElement).src = ARTWORK_FALLBACK_SVG;

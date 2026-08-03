@@ -3,7 +3,7 @@ import json
 import logging
 import re
 
-from flask import request, send_file, abort
+from flask import Response, redirect, request, send_file, abort, url_for
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -204,11 +204,14 @@ def list_episodes(slug):
 
 
 def _secure_artwork_url(url):
-    """Publisher episode cover, or None when it is not https.
+    """Publisher episode cover, or None when it is not http(s).
 
-    There is no episode artwork proxy, so the client uses the feed cover.
+    The client turns this into a call to the episode artwork proxy rather
+    than rendering it, and the proxy fetches server-side, so a plain-http
+    cover is no longer a mixed-content problem worth dropping the image
+    over: the browser only ever talks to MinusPod on the page's own scheme.
     """
-    return url if (url or '').startswith('https://') else None
+    return url if (url or '').startswith(('https://', 'http://')) else None
 
 
 def _episode_base_json(ep):
@@ -467,6 +470,46 @@ def get_episode(slug, episode_id):
         'navigation': db.get_episode_neighbors(slug, episode_id),
         **_episode_token_fields(processing_runs),
     })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/artwork', methods=['GET'])
+@log_request
+def get_episode_artwork(slug, episode_id):
+    """Serve an episode cover through MinusPod instead of hot-linking it.
+
+    Publishers put hotlink protection in front of their images that rejects
+    any request carrying a cross-site Referer, which is exactly what a
+    browser sends for a hot-linked ``<img>``; the reader gets a 403 and a
+    grey placeholder (issue #617). Fetching server-side sidesteps that
+    whatever form the block takes, and keeps the reader's IP out of the
+    publisher's logs.
+
+    The URL comes from the episode row, never from the caller, so this
+    cannot be aimed at an arbitrary host.
+    """
+    storage = get_storage()
+    db = get_database()
+
+    artwork = storage.get_episode_artwork(slug, episode_id)
+    if not artwork:
+        episode = db.get_episode(slug, episode_id)
+        artwork_url = (episode or {}).get('artwork_url')
+        if artwork_url and storage.download_episode_artwork(
+                slug, episode_id, artwork_url):
+            artwork = storage.get_episode_artwork(slug, episode_id)
+
+    if not artwork:
+        # No episode cover to be had: hand back the show cover so the row
+        # keeps an image rather than collapsing to the grey placeholder.
+        return redirect(url_for('api.get_artwork', slug=slug))
+
+    image_data, content_type = artwork
+    # content_type came from the magic-number check on write; forbid sniffing
+    # and deny any script loading from this response.
+    response = Response(image_data, mimetype=content_type)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'"
+    return response
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/transcript', methods=['GET'])

@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Pencil } from 'lucide-react';
-import { useParams, Link } from 'react-router';
+import { Pencil, Trash2 } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
+import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
@@ -23,7 +23,7 @@ import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
-import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { btnDestructive, btnGhost, btnGhostDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { Modal } from '../components/Modal';
 
 function reprocessModeLabel(mode: string): string {
@@ -68,6 +68,7 @@ function reprocessModeVerb(mode: string): string {
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
@@ -84,6 +85,7 @@ function FeedDetail() {
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showDeleteFeedConfirm, setShowDeleteFeedConfirm] = useState(false);
   const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
@@ -127,6 +129,14 @@ function FeedDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteFeed(slug!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+      navigate('/');
     },
   });
 
@@ -422,6 +432,18 @@ function FeedDetail() {
                 },
               ]}
             />
+            {/* Kept apart from the two routine actions, and quiet at rest, so
+                the destructive one never reads as the obvious next click. */}
+            <span aria-hidden="true" className="w-px self-stretch bg-border mx-1" />
+            <button
+              onClick={() => setShowDeleteFeedConfirm(true)}
+              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnGhostDestructive} transition-colors whitespace-nowrap`}
+              title="Delete feed"
+              aria-label="Delete feed"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Delete feed</span>
+            </button>
           </div>
         </div>
       </div>
@@ -674,6 +696,40 @@ function FeedDetail() {
                 className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50`}
               >
                 {bulkMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Feed Confirmation Modal */}
+      {showDeleteFeedConfirm && (
+        <Modal onClose={() => setShowDeleteFeedConfirm(false)} panelClassName="max-w-md w-full">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold text-foreground mb-4">Delete feed</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Deleting {feedDisplayTitle(feed)} removes its episodes, processed audio, and
+              processing history. Any job running for this feed is cancelled, and the
+              subscription URL stops working immediately. You cannot undo this.
+            </p>
+            {deleteMutation.isError && (
+              <p className="text-sm text-destructive mb-4">
+                The feed was not deleted: {(deleteMutation.error as Error).message}
+              </p>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteFeedConfirm(false)}
+                className={`px-4 py-2 rounded ${btnSecondary}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50`}
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete feed'}
               </button>
             </div>
           </div>

@@ -4,17 +4,19 @@ export function feedArtworkSrc(slug: string, feedArtworkUrl?: string | null): st
 }
 
 /**
- * Episode cover, falling back to the feed's. An insecure URL is dropped
- * rather than rendered: the browser blocks it, showing the grey placeholder
- * instead of the feed cover we already have.
+ * Episode cover, falling back to the feed's. Publisher URLs are never
+ * rendered directly: hotlink protection rejects a browser's cross-site
+ * Referer and the reader gets a grey placeholder (#617), so the episode
+ * goes through MinusPod's proxy, which fetches it server-side.
  */
 export function episodeArtworkSrc(
   slug: string,
+  episodeId?: string | null,
   episodeArtworkUrl?: string | null,
   feedArtworkUrl?: string | null,
 ): string {
-  if (episodeArtworkUrl && !episodeArtworkUrl.startsWith('http://')) {
-    return episodeArtworkUrl;
+  if (episodeArtworkUrl && episodeId) {
+    return `/api/v1/feeds/${slug}/episodes/${encodeURIComponent(episodeId)}/artwork`;
   }
   return feedArtworkSrc(slug, feedArtworkUrl);
 }

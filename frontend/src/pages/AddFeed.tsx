@@ -85,6 +85,7 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
           alt=""
           className="w-14 h-14 rounded object-cover shrink-0 bg-muted"
           loading="lazy"
+          referrerPolicy="no-referrer"
           onError={() => setImageError(true)}
         />
       ) : (

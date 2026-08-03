@@ -39,11 +39,16 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
     across responses. Set ``HttpOnly=False`` so the frontend JS can read
     it to populate the header; ``SameSite=Strict`` so the cookie never
     travels cross-site in the first place.
+
+    The skip flag is checked before the token is minted: reading it through
+    ``get_or_create_token`` writes the session, which makes Flask emit a
+    session cookie and a ``Vary: Cookie`` that no CDN can cache past. Public
+    podcast-app endpoints have no use for either.
     """
-    token = get_or_create_token()
     if response.headers.get('X-Skip-CSRF-Cookie'):
         response.headers.pop('X-Skip-CSRF-Cookie', None)
         return response
+    token = get_or_create_token()
     existing = response.headers.get('Set-Cookie', '')
     if CSRF_COOKIE_NAME not in existing:
         response.set_cookie(

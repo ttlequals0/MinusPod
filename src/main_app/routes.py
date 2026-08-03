@@ -51,6 +51,23 @@ from utils.opml import build_opml_xml
 STATIC_DIR = None
 ROOT_DIR = None
 
+# Endpoints served to podcast apps and other unauthenticated clients. None of
+# them can use a CSRF token, and minting one writes the session, which adds a
+# session cookie and `Vary: Cookie` that stops any CDN from caching the
+# response. The after_request hook in main_app/__init__.py skips them.
+# serve_ui is deliberately absent: the SPA reads the CSRF cookie from JS.
+PUBLIC_FEED_ENDPOINTS = frozenset({
+    'serve_rss',
+    'serve_episode',
+    'serve_transcript_vtt',
+    'serve_chapters_json',
+    'serve_opml',
+    'serve_minuspod_cover',
+    'favicon',
+    'apple_touch_icon',
+    'health_check',
+})
+
 # Stale-while-revalidate guard: at most one in-flight background refresh
 # thread per slug. refresh_rss_feed's 30 s coalesce window in feeds.py
 # additionally dedupes the upstream fetch against the scheduler.

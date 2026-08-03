@@ -228,13 +228,17 @@ def test_a_304_forces_one_full_fetch_until_metadata_has_been_read():
     assert calls == ['"e2"']
 
 
-def test_episode_api_drops_an_insecure_cover_url():
-    """There is no episode artwork proxy, so an http:// cover would be blocked
-    as mixed content; the client falls back to the feed's instead."""
+def test_episode_api_keeps_an_insecure_cover_url_for_the_proxy():
+    """The client turns this into a call to the episode artwork proxy rather
+    than rendering it, and the proxy fetches server-side, so an http:// cover
+    is no longer mixed content and no longer worth dropping the image over."""
     from api.episodes import _secure_artwork_url
-    assert _secure_artwork_url('http://cdn.example/ep.jpg') is None
+    assert _secure_artwork_url('http://cdn.example/ep.jpg') == 'http://cdn.example/ep.jpg'
     assert _secure_artwork_url('https://cdn.example/ep.jpg') == 'https://cdn.example/ep.jpg'
     assert _secure_artwork_url(None) is None
+    # Anything that is not an http(s) URL still has nothing to fetch.
+    assert _secure_artwork_url('javascript:alert(1)') is None
+    assert _secure_artwork_url('data:image/png;base64,AAAA') is None
 
 
 def test_feed_artwork_falls_back_to_an_https_publisher_url_when_uncached():

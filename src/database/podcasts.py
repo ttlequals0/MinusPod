@@ -374,8 +374,40 @@ class PodcastMixin:
         return True
 
     def delete_podcast(self, slug: str) -> bool:
-        """Delete podcast and all associated data."""
+        """Delete podcast and all associated data.
+
+        Child tables keyed on ``podcasts(id)`` cascade. Four do not:
+        ``ad_patterns`` and ``ad_reviewer_log`` hold the slug as plain TEXT
+        with no foreign key, and ``audio_fingerprints`` and
+        ``pattern_corrections`` hang off ``ad_patterns`` without one either.
+        Slugs are reused when a feed is re-added, so a surviving
+        podcast-scoped pattern would be inherited by whatever feed takes the
+        slug next, applying one show's learning to another.
+
+        Patterns at wider scope keep their rows: their ``podcast_id`` only
+        records where the pattern was first seen, and the learning still
+        applies elsewhere. Those are detached instead of deleted.
+        """
         conn = self.get_connection()
+
+        # Subselect rather than an id list: a long-running feed can hold more
+        # patterns than SQLite allows bound variables. Dependants go first,
+        # while the patterns they point at still exist to select from.
+        doomed = "SELECT id FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?"
+        conn.execute(
+            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({doomed})", (slug,))
+        conn.execute(
+            f"DELETE FROM pattern_corrections WHERE pattern_id IN ({doomed})", (slug,))
+        conn.execute(
+            "DELETE FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?",
+            (slug,))
+
+        conn.execute(
+            "UPDATE ad_patterns SET podcast_id = NULL WHERE podcast_id = ?",
+            (slug,))
+        conn.execute(
+            "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
+
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)
         )

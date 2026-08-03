@@ -594,8 +594,16 @@ def _apply_csrf_cookie(response):
     """Mint a CSRF cookie alongside the session cookie so the frontend can
     populate the X-CSRF-Token header on mutating requests. Delegated to
     api.csrf.apply_csrf_cookie; see that module for the full contract.
+
+    Public podcast-app endpoints opt out: a session they cannot use costs
+    them a `Vary: Cookie` that makes their (often large) responses
+    uncacheable. See main_app.routes.PUBLIC_FEED_ENDPOINTS.
     """
+    from flask import request
     from api.csrf import apply_csrf_cookie
+    from main_app.routes import PUBLIC_FEED_ENDPOINTS
+    if request.endpoint in PUBLIC_FEED_ENDPOINTS:
+        return response
     cookie_secure = app.config.get('SESSION_COOKIE_SECURE', True)
     return apply_csrf_cookie(response, cookie_secure)
 
