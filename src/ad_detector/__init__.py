@@ -63,7 +63,6 @@ from config import (
 from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
-from database.settings import registry_get_default
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
 from sponsor_service import SponsorService
 from utils.constants import (
@@ -1676,6 +1675,8 @@ class AdDetector:
                     f"[{slug}:{episode_id}] Cue fusion extraction failed: {e}")
                 cue_marks, pair_spans = [], []
             corroborating_spans.extend(pair_spans)
+            # Deferred so create_windows imports without the DB stack.
+            from database.settings import registry_get_default
             # Thresholds read at detection time so settings changes apply on
             # the next run without a restart; registry defaults when the
             # detector has no DB (test-only construction).
