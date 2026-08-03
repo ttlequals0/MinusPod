@@ -874,14 +874,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   'cueTemplateScoreOverride', CUE_SCORE_MIN, CUE_SCORE_MAX,
                   () => setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : ''))} />
 
-              {/* create-from-pairs tri-state. The badge sits under the label
-                  rather than beside the select, so every control in this
-                  section keeps one left edge. */}
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <div className="sm:w-32 shrink-0 sm:pt-1.5 flex flex-col items-start gap-1">
-                  <span className="text-muted-foreground whitespace-nowrap">Pair synthesis:</span>
-                  <ExperimentalBadge />
-                </div>
+              {/* create-from-pairs tri-state. The badge trails the hint so the
+                  select stays first in the column, sharing the left edge every
+                  other control in this section uses. */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.cueCreateFromPairsOverride}
@@ -890,6 +887,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
                   />
                   <span className="text-xs text-muted-foreground">Empty = use global</span>
+                  <ExperimentalBadge />
                   {feed.cueCreateFromPairsOverride != null && (
                     <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
                       Override: {feed.cueCreateFromPairsOverride ? 'on' : 'off'}

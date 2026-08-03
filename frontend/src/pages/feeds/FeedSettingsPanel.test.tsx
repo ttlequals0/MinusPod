@@ -606,14 +606,18 @@ describe('FeedSettingsPanel experimental labelling', () => {
     await waitFor(() => expect(screen.queryAllByText(/^Experimental$/).length).toBeGreaterThan(0));
   });
 
-  it('keeps the badge out of the control column so the row stays aligned', async () => {
-    // Every input in the cue tuning section shares one left edge, so the badge
-    // must sit with the label, never in the container holding the select.
+  it('keeps the badge behind the control so the row stays aligned', async () => {
+    // Every input in the cue tuning section shares one left edge. The badge
+    // trails the hint, so nothing sits between the label and the select.
     renderPanel(makeFeed());
     await screen.findByText('Pair synthesis:');
     const badge = screen.getByText(/^Experimental$/);
-    expect(badge.parentElement?.querySelector('select')).toBeNull();
-    expect(badge.parentElement?.textContent).toContain('Pair synthesis');
+    const column = badge.parentElement!;
+    const select = column.querySelector('select');
+    expect(select).not.toBeNull();
+    expect(column.firstElementChild).toBe(select);
+    expect(select!.compareDocumentPosition(badge)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
