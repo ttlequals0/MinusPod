@@ -874,11 +874,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   'cueTemplateScoreOverride', CUE_SCORE_MIN, CUE_SCORE_MAX,
                   () => setCueScoreInput(feed.cueTemplateScoreOverride != null ? String(feed.cueTemplateScoreOverride) : ''))} />
 
-              {/* create-from-pairs tri-state */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
-                <div className="flex items-center gap-2 flex-wrap">
+              {/* create-from-pairs tri-state. The badge sits under the label
+                  rather than beside the select, so every control in this
+                  section keeps one left edge. */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <div className="sm:w-32 shrink-0 sm:pt-1.5 flex flex-col items-start gap-1">
+                  <span className="text-muted-foreground whitespace-nowrap">Pair synthesis:</span>
                   <ExperimentalBadge />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.cueCreateFromPairsOverride}
                     onChange={(next) => updateMutation.mutate({ cueCreateFromPairsOverride: next })}
