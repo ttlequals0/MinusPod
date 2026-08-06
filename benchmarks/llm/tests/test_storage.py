@@ -146,3 +146,36 @@ def test_sanitize_error_truncates_long_messages():
     err = RuntimeError("x" * 2000)
     out = sanitize_error(err)
     assert len(out["message"]) <= 500
+
+
+def _row(**kw):
+    base = {"model": "m", "episode_id": "ep", "trial": 0,
+            "window_index": 0, "prompt_hash": "h", "error": None}
+    return {**base, **kw}
+
+
+def test_errored_keys_discharged_by_a_later_success(tmp_path):
+    """calls.jsonl is append-only, so a successful retry must clear the earlier
+    failure. Otherwise every --retry-errors pass redoes work already recovered."""
+    p = tmp_path / "calls.jsonl"
+    append_jsonl(p, _row(error={"message": "boom"}))
+    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}
+
+    append_jsonl(p, _row())
+    assert errored_keys(p) == set()
+
+
+def test_errored_keys_reinstated_when_the_retry_also_fails(tmp_path):
+    p = tmp_path / "calls.jsonl"
+    append_jsonl(p, _row(error={"message": "boom"}))
+    append_jsonl(p, _row())
+    append_jsonl(p, _row(error={"message": "boom again"}))
+    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}
+
+
+def test_errored_keys_are_per_key(tmp_path):
+    """A success on one window must not discharge a different window's failure."""
+    p = tmp_path / "calls.jsonl"
+    append_jsonl(p, _row(window_index=0, error={"message": "boom"}))
+    append_jsonl(p, _row(window_index=1))
+    assert errored_keys(p) == {("m", "ep", 0, 0, "h")}

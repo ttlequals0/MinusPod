@@ -111,9 +111,11 @@ CallKey = tuple[str, str, int, int, str]
 def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
     """Single-pass read of calls.jsonl. Returns (completed, errored).
 
-    Errored is the subset of completed where ``error`` is populated, so callers
-    that want to skip errored records use ``completed - errored`` and callers
-    that want to retry only errored records use ``errored``.
+    Errored is the subset of completed whose *last* record carries an error, so
+    callers that want to skip errored records use ``completed - errored`` and
+    callers that want to retry only errored records use ``errored``. The file is
+    append-only, so a successful retry discharges an earlier failure; without
+    that, every later --retry-errors pass would redo work already recovered.
     """
     completed: set[CallKey] = set()
     errored: set[CallKey] = set()
@@ -128,6 +130,8 @@ def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
         completed.add(key)
         if rec.get("error"):
             errored.add(key)
+        else:
+            errored.discard(key)
     return completed, errored
 
 
