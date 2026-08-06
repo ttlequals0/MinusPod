@@ -9,6 +9,19 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- LLM benchmark: a provider that rejects native JSON mode with wording other
+  than `response_format` no longer fails the call outright. Novita reports
+  `does not support feature: structured-outputs`, which missed the existing
+  fallback and failed every request for
+  `deepseek/deepseek-r1-distill-llama-70b`, its only OpenRouter provider. The
+  match now also covers that phrasing, so those models fall back to the
+  prompt-injection path and report as `prompt-inject` in the JSON mode column.
+  Benchmark tooling only, no runtime change; rolls into the next release.
+
 ## [2.85.2] - 2026-08-03
 
 ### Added
