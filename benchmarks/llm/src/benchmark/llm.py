@@ -146,6 +146,15 @@ async def _call_anthropic(
     )
 
 
+_JSON_MODE_REJECTIONS = ("response_format", "structured-outputs", "structured outputs")
+
+
+def _rejects_json_mode(err: str) -> bool:
+    """True when a 400 means the provider will not accept native JSON mode."""
+    low = err.lower()
+    return any(k in low for k in _JSON_MODE_REJECTIONS)
+
+
 async def _call_openai_compatible(
     *,
     provider: ProviderConfig,
@@ -197,7 +206,9 @@ async def _call_openai_compatible(
         raise LLMTransientError(str(e)) from e
     except APIStatusError as e:
         status = getattr(e, "status_code", 0)
-        if status == 400 and "response_format" in str(e).lower() and json_format_used == "native":
+        # Providers word the rejection differently: OpenAI says `response_format`,
+        # Novita says "does not support feature: structured-outputs".
+        if status == 400 and json_format_used == "native" and _rejects_json_mode(str(e)):
             kwargs.pop("response_format", None)
             try:
                 msg = await client.chat.completions.create(**kwargs)
