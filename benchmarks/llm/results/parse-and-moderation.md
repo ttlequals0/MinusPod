@@ -50,20 +50,22 @@ One term does separate them. A racial slur appears in 24 windows across the two 
 
 (Rates from `ep-drink-champs-30c9a2d49f13`, the episode with enough of both groups to compare.)
 
-The three blocked windows without the slur are the episode's most sexually explicit stretches; one holds 27 hits, the highest of any window in the episode. The single slur-bearing window that got through has one instance in 2,069 words.
+Three blocked windows have no slur in them. One is the most sexually explicit passage in the episode at 27 hits; the other two are unremarkable on every signal measured here, so something outside these categories is triggering them. The single slur-bearing window that got through has one instance in 2,069 words.
 
 The filter is matching terms, not judging passages. The transcript is a verbatim conversation and the term is in-group usage in a hip-hop interview, but the filter does not make that distinction. The slur is not reproduced here.
 
 ### Examples of blocked calls
 
-Five windows, each refused on all 5 trials and on every retry pass with the same 451. `dc` is `ep-drink-champs-30c9a2d49f13`, `bi` is `ep-the-brilliant-idiots-0bb9bf634c8e`.
+Seven windows, each refused on all 5 trials and on every retry pass with the same 451. `dc` is `ep-drink-champs-30c9a2d49f13`, `bi` is `ep-the-brilliant-idiots-0bb9bf634c8e`. Call IDs for every row are in [Finding these calls in the raw data](#finding-these-calls-in-the-raw-data).
 
 | Window | Span | Words | Slur | Sexual | Profanity | Ads present |
 |---|---|---|---|---|---|---|
 | `bi` w0 | 0-600s | 2,091 | 1 | 9 | 13 | 1 |
+| `dc` w4 | 1680-2280s | 1,719 | 1 | 1 | 19 | 0 |
 | `dc` w9 | 3780-4380s | 1,873 | 0 | 27 | 28 | 0 |
 | `dc` w12 | 5040-5640s | 1,785 | 10 | 10 | 31 | 0 |
 | `dc` w19 | 7980-8580s | 1,794 | 7 | 0 | 25 | 0 |
+| `dc` w27 | 11340-11940s | 1,314 | 0 | 9 | 5 | 1 |
 | `bi` w7 | 2940-3540s | 2,089 | 3 | 4 | 8 | 0 |
 
 **The ones that cost detections.** Six of the 26 blocked windows contain an ad. Windows overlap by 3 minutes, so some of those ads survive in a neighboring window that was not refused, but three do not: two in `dc`, one in `bi`. Of the 12 ads across the two episodes, a quarter were unreachable for this model no matter how many times the run retried.
@@ -78,7 +80,9 @@ plate. It gave me an offer ...
 
 A scripted read for a used-car service, textbook material, and the model never saw it. One slur instance in 2,091 words was enough to refuse the window.
 
-**The one with no slur at all.** `dc` window 9 is the counter-example to everything above: zero slur hits, and refused anyway. It carries 27 sexual-language hits, the highest of any window in the episode, so a second trigger exists. It is also the point where the pattern stops being a clean single-term rule.
+**The ones with no slur at all.** `dc` window 9 and window 27 are the counter-examples to everything above: zero slur hits, refused anyway. Window 9 carries 27 sexual-language hits, the highest in the episode, so a second trigger exists. Window 27 does not have that excuse. It is the shortest window in the table at 1,314 words, and its 9 sexual hits and 5 profanity hits are unremarkable for this episode. It came back 451 on every attempt anyway. Whatever tripped it is not in any category measured here.
+
+**The one that barely registers.** `dc` window 4 has a single slur instance, one sexual hit, and 19 profanity hits in 1,719 words. By every signal except that one word it looks like the windows that passed. It was refused all five times.
 
 **The cleanest test case.** `dc` window 19 has 7 slur instances and zero sexual-language hits, so nothing else in it could plausibly be the trigger. It is a musician's story about a night out in the 1990s:
 
@@ -127,7 +131,7 @@ Three failure shapes, separable in the raw data:
 
 ### Example calls
 
-Six real calls: what went in, what came back, and what the raw fields say about the cause. Response bodies are truncated for length. Every one of these was scored.
+Eight real calls: what went in, what came back, and what the raw fields say about the cause. Response bodies are truncated for length. Every one of these was scored.
 
 First, one thing the data rules out. The intuitive guess is that models flail on windows with nothing to report, where the answer is an empty array. The opposite holds. Windows with at least one ad produce unusable output in 12.70% of calls (3,233 of 25,464); windows with no ads do it in 5.74% (2,212 of 38,522). Emitting ad objects is where output goes wrong, not withholding them.
 
@@ -207,6 +211,83 @@ podcast transcripts."}
 ~~~
 
 Cause: the model reproduced a paraphrase of its own system prompt as a JSON object, then opened a code fence, then gave the real answer. The array is valid and the parser recovers it. The leading object belongs to no schema anyone asked for.
+
+**7. An empty object instead of an empty array**
+
+- Input: `ep-ai-cloud-essentials-e8dc897fbd6b` window 0, 600s, 1,817 words, 0 ads in ground truth
+- Output: `openai/gpt-5.6-sol`, 109 tokens, `stop_reason: stop`, 0 ads parsed
+
+```
+{}
+```
+
+Cause: the model will not return a bare array. Not once. All 855 of its calls came back wrapped in an object of some kind, `{}` for nothing found and a keyed object otherwise. The parser handles every variant, so this costs nothing but a recovery path. Still, 855 out of 855 is a thorough way to ignore the shape you were asked for.
+
+**8. A wrapper the parser recognizes and then throws away**
+
+- Input: `ep-crime-junkie-8ce498f299d7` window 0, 600s, 1,601 words, 1 ad in ground truth
+- Output: `deepseek/deepseek-v4-pro`, 226 tokens, `stop_reason: stop`, 0 ads parsed
+
+```
+{
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 40.8,
+      "confidence": 0.9,
+      "category": "sponsor",
+      "reason": "Platform-inserted pre-roll ad ... Starts before window.",
+      "end_text": "make every connection count"
+    },
+    ...
+```
+
+Cause: this one is not the model's fault. The answer is correct and every field matches the requested schema. The extractor in `src/utils/llm_response.py` recognizes a top-level `segments` list and then filters it to entries where `type == "advertisement"`. The prompt never asks for a `type` field and no model emits one, so the filter always returns empty.
+
+This is not a one-off. All 322 calls that took the `segments` path parsed 0 ads, and 103 of them carried real detections: 190 ad objects in total, every one with `start`, `end`, `confidence`, `category`, `reason`, and `end_text`, none with `type`. Fourteen models are affected, most heavily `deepseek/deepseek-v4-pro` at 205 calls, `nvidia/nemotron-3-ultra-550b-a55b` at 37, and `openai/o3` at 30. Their recall in `report.md` is understated by whatever those calls would have scored.
+
+### Finding these calls in the raw data
+
+Every example above is in [`raw/calls.jsonl`](raw/calls.jsonl), one JSON object per line. Response bodies live in [`raw/responses/`](raw/responses/), sharded by model and keyed by `call_id`.
+
+To pull a call and its response:
+
+```sh
+cd benchmarks/llm/results
+grep -F '<call_id>' raw/calls.jsonl | python3 -m json.tool
+grep -F '<call_id>' raw/responses/<model_with_slashes_and_colons_as_underscores>.jsonl
+```
+
+Blocked calls, all `stepfun/step-3.7-flash`, all in `raw/responses/stepfun_step-3.7-flash.jsonl`:
+
+| Window | `call_id` |
+|---|---|
+| `bi` w0 | `stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_ea40237d8ea3_20260805T183609Z` |
+| `dc` w4 | `stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260805T180444Z` |
+| `dc` w9 | `stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260805T180506Z` |
+| `dc` w12 | `stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260805T180514Z` |
+| `dc` w19 | `stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w19_48f599003e25_20260805T180523Z` |
+| `dc` w27 | `stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w27_e05fe8081dd8_20260805T180531Z` |
+| `bi` w7 | `stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_7cca4af47e2a_20260805T183648Z` |
+
+Those are the trial-0 calls. Each window has 4 more trials plus retry attempts, all with the same outcome.
+
+Bad-JSON examples:
+
+| # | `call_id` |
+|---|---|
+| 1 | `qwen_qwen3-8b_ep-drink-champs-30c9a2d49f13_t1_w10_b41bae9e7eff_20260805T063315Z` |
+| 2 | `deepseek_deepseek-r1_ep-daily-tech-news-show-b576979e1fe8_t3_w4_8373faec5f9e_20260806T030659Z` |
+| 3 | `deepseek_deepseek-r1-0528_ep-daily-tech-news-show-c1904b8605f7_t1_w5_4440ba1482c3_20260806T072621Z` |
+| 4 | `inclusionai_ring-2.6-1t_ep-drink-champs-30c9a2d49f13_t2_w33_8a6c078997e2_20260805T191627Z` |
+| 5 | `meta-llama_llama-4-scout_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w0_e9e422db06c6_20260806T011236Z` |
+| 6 | `xiaomi_mimo-v2.5_ep-daily-tech-news-show-b576979e1fe8_t1_w1_97cc9caa7a24_20260805T160008Z` |
+| 7 | `openai_gpt-5.6-sol_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w0_f99eb3a15121_20260804T043641Z` |
+| 8 | `deepseek_deepseek-v4-pro_ep-crime-junkie-8ce498f299d7_t0_w0_30072d394d6d_20260804T100718Z` |
+
+Example 2 has no stored body, which is the point of it. Example 5's relative, the stray-backtick call, is `deepseek_deepseek-v4-pro_ep-glt1412515089-373d5ba5007b_t1_w20_8881b9fdd85d_20260804T104934Z`.
+
+The input side is reconstructable too. Each call names its `episode_id` and `window_index`, and the transcript it was given is `data/corpus/<episode_id>/windows.json` at that index.
 
 ### What is not in here
 
