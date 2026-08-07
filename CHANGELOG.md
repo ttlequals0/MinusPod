@@ -39,9 +39,9 @@ release notes.
 
 ### Security
 
-- cryptography 49.0.0 to 50.0.0 (PYSEC-2026-3552) and transitive fast-uri
-  to a patched release (GHSA-7p8r-x3mc-p8w7). Both were failing the CI
-  audit gates.
+- cryptography 49.0.0 to 50.0.0 (PYSEC-2026-3552), transitive fast-uri
+  (GHSA-7p8r-x3mc-p8w7), and transitive nanoid (GHSA-2v37-7h3g-55p8).
+  All three were failing the CI audit gates.
 
 ## [2.85.2] - 2026-08-03
 
