@@ -365,6 +365,36 @@ def archive() -> None:
     typer.echo(f"archived to {dst_dir}")
 
 
+@app.command("rotate-raw")
+def rotate_raw_cmd(
+    keep: bool = typer.Option(False, "--keep", help="Copy instead of move, leaving results/raw in place."),
+) -> None:
+    """Move results/raw to results/archive/<date>/raw/ so the next sweep starts clean.
+
+    calls.jsonl is append-only, so without rotation it accumulates every campaign
+    ever run. That is unbounded growth and a correctness hazard: the report dedups
+    per work unit without consulting prompt_hash, so a partially-completed sweep
+    silently blends its rows with the previous campaign's.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    src = _root() / "results" / "raw"
+    if not src.is_dir() or not (src / "calls.jsonl").is_file():
+        typer.echo("no results/raw to rotate", err=True)
+        raise typer.Exit(1)
+    dst = _root() / "results" / "archive" / today / "raw"
+    if dst.exists():
+        typer.echo(f"{dst} already exists; refusing to overwrite", err=True)
+        raise typer.Exit(1)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    size_mb = sum(f.stat().st_size for f in src.rglob("*") if f.is_file()) / 1048576
+    if keep:
+        shutil.copytree(src, dst)
+    else:
+        shutil.move(str(src), str(dst))
+        (_root() / "results" / "raw" / "responses").mkdir(parents=True, exist_ok=True)
+    typer.echo(f"rotated {size_mb:.0f} MB to {dst}" + (" (original kept)" if keep else ""))
+
+
 def _preview(cfg, episodes, *, paths, system_prompt):
     hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
     completed, _ = scan_calls(paths.calls_jsonl)

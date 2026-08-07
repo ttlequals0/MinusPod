@@ -1,6 +1,8 @@
 """Render Markdown report from calls.jsonl + episode_results.jsonl + corpus."""
 from __future__ import annotations
 
+import logging
+
 from pathlib import Path
 
 from .. import pricing
@@ -9,6 +11,7 @@ from ..storage import read_jsonl
 from .aggregate import (
     _aggregate,
     _dedup_last_write_wins,
+    campaign_mixing,
     _json_format_summary,
 )
 from .charts import (
@@ -51,6 +54,9 @@ from .sections import (
 )
 
 
+
+logger = logging.getLogger(__name__)
+
 def render(
     *,
     cfg,
@@ -66,6 +72,15 @@ def render(
     if not raw_calls:
         output_path.write_text("# MinusPod LLM Benchmark Report\n\nNo benchmark data yet. Run `benchmark run` first.\n")
         return
+    mixed = campaign_mixing(raw_calls)
+    if mixed:
+        logger.warning(
+            "calls.jsonl holds more than one campaign: %d work units across %d models carry "
+            "two prompt hashes. Dedup keeps the last row per unit regardless of prompt, so "
+            "any unit not re-run this campaign still shows the older result. Run "
+            "`benchmark rotate-raw` between campaigns.",
+            sum(mixed.values()), len(mixed),
+        )
     calls = _dedup_last_write_wins(raw_calls)
 
     by_model, extras = _aggregate(calls, episodes, pricing_snapshot=pricing_snapshot)

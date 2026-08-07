@@ -164,6 +164,26 @@ def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
     return list(by_key.values())
 
 
+def campaign_mixing(calls: list[dict]) -> dict[str, int]:
+    """Work units that appear under more than one prompt_hash, per model.
+
+    Dedup keeps the last row per work unit and does not consult prompt_hash, so
+    rows from an earlier campaign scored against a different system prompt win
+    or lose on file order alone. A fully re-run sweep is fine because every unit
+    is rewritten. A partial one is not, and nothing else would say so. Rotate
+    with `benchmark rotate-raw` between campaigns.
+    """
+    hashes: dict[tuple, set] = defaultdict(set)
+    for rec in calls:
+        key = (rec.get("model"), rec.get("episode_id"), rec.get("trial"), rec.get("window_index"))
+        hashes[key].add(rec.get("prompt_hash"))
+    mixed: dict[str, int] = defaultdict(int)
+    for (model, _, _, _), seen in hashes.items():
+        if len(seen) > 1:
+            mixed[model] += 1
+    return dict(mixed)
+
+
 @dataclass
 class _Extras:
     """Side data computed during aggregation that doesn't belong on ModelStats."""

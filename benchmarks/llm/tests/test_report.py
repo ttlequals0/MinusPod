@@ -207,3 +207,22 @@ def test_moderation_block_is_counted_and_flagged():
     clean = ModelStats(model="m", moderation_blocked=0, attempted_count=855)
     assert _moderation_pct(clean) == 0.0
     assert "moderation" not in _reliability_flags(clean)
+
+
+def test_campaign_mixing_detects_two_prompt_hashes_per_unit():
+    """calls.jsonl accumulates campaigns unless rotated. Dedup ignores
+    prompt_hash, so a partial re-run silently keeps old rows for the units it
+    did not reach. Nothing else in the report would surface that."""
+    from benchmark.report.aggregate import campaign_mixing
+
+    def row(model, w, h):
+        return {"model": model, "episode_id": "ep", "trial": 0,
+                "window_index": w, "prompt_hash": h}
+
+    # one unit run under two prompts, one unit run twice under the same prompt
+    calls = [row("m", 0, "sha256:old"), row("m", 0, "sha256:new"),
+             row("m", 1, "sha256:new"), row("m", 1, "sha256:new")]
+    assert campaign_mixing(calls) == {"m": 1}
+
+    # a clean single-campaign file reports nothing
+    assert campaign_mixing([row("m", 0, "sha256:new"), row("m", 1, "sha256:new")]) == {}
