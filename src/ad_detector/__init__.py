@@ -444,6 +444,7 @@ def _cue_fusion_inputs(audio_analysis, segments):
 # are returned.
 _CATEGORY_SPAN = '_category_span'
 _LABEL_SPAN = '_label_span'
+_MEMBER_STAGES = '_member_stages'
 
 
 def _with_category_span(entry: Dict) -> Dict:
@@ -2355,13 +2356,10 @@ class AdDetector:
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
 
-                # Accumulate every stage that has folded into this marker.
-                # The stage-priority overwrite below only keeps the winning
-                # stage on `last`, which loses an earlier corroborator (e.g.
-                # a pattern member folded in, then a claude overlap flips the
-                # stage to dai_differential): the #541 check needs the full
-                # set, not one snapshot (DTNS 5313).
-                member_stages = last.setdefault('_member_stages', [last_stage_before_merge])
+                # Accumulate every stage folded in: the priority overwrite
+                # below keeps only the winner, which would otherwise lose an
+                # earlier corroborator's stage (#541, DTNS 5313).
+                member_stages = last.setdefault(_MEMBER_STAGES, [last_stage_before_merge])
                 cur_stage = current.get('detection_stage')
                 if cur_stage and cur_stage not in member_stages:
                     member_stages.append(cur_stage)
@@ -2424,7 +2422,7 @@ class AdDetector:
                     other = current if diff_is_last else last
                     other_stage = (current.get('detection_stage')
                                    if diff_is_last else last_stage_before_merge)
-                    stages_seen = set(last.get('_member_stages') or []) | {other_stage}
+                    stages_seen = set(last.get(_MEMBER_STAGES) or []) | {other_stage}
                     independent = (
                         bool(stages_seen & {'fingerprint', 'text_pattern'})
                         or is_cue_backed(other))
@@ -2457,7 +2455,7 @@ class AdDetector:
                 marker.pop('category', None)
             marker.pop(_CATEGORY_SPAN, None)
             marker.pop(_LABEL_SPAN, None)
-            marker.pop('_member_stages', None)
+            marker.pop(_MEMBER_STAGES, None)
 
         return merged
 

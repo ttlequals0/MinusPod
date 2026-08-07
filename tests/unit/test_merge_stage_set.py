@@ -55,6 +55,35 @@ def test_label_goes_to_covering_member_not_longest_reason():
     assert merged[0]['reason'] == 'Acme sponsor read'
 
 
+def test_hold_cleared_when_corroborator_folded_before_stage_overwrite():
+    # Shadow-chain: a text_pattern corroborator folds in first, then a
+    # corroborated (non-held) dai_differential ad folds in and, by stage
+    # priority, overwrites last's stage away from 'text_pattern' before the
+    # uncorroborated differential arrives. A single pre-merge-stage snapshot
+    # would see only 'dai_differential' at that point and re-hold the
+    # marker despite the earlier independent corroborator; the accumulated
+    # stage set must still see 'text_pattern' and clear the hold.
+    ads = [
+        {'start': 2000.0, 'end': 2020.0, 'confidence': 0.9,
+         'detection_stage': 'text_pattern', 'pattern_id': 600,
+         'reason': 'Acme (pattern #600)', 'sponsor': 'Acme', 'category': 'sponsor'},
+        {'start': 2005.0, 'end': 2050.0, 'confidence': 0.95,
+         'detection_stage': 'dai_differential',
+         'reason': 'Dynamically inserted: audio differs across fetches '
+                   '(corroborated by overlapping ad marker)',
+         'sponsor': None, 'category': 'sponsor'},
+        {'start': 2045.0, 'end': 2090.0, 'confidence': 0.95,
+         'detection_stage': 'dai_differential',
+         'differential_uncorroborated': True, 'held_for_review': True,
+         'reason': 'Audio differs across fetches; no other ad signal -- review',
+         'sponsor': None, 'category': 'sponsor'},
+    ]
+    merged = _merge(_detector(), ads)
+    assert len(merged) == 1
+    assert not merged[0].get('differential_uncorroborated')
+    assert not merged[0].get('held_for_review')
+
+
 def test_member_stages_and_label_span_are_stripped_before_return():
     ads = [
         {'start': 2000.0, 'end': 2040.0, 'confidence': 0.9,
