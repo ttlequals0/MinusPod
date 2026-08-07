@@ -281,6 +281,13 @@ class TextMatch:
     defined: bool = False
     # pattern_ids of matches merged into this one, for match-credit recording.
     absorbed_ids: list = field(default_factory=list)
+    # True when an edge came from duration estimation, not matched text
+    # (see _estimate_start/end_from_duration); makes the span advisory.
+    span_estimated: bool = False
+    # Real matched-text time bounds, for capping label reach when
+    # span_estimated is True. None when not applicable.
+    text_start: Optional[float] = None
+    text_end: Optional[float] = None
 
 
 @dataclass
@@ -786,14 +793,17 @@ class TextPatternMatcher:
 
                     if best_score >= required_fuzzy_score(len(intro_lower)):
                         # Found intro - scan for paired outro or estimate from duration
-                        start_time, _ = self._char_pos_to_time(
+                        start_time, intro_text_end = self._char_pos_to_time(
                             best_pos, best_pos + len(matched),
                             segment_map, segments
                         )
                         intro_end_pos = best_pos + len(matched)
-                        end_time = self._scan_for_outro(
+                        scanned_end = self._scan_for_outro(
                             full_text_lower, segment_map, segments, pattern, intro_end_pos
-                        ) or self._estimate_end_from_duration(pattern, start_time)
+                        )
+                        span_estimated = scanned_end is None
+                        end_time = (self._estimate_end_from_duration(pattern, start_time)
+                                    if span_estimated else scanned_end)
 
                         matches.append(TextMatch(
                             pattern_id=pattern.id,
@@ -807,6 +817,9 @@ class TextPatternMatcher:
                             defined=is_defined_pattern(
                                 {'created_by': pattern.created_by, 'source': pattern.source}
                             ),
+                            span_estimated=span_estimated,
+                            text_start=start_time,
+                            text_end=intro_text_end if span_estimated else end_time,
                         ))
 
                 # Check outro phrases
@@ -821,14 +834,17 @@ class TextPatternMatcher:
                     )
 
                     if best_score >= required_fuzzy_score(len(outro_lower)):
-                        _, end_time = self._char_pos_to_time(
+                        outro_text_start, end_time = self._char_pos_to_time(
                             best_pos, best_pos + len(matched),
                             segment_map, segments
                         )
                         outro_start_pos = best_pos
-                        start_time = self._scan_for_intro(
+                        scanned_start = self._scan_for_intro(
                             full_text_lower, segment_map, segments, pattern, outro_start_pos
-                        ) or self._estimate_start_from_duration(pattern, end_time)
+                        )
+                        span_estimated = scanned_start is None
+                        start_time = (self._estimate_start_from_duration(pattern, end_time)
+                                      if span_estimated else scanned_start)
 
                         matches.append(TextMatch(
                             pattern_id=pattern.id,
@@ -842,6 +858,9 @@ class TextPatternMatcher:
                             defined=is_defined_pattern(
                                 {'created_by': pattern.created_by, 'source': pattern.source}
                             ),
+                            span_estimated=span_estimated,
+                            text_start=outro_text_start if span_estimated else start_time,
+                            text_end=end_time,
                         ))
 
         except ImportError:

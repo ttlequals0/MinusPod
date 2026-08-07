@@ -447,6 +447,19 @@ _LABEL_SPAN = '_label_span'
 _MEMBER_STAGES = '_member_stages'
 
 
+def _label_reach(entry: Dict) -> float:
+    """Audio a member's reason/sponsor label may claim: the full span, or
+    just the matched-text extent when the span is duration-estimated."""
+    if entry.get('span_estimated'):
+        text_start = entry.get('text_start')
+        text_end = entry.get('text_end')
+        if text_start is not None and text_end is not None:
+            return max(0.0, text_end - text_start)
+        # No text bounds recorded: conservative half-span cap.
+        return (entry['end'] - entry['start']) / 2
+    return entry['end'] - entry['start']
+
+
 def _with_category_span(entry: Dict) -> Dict:
     """Stamp a merge accumulator with the audio its own category and label
     cover, before a later member extends the end past what it classified."""
@@ -454,7 +467,7 @@ def _with_category_span(entry: Dict) -> Dict:
         entry[_CATEGORY_SPAN] = entry['end'] - entry['start']
     else:
         entry.pop(_CATEGORY_SPAN, None)
-    entry[_LABEL_SPAN] = entry['end'] - entry['start']
+    entry[_LABEL_SPAN] = _label_reach(entry)
     return entry
 
 
@@ -1938,6 +1951,11 @@ class AdDetector:
             # getattr: FingerprintMatch has no 'defined' field (audio stage
             # predates the trust-tier split); treat it as not tier-1.
             'pattern_defined': getattr(match, 'defined', False),
+            # getattr: FingerprintMatch has no span-estimation fields (audio
+            # stage matches real audio, never estimates a boundary).
+            'span_estimated': getattr(match, 'span_estimated', False),
+            'text_start': getattr(match, 'text_start', None),
+            'text_end': getattr(match, 'text_end', None),
         })
         pattern_matched_regions.append({
             'start': match.start,
@@ -2319,6 +2337,12 @@ class AdDetector:
                 last_stage_before_merge = last.get('detection_stage')
                 last_sponsor_before_merge = last.get('sponsor')
                 last_confidence_before_merge = last.get('confidence', 0)
+                # An estimated text_pattern span is advisory: it recognized a
+                # phrase but a paired boundary is a guess, so it contributes
+                # no stage toward corroboration.
+                last_corroborating_stage = (
+                    None if last_stage_before_merge == 'text_pattern'
+                    and last.get('span_estimated') else last_stage_before_merge)
                 # Adjacency is not corroboration (#541): a held differential
                 # only merges with a non-differential marker on true overlap.
                 if (bool(last.get('differential_uncorroborated'))
@@ -2359,8 +2383,12 @@ class AdDetector:
                 # Accumulate every stage folded in: the priority overwrite
                 # below keeps only the winner, which would otherwise lose an
                 # earlier corroborator's stage (#541, DTNS 5313).
-                member_stages = last.setdefault(_MEMBER_STAGES, [last_stage_before_merge])
+                member_stages = last.setdefault(
+                    _MEMBER_STAGES,
+                    [last_corroborating_stage] if last_corroborating_stage else [])
                 cur_stage = current.get('detection_stage')
+                if cur_stage == 'text_pattern' and current.get('span_estimated'):
+                    cur_stage = None  # advisory span: recognition, not corroboration
                 if cur_stage and cur_stage not in member_stages:
                     member_stages.append(cur_stage)
 
@@ -2382,7 +2410,7 @@ class AdDetector:
                 # an exact tie goes to the more descriptive (longer) reason.
                 cur_reason = current.get('reason') or ''
                 last_reason = last.get('reason') or ''
-                cur_label_span = current['end'] - current['start']
+                cur_label_span = _label_reach(current)
                 last_label_span = last.get(_LABEL_SPAN, 0.0)
                 if (cur_label_span > last_label_span
                         or (cur_label_span == last_label_span
@@ -2420,8 +2448,8 @@ class AdDetector:
                 if diff_is_last != diff_is_cur:
                     diff_side = last if diff_is_last else current
                     other = current if diff_is_last else last
-                    other_stage = (current.get('detection_stage')
-                                   if diff_is_last else last_stage_before_merge)
+                    other_stage = (cur_stage
+                                   if diff_is_last else last_corroborating_stage)
                     stages_seen = set(last.get(_MEMBER_STAGES) or []) | {other_stage}
                     independent = (
                         bool(stages_seen & {'fingerprint', 'text_pattern'})
