@@ -8,6 +8,7 @@ for host-read ads that follow similar scripts but aren't identical.
 import logging
 import re
 from dataclasses import dataclass, field, replace
+from difflib import SequenceMatcher
 from typing import List, Optional, Dict, Tuple
 import json
 
@@ -57,6 +58,9 @@ AD_TRANSITION_PHRASES = [
 # create_pattern_from_ad. Also used as the per-segment cap for the manual
 # correction paths that call split_template_text.
 MAX_PATTERN_CHARS = 3500
+
+# Near-duplicate threshold for learning dedupe in create_pattern_from_ad.
+LEARNING_DEDUPE_SIMILARITY_THRESHOLD = 0.9
 
 # Words a sponsor-name guess after a transition phrase should never be (the
 # first word is usually an article or filler, not the brand).
@@ -1291,6 +1295,31 @@ class TextPatternMatcher:
                 f"max {MAX_PATTERN_CHARS} chars (likely contaminated with multiple ads)"
             )
             return None
+
+        # Learning dedupe: reuse a near-identical existing pattern for this
+        # podcast instead of inserting, so an auto-learned near-duplicate
+        # never competes with a defined pattern's category (#565).
+        try:
+            existing_patterns = (
+                self.db.get_ad_patterns(podcast_id=podcast_id) if podcast_id else []
+            )
+        except Exception:
+            existing_patterns = []
+        for existing_pattern in existing_patterns:
+            existing_text = existing_pattern.get('text_template') or ''
+            if not existing_text:
+                continue
+            sim = SequenceMatcher(None, ad_text.lower(), existing_text.lower()).ratio()
+            if sim >= LEARNING_DEDUPE_SIMILARITY_THRESHOLD:
+                logger.info(
+                    f"Near-duplicate of pattern #{existing_pattern['id']} "
+                    f"(sim {sim:.2f}); updating stats instead of inserting"
+                )
+                try:
+                    self.db.increment_pattern_match(existing_pattern['id'])
+                except Exception as e:
+                    logger.warning(f"Failed to record dedupe match: {e}")
+                return existing_pattern['id']
 
         # Extract intro and outro at sentence boundaries
         intro = _extract_intro_phrase(ad_text)
