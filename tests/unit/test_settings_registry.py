@@ -78,7 +78,7 @@ SEED_SNAPSHOT = {
     'review_prompt': ('sha256', '897102def672fcfffdfd2500e43cfdb6699aebf650606aee18549a4c033758d3'),
     'rss_refresh_interval_minutes': '15',
     'segment_category_actions': '{}',
-    'system_prompt': ('sha256', 'a15ad2a62cb242d11942e6d71f4f4b88e14c73e1418c50bccea8f08facbf0b92'),
+    'system_prompt': ('sha256', '082a8f30ee3b475c44b0f5d1af7a9e4d12035cdfdf3da8d427c8c59037acba58'),  # Updated for cross_promo semantics change
     'transcribe_chunk_overlap_seconds': '30',
     'transcribe_concurrent_chunks': '4',
     'whisper_api_timeout_seconds': '600',
