@@ -1033,6 +1033,11 @@ class TextPatternMatcher:
                 else:
                     best = current if current.confidence >= match.confidence else match
                     loser = match if best is current else current
+                # Any estimated edge on either side keeps the merged span
+                # advisory; label reach is capped to the union of grounded
+                # text only (None-safe: an estimated edge has no text bound).
+                text_starts = [t for t in (current.text_start, match.text_start) if t is not None]
+                text_ends = [t for t in (current.text_end, match.text_end) if t is not None]
                 current = replace(
                     best,
                     start=min(current.start, match.start),
@@ -1042,6 +1047,9 @@ class TextPatternMatcher:
                     match_type="both" if current.match_type != match.match_type else current.match_type,
                     category=best.category if best.defined else (current.category or match.category),
                     absorbed_ids=current.absorbed_ids + match.absorbed_ids + [loser.pattern_id],
+                    span_estimated=current.span_estimated or match.span_estimated,
+                    text_start=min(text_starts) if text_starts else None,
+                    text_end=max(text_ends) if text_ends else None,
                 )
             else:
                 merged.append(current)
