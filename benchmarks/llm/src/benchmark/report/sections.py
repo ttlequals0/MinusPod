@@ -26,6 +26,13 @@ from .aggregate import (
 _SERVER_5XX_RE = re.compile(r"\b5\d{2}\b")
 
 
+def _moderation_pct(s: ModelStats) -> float:
+    """Share of attempted calls the provider refused on content grounds."""
+    if not s.attempted_count:
+        return 0.0
+    return s.moderation_blocked / s.attempted_count
+
+
 def _reliability_flags(s: ModelStats) -> str:
     """Flags that caveat a ranking without reordering it."""
     flags: list[str] = []
@@ -33,6 +40,11 @@ def _reliability_flags(s: ModelStats) -> str:
         flags.append("(!) brittle JSON")
     if s.no_ad_pass and not all(s.no_ad_pass.values()):
         flags.append("(!) fails no-ad control")
+    # A blocked window never reaches scoring, so the score above it is computed
+    # on a subset of the corpus. That is a stronger caveat than the others.
+    mod = _moderation_pct(s)
+    if mod > 0:
+        flags.append(f"(!!) moderation blocked {mod:.1%}")
     return " ".join(flags)
 
 
@@ -112,12 +124,12 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
     header = ["Model", "F1", "Cost/ep", "p50"]
     header += [ep.ep_id for ep in ad_eps]
     header += [f"{ep.ep_id} (no-ad)" for ep in no_ad_eps]
-    header += ["F1 stdev"]
+    header += ["F1 stdev", "Moderation blocked"]
 
     lines = [
         "## Quick Comparison",
         "",
-        "One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy.",
+        "One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy. `Moderation blocked` is the share of attempted calls the provider refused on content grounds; those windows never reach scoring, so any non-zero value means that row's F1 was computed on a subset of the corpus and is not comparable to a row at `-`.",
         "",
         "| " + " | ".join(header) + " |",
         "|" + "|".join("---" for _ in header) + "|",
@@ -137,6 +149,8 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
                 cells.append("-")
         stdevs = [s.f1_stdev_per_episode[k] for k in s.f1_stdev_per_episode]
         cells.append(f"{statistics.fmean(stdevs):.3f}" if stdevs else "-")
+        mod = _moderation_pct(s)
+        cells.append(f"{mod:.1%}" if mod > 0 else "-")
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
 

@@ -49,6 +49,17 @@ class ModelEpisodeStats:
     no_ad_fp_counts: list[int] = field(default_factory=list)
 
 
+_MODERATION_MARKERS = ("censorship_blocked", "content_filter", "content policy",
+                       "is blocked", "content_policy_violation")
+
+
+def _is_moderation_block(err) -> bool:
+    """True when a provider refused the transcript rather than failing to serve it."""
+    msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
+    low = msg.lower()
+    return any(k in low for k in _MODERATION_MARKERS)
+
+
 @dataclass
 class ModelStats:
     model: str
@@ -98,6 +109,12 @@ class ModelStats:
     call_count: int = 0
     truncated_count: int = 0
     over_1024_count: int = 0
+    # Provider refused the transcript outright. Counted before errored calls are
+    # skipped, because a blocked window never reaches scoring: F0.5 is computed
+    # only on the windows that got through, which flatters a model on exactly the
+    # content it cannot handle. `attempted_count` is the denominator.
+    moderation_blocked: int = 0
+    attempted_count: int = 0
     salvaged_count: int = 0
     avg_f1: float = 0.0
     avg_f05: float = 0.0
@@ -199,8 +216,13 @@ def _aggregate(
     )
 
     by_trial: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
+    moderation_per_model: dict[str, int] = defaultdict(int)
+    attempted_per_model: dict[str, int] = defaultdict(int)
     for rec in calls:
+        attempted_per_model[rec["model"]] += 1
         if rec.get("error"):
+            if _is_moderation_block(rec["error"]):
+                moderation_per_model[rec["model"]] += 1
             continue
         by_trial[(rec["model"], rec["episode_id"], rec["trial"])].append(rec)
         response_times_per_model[rec["model"]].append(int(rec.get("response_time_ms", 0)))
@@ -375,6 +397,8 @@ def _aggregate(
         counts = json_format_counts_per_model[model]
         ms.json_format_total = sum(counts.values())
         ms.json_format_primary, ms.json_format_native_pct = _json_format_summary(counts)
+        ms.moderation_blocked = moderation_per_model.get(ms.model, 0)
+        ms.attempted_count = attempted_per_model.get(ms.model, 0)
         out[model] = ms
     extras = _Extras(
         calibration=dict(calibration),

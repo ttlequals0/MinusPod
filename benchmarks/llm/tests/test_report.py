@@ -183,3 +183,27 @@ def test_chart_svg_output_is_deterministic(tmp_path):
     charts._render_pareto({"m1": s}, tmp_path / "a.svg")
     charts._render_pareto({"m1": s}, tmp_path / "b.svg")
     assert (tmp_path / "a.svg").read_bytes() == (tmp_path / "b.svg").read_bytes()
+
+
+def test_moderation_block_is_counted_and_flagged():
+    """A content-moderation refusal must be counted before errored calls are
+    skipped, and must flag the row: the score above it excludes those windows."""
+    from benchmark.report.aggregate import _is_moderation_block
+    from benchmark.report.sections import _moderation_pct, _reliability_flags
+    from benchmark.report.aggregate import ModelStats
+
+    blocked = {"message": "Error code: 451 - {'error': {'message': "
+                          "'The content you provided or machine outputted is blocked.', "
+                          "'type': 'censorship_blocked'}}"}
+    assert _is_moderation_block(blocked) is True
+    assert _is_moderation_block({"message": "Insufficient credits."}) is False
+    assert _is_moderation_block({"message": "Rate limit exceeded."}) is False
+    assert _is_moderation_block({"message": "Expecting value: line 1 column 1"}) is False
+
+    s = ModelStats(model="m", moderation_blocked=130, attempted_count=855)
+    assert abs(_moderation_pct(s) - 0.15204) < 1e-4
+    assert "moderation blocked 15.2%" in _reliability_flags(s)
+
+    clean = ModelStats(model="m", moderation_blocked=0, attempted_count=855)
+    assert _moderation_pct(clean) == 0.0
+    assert "moderation" not in _reliability_flags(clean)
