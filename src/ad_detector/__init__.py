@@ -440,17 +440,20 @@ def _cue_fusion_inputs(audio_analysis, segments):
 
 
 # Merge bookkeeping: how much audio the member that supplied the current
-# category covered. Stripped before markers are returned.
+# category (resp. sponsor+reason label) covered. Stripped before markers
+# are returned.
 _CATEGORY_SPAN = '_category_span'
+_LABEL_SPAN = '_label_span'
 
 
 def _with_category_span(entry: Dict) -> Dict:
-    """Stamp a merge accumulator with the audio its own category covers, before
-    a later member extends the end past what that category classified."""
+    """Stamp a merge accumulator with the audio its own category and label
+    cover, before a later member extends the end past what it classified."""
     if entry.get('category') in SEGMENT_CATEGORIES:
         entry[_CATEGORY_SPAN] = entry['end'] - entry['start']
     else:
         entry.pop(_CATEGORY_SPAN, None)
+    entry[_LABEL_SPAN] = entry['end'] - entry['start']
     return entry
 
 
@@ -2309,12 +2312,9 @@ class AdDetector:
                     )
                     continue
                 # The stage-priority merge below overwrites last's stage
-                # (e.g. claude -> dai_differential) BEFORE the #541 upgrade
-                # check runs. Snapshot it: the check must see the
-                # corroborator's real stage, or a claude ad that happens to
-                # sort before the differential region is misread as
-                # differential and the hold survives its own corroboration
-                # (DTNS 5313: 0.24s of sort order decided cut vs held).
+                # (e.g. claude -> dai_differential); snapshot the sponsor and
+                # confidence it carries in now, for the junk-sponsor recovery
+                # and #541 fallback below.
                 last_stage_before_merge = last.get('detection_stage')
                 last_sponsor_before_merge = last.get('sponsor')
                 last_confidence_before_merge = last.get('confidence', 0)
@@ -2355,6 +2355,17 @@ class AdDetector:
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
 
+                # Accumulate every stage that has folded into this marker.
+                # The stage-priority overwrite below only keeps the winning
+                # stage on `last`, which loses an earlier corroborator (e.g.
+                # a pattern member folded in, then a claude overlap flips the
+                # stage to dai_differential): the #541 check needs the full
+                # set, not one snapshot (DTNS 5313).
+                member_stages = last.setdefault('_member_stages', [last_stage_before_merge])
+                cur_stage = current.get('detection_stage')
+                if cur_stage and cur_stage not in member_stages:
+                    member_stages.append(cur_stage)
+
                 # Prefer pattern detection stage over claude. This governs
                 # cutting trust (stage + pattern_id) only; the sponsor LABEL is
                 # decided below, tied to the reason, so the two never disagree.
@@ -2368,17 +2379,22 @@ class AdDetector:
                 # member, so a merged marker never shows one ad's sponsor with
                 # another ad's description (a Nordstrom pattern that matched a
                 # host tour-promo, or a David Protein read folded into a
-                # ZipRecruiter marker). The more descriptive (longer) reason
-                # comes from the content-aware detection, so its sponsor is the
-                # accurate label for that text -- take both from it together.
+                # ZipRecruiter marker). The pair goes to whichever member
+                # covers the largest span, mirroring the category rule above;
+                # an exact tie goes to the more descriptive (longer) reason.
                 cur_reason = current.get('reason') or ''
                 last_reason = last.get('reason') or ''
-                if len(cur_reason) > len(last_reason):
+                cur_label_span = current['end'] - current['start']
+                last_label_span = last.get(_LABEL_SPAN, 0.0)
+                if (cur_label_span > last_label_span
+                        or (cur_label_span == last_label_span
+                            and len(cur_reason) > len(last_reason))):
                     last['reason'] = cur_reason
                     last['sponsor'] = current.get('sponsor')
+                    last[_LABEL_SPAN] = cur_label_span
 
                 # Recover from a junk primary sponsor (segment name /
-                # reasoning prose) picked by the reason-length rule above:
+                # reasoning prose) picked by the label rule above:
                 # try the OTHER member's sponsor, preferring whichever had
                 # higher confidence, before giving up to None (Windows
                 # Weekly: 'Xbox segment' 0.8 discarded for 'CiraSync' 0.9's
@@ -2408,11 +2424,12 @@ class AdDetector:
                     other = current if diff_is_last else last
                     other_stage = (current.get('detection_stage')
                                    if diff_is_last else last_stage_before_merge)
+                    stages_seen = set(last.get('_member_stages') or []) | {other_stage}
                     independent = (
-                        other_stage in ('fingerprint', 'text_pattern')
+                        bool(stages_seen & {'fingerprint', 'text_pattern'})
                         or is_cue_backed(other))
                     claude_verified = (
-                        other_stage == 'claude'
+                        'claude' in stages_seen
                         and _span_transcript_coverage(
                             segments, diff_side['start'], diff_side['end'])
                         >= DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE)
@@ -2439,6 +2456,8 @@ class AdDetector:
             if marker.get('category') not in SEGMENT_CATEGORIES:
                 marker.pop('category', None)
             marker.pop(_CATEGORY_SPAN, None)
+            marker.pop(_LABEL_SPAN, None)
+            marker.pop('_member_stages', None)
 
         return merged
 
