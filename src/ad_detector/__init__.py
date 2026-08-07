@@ -1913,6 +1913,9 @@ class AdDetector:
             # Inherited from the matched pattern; None (pattern predates the
             # category column) stays unset through the merge seam.
             'category': match.category,
+            # getattr: FingerprintMatch has no 'defined' field (audio stage
+            # predates the trust-tier split); treat it as not tier-1.
+            'pattern_defined': getattr(match, 'defined', False),
         })
         pattern_matched_regions.append({
             'start': match.start,

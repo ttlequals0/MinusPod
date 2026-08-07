@@ -26,6 +26,13 @@ from utils.language import get_pattern_language
 
 logger = logging.getLogger('podcast.textmatch')
 
+
+def is_defined_pattern(pattern: dict) -> bool:
+    """Tier-1 trust: user-created or community patterns; auto-learned are not."""
+    return (pattern.get('created_by') == 'user'
+            or pattern.get('source') == 'community')
+
+
 # Minimum text length for pattern matching (characters)
 MIN_TEXT_LENGTH = 50
 
@@ -266,6 +273,8 @@ class TextMatch:
     # re-match of a pattern learned from e.g. a cross_promo marker carries
     # that category into the detection instead of falling back to 'sponsor'.
     category: Optional[str] = None
+    # Tier-1 trust (user-created or community pattern); see is_defined_pattern.
+    defined: bool = False
 
 
 @dataclass
@@ -284,6 +293,7 @@ class AdPattern:
     source: str = 'local'  # "local", "community", "imported"
     source_language: Optional[str] = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
     category: Optional[str] = None  # Segment category (#565); None on a legacy/unmigrated row
+    created_by: Optional[str] = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
 
 
 class TextPatternMatcher:
@@ -380,6 +390,7 @@ class TextPatternMatcher:
                     source=p.get('source') or 'local',
                     source_language=p.get('source_language'),
                     category=p.get('category'),
+                    created_by=p.get('created_by'),
                 ))
 
             # Cache sponsor_id -> tags for matcher eligibility checks.
@@ -703,6 +714,9 @@ class TextPatternMatcher:
                         sponsor=pattern.sponsor,
                         match_type="content",
                         category=pattern.category,
+                        defined=is_defined_pattern(
+                            {'created_by': pattern.created_by, 'source': pattern.source}
+                        ),
                     ))
 
         window_bounds = []
@@ -784,6 +798,9 @@ class TextPatternMatcher:
                             match_type="intro",
                             category=pattern.category,
                             matched_text=matched,
+                            defined=is_defined_pattern(
+                                {'created_by': pattern.created_by, 'source': pattern.source}
+                            ),
                         ))
 
                 # Check outro phrases
@@ -816,6 +833,9 @@ class TextPatternMatcher:
                             match_type="outro",
                             category=pattern.category,
                             matched_text=matched,
+                            defined=is_defined_pattern(
+                                {'created_by': pattern.created_by, 'source': pattern.source}
+                            ),
                         ))
 
         except ImportError:
