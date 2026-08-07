@@ -44,11 +44,33 @@ class PricingSnapshot:
         return self._index.get(normalize_model_key(model_id))
 
 
+# Pricing variants share a match key with the standard model because
+# normalize_model_key strips punctuation: `anthropic/claude-opus-5` and
+# `anthropic/claude-opus-5:batch` both become `claudeopus5`. Batch pricing is
+# 50% of standard, so letting a variant win a collision silently halves the
+# model's cost in every report. Bedrock version ids (`...-v2:0`) are real model
+# ids, not variants, so match on the suffix rather than on any colon.
+_PRICING_VARIANT_SUFFIXES = (":batch", ":free", ":extended", ":thinking")
+
+
+def _is_pricing_variant(raw_model_id: str) -> bool:
+    low = (raw_model_id or "").lower()
+    return any(low.endswith(sfx) for sfx in _PRICING_VARIANT_SUFFIXES)
+
+
 def fetch_current() -> PricingSnapshot:
     by_key: dict[str, ModelPrice] = {}
-    for item in fetch_litellm_pricing():
-        entry = _to_model_price(item)
+
+    def offer(entry: ModelPrice) -> None:
+        """Record `entry` unless it would overwrite a standard price with a variant."""
+        prior = by_key.get(entry.match_key)
+        if prior is not None and _is_pricing_variant(entry.raw_model_id) \
+                and not _is_pricing_variant(prior.raw_model_id):
+            return
         by_key[entry.match_key] = entry
+
+    for item in fetch_litellm_pricing():
+        offer(_to_model_price(item))
     try:
         or_items = fetch_openrouter_pricing()
     except Exception as exc:
@@ -60,7 +82,7 @@ def fetch_current() -> PricingSnapshot:
         # win on a collision would silently zero out a valid LiteLLM price.
         if entry.input_cost_per_mtok == 0.0 and entry.output_cost_per_mtok == 0.0 and entry.match_key in by_key:
             continue
-        by_key[entry.match_key] = entry
+        offer(entry)
     return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=list(by_key.values()))
 
 

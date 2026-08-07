@@ -75,3 +75,42 @@ def test_latest_snapshot_empty_dir(tmp_path):
 
 def test_latest_snapshot_missing_dir():
     assert latest_snapshot(Path("/nonexistent/x/y")) is None
+
+
+def test_batch_variant_does_not_overwrite_standard_price(monkeypatch):
+    """`anthropic/claude-opus-5` and `...:batch` share a match key because
+    normalize_model_key strips punctuation. Batch is 50% of standard, so a
+    variant winning the collision silently halves the model's reported cost."""
+    from benchmark import pricing
+
+    standard = {"match_key": "claudeopus5", "raw_model_id": "anthropic/claude-opus-5",
+                "input_cost_per_mtok": 5.0, "output_cost_per_mtok": 25.0}
+    batch = {"match_key": "claudeopus5", "raw_model_id": "anthropic/claude-opus-5:batch",
+             "input_cost_per_mtok": 2.5, "output_cost_per_mtok": 12.5}
+
+    for order in ([standard, batch], [batch, standard]):
+        monkeypatch.setattr(pricing, "fetch_litellm_pricing", lambda o=order: list(o))
+        monkeypatch.setattr(pricing, "fetch_openrouter_pricing", lambda: [])
+        snap = pricing.fetch_current()
+        got = snap.lookup("anthropic/claude-opus-5")
+        assert got.input_cost_per_mtok == 5.0, f"variant won with order {order[0]['raw_model_id']}"
+        assert got.output_cost_per_mtok == 25.0
+
+
+def test_bedrock_version_suffix_is_not_treated_as_a_variant():
+    """`...-v2:0` is a real Bedrock model id, not a pricing variant."""
+    from benchmark.pricing import _is_pricing_variant
+    assert _is_pricing_variant("anthropic.claude-3-5-sonnet-20241022-v2:0") is False
+    assert _is_pricing_variant("anthropic/claude-opus-5:batch") is True
+    assert _is_pricing_variant("nvidia/nemotron-3-ultra:free") is True
+    assert _is_pricing_variant("anthropic/claude-opus-5") is False
+
+
+def test_variant_still_used_when_no_standard_entry_exists(monkeypatch):
+    """A variant is better than no price at all."""
+    from benchmark import pricing
+    only_batch = [{"match_key": "somemodel", "raw_model_id": "vendor/some-model:batch",
+                   "input_cost_per_mtok": 1.0, "output_cost_per_mtok": 2.0}]
+    monkeypatch.setattr(pricing, "fetch_litellm_pricing", lambda: list(only_batch))
+    monkeypatch.setattr(pricing, "fetch_openrouter_pricing", lambda: [])
+    assert pricing.fetch_current().lookup("vendor/some-model").input_cost_per_mtok == 1.0
