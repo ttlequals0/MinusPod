@@ -1,0 +1,1254 @@
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w1_787c783e069a_20260805T175217Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w2_154c3b0740b3_20260805T175225Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w0_8bbe0ac40f2d_20260805T175209Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w1_787c783e069a_20260805T175245Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w2_154c3b0740b3_20260805T175248Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t1_w0_8bbe0ac40f2d_20260805T175232Z","body":"{\n  \"ad_segments\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w2_154c3b0740b3_20260805T175255Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w1_787c783e069a_20260805T175254Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w1_787c783e069a_20260805T175259Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t2_w0_8bbe0ac40f2d_20260805T175251Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w2_154c3b0740b3_20260805T175300Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t3_w0_8bbe0ac40f2d_20260805T175259Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w1_787c783e069a_20260805T175305Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w2_154c3b0740b3_20260805T175305Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w0_4dd2aec56a0e_20260805T175309Z","body":"{\n  \"start\": 0.0,\n  \"end\": 69.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Consecutive sponsor ads for Vitel Global, LinkedIn Premium, and Hertz with sub-15s gaps between segments, all containing promotional language and brand URLs\",\n  \"end_text\": \"Get paired with our newest fleet yet at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w3_3f3d4fbabf1f_20260805T175326Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-ai-cloud-essentials-e8dc897fbd6b_t4_w0_8bbe0ac40f2d_20260805T175305Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. The only brand mention is a 'brought to you by Core Read' byline with no accompanying promotional language, product pitch, URL, promo code, or call to action, which does not meet the ad detection criteria.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w1_1c7ba17e93d8_20260805T175309Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w5_d48698a4a167_20260805T175337Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w2_15b1b263a798_20260805T175310Z","body":"{\n  \"start\": 1036.2,\n  \"end\": 1129.6,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for SoFi personal loans and LinkedIn Premium All-in-One, including promotional URLs, product pitches, and calls to action\",\n  \"end_text\": \"LinkedIn.com slash all-in-one.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w1_1c7ba17e93d8_20260805T175342Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is narrative episode content with no promotional language, sponsor mentions, URLs, promo codes, calls to action, or platform-inserted ad content.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w4_0f9a04391032_20260805T175337Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t0_w6_4e0ac6da8938_20260805T175341Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"LinkedIn Premium All-in-One sponsor ad with product pitch and free trial call to action, partially extends past the 48.2 minute window\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w3_3f3d4fbabf1f_20260805T175407Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w0_4dd2aec56a0e_20260805T175342Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w5_d48698a4a167_20260805T175412Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w6_4e0ac6da8938_20260805T175415Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"LinkedIn Premium All-in-One sponsor ad with product pitch and call to action\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w2_15b1b263a798_20260805T175401Z","body":"{\n  \"start\": 1036.2,\n  \"end\": 1129.6,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for SoFi and LinkedIn, including product pitches, vanity URLs, and explicit sponsor mentions\",\n  \"end_text\": \"Try for free at LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t1_w4_0f9a04391032_20260805T175408Z","body":"{\n  \"start\": 1959.8,\n  \"end\": 2080.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Consecutive sponsor ad block for Rakuten, LinkedIn Premium, and Hertz with gaps under 15 seconds between individual ad spots\",\n  \"end_text\": \"Get paired with our newest fleet yet at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w0_4dd2aec56a0e_20260805T175418Z","body":"{\n  \"start\": 0.0,\n  \"end\": 98.4,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged consecutive sponsored ad segments for Vitel Global, LinkedIn Premium, and Hertz with sub-15s gaps between each, all containing brand promotions, URLs, and calls to action\",\n  \"end_text\": \"Get paired with our newest fleet yet at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w1_1c7ba17e93d8_20260805T175428Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is focused on the episode's topic with no promotional language, sponsor mentions, URLs, promo codes, or calls to action present.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w3_3f3d4fbabf1f_20260805T175438Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w2_15b1b263a798_20260805T175428Z","body":"{\n  \"start\": 1036.2,\n  \"end\": 1129.6,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for SoFi personal loans and LinkedIn Premium All-in-One, separated by a 1.9s gap below the 15s merge threshold\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w5_d48698a4a167_20260805T175452Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w6_4e0ac6da8938_20260805T175452Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2863.0,\n      \"end\": 2894.5,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"LinkedIn Premium sponsored ad segment with product pitch, feature highlights, and call to action to LinkedIn.com/all-in-one\",\n      \"end_text\": \"LinkedIn.com slash all-in-one\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w0_4dd2aec56a0e_20260805T175454Z","body":"{\n  \"start\": 0.0,\n  \"end\": 69.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged consecutive sponsor ads for Vitel Global, LinkedIn Premium, and Hertz with sub-15s gaps between each, all containing promotional language, product pitches, and vanity URLs\",\n  \"end_text\": \"Get paired with our newest fleet yet at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t2_w4_0f9a04391032_20260805T175440Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w1_1c7ba17e93d8_20260805T175457Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. The only non-story line 'Debt can get messy fast.' lacks any promotional language, sponsor names, URLs, promo codes, product pitches, or calls to action required to qualify as an ad.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w3_3f3d4fbabf1f_20260805T175507Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w5_d48698a4a167_20260805T175510Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w2_15b1b263a798_20260805T175501Z","body":"{\n  \"start\": 1036.2,\n  \"end\": 1129.6,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged host-read sponsor segments for SoFi and LinkedIn Premium\",\n  \"end_text\": \"LinkedIn.com slash all-in-one.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w4_0f9a04391032_20260805T175507Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w0_4dd2aec56a0e_20260805T175514Z","body":"{\n  \"start\": 0.0,\n  \"end\": 70.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Consecutive dynamically inserted sponsor ads for Vitel Global, LinkedIn Premium, and Hertz with sub-15 second gaps between segments\",\n  \"end_text\": \"at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w1_1c7ba17e93d8_20260805T175527Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is narrative discussion of the missing person case with no promotional language, sponsor mentions, calls to action, or ad markers present.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w3_3f3d4fbabf1f_20260805T175539Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t3_w6_4e0ac6da8938_20260805T175513Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"LinkedIn Premium All-in-One sponsor ad with product pitch and free trial call to action\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w5_d48698a4a167_20260805T175544Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w6_4e0ac6da8938_20260805T175546Z","body":"{\n  \"start\": 2863.0,\n  \"end\": 2894.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"LinkedIn Premium host-read sponsor segment with promotional pitch and call to action\",\n  \"end_text\": \"Try for free at LinkedIn.com slash all-in-one.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w2_15b1b263a798_20260805T175539Z","body":"{\n  \"start\": 1036.2,\n  \"end\": 1129.6,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged consecutive sponsor reads for SoFi and LinkedIn Premium with 1.9s gap between them\",\n  \"end_text\": \"LinkedIn.com slash all-in-one\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-crime-junkie-8ce498f299d7_t4_w4_0f9a04391032_20260805T175544Z","body":"{\n  \"start\": 1959.8,\n  \"end\": 2080.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged Rakuten, LinkedIn Premium, and Hertz sponsor ad segments with gaps under 15 seconds between them, all containing promotional language, brand names, URLs, and calls to action\",\n  \"end_text\": \"Get paired with our newest fleet yet at Hertz.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t0_w0_39fb2c8b6943_20260805T175549Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 54.1,\n      \"end\": 64.7,\n      \"confidence\": 0.99,\n      \"category\": \"sponsor\",\n      \"reason\": \"Old National Bank sponsor read with commercial banking URL and FDIC disclosure\",\n      \"end_text\": \"Member FDIC.\"\n    },\n    {\n      \"start\": 521.5,\n      \"end\": 548.5,\n      \"confidence\": 0.9,\n      \"category\": \"self_promo\",\n      \"reason\": \"Produced segment promoting Crain's Weekly News Quiz and podcast follow prompt\",\n      \"end_text\": \"Crain's Daily Gist with Amy Guth.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t0_w2_b51ac767a1a6_20260805T175559Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t0_w1_ec4de22e1efb_20260805T175552Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t0_w3_e9dc75c5df6f_20260805T175612Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t1_w2_b51ac767a1a6_20260805T175622Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t1_w3_e9dc75c5df6f_20260805T175625Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t1_w0_39fb2c8b6943_20260805T175620Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 54.1,\n      \"end\": 64.7,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Old National Bank sponsor read with promotional messaging, URL, and FDIC disclosure\",\n      \"end_text\": \"Member FDIC.\"\n    },\n    {\n      \"start\": 521.5,\n      \"end\": 548.5,\n      \"confidence\": 0.9,\n      \"category\": \"self_promo\",\n      \"reason\": \"Produced self-promotion for Crain's Weekly News Quiz and podcast follow prompt\",\n      \"end_text\": \"Crain's Daily Gist with Amy Guth.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t1_w1_ec4de22e1efb_20260805T175622Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t2_w2_b51ac767a1a6_20260805T175648Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t2_w3_e9dc75c5df6f_20260805T175652Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t2_w0_39fb2c8b6943_20260805T175636Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t2_w1_ec4de22e1efb_20260805T175643Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t3_w3_e9dc75c5df6f_20260805T175716Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. The content consists of the host's organic episode outro, including mentions of the show's own news site, listening platforms, and a request to subscribe/rate/review, which are not classified as ads per the provided rules.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t3_w2_b51ac767a1a6_20260805T175711Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is editorial news coverage and the host's organic episode outro with no paid sponsor promotions, cross-promos for other shows, or inserted ad segments.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t3_w1_ec4de22e1efb_20260805T175706Z","body":"{\n  \"start\": 521.5,\n  \"end\": 548.5,\n  \"confidence\": 0.9,\n  \"category\": \"self_promo\",\n  \"reason\": \"Produced self-promotion for Crain's Weekly News Quiz and the Crain's Daily Gist podcast\",\n  \"end_text\": \"Daily Gist with Amy Guth\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t3_w0_39fb2c8b6943_20260805T175705Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t4_w3_e9dc75c5df6f_20260805T175738Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t4_w2_b51ac767a1a6_20260805T175734Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content consists of news reporting and organic host closing remarks with no promotional sponsor content, cross-promotions, or platform-inserted ads.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t4_w0_39fb2c8b6943_20260805T175727Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 54.1,\n      \"end\": 64.7,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Old National Bank sponsor promotion with vanity URL and FDIC disclosure\",\n      \"end_text\": \"Member FDIC.\"\n    },\n    {\n      \"start\": 521.5,\n      \"end\": 548.5,\n      \"confidence\": 0.9,\n      \"category\": \"self_promo\",\n      \"reason\": \"Produced segment promoting Crain's Weekly News Quiz and the Daily Gist podcast\",\n      \"end_text\": \"This is the Crain's Daily Gist with Amy Guth.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-gist-chicago-70a82fe93a5c_t4_w1_ec4de22e1efb_20260805T175733Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t0_w2_e3ae32c98e04_20260805T175757Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t0_w0_79bb2c450783_20260805T175751Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t0_w1_5439f91af8f7_20260805T175753Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t0_w3_abe6ee609305_20260805T175803Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t0_w4_31f88accf63c_20260805T175804Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t1_w2_e3ae32c98e04_20260805T175836Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t1_w1_5439f91af8f7_20260805T175824Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t1_w0_79bb2c450783_20260805T175823Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t1_w3_abe6ee609305_20260805T175836Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 1493.2,\n      \"end\": 1536.8,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Sponsor ad break featuring Capital One host-read promotion and AllTrails brand promotional spot\",\n      \"end_text\": \"find your outside.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t1_w4_31f88accf63c_20260805T175844Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t2_w2_e3ae32c98e04_20260805T175904Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t2_w1_5439f91af8f7_20260805T175855Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t2_w0_79bb2c450783_20260805T175850Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t3_w1_5439f91af8f7_20260805T175920Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t2_w3_abe6ee609305_20260805T175916Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t3_w0_79bb2c450783_20260805T175919Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t2_w4_31f88accf63c_20260805T175918Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t3_w2_e3ae32c98e04_20260805T175949Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t3_w3_abe6ee609305_20260805T175951Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 1493.2,\n      \"end\": 1536.8,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Capital One sponsor read followed by AllTrails promotional ad with call to action, separated by <1s gap so merged into single ad break\",\n      \"end_text\": \"find your outside\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t4_w0_79bb2c450783_20260805T175952Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t3_w4_31f88accf63c_20260805T175951Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t4_w1_5439f91af8f7_20260805T175958Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t4_w2_e3ae32c98e04_20260805T180022Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w0_504ae757ba82_20260805T180025Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t4_w3_abe6ee609305_20260805T180023Z","body":"{\n  \"start\": 1493.2,\n  \"end\": 1536.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Capital One and AllTrails sponsor host reads with promotional product pitches and calls to action\",\n  \"end_text\": \"find your outside.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-b576979e1fe8_t4_w4_31f88accf63c_20260805T180024Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w1_f2ac0ad84a58_20260805T180034Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w3_a54d861081ba_20260805T180053Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w2_19c7dfb24abb_20260805T180053Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w4_9be5129845d7_20260805T180101Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t0_w5_8db0a6f0d677_20260805T180102Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w0_504ae757ba82_20260805T180122Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w1_f2ac0ad84a58_20260805T180123Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w2_19c7dfb24abb_20260805T180132Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w3_a54d861081ba_20260805T180135Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w4_9be5129845d7_20260805T180150Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w0_504ae757ba82_20260805T180203Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t1_w5_8db0a6f0d677_20260805T180155Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w1_f2ac0ad84a58_20260805T180204Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w2_19c7dfb24abb_20260805T180224Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w3_a54d861081ba_20260805T180232Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w4_9be5129845d7_20260805T180233Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t2_w5_8db0a6f0d677_20260805T180236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w1_f2ac0ad84a58_20260805T180301Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w2_19c7dfb24abb_20260805T180304Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w0_504ae757ba82_20260805T180258Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w3_a54d861081ba_20260805T180310Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w4_9be5129845d7_20260805T180332Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w0_504ae757ba82_20260805T180335Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t3_w5_8db0a6f0d677_20260805T180334Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w1_f2ac0ad84a58_20260805T180346Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w2_19c7dfb24abb_20260805T180404Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w3_a54d861081ba_20260805T180406Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w4_9be5129845d7_20260805T180410Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w2_26406963a8bc_20260805T180439Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w1_65682aee27e0_20260805T180436Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260805T180444Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-daily-tech-news-show-c1904b8605f7_t4_w5_8db0a6f0d677_20260805T180416Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w5_4c903e042fbb_20260805T180447Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w6_7a84e68f8328_20260805T180449Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w0_bde9947c2133_20260805T180432Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260805T180506Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w3_63f8f4f8e6f0_20260805T180444Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w10_3443604b21f8_20260805T180512Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w11_73fbcd449414_20260805T180514Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260805T180514Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w14_03c15dc5bac3_20260805T180517Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w7_098316c6ee32_20260805T180452Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w13_05fd81bf7e56_20260805T180516Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w16_f49300a55383_20260805T180521Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w15_e50ff112746f_20260805T180520Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w8_2fed180b9d94_20260805T180457Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w19_48f599003e25_20260805T180523Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w17_5a1cb7540f11_20260805T180522Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w20_1a7aaca3c920_20260805T180525Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w18_e9c008b26bd7_20260805T180523Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w22_9aadda80dde0_20260805T180526Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w23_6e4d10955e02_20260805T180528Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w25_06d39c27eec3_20260805T180529Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w24_f1fcff195636_20260805T180529Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w26_43f0738a93d1_20260805T180530Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w27_e05fe8081dd8_20260805T180531Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w29_8947f443cb78_20260805T180532Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w30_ada6ac7c0fbf_20260805T180533Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w28_4819b57297d5_20260805T180531Z","body":"{\n  \"ad_segments\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w31_3569ebb4328d_20260805T180535Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w34_6340987e4d46_20260805T180540Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w33_a808f4a15b66_20260805T180538Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w35_c6525e853e9e_20260805T180542Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w21_0b7b889f5072_20260805T180526Z","body":"{\n  \"start\": 8799.1,\n  \"end\": 8831.4,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged OnDeck and Public sponsor ad break with sub-15s gap between segments\",\n  \"end_text\": \"take it seriously.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w1_65682aee27e0_20260805T180557Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w32_07af8e7a5599_20260805T180537Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w2_26406963a8bc_20260805T180604Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w36_c9cef912940b_20260805T180543Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w0_bde9947c2133_20260805T180545Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w4_e206cdbaa9f3_20260805T180609Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w6_7a84e68f8328_20260805T180610Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w5_4c903e042fbb_20260805T180609Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w9_578e89ad4e5a_20260805T180621Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w10_3443604b21f8_20260805T180623Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w11_73fbcd449414_20260805T180626Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w3_63f8f4f8e6f0_20260805T180606Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w13_05fd81bf7e56_20260805T180637Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w14_03c15dc5bac3_20260805T180639Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w15_e50ff112746f_20260805T180642Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w7_098316c6ee32_20260805T180613Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w8_2fed180b9d94_20260805T180615Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w17_5a1cb7540f11_20260805T180645Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w12_07b49ae5e43c_20260805T180628Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w16_f49300a55383_20260805T180644Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w20_1a7aaca3c920_20260805T180650Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w18_e9c008b26bd7_20260805T180647Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w19_48f599003e25_20260805T180648Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w22_9aadda80dde0_20260805T180652Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w24_f1fcff195636_20260805T180654Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w23_6e4d10955e02_20260805T180653Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w26_43f0738a93d1_20260805T180655Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w25_06d39c27eec3_20260805T180654Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w27_e05fe8081dd8_20260805T180656Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w29_8947f443cb78_20260805T180658Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w30_ada6ac7c0fbf_20260805T180659Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w28_4819b57297d5_20260805T180657Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w31_3569ebb4328d_20260805T180700Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w34_6340987e4d46_20260805T180704Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w33_a808f4a15b66_20260805T180703Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w35_c6525e853e9e_20260805T180707Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w21_0b7b889f5072_20260805T180650Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w1_65682aee27e0_20260805T180721Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w2_26406963a8bc_20260805T180726Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w32_07af8e7a5599_20260805T180702Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w4_e206cdbaa9f3_20260805T180732Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w0_bde9947c2133_20260805T180710Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w36_c9cef912940b_20260805T180709Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w5_4c903e042fbb_20260805T180736Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w6_7a84e68f8328_20260805T180738Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w9_578e89ad4e5a_20260805T180743Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w10_3443604b21f8_20260805T180745Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w11_73fbcd449414_20260805T180748Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w12_07b49ae5e43c_20260805T180750Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w13_05fd81bf7e56_20260805T180753Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w14_03c15dc5bac3_20260805T180755Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w15_e50ff112746f_20260805T180758Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w3_63f8f4f8e6f0_20260805T180730Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w16_f49300a55383_20260805T180800Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w17_5a1cb7540f11_20260805T180801Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w19_48f599003e25_20260805T180804Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w18_e9c008b26bd7_20260805T180802Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w20_1a7aaca3c920_20260805T180809Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w7_098316c6ee32_20260805T180738Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w22_9aadda80dde0_20260805T180812Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w8_2fed180b9d94_20260805T180741Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w23_6e4d10955e02_20260805T180813Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w25_06d39c27eec3_20260805T180815Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w24_f1fcff195636_20260805T180815Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w26_43f0738a93d1_20260805T180817Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w27_e05fe8081dd8_20260805T180817Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w29_8947f443cb78_20260805T180819Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w30_ada6ac7c0fbf_20260805T180820Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w31_3569ebb4328d_20260805T180823Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w28_4819b57297d5_20260805T180817Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w34_6340987e4d46_20260805T180828Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w33_a808f4a15b66_20260805T180826Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w35_c6525e853e9e_20260805T180830Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w21_0b7b889f5072_20260805T180809Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w1_65682aee27e0_20260805T180843Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w2_26406963a8bc_20260805T180852Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w32_07af8e7a5599_20260805T180825Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w36_c9cef912940b_20260805T180831Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w4_e206cdbaa9f3_20260805T180900Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w0_bde9947c2133_20260805T180833Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w6_7a84e68f8328_20260805T180904Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w5_4c903e042fbb_20260805T180903Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w9_578e89ad4e5a_20260805T180909Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w10_3443604b21f8_20260805T180911Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w11_73fbcd449414_20260805T180913Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w12_07b49ae5e43c_20260805T180916Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w13_05fd81bf7e56_20260805T180918Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w14_03c15dc5bac3_20260805T180921Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w15_e50ff112746f_20260805T180923Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w3_63f8f4f8e6f0_20260805T180858Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w16_f49300a55383_20260805T180927Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w17_5a1cb7540f11_20260805T180927Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w19_48f599003e25_20260805T180929Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w20_1a7aaca3c920_20260805T180931Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w18_e9c008b26bd7_20260805T180929Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w7_098316c6ee32_20260805T180904Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w23_6e4d10955e02_20260805T180935Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w22_9aadda80dde0_20260805T180935Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w25_06d39c27eec3_20260805T180937Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w24_f1fcff195636_20260805T180937Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w26_43f0738a93d1_20260805T180939Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w27_e05fe8081dd8_20260805T180941Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w8_2fed180b9d94_20260805T180908Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w29_8947f443cb78_20260805T180943Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w30_ada6ac7c0fbf_20260805T180944Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w31_3569ebb4328d_20260805T180945Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w28_4819b57297d5_20260805T180942Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w34_6340987e4d46_20260805T180947Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w33_a808f4a15b66_20260805T180947Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w35_c6525e853e9e_20260805T180950Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w21_0b7b889f5072_20260805T180933Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w1_65682aee27e0_20260805T181004Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w32_07af8e7a5599_20260805T180946Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w2_26406963a8bc_20260805T181011Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w4_e206cdbaa9f3_20260805T181016Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w36_c9cef912940b_20260805T180951Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w0_bde9947c2133_20260805T180952Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w6_7a84e68f8328_20260805T181024Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w5_4c903e042fbb_20260805T181019Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w9_578e89ad4e5a_20260805T181032Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w10_3443604b21f8_20260805T181037Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w11_73fbcd449414_20260805T181040Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w12_07b49ae5e43c_20260805T181044Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w13_05fd81bf7e56_20260805T181048Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w3_63f8f4f8e6f0_20260805T181014Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w14_03c15dc5bac3_20260805T181049Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w15_e50ff112746f_20260805T181050Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w16_f49300a55383_20260805T181052Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w17_5a1cb7540f11_20260805T181053Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w7_098316c6ee32_20260805T181026Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w19_48f599003e25_20260805T181055Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w8_2fed180b9d94_20260805T181028Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w20_1a7aaca3c920_20260805T181057Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w22_9aadda80dde0_20260805T181059Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w23_6e4d10955e02_20260805T181059Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w18_e9c008b26bd7_20260805T181055Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w24_f1fcff195636_20260805T181102Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w25_06d39c27eec3_20260805T181102Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w26_43f0738a93d1_20260805T181102Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w27_e05fe8081dd8_20260805T181105Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w29_8947f443cb78_20260805T181105Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w30_ada6ac7c0fbf_20260805T181107Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w28_4819b57297d5_20260805T181105Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w31_3569ebb4328d_20260805T181108Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w34_6340987e4d46_20260805T181111Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w33_a808f4a15b66_20260805T181110Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w35_c6525e853e9e_20260805T181114Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w21_0b7b889f5072_20260805T181058Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 8799.1,\n      \"end\": 8831.4,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Merged OnDeck and Public sponsor read segments, with sub-15s gap between them\",\n      \"end_text\": \"those who take it seriously.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w32_07af8e7a5599_20260805T181109Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w2_2dea8a7aacca_20260805T181141Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w36_c9cef912940b_20260805T181115Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w0_821ef7d77950_20260805T181117Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w3_6a494a37782a_20260805T181146Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w1_07517f7502b1_20260805T181124Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w7_b8de89465893_20260805T181158Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w6_7a02c112c92c_20260805T181153Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w8_f9ea14a61126_20260805T181203Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w10_9e840b453a39_20260805T181209Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w9_57fb7d2dfcb1_20260805T181204Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w4_d919c2f5a2e6_20260805T181147Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2208.3,\n      \"end\": 2237.2,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Blinds.com sponsor segment with product pitch, 45% off site-wide discount offer, and free professional measure promotion\",\n      \"end_text\": \"rules and restrictions apply\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w11_aa5074f2c6ea_20260805T181215Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w5_1a388fdb607a_20260805T181153Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w12_c8984843b698_20260805T181216Z","body":"{\n  \"start\": 5568.5,\n  \"end\": 5596.3,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix sponsor ad for the series Remarkably Bright Creatures\",\n  \"end_text\": \"only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w16_86a44c65f928_20260805T181229Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w13_bbcf40c6a407_20260805T181220Z","body":"{\n  \"start\": 5546.3,\n  \"end\": 5596.3,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment promoting Netflix's 'Remarkably Bright Creatures' with standard 'brought to you by' transition\",\n  \"end_text\": \"only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w17_26420f945ba7_20260805T181235Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w15_56f2afb0b694_20260805T181227Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w18_dfdc7334cbb2_20260805T181236Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w20_58082ae720a7_20260805T181243Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w19_b386d79095cd_20260805T181243Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w21_4be28108aa4c_20260805T181244Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w22_0119aea2eb01_20260805T181249Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w14_fa99fccd8a9d_20260805T181223Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w2_2dea8a7aacca_20260805T181300Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w1_07517f7502b1_20260805T181300Z","body":"{\n  \"start\": 539.2,\n  \"end\": 652.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged host-read sponsor segments for In the Gray and Skechers, with <0.1s gap between the two ads, both containing standard sponsor transition phrases, product pitches, and promotional URLs\",\n  \"end_text\": \"That's only at Skechers.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t0_w23_b11dfd7c054f_20260805T181250Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All promotional content is the guest discussing her own work, book, and nonprofit project in the context of the interview, which is not classified as an ad per the detection rules. The Perplexity ad mentioned in the episode metadata appears after the end of the provided transcript window.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w3_6a494a37782a_20260805T181312Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w0_821ef7d77950_20260805T181252Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w6_7a02c112c92c_20260805T181321Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w7_b8de89465893_20260805T181325Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w8_f9ea14a61126_20260805T181326Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w9_57fb7d2dfcb1_20260805T181331Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w10_9e840b453a39_20260805T181333Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w11_aa5074f2c6ea_20260805T181338Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w4_d919c2f5a2e6_20260805T181319Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w5_1a388fdb607a_20260805T181321Z","body":"{\n  \"start\": 2208.3,\n  \"end\": 2237.2,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Blinds.com sponsored ad with product promotion, brand credibility claims, and exclusive discount offer\",\n  \"end_text\":"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w13_bbcf40c6a407_20260805T181346Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 5546.3,\n      \"end\": 5596.3,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor segment promoting Netflix's 'Remarkably Bright Creatures' with transition phrase 'This episode is brought to you by'\",\n      \"end_text\": \"only on Netflix. Yeah.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w16_86a44c65f928_20260805T181359Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w14_fa99fccd8a9d_20260805T181350Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w15_56f2afb0b694_20260805T181353Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w12_c8984843b698_20260805T181340Z","body":"{\n  \"start\": 5568.5,\n  \"end\": 5596.3,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix sponsor read promoting the film Remarkably Bright Creatures\",\n  \"end_text\": \"only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w20_58082ae720a7_20260805T181408Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w18_dfdc7334cbb2_20260805T181406Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w17_26420f945ba7_20260805T181405Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w21_4be28108aa4c_20260805T181414Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w19_b386d79095cd_20260805T181407Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w22_0119aea2eb01_20260805T181414Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w2_2dea8a7aacca_20260805T181423Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w3_6a494a37782a_20260805T181432Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t1_w23_b11dfd7c054f_20260805T181415Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w1_07517f7502b1_20260805T181422Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 539.2,\n      \"end\": 652.8,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Merged host-read sponsor segments for In the Gray film and Skechers slip-ins footwear, separated by a 0.1s gap <15s\",\n      \"end_text\": \"That's only at Skechers.com.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w0_821ef7d77950_20260805T181420Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w6_7a02c112c92c_20260805T181445Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w8_f9ea14a61126_20260805T181456Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w7_b8de89465893_20260805T181452Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w5_1a388fdb607a_20260805T181440Z","body":"{\n  \"start\": 2208.3,\n  \"end\": 2237.2,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Blinds.com host-read sponsor ad with promotional discount and free professional measure offer\",\n  \"end_text\": \"rules and restrictions apply\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w10_9e840b453a39_20260805T181503Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w9_57fb7d2dfcb1_20260805T181502Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w4_d919c2f5a2e6_20260805T181438Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w11_aa5074f2c6ea_20260805T181505Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w13_bbcf40c6a407_20260805T181509Z","body":"{\n  \"start\": 5546.3,\n  \"end\": 5597.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Netflix's Remarkably Bright Creatures, introduced with standard sponsor transition phrase\",\n  \"end_text\": \"only on Netflix. Yeah.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w12_c8984843b698_20260805T181509Z","body":"{\n  \"start\": 5568.5,\n  \"end\": 5596.3,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix sponsor read promoting the series Remarkably Bright Creatures\",\n  \"end_text\": \"only on Netflix.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w14_fa99fccd8a9d_20260805T181513Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w16_86a44c65f928_20260805T181533Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w15_56f2afb0b694_20260805T181515Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w17_26420f945ba7_20260805T181538Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w20_58082ae720a7_20260805T181540Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w19_b386d79095cd_20260805T181540Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w18_dfdc7334cbb2_20260805T181540Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w21_4be28108aa4c_20260805T181544Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w22_0119aea2eb01_20260805T181547Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w2_2dea8a7aacca_20260805T181600Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w3_6a494a37782a_20260805T181606Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w1_07517f7502b1_20260805T181552Z","body":"{\n  \"start\": 539.2,\n  \"end\": 652.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Back-to-back host-read sponsor segments for the film In the Gray and Skechers slip-ins\",\n  \"end_text\": \"That's only at Skechers.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t2_w23_b11dfd7c054f_20260805T181548Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content consists of the host and guest discussing the guest's own work, book, and nonprofit projects, which are excluded from ad classification per the rules.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w6_7a02c112c92c_20260805T181617Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w0_821ef7d77950_20260805T181551Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w7_b8de89465893_20260805T181622Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w8_f9ea14a61126_20260805T181627Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w9_57fb7d2dfcb1_20260805T181630Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w10_9e840b453a39_20260805T181634Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w4_d919c2f5a2e6_20260805T181612Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w11_aa5074f2c6ea_20260805T181636Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w5_1a388fdb607a_20260805T181616Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w13_bbcf40c6a407_20260805T181644Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 5546.3,\n      \"end\": 5596.3,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor segment promoting Netflix's series Remarkably Bright Creatures\",\n      \"end_text\": \"only on Netflix. Yeah.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w16_86a44c65f928_20260805T181652Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w14_fa99fccd8a9d_20260805T181645Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w17_26420f945ba7_20260805T181657Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w18_dfdc7334cbb2_20260805T181658Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w12_c8984843b698_20260805T181640Z","body":"{\n  \"start\": 5568.5,\n  \"end\": 5596.3,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Sponsored segment promoting Netflix's 'Remarkably Bright Creatures'\",\n  \"end_text\": \"only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w19_b386d79095cd_20260805T181704Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w15_56f2afb0b694_20260805T181645Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w20_58082ae720a7_20260805T181704Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w21_4be28108aa4c_20260805T181707Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w22_0119aea2eb01_20260805T181710Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is interview discussion, including the guest's own project (Applied Love Labs) which is explicitly excluded from ad classification per the rules.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w1_07517f7502b1_20260805T181714Z","body":"{\n  \"start\": 539.2,\n  \"end\": 652.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for the film In the Gray and Skechers slip-ins, separated by a 0.1s gap below the 15s merge threshold\",\n  \"end_text\": \"That's only at Skechers.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w2_2dea8a7aacca_20260805T181726Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w3_6a494a37782a_20260805T181728Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t3_w23_b11dfd7c054f_20260805T181713Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is interview conversation, including the guest discussing her own book and nonprofit project, which is excluded from ad classification per the rules.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w0_821ef7d77950_20260805T181714Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w6_7a02c112c92c_20260805T181740Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w4_d919c2f5a2e6_20260805T181735Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2208.3,\n      \"end\": 2237.2,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Blinds.com host-read sponsor segment promoting 45% off site-wide and free professional measure offers\",\n      \"end_text\": \"rules and restrictions apply\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w8_f9ea14a61126_20260805T181747Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w9_57fb7d2dfcb1_20260805T181752Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w10_9e840b453a39_20260805T181754Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w7_b8de89465893_20260805T181740Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w11_aa5074f2c6ea_20260805T181757Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w5_1a388fdb607a_20260805T181736Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w15_56f2afb0b694_20260805T181807Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w13_bbcf40c6a407_20260805T181800Z","body":"{\n  \"start\": 5546.3,\n  \"end\": 5596.3,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment promoting Netflix's 'Remarkably Bright Creatures' with standard sponsor transition phrase\",\n  \"end_text\": \"only on Netflix. Yeah.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w16_86a44c65f928_20260805T181815Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w14_fa99fccd8a9d_20260805T181803Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w12_c8984843b698_20260805T181759Z","body":"{\n  \"start\": 5568.5,\n  \"end\": 5596.3,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix sponsor ad for the series Remarkably Bright Creatures, introduced with standard sponsor transition phrase\",\n  \"end_text\": \"only on Netflix.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w17_26420f945ba7_20260805T181821Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w18_dfdc7334cbb2_20260805T181821Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w20_58082ae720a7_20260805T181824Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w19_b386d79095cd_20260805T181821Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w22_0119aea2eb01_20260805T181829Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w21_4be28108aa4c_20260805T181829Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t0_w1_bfab2e09bdd2_20260805T181838Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t0_w2_ad1128d7ca8e_20260805T181840Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t0_w0_43ca5978d524_20260805T181831Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w23_b11dfd7c054f_20260805T181831Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t1_w1_bfab2e09bdd2_20260805T181906Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t1_w2_ad1128d7ca8e_20260805T181906Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t1_w0_43ca5978d524_20260805T181846Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t0_w3_7a3dce5a18ae_20260805T181845Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t2_w2_ad1128d7ca8e_20260805T181918Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t2_w0_43ca5978d524_20260805T181914Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t1_w3_7a3dce5a18ae_20260805T181913Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t2_w1_bfab2e09bdd2_20260805T181918Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t2_w3_7a3dce5a18ae_20260805T181923Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t3_w2_ad1128d7ca8e_20260805T181951Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t3_w1_bfab2e09bdd2_20260805T181949Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t4_w1_bfab2e09bdd2_20260805T182006Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t3_w0_43ca5978d524_20260805T181946Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t4_w2_ad1128d7ca8e_20260805T182017Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t4_w0_43ca5978d524_20260805T182000Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t3_w3_7a3dce5a18ae_20260805T181959Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w1_4b6354d9e243_20260805T182030Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w3_93ab6e14a116_20260805T182037Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w2_d28df9bb5e50_20260805T182033Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w4_ba838307b921_20260805T182044Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-it-s-a-thing-e339179dfad6_t4_w3_7a3dce5a18ae_20260805T182020Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w0_d81c09abf035_20260805T182023Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w5_0ecfa4130a55_20260805T182044Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2609.5,\n      \"end\": 2634.3,\n      \"confidence\": 0.9,\n      \"category\": \"sponsor\",\n      \"reason\": \"Dynamically inserted sponsor segment listing multiple known podcast sponsors with mentions of promo codes and 'sponsored by' language\",\n      \"end_text\": \"Stamps.com,\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w7_fec646ebbd42_20260805T182052Z","body":"{\n  \"start\": 3428.1,\n  \"end\": 3486.2,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged post-show sponsor advertisements for Arizona State University and University of Michigan, containing promotional brand copy and official URLs, with a 0.6s gap between the two spots\",\n  \"end_text\": \"See more solutions at umich.edu.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w6_078a86b81ea4_20260805T182051Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w1_4b6354d9e243_20260805T182116Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w2_d28df9bb5e50_20260805T182123Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t0_w8_a9b0ce24c239_20260805T182057Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w4_ba838307b921_20260805T182129Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w3_93ab6e14a116_20260805T182129Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w0_d81c09abf035_20260805T182113Z","body":"{\n  \"start\": 0.0,\n  \"end\": 59.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Pre-roll sponsor segments for HEX analytics platform and PickOCNY tourism destination\",\n  \"end_text\": \"Find your fresh state of mind at PickOCNY.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w6_078a86b81ea4_20260805T182136Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. The only potential sponsor-related content is a partial list of sponsor names with no accompanying promotional pitch, call to action, or transition phrase, which does not meet the criteria for an ad segment.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w5_0ecfa4130a55_20260805T182131Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w7_fec646ebbd42_20260805T182142Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t1_w8_a9b0ce24c239_20260805T182152Z","body":"{\n  \"start\": 3428.1,\n  \"end\": 3486.2,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Sponsored promotional segments for Arizona State University and University of Michigan inserted after episode content, with a 1-second gap between them below the 15-second merge threshold\",\n  \"end_text\": \"solutions at umich.edu.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w1_4b6354d9e243_20260805T182205Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w2_d28df9bb5e50_20260805T182216Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w3_93ab6e14a116_20260805T182218Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w4_ba838307b921_20260805T182221Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w0_d81c09abf035_20260805T182204Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w5_0ecfa4130a55_20260805T182222Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w6_078a86b81ea4_20260805T182227Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w7_fec646ebbd42_20260805T182232Z","body":"{\n  \"start\": 3428.1,\n  \"end\": 3486.2,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Post-roll sponsor ads for Arizona State University and University of Michigan featuring promotional program details and call-to-action URLs\",\n  \"end_text\": \"See more solutions at umich.edu.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t2_w8_a9b0ce24c239_20260805T182236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w1_4b6354d9e243_20260805T182302Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w2_d28df9bb5e50_20260805T182305Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w4_ba838307b921_20260805T182310Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w3_93ab6e14a116_20260805T182305Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w0_d81c09abf035_20260805T182257Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w6_078a86b81ea4_20260805T182316Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. The only sponsor-related content is an uncontextualized list of sponsor names with no promotional language, pitch, call to action, or transition phrase, which does not meet the criteria for an ad segment.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w5_0ecfa4130a55_20260805T182311Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w7_fec646ebbd42_20260805T182318Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w1_4b6354d9e243_20260805T182346Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w3_93ab6e14a116_20260805T182351Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w2_d28df9bb5e50_20260805T182350Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t3_w8_a9b0ce24c239_20260805T182329Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w0_d81c09abf035_20260805T182334Z","body":"{\n  \"start\": 0.0,\n  \"end\": 59.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Consecutive sponsor ads for Hex.ai and PickOCNY.com with sub-15s gaps between segments, containing promotional pitches, sponsor names, and vanity URLs\",\n  \"end_text\": \"Find your fresh state of mind at PickOCNY.com.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w4_ba838307b921_20260805T182359Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w5_0ecfa4130a55_20260805T182401Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w7_fec646ebbd42_20260805T182404Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w6_078a86b81ea4_20260805T182403Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-on-air-with-dan-and-alex2-574e4f303730_t4_w8_a9b0ce24c239_20260805T182407Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 3428.1,\n      \"end\": 3486.2,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Consecutive promotional ads for Arizona State University and University of Michigan with 1s gap between them, both containing sponsor names, URLs, and calls to action\",\n      \"end_text\": \"See more solutions at umich.edu.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w2_66e86355f7c9_20260805T182440Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w1_bb947dbf8a07_20260805T182438Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w3_116452b00fc0_20260805T182440Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w0_375713268103_20260805T182436Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w5_7b1567cc911f_20260805T182445Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w4_dd4c0f3e6cfb_20260805T182445Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w6_0e24dce34ca2_20260805T182447Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w7_ccf114d250bd_20260805T182448Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w8_182477fe4ea6_20260805T182449Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w9_63120be7e811_20260805T182452Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w10_a0ec11af0304_20260805T182453Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w1_bb947dbf8a07_20260805T182457Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w0_375713268103_20260805T182457Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w2_66e86355f7c9_20260805T182501Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w3_116452b00fc0_20260805T182502Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w12_4cb9a727a121_20260805T182456Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t0_w11_9884a386123e_20260805T182453Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w4_dd4c0f3e6cfb_20260805T182506Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w7_ccf114d250bd_20260805T182509Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w5_7b1567cc911f_20260805T182506Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w6_0e24dce34ca2_20260805T182508Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w8_182477fe4ea6_20260805T182510Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w9_63120be7e811_20260805T182512Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w10_a0ec11af0304_20260805T182513Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w12_4cb9a727a121_20260805T182514Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t1_w11_9884a386123e_20260805T182513Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w1_bb947dbf8a07_20260805T182518Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w0_375713268103_20260805T182517Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w3_116452b00fc0_20260805T182520Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w2_66e86355f7c9_20260805T182520Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w4_dd4c0f3e6cfb_20260805T182521Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w6_0e24dce34ca2_20260805T182523Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w5_7b1567cc911f_20260805T182521Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w7_ccf114d250bd_20260805T182525Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w9_63120be7e811_20260805T182526Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w10_a0ec11af0304_20260805T182527Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w8_182477fe4ea6_20260805T182526Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w12_4cb9a727a121_20260805T182530Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t2_w11_9884a386123e_20260805T182529Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w1_bb947dbf8a07_20260805T182534Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w0_375713268103_20260805T182531Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w2_66e86355f7c9_20260805T182535Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w4_dd4c0f3e6cfb_20260805T182537Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w5_7b1567cc911f_20260805T182538Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w6_0e24dce34ca2_20260805T182539Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w3_116452b00fc0_20260805T182536Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w7_ccf114d250bd_20260805T182542Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w9_63120be7e811_20260805T182544Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w10_a0ec11af0304_20260805T182546Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w8_182477fe4ea6_20260805T182543Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w12_4cb9a727a121_20260805T182548Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t3_w11_9884a386123e_20260805T182547Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w2_66e86355f7c9_20260805T182553Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w3_116452b00fc0_20260805T182553Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w5_7b1567cc911f_20260805T182557Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w4_dd4c0f3e6cfb_20260805T182557Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w1_bb947dbf8a07_20260805T182550Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w0_375713268103_20260805T182549Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w6_0e24dce34ca2_20260805T182602Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w7_ccf114d250bd_20260805T182604Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w8_182477fe4ea6_20260805T182604Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w9_63120be7e811_20260805T182606Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w10_a0ec11af0304_20260805T182606Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w11_9884a386123e_20260805T182608Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-oxide-and-friends-ce789ff5b62e_t4_w12_4cb9a727a121_20260805T182609Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w3_cf33b4c0d5bc_20260805T182617Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w4_1467d7f1ec0d_20260805T182627Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w1_40f9124b6dee_20260805T182611Z","body":"{\n  \"start\": 469.0,\n  \"end\": 572.1,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Zscaler host-read sponsor segment with product pitch and promotional URL\",\n  \"end_text\": \"Thank you, Leo.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w2_afb4538f66bb_20260805T182614Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w0_219664984359_20260805T182610Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w8_82474f6abdd4_20260805T182642Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w7_aa8fe9847f86_20260805T182637Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w5_25a534412b66_20260805T182632Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w6_0154ac693ca3_20260805T182636Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w11_767b95832a5f_20260805T182703Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w12_859fcf436143_20260805T182709Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w9_26997f78938f_20260805T182650Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w15_cea0a2987f45_20260805T182725Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w10_4955f9a7c433_20260805T182656Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w16_731fc433b85f_20260805T182730Z","body":"{\n  \"ad_segments\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w13_b4f23bf93d26_20260805T182713Z","body":"{\n  \"start\": 6016.6,\n  \"end\": 6060.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Hawkshunt host-read sponsor segment with transition phrase and promotional product pitch\",\n  \"end_text\": \"is this actually working well?\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w14_564a4d60aed5_20260805T182716Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w19_eb46bac40231_20260805T182741Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w20_7375bbe8c301_20260805T182750Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w17_3adebf20cb3b_20260805T182732Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w18_02d44020deff_20260805T182736Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w21_fc01a45fc2c1_20260805T182751Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w22_b6e5eb149688_20260805T182758Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w0_219664984359_20260805T182806Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w1_40f9124b6dee_20260805T182810Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w2_afb4538f66bb_20260805T182825Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w4_1467d7f1ec0d_20260805T182837Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w3_cf33b4c0d5bc_20260805T182835Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w7_aa8fe9847f86_20260805T182843Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w8_82474f6abdd4_20260805T182857Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w5_25a534412b66_20260805T182841Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w6_0154ac693ca3_20260805T182842Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w12_859fcf436143_20260805T182916Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w9_26997f78938f_20260805T182900Z","body":"{\n  \"start\": 4265.2,\n  \"end\": 4380.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Bitwarden sponsor host-read segment introduced with standard 'brought to you by' transition, starts within the 63-73 minute window and continues past the window end\",\n  \"end_text\": \"securely unlocking devices at the OS level\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w11_767b95832a5f_20260805T182916Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w15_cea0a2987f45_20260805T182925Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w10_4955f9a7c433_20260805T182902Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w16_731fc433b85f_20260805T182932Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w13_b4f23bf93d26_20260805T182923Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w14_564a4d60aed5_20260805T182925Z","body":"{\n  \"start\": 6016.6,\n  \"end\": 6162.9,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor ad for Hoxhunt (transcribed as Hawks Hunt) security training platform, includes sponsor name, URL, product pitch, and call to action\",\n  \"end_text\": \"back to our discussion of Chrome and\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w19_eb46bac40231_20260805T182953Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w17_3adebf20cb3b_20260805T182934Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w20_7375bbe8c301_20260805T182955Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w18_02d44020deff_20260805T182939Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w0_219664984359_20260805T183003Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 16.7,\n      \"end\": 84.9,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"OutSystems sponsor host read with product pitch and vanity URL OutSystems.com/twit\",\n      \"end_text\": \"This is Twit.\"\n    },\n    {\n      \"start\": 469.0,\n      \"end\": 572.1,\n      \"confidence\": 0.98,\n      \""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w21_fc01a45fc2c1_20260805T183002Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w3_cf33b4c0d5bc_20260805T183035Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w1_40f9124b6dee_20260805T183008Z","body":"{\n  \"start\": 469.0,\n  \"end\": 572.1,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Zscaler host-read sponsor segment with product pitch, customer testimonial, and promotional URL\",\n  \"end_text\": \"Thank you, Leo.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t1_w22_b6e5eb149688_20260805T183002Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w2_afb4538f66bb_20260805T183034Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w4_1467d7f1ec0d_20260805T183042Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w7_aa8fe9847f86_20260805T183048Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w8_82474f6abdd4_20260805T183055Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w6_0154ac693ca3_20260805T183045Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w5_25a534412b66_20260805T183044Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w11_767b95832a5f_20260805T183115Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w12_859fcf436143_20260805T183119Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w9_26997f78938f_20260805T183100Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w10_4955f9a7c433_20260805T183103Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w15_cea0a2987f45_20260805T183134Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w16_731fc433b85f_20260805T183136Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w13_b4f23bf93d26_20260805T183124Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w14_564a4d60aed5_20260805T183126Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w19_eb46bac40231_20260805T183155Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w20_7375bbe8c301_20260805T183159Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w17_3adebf20cb3b_20260805T183141Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w18_02d44020deff_20260805T183143Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w21_fc01a45fc2c1_20260805T183201Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w0_219664984359_20260805T183212Z","body":"{\n  \"start\": 16.7,\n  \"end\": 84.9,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"OutSystems sponsor host-read ad with product pitch and vanity URL OutSystems.com/twit\",\n  \"end_text\": \"This is Twit.\"\n  ,\n  \"start\": 469.0,\n  \"end\": 572.1,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Zscaler sponsor ad with product pitch, security statistics, customer testimonial, and vanity URL zscaler.com/security\",\n  \"end_text\": \"Thank you, Leo.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t2_w22_b6e5eb149688_20260805T183206Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w1_40f9124b6dee_20260805T183217Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 469.0,\n      \"end\": 572.1,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Zscaler host-read sponsor segment with product pitch, URL, and call to action\",\n      \"end_text\": \"Thank you, Leo.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w3_cf33b4c0d5bc_20260805T183237Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w4_1467d7f1ec0d_20260805T183239Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w2_afb4538f66bb_20260805T183233Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w8_82474f6abdd4_20260805T183252Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w5_25a534412b66_20260805T183239Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w6_0154ac693ca3_20260805T183246Z","body":"{\n  \"start\": 2532.3,\n  \"end\": 2693.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Meter with URL meter.com/securitynow and demo call to action\",\n  \"end_text\": \"back to steve\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w7_aa8fe9847f86_20260805T183248Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w9_26997f78938f_20260805T183301Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w12_859fcf436143_20260805T183322Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w11_767b95832a5f_20260805T183317Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w15_cea0a2987f45_20260805T183334Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w10_4955f9a7c433_20260805T183314Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w13_b4f23bf93d26_20260805T183333Z","body":"{\n  \"start\": 6016.6,\n  \"end\": 6060.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Hoxhunt (transcribed as Hawks Hunt) security training platform, continues past window end\",\n  \"end_text\": \"just like the bad guys.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w16_731fc433b85f_20260805T183345Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w19_eb46bac40231_20260805T183353Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w14_564a4d60aed5_20260805T183334Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w20_7375bbe8c301_20260805T183359Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w17_3adebf20cb3b_20260805T183346Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w18_02d44020deff_20260805T183352Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w0_219664984359_20260805T183415Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 16.7,\n      \"end\": 84.9,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"OutSystems paid sponsor read with AI development platform pitch and vanity URL OutSystems.com/twit\",\n      \"end_text\": \"This is Twit.\"\n    },\n    {\n      \"start\": 469.0,\n      \"end\": 572.1,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Zscaler paid sponsor read with Zero Trust AI security pitch and vanity URL zscaler.com/security\",\n      \"end_text\": \"Thank you, Leo.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w21_fc01a45fc2c1_20260805T183406Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t3_w22_b6e5eb149688_20260805T183407Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w2_afb4538f66bb_20260805T183440Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w4_1467d7f1ec0d_20260805T183441Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w3_cf33b4c0d5bc_20260805T183440Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w1_40f9124b6dee_20260805T183426Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w8_82474f6abdd4_20260805T183501Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w7_aa8fe9847f86_20260805T183451Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is editorial discussion of bug bounty programs, AI impact on security research, and related topic content with no promotional language, sponsor mentions, calls to action, or ad transition phrases present.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w5_25a534412b66_20260805T183445Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w6_0154ac693ca3_20260805T183447Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w11_767b95832a5f_20260805T183519Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w12_859fcf436143_20260805T183522Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w10_4955f9a7c433_20260805T183507Z","body":"{\n  \"start\": 4265.2,\n  \"end\": 4465.7,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Bitwarden with product details, vanity URL, and call to action\",\n  \"end_text\": \"supporting Security Now.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w9_26997f78938f_20260805T183505Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w15_cea0a2987f45_20260805T183531Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w16_731fc433b85f_20260805T183537Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window; all content is editorial discussion of the Chrome AI API with no promotional language, sponsor mentions, transition phrases, or calls to action.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w13_b4f23bf93d26_20260805T183529Z","body":"{\n  \"start\": 6016.6,\n  \"end\": 6060.0,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor ad for Hoxhunt (transcribed as Hawks Hunt/Hawkshunt), continues past window end\",\n  \"end_text\": \"is this actually working well?\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w19_eb46bac40231_20260805T183555Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w14_564a4d60aed5_20260805T183529Z","body":"{\n  \"start\": 6016.6,\n  \"end\": 6162.3,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor ad for Hoxhunt security training platform, includes transition phrase, sponsor name, URL, product pitch, and call to action\",\n  \"end_text\": \"Actually back to our discussion of Chrome and\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w17_3adebf20cb3b_20260805T183537Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w20_7375bbe8c301_20260805T183601Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w18_02d44020deff_20260805T183549Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w1_76b24c3b1197_20260805T183622Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_ea40237d8ea3_20260805T183609Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w21_fc01a45fc2c1_20260805T183604Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w2_90271a073e9e_20260805T183631Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t4_w22_b6e5eb149688_20260805T183609Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w4_327731802bad_20260805T183635Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w6_8d3d9cf580c3_20260805T183643Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_7cca4af47e2a_20260805T183648Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_117f4f34c99a_20260805T183649Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w3_5dbd533a5bc1_20260805T183633Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is organic conversation about the Complex hip-hop media list with no promotional language, sponsor mentions, transition phrases, or ad content.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w5_ad8bd627987c_20260805T183638Z","body":"{\n  \"start\": 2324.6,\n  \"end\": 2450.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for Blue Chew and ZipRecruiter with promo codes, product pitches, and calls to action\",\n  \"end_text\": \"Meet your match on ZipRecruiter.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w11_d85cfdc13e31_20260805T183659Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w10_91c9e729ed79_20260805T183652Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All promotional mentions (book shoutouts, personal event, host's own show) are organic, non-compensated references within the episode conversation, with no sponsor transition language, paid promotion markers, or platform-inserted ad content present.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w13_b5f02b9855c0_20260805T183705Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w12_c5e63798687e_20260805T183700Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w15_ee93718712fa_20260805T183712Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w14_464a13f8cb95_20260805T183709Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w9_7042ac368286_20260805T183651Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_ea40237d8ea3_20260805T183720Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w2_90271a073e9e_20260805T183722Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w16_46319efaa5d3_20260805T183713Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment promoting Netflix's film Remarkably Bright Creatures\",\n  \"end_text\": \"now playing only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w1_76b24c3b1197_20260805T183721Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window. All content is organic conversation between the hosts and guest, with no promotional language, sponsor mentions, transition phrases for ads, or calls to action present.\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w3_5dbd533a5bc1_20260805T183730Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w6_8d3d9cf580c3_20260805T183734Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_7cca4af47e2a_20260805T183739Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_117f4f34c99a_20260805T183741Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w4_327731802bad_20260805T183732Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w17_ee694eb99b08_20260805T183719Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w11_d85cfdc13e31_20260805T183751Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w5_ad8bd627987c_20260805T183732Z","body":"{\n  \"start\": 2324.6,\n  \"end\": 2450.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged host-read sponsor segments for Blue Chew (with promo code Idiots) and ZipRecruiter (with vanity URL ZipRecruiter.com/idiots), gap between segments is 0.3s (<15s merge threshold)\",\n  \"end_text\": \"Meet your match on ZipRecruiter.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w13_b5f02b9855c0_20260805T183758Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w12_c5e63798687e_20260805T183758Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w14_464a13f8cb95_20260805T183802Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w15_ee93718712fa_20260805T183805Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w9_7042ac368286_20260805T183744Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w10_91c9e729ed79_20260805T183745Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_ea40237d8ea3_20260805T183816Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w1_76b24c3b1197_20260805T183817Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w3_5dbd533a5bc1_20260805T183825Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w2_90271a073e9e_20260805T183821Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w4_327731802bad_20260805T183832Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w6_8d3d9cf580c3_20260805T183835Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_7cca4af47e2a_20260805T183840Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w17_ee694eb99b08_20260805T183814Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix Remarkably Bright Creatures sponsor read, extends past window end\",\n  \"end_text\": \"now playing only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w16_46319efaa5d3_20260805T183814Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Netflix's Remarkably Bright Creatures, continues past window end\",\n  \"end_text\": \"now playing only on Netflix.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_117f4f34c99a_20260805T183842Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w11_d85cfdc13e31_20260805T183845Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w12_c5e63798687e_20260805T183851Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w13_b5f02b9855c0_20260805T183857Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w5_ad8bd627987c_20260805T183834Z","body":"{\n  \"start\": 2324.6,\n  \"end\": 2450.0,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Back-to-back host-read sponsor ads for Blue Chew and ZipRecruiter, separated by a 0.3s gap, with explicit promo codes, URLs"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w10_91c9e729ed79_20260805T183844Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w9_7042ac368286_20260805T183843Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w14_464a13f8cb95_20260805T183902Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_ea40237d8ea3_20260805T183910Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w15_ee93718712fa_20260805T183907Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w16_46319efaa5d3_20260805T183908Z","body":"{\n  \"ad_segments\": [\n    {\n      \"start\": 7173.7,\n      \"end\": 7196.8,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Netflix Remarkably Bright Creatures sponsor read with product pitch and call to action\",\n      \"end_text\": \"now playing only on Netflix\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w1_76b24c3b1197_20260805T183913Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w2_90271a073e9e_20260805T183920Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w3_5dbd533a5bc1_20260805T183921Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w6_8d3d9cf580c3_20260805T183928Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_7cca4af47e2a_20260805T183934Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w17_ee694eb99b08_20260805T183908Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Netflix's Remarkably Bright Creatures, extends past window end\",\n  \"end_text\": \"now playing only on Netflix.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_117f4f34c99a_20260805T183937Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w4_327731802bad_20260805T183922Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w11_d85cfdc13e31_20260805T183941Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w10_91c9e729ed79_20260805T183939Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w12_c5e63798687e_20260805T183946Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w5_ad8bd627987c_20260805T183924Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2324.6,\n      \"end\": 2450.0,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor segments for Blue Chew and ZipRecruiter with product pitches, promo code 'Idiots', branded URLs, and calls to action\",\n      \"end_text\": \"Meet your match on ZipRecruiter\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w14_464a13f8cb95_20260805T183955Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w13_b5f02b9855c0_20260805T183951Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w15_ee93718712fa_20260805T183956Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_ea40237d8ea3_20260805T184006Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w9_7042ac368286_20260805T183938Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w1_76b24c3b1197_20260805T184009Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w17_ee694eb99b08_20260805T184003Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix Remarkably Bright Creatures sponsor read\",\n  \"end_text\": \"now playing only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w3_5dbd533a5bc1_20260805T184018Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w2_90271a073e9e_20260805T184015Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w4_327731802bad_20260805T184025Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w16_46319efaa5d3_20260805T184002Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix Remarkably Bright Creatures sponsor read with standard 'brought to you by' transition phrase and promotional product pitch\",\n  \"end_text\": \"now playing only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_7cca4af47e2a_20260805T184028Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w6_8d3d9cf580c3_20260805T184026Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_117f4f34c99a_20260805T184030Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w11_d85cfdc13e31_20260805T184035Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w12_c5e63798687e_20260805T184039Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w5_ad8bd627987c_20260805T184026Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 2324.6,\n      \"end\": 2450.0,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor segments for Blue Chew and ZipRecruiter, including product pitches, promo code, and vanity URLs\",\n      \"end_text\": \"Meet your match on ZipRecruiter.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w13_b5f02b9855c0_20260805T184046Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w14_464a13f8cb95_20260805T184050Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w10_91c9e729ed79_20260805T184035Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w9_7042ac368286_20260805T184033Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w15_ee93718712fa_20260805T184055Z","body":"{\n  \"start\": 0.0,\n  \"end\": 0.0,\n  \"confidence\": 0.0,\n  \"category\": \"sponsor\",\n  \"reason\": \"No advertisement segments found in the provided transcript window\",\n  \"end_text\": \"\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w16_46319efaa5d3_20260805T184102Z","body":"{\n  \"start\": 7173.7,\n  \"end\": 7196.8,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Netflix Remarkably Bright Creatures sponsored host-read segment with product pitch and call to action\",\n  \"end_text\": \"now playing only on Netflix\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w1_a29c16269a09_20260805T184106Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w0_c6286148bafe_20260805T184104Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 0.0,\n      \"end\": 27.7,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Pre-roll sponsor ad for Colgate promoting the Colgate Women's Games\",\n      \"end_text\": \"Colgate, your smile is your strength.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w4_4a37fe4d1019_20260805T184122Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w17_ee694eb99b08_20260805T184103Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 7173.7,\n      \"end\": 7196.8,\n      \"confidence\": 0.98,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor segment for Netflix's Remarkably Bright Creatures\",\n      \"end_text\": \"now playing only on Netflix\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w5_a7c0351062bc_20260805T184127Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w2_c0aec42c8662_20260805T184110Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w3_5acb250736c4_20260805T184115Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w8_1db29eeaf117_20260805T184143Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w9_a1e6f2b5eb44_20260805T184147Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w6_975bfa50ade9_20260805T184131Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w7_1905f411bb3f_20260805T184137Z","body":"{\n  \"start\": 3079"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w1_a29c16269a09_20260805T184210Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w0_c6286148bafe_20260805T184204Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 0.0,\n      \"end\": 27.7,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Colgate sponsor ad promoting the Colgate Women's Games track and field series\",\n      \"end_text\": \"Colgate, your smile is your strength.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w10_3ea8015d2aa8_20260805T184149Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t0_w11_ff508db1c6f8_20260805T184153Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w4_4a37fe4d1019_20260805T184223Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w5_a7c0351062bc_20260805T184225Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w2_c0aec42c8662_20260805T184217Z","body":"{\n  \"start\": 1439.2,\n  \"end\": 1465.2,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segment for Mint Mobile, a listed episode sponsor, featuring promotional product pitch and endorsement\",\n  \"end_text\": \"delivered on the nation's largest 5G network\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w3_5acb250736c4_20260805T184217Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w8_1db29eeaf117_20260805T184242Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w9_a1e6f2b5eb44_20260805T184248Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w7_1905f411bb3f_20260805T184230Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w6_975bfa50ade9_20260805T184229Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w1_a29c16269a09_20260805T184305Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w10_3ea8015d2aa8_20260805T184248Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t1_w11_ff508db1c6f8_20260805T184255Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w4_4a37fe4d1019_20260805T184327Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w0_c6286148bafe_20260805T184302Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w5_a7c0351062bc_20260805T184334Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w2_c0aec42c8662_20260805T184314Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w8_1db29eeaf117_20260805T184343Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w3_5acb250736c4_20260805T184321Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w9_a1e6f2b5eb44_20260805T184350Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w7_1905f411bb3f_20260805T184340Z","body":"{\n  \"start\": 3079.6,\n  \"end\": 3270.1,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Host-read sponsor segments for Morgan & Morgan, Stash, and NeuroGum\",\n  \"end_text\": \"Neuro at CVS and Amazon.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w6_975bfa50ade9_20260805T184336Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w1_a29c16269a09_20260805T184411Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w10_3ea8015d2aa8_20260805T184355Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w0_c6286148bafe_20260805T184406Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 0.0,\n      \"end\": 28.0,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Colgate sponsor segment promoting the Colgate Women's Games initiative\",\n      \"end_text\": \"Colgate, your smile is your strength.\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w4_4a37fe4d1019_20260805T184436Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t2_w11_ff508db1c6f8_20260805T184356Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w2_c0aec42c8662_20260805T184416Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w5_a7c0351062bc_20260805T184443Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w3_5acb250736c4_20260805T184427Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w8_1db29eeaf117_20260805T184500Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w9_a1e6f2b5eb44_20260805T184502Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w6_975bfa50ade9_20260805T184450Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w7_1905f411bb3f_20260805T184450Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w1_a29c16269a09_20260805T184527Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w10_3ea8015d2aa8_20260805T184506Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t3_w11_ff508db1c6f8_20260805T184508Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w4_4a37fe4d1019_20260805T184538Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w5_a7c0351062bc_20260805T184547Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w0_c6286148bafe_20260805T184526Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w2_c0aec42c8662_20260805T184532Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w3_5acb250736c4_20260805T184535Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w8_1db29eeaf117_20260805T184606Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w9_a1e6f2b5eb44_20260805T184609Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w7_1905f411bb3f_20260805T184558Z","body":"{\n  \"start\": 3079.6,\n  \"end\": 3270.1,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged host-read sponsor segments for Morgan & Morgan, Stash, and NeuroGum with sub-15s gaps between individual pitches\",\n  \"end_text\": \"Neuro at CVS and Amazon\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w6_975bfa50ade9_20260805T184557Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w11_ff508db1c6f8_20260805T184613Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-tim-dillon-show-f62bd5fa1cfe_t4_w10_3ea8015d2aa8_20260805T184613Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w2_d0c402f52c84_20260805T184642Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w0_d7dba25a3ced_20260805T184626Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w1_c6762d777fe4_20260805T184628Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w3_7e3ffa2e2afc_20260805T184643Z","body":"{\n  \"start\": 1837.5,\n  \"end\": 1860.0,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Mint Mobile host-read sponsor advertisement with promotional pricing pitch, continues past window\",\n  \"end_text\": \"crazy high bills\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w4_9f0d10d1c2f9_20260805T184653Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t0_w5_1551b04da2eb_20260805T184700Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w2_d0c402f52c84_20260805T184728Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w0_d7dba25a3ced_20260805T184704Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w3_7e3ffa2e2afc_20260805T184732Z","body":"{\n  \"start\": 1837.5,\n  \"end\": 1860.0,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Mint Mobile host-read sponsor advertisement, continues past window end\",\n  \"end_text\": \"crazy high bills?\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w1_c6762d777fe4_20260805T184715Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w4_9f0d10d1c2f9_20260805T184735Z","body":"{\n  \"start\": 1837.5,\n  \"end\": 1999.5,\n  \"confidence\": 0.98,\n  \"category\": \"sponsor\",\n  \"reason\": \"Merged consecutive sponsor ads for Mint Mobile, Mattress Warehouse, and PC Richard & Son with sub-15s gaps between each promotional segment\",\n  \"end_text\": \"Visit PCRichard.com slash Aseema dot HTML for details.\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t1_w5_1551b04da2eb_20260805T184738Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w2_d0c402f52c84_20260805T184805Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w1_c6762d777fe4_20260805T184749Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w0_d7dba25a3ced_20260805T184748Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w3_7e3ffa2e2afc_20260805T184812Z","body":"{\n  \"ads\": [\n    {\n      \"start\": 1837.5,\n      \"end\": 1860.0,\n      \"confidence\": 0.95,\n      \"category\": \"sponsor\",\n      \"reason\": \"Host-read sponsor advertisement for Mint Mobile, a known podcast sponsor, with promotional pitch for wireless service savings\",\n      \"end_text\": \"crazy high bills?\"\n    }\n  ]\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w4_9f0d10d1c2f9_20260805T184814Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w2_d0c402f52c84_20260805T184846Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w0_d7dba25a3ced_20260805T184820Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t2_w5_1551b04da2eb_20260805T184819Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w1_c6762d777fe4_20260805T184824Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w3_7e3ffa2e2afc_20260805T184854Z","body":"{\n  \"start\": 1837.5,\n  \"end\": 1860.0,\n  \"confidence\": 0.95,\n  \"category\": \"sponsor\",\n  \"reason\": \"Partial Mint Mobile host-read sponsor ad, continues past window end\",\n  \"end_text\": \"crazy high bills?\"\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w5_1551b04da2eb_20260805T184856Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t3_w4_9f0d10d1c2f9_20260805T184854Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w0_d7dba25a3ced_20260805T184859Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w2_d0c402f52c84_20260805T184928Z","body":"{\n  \"ads\": []\n}"}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w1_c6762d777fe4_20260805T184910Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w3_7e3ffa2e2afc_20260805T184928Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w4_9f0d10d1c2f9_20260805T184933Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-tosh-show-5f6894439bb6_t4_w5_1551b04da2eb_20260805T184937Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260806T180534Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260806T180537Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w10_3443604b21f8_20260806T180540Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w11_73fbcd449414_20260806T180543Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260806T180547Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w13_05fd81bf7e56_20260806T180552Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w14_03c15dc5bac3_20260806T180554Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w15_e50ff112746f_20260806T180556Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w16_f49300a55383_20260806T180559Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w17_5a1cb7540f11_20260806T180602Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w19_48f599003e25_20260806T180606Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w20_1a7aaca3c920_20260806T180608Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w22_9aadda80dde0_20260806T180609Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w23_6e4d10955e02_20260806T180610Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w24_f1fcff195636_20260806T180612Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w25_06d39c27eec3_20260806T180613Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w26_43f0738a93d1_20260806T180614Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w27_e05fe8081dd8_20260806T180615Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w29_8947f443cb78_20260806T180616Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w30_ada6ac7c0fbf_20260806T180617Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w34_6340987e4d46_20260806T180620Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w31_3569ebb4328d_20260806T180619Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w35_c6525e853e9e_20260806T180622Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w4_e206cdbaa9f3_20260806T180623Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w9_578e89ad4e5a_20260806T180624Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w10_3443604b21f8_20260806T180625Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w11_73fbcd449414_20260806T180626Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w12_07b49ae5e43c_20260806T180628Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w13_05fd81bf7e56_20260806T180628Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w14_03c15dc5bac3_20260806T180631Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w16_f49300a55383_20260806T180631Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w15_e50ff112746f_20260806T180631Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w17_5a1cb7540f11_20260806T180633Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w20_1a7aaca3c920_20260806T180636Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w22_9aadda80dde0_20260806T180636Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w23_6e4d10955e02_20260806T180637Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w25_06d39c27eec3_20260806T180639Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w19_48f599003e25_20260806T180635Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w24_f1fcff195636_20260806T180639Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w26_43f0738a93d1_20260806T180639Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w29_8947f443cb78_20260806T180641Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w27_e05fe8081dd8_20260806T180641Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w35_c6525e853e9e_20260806T180643Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w31_3569ebb4328d_20260806T180641Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w30_ada6ac7c0fbf_20260806T180641Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w34_6340987e4d46_20260806T180643Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w11_73fbcd449414_20260806T180647Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w10_3443604b21f8_20260806T180646Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w12_07b49ae5e43c_20260806T180649Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w9_578e89ad4e5a_20260806T180646Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w4_e206cdbaa9f3_20260806T180645Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w14_03c15dc5bac3_20260806T180651Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w16_f49300a55383_20260806T180652Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w15_e50ff112746f_20260806T180652Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w19_48f599003e25_20260806T180654Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w17_5a1cb7540f11_20260806T180654Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w20_1a7aaca3c920_20260806T180656Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w23_6e4d10955e02_20260806T180657Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w22_9aadda80dde0_20260806T180656Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w26_43f0738a93d1_20260806T180703Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w13_05fd81bf7e56_20260806T180649Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w24_f1fcff195636_20260806T180659Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w25_06d39c27eec3_20260806T180659Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w31_3569ebb4328d_20260806T180706Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w30_ada6ac7c0fbf_20260806T180705Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w27_e05fe8081dd8_20260806T180705Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w29_8947f443cb78_20260806T180705Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w34_6340987e4d46_20260806T180707Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w35_c6525e853e9e_20260806T180707Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w4_e206cdbaa9f3_20260806T180708Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w9_578e89ad4e5a_20260806T180708Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w10_3443604b21f8_20260806T180710Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w11_73fbcd449414_20260806T180710Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w13_05fd81bf7e56_20260806T180711Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w12_07b49ae5e43c_20260806T180711Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w15_e50ff112746f_20260806T180713Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w17_5a1cb7540f11_20260806T180714Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w14_03c15dc5bac3_20260806T180713Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w16_f49300a55383_20260806T180713Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w19_48f599003e25_20260806T180715Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w20_1a7aaca3c920_20260806T180716Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w23_6e4d10955e02_20260806T180717Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w25_06d39c27eec3_20260806T180719Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w24_f1fcff195636_20260806T180718Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w22_9aadda80dde0_20260806T180717Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w26_43f0738a93d1_20260806T180720Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w27_e05fe8081dd8_20260806T180721Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w29_8947f443cb78_20260806T180721Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w31_3569ebb4328d_20260806T180722Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w30_ada6ac7c0fbf_20260806T180722Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w4_e206cdbaa9f3_20260806T180724Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w9_578e89ad4e5a_20260806T180724Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w35_c6525e853e9e_20260806T180724Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w10_3443604b21f8_20260806T180727Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w11_73fbcd449414_20260806T180727Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w34_6340987e4d46_20260806T180724Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w13_05fd81bf7e56_20260806T180731Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w14_03c15dc5bac3_20260806T180731Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w12_07b49ae5e43c_20260806T180731Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w15_e50ff112746f_20260806T180732Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w19_48f599003e25_20260806T180733Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w16_f49300a55383_20260806T180733Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w17_5a1cb7540f11_20260806T180733Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w20_1a7aaca3c920_20260806T180735Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w24_f1fcff195636_20260806T180736Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w23_6e4d10955e02_20260806T180735Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w25_06d39c27eec3_20260806T180737Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w27_e05fe8081dd8_20260806T180738Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w22_9aadda80dde0_20260806T180735Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w26_43f0738a93d1_20260806T180737Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w29_8947f443cb78_20260806T180740Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w30_ada6ac7c0fbf_20260806T180741Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w31_3569ebb4328d_20260806T180741Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w34_6340987e4d46_20260806T180741Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w35_c6525e853e9e_20260806T180743Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_ea40237d8ea3_20260806T180744Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_117f4f34c99a_20260806T180746Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_ea40237d8ea3_20260806T180749Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_7cca4af47e2a_20260806T180746Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_7cca4af47e2a_20260806T180752Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_117f4f34c99a_20260806T180752Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_ea40237d8ea3_20260806T180755Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_7cca4af47e2a_20260806T180756Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_117f4f34c99a_20260806T180758Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_ea40237d8ea3_20260806T180758Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_7cca4af47e2a_20260806T180801Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_117f4f34c99a_20260806T180801Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_ea40237d8ea3_20260806T180803Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_7cca4af47e2a_20260806T180804Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_117f4f34c99a_20260806T180805Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-glt1412515089-373d5ba5007b_t4_w0_821ef7d77950_20260806T180743Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-security-now-audio-2850b24903b2_t0_w14_564a4d60aed5_20260806T180744Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260806T231053Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260806T231055Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w10_3443604b21f8_20260806T231056Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w11_73fbcd449414_20260806T231058Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260806T231059Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w13_05fd81bf7e56_20260806T231101Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w15_e50ff112746f_20260806T231103Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w14_03c15dc5bac3_20260806T231102Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w16_f49300a55383_20260806T231105Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w17_5a1cb7540f11_20260806T231105Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w19_48f599003e25_20260806T231108Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w20_1a7aaca3c920_20260806T231108Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w23_6e4d10955e02_20260806T231111Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w22_9aadda80dde0_20260806T231110Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w24_f1fcff195636_20260806T231113Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w25_06d39c27eec3_20260806T231115Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w26_43f0738a93d1_20260806T231116Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w27_e05fe8081dd8_20260806T231117Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w29_8947f443cb78_20260806T231118Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w30_ada6ac7c0fbf_20260806T231120Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w31_3569ebb4328d_20260806T231120Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w35_c6525e853e9e_20260806T231123Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w34_6340987e4d46_20260806T231123Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w4_e206cdbaa9f3_20260806T231125Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w9_578e89ad4e5a_20260806T231126Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w10_3443604b21f8_20260806T231128Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w11_73fbcd449414_20260806T231129Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w12_07b49ae5e43c_20260806T231131Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w13_05fd81bf7e56_20260806T231131Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w14_03c15dc5bac3_20260806T231133Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w15_e50ff112746f_20260806T231134Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w16_f49300a55383_20260806T231135Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w17_5a1cb7540f11_20260806T231135Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w20_1a7aaca3c920_20260806T231137Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w19_48f599003e25_20260806T231137Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w23_6e4d10955e02_20260806T231138Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w22_9aadda80dde0_20260806T231138Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w24_f1fcff195636_20260806T231139Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w25_06d39c27eec3_20260806T231140Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w27_e05fe8081dd8_20260806T231141Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w26_43f0738a93d1_20260806T231140Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w29_8947f443cb78_20260806T231141Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w30_ada6ac7c0fbf_20260806T231142Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w34_6340987e4d46_20260806T231143Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w31_3569ebb4328d_20260806T231143Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w35_c6525e853e9e_20260806T231144Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w10_3443604b21f8_20260806T231145Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w4_e206cdbaa9f3_20260806T231145Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w11_73fbcd449414_20260806T231147Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w12_07b49ae5e43c_20260806T231148Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w14_03c15dc5bac3_20260806T231148Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w13_05fd81bf7e56_20260806T231148Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w9_578e89ad4e5a_20260806T231145Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w16_f49300a55383_20260806T231150Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w17_5a1cb7540f11_20260806T231150Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w15_e50ff112746f_20260806T231150Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w19_48f599003e25_20260806T231152Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w23_6e4d10955e02_20260806T231153Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w20_1a7aaca3c920_20260806T231152Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w22_9aadda80dde0_20260806T231152Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w24_f1fcff195636_20260806T231154Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w25_06d39c27eec3_20260806T231155Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w26_43f0738a93d1_20260806T231157Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w29_8947f443cb78_20260806T231157Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w30_ada6ac7c0fbf_20260806T231158Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w27_e05fe8081dd8_20260806T231157Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w35_c6525e853e9e_20260806T231200Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w34_6340987e4d46_20260806T231200Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w31_3569ebb4328d_20260806T231159Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w4_e206cdbaa9f3_20260806T231200Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w9_578e89ad4e5a_20260806T231202Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w11_73fbcd449414_20260806T231202Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w12_07b49ae5e43c_20260806T231203Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w14_03c15dc5bac3_20260806T231205Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w10_3443604b21f8_20260806T231202Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w13_05fd81bf7e56_20260806T231204Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w15_e50ff112746f_20260806T231205Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w17_5a1cb7540f11_20260806T231206Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w16_f49300a55383_20260806T231206Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w19_48f599003e25_20260806T231207Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w20_1a7aaca3c920_20260806T231208Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w23_6e4d10955e02_20260806T231209Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w24_f1fcff195636_20260806T231209Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w22_9aadda80dde0_20260806T231209Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w25_06d39c27eec3_20260806T231210Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w26_43f0738a93d1_20260806T231211Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w27_e05fe8081dd8_20260806T231212Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w30_ada6ac7c0fbf_20260806T231213Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w29_8947f443cb78_20260806T231212Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w31_3569ebb4328d_20260806T231214Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w34_6340987e4d46_20260806T231214Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w35_c6525e853e9e_20260806T231215Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w4_e206cdbaa9f3_20260806T231216Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w11_73fbcd449414_20260806T231218Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w9_578e89ad4e5a_20260806T231217Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w12_07b49ae5e43c_20260806T231218Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w10_3443604b21f8_20260806T231218Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w16_f49300a55383_20260806T231220Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w15_e50ff112746f_20260806T231220Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w17_5a1cb7540f11_20260806T231225Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w19_48f599003e25_20260806T231225Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w20_1a7aaca3c920_20260806T231228Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w22_9aadda80dde0_20260806T231228Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w24_f1fcff195636_20260806T231230Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w23_6e4d10955e02_20260806T231230Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w25_06d39c27eec3_20260806T231233Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w13_05fd81bf7e56_20260806T231220Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w14_03c15dc5bac3_20260806T231220Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w26_43f0738a93d1_20260806T231234Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w27_e05fe8081dd8_20260806T231236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w30_ada6ac7c0fbf_20260806T231236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w31_3569ebb4328d_20260806T231237Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w29_8947f443cb78_20260806T231236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w34_6340987e4d46_20260806T231238Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w35_c6525e853e9e_20260806T231238Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_7cca4af47e2a_20260806T231240Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_ea40237d8ea3_20260806T231239Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_117f4f34c99a_20260806T231241Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_ea40237d8ea3_20260806T231241Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_7cca4af47e2a_20260806T231243Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_117f4f34c99a_20260806T231243Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_7cca4af47e2a_20260806T231243Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_ea40237d8ea3_20260806T231243Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_117f4f34c99a_20260806T231245Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_ea40237d8ea3_20260806T231246Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_7cca4af47e2a_20260806T231246Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_117f4f34c99a_20260806T231246Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_ea40237d8ea3_20260806T231247Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_7cca4af47e2a_20260806T231248Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_117f4f34c99a_20260806T231248Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w11_73fbcd449414_20260807T145144Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260807T145144Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w10_3443604b21f8_20260807T145144Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260807T145144Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w13_05fd81bf7e56_20260807T145148Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w14_03c15dc5bac3_20260807T145148Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260807T145147Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w4_e206cdbaa9f3_20260807T145223Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w9_578e89ad4e5a_20260807T145223Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w11_73fbcd449414_20260807T145223Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w12_07b49ae5e43c_20260807T145224Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w13_05fd81bf7e56_20260807T145226Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w10_3443604b21f8_20260807T145223Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w17_5a1cb7540f11_20260807T145229Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w16_f49300a55383_20260807T145229Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w15_e50ff112746f_20260807T145228Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w14_03c15dc5bac3_20260807T145228Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w19_48f599003e25_20260807T145231Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w22_9aadda80dde0_20260807T145231Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w20_1a7aaca3c920_20260807T145231Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w23_6e4d10955e02_20260807T145232Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w24_f1fcff195636_20260807T145233Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w26_43f0738a93d1_20260807T145234Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w27_e05fe8081dd8_20260807T145234Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w25_06d39c27eec3_20260807T145234Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w29_8947f443cb78_20260807T145236Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w30_ada6ac7c0fbf_20260807T145237Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w34_6340987e4d46_20260807T145238Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w31_3569ebb4328d_20260807T145237Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w10_3443604b21f8_20260807T145240Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t0_w35_c6525e853e9e_20260807T145239Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w11_73fbcd449414_20260807T145243Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w9_578e89ad4e5a_20260807T145240Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w14_03c15dc5bac3_20260807T145247Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w13_05fd81bf7e56_20260807T145246Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w16_f49300a55383_20260807T145250Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w15_e50ff112746f_20260807T145249Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w4_e206cdbaa9f3_20260807T145240Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w17_5a1cb7540f11_20260807T145257Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w19_48f599003e25_20260807T145257Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w20_1a7aaca3c920_20260807T145257Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w12_07b49ae5e43c_20260807T145245Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w22_9aadda80dde0_20260807T145259Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w23_6e4d10955e02_20260807T145300Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w24_f1fcff195636_20260807T145300Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w25_06d39c27eec3_20260807T145300Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w27_e05fe8081dd8_20260807T145302Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w26_43f0738a93d1_20260807T145302Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w29_8947f443cb78_20260807T145303Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w31_3569ebb4328d_20260807T145307Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w34_6340987e4d46_20260807T145307Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w30_ada6ac7c0fbf_20260807T145303Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t1_w35_c6525e853e9e_20260807T145307Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w4_e206cdbaa9f3_20260807T145309Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w9_578e89ad4e5a_20260807T145310Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w11_73fbcd449414_20260807T145310Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w10_3443604b21f8_20260807T145310Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w12_07b49ae5e43c_20260807T145312Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w14_03c15dc5bac3_20260807T145312Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w15_e50ff112746f_20260807T145313Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w13_05fd81bf7e56_20260807T145312Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w16_f49300a55383_20260807T145314Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w17_5a1cb7540f11_20260807T145315Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w20_1a7aaca3c920_20260807T145315Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w19_48f599003e25_20260807T145315Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w22_9aadda80dde0_20260807T145317Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w23_6e4d10955e02_20260807T145317Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w25_06d39c27eec3_20260807T145317Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w26_43f0738a93d1_20260807T145319Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w29_8947f443cb78_20260807T145320Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w27_e05fe8081dd8_20260807T145320Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w24_f1fcff195636_20260807T145317Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w34_6340987e4d46_20260807T145323Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w30_ada6ac7c0fbf_20260807T145322Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w31_3569ebb4328d_20260807T145322Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t2_w35_c6525e853e9e_20260807T145324Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w4_e206cdbaa9f3_20260807T145324Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w9_578e89ad4e5a_20260807T145325Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w12_07b49ae5e43c_20260807T145326Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w11_73fbcd449414_20260807T145325Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w14_03c15dc5bac3_20260807T145327Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w10_3443604b21f8_20260807T145325Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w15_e50ff112746f_20260807T145328Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w13_05fd81bf7e56_20260807T145327Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w16_f49300a55383_20260807T145329Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w20_1a7aaca3c920_20260807T145330Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w22_9aadda80dde0_20260807T145332Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w23_6e4d10955e02_20260807T145332Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w17_5a1cb7540f11_20260807T145329Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w19_48f599003e25_20260807T145329Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w26_43f0738a93d1_20260807T145337Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w24_f1fcff195636_20260807T145334Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w27_e05fe8081dd8_20260807T145337Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w30_ada6ac7c0fbf_20260807T145338Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w29_8947f443cb78_20260807T145338Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w25_06d39c27eec3_20260807T145335Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w35_c6525e853e9e_20260807T145343Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w31_3569ebb4328d_20260807T145340Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w4_e206cdbaa9f3_20260807T145344Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w9_578e89ad4e5a_20260807T145345Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w10_3443604b21f8_20260807T145345Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w11_73fbcd449414_20260807T145347Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w12_07b49ae5e43c_20260807T145348Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w14_03c15dc5bac3_20260807T145350Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w15_e50ff112746f_20260807T145350Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w13_05fd81bf7e56_20260807T145348Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w16_f49300a55383_20260807T145353Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t3_w34_6340987e4d46_20260807T145341Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w22_9aadda80dde0_20260807T145356Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w20_1a7aaca3c920_20260807T145355Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w17_5a1cb7540f11_20260807T145353Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w24_f1fcff195636_20260807T145358Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w23_6e4d10955e02_20260807T145357Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w25_06d39c27eec3_20260807T145359Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w26_43f0738a93d1_20260807T145400Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w27_e05fe8081dd8_20260807T145401Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w29_8947f443cb78_20260807T145402Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w31_3569ebb4328d_20260807T145403Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w30_ada6ac7c0fbf_20260807T145402Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w35_c6525e853e9e_20260807T145405Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w34_6340987e4d46_20260807T145404Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w0_ea40237d8ea3_20260807T145405Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w8_117f4f34c99a_20260807T145408Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w0_ea40237d8ea3_20260807T145408Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t0_w7_7cca4af47e2a_20260807T145408Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-drink-champs-30c9a2d49f13_t4_w19_48f599003e25_20260807T145353Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w7_7cca4af47e2a_20260807T145410Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t1_w8_117f4f34c99a_20260807T145411Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w0_ea40237d8ea3_20260807T145413Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w7_7cca4af47e2a_20260807T145413Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t2_w8_117f4f34c99a_20260807T145413Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w0_ea40237d8ea3_20260807T145414Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w8_117f4f34c99a_20260807T145415Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w0_ea40237d8ea3_20260807T145415Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w7_7cca4af47e2a_20260807T145416Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t4_w8_117f4f34c99a_20260807T145417Z","body":""}
+{"call_id":"stepfun_step-3.7-flash_ep-the-brilliant-idiots-0bb9bf634c8e_t3_w7_7cca4af47e2a_20260807T145414Z","body":""}

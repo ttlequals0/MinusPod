@@ -3438,14 +3438,6 @@ How each model's responses were actually parsed. Columns are extraction methods,
 | `qwen/qwen3-8b` | 15 | 1 | 0 | 0 | 0 | 0 | 79 | 0 | 0 | 0 | 0 | 760 | 0 |
 | `openai/o4-mini` | 0 | 0 | 0 | 0 | 0 | 0 | 24 | 1 | 52 | 0 | 0 | 778 | 0 |
 
-### Deprecated Models
-
-Historical data preserved; excluded from headline rankings.
-
-- `mistralai/mistral-7b-instruct-v0.1`: F1 0.000, cost $0.0000/ep
-- `nvidia/llama-3.3-nemotron-super-49b-v1.5`: F1 0.579, cost $0.0000/ep
-- `nvidia/nemotron-nano-9b-v2`: F1 0.316, cost $0.0000/ep
-
 ## Methodology
 
 Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.
@@ -3686,11 +3678,11 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-07T17:24:24Z
-- Unique work units (current state, last-write-wins after retries): 66690
-- Raw rows in calls.jsonl: 110033 (43343 superseded by later retries; kept for audit)
-- Successful: 66551
+- Report generated: 2026-08-07T18:33:14Z
+- Unique work units (current state, last-write-wins after retries): 64125
+- Raw rows in calls.jsonl: 70072 (5947 superseded by later retries; kept for audit)
+- Successful: 63986
 - Failed: 139
-- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $972.7198
+- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $632.0457
 - Active pricing snapshot: 2026-08-07T17:23:44.665500Z
 - System prompt: live (sha256:1030b29e)
