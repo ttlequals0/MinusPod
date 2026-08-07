@@ -346,6 +346,10 @@ def _render_charts_section(stats: dict[str, ModelStats]) -> str:
         "Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.\n\n"
         "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
         f"{pareto_sources}\n\n"
+        "### Accuracy vs latency\n\n"
+        "F0.5 (y) against p50 latency (x, log scale). The cost Pareto above answers what accuracy costs in dollars; this one answers what it costs in wall-clock time. Upper-left is accurate and fast. MinusPod's pipeline is offline, so a slow accurate model is usable, but the chart shows which models make you choose and which don't. The OpenRouter latency caveat from the Metric Key applies.\n\n"
+        "![Accuracy vs latency by model](report_assets/accuracy_latency.svg)\n\n"
+        "Source data: [Best Accuracy](#best-accuracy-f05--iou--05) (F0.5), [Latency tail](#latency-tail) (p50)\n\n"
         "### JSON schema compliance\n\n"
         "Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.\n\n"
         "![JSON compliance per model](report_assets/compliance.svg)\n\n"
@@ -382,6 +386,10 @@ def _render_charts_section(stats: dict[str, ModelStats]) -> str:
         "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget. A model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
         "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n\n"
         "Source data: [Output token efficiency](#output-token-efficiency) table\n\n"
+        "### Cost split (input vs output)\n\n"
+        "Stacked horizontal bars per model: blue is the input share of per-episode cost, orange is the output share, total labeled at the right, sorted by total ascending. Every model reads the same transcripts, so a long blue bar is an expensive input price and a long orange bar is a talkative model. Reasoning models show up as mostly orange.\n\n"
+        "![Cost split per model](report_assets/cost_split.svg)\n\n"
+        "Source data: [Cost breakdown (input vs output)](#cost-breakdown-input-vs-output) table\n\n"
         "### Trial variance (determinism check)\n\n"
         "Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are color-graded: green below 0.02 (effectively deterministic), yellow 0.02-0.05 (slight noise), red above 0.05 (single-trial F1 numbers from this model should be treated with suspicion). Dotted reference lines mark the 0.02 and 0.05 thresholds.\n\n"
         "![Trial F1 variance per model](report_assets/trial_variance.svg)\n\n"
@@ -771,8 +779,10 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
         "",
         "For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary. Bad for any pipeline that cuts the audio.",
         "",
-        "| Model | Start MAE (s) | End MAE (s) |",
-        "|---|---:|---:|",
+        "MAE is size of the miss; bias is its direction (mean of predicted minus truth). A negative start bias or positive end bias means the cut extends past the ad and eats surrounding content; the opposite signs mean ad audio is left in. MinusPod cuts what the model flags, so a model whose bias points outward over-cuts even when its MAE looks acceptable. Bias near zero with a large MAE means the misses are random rather than systematic.",
+        "",
+        "| Model | Start MAE (s) | End MAE (s) | Start bias (s) | End bias (s) |",
+        "|---|---:|---:|---:|---:|",
     ]
     rows = sorted(
         [s for s in stats.values() if s.boundary_start_mae is not None],
@@ -781,7 +791,10 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
     if not rows:
         return ""
     for s in rows:
-        lines.append(f"| `{s.model}` | {s.boundary_start_mae:.2f} | {s.boundary_end_mae:.2f} |")
+        lines.append(
+            f"| `{s.model}` | {s.boundary_start_mae:.2f} | {s.boundary_end_mae:.2f} "
+            f"| {s.boundary_start_bias:+.2f} | {s.boundary_end_bias:+.2f} |"
+        )
     return "\n".join(lines)
 
 
@@ -840,6 +853,32 @@ def _render_latency_tail(stats: dict[str, ModelStats]) -> str:
     return "\n".join(lines)
 
 
+def _render_cost_breakdown(stats: dict[str, ModelStats]) -> str:
+    """Input vs output share of each model's per-episode cost. Output-heavy
+    rows are paying for verbosity or chain-of-thought, not transcript size."""
+    rows = sorted(
+        [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0],
+        key=lambda s: -(s.input_episode_cost + s.output_episode_cost),
+    )
+    if not rows:
+        return ""
+    lines = [
+        "## Cost breakdown (input vs output)",
+        "",
+        "Where each model's per-episode dollars go, at the same pricing snapshot as every other table. Every model reads the same transcripts, so the input side varies only with the provider's input price. The output side varies with how much the model writes: a high output share on a modest total usually means reasoning tokens, and a model with a low per-token price can still land mid-table by writing thousands of them. Failed calls are excluded, same as the cost column everywhere else.",
+        "",
+        "| Model | Cost / episode | Input | Output | Output share |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for s in rows:
+        total = s.input_episode_cost + s.output_episode_cost
+        lines.append(
+            f"| `{s.model}` | ${total:.4f} | ${s.input_episode_cost:.4f} "
+            f"| ${s.output_episode_cost:.4f} | {s.output_episode_cost / total * 100:.0f}% |"
+        )
+    return "\n".join(lines)
+
+
 def _render_token_efficiency(stats: dict[str, ModelStats]) -> str:
     """Output tokens per detected ad. Reasoning-style models burn through
     output budget on chain-of-thought even when finding only 1-2 ads, and that
@@ -888,6 +927,7 @@ def _render_trial_variance(stats: dict[str, ModelStats]) -> str:
 def _render_cross_model_agreement(
     agreement: dict[tuple[str, int], dict[str, int]],
     stats: dict[str, ModelStats],
+    episodes: list[Episode],
 ) -> str:
     """For each (episode, window) tuple, count how many distinct models flagged
     at least one ad. Windows where all models agree are easy; windows where
@@ -935,7 +975,51 @@ def _render_cross_model_agreement(
             f"| `{row['model']}` | {row['with_yes']} | {row['with_no']} | "
             f"{row['broke_yes']} | {row['broke_no']} | {row['alignment'] * 100:.1f}% |"
         )
+    fp_windows = _render_fp_windows(agreement, n_models, episodes)
+    if fp_windows:
+        lines += [""] + fp_windows
     return "\n".join(lines)
+
+
+def _render_fp_windows(
+    agreement: dict[tuple[str, int], dict[str, int]],
+    n_models: int,
+    episodes: list[Episode],
+) -> list[str]:
+    """Windows with no truth ad that many models flagged anyway. High-consensus
+    rows are either ad-like content worth validator tuning or a truth-file miss."""
+    top_n = 15
+    eps = {e.ep_id: e for e in episodes}
+    rows = []
+    for (ep_id, widx), per_model in agreement.items():
+        ep = eps.get(ep_id)
+        if ep is None or widx >= len(ep.windows):
+            continue
+        w = ep.windows[widx]
+        if any(ad.end > w.start and ad.start < w.end for ad in ep.truth.ads):
+            continue
+        n_voted = sum(1 for v in per_model.values() if v > 0)
+        if n_voted >= 2:
+            rows.append((n_voted, ep_id, widx, w))
+    if not rows:
+        return []
+    rows.sort(key=lambda r: (-r[0], r[1], r[2]))
+    lines = [
+        "### Windows flagged with no truth ad",
+        "",
+        f"The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the {n_models} models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.",
+        "",
+        "| Episode | Window | Span | Models flagging |",
+        "|---|---:|---|---:|",
+    ]
+    for n_voted, ep_id, widx, w in rows[:top_n]:
+        tag = " (no-ad control)" if eps[ep_id].truth.is_no_ad_episode else ""
+        lines.append(
+            f"| `{ep_id}`{tag} | {widx} | {w.start:.0f}-{w.end:.0f}s | {n_voted} of {n_models} |"
+        )
+    if len(rows) > top_n:
+        lines.append(f"\n... and {len(rows) - top_n} more with 2+ votes.")
+    return lines
 
 
 def _render_detection_buckets(

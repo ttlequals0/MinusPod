@@ -43,7 +43,10 @@ class ModelEpisodeStats:
     trial_fns: list[int] = field(default_factory=list)
     trial_start_maes: list[float] = field(default_factory=list)
     trial_end_maes: list[float] = field(default_factory=list)
-    trial_costs: list[float] = field(default_factory=list)
+    trial_start_biases: list[float] = field(default_factory=list)
+    trial_end_biases: list[float] = field(default_factory=list)
+    trial_input_costs: list[float] = field(default_factory=list)
+    trial_output_costs: list[float] = field(default_factory=list)
     trial_response_times: list[int] = field(default_factory=list)
     no_ad_passes: list[bool] = field(default_factory=list)
     no_ad_fp_counts: list[int] = field(default_factory=list)
@@ -88,6 +91,12 @@ class ModelStats:
     fn_total: int = 0
     boundary_start_mae: float | None = None
     boundary_end_mae: float | None = None
+    # Mean signed error, predicted minus truth. Negative start / positive end
+    # means the cut extends past the ad into surrounding content.
+    boundary_start_bias: float | None = None
+    boundary_end_bias: float | None = None
+    input_episode_cost: float = 0.0
+    output_episode_cost: float = 0.0
     no_ad_pass: dict[str, bool] = field(default_factory=dict)
     no_ad_fp_count: dict[str, int] = field(default_factory=dict)
     total_episode_cost: float = 0.0
@@ -339,6 +348,8 @@ def _aggregate(
             if be is not None:
                 stats.trial_start_maes.append(be.start_mae)
                 stats.trial_end_maes.append(be.end_mae)
+                stats.trial_start_biases.append(be.start_bias)
+                stats.trial_end_biases.append(be.end_bias)
             # Calibration: for each prediction, was it a TP (matched a truth) or FP?
             matched_pred_idxs = {m.pred_index for m in r.matches}
             for i, ad in enumerate(flat_ads):
@@ -352,7 +363,9 @@ def _aggregate(
                 hit = ti in matched_truth_idxs
                 detection_buckets[model]["length"][_length_bucket(ad.end - ad.start)].append(hit)
                 detection_buckets[model]["position"][_position_bucket(ad.start, duration)].append(hit)
-        stats.trial_costs.append(_recompute_total_cost(records, pricing_snapshot))
+        in_cost, out_cost = _recompute_costs(records, pricing_snapshot)
+        stats.trial_input_costs.append(in_cost)
+        stats.trial_output_costs.append(out_cost)
         stats.trial_response_times.append(sum(r.get("response_time_ms", 0) for r in records))
 
     me_by_model: dict[str, list[tuple[str, ModelEpisodeStats]]] = defaultdict(list)
@@ -368,6 +381,8 @@ def _aggregate(
         ms = ModelStats(model=model)
         all_start_maes: list[float] = []
         all_end_maes: list[float] = []
+        all_start_biases: list[float] = []
+        all_end_biases: list[float] = []
         for ep_id, s in me_by_model[model]:
             if s.trial_f1s:
                 ms.f1_per_episode[ep_id] = statistics.fmean(s.trial_f1s)
@@ -383,14 +398,23 @@ def _aggregate(
             ms.fn_total += sum(s.trial_fns)
             all_start_maes.extend(s.trial_start_maes)
             all_end_maes.extend(s.trial_end_maes)
+            all_start_biases.extend(s.trial_start_biases)
+            all_end_biases.extend(s.trial_end_biases)
             if s.no_ad_passes:
                 ms.no_ad_pass[ep_id] = all(s.no_ad_passes)
                 ms.no_ad_fp_count[ep_id] = max(s.no_ad_fp_counts) if s.no_ad_fp_counts else 0
-            if s.trial_costs:
-                ms.total_episode_cost += statistics.fmean(s.trial_costs)
+            if s.trial_input_costs:
+                in_mean = statistics.fmean(s.trial_input_costs)
+                out_mean = statistics.fmean(s.trial_output_costs)
+                ms.input_episode_cost += in_mean
+                ms.output_episode_cost += out_mean
+                ms.total_episode_cost += in_mean + out_mean
         if all_start_maes:
             ms.boundary_start_mae = statistics.fmean(all_start_maes)
             ms.boundary_end_mae = statistics.fmean(all_end_maes)
+        if all_start_biases:
+            ms.boundary_start_bias = statistics.fmean(all_start_biases)
+            ms.boundary_end_bias = statistics.fmean(all_end_biases)
         rts = sorted(response_times_per_model[model])
         if rts:
             ms.p50_call_latency_ms = _percentile(rts, 50)
@@ -435,17 +459,19 @@ def _aggregate(
     return out, extras
 
 
-def _recompute_total_cost(records: list[dict], snap: pricing.PricingSnapshot) -> float:
+def _recompute_costs(records: list[dict], snap: pricing.PricingSnapshot) -> tuple[float, float]:
+    """(input_cost, output_cost) at snapshot prices across the records."""
     if not records:
-        return 0.0
+        return 0.0, 0.0
     price = snap.lookup(records[0]["model"])
     if price is None:
-        return 0.0
-    total = 0.0
+        return 0.0, 0.0
+    total_in = total_out = 0.0
     for r in records:
-        _, _, cost = pricing.cost_usd(price, input_tokens=int(r.get("input_tokens", 0)), output_tokens=int(r.get("output_tokens", 0)))
-        total += cost
-    return total
+        in_cost, out_cost, _ = pricing.cost_usd(price, input_tokens=int(r.get("input_tokens", 0)), output_tokens=int(r.get("output_tokens", 0)))
+        total_in += in_cost
+        total_out += out_cost
+    return total_in, total_out
 
 
 def _start(ad: dict) -> float:

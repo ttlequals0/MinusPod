@@ -3,7 +3,6 @@ import pytest
 from benchmark import metrics
 from benchmark.metrics import (
     BoundaryError,
-    NoAdResult,
     boundary_error,
     compliance_score,
     iou,
@@ -89,7 +88,9 @@ def test_boundary_error_basic():
     r = match_predictions(preds, truths, threshold=0.3)
     assert r.true_positives == 1
     err = boundary_error(preds, truths, r.matches)
-    assert err == BoundaryError(start_mae=2.0, end_mae=2.0)
+    # Prediction starts late and ends early: positive start bias, negative
+    # end bias, both meaning ad audio is left in rather than over-cut.
+    assert err == BoundaryError(start_mae=2.0, end_mae=2.0, start_bias=2.0, end_bias=-2.0)
 
 
 def test_no_ad_pass():
@@ -227,3 +228,15 @@ class TestFallbackCategoryResolver:
 
     def test_the_report_can_say_which_resolver_ran(self):
         assert metrics.CATEGORY_RESOLVER in ("production", "fallback")
+
+
+def test_boundary_bias_cancels_when_misses_are_symmetric():
+    """Opposite-direction misses must cancel in bias while still counting in
+    MAE; that separation is the whole point of reporting both."""
+    preds = [(5.0, 35.0), (95.0, 125.0)]
+    truths = [(0.0, 30.0), (100.0, 130.0)]
+    r = match_predictions(preds, truths, threshold=0.3)
+    assert r.true_positives == 2
+    err = boundary_error(preds, truths, r.matches)
+    assert err.start_mae == 5.0 and err.end_mae == 5.0
+    assert err.start_bias == 0.0 and err.end_bias == 0.0

@@ -11,6 +11,7 @@
 - [Confidence calibration](#confidence-calibration)
 - [Latency tail](#latency-tail)
 - [Output token efficiency](#output-token-efficiency)
+- [Cost breakdown (input vs output)](#cost-breakdown-input-vs-output)
 - [Trial variance (determinism check)](#trial-variance-determinism-check)
 - [Cross-model agreement](#cross-model-agreement)
 - [Detection rate by ad characteristic](#detection-rate-by-ad-characteristic)
@@ -221,6 +222,14 @@ Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate)
 
 Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar)
 
+### Accuracy vs latency
+
+F0.5 (y) against p50 latency (x, log scale). The cost Pareto above answers what accuracy costs in dollars; this one answers what it costs in wall-clock time. Upper-left is accurate and fast. MinusPod's pipeline is offline, so a slow accurate model is usable, but the chart shows which models make you choose and which don't. The OpenRouter latency caveat from the Metric Key applies.
+
+![Accuracy vs latency by model](report_assets/accuracy_latency.svg)
+
+Source data: [Best Accuracy](#best-accuracy-f05--iou--05) (F0.5), [Latency tail](#latency-tail) (p50)
+
 ### JSON schema compliance
 
 Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.
@@ -292,6 +301,14 @@ Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is
 ![Token efficiency vs F1](report_assets/token_efficiency.svg)
 
 Source data: [Output token efficiency](#output-token-efficiency) table
+
+### Cost split (input vs output)
+
+Stacked horizontal bars per model: blue is the input share of per-episode cost, orange is the output share, total labeled at the right, sorted by total ascending. Every model reads the same transcripts, so a long blue bar is an expensive input price and a long orange bar is a talkative model. Reasoning models show up as mostly orange.
+
+![Cost split per model](report_assets/cost_split.svg)
+
+Source data: [Cost breakdown (input vs output)](#cost-breakdown-input-vs-output) table
 
 ### Trial variance (determinism check)
 
@@ -502,82 +519,84 @@ Reading the table: high precision + low recall means the model is cautious. It r
 
 For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary. Bad for any pipeline that cuts the audio.
 
-| Model | Start MAE (s) | End MAE (s) |
-|---|---:|---:|
-| `mistralai/mistral-small-2603` | 0.00 | 0.39 |
-| `stepfun/step-3.7-flash` | 0.82 | 1.20 |
-| `qwen/qwen3-14b` | 1.59 | 4.08 |
-| `google/gemini-3.1-flash-lite` | 2.87 | 3.39 |
-| `claude-haiku-4-5-20251001` | 3.53 | 3.59 |
-| `google/gemini-3.5-flash-lite` | 3.03 | 4.19 |
-| `qwen/qwen3.6-plus` | 5.37 | 2.29 |
-| `google/gemini-2.5-flash` | 4.28 | 3.50 |
-| `qwen/qwen3.7-max` | 4.23 | 3.81 |
-| `qwen/qwen3.7-flash` | 5.73 | 2.53 |
-| `google/gemini-3.5-flash` | 5.05 | 3.26 |
-| `mistralai/mistral-medium-3-5` | 4.18 | 4.24 |
-| `google/gemini-3.6-flash` | 5.18 | 3.29 |
-| `deepseek/deepseek-r1` | 5.14 | 3.62 |
-| `x-ai/grok-4.5` | 5.80 | 3.13 |
-| `tencent/hy3` | 5.51 | 3.49 |
-| `thinkingmachines/inkling` | 6.39 | 2.69 |
-| `meta-llama/llama-3.3-70b-instruct` | 3.92 | 5.24 |
-| `deepseek/deepseek-v4-flash` | 4.62 | 4.54 |
-| `mistralai/mistral-large-2512` | 4.01 | 5.18 |
-| `x-ai/grok-4.3` | 5.30 | 3.98 |
-| `deepseek/deepseek-r1-0528` | 5.69 | 3.81 |
-| `qwen/qwen3.6-flash` | 7.35 | 2.20 |
-| `deepseek/deepseek-v4-pro` | 5.25 | 4.32 |
-| `openai/gpt-5.6-terra` | 5.91 | 3.70 |
-| `qwen/qwen3.5-plus-02-15` | 7.39 | 2.24 |
-| `claude-sonnet-4-6` | 6.62 | 3.09 |
-| `minimax/minimax-m3` | 6.94 | 2.78 |
-| `claude-fable-5` | 6.27 | 3.50 |
-| `claude-opus-4-8` | 7.29 | 2.64 |
-| `mistralai/mistral-medium-3.1` | 4.33 | 5.78 |
-| `claude-sonnet-5` | 6.70 | 3.51 |
-| `deepseek/deepseek-v4-flash-0731` | 4.40 | 5.89 |
-| `openai/gpt-5.5` | 7.15 | 3.40 |
-| `moonshotai/kimi-k2.6` | 8.57 | 1.99 |
-| `google/gemini-3.1-pro-preview` | 5.26 | 5.38 |
-| `qwen/qwen3.5-27b` | 7.72 | 3.09 |
-| `qwen/qwen3.7-plus` | 7.18 | 3.67 |
-| `deepseek/deepseek-v3.2` | 7.26 | 3.74 |
-| `thinkingmachines/inkling-small` | 4.58 | 6.57 |
-| `qwen/qwen3.8-max` | 3.85 | 7.32 |
-| `openai/gpt-5.6-luna` | 7.70 | 3.79 |
-| `moonshotai/kimi-k3` | 6.07 | 5.46 |
-| `z-ai/glm-5.2` | 6.21 | 5.51 |
-| `nvidia/nemotron-3-super-120b-a12b` | 5.70 | 6.05 |
-| `claude-opus-4-7` | 9.16 | 2.63 |
-| `meituan/longcat-2.0` | 4.24 | 7.59 |
-| `openai/gpt-5.6-sol` | 8.03 | 3.84 |
-| `meta/muse-spark-1.1` | 7.97 | 4.25 |
-| `google/gemini-2.5-pro` | 9.05 | 3.35 |
-| `google/gemini-2.5-flash-lite` | 5.88 | 6.54 |
-| `google/gemma-4-26b-a4b-it` | 1.93 | 10.74 |
-| `claude-opus-5` | 11.05 | 2.25 |
-| `nvidia/nemotron-3-ultra-550b-a55b` | 6.53 | 6.95 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 5.47 | 8.22 |
-| `openai/gpt-5.4` | 7.40 | 6.35 |
-| `xiaomi/mimo-v2.5` | 6.57 | 7.26 |
-| `cohere/command-a` | 5.47 | 8.42 |
-| `google/gemma-4-31b-it` | 9.18 | 4.80 |
-| `openai/gpt-oss-120b` | 8.98 | 5.07 |
-| `qwen/qwen3-235b-a22b-2507` | 4.31 | 10.26 |
-| `xiaomi/mimo-v2.5-pro` | 6.98 | 8.43 |
-| `openai/gpt-oss-20b` | 8.11 | 7.34 |
-| `mistralai/codestral-2508` | 5.37 | 10.76 |
-| `openai/o3` | 11.31 | 4.95 |
-| `openai/gpt-5.4-mini` | 6.87 | 11.19 |
-| `inclusionai/ring-2.6-1t` | 2.47 | 15.62 |
-| `meta-llama/llama-4-maverick` | 5.97 | 13.04 |
-| `microsoft/phi-4` | 7.04 | 12.22 |
-| `openai/o4-mini` | 5.95 | 13.31 |
-| `openai/gpt-3.5-turbo` | 4.94 | 15.47 |
-| `meta-llama/llama-3.1-8b-instruct` | 14.50 | 6.49 |
-| `cohere/command-r-plus-08-2024` | 6.02 | 15.86 |
-| `meta-llama/llama-4-scout` | 6.61 | 17.17 |
+MAE is size of the miss; bias is its direction (mean of predicted minus truth). A negative start bias or positive end bias means the cut extends past the ad and eats surrounding content; the opposite signs mean ad audio is left in. MinusPod cuts what the model flags, so a model whose bias points outward over-cuts even when its MAE looks acceptable. Bias near zero with a large MAE means the misses are random rather than systematic.
+
+| Model | Start MAE (s) | End MAE (s) | Start bias (s) | End bias (s) |
+|---|---:|---:|---:|---:|
+| `mistralai/mistral-small-2603` | 0.00 | 0.39 | +0.00 | -0.39 |
+| `stepfun/step-3.7-flash` | 0.82 | 1.20 | -0.08 | +0.10 |
+| `qwen/qwen3-14b` | 1.59 | 4.08 | +1.45 | -2.90 |
+| `google/gemini-3.1-flash-lite` | 2.87 | 3.39 | +0.27 | +0.29 |
+| `claude-haiku-4-5-20251001` | 3.53 | 3.59 | +2.00 | +0.54 |
+| `google/gemini-3.5-flash-lite` | 3.03 | 4.19 | +2.41 | +0.42 |
+| `qwen/qwen3.6-plus` | 5.37 | 2.29 | -4.33 | -1.31 |
+| `google/gemini-2.5-flash` | 4.28 | 3.50 | +0.70 | +0.26 |
+| `qwen/qwen3.7-max` | 4.23 | 3.81 | +0.12 | -0.27 |
+| `qwen/qwen3.7-flash` | 5.73 | 2.53 | -1.32 | +1.55 |
+| `google/gemini-3.5-flash` | 5.05 | 3.26 | -1.77 | +1.55 |
+| `mistralai/mistral-medium-3-5` | 4.18 | 4.24 | +1.01 | -2.55 |
+| `google/gemini-3.6-flash` | 5.18 | 3.29 | -0.42 | +1.51 |
+| `deepseek/deepseek-r1` | 5.14 | 3.62 | +1.47 | -0.14 |
+| `x-ai/grok-4.5` | 5.80 | 3.13 | -2.06 | +1.37 |
+| `tencent/hy3` | 5.51 | 3.49 | -1.52 | +3.07 |
+| `thinkingmachines/inkling` | 6.39 | 2.69 | -2.98 | -0.12 |
+| `meta-llama/llama-3.3-70b-instruct` | 3.92 | 5.24 | +3.90 | -4.01 |
+| `deepseek/deepseek-v4-flash` | 4.62 | 4.54 | -0.82 | -0.43 |
+| `mistralai/mistral-large-2512` | 4.01 | 5.18 | +0.70 | -0.72 |
+| `x-ai/grok-4.3` | 5.30 | 3.98 | -1.09 | -0.17 |
+| `deepseek/deepseek-r1-0528` | 5.69 | 3.81 | +0.96 | +0.18 |
+| `qwen/qwen3.6-flash` | 7.35 | 2.20 | -2.70 | -0.43 |
+| `deepseek/deepseek-v4-pro` | 5.25 | 4.32 | -1.25 | -0.36 |
+| `openai/gpt-5.6-terra` | 5.91 | 3.70 | -2.55 | +0.91 |
+| `qwen/qwen3.5-plus-02-15` | 7.39 | 2.24 | -3.71 | -0.51 |
+| `claude-sonnet-4-6` | 6.62 | 3.09 | -2.67 | +1.31 |
+| `minimax/minimax-m3` | 6.94 | 2.78 | +2.60 | -0.96 |
+| `claude-fable-5` | 6.27 | 3.50 | -2.14 | +2.37 |
+| `claude-opus-4-8` | 7.29 | 2.64 | -3.39 | +0.35 |
+| `mistralai/mistral-medium-3.1` | 4.33 | 5.78 | +0.29 | -1.21 |
+| `claude-sonnet-5` | 6.70 | 3.51 | -1.79 | +1.25 |
+| `deepseek/deepseek-v4-flash-0731` | 4.40 | 5.89 | -2.68 | -1.76 |
+| `openai/gpt-5.5` | 7.15 | 3.40 | -4.54 | +1.05 |
+| `moonshotai/kimi-k2.6` | 8.57 | 1.99 | -3.65 | +0.19 |
+| `google/gemini-3.1-pro-preview` | 5.26 | 5.38 | -2.34 | +3.56 |
+| `qwen/qwen3.5-27b` | 7.72 | 3.09 | -2.50 | +0.42 |
+| `qwen/qwen3.7-plus` | 7.18 | 3.67 | -4.32 | -3.14 |
+| `deepseek/deepseek-v3.2` | 7.26 | 3.74 | -2.56 | -1.07 |
+| `thinkingmachines/inkling-small` | 4.58 | 6.57 | -0.60 | -3.53 |
+| `qwen/qwen3.8-max` | 3.85 | 7.32 | -3.00 | +2.71 |
+| `openai/gpt-5.6-luna` | 7.70 | 3.79 | -4.95 | +1.30 |
+| `moonshotai/kimi-k3` | 6.07 | 5.46 | -2.32 | +0.70 |
+| `z-ai/glm-5.2` | 6.21 | 5.51 | -2.41 | -0.89 |
+| `nvidia/nemotron-3-super-120b-a12b` | 5.70 | 6.05 | -0.21 | +2.80 |
+| `claude-opus-4-7` | 9.16 | 2.63 | -5.32 | +0.16 |
+| `meituan/longcat-2.0` | 4.24 | 7.59 | +0.16 | -2.15 |
+| `openai/gpt-5.6-sol` | 8.03 | 3.84 | -3.99 | +0.78 |
+| `meta/muse-spark-1.1` | 7.97 | 4.25 | -2.36 | -0.18 |
+| `google/gemini-2.5-pro` | 9.05 | 3.35 | -6.00 | +1.56 |
+| `google/gemini-2.5-flash-lite` | 5.88 | 6.54 | -0.80 | -2.00 |
+| `google/gemma-4-26b-a4b-it` | 1.93 | 10.74 | +0.85 | -6.04 |
+| `claude-opus-5` | 11.05 | 2.25 | -5.47 | +1.15 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 6.53 | 6.95 | -0.54 | -5.78 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 5.47 | 8.22 | +4.33 | -4.65 |
+| `openai/gpt-5.4` | 7.40 | 6.35 | -3.59 | -2.92 |
+| `xiaomi/mimo-v2.5` | 6.57 | 7.26 | -2.51 | -1.46 |
+| `cohere/command-a` | 5.47 | 8.42 | -3.14 | -6.90 |
+| `google/gemma-4-31b-it` | 9.18 | 4.80 | -7.51 | -2.55 |
+| `openai/gpt-oss-120b` | 8.98 | 5.07 | +1.17 | -1.16 |
+| `qwen/qwen3-235b-a22b-2507` | 4.31 | 10.26 | -0.90 | -5.13 |
+| `xiaomi/mimo-v2.5-pro` | 6.98 | 8.43 | -1.50 | -1.89 |
+| `openai/gpt-oss-20b` | 8.11 | 7.34 | +1.01 | +0.14 |
+| `mistralai/codestral-2508` | 5.37 | 10.76 | -0.20 | -6.10 |
+| `openai/o3` | 11.31 | 4.95 | -7.66 | +0.30 |
+| `openai/gpt-5.4-mini` | 6.87 | 11.19 | -4.19 | -7.32 |
+| `inclusionai/ring-2.6-1t` | 2.47 | 15.62 | +0.45 | -9.13 |
+| `meta-llama/llama-4-maverick` | 5.97 | 13.04 | -2.84 | -5.87 |
+| `microsoft/phi-4` | 7.04 | 12.22 | +6.53 | +1.67 |
+| `openai/o4-mini` | 5.95 | 13.31 | -1.44 | -7.90 |
+| `openai/gpt-3.5-turbo` | 4.94 | 15.47 | +4.78 | -11.64 |
+| `meta-llama/llama-3.1-8b-instruct` | 14.50 | 6.49 | -0.38 | -2.19 |
+| `cohere/command-r-plus-08-2024` | 6.02 | 15.86 | -0.13 | -7.48 |
+| `meta-llama/llama-4-scout` | 6.61 | 17.17 | +3.07 | -13.87 |
 
 ## Confidence calibration
 
@@ -827,6 +846,88 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 | `thinkingmachines/inkling` | 2,622,481 | 79 | 33196 | $0.0922 |
 | `qwen/qwen3-8b` | 2,139,222 | 1 | 2139222 | n/a |
 
+## Cost breakdown (input vs output)
+
+Where each model's per-episode dollars go, at the same pricing snapshot as every other table. Every model reads the same transcripts, so the input side varies only with the provider's input price. The output side varies with how much the model writes: a high output share on a modest total usually means reasoning tokens, and a model with a low per-token price can still land mid-table by writing thousands of them. Failed calls are excluded, same as the cost column everywhere else.
+
+| Model | Cost / episode | Input | Output | Output share |
+|---|---:|---:|---:|---:|
+| `claude-fable-5` | $10.7552 | $10.3637 | $0.3915 | 4% |
+| `openai/gpt-5.5` | $7.6842 | $5.3073 | $2.3770 | 31% |
+| `openai/gpt-5.6-sol` | $6.2293 | $5.3073 | $0.9221 | 15% |
+| `moonshotai/kimi-k3` | $5.9242 | $3.2994 | $2.6248 | 44% |
+| `claude-opus-5` | $5.3761 | $5.1818 | $0.1942 | 4% |
+| `claude-opus-4-8` | $5.3661 | $5.1818 | $0.1843 | 3% |
+| `claude-opus-4-7` | $5.3293 | $5.1818 | $0.1474 | 3% |
+| `google/gemini-3.1-pro-preview` | $4.9160 | $2.2714 | $2.6446 | 54% |
+| `qwen/qwen3.8-max` | $4.2714 | $2.2849 | $1.9865 | 47% |
+| `google/gemini-2.5-pro` | $4.1601 | $1.4178 | $2.7423 | 66% |
+| `google/gemini-3.5-flash` | $3.4202 | $1.7036 | $1.7166 | 50% |
+| `x-ai/grok-4.5` | $3.3554 | $2.2292 | $1.1262 | 34% |
+| `openai/o3` | $3.3100 | $2.1229 | $1.1871 | 36% |
+| `claude-sonnet-4-6` | $3.2386 | $3.1091 | $0.1295 | 4% |
+| `thinkingmachines/inkling` | $3.2258 | $1.0626 | $2.1631 | 67% |
+| `cohere/command-a` | $2.9415 | $2.8198 | $0.1217 | 4% |
+| `google/gemini-3.6-flash` | $2.8863 | $1.7037 | $1.1826 | 41% |
+| `cohere/command-r-plus-08-2024` | $2.8505 | $2.8198 | $0.0307 | 1% |
+| `qwen/qwen3.7-max` | $2.8109 | $1.6755 | $1.1354 | 40% |
+| `openai/gpt-5.4` | $2.7907 | $2.6536 | $0.1371 | 5% |
+| `meta/muse-spark-1.1` | $2.2536 | $1.3393 | $0.9143 | 41% |
+| `claude-sonnet-5` | $2.1452 | $2.0727 | $0.0724 | 3% |
+| `openai/o4-mini` | $2.1179 | $1.1676 | $0.9503 | 45% |
+| `moonshotai/kimi-k2.6` | $1.8854 | $0.6254 | $1.2600 | 67% |
+| `mistralai/mistral-medium-3-5` | $1.8393 | $1.7410 | $0.0983 | 5% |
+| `x-ai/grok-4.3` | $1.6048 | $1.3595 | $0.2453 | 15% |
+| `deepseek/deepseek-r1` | $1.4743 | $0.7753 | $0.6990 | 47% |
+| `openai/gpt-5.6-terra` | $1.1951 | $1.0615 | $0.1337 | 11% |
+| `deepseek/deepseek-r1-0528` | $1.1645 | $0.5538 | $0.6108 | 52% |
+| `qwen/qwen3.6-plus` | $1.1534 | $0.3692 | $0.7842 | 68% |
+| `claude-haiku-4-5-20251001` | $1.0820 | $1.0364 | $0.0456 | 4% |
+| `qwen/qwen3.5-plus-02-15` | $1.0746 | $0.2952 | $0.7794 | 73% |
+| `thinkingmachines/inkling-small` | $1.0333 | $0.4782 | $0.5550 | 54% |
+| `qwen/qwen3.5-27b` | $0.8941 | $0.2215 | $0.6726 | 75% |
+| `openai/gpt-5.4-mini` | $0.8470 | $0.7961 | $0.0509 | 6% |
+| `nvidia/nemotron-3-ultra-550b-a55b` | $0.7782 | $0.6974 | $0.0808 | 10% |
+| `z-ai/glm-5.2` | $0.7376 | $0.5961 | $0.1414 | 19% |
+| `qwen/qwen3.7-plus` | $0.7238 | $0.3635 | $0.3603 | 50% |
+| `deepseek/deepseek-r1-distill-llama-70b` | $0.6913 | $0.5492 | $0.1422 | 21% |
+| `deepseek/deepseek-v4-pro` | $0.6692 | $0.4779 | $0.1913 | 29% |
+| `mistralai/mistral-large-2512` | $0.6184 | $0.5803 | $0.0381 | 6% |
+| `meituan/longcat-2.0` | $0.5573 | $0.3396 | $0.2176 | 39% |
+| `openai/gpt-3.5-turbo` | $0.5564 | $0.5395 | $0.0168 | 3% |
+| `qwen/qwen3.6-flash` | $0.5435 | $0.2130 | $0.3305 | 61% |
+| `xiaomi/mimo-v2.5-pro` | $0.4954 | $0.4836 | $0.0118 | 2% |
+| `mistralai/mistral-medium-3.1` | $0.4847 | $0.4643 | $0.0204 | 4% |
+| `stepfun/step-3.7-flash` | $0.4302 | $0.1457 | $0.2846 | 66% |
+| `qwen/qwen3-14b` | $0.3989 | $0.2547 | $0.1442 | 36% |
+| `tencent/hy3` | $0.3876 | $0.1461 | $0.2415 | 62% |
+| `google/gemini-2.5-flash` | $0.3796 | $0.3391 | $0.0405 | 11% |
+| `google/gemini-3.5-flash-lite` | $0.3643 | $0.3407 | $0.0235 | 6% |
+| `mistralai/codestral-2508` | $0.3585 | $0.3482 | $0.0103 | 3% |
+| `minimax/minimax-m3` | $0.3575 | $0.3287 | $0.0289 | 8% |
+| `qwen/qwen3-8b` | $0.3256 | $0.1310 | $0.1947 | 60% |
+| `deepseek/deepseek-v3.2` | $0.3015 | $0.2989 | $0.0026 | 1% |
+| `google/gemini-3.1-flash-lite` | $0.2988 | $0.2837 | $0.0151 | 5% |
+| `inclusionai/ring-2.6-1t` | $0.2468 | $0.0860 | $0.1609 | 65% |
+| `meta-llama/llama-4-maverick` | $0.2206 | $0.2144 | $0.0062 | 3% |
+| `nvidia/nemotron-3-super-120b-a12b` | $0.2194 | $0.0988 | $0.1207 | 55% |
+| `deepseek/deepseek-v4-flash` | $0.2046 | $0.1554 | $0.0492 | 24% |
+| `mistralai/mistral-small-2603` | $0.1745 | $0.1741 | $0.0004 | 0% |
+| `xiaomi/mimo-v2.5` | $0.1692 | $0.1567 | $0.0125 | 7% |
+| `deepseek/deepseek-v4-flash-0731` | $0.1482 | $0.0999 | $0.0482 | 33% |
+| `openai/gpt-5.6-luna` | $0.1402 | $0.1061 | $0.0341 | 24% |
+| `google/gemma-4-31b-it` | $0.1181 | $0.1144 | $0.0037 | 3% |
+| `google/gemini-2.5-flash-lite` | $0.1132 | $0.1050 | $0.0082 | 7% |
+| `meta-llama/llama-4-scout` | $0.1111 | $0.1069 | $0.0042 | 4% |
+| `meta-llama/llama-3.3-70b-instruct` | $0.1107 | $0.1089 | $0.0018 | 2% |
+| `qwen/qwen3-235b-a22b-2507` | $0.1078 | $0.1005 | $0.0072 | 7% |
+| `google/gemma-4-26b-a4b-it` | $0.0825 | $0.0799 | $0.0026 | 3% |
+| `microsoft/phi-4` | $0.0792 | $0.0760 | $0.0032 | 4% |
+| `qwen/qwen3.7-flash` | $0.0725 | $0.0341 | $0.0384 | 53% |
+| `openai/gpt-oss-120b` | $0.0634 | $0.0397 | $0.0237 | 37% |
+| `openai/gpt-oss-20b` | $0.0620 | $0.0322 | $0.0299 | 48% |
+| `meta-llama/llama-3.1-8b-instruct` | $0.0572 | $0.0545 | $0.0027 | 5% |
+
 ## Trial variance (determinism check)
 
 All trials run at temperature 0.0. If a model produces stable output you'd expect the F1 stdev across trials to be near zero. Higher numbers mean the model is non-deterministic even at temp=0. That's fine to know, but means you cannot trust a single trial's number for that model.
@@ -1049,6 +1150,30 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 | `qwen/qwen3-235b-a22b-2507` | 74 | 14 | 81 | 2 | 51.5% |
 | `qwen/qwen3.7-plus` | 75 | 5 | 90 | 1 | 46.8% |
 | `xiaomi/mimo-v2.5` | 76 | 3 | 92 | 0 | 46.2% |
+
+### Windows flagged with no truth ad
+
+The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 75 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
+
+| Episode | Window | Span | Models flagging |
+|---|---:|---|---:|
+| `ep-it-s-a-thing-e339179dfad6` | 0 | 0-600s | 67 of 75 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 6 | 2520-3120s | 59 of 75 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 5 | 2100-2700s | 53 of 75 |
+| `ep-drink-champs-30c9a2d49f13` | 35 | 14700-15300s | 52 of 75 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 10 | 4200-4800s | 51 of 75 |
+| `ep-drink-champs-30c9a2d49f13` | 12 | 5040-5640s | 46 of 75 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 9 | 3780-4380s | 46 of 75 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 2 | 840-1271s | 40 of 75 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 3 | 1260-1271s | 39 of 75 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 14 | 5880-6480s | 32 of 75 |
+| `ep-ai-cloud-essentials-e8dc897fbd6b` (no-ad control) | 0 | 0-600s | 29 of 75 |
+| `ep-crime-junkie-8ce498f299d7` | 1 | 420-1020s | 27 of 75 |
+| `ep-security-now-audio-2850b24903b2` | 11 | 4620-5220s | 26 of 75 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 2 | 840-1440s | 25 of 75 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 3 | 1260-1860s | 24 of 75 |
+
+... and 88 more with 2+ votes.
 
 ## Detection rate by ad characteristic
 
@@ -3710,7 +3835,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-07T20:55:53Z
+- Report generated: 2026-08-07T21:15:39Z
 - Unique work units (current state, last-write-wins after retries): 64125
 - Raw rows in calls.jsonl: 70072 (5947 superseded by later retries; kept for audit)
 - Successful: 63986

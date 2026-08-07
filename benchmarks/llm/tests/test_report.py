@@ -4,7 +4,7 @@ from __future__ import annotations
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
-from benchmark.report.sections import _error_bucket, _render_resolved_by_retry
+from benchmark.report.sections import _error_bucket, _render_fp_windows, _render_resolved_by_retry
 from benchmark.storage import append_jsonl
 
 
@@ -264,3 +264,23 @@ def test_resolved_by_retry_reads_raw_rows_not_dedup():
     assert "`m2`" not in text
 
     assert _render_resolved_by_retry([row("m1", 0), row("m2", 0)]) == []
+
+
+def test_fp_windows_table_lists_only_truthless_windows(make_episode):
+    """A window overlapping a truth ad must not appear no matter how many
+    models flagged it; a truthless window needs 2+ votes to make the table."""
+    ep = make_episode("ep-a", n_windows=2)          # truth ad at 0-10s, w0 spans 0-300
+    control = make_episode("ep-b", n_windows=1, no_ad=True)
+    agreement = {
+        ("ep-a", 0): {"m1": 3, "m2": 1},            # overlaps the truth ad
+        ("ep-a", 1): {"m1": 2, "m2": 1, "m3": 0},   # truthless, 2 of 3 voted
+        ("ep-b", 0): {"m1": 1, "m2": 1},            # no-ad control, tagged
+    }
+    text = "\n".join(_render_fp_windows(agreement, 3, [ep, control]))
+    assert "### Windows flagged with no truth ad" in text
+    assert "| `ep-a` | 1 | 300-600s | 2 of 3 |" in text
+    assert "| `ep-a` | 0 " not in text
+    assert "| `ep-b` (no-ad control) | 0 | 0-600s | 2 of 3 |" in text
+
+    solo_vote = {("ep-a", 1): {"m1": 1, "m2": 0, "m3": 0}}
+    assert _render_fp_windows(solo_vote, 3, [ep]) == []

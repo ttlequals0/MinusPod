@@ -119,6 +119,69 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     plt.close(fig)
 
 
+def _render_accuracy_latency(stats: dict[str, ModelStats], path: Path) -> None:
+    """Scatter of F0.5 vs p50 latency, log-x. The wall-clock companion to the
+    cost Pareto: which models make you trade accuracy for speed."""
+    plt = _plt()
+
+    points = [s for s in stats.values() if s.p50_call_latency_ms > 0]
+    points.sort(key=lambda s: (-s.avg_f05, s.p50_call_latency_ms))
+
+    colors = _distinct_colors(len(points))
+    fig, ax = plt.subplots(figsize=(11, 9))
+    for i, s in enumerate(points):
+        p50_s = s.p50_call_latency_ms / 1000
+        ax.scatter(
+            p50_s, s.avg_f05,
+            s=180, color=colors[i],
+            edgecolors="black", linewidths=0.7, zorder=3,
+            label=f"{s.model}  (F0.5 {s.avg_f05:.3f}, p50 {p50_s:.1f}s)",
+        )
+
+    ax.set_xscale("log")
+    ax.set_xlabel("p50 latency in seconds (log scale, lower is better)", fontsize=10)
+    ax.set_ylabel("F0.5 (accuracy, 0-1), higher is better", fontsize=10)
+    ax.set_title("Accuracy vs latency by model", fontsize=12, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+
+    _legend_below(fig, len(points), plot_height=9)
+    _save_svg(fig, path)
+    plt.close(fig)
+
+
+def _render_cost_split_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Stacked horizontal bars of input vs output cost per episode. A long
+    output segment on a cheap-per-token model is reasoning or verbosity spend."""
+    plt = _plt()
+    import numpy as np
+
+    rows = [s for s in stats.values() if s.input_episode_cost + s.output_episode_cost > 0]
+    if not rows:
+        return
+    rows.sort(key=lambda s: s.input_episode_cost + s.output_episode_cost)
+    labels = [s.model for s in rows]
+    inputs = [s.input_episode_cost for s in rows]
+    outputs = [s.output_episode_cost for s in rows]
+    y = np.arange(len(rows))
+
+    fig, ax = plt.subplots(figsize=(11, max(5, 0.40 * len(rows))))
+    ax.barh(y, inputs, color="#1f77b4", edgecolor="black", linewidth=0.3, label="input cost")
+    ax.barh(y, outputs, left=inputs, color="#ff7f0e", edgecolor="black", linewidth=0.3, label="output cost")
+    label_offset = (inputs[-1] + outputs[-1]) * 0.01
+    for i, (in_v, out_v) in enumerate(zip(inputs, outputs)):
+        ax.text(in_v + out_v + label_offset, i, f"${in_v + out_v:.2f}/ep", va="center", fontsize=8)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_ylim(-0.6, len(rows) - 0.4)
+    ax.set_xlabel("Cost per episode (USD) at snapshot prices", fontsize=10)
+    ax.set_title("Where the per-episode cost goes: input vs output tokens", fontsize=11, fontweight="bold")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(True, axis="x", alpha=0.3)
+    fig.tight_layout()
+    _save_svg(fig, path)
+    plt.close(fig)
+
+
 def _render_compliance(stats: dict[str, ModelStats], path: Path) -> None:
     """Horizontal bar chart of JSON-array compliance, sorted descending."""
     plt = _plt()

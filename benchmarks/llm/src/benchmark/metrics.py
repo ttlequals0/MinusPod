@@ -1,7 +1,6 @@
 """Accuracy + JSON compliance metrics for benchmark calls."""
 from __future__ import annotations
 
-import math
 import statistics
 from dataclasses import dataclass, field
 
@@ -64,6 +63,10 @@ class AccuracyResult:
 class BoundaryError:
     start_mae: float
     end_mae: float
+    # Mean signed error, predicted minus truth. Negative start / positive end
+    # means the cut extends beyond the ad into surrounding content.
+    start_bias: float
+    end_bias: float
 
 
 @dataclass
@@ -118,9 +121,14 @@ def boundary_error(
 ) -> BoundaryError | None:
     if not matches:
         return None
-    starts = [abs(predictions[m.pred_index][0] - truths[m.truth_index][0]) for m in matches]
-    ends = [abs(predictions[m.pred_index][1] - truths[m.truth_index][1]) for m in matches]
-    return BoundaryError(start_mae=statistics.fmean(starts), end_mae=statistics.fmean(ends))
+    start_deltas = [predictions[m.pred_index][0] - truths[m.truth_index][0] for m in matches]
+    end_deltas = [predictions[m.pred_index][1] - truths[m.truth_index][1] for m in matches]
+    return BoundaryError(
+        start_mae=statistics.fmean(abs(d) for d in start_deltas),
+        end_mae=statistics.fmean(abs(d) for d in end_deltas),
+        start_bias=statistics.fmean(start_deltas),
+        end_bias=statistics.fmean(end_deltas),
+    )
 
 
 def no_ad_score(per_window_predictions: list[list[tuple[float, float]]]) -> NoAdResult:

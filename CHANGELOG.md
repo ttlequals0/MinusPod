@@ -21,6 +21,11 @@ release notes.
 - `results/parse-and-moderation.md`: companion analysis of the two failure
   modes retrying never fixes, provider content refusal and unparseable
   JSON, with every example linked to its raw call.
+- Four new report views: a "windows flagged with no truth ad" table
+  ranking ground-truth-free windows by model consensus (doubles as truth
+  QA), signed boundary bias columns showing whether a model's cuts lean
+  into content or leave ad audio, an accuracy-vs-latency scatter, and an
+  input-vs-output cost split (table plus chart).
 - `benchmark rotate-raw` and campaign archiving, so a new sweep's rows
   cannot silently blend with the previous campaign's.
 - Benchmark CONTRIBUTING: corpus wishlist for outside episode PRs, campaign

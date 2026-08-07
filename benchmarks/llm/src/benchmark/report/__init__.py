@@ -15,10 +15,12 @@ from .aggregate import (
     _json_format_summary,
 )
 from .charts import (
+    _render_accuracy_latency,
     _render_agreement_chart,
     _render_alignment_chart,
     _render_boundary_chart,
     _render_calibration_chart,
+    _render_cost_split_chart,
     _render_compliance,
     _render_detection_bucket_chart,
     _render_episode_heatmap,
@@ -35,6 +37,7 @@ from .sections import (
     _render_boundary_accuracy,
     _render_calibration_table,
     _render_charts_section,
+    _render_cost_breakdown,
     _render_cross_model_agreement,
     _render_deprecated,
     _render_detection_buckets,
@@ -110,8 +113,9 @@ def render(
         _render_calibration_table(extras_active.calibration),
         _render_latency_tail(active),
         _render_token_efficiency(active),
+        _render_cost_breakdown(active),
         _render_trial_variance(active),
-        _render_cross_model_agreement(extras_active.agreement, active),
+        _render_cross_model_agreement(extras_active.agreement, active, episodes),
         _render_detection_buckets(extras_active.detection_buckets),
         _render_quick_comparison(active, episodes),
         "---",
@@ -134,6 +138,8 @@ def render(
 
     assets_dir.mkdir(parents=True, exist_ok=True)
     _render_pareto(active, assets_dir / "pareto.svg")
+    _render_accuracy_latency(active, assets_dir / "accuracy_latency.svg")
+    _render_cost_split_chart(active, assets_dir / "cost_split.svg")
     _render_compliance(active, assets_dir / "compliance.svg")
     _render_episode_heatmap(active, episodes, assets_dir / "episodes.svg")
     _render_calibration_chart(extras_active.calibration, assets_dir / "calibration.svg")
