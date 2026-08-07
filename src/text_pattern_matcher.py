@@ -7,7 +7,7 @@ for host-read ads that follow similar scripts but aren't identical.
 """
 import logging
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import List, Optional, Dict, Tuple
 import json
 
@@ -275,6 +275,8 @@ class TextMatch:
     category: Optional[str] = None
     # Tier-1 trust (user-created or community pattern); see is_defined_pattern.
     defined: bool = False
+    # pattern_ids of matches merged into this one, for match-credit recording.
+    absorbed_ids: list = field(default_factory=list)
 
 
 @dataclass
@@ -1000,16 +1002,23 @@ class TextPatternMatcher:
                 (current.sponsor or '').lower() == (match.sponsor or '').lower()
             )
             if same_sponsor and match.start <= current.end + 5.0:
-                # Merge - keep higher confidence
-                best = current if current.confidence >= match.confidence else match
+                # Merge - a defined (tier-1) match wins ownership regardless
+                # of confidence; otherwise keep higher confidence.
+                if current.defined != match.defined:
+                    best = current if current.defined else match
+                    loser = match if current.defined else current
+                else:
+                    best = current if current.confidence >= match.confidence else match
+                    loser = match if best is current else current
                 current = replace(
                     best,
                     start=min(current.start, match.start),
                     end=max(current.end, match.end),
                     confidence=max(current.confidence, match.confidence),
-                    sponsor=current.sponsor or match.sponsor,
+                    sponsor=best.sponsor or loser.sponsor,
                     match_type="both" if current.match_type != match.match_type else current.match_type,
-                    category=current.category or match.category,
+                    category=best.category if best.defined else (current.category or match.category),
+                    absorbed_ids=current.absorbed_ids + match.absorbed_ids + [loser.pattern_id],
                 )
             else:
                 merged.append(current)

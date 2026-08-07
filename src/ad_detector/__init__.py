@@ -1924,6 +1924,9 @@ class AdDetector:
         })
         if self.pattern_service and match.pattern_id:
             self.pattern_service.record_pattern_match(match.pattern_id, episode_id)
+            # getattr: FingerprintMatch has no 'absorbed_ids' field.
+            for absorbed in getattr(match, 'absorbed_ids', []) or []:
+                self.pattern_service.record_pattern_match(absorbed, episode_id)
 
     def _is_region_covered(self, start: float, end: float,
                            covered_regions: list) -> bool:
