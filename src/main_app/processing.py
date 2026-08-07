@@ -1080,6 +1080,8 @@ def _partition_keep_ads(all_ads, actions_map):
     list. It also overrides any existing hold, since a kept marker can
     never be force-cut via a stale hold: held_for_review is cleared and the
     original reason kept as hold_cleared_reason.
+    Exception: a marker from a defined pattern bypasses keep and lands in
+    the remove list with keep_overridden_by_pattern=True.
 
     Returns (keep_ads, remove_ads); remove_ads is all_ads unchanged when no
     category resolves to 'keep'.
@@ -1127,7 +1129,9 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
 
     Stamps was_cut=False/action_applied='keep' on a caught marker (and its
     all_ads_with_validation master) and removes it from the returned cut
-    list. Returns ads_to_remove unchanged when no category resolves to 'keep'.
+    list. Exception: a marker from a defined pattern stays in the cut list
+    with keep_overridden_by_pattern=True, never kept by keep maps.
+    Returns ads_to_remove unchanged when no category resolves to 'keep'.
     """
     if not any(action == 'keep' for action in actions_map.values()):
         return ads_to_remove
@@ -1139,17 +1143,23 @@ def _apply_late_keep_safety_net(ads_to_remove, all_ads_with_validation, actions_
         else:
             remove.append(ad)
     for ad, category in caught:
-        ad['was_cut'] = False
-        ad['action_applied'] = 'keep'
-        master = _find_master(all_ads_with_validation, ad)
-        if master is not None:
-            master['was_cut'] = False
-            master['action_applied'] = 'keep'
-        audio_logger.debug(
-            f"Late keep safety net: dropping synthesized marker "
-            f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
-            f"from the cut list; its resolved action is 'keep'"
-        )
+        if ad.get('pattern_defined'):
+            # Standing rule: a defined ad pattern always cuts; keep maps
+            # cannot silence it.
+            ad['keep_overridden_by_pattern'] = True
+            remove.append(ad)
+        else:
+            ad['was_cut'] = False
+            ad['action_applied'] = 'keep'
+            master = _find_master(all_ads_with_validation, ad)
+            if master is not None:
+                master['was_cut'] = False
+                master['action_applied'] = 'keep'
+            audio_logger.debug(
+                f"Late keep safety net: dropping synthesized marker "
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s (category={category!r}) "
+                f"from the cut list; its resolved action is 'keep'"
+            )
     return remove
 
 
