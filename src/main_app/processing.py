@@ -1091,6 +1091,12 @@ def _partition_keep_ads(all_ads, actions_map):
     for ad in all_ads:
         category = normalize_segment_category(ad.get('category'))
         if actions_map.get(category) == 'keep':
+            if ad.get('pattern_defined'):
+                # Standing rule: a defined ad pattern always cuts; keep maps
+                # cannot silence it.
+                ad['keep_overridden_by_pattern'] = True
+                remove_ads.append(ad)
+                continue
             ad['was_cut'] = False
             ad['action_applied'] = 'keep'
             if ad.get('held_for_review'):
