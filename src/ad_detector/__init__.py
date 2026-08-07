@@ -65,6 +65,7 @@ from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ads
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
 from sponsor_service import SponsorService
+from text_pattern_matcher import is_defined_pattern
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
     KNOWN_SHORT_BRANDS, canonical_sponsor,
@@ -697,7 +698,7 @@ class AdDetector:
         """Return whether this podcast opted into intro/outro/recap detection.
 
         One DB lookup per detect_ads() call, not per window (same pattern
-        as _get_podcast_sponsor_history).
+        as _build_known_pattern_hint).
         """
         if not slug or not self.db:
             return False
@@ -736,27 +737,44 @@ class AdDetector:
             prompt = f"{prompt}\n\n{SHOW_SEGMENTS_PROMPT_SECTION}"
         return prompt
 
-    def _get_podcast_sponsor_history(self, podcast_slug: str) -> str:
-        """Get previously detected sponsor names for a podcast from ad_patterns.
+    _HINT_TIER1_CAP = 12
+    _HINT_SNIPPET_CHARS = 90
 
-        Returns a formatted string for inclusion in the description section,
-        or empty string if no sponsors found.
-        """
+    def _build_known_pattern_hint(self, podcast_slug: str) -> str:
+        """Known-sponsor block for the pass-1 prompt. Defined patterns get
+        category + opening snippet; auto-learned contribute names only.
+        Never includes spans or timestamps (pass 1 stays blind to stage 2)."""
         if not podcast_slug:
             return ""
         try:
             patterns = self.db.get_ad_patterns(podcast_id=podcast_slug)
-            sponsors = set()
-            for p in patterns:
-                sponsor = p.get('sponsor')
-                if sponsor and sponsor.lower() not in ('unknown', 'advertisement detected', ''):
-                    sponsors.add(sponsor)
-            if sponsors:
-                sponsor_list = ', '.join(sorted(sponsors))
-                return f"Previously detected sponsors for this podcast: {sponsor_list}\n"
         except Exception as e:
-            logger.warning(f"Could not fetch sponsor history for {podcast_slug}: {e}")
-        return ""
+            logger.warning(f"Could not fetch patterns for hint ({podcast_slug}): {e}")
+            return ""
+        junk = ('unknown', 'advertisement detected', '')
+        tier1, names = [], set()
+        for p in patterns:
+            sponsor = p.get('sponsor')
+            if not sponsor or sponsor.lower() in junk:
+                continue
+            if is_defined_pattern(p) and len(tier1) < self._HINT_TIER1_CAP:
+                snippet = (p.get('intro_text') or p.get('outro_text') or '')[:self._HINT_SNIPPET_CHARS]
+                category = p.get('category') or 'sponsor'
+                line = f"- {sponsor} ({category} read)."
+                if snippet:
+                    line += f' Opens like: "{snippet}"'
+                tier1.append(line)
+            names.add(sponsor)
+        if not names:
+            return ""
+        parts = []
+        if tier1:
+            parts.append("Known recurring ads on this feed:\n" + "\n".join(tier1))
+        leftovers = sorted(names)
+        parts.append(f"Previously detected sponsors for this podcast: {', '.join(leftovers)}")
+        parts.append("Reads for the sponsors above are ads on this feed; "
+                     "report them with the stated category.")
+        return "\n".join(parts) + "\n"
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label, pass_name):
@@ -1247,11 +1265,11 @@ class AdDetector:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
                 logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
 
-            # Add podcast-specific sponsor history from ad_patterns
-            sponsor_history = self._get_podcast_sponsor_history(slug)
+            # Add podcast-specific known-pattern hint from ad_patterns
+            sponsor_history = self._build_known_pattern_hint(slug)
             if sponsor_history:
                 description_section += sponsor_history
-                logger.info(f"[{slug}:{episode_id}] Including sponsor history: {sponsor_history.strip()}")
+                logger.info(f"[{slug}:{episode_id}] Including known-pattern hint: {sponsor_history.strip()}")
 
             # Add learned ad-break position hint (issue #360 experiment)
             if positional_prior_hint:
@@ -2562,7 +2580,7 @@ class AdDetector:
                     f"it may also list episode sponsors):\n{episode_description}\n"
                 )
 
-            sponsor_history = self._get_podcast_sponsor_history(slug)
+            sponsor_history = self._build_known_pattern_hint(slug)
             if sponsor_history:
                 description_section += sponsor_history
 

@@ -1313,7 +1313,7 @@ def _build_reviewer(db, ad_detector) -> AdReviewer:
         db=db,
         llm_client=ad_detector._llm_client,
         sponsor_service=getattr(ad_detector, 'sponsor_service', None),
-        sponsor_history_provider=ad_detector._get_podcast_sponsor_history,
+        sponsor_history_provider=ad_detector._build_known_pattern_hint,
     )
 
 

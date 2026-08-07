@@ -31,7 +31,7 @@ def _detect(positional_prior_hint):
          patch.object(detector, '_detect_foreign_language_ads', return_value=[]), \
          patch.object(detector, 'get_system_prompt', return_value='system'), \
          patch.object(detector, 'get_model', return_value='model'), \
-         patch.object(detector, '_get_podcast_sponsor_history', return_value=''), \
+         patch.object(detector, '_build_known_pattern_hint', return_value=''), \
          patch.object(detector, '_run_windows', run_windows), \
          patch('ad_detector._resolve_parallel_windows', return_value=1), \
          patch('ad_detector.get_llm_timeout', return_value=60), \
