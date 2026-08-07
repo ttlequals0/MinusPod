@@ -50,13 +50,37 @@ One term does separate them. A racial slur appears in 24 windows across the two 
 
 (Rates from `ep-drink-champs-30c9a2d49f13`, the episode with enough of both groups to compare.)
 
-The three blocked windows without the slur are the episode's most sexually explicit stretches; one holds 27 hits, the highest of any window in the episode. The single slur-bearing window that got through has one instance in 1,700 words.
+The three blocked windows without the slur are the episode's most sexually explicit stretches; one holds 27 hits, the highest of any window in the episode. The single slur-bearing window that got through has one instance in 2,069 words.
 
 The filter is matching terms, not judging passages. The transcript is a verbatim conversation and the term is in-group usage in a hip-hop interview, but the filter does not make that distinction. The slur is not reproduced here.
 
-### An example of a blocked call
+### Examples of blocked calls
 
-`ep-drink-champs-30c9a2d49f13` window 19, covering 7980 to 8580 seconds. 1,794 words, 7 instances of the slur, 14 of general profanity. The passage is a musician telling a story about a night out in the 1990s. It contains no ads at all, so the model had nothing to find and the call was refused anyway:
+Five windows, each refused on all 5 trials and on every retry pass with the same 451. `dc` is `ep-drink-champs-30c9a2d49f13`, `bi` is `ep-the-brilliant-idiots-0bb9bf634c8e`.
+
+| Window | Span | Words | Slur | Sexual | Profanity | Ads present |
+|---|---|---|---|---|---|---|
+| `bi` w0 | 0-600s | 2,091 | 1 | 9 | 13 | 1 |
+| `dc` w9 | 3780-4380s | 1,873 | 0 | 27 | 28 | 0 |
+| `dc` w12 | 5040-5640s | 1,785 | 10 | 10 | 31 | 0 |
+| `dc` w19 | 7980-8580s | 1,794 | 7 | 0 | 25 | 0 |
+| `bi` w7 | 2940-3540s | 2,089 | 3 | 4 | 8 | 0 |
+
+**The ones that cost detections.** Six of the 26 blocked windows contain an ad. Windows overlap by 3 minutes, so some of those ads survive in a neighboring window that was not refused, but three do not: two in `dc`, one in `bi`. Of the 12 ads across the two episodes, a quarter were unreachable for this model no matter how many times the run retried.
+
+`bi` window 0 is the clearest case, with the ad in the clear at the top of the file:
+
+```
+[0.5s - 16.8s] Hey, sweetie, your mother showed me this ... thing for selling
+the car. I'm gonna give it a try. Wish me luck. Me again. I put in the license
+plate. It gave me an offer ...
+```
+
+A scripted read for a used-car service, textbook material, and the model never saw it. One slur instance in 2,091 words was enough to refuse the window.
+
+**The one with no slur at all.** `dc` window 9 is the counter-example to everything above: zero slur hits, and refused anyway. It carries 27 sexual-language hits, the highest of any window in the episode, so a second trigger exists. It is also the point where the pattern stops being a clean single-term rule.
+
+**The cleanest test case.** `dc` window 19 has 7 slur instances and zero sexual-language hits, so nothing else in it could plausibly be the trigger. It is a musician's story about a night out in the 1990s:
 
 ```
 [8025.2s - 8026.8s] Biggie Smalls or Big L?
@@ -64,7 +88,7 @@ The filter is matching terms, not judging passages. The transcript is a verbatim
 two friends. And Luke say, I got something for you ...
 ```
 
-All 5 trials of this window were refused, on every retry pass, with the same 451.
+Density does not appear to matter. `dc` window 12 carries 10 instances and `bi` window 7 carries 3, in 2,089 words of two hosts talking about a radio DJ's career, and both were refused the same way. Presence is what counts.
 
 ## Bad JSON
 
