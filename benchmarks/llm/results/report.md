@@ -3678,11 +3678,12 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-07T18:40:43Z
+- Report generated: 2026-08-07T18:50:40Z
 - Unique work units (current state, last-write-wins after retries): 64125
 - Raw rows in calls.jsonl: 70072 (5947 superseded by later retries; kept for audit)
 - Successful: 63986
 - Failed: 139
 - Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $632.0457
+- Lifetime tokens (same basis): 410,609,818 in + 53,769,250 out = 464,379,068
 - Active pricing snapshot: 2026-08-07T17:23:44.665500Z
 - System prompt: live (sha256:1030b29e)

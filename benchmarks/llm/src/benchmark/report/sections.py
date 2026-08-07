@@ -452,9 +452,9 @@ def _render_methodology(cfg, episodes, *, pricing_snapshot: pricing.PricingSnaps
         "Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.",
         "",
         f"- Trials per (model, episode): **{cfg.run.trials}**, temperature {cfg.run.temperature}",
-        f"- max_tokens: 4096 (matches MinusPod production)",
+        "- max_tokens: 4096 (matches MinusPod production)",
         f"- response_format: {cfg.run.response_format} (with prompt-injection fallback when provider rejects native)",
-        f"- Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)",
+        "- Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)",
         f"- Pricing snapshot: {pricing_snapshot.captured_at}",
         f"- Corpus episodes: {len(episodes)}",
     ]
@@ -633,7 +633,11 @@ def _render_run_metadata(
     total_calls = len(calls)
     successful = sum(1 for c in calls if not c.get("error"))
     failed = total_calls - successful
-    lifetime_actual = sum(float(c.get("total_cost_usd_at_runtime", 0.0)) for c in (raw_calls or calls))
+    # Tokens share the spend line's basis (every row ever billed, superseded included).
+    billed = raw_calls or calls
+    lifetime_actual = sum(float(c.get("total_cost_usd_at_runtime", 0.0)) for c in billed)
+    in_tokens = sum(int(c.get("input_tokens") or 0) for c in billed)
+    out_tokens = sum(int(c.get("output_tokens") or 0) for c in billed)
     lines = [
         "## Run Metadata",
         "",
@@ -649,6 +653,7 @@ def _render_run_metadata(
         f"- Successful: {successful}",
         f"- Failed: {failed}",
         f"- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): ${lifetime_actual:.4f}",
+        f"- Lifetime tokens (same basis): {in_tokens:,} in + {out_tokens:,} out = {in_tokens + out_tokens:,}",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
         f"- System prompt: {prompt_source}",
     ]
