@@ -50,14 +50,29 @@ class ModelEpisodeStats:
 
 
 _MODERATION_MARKERS = ("censorship_blocked", "content_filter", "content policy",
-                       "is blocked", "content_policy_violation")
+                       "is blocked", "content_policy_violation",
+                       "data_inspection_failed", "inappropriate content")
+
+
+def _error_message(err) -> str:
+    """The provider error as a plain string, whatever shape the row stored it in."""
+    return ((err.get("message") if isinstance(err, dict) else str(err)) or "")
 
 
 def _is_moderation_block(err) -> bool:
     """True when a provider refused the transcript rather than failing to serve it."""
-    msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
-    low = msg.lower()
+    low = _error_message(err).lower()
     return any(k in low for k in _MODERATION_MARKERS)
+
+
+def _group_by_unit(calls: list[dict]) -> dict[tuple, list[dict]]:
+    """Rows per work unit (model, episode_id, trial, window_index), in file
+    order. calls.jsonl is append-only, so the last row per unit is its final
+    state and earlier rows are retry history."""
+    by_key: dict[tuple, list[dict]] = defaultdict(list)
+    for rec in calls:
+        by_key[(rec.get("model"), rec.get("episode_id"), rec.get("trial"), rec.get("window_index"))].append(rec)
+    return by_key
 
 
 @dataclass
@@ -157,11 +172,7 @@ def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
     historical errors, so dedup per (model, episode_id, trial, window_index)
     and keep the last row encountered.
     """
-    by_key: dict[tuple, dict] = {}
-    for rec in calls:
-        key = (rec.get("model"), rec.get("episode_id"), rec.get("trial"), rec.get("window_index"))
-        by_key[key] = rec
-    return list(by_key.values())
+    return [rows[-1] for rows in _group_by_unit(calls).values()]
 
 
 def campaign_mixing(calls: list[dict]) -> dict[str, int]:
@@ -173,13 +184,9 @@ def campaign_mixing(calls: list[dict]) -> dict[str, int]:
     is rewritten. A partial one is not, and nothing else would say so. Rotate
     with `benchmark rotate-raw` between campaigns.
     """
-    hashes: dict[tuple, set] = defaultdict(set)
-    for rec in calls:
-        key = (rec.get("model"), rec.get("episode_id"), rec.get("trial"), rec.get("window_index"))
-        hashes[key].add(rec.get("prompt_hash"))
     mixed: dict[str, int] = defaultdict(int)
-    for (model, _, _, _), seen in hashes.items():
-        if len(seen) > 1:
+    for (model, _, _, _), rows in _group_by_unit(calls).items():
+        if len({r.get("prompt_hash") for r in rows}) > 1:
             mixed[model] += 1
     return dict(mixed)
 

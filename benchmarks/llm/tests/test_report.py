@@ -4,6 +4,7 @@ from __future__ import annotations
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
+from benchmark.report.sections import _error_bucket, _render_resolved_by_retry
 from benchmark.storage import append_jsonl
 
 
@@ -226,3 +227,40 @@ def test_campaign_mixing_detects_two_prompt_hashes_per_unit():
 
     # a clean single-campaign file reports nothing
     assert campaign_mixing([row("m", 0, "sha256:new"), row("m", 1, "sha256:new")]) == {}
+
+
+def test_error_bucket_classifies_moderation_and_account_errors():
+    """The failure table's classifier must agree with the aggregate-side
+    moderation detector; a 451 censorship block landing in Other hides the
+    single most production-relevant failure mode."""
+    assert _error_bucket(
+        "Error code: 451 - {'type': 'censorship_blocked', 'message': "
+        "'The content you provided or machine outputted is blocked.'}"
+    ) == "Provider content moderation rejection"
+    assert _error_bucket("Error code: 402 - This request requires more credits") == "Credits exhausted"
+    assert _error_bucket("Error code: 403 - complete the following before use: 18+ age confirmation") == "Account gating (age confirmation)"
+    assert _error_bucket("Error code: 429 - rate limit exceeded") == "Rate-limited"
+    assert _error_bucket("Expecting value: line 1 column 1") == "Other"
+
+
+def test_resolved_by_retry_reads_raw_rows_not_dedup():
+    """A unit that errored then succeeded is invisible after dedup; the retry
+    subsection must recover it from the append-only rows and skip units that
+    never recovered (those belong to the failure tables)."""
+    def row(model, w, error=None):
+        return {"model": model, "episode_id": "ep", "trial": 0,
+                "window_index": w, "error": error}
+
+    auth = {"message": "Error code: 401 - authentication_error"}
+    raw = [
+        row("m1", 0, error=auth), row("m1", 0),          # errored then succeeded
+        row("m1", 1),                                    # clean first try
+        row("m2", 0, error=auth), row("m2", 0, error=auth),  # never recovered
+    ]
+    lines = _render_resolved_by_retry(raw)
+    text = "\n".join(lines)
+    assert "### Errors resolved by retry" in text
+    assert "| `m1` | 1 | 1 | Auth failure (100%) |" in text
+    assert "`m2`" not in text
+
+    assert _render_resolved_by_retry([row("m1", 0), row("m2", 0)]) == []

@@ -100,16 +100,17 @@ The report ranks by F0.5, which weights precision twice as heavily as recall. Th
 
 | Use case | Model | F0.5 | F1 | Cost / episode | Why |
 |---|---|---:|---:|---:|---|
-| Best accuracy overall | `qwen/qwen3.6-plus` (via OpenRouter) | 0.829 | 0.807 | $1.11 | Leads the top tier, perfect JSON compliance, and clean on the no-ad control. p50 is 39.9s, so this is for offline batches, not live UX. The tier also holds `qwen3.5-plus-02-15`, `qwen3.6-flash`, and `claude-haiku-4-5`; they trade wins across episodes, so pick among them on speed, cost, and reliability. |
-| Fast and reliable | `google/gemini-2.5-flash` (via OpenRouter) | 0.728 | 0.777 | $0.34 | p50 1.0s, perfect JSON, clean on the no-ad control, and the highest recall of the cheap models. A few points of F0.5 below the top tier, but the production pick when latency and reliability matter more than topping the table. |
-| Best Anthropic-direct | `claude-sonnet-4-6` | 0.770 | 0.786 | $3.54 | p50 1.4s, JSON compliance 0.96, clean on the no-ad control, and cheaper than either Opus ($7.81-$7.82) for the same accuracy. `claude-haiku-4-5` scores higher (F0.5 0.804) but wraps output in markdown fences (JSON compliance 0.60), so it leans on the parser fallback. |
-| Cheapest viable | `google/gemma-4-31b-it` (via OpenRouter) | 0.709 | 0.729 | $0.13 | Best F0.5 under $0.15/episode. Caveats: JSON compliance 0.85, and it false-positived on the no-ad control, so it over-cuts more than the pricier picks. |
+| Best accuracy overall | `claude-haiku-4-5` (Anthropic direct) | 0.819 | 0.842 | $1.08 | Tops the table with perfect JSON compliance and a clean pass on both no-ad controls. p50 latency is 24.2s, which is fine for MinusPod's offline pipeline but rules out interactive use. The top tier also holds `claude-sonnet-4-6`, `google/gemini-3.6-flash`, and `x-ai/grok-4.5`; they trade wins across episodes, so pick among them on speed and cost. |
+| Fast and reliable | `google/gemini-3.5-flash-lite` (via OpenRouter) | 0.774 | 0.776 | $0.36 | p50 0.7s, perfect JSON compliance, clean on both no-ad controls, and statistically tied with the top tier at a tenth of the frontier price. The production pick when you want speed and low cost without giving up accuracy. |
+| Best Anthropic-direct at low latency | `claude-sonnet-4-6` | 0.791 | 0.799 | $3.24 | Second overall, p50 4.1s versus Haiku's 24.2s, perfect JSON compliance, clean on both no-ad controls. For Anthropic-key users who want faster turnaround than Haiku 4.5; both Opus 4.8 ($5.37/episode) and Opus 5 ($5.38/episode) score lower. |
+| Cheapest viable | `qwen/qwen3.7-flash` (via OpenRouter) | 0.701 | 0.706 | $0.07 | Best F0.5 per dollar (9.66) among models with no reliability flags. JSON compliance 0.96 and clean on both no-ad controls. p50 10.1s. A few cheaper models rank higher on raw F0.5/$, but all of them either false-positive on the no-ad controls or return brittle JSON. |
 
 Caveats:
-- Numbers come from a 14-episode corpus (12 ad-bearing, 2 no-ad control), 46 active models, 5 trials each, ~39,000 total calls. They will refine as the corpus grows.
+- Numbers come from the 2026-08 sweep: a 14-episode corpus (12 ad-bearing, 2 no-ad controls), 75 models, 5 trials each, 64,125 work units (63,986 scored; 139 ended in provider errors). They will refine as the corpus grows.
 - The report groups models into tiers by a paired test across episodes. Models in the same tier are statistically tied on this corpus, so order within a tier is not meaningful. It also flags models for low JSON compliance or a no-ad control failure without changing their rank.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
 - F0.5 and F1 both use IoU >= 0.5 against human-verified ad spans. F0.5 rewards not over-cutting; F1 weights precision and recall equally. Higher is closer to the truth.
+- Provider-side content moderation can take episodes out of a model's reach entirely. One roster model was refused on 15.2% of its calls because the provider's filter blocked explicit transcripts, losing a quarter of the ads in the two affected episodes. If your library includes explicit shows, check [`benchmarks/llm/results/parse-and-moderation.md`](../benchmarks/llm/results/parse-and-moderation.md) before picking a model.
 
 #### Local Ollama Models (by VRAM tier)
 
@@ -159,7 +160,7 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 
 ### Cloud vs. Local: What Changes
 
-Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.83 (`qwen/qwen3.6-plus` via OpenRouter, F1 0.81) across 46 models on a 14-episode corpus. Scores run the full range down to near zero, and the top tier is a four-way tie that includes a Qwen flash model and `claude-haiku-4-5`. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
+Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.82 (`claude-haiku-4-5`, F1 0.84) across 75 models on a 14-episode corpus. Scores run the full range down to zero, and the top statistical tier holds 17 models from six vendors, so there is real choice at the top. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
@@ -167,7 +168,7 @@ The LLM only sees host-read ads that blend into content, new sponsors not yet in
 |---|---|
 | Standard sponsor reads with promo codes / vanity URLs | Minimal: patterns and fingerprinting cover most of these without the LLM |
 | Heavy host-read or conversational ad integrations | Noticeable: requires strong contextual reasoning |
-| Network-inserted brand-tagline ads (no promo code, no URL) | Moderate: the cloud benchmark shows even frontier models miss roughly a third of these, so don't expect local to outperform |
+| Network-inserted brand-tagline ads (no promo code, no URL) | Moderate: these are usually under 30 seconds, and short ads are the weakest detection bucket for most models in the cloud benchmark, so don't expect local to outperform |
 | New sponsors not in the pattern database | Moderate: depends heavily on model capability |
 
 `qwen3:14b` locally is fine for standard sponsor reads. The gap to cloud-frontier shows up on conversational ad reads that lack clear transitions. To measure the gap on your own content, capture the episode (see [`benchmarks/llm/`](../benchmarks/llm/)) and compare predictions against your verified ground truth.
@@ -186,7 +187,7 @@ Failure modes:
 
 When a window fails to parse, those ads are silently missed. No UI error; the episode processes normally with gaps in detection coverage.
 
-Cloud models vary widely on this. Benchmark JSON compliance ranges from 0.01 (`qwen3-8b`) and 0.05 (`openai/o4-mini`, which buries JSON in reasoning chains) up to 1.00 (Mistral Medium, the Qwen 3.5 and 3.6 plus and flash models, Gemini 2.5 Flash). Claude Haiku 4.5 sits at 0.60 because it wraps every response in markdown code fences; the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md).
+Cloud models vary widely on this. Benchmark JSON compliance ranges from 0.07 (`openai/o4-mini`, which buries JSON in reasoning chains) and 0.10 (`qwen/qwen3-8b`, which answers in prose) up to 1.00 (the Claude line, the Gemini 3.5 and 3.6 Flash models, Grok, Mistral Medium). See the JSON compliance chart in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md), and [`parse-and-moderation.md`](../benchmarks/llm/results/parse-and-moderation.md) for what the failures actually look like.
 
 Reducing the risk for local runs:
 

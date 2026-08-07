@@ -37,6 +37,18 @@ Your PR diff must NOT contain:
 
 PR description should include the source URL, episode title, ad count, and a sentence on why the episode strengthens the corpus (genre coverage, length, an edge case like sub-30s ads or post-roll-only).
 
+### What the corpus needs most
+
+The corpus is currently 14 episodes: 12 ad-bearing and 2 no-ad controls, all in English, mostly interview, news, and comedy formats. Sweep budget limits how fast maintainers can grow it, so episode PRs are the cheapest way to make the numbers more trustworthy. The most useful additions right now:
+
+- Non-English episodes. Nothing in the corpus tests detection outside English.
+- Scripted or fiction shows. Every current episode is conversational.
+- Feeds with dynamic ad insertion, where the inserted spot has no relationship to the surrounding content.
+- Episodes whose only ads are sub-30s network taglines or post-rolls. Short ads are the weakest detection bucket for most models and the corpus has few of them.
+- More no-ad episodes. Two controls is enough to catch gross over-flagging but not to estimate a false-positive rate.
+
+An ordinary episode from a well-represented genre still helps, but one of the above helps more.
+
 What `verify` checks (so reviewers don't have to):
 
 - `start < end` for every ad block, monotonically increasing across blocks.
@@ -98,11 +110,21 @@ uv run pytest tests/ -q
 
 All tests must pass. A schema-version bump on `calls.jsonl` or `episode_results.jsonl` requires a maintainer review thread and a migration path for existing data (see `benchmark migrate-raw` for the v1 -> v2 precedent). The current schema is v2.
 
+If your change touches scoring or rendering, regenerate the report from the committed raw data and include the new render in your PR:
+
+```sh
+uv run benchmark report
+```
+
+This reads the committed raw JSONL files and rewrites `results/report.md` plus the SVGs under `results/report_assets/`. It makes no API calls and costs nothing.
+
 For changes to the report package (`src/benchmark/report/`), charts, or the metric glossary: the bar is clarity for a deep-technical-but-not-ML-research audience, not just correctness. Reviewers will read the rendered Markdown, not just the diff.
 
 ## What's in the repo vs what your PR should include
 
-The repo holds the full benchmark state (corpus, calls, responses, and the rendered report) so anyone can audit a result without re-running. Prompts are not stored; `benchmark show-prompt <call_id>` rebuilds any prompt from the corpus and verifies it against the recorded `prompt_hash`. For your PR, you only add the files relevant to your change.
+The repo holds the full benchmark state (corpus, calls, responses, and the rendered report) so anyone can audit a result without re-running. Prompts are rebuilt on demand: `benchmark show-prompt <call_id>` reconstructs any prompt from the corpus and verifies it against the recorded `prompt_hash`. (The few files in `results/raw/prompts/` are v1-migration leftovers kept because they did not reconstruct byte-exact.) For your PR, you only add the files relevant to your change.
+
+`results/raw/` holds only the current campaign. When a sweep's roster or corpus changes enough to start fresh, a maintainer runs `benchmark rotate-raw`, which moves the raw files to `results/archive/<date>/raw/`; `benchmark archive` snapshots the rendered report the same way. `calls.jsonl` is append-only and the report does not distinguish campaigns on its own, so rotation is what keeps a new sweep's rows from silently blending with the last one's. If you are digging through raw data, check `results/archive/` for anything older than the current report.
 
 | Path | In the repo | Include in your PR if... |
 |------|-------------|--------------------------|
@@ -113,6 +135,8 @@ The repo holds the full benchmark state (corpus, calls, responses, and the rende
 | `results/raw/calls.jsonl` | yes | never. Maintainers regenerate against the new corpus or model list |
 | `results/raw/episode_results.jsonl` | yes | never |
 | `results/raw/responses/*.jsonl` | yes | never |
+| `results/archive/<date>/` | yes | never. Frozen snapshots of past campaigns (maintainer task via `benchmark archive` / `benchmark rotate-raw`) |
+| `results/parse-and-moderation.md` | yes | you're correcting or extending its analysis. It is hand-written per campaign; report code changes do not regenerate it |
 | `benchmark.toml.example` | yes | you're adding a new model (1 line change) |
 | `data/candidates/` | no (gitignored) | never. Intermediate artifacts only |
 | `benchmark.toml` (your local config) | no | never. Contains your API keys |

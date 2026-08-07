@@ -9,6 +9,35 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- 2026-08 LLM benchmark sweep: 75 models, 14-episode corpus, 64,125 work
+  units, with regenerated report and charts. New in the report: a failure
+  category for provider content moderation (was buried in "Other"), an
+  "Errors resolved by retry" table built from the append-only raw rows, and
+  corpus-derived Metric Key text instead of stale hardcoded episode counts.
+- `results/parse-and-moderation.md`: companion analysis of the two failure
+  modes retrying never fixes, provider content refusal and unparseable
+  JSON, with every example linked to its raw call.
+- `benchmark rotate-raw` and campaign archiving, so a new sweep's rows
+  cannot silently blend with the previous campaign's.
+- Benchmark CONTRIBUTING: corpus wishlist for outside episode PRs, campaign
+  rotation notes, and a zero-cost `benchmark report` preview step for
+  report code changes.
+
+### Changed
+
+- `docs/llm-providers.md` model recommendations refreshed from the 2026-08
+  sweep, including a note on provider-side content moderation.
+
+### Security
+
+- cryptography 49.0.0 to 50.0.0 (PYSEC-2026-3552) and transitive fast-uri
+  to a patched release (GHSA-7p8r-x3mc-p8w7). Both were failing the CI
+  audit gates.
+
 ## [2.85.2] - 2026-08-03
 
 ### Added
@@ -2037,7 +2066,6 @@ release notes.
   adopts the env value that was winning, so the effective tunable does
   not change at upgrade.
 
-## [Unreleased]
 ## [2.49.0] - 2026-07-13
 
 ### Fixed

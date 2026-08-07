@@ -28,11 +28,12 @@ Quick reference for the columns in every table below.
 |--------|-------|-----------|---------------|
 | **F1 (accuracy)** | 0 to 1 | higher is better | Combined score of precision and recall against the human-verified ground-truth ad spans. F1 = 0 means the model found nothing right; F1 = 1 means it found every ad with the correct boundaries. Uses IoU >= 0.5 (predicted span must overlap truth span by at least half) to count a match. |
 | **Cost / episode** | USD | lower is better | Average dollars per episode at the current pricing snapshot. Recomputed from token counts so all rows compare at the same prices regardless of when the call ran. |
-| **F1 / $** | ratio | higher is better | F1 divided by cost-per-episode. Cheap accurate models score highest. Free-tier models are rank-listed separately because the ratio is undefined. |
+| **F1 / $** | ratio | higher is better | F1 divided by cost-per-episode. Cheap accurate models score highest. Free-tier models (when the roster has any) are rank-listed separately because the ratio is undefined. |
 | **p50 / p95 latency** | seconds | lower is better, with caveats | Median (p50) and tail (p95) wall-clock response time. **Note**: for models routed through OpenRouter (everything except `claude-*`), this includes OpenRouter's queueing and upstream-provider latency, not just the model itself. Treat as a load/availability indicator, not a model-quality signal. |
 | **JSON compliance** | 0 to 1 | higher is better | Fraction of responses that parsed as a clean JSON array matching the requested schema. 1.0 = always clean; lower = used object wrappers (`{ads: [...]}`), markdown fences, extra fields like `sponsor`, or required regex fallback to extract. |
-| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on `ep-ai-cloud-essentials` (which has no ads). PASS = zero predictions across all 15 windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |
-| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the four ad-bearing episodes. High stdev = inconsistent across content types. |
+| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on the 2 episode(s) verified to contain no ads (`ep-ai-cloud-essentials-e8dc897fbd6b`, `ep-oxide-and-friends-ce789ff5b62e`). PASS = zero predictions across all 16 of their windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |
+| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the 12 ad-bearing episodes. High stdev = inconsistent across content types. |
+| **Moderation blocked** | 0 to 100% | 0 desired | Share of attempted calls the provider refused on content grounds. Refused windows never reach scoring, so any non-zero value means that model's F1 was computed on a subset of the corpus and is not comparable to an unblocked row. |
 | **JSON mode** | `native` / `prompt-inject` / `mixed` | -- | How the model received its JSON-output instruction. `native` = provider accepted `response_format=json_object` for at least 95% of calls; `prompt-inject` = provider rejected it and the runner fell back to instructing JSON in the prompt for at least 95% of calls; `mixed` = neither path crossed the threshold (sample mostly comes from intermittent provider rejections). Reads from `json_format_used` in `calls.jsonl`. Useful when picking a model whose provider may not support native JSON mode -- a strong `JSON compliance` score from a `prompt-inject` model carries different weight than the same score from a `native` model. |
 
 ### Glossary
@@ -48,7 +49,7 @@ Quick reference for the columns in every table below.
 
 ### Best Accuracy (F0.5 @ IoU >= 0.5)
 
-Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank. Cost includes free-tier models (shown at $0.00).
+Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank.
 
 | Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |
 |------|-------|------|--------|-----------|--------|----|----------------|-------------|-----------------|-------|
@@ -130,7 +131,7 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 
 ### Best Value (F0.5 per dollar)
 
-Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is undefined; they are ranked separately under Best Free-Tier below. No confidence tiers on this table -- a point ratio does not group cleanly -- but the reliability flags still apply.
+Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is undefined (none in this campaign's roster came back at $0.00). No confidence tiers on this table, since a point ratio does not group cleanly, but the reliability flags still apply.
 
 | Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |
 |------|-------|--------|------|----|----------------|-------|
@@ -218,7 +219,7 @@ Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate)
 
 ![Cost vs F1 by model](report_assets/pareto.svg)
 
-Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar), [Best Free-Tier](#best-free-tier-f05)
+Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar)
 
 ### JSON schema compliance
 
@@ -230,7 +231,7 @@ Source data: [Per-Model Detail](#per-model-detail) (`JSON compliance` field)
 
 ### F1 by episode (heatmap)
 
-F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episode is excluded. It has no F1 because it's a PASS/FAIL negative control.
+F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episodes are excluded. They have no F1 because they're PASS/FAIL negative controls.
 
 ![F1 score per model and episode](report_assets/episodes.svg)
 
@@ -335,8 +336,9 @@ Errors classified into coarse buckets so failure patterns are visible at a glanc
 
 | Category | Calls | Affected models |
 |----------|------:|-----------------|
-| Other | 132 | `stepfun/step-3.7-flash`, `thinkingmachines/inkling` |
+| Provider content moderation rejection | 130 | `stepfun/step-3.7-flash` |
 | Rate-limited | 7 | `thinkingmachines/inkling` |
+| Other | 2 | `thinkingmachines/inkling` |
 
 ### Per-model error count
 
@@ -351,17 +353,47 @@ Same errors grouped by model, with the failure rate as a fraction of that model'
 
 First three raw error messages per category, so you can see what the provider actually returned without grepping calls.jsonl. Messages are truncated to ~240 characters; full text lives in `results/raw/calls.jsonl`.
 
-**Other** (132)
+**Provider content moderation rejection** (130)
 - `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 4): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
 - `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 9): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
 - `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 10): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
-- ... and 129 more
+- ... and 127 more
 
 **Rate-limited** (7)
 - `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 2): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
 - `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 4): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
 - `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 9): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
 - ... and 4 more
+
+**Other** (2)
+- `thinkingmachines/inkling` on `ep-drink-champs-30c9a2d49f13` (trial 2, window 36): Expecting value: line 241 column 1 (char 1320)
+- `thinkingmachines/inkling` on `ep-glt1412515089-373d5ba5007b` (trial 4, window 7): Expecting value: line 271 column 1 (char 1485)
+
+### Errors resolved by retry
+
+**5032 work unit(s) errored at least once before succeeding (5541 errored attempts).** These never reach the failure tables above because the retry's successful row is what gets scored, but they are operationally real: a deployment without retry logic would have lost every one of them. Counts at or near a model's full work-unit total usually mean a setup problem (auth, account gating, credit limits) that failed the whole first pass, not per-call flakiness.
+
+| Model | Work units | Errored attempts | Dominant cause |
+|---|---:|---:|---|
+| `claude-opus-4-8` | 855 | 855 | Auth failure (100%) |
+| `claude-opus-4-7` | 855 | 943 | Auth failure (99%) |
+| `meta/muse-spark-1.1` | 855 | 855 | Account gating (age confirmation) (100%) |
+| `deepseek/deepseek-r1-distill-llama-70b` | 855 | 856 | Other (94%) |
+| `claude-sonnet-5` | 555 | 555 | Auth failure (99%) |
+| `claude-sonnet-4-6` | 417 | 834 | Auth failure (100%) |
+| `cohere/command-r-plus-08-2024` | 412 | 412 | Credits exhausted (100%) |
+| `thinkingmachines/inkling` | 115 | 115 | Rate-limited (86%) |
+| `deepseek/deepseek-r1` | 88 | 91 | Credits exhausted (91%) |
+| `moonshotai/kimi-k2.6` | 4 | 4 | Other (75%) |
+| `nvidia/nemotron-3-super-120b-a12b` | 4 | 4 | Timeout (75%) |
+| `moonshotai/kimi-k3` | 3 | 3 | Other (100%) |
+| `qwen/qwen3-8b` | 3 | 3 | Other (67%) |
+| `deepseek/deepseek-r1-0528` | 3 | 3 | Other (100%) |
+| `qwen/qwen3.6-plus` | 2 | 2 | Other (100%) |
+| `stepfun/step-3.7-flash` | 2 | 2 | Other (100%) |
+| `inclusionai/ring-2.6-1t` | 2 | 2 | Other (100%) |
+| `qwen/qwen3.5-plus-02-15` | 1 | 1 | Other (100%) |
+| `meituan/longcat-2.0` | 1 | 1 | Other (100%) |
 
 ### Why this section exists
 
@@ -3678,7 +3710,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-07T18:52:30Z
+- Report generated: 2026-08-07T20:55:53Z
 - Unique work units (current state, last-write-wins after retries): 64125
 - Raw rows in calls.jsonl: 70072 (5947 superseded by later retries; kept for audit)
 - Successful: 63986

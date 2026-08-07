@@ -17,13 +17,69 @@ from .aggregate import (
     _assign_tiers,
     _avg_f1,
     _ci_half_width,
+    _error_message,
+    _group_by_unit,
+    _is_moderation_block,
     _per_model_alignment,
 )
+
+
+def _is_free_tier(s: ModelStats) -> bool:
+    return s.total_episode_cost == 0
 
 
 # HTTP 5xx detector for the failures classifier. Matches "500", "502", etc.
 # but not arbitrary substrings like "5 minutes".
 _SERVER_5XX_RE = re.compile(r"\b5\d{2}\b")
+
+
+def _error_bucket(msg: str) -> str:
+    m = msg.lower()
+    if _is_moderation_block(m): return "Provider content moderation rejection"
+    if "rate" in m and "limit" in m: return "Rate-limited"
+    if "timeout" in m: return "Timeout"
+    if "404" in m: return "Unknown model (404)"
+    if "temperature" in m and "deprecated" in m: return "Deprecated parameter (`temperature`)"
+    if "401" in m or "unauthor" in m: return "Auth failure"
+    if "requires more credits" in m or "error code: 402" in m: return "Credits exhausted"
+    if "age confirmation" in m: return "Account gating (age confirmation)"
+    if _SERVER_5XX_RE.search(m): return "Server-side 5xx"
+    return "Other"
+
+
+def _render_resolved_by_retry(raw_calls: list[dict]) -> list[str]:
+    """Errors that a later attempt cleared. Invisible in the final-failure
+    tables because dedup keeps the successful row."""
+    units_by_model: dict[str, int] = defaultdict(int)
+    cats_by_model: dict[str, Counter] = defaultdict(Counter)
+    for rows in _group_by_unit(raw_calls).values():
+        errored = [r for r in rows[:-1] if r.get("error")]
+        if errored and not rows[-1].get("error"):
+            model = rows[0]["model"]
+            units_by_model[model] += 1
+            for r in errored:
+                cats_by_model[model][_error_bucket(_error_message(r.get("error")))] += 1
+    if not units_by_model:
+        return []
+    total_units = sum(units_by_model.values())
+    total_attempts = sum(c.total() for c in cats_by_model.values())
+    lines = [
+        "### Errors resolved by retry",
+        "",
+        f"**{total_units} work unit(s) errored at least once before succeeding ({total_attempts} errored attempts).** "
+        "These never reach the failure tables above because the retry's successful row is what gets scored, "
+        "but they are operationally real: a deployment without retry logic would have lost every one of them. "
+        "Counts at or near a model's full work-unit total usually mean a setup problem (auth, account gating, "
+        "credit limits) that failed the whole first pass, not per-call flakiness.",
+        "",
+        "| Model | Work units | Errored attempts | Dominant cause |",
+        "|---|---:|---:|---|",
+    ]
+    for m in sorted(units_by_model, key=lambda k: -units_by_model[k]):
+        cat, cat_n = cats_by_model[m].most_common(1)[0]
+        attempts = cats_by_model[m].total()
+        lines.append(f"| `{m}` | {units_by_model[m]} | {attempts} | {cat} ({cat_n * 100.0 / attempts:.0f}%) |")
+    return lines
 
 
 def _moderation_pct(s: ModelStats) -> float:
@@ -53,8 +109,8 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
 
     accuracy_rows = sorted(stats.values(), key=lambda s: s.avg_f05, reverse=True)
     acc_tiers = _assign_tiers(accuracy_rows)
-    paid_rows = [s for s in stats.values() if s.total_episode_cost > 0]
-    free_rows = [s for s in stats.values() if s.total_episode_cost == 0]
+    paid_rows = [s for s in stats.values() if not _is_free_tier(s)]
+    free_rows = [s for s in stats.values() if _is_free_tier(s)]
     value_rows = sorted(paid_rows, key=lambda s: s.avg_f05 / s.total_episode_cost, reverse=True)
     free_by_f05 = sorted(free_rows, key=lambda s: s.avg_f05, reverse=True)
 
@@ -66,7 +122,8 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
         "unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models "
         "that trade wins episode to episode share a tier, so order within a tier is not meaningful on this "
         f"{sum(1 for e in episodes if not e.truth.is_no_ad_episode)}-episode corpus. Flags caveat a model "
-        "without changing its rank. Cost includes free-tier models (shown at $0.00)."
+        "without changing its rank."
+        + (" Cost includes free-tier models (shown at $0.00)." if free_rows else "")
     )
     lines.append("")
     lines.append("| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |")
@@ -80,10 +137,12 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
         )
 
     lines += ["", "### Best Value (F0.5 per dollar)", ""]
+    free_note = ("; they are ranked separately under Best Free-Tier below" if free_rows
+                 else " (none in this campaign's roster came back at $0.00)")
     lines.append(
         "Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is "
-        "undefined; they are ranked separately under Best Free-Tier below. No confidence tiers on this table -- "
-        "a point ratio does not group cleanly -- but the reliability flags still apply."
+        f"undefined{free_note}. No confidence tiers on this table, since a point ratio "
+        "does not group cleanly, but the reliability flags still apply."
     )
     lines.append("")
     lines.append("| Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |")
@@ -155,7 +214,11 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
     return "\n".join(lines)
 
 
-def _render_how_to_read() -> str:
+def _render_how_to_read(episodes: list[Episode]) -> str:
+    no_ad = [e for e in episodes if e.truth.is_no_ad_episode]
+    n_ad_bearing = len(episodes) - len(no_ad)
+    no_ad_names = ", ".join(f"`{e.ep_id}`" for e in no_ad)
+    no_ad_windows = sum(len(e.windows) for e in no_ad)
     return (
         "## Metric Key\n\n"
         "Quick reference for the columns in every table below.\n\n"
@@ -163,11 +226,12 @@ def _render_how_to_read() -> str:
         "|--------|-------|-----------|---------------|\n"
         "| **F1 (accuracy)** | 0 to 1 | higher is better | Combined score of precision and recall against the human-verified ground-truth ad spans. F1 = 0 means the model found nothing right; F1 = 1 means it found every ad with the correct boundaries. Uses IoU >= 0.5 (predicted span must overlap truth span by at least half) to count a match. |\n"
         "| **Cost / episode** | USD | lower is better | Average dollars per episode at the current pricing snapshot. Recomputed from token counts so all rows compare at the same prices regardless of when the call ran. |\n"
-        "| **F1 / $** | ratio | higher is better | F1 divided by cost-per-episode. Cheap accurate models score highest. Free-tier models are rank-listed separately because the ratio is undefined. |\n"
+        "| **F1 / $** | ratio | higher is better | F1 divided by cost-per-episode. Cheap accurate models score highest. Free-tier models (when the roster has any) are rank-listed separately because the ratio is undefined. |\n"
         "| **p50 / p95 latency** | seconds | lower is better, with caveats | Median (p50) and tail (p95) wall-clock response time. **Note**: for models routed through OpenRouter (everything except `claude-*`), this includes OpenRouter's queueing and upstream-provider latency, not just the model itself. Treat as a load/availability indicator, not a model-quality signal. |\n"
         "| **JSON compliance** | 0 to 1 | higher is better | Fraction of responses that parsed as a clean JSON array matching the requested schema. 1.0 = always clean; lower = used object wrappers (`{ads: [...]}`), markdown fences, extra fields like `sponsor`, or required regex fallback to extract. |\n"
-        "| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on `ep-ai-cloud-essentials` (which has no ads). PASS = zero predictions across all 15 windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |\n"
-        "| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the four ad-bearing episodes. High stdev = inconsistent across content types. |\n"
+        f"| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on the {len(no_ad)} episode(s) verified to contain no ads ({no_ad_names}). PASS = zero predictions across all {no_ad_windows} of their windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |\n"
+        f"| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the {n_ad_bearing} ad-bearing episodes. High stdev = inconsistent across content types. |\n"
+        "| **Moderation blocked** | 0 to 100% | 0 desired | Share of attempted calls the provider refused on content grounds. Refused windows never reach scoring, so any non-zero value means that model's F1 was computed on a subset of the corpus and is not comparable to an unblocked row. |\n"
         "| **JSON mode** | `native` / `prompt-inject` / `mixed` | -- | How the model received its JSON-output instruction. `native` = provider accepted `response_format=json_object` for at least 95% of calls; `prompt-inject` = provider rejected it and the runner fell back to instructing JSON in the prompt for at least 95% of calls; `mixed` = neither path crossed the threshold (sample mostly comes from intermittent provider rejections). Reads from `json_format_used` in `calls.jsonl`. Useful when picking a model whose provider may not support native JSON mode -- a strong `JSON compliance` score from a `prompt-inject` model carries different weight than the same score from a `native` model. |\n\n"
         "### Glossary\n\n"
         "- **IoU (intersection over union)**: how much two time ranges overlap, expressed as `(overlap) / (union)`. 0 means no overlap, 1 means identical ranges. We use IoU >= 0.5 as the threshold for a predicted ad to count as matching a truth ad.\n"
@@ -178,28 +242,26 @@ def _render_how_to_read() -> str:
     )
 
 
-def _render_failures(calls: list[dict]) -> str:
+def _render_failures(calls: list[dict], raw_calls: list[dict]) -> str:
     """Surface every error row, classified, since failures often signal real
     production-relevant gotchas (provider content moderation, deprecated params,
     rate-limit ceilings) that don't show up in the aggregated F1 / cost tables.
+
+    `calls` is deduped (one row per work unit, last write wins) and drives the
+    final-failure tables. `raw_calls` is the append-only file, used to surface
+    errors that a retry later resolved.
     """
     errors = [r for r in calls if r.get("error")]
+    retry_block = _render_resolved_by_retry(raw_calls)
     if not errors:
-        return (
-            "## Failures and provider issues\n\n"
-            "No call errors observed across this run. Every (model, episode, trial, window) tuple returned a parseable response.\n"
-        )
-
-    def bucket(msg: str) -> str:
-        m = msg.lower()
-        if "data_inspection_failed" in m or "inappropriate content" in m: return "Provider content moderation rejection"
-        if "rate" in m and "limit" in m: return "Rate-limited"
-        if "timeout" in m: return "Timeout"
-        if "404" in m: return "Unknown model (404)"
-        if "temperature" in m and "deprecated" in m: return "Deprecated parameter (`temperature`)"
-        if "401" in m or "unauthor" in m: return "Auth failure"
-        if _SERVER_5XX_RE.search(m): return "Server-side 5xx"
-        return "Other"
+        head = [
+            "## Failures and provider issues",
+            "",
+            "No unresolved call errors across this run. Every (model, episode, trial, window) tuple ended with a parseable response.",
+        ]
+        if retry_block:
+            head += [""] + retry_block
+        return "\n".join(head) + "\n"
 
     by_bucket: dict[str, list[dict]] = defaultdict(list)
     by_model: dict[str, int] = defaultdict(int)
@@ -207,9 +269,8 @@ def _render_failures(calls: list[dict]) -> str:
     for r in calls:
         calls_by_model[r["model"]] += 1
     for r in errors:
-        err = r.get("error", {})
-        msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
-        by_bucket[bucket(msg)].append({**r, "_msg": msg})
+        msg = _error_message(r.get("error"))
+        by_bucket[_error_bucket(msg)].append({**r, "_msg": msg})
         by_model[r["model"]] += 1
 
     lines = [
@@ -259,6 +320,9 @@ def _render_failures(calls: list[dict]) -> str:
             lines.append(f"- ... and {len(recs) - 3} more")
         lines.append("")
 
+    if retry_block:
+        lines += retry_block + [""]
+
     lines += [
         "### Why this section exists",
         "",
@@ -272,19 +336,22 @@ def _render_failures(calls: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _render_charts_section() -> str:
+def _render_charts_section(stats: dict[str, ModelStats]) -> str:
+    pareto_sources = "Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar)"
+    if any(_is_free_tier(s) for s in stats.values()):
+        pareto_sources += ", [Best Free-Tier](#best-free-tier-f05)"
     return (
         "## Charts\n\n"
         "### Cost vs F1 (Pareto)\n\n"
         "Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.\n\n"
         "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
-        "Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar), [Best Free-Tier](#best-free-tier-f05)\n\n"
+        f"{pareto_sources}\n\n"
         "### JSON schema compliance\n\n"
         "Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.\n\n"
         "![JSON compliance per model](report_assets/compliance.svg)\n\n"
         "Source data: [Per-Model Detail](#per-model-detail) (`JSON compliance` field)\n\n"
         "### F1 by episode (heatmap)\n\n"
-        "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episode is excluded. It has no F1 because it's a PASS/FAIL negative control.\n\n"
+        "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episodes are excluded. They have no F1 because they're PASS/FAIL negative controls.\n\n"
         "![F1 score per model and episode](report_assets/episodes.svg)\n\n"
         "Source data: [Quick Comparison](#quick-comparison), [Per-Episode Detail](#per-episode-detail)\n\n"
         "### Confidence calibration (heatmap)\n\n"
