@@ -52,52 +52,81 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 
 | Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |
 |------|-------|------|--------|-----------|--------|----|----------------|-------------|-----------------|-------|
-| A | `qwen/qwen3.6-plus` | 0.829 | +/-0.096 | 0.853 | 0.807 | 0.807 | $1.1119 | 39.9s | 1.00 |  |
-| A | `claude-haiku-4-5-20251001` | 0.804 | +/-0.134 | 0.786 | 0.919 | 0.837 | $1.2017 | 1.2s | 0.60 | (!) brittle JSON |
-| A | `qwen/qwen3.5-plus-02-15` | 0.801 | +/-0.087 | 0.814 | 0.820 | 0.794 | $1.2346 | 48.2s | 1.00 |  |
-| A | `qwen/qwen3.6-flash` | 0.788 | +/-0.085 | 0.783 | 0.848 | 0.802 | $0.5461 | 13.0s | 1.00 | (!) fails no-ad control |
-| B | `x-ai/grok-4.3` | 0.778 | +/-0.106 | 0.771 | 0.852 | 0.797 | $1.4987 | 3.9s | 1.00 |  |
-| B | `claude-opus-4-8` | 0.770 | +/-0.104 | 0.779 | 0.795 | 0.767 | $7.8217 | 2.2s | 0.99 |  |
-| B | `claude-sonnet-4-6` | 0.770 | +/-0.107 | 0.766 | 0.842 | 0.786 | $3.5376 | 1.4s | 0.96 |  |
-| B | `openai/gpt-5.5` | 0.764 | +/-0.095 | 0.781 | 0.760 | 0.750 | $6.6806 | 6.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
-| B | `mistralai/mistral-medium-3.1` | 0.737 | +/-0.104 | 0.746 | 0.777 | 0.739 | $0.4380 | 0.9s | 1.00 |  |
-| B | `google/gemini-3.5-flash` | 0.737 | +/-0.126 | 0.742 | 0.769 | 0.738 | $3.5200 | 5.2s | 1.00 |  |
-| B | `google/gemini-2.5-flash` | 0.728 | +/-0.141 | 0.702 | 0.922 | 0.777 | $0.3435 | 1.0s | 1.00 |  |
-| B | `google/gemini-3.1-flash-lite` | 0.710 | +/-0.131 | 0.688 | 0.900 | 0.756 | $0.2762 | 0.8s | 0.96 | (!) fails no-ad control |
-| C | `qwen/qwen3.5-27b` | 0.710 | +/-0.086 | 0.742 | 0.677 | 0.683 | $3.2163 | 68.7s | 0.85 | (!) brittle JSON |
-| C | `google/gemma-4-31b-it` | 0.709 | +/-0.139 | 0.700 | 0.792 | 0.729 | $0.1291 | 2.2s | 0.85 | (!) brittle JSON (!) fails no-ad control |
-| C | `minimax/minimax-m3` | 0.706 | +/-0.110 | 0.703 | 0.778 | 0.720 | $0.4367 | 8.8s | 0.88 | (!) brittle JSON |
-| C | `google/gemini-2.5-pro` | 0.704 | +/-0.111 | 0.697 | 0.809 | 0.726 | $3.8631 | 14.2s | 0.97 | (!) fails no-ad control |
-| C | `deepseek/deepseek-v4-flash` | 0.695 | +/-0.088 | 0.682 | 0.818 | 0.725 | $0.1182 | 3.7s | 0.81 | (!) brittle JSON (!) fails no-ad control |
-| C | `openai/gpt-5.4` | 0.685 | +/-0.115 | 0.683 | 0.781 | 0.700 | $2.5345 | 1.8s | 0.81 | (!) brittle JSON (!) fails no-ad control |
-| C | `claude-opus-4-7` | 0.683 | +/-0.149 | 0.702 | 0.685 | 0.669 | $7.8054 | 2.2s | 1.00 |  |
-| C | `openai/o3` | 0.682 | +/-0.181 | 0.787 | 0.516 | 0.595 | $3.0485 | 8.1s | 0.92 |  |
-| C | `deepseek/deepseek-r1` | 0.677 | +/-0.125 | 0.668 | 0.789 | 0.702 | $1.1157 | 19.9s | 0.97 | (!) fails no-ad control |
-| C | `openai/gpt-oss-120b` | 0.629 | +/-0.140 | 0.622 | 0.754 | 0.653 | $0.0643 | 3.0s | 0.70 | (!) brittle JSON (!) fails no-ad control |
-| C | `openai/gpt-5.4-mini` | 0.629 | +/-0.129 | 0.623 | 0.750 | 0.651 | $0.7644 | 1.2s | 0.81 | (!) brittle JSON (!) fails no-ad control |
-| C | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.621 | +/-0.167 | 0.671 | 0.550 | 0.579 | $0.2159 | 24.2s | 0.71 | (!) brittle JSON |
-| C | `meta-llama/llama-4-scout` | 0.585 | +/-0.120 | 0.599 | 0.641 | 0.591 | $0.0807 | 0.8s | 0.82 | (!) brittle JSON |
-| D | `google/gemini-2.5-flash-lite` | 0.564 | +/-0.140 | 0.538 | 0.810 | 0.618 | $0.1104 | 0.9s | 0.97 | (!) fails no-ad control |
-| D | `mistralai/codestral-2508` | 0.556 | +/-0.136 | 0.554 | 0.691 | 0.577 | $0.3241 | 0.7s | 1.00 |  |
-| D | `deepseek/deepseek-r1-0528` | 0.532 | +/-0.149 | 0.531 | 0.711 | 0.557 | $1.0181 | 16.5s | 0.88 | (!) brittle JSON (!) fails no-ad control |
-| D | `mistralai/mistral-large-2512` | 0.499 | +/-0.143 | 0.468 | 0.815 | 0.563 | $0.5599 | 2.6s | 1.00 |  |
-| D | `qwen/qwen3-235b-a22b-2507` | 0.491 | +/-0.163 | 0.474 | 0.648 | 0.529 | $0.0735 | 2.3s | 0.79 | (!) brittle JSON (!) fails no-ad control |
-| D | `deepseek/deepseek-v4-pro` | 0.490 | +/-0.157 | 0.577 | 0.379 | 0.424 | $0.6376 | 26.4s | 0.87 | (!) brittle JSON |
-| E | `deepseek/deepseek-v3.2` | 0.453 | +/-0.119 | 0.496 | 0.399 | 0.416 | $0.2328 | 2.7s | 0.88 | (!) brittle JSON (!) fails no-ad control |
-| E | `moonshotai/kimi-k2.6` | 0.452 | +/-0.191 | 0.505 | 0.433 | 0.422 | $2.2593 | 35.3s | 0.57 | (!) brittle JSON (!) fails no-ad control |
-| E | `meta-llama/llama-4-maverick` | 0.450 | +/-0.194 | 0.443 | 0.540 | 0.470 | $0.1508 | 1.1s | 0.81 | (!) brittle JSON (!) fails no-ad control |
-| E | `cohere/command-a` | 0.423 | +/-0.141 | 0.404 | 0.631 | 0.464 | $2.6688 | 3.8s | 0.71 | (!) brittle JSON (!) fails no-ad control |
-| E | `meta-llama/llama-3.3-70b-instruct` | 0.417 | +/-0.173 | 0.452 | 0.393 | 0.395 | $0.1008 | 1.5s | 0.55 | (!) brittle JSON |
-| F | `nvidia/nemotron-nano-9b-v2` | 0.310 | +/-0.105 | 0.315 | 0.367 | 0.316 | $0.0813 | 12.0s | 0.92 | (!) fails no-ad control |
-| F | `qwen/qwen3-14b` | 0.297 | +/-0.136 | 0.347 | 0.238 | 0.260 | $0.1261 | 20.9s | 0.28 | (!) brittle JSON (!) fails no-ad control |
-| F | `openai/gpt-3.5-turbo` | 0.286 | +/-0.168 | 0.274 | 0.458 | 0.315 | $0.5091 | 1.3s | 0.71 | (!) brittle JSON (!) fails no-ad control |
-| F | `meta-llama/llama-3.1-8b-instruct` | 0.258 | +/-0.130 | 0.268 | 0.261 | 0.251 | $0.0207 | 0.8s | 0.85 | (!) brittle JSON |
-| F | `deepseek/deepseek-r1-distill-llama-70b` | 0.246 | +/-0.109 | 0.249 | 0.362 | 0.261 | $0.7331 | 2.0s | 0.74 | (!) brittle JSON (!) fails no-ad control |
-| F | `cohere/command-r-plus-08-2024` | 0.195 | +/-0.161 | 0.247 | 0.137 | 0.162 | $2.5787 | 1.0s | 0.98 |  |
-| F | `microsoft/phi-4` | 0.191 | +/-0.142 | 0.236 | 0.132 | 0.157 | $0.0713 | 2.3s | 0.86 | (!) brittle JSON (!) fails no-ad control |
-| G | `openai/o4-mini` | 0.112 | +/-0.060 | 0.183 | 0.049 | 0.075 | $1.8999 | 6.9s | 0.05 | (!) brittle JSON |
-| H | `qwen/qwen3-8b` | 0.008 | +/-0.018 | 0.017 | 0.003 | 0.005 | $0.2578 | 59.4s | 0.01 | (!) brittle JSON |
-| H | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | +/-0.000 | 0.000 | 0.000 | 0.000 | $0.0000 | 7.1s | 0.16 | (!) brittle JSON |
+| A | `claude-haiku-4-5-20251001` | 0.819 | +/-0.115 | 0.807 | 0.899 | 0.842 | $1.0820 | 24.2s | 1.00 |  |
+| A | `claude-sonnet-4-6` | 0.791 | +/-0.115 | 0.795 | 0.846 | 0.799 | $3.2386 | 4.1s | 1.00 |  |
+| A | `google/gemini-3.6-flash` | 0.788 | +/-0.122 | 0.788 | 0.840 | 0.796 | $2.8863 | 4.5s | 1.00 |  |
+| A | `x-ai/grok-4.5` | 0.781 | +/-0.121 | 0.777 | 0.853 | 0.797 | $3.3554 | 10.9s | 1.00 |  |
+| A | `openai/gpt-5.5` | 0.780 | +/-0.124 | 0.783 | 0.819 | 0.784 | $7.6842 | 5.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
+| A | `google/gemini-3.5-flash` | 0.774 | +/-0.124 | 0.771 | 0.838 | 0.787 | $3.4202 | 5.6s | 1.00 |  |
+| A | `google/gemini-3.5-flash-lite` | 0.774 | +/-0.110 | 0.786 | 0.813 | 0.776 | $0.3643 | 0.7s | 1.00 |  |
+| A | `openai/gpt-5.6-terra` | 0.767 | +/-0.126 | 0.772 | 0.808 | 0.768 | $1.1951 | 2.1s | 0.86 | (!) brittle JSON (!) fails no-ad control |
+| A | `x-ai/grok-4.3` | 0.767 | +/-0.122 | 0.755 | 0.847 | 0.789 | $1.6048 | 3.7s | 1.00 |  |
+| A | `qwen/qwen3.5-plus-02-15` | 0.756 | +/-0.115 | 0.745 | 0.844 | 0.779 | $1.0746 | 29.2s | 1.00 |  |
+| A | `claude-fable-5` | 0.752 | +/-0.112 | 0.740 | 0.878 | 0.783 | $10.7552 | 6.6s | 1.00 |  |
+| A | `mistralai/mistral-medium-3-5` | 0.746 | +/-0.104 | 0.724 | 0.886 | 0.787 | $1.8393 | 1.1s | 1.00 |  |
+| A | `qwen/qwen3.6-flash` | 0.738 | +/-0.088 | 0.737 | 0.788 | 0.747 | $0.5435 | 7.6s | 0.96 |  |
+| A | `openai/gpt-5.6-luna` | 0.736 | +/-0.119 | 0.730 | 0.824 | 0.754 | $0.1402 | 3.5s | 0.83 | (!) brittle JSON |
+| A | `google/gemini-3.1-pro-preview` | 0.732 | +/-0.119 | 0.726 | 0.826 | 0.752 | $4.9160 | 8.3s | 1.00 |  |
+| A | `claude-opus-4-8` | 0.728 | +/-0.101 | 0.715 | 0.857 | 0.760 | $5.3661 | 7.8s | 1.00 |  |
+| A | `claude-opus-5` | 0.725 | +/-0.143 | 0.718 | 0.845 | 0.748 | $5.3761 | 3.7s | 1.00 |  |
+| B | `deepseek/deepseek-v4-flash` | 0.723 | +/-0.133 | 0.746 | 0.717 | 0.708 | $0.2046 | 6.3s | 0.82 | (!) brittle JSON |
+| B | `qwen/qwen3.7-max` | 0.718 | +/-0.121 | 0.706 | 0.826 | 0.746 | $2.8109 | 23.4s | 0.99 |  |
+| B | `openai/gpt-5.6-sol` | 0.716 | +/-0.135 | 0.709 | 0.816 | 0.738 | $6.2293 | 3.7s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| B | `claude-sonnet-5` | 0.708 | +/-0.128 | 0.698 | 0.812 | 0.732 | $2.1452 | 8.5s | 1.00 |  |
+| B | `deepseek/deepseek-v4-pro` | 0.708 | +/-0.133 | 0.739 | 0.665 | 0.680 | $0.6692 | 16.2s | 0.87 | (!) brittle JSON (!) fails no-ad control |
+| B | `claude-opus-4-7` | 0.704 | +/-0.129 | 0.693 | 0.816 | 0.731 | $5.3293 | 4.6s | 1.00 |  |
+| B | `qwen/qwen3.7-flash` | 0.701 | +/-0.093 | 0.702 | 0.740 | 0.706 | $0.0725 | 10.1s | 0.96 |  |
+| B | `moonshotai/kimi-k3` | 0.693 | +/-0.130 | 0.694 | 0.756 | 0.703 | $5.9242 | 13.8s | 0.81 | (!) brittle JSON (!) fails no-ad control |
+| B | `deepseek/deepseek-v3.2` | 0.687 | +/-0.118 | 0.792 | 0.552 | 0.599 | $0.3015 | 1.7s | 1.00 |  |
+| B | `google/gemini-3.1-flash-lite` | 0.686 | +/-0.108 | 0.653 | 0.918 | 0.747 | $0.2988 | 0.8s | 0.94 | (!) fails no-ad control |
+| B | `meta/muse-spark-1.1` | 0.671 | +/-0.128 | 0.765 | 0.530 | 0.595 | $2.2536 | 4.3s | 0.93 |  |
+| B | `google/gemini-2.5-pro` | 0.669 | +/-0.132 | 0.656 | 0.794 | 0.700 | $4.1601 | 14.2s | 0.96 | (!) fails no-ad control |
+| B | `mistralai/mistral-medium-3.1` | 0.669 | +/-0.136 | 0.655 | 0.790 | 0.699 | $0.4847 | 0.7s | 1.00 |  |
+| B | `minimax/minimax-m3` | 0.665 | +/-0.083 | 0.720 | 0.612 | 0.626 | $0.3575 | 1.7s | 0.88 | (!) brittle JSON (!) fails no-ad control |
+| B | `google/gemma-4-31b-it` | 0.662 | +/-0.132 | 0.665 | 0.701 | 0.667 | $0.1181 | 2.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
+| C | `deepseek/deepseek-v4-flash-0731` | 0.656 | +/-0.148 | 0.720 | 0.557 | 0.601 | $0.1482 | 13.2s | 0.73 | (!) brittle JSON |
+| C | `openai/gpt-oss-120b` | 0.655 | +/-0.146 | 0.636 | 0.807 | 0.692 | $0.0634 | 6.5s | 0.88 | (!) brittle JSON (!) fails no-ad control |
+| C | `google/gemini-2.5-flash` | 0.641 | +/-0.156 | 0.612 | 0.859 | 0.694 | $0.3796 | 0.8s | 1.00 |  |
+| C | `qwen/qwen3.6-plus` | 0.622 | +/-0.166 | 0.645 | 0.619 | 0.607 | $1.1534 | 36.9s | 0.90 | (!) brittle JSON |
+| C | `qwen/qwen3.5-27b` | 0.607 | +/-0.096 | 0.675 | 0.563 | 0.567 | $0.8941 | 37.6s | 0.70 | (!) brittle JSON |
+| C | `nvidia/nemotron-3-super-120b-a12b` | 0.597 | +/-0.209 | 0.624 | 0.577 | 0.577 | $0.2194 | 22.3s | 0.79 | (!) brittle JSON (!) fails no-ad control |
+| C | `openai/gpt-5.4` | 0.592 | +/-0.116 | 0.574 | 0.776 | 0.634 | $2.7907 | 1.4s | 0.80 | (!) brittle JSON (!) fails no-ad control |
+| C | `z-ai/glm-5.2` | 0.568 | +/-0.121 | 0.555 | 0.769 | 0.606 | $0.7376 | 3.5s | 0.73 | (!) brittle JSON (!) fails no-ad control |
+| C | `google/gemini-2.5-flash-lite` | 0.566 | +/-0.153 | 0.540 | 0.854 | 0.623 | $0.1132 | 0.8s | 0.97 | (!) fails no-ad control |
+| C | `openai/o3` | 0.563 | +/-0.173 | 0.710 | 0.371 | 0.457 | $3.3100 | 6.7s | 0.93 |  |
+| C | `deepseek/deepseek-r1` | 0.552 | +/-0.151 | 0.546 | 0.674 | 0.574 | $1.4743 | 35.7s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| C | `tencent/hy3` | 0.548 | +/-0.221 | 0.615 | 0.441 | 0.489 | $0.3876 | 22.3s | 0.62 | (!) brittle JSON |
+| D | `google/gemma-4-26b-a4b-it` | 0.545 | +/-0.169 | 0.532 | 0.651 | 0.572 | $0.0825 | 1.4s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| D | `openai/gpt-5.4-mini` | 0.537 | +/-0.176 | 0.516 | 0.748 | 0.582 | $0.8470 | 1.1s | 0.78 | (!) brittle JSON (!) fails no-ad control |
+| D | `openai/gpt-oss-20b` | 0.525 | +/-0.157 | 0.524 | 0.599 | 0.540 | $0.0620 | 9.2s | 0.80 | (!) brittle JSON (!) fails no-ad control |
+| D | `deepseek/deepseek-r1-0528` | 0.520 | +/-0.132 | 0.520 | 0.649 | 0.540 | $1.1645 | 29.4s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| D | `xiaomi/mimo-v2.5-pro` | 0.496 | +/-0.131 | 0.572 | 0.402 | 0.438 | $0.4954 | 2.2s | 0.90 | (!) fails no-ad control |
+| D | `meta-llama/llama-3.3-70b-instruct` | 0.489 | +/-0.153 | 0.493 | 0.521 | 0.493 | $0.1107 | 1.3s | 0.88 | (!) brittle JSON |
+| D | `nvidia/nemotron-3-ultra-550b-a55b` | 0.485 | +/-0.131 | 0.526 | 0.439 | 0.453 | $0.7782 | 1.2s | 0.89 | (!) brittle JSON (!) fails no-ad control |
+| D | `meta-llama/llama-4-maverick` | 0.485 | +/-0.165 | 0.466 | 0.628 | 0.522 | $0.2206 | 1.1s | 0.79 | (!) brittle JSON (!) fails no-ad control |
+| D | `mistralai/mistral-large-2512` | 0.479 | +/-0.157 | 0.447 | 0.854 | 0.547 | $0.6184 | 3.3s | 1.00 | (!) fails no-ad control |
+| E | `stepfun/step-3.7-flash` | 0.473 | +/-0.252 | 0.588 | 0.337 | 0.398 | $0.4302 | 13.9s | 0.56 | (!) brittle JSON (!!) moderation blocked 15.2% |
+| E | `meta-llama/llama-4-scout` | 0.463 | +/-0.141 | 0.491 | 0.439 | 0.442 | $0.1111 | 0.9s | 0.83 | (!) brittle JSON (!) fails no-ad control |
+| E | `mistralai/codestral-2508` | 0.459 | +/-0.125 | 0.438 | 0.679 | 0.504 | $0.3585 | 0.9s | 1.00 | (!) fails no-ad control |
+| E | `qwen/qwen3-235b-a22b-2507` | 0.458 | +/-0.118 | 0.439 | 0.626 | 0.499 | $0.1078 | 2.5s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| E | `cohere/command-r-plus-08-2024` | 0.448 | +/-0.162 | 0.534 | 0.334 | 0.381 | $2.8505 | 1.1s | 0.93 |  |
+| E | `moonshotai/kimi-k2.6` | 0.448 | +/-0.188 | 0.524 | 0.388 | 0.401 | $1.8854 | 55.7s | 0.63 | (!) brittle JSON (!) fails no-ad control |
+| E | `qwen/qwen3.7-plus` | 0.447 | +/-0.107 | 0.420 | 0.742 | 0.506 | $0.7238 | 23.7s | 0.80 | (!) brittle JSON (!) fails no-ad control |
+| E | `xiaomi/mimo-v2.5` | 0.447 | +/-0.149 | 0.445 | 0.598 | 0.471 | $0.1692 | 4.2s | 0.73 | (!) brittle JSON (!) fails no-ad control |
+| E | `meituan/longcat-2.0` | 0.431 | +/-0.154 | 0.483 | 0.361 | 0.390 | $0.5573 | 10.5s | 0.42 | (!) brittle JSON |
+| E | `deepseek/deepseek-r1-distill-llama-70b` | 0.414 | +/-0.165 | 0.454 | 0.371 | 0.387 | $0.6913 | 27.2s | 0.39 | (!) brittle JSON (!) fails no-ad control |
+| E | `qwen/qwen3-14b` | 0.393 | +/-0.171 | 0.406 | 0.394 | 0.385 | $0.3989 | 14.4s | 0.60 | (!) brittle JSON (!) fails no-ad control |
+| E | `inclusionai/ring-2.6-1t` | 0.385 | +/-0.198 | 0.447 | 0.299 | 0.337 | $0.2468 | 10.8s | 0.81 | (!) brittle JSON |
+| E | `cohere/command-a` | 0.379 | +/-0.128 | 0.357 | 0.611 | 0.425 | $2.9415 | 1.7s | 0.71 | (!) brittle JSON (!) fails no-ad control |
+| E | `thinkingmachines/inkling-small` | 0.375 | +/-0.153 | 0.402 | 0.366 | 0.358 | $1.0333 | 18.5s | 0.58 | (!) brittle JSON (!) fails no-ad control |
+| E | `qwen/qwen3.8-max` | 0.340 | +/-0.206 | 0.435 | 0.217 | 0.272 | $4.2714 | 29.7s | 0.73 | (!) brittle JSON |
+| E | `microsoft/phi-4` | 0.337 | +/-0.190 | 0.386 | 0.276 | 0.299 | $0.0792 | 0.5s | 0.98 |  |
+| E | `thinkingmachines/inkling` | 0.294 | +/-0.155 | 0.395 | 0.174 | 0.225 | $3.2258 | 65.9s | 0.35 | (!) brittle JSON (!) fails no-ad control |
+| E | `openai/gpt-3.5-turbo` | 0.275 | +/-0.140 | 0.260 | 0.484 | 0.310 | $0.5564 | 1.4s | 0.70 | (!) brittle JSON (!) fails no-ad control |
+| E | `meta-llama/llama-3.1-8b-instruct` | 0.246 | +/-0.118 | 0.243 | 0.325 | 0.259 | $0.0572 | 0.9s | 0.82 | (!) brittle JSON (!) fails no-ad control |
+| F | `openai/o4-mini` | 0.189 | +/-0.092 | 0.272 | 0.093 | 0.135 | $2.1179 | 7.3s | 0.07 | (!) brittle JSON |
+| G | `mistralai/mistral-small-2603` | 0.020 | +/-0.044 | 0.021 | 0.017 | 0.019 | $0.1745 | 0.7s | 1.00 |  |
+| G | `qwen/qwen3-8b` | 0.000 | +/-0.000 | 0.000 | 0.000 | 0.000 | $0.3256 | 39.8s | 0.10 | (!) brittle JSON |
 
 ### Best Value (F0.5 per dollar)
 
@@ -105,59 +134,81 @@ Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here be
 
 | Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |
 |------|-------|--------|------|----|----------------|-------|
-| 1 | `meta-llama/llama-3.1-8b-instruct` | 12.42 | 0.258 | 0.251 | $0.0207 | (!) brittle JSON |
-| 2 | `openai/gpt-oss-120b` | 9.77 | 0.629 | 0.653 | $0.0643 | (!) brittle JSON (!) fails no-ad control |
-| 3 | `meta-llama/llama-4-scout` | 7.25 | 0.585 | 0.591 | $0.0807 | (!) brittle JSON |
-| 4 | `qwen/qwen3-235b-a22b-2507` | 6.69 | 0.491 | 0.529 | $0.0735 | (!) brittle JSON (!) fails no-ad control |
-| 5 | `deepseek/deepseek-v4-flash` | 5.88 | 0.695 | 0.725 | $0.1182 | (!) brittle JSON (!) fails no-ad control |
-| 6 | `google/gemma-4-31b-it` | 5.49 | 0.709 | 0.729 | $0.1291 | (!) brittle JSON (!) fails no-ad control |
-| 7 | `google/gemini-2.5-flash-lite` | 5.11 | 0.564 | 0.618 | $0.1104 | (!) fails no-ad control |
-| 8 | `meta-llama/llama-3.3-70b-instruct` | 4.14 | 0.417 | 0.395 | $0.1008 | (!) brittle JSON |
-| 9 | `nvidia/nemotron-nano-9b-v2` | 3.81 | 0.310 | 0.316 | $0.0813 | (!) fails no-ad control |
-| 10 | `meta-llama/llama-4-maverick` | 2.98 | 0.450 | 0.470 | $0.1508 | (!) brittle JSON (!) fails no-ad control |
-| 11 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 2.88 | 0.621 | 0.579 | $0.2159 | (!) brittle JSON |
-| 12 | `microsoft/phi-4` | 2.68 | 0.191 | 0.157 | $0.0713 | (!) brittle JSON (!) fails no-ad control |
-| 13 | `google/gemini-3.1-flash-lite` | 2.57 | 0.710 | 0.756 | $0.2762 | (!) fails no-ad control |
-| 14 | `qwen/qwen3-14b` | 2.35 | 0.297 | 0.260 | $0.1261 | (!) brittle JSON (!) fails no-ad control |
-| 15 | `google/gemini-2.5-flash` | 2.12 | 0.728 | 0.777 | $0.3435 |  |
-| 16 | `deepseek/deepseek-v3.2` | 1.94 | 0.453 | 0.416 | $0.2328 | (!) brittle JSON (!) fails no-ad control |
-| 17 | `mistralai/codestral-2508` | 1.72 | 0.556 | 0.577 | $0.3241 |  |
-| 18 | `mistralai/mistral-medium-3.1` | 1.68 | 0.737 | 0.739 | $0.4380 |  |
-| 19 | `minimax/minimax-m3` | 1.62 | 0.706 | 0.720 | $0.4367 | (!) brittle JSON |
-| 20 | `qwen/qwen3.6-flash` | 1.44 | 0.788 | 0.802 | $0.5461 | (!) fails no-ad control |
-| 21 | `mistralai/mistral-large-2512` | 0.89 | 0.499 | 0.563 | $0.5599 |  |
-| 22 | `openai/gpt-5.4-mini` | 0.82 | 0.629 | 0.651 | $0.7644 | (!) brittle JSON (!) fails no-ad control |
-| 23 | `deepseek/deepseek-v4-pro` | 0.77 | 0.490 | 0.424 | $0.6376 | (!) brittle JSON |
-| 24 | `qwen/qwen3.6-plus` | 0.75 | 0.829 | 0.807 | $1.1119 |  |
-| 25 | `claude-haiku-4-5-20251001` | 0.67 | 0.804 | 0.837 | $1.2017 | (!) brittle JSON |
-| 26 | `qwen/qwen3.5-plus-02-15` | 0.65 | 0.801 | 0.794 | $1.2346 |  |
-| 27 | `deepseek/deepseek-r1` | 0.61 | 0.677 | 0.702 | $1.1157 | (!) fails no-ad control |
-| 28 | `openai/gpt-3.5-turbo` | 0.56 | 0.286 | 0.315 | $0.5091 | (!) brittle JSON (!) fails no-ad control |
-| 29 | `deepseek/deepseek-r1-0528` | 0.52 | 0.532 | 0.557 | $1.0181 | (!) brittle JSON (!) fails no-ad control |
-| 30 | `x-ai/grok-4.3` | 0.52 | 0.778 | 0.797 | $1.4987 |  |
-| 31 | `deepseek/deepseek-r1-distill-llama-70b` | 0.34 | 0.246 | 0.261 | $0.7331 | (!) brittle JSON (!) fails no-ad control |
-| 32 | `openai/gpt-5.4` | 0.27 | 0.685 | 0.700 | $2.5345 | (!) brittle JSON (!) fails no-ad control |
-| 33 | `openai/o3` | 0.22 | 0.682 | 0.595 | $3.0485 |  |
-| 34 | `qwen/qwen3.5-27b` | 0.22 | 0.710 | 0.683 | $3.2163 | (!) brittle JSON |
-| 35 | `claude-sonnet-4-6` | 0.22 | 0.770 | 0.786 | $3.5376 |  |
-| 36 | `google/gemini-3.5-flash` | 0.21 | 0.737 | 0.738 | $3.5200 |  |
-| 37 | `moonshotai/kimi-k2.6` | 0.20 | 0.452 | 0.422 | $2.2593 | (!) brittle JSON (!) fails no-ad control |
-| 38 | `google/gemini-2.5-pro` | 0.18 | 0.704 | 0.726 | $3.8631 | (!) fails no-ad control |
-| 39 | `cohere/command-a` | 0.16 | 0.423 | 0.464 | $2.6688 | (!) brittle JSON (!) fails no-ad control |
-| 40 | `openai/gpt-5.5` | 0.11 | 0.764 | 0.750 | $6.6806 | (!) brittle JSON (!) fails no-ad control |
-| 41 | `claude-opus-4-8` | 0.10 | 0.770 | 0.767 | $7.8217 |  |
-| 42 | `claude-opus-4-7` | 0.09 | 0.683 | 0.669 | $7.8054 |  |
-| 43 | `cohere/command-r-plus-08-2024` | 0.08 | 0.195 | 0.162 | $2.5787 |  |
-| 44 | `openai/o4-mini` | 0.06 | 0.112 | 0.075 | $1.8999 | (!) brittle JSON |
-| 45 | `qwen/qwen3-8b` | 0.03 | 0.008 | 0.005 | $0.2578 | (!) brittle JSON |
-
-### Best Free-Tier (F0.5)
-
-Models that came back at $0.00 cost, ranked by F0.5 with the same CI and flags as Best Accuracy. Tiers are computed within the free-tier set against its own leader, so a tier letter here is not comparable to the same letter in Best Accuracy. Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark (`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing.
-
-| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | p50 latency | JSON compliance | Flags |
-|------|-------|------|--------|-----------|--------|----|-------------|-----------------|-------|
-| A | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | +/-0.000 | 0.000 | 0.000 | 0.000 | 7.1s | 0.16 | (!) brittle JSON |
+| 1 | `openai/gpt-oss-120b` | 10.33 | 0.655 | 0.692 | $0.0634 | (!) brittle JSON (!) fails no-ad control |
+| 2 | `qwen/qwen3.7-flash` | 9.66 | 0.701 | 0.706 | $0.0725 |  |
+| 3 | `openai/gpt-oss-20b` | 8.46 | 0.525 | 0.540 | $0.0620 | (!) brittle JSON (!) fails no-ad control |
+| 4 | `google/gemma-4-26b-a4b-it` | 6.60 | 0.545 | 0.572 | $0.0825 | (!) brittle JSON (!) fails no-ad control |
+| 5 | `google/gemma-4-31b-it` | 5.60 | 0.662 | 0.667 | $0.1181 | (!) brittle JSON (!) fails no-ad control |
+| 6 | `openai/gpt-5.6-luna` | 5.25 | 0.736 | 0.754 | $0.1402 | (!) brittle JSON |
+| 7 | `google/gemini-2.5-flash-lite` | 5.00 | 0.566 | 0.623 | $0.1132 | (!) fails no-ad control |
+| 8 | `deepseek/deepseek-v4-flash-0731` | 4.43 | 0.656 | 0.601 | $0.1482 | (!) brittle JSON |
+| 9 | `meta-llama/llama-3.3-70b-instruct` | 4.42 | 0.489 | 0.493 | $0.1107 | (!) brittle JSON |
+| 10 | `meta-llama/llama-3.1-8b-instruct` | 4.30 | 0.246 | 0.259 | $0.0572 | (!) brittle JSON (!) fails no-ad control |
+| 11 | `microsoft/phi-4` | 4.26 | 0.337 | 0.299 | $0.0792 |  |
+| 12 | `qwen/qwen3-235b-a22b-2507` | 4.25 | 0.458 | 0.499 | $0.1078 | (!) brittle JSON (!) fails no-ad control |
+| 13 | `meta-llama/llama-4-scout` | 4.17 | 0.463 | 0.442 | $0.1111 | (!) brittle JSON (!) fails no-ad control |
+| 14 | `deepseek/deepseek-v4-flash` | 3.53 | 0.723 | 0.708 | $0.2046 | (!) brittle JSON |
+| 15 | `nvidia/nemotron-3-super-120b-a12b` | 2.72 | 0.597 | 0.577 | $0.2194 | (!) brittle JSON (!) fails no-ad control |
+| 16 | `xiaomi/mimo-v2.5` | 2.64 | 0.447 | 0.471 | $0.1692 | (!) brittle JSON (!) fails no-ad control |
+| 17 | `google/gemini-3.1-flash-lite` | 2.29 | 0.686 | 0.747 | $0.2988 | (!) fails no-ad control |
+| 18 | `deepseek/deepseek-v3.2` | 2.28 | 0.687 | 0.599 | $0.3015 |  |
+| 19 | `meta-llama/llama-4-maverick` | 2.20 | 0.485 | 0.522 | $0.2206 | (!) brittle JSON (!) fails no-ad control |
+| 20 | `google/gemini-3.5-flash-lite` | 2.12 | 0.774 | 0.776 | $0.3643 |  |
+| 21 | `minimax/minimax-m3` | 1.86 | 0.665 | 0.626 | $0.3575 | (!) brittle JSON (!) fails no-ad control |
+| 22 | `google/gemini-2.5-flash` | 1.69 | 0.641 | 0.694 | $0.3796 |  |
+| 23 | `inclusionai/ring-2.6-1t` | 1.56 | 0.385 | 0.337 | $0.2468 | (!) brittle JSON |
+| 24 | `tencent/hy3` | 1.41 | 0.548 | 0.489 | $0.3876 | (!) brittle JSON |
+| 25 | `mistralai/mistral-medium-3.1` | 1.38 | 0.669 | 0.699 | $0.4847 |  |
+| 26 | `qwen/qwen3.6-flash` | 1.36 | 0.738 | 0.747 | $0.5435 |  |
+| 27 | `mistralai/codestral-2508` | 1.28 | 0.459 | 0.504 | $0.3585 | (!) fails no-ad control |
+| 28 | `stepfun/step-3.7-flash` | 1.10 | 0.473 | 0.398 | $0.4302 | (!) brittle JSON (!!) moderation blocked 15.2% |
+| 29 | `deepseek/deepseek-v4-pro` | 1.06 | 0.708 | 0.680 | $0.6692 | (!) brittle JSON (!) fails no-ad control |
+| 30 | `xiaomi/mimo-v2.5-pro` | 1.00 | 0.496 | 0.438 | $0.4954 | (!) fails no-ad control |
+| 31 | `qwen/qwen3-14b` | 0.98 | 0.393 | 0.385 | $0.3989 | (!) brittle JSON (!) fails no-ad control |
+| 32 | `mistralai/mistral-large-2512` | 0.77 | 0.479 | 0.547 | $0.6184 | (!) fails no-ad control |
+| 33 | `meituan/longcat-2.0` | 0.77 | 0.431 | 0.390 | $0.5573 | (!) brittle JSON |
+| 34 | `z-ai/glm-5.2` | 0.77 | 0.568 | 0.606 | $0.7376 | (!) brittle JSON (!) fails no-ad control |
+| 35 | `claude-haiku-4-5-20251001` | 0.76 | 0.819 | 0.842 | $1.0820 |  |
+| 36 | `qwen/qwen3.5-plus-02-15` | 0.70 | 0.756 | 0.779 | $1.0746 |  |
+| 37 | `qwen/qwen3.5-27b` | 0.68 | 0.607 | 0.567 | $0.8941 | (!) brittle JSON |
+| 38 | `openai/gpt-5.6-terra` | 0.64 | 0.767 | 0.768 | $1.1951 | (!) brittle JSON (!) fails no-ad control |
+| 39 | `openai/gpt-5.4-mini` | 0.63 | 0.537 | 0.582 | $0.8470 | (!) brittle JSON (!) fails no-ad control |
+| 40 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.62 | 0.485 | 0.453 | $0.7782 | (!) brittle JSON (!) fails no-ad control |
+| 41 | `qwen/qwen3.7-plus` | 0.62 | 0.447 | 0.506 | $0.7238 | (!) brittle JSON (!) fails no-ad control |
+| 42 | `deepseek/deepseek-r1-distill-llama-70b` | 0.60 | 0.414 | 0.387 | $0.6913 | (!) brittle JSON (!) fails no-ad control |
+| 43 | `qwen/qwen3.6-plus` | 0.54 | 0.622 | 0.607 | $1.1534 | (!) brittle JSON |
+| 44 | `openai/gpt-3.5-turbo` | 0.49 | 0.275 | 0.310 | $0.5564 | (!) brittle JSON (!) fails no-ad control |
+| 45 | `x-ai/grok-4.3` | 0.48 | 0.767 | 0.789 | $1.6048 |  |
+| 46 | `deepseek/deepseek-r1-0528` | 0.45 | 0.520 | 0.540 | $1.1645 | (!) brittle JSON (!) fails no-ad control |
+| 47 | `mistralai/mistral-medium-3-5` | 0.41 | 0.746 | 0.787 | $1.8393 |  |
+| 48 | `deepseek/deepseek-r1` | 0.37 | 0.552 | 0.574 | $1.4743 | (!) brittle JSON (!) fails no-ad control |
+| 49 | `thinkingmachines/inkling-small` | 0.36 | 0.375 | 0.358 | $1.0333 | (!) brittle JSON (!) fails no-ad control |
+| 50 | `claude-sonnet-5` | 0.33 | 0.708 | 0.732 | $2.1452 |  |
+| 51 | `meta/muse-spark-1.1` | 0.30 | 0.671 | 0.595 | $2.2536 |  |
+| 52 | `google/gemini-3.6-flash` | 0.27 | 0.788 | 0.796 | $2.8863 |  |
+| 53 | `qwen/qwen3.7-max` | 0.26 | 0.718 | 0.746 | $2.8109 |  |
+| 54 | `claude-sonnet-4-6` | 0.24 | 0.791 | 0.799 | $3.2386 |  |
+| 55 | `moonshotai/kimi-k2.6` | 0.24 | 0.448 | 0.401 | $1.8854 | (!) brittle JSON (!) fails no-ad control |
+| 56 | `x-ai/grok-4.5` | 0.23 | 0.781 | 0.797 | $3.3554 |  |
+| 57 | `google/gemini-3.5-flash` | 0.23 | 0.774 | 0.787 | $3.4202 |  |
+| 58 | `openai/gpt-5.4` | 0.21 | 0.592 | 0.634 | $2.7907 | (!) brittle JSON (!) fails no-ad control |
+| 59 | `openai/o3` | 0.17 | 0.563 | 0.457 | $3.3100 |  |
+| 60 | `google/gemini-2.5-pro` | 0.16 | 0.669 | 0.700 | $4.1601 | (!) fails no-ad control |
+| 61 | `cohere/command-r-plus-08-2024` | 0.16 | 0.448 | 0.381 | $2.8505 |  |
+| 62 | `google/gemini-3.1-pro-preview` | 0.15 | 0.732 | 0.752 | $4.9160 |  |
+| 63 | `claude-opus-4-8` | 0.14 | 0.728 | 0.760 | $5.3661 |  |
+| 64 | `claude-opus-5` | 0.13 | 0.725 | 0.748 | $5.3761 |  |
+| 65 | `claude-opus-4-7` | 0.13 | 0.704 | 0.731 | $5.3293 |  |
+| 66 | `cohere/command-a` | 0.13 | 0.379 | 0.425 | $2.9415 | (!) brittle JSON (!) fails no-ad control |
+| 67 | `moonshotai/kimi-k3` | 0.12 | 0.693 | 0.703 | $5.9242 | (!) brittle JSON (!) fails no-ad control |
+| 68 | `openai/gpt-5.6-sol` | 0.11 | 0.716 | 0.738 | $6.2293 | (!) brittle JSON (!) fails no-ad control |
+| 69 | `mistralai/mistral-small-2603` | 0.11 | 0.020 | 0.019 | $0.1745 |  |
+| 70 | `openai/gpt-5.5` | 0.10 | 0.780 | 0.784 | $7.6842 | (!) brittle JSON (!) fails no-ad control |
+| 71 | `thinkingmachines/inkling` | 0.09 | 0.294 | 0.225 | $3.2258 | (!) brittle JSON (!) fails no-ad control |
+| 72 | `openai/o4-mini` | 0.09 | 0.189 | 0.135 | $2.1179 | (!) brittle JSON |
+| 73 | `qwen/qwen3.8-max` | 0.08 | 0.340 | 0.272 | $4.2714 | (!) brittle JSON |
+| 74 | `claude-fable-5` | 0.07 | 0.752 | 0.783 | $10.7552 |  |
+| 75 | `qwen/qwen3-8b` | 0.00 | 0.000 | 0.000 | $0.3256 | (!) brittle JSON |
 
 ## Charts
 
@@ -276,7 +327,7 @@ Source data: [Parser stress test](#parser-stress-test) table
 
 ## Failures and provider issues
 
-**3 call(s) failed out of 39330 total (0.01%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
+**139 call(s) failed out of 64125 total (0.22%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
 
 ### By category
 
@@ -284,7 +335,8 @@ Errors classified into coarse buckets so failure patterns are visible at a glanc
 
 | Category | Calls | Affected models |
 |----------|------:|-----------------|
-| Provider content moderation rejection | 3 | `qwen/qwen3.5-plus-02-15` |
+| Other | 132 | `stepfun/step-3.7-flash`, `thinkingmachines/inkling` |
+| Rate-limited | 7 | `thinkingmachines/inkling` |
 
 ### Per-model error count
 
@@ -292,16 +344,24 @@ Same errors grouped by model, with the failure rate as a fraction of that model'
 
 | Model | Errors | of total |
 |---|---:|---:|
-| `qwen/qwen3.5-plus-02-15` | 3 | 3/855 (0.4%) |
+| `stepfun/step-3.7-flash` | 130 | 130/855 (15.2%) |
+| `thinkingmachines/inkling` | 9 | 9/855 (1.1%) |
 
 ### Sample messages (first 3 per category)
 
 First three raw error messages per category, so you can see what the provider actually returned without grepping calls.jsonl. Messages are truncated to ~240 characters; full text lives in `results/raw/calls.jsonl`.
 
-**Provider content moderation rejection** (3)
-- `qwen/qwen3.5-plus-02-15` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 15): Error code: 400 - {'error': {'message': 'Provider returned error', 'code': 400, 'metadata': {'raw': '{"error":{"message":"<400> InternalError.Algo.DataInspectionFailed: Input text data may contain inappropriate content.","type":"data_inspec...
-- `qwen/qwen3.5-plus-02-15` on `ep-drink-champs-30c9a2d49f13` (trial 1, window 15): Error code: 400 - {'error': {'message': 'Provider returned error', 'code': 400, 'metadata': {'raw': '{"error":{"message":"<400> InternalError.Algo.DataInspectionFailed: Input text data may contain inappropriate content.","type":"data_inspec...
-- `qwen/qwen3.5-plus-02-15` on `ep-drink-champs-30c9a2d49f13` (trial 3, window 15): Error code: 400 - {'error': {'message': 'Provider returned error', 'code': 400, 'metadata': {'raw': '{"error":{"message":"<400> InternalError.Algo.DataInspectionFailed: Input text data may contain inappropriate content.","type":"data_inspec...
+**Other** (132)
+- `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 4): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
+- `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 9): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
+- `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 10): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
+- ... and 129 more
+
+**Rate-limited** (7)
+- `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 2): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
+- `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 4): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
+- `thinkingmachines/inkling` on `ep-security-now-audio-2850b24903b2` (trial 2, window 9): Error code: 429 - {'error': {'message': 'Provider returned error', 'code': 429, 'metadata': {'raw': 'thinkingmachines/inkling is temporarily rate-limited upstream. Please retry shortly, or add your own key to accumulate your rate limits: ht...
+- ... and 4 more
 
 ### Why this section exists
 
@@ -330,52 +390,81 @@ Reading the table: high precision + low recall means the model is cautious. It r
 
 | Model | Precision | Recall | TP | FP | FN |
 |---|---:|---:|---:|---:|---:|
-| `claude-haiku-4-5-20251001` | 0.786 | 0.919 | 230 | 68 | 25 |
-| `qwen/qwen3.6-plus` | 0.853 | 0.807 | 200 | 42 | 55 |
-| `qwen/qwen3.6-flash` | 0.783 | 0.848 | 209 | 62 | 46 |
-| `x-ai/grok-4.3` | 0.771 | 0.852 | 216 | 60 | 39 |
-| `qwen/qwen3.5-plus-02-15` | 0.814 | 0.820 | 182 | 44 | 46 |
-| `claude-sonnet-4-6` | 0.766 | 0.842 | 212 | 70 | 43 |
-| `google/gemini-2.5-flash` | 0.702 | 0.922 | 230 | 110 | 25 |
-| `claude-opus-4-8` | 0.779 | 0.795 | 199 | 52 | 56 |
-| `google/gemini-3.1-flash-lite` | 0.688 | 0.900 | 222 | 128 | 33 |
-| `openai/gpt-5.5` | 0.781 | 0.760 | 185 | 48 | 70 |
-| `mistralai/mistral-medium-3.1` | 0.746 | 0.777 | 189 | 91 | 66 |
-| `google/gemini-3.5-flash` | 0.742 | 0.769 | 184 | 75 | 71 |
-| `google/gemma-4-31b-it` | 0.700 | 0.792 | 194 | 89 | 61 |
-| `google/gemini-2.5-pro` | 0.697 | 0.809 | 201 | 91 | 54 |
-| `deepseek/deepseek-v4-flash` | 0.682 | 0.818 | 199 | 109 | 56 |
-| `minimax/minimax-m3` | 0.703 | 0.778 | 192 | 90 | 63 |
-| `deepseek/deepseek-r1` | 0.668 | 0.789 | 198 | 111 | 57 |
-| `openai/gpt-5.4` | 0.683 | 0.781 | 190 | 104 | 65 |
-| `qwen/qwen3.5-27b` | 0.742 | 0.677 | 164 | 67 | 91 |
-| `claude-opus-4-7` | 0.702 | 0.685 | 160 | 65 | 95 |
-| `openai/gpt-oss-120b` | 0.622 | 0.754 | 176 | 151 | 79 |
-| `openai/gpt-5.4-mini` | 0.623 | 0.750 | 179 | 140 | 76 |
-| `google/gemini-2.5-flash-lite` | 0.538 | 0.810 | 206 | 220 | 49 |
-| `openai/o3` | 0.787 | 0.516 | 137 | 23 | 118 |
-| `meta-llama/llama-4-scout` | 0.599 | 0.641 | 142 | 135 | 113 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.671 | 0.550 | 130 | 79 | 125 |
-| `mistralai/codestral-2508` | 0.554 | 0.691 | 164 | 194 | 91 |
-| `mistralai/mistral-large-2512` | 0.468 | 0.815 | 204 | 351 | 51 |
-| `deepseek/deepseek-r1-0528` | 0.531 | 0.711 | 169 | 278 | 86 |
-| `qwen/qwen3-235b-a22b-2507` | 0.474 | 0.648 | 154 | 214 | 101 |
-| `meta-llama/llama-4-maverick` | 0.443 | 0.540 | 137 | 164 | 118 |
-| `cohere/command-a` | 0.404 | 0.631 | 134 | 267 | 121 |
-| `deepseek/deepseek-v4-pro` | 0.577 | 0.379 | 104 | 50 | 151 |
-| `moonshotai/kimi-k2.6` | 0.505 | 0.433 | 91 | 102 | 164 |
-| `deepseek/deepseek-v3.2` | 0.496 | 0.399 | 106 | 135 | 149 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.452 | 0.393 | 98 | 88 | 157 |
-| `nvidia/nemotron-nano-9b-v2` | 0.315 | 0.367 | 81 | 290 | 174 |
-| `openai/gpt-3.5-turbo` | 0.274 | 0.458 | 103 | 423 | 152 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.249 | 0.362 | 82 | 372 | 173 |
-| `qwen/qwen3-14b` | 0.347 | 0.238 | 60 | 114 | 195 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.268 | 0.261 | 63 | 259 | 192 |
-| `cohere/command-r-plus-08-2024` | 0.247 | 0.137 | 45 | 28 | 210 |
-| `microsoft/phi-4` | 0.236 | 0.132 | 32 | 147 | 223 |
-| `openai/o4-mini` | 0.183 | 0.049 | 12 | 17 | 243 |
-| `qwen/qwen3-8b` | 0.017 | 0.003 | 1 | 3 | 254 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 | 0 | 0 | 255 |
+| `claude-haiku-4-5-20251001` | 0.807 | 0.899 | 223 | 62 | 32 |
+| `claude-sonnet-4-6` | 0.795 | 0.846 | 211 | 58 | 44 |
+| `x-ai/grok-4.5` | 0.777 | 0.853 | 215 | 65 | 40 |
+| `google/gemini-3.6-flash` | 0.788 | 0.840 | 211 | 60 | 44 |
+| `x-ai/grok-4.3` | 0.755 | 0.847 | 213 | 72 | 42 |
+| `google/gemini-3.5-flash` | 0.771 | 0.838 | 211 | 66 | 44 |
+| `mistralai/mistral-medium-3-5` | 0.724 | 0.886 | 221 | 94 | 34 |
+| `openai/gpt-5.5` | 0.783 | 0.819 | 203 | 51 | 52 |
+| `claude-fable-5` | 0.740 | 0.878 | 218 | 94 | 37 |
+| `qwen/qwen3.5-plus-02-15` | 0.745 | 0.844 | 214 | 72 | 41 |
+| `google/gemini-3.5-flash-lite` | 0.786 | 0.813 | 205 | 65 | 50 |
+| `openai/gpt-5.6-terra` | 0.772 | 0.808 | 199 | 62 | 56 |
+| `claude-opus-4-8` | 0.715 | 0.857 | 211 | 86 | 44 |
+| `openai/gpt-5.6-luna` | 0.730 | 0.824 | 203 | 69 | 52 |
+| `google/gemini-3.1-pro-preview` | 0.726 | 0.826 | 207 | 80 | 48 |
+| `claude-opus-5` | 0.718 | 0.845 | 215 | 84 | 40 |
+| `google/gemini-3.1-flash-lite` | 0.653 | 0.918 | 229 | 136 | 26 |
+| `qwen/qwen3.6-flash` | 0.737 | 0.788 | 190 | 72 | 65 |
+| `qwen/qwen3.7-max` | 0.706 | 0.826 | 203 | 97 | 52 |
+| `openai/gpt-5.6-sol` | 0.709 | 0.816 | 205 | 92 | 50 |
+| `claude-sonnet-5` | 0.698 | 0.812 | 203 | 100 | 52 |
+| `claude-opus-4-7` | 0.693 | 0.816 | 208 | 96 | 47 |
+| `deepseek/deepseek-v4-flash` | 0.746 | 0.717 | 175 | 63 | 80 |
+| `qwen/qwen3.7-flash` | 0.702 | 0.740 | 181 | 78 | 74 |
+| `moonshotai/kimi-k3` | 0.694 | 0.756 | 180 | 81 | 75 |
+| `google/gemini-2.5-pro` | 0.656 | 0.794 | 198 | 112 | 57 |
+| `mistralai/mistral-medium-3.1` | 0.655 | 0.790 | 195 | 114 | 60 |
+| `google/gemini-2.5-flash` | 0.612 | 0.859 | 220 | 150 | 35 |
+| `openai/gpt-oss-120b` | 0.636 | 0.807 | 191 | 159 | 64 |
+| `deepseek/deepseek-v4-pro` | 0.739 | 0.665 | 162 | 58 | 93 |
+| `google/gemma-4-31b-it` | 0.665 | 0.701 | 178 | 101 | 77 |
+| `openai/gpt-5.4` | 0.574 | 0.776 | 199 | 155 | 56 |
+| `minimax/minimax-m3` | 0.720 | 0.612 | 155 | 71 | 100 |
+| `google/gemini-2.5-flash-lite` | 0.540 | 0.854 | 207 | 240 | 48 |
+| `qwen/qwen3.6-plus` | 0.645 | 0.619 | 159 | 85 | 96 |
+| `z-ai/glm-5.2` | 0.555 | 0.769 | 189 | 184 | 66 |
+| `deepseek/deepseek-v4-flash-0731` | 0.720 | 0.557 | 128 | 47 | 127 |
+| `deepseek/deepseek-v3.2` | 0.792 | 0.552 | 139 | 46 | 116 |
+| `meta/muse-spark-1.1` | 0.765 | 0.530 | 137 | 41 | 118 |
+| `openai/gpt-5.4-mini` | 0.516 | 0.748 | 191 | 262 | 64 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.624 | 0.577 | 132 | 74 | 123 |
+| `deepseek/deepseek-r1` | 0.546 | 0.674 | 171 | 196 | 84 |
+| `google/gemma-4-26b-a4b-it` | 0.532 | 0.651 | 155 | 143 | 100 |
+| `qwen/qwen3.5-27b` | 0.675 | 0.563 | 135 | 74 | 120 |
+| `mistralai/mistral-large-2512` | 0.447 | 0.854 | 217 | 426 | 38 |
+| `deepseek/deepseek-r1-0528` | 0.520 | 0.649 | 162 | 203 | 93 |
+| `openai/gpt-oss-20b` | 0.524 | 0.599 | 137 | 149 | 118 |
+| `meta-llama/llama-4-maverick` | 0.466 | 0.628 | 156 | 189 | 99 |
+| `qwen/qwen3.7-plus` | 0.420 | 0.742 | 186 | 329 | 69 |
+| `mistralai/codestral-2508` | 0.438 | 0.679 | 163 | 250 | 92 |
+| `qwen/qwen3-235b-a22b-2507` | 0.439 | 0.626 | 150 | 226 | 105 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.493 | 0.521 | 120 | 152 | 135 |
+| `tencent/hy3` | 0.615 | 0.441 | 103 | 40 | 152 |
+| `xiaomi/mimo-v2.5` | 0.445 | 0.598 | 162 | 250 | 93 |
+| `openai/o3` | 0.710 | 0.371 | 94 | 22 | 161 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.526 | 0.439 | 102 | 99 | 153 |
+| `meta-llama/llama-4-scout` | 0.491 | 0.439 | 105 | 168 | 150 |
+| `xiaomi/mimo-v2.5-pro` | 0.572 | 0.402 | 103 | 80 | 152 |
+| `cohere/command-a` | 0.357 | 0.611 | 134 | 351 | 121 |
+| `moonshotai/kimi-k2.6` | 0.524 | 0.388 | 90 | 80 | 165 |
+| `stepfun/step-3.7-flash` | 0.588 | 0.337 | 59 | 9 | 136 |
+| `meituan/longcat-2.0` | 0.483 | 0.361 | 91 | 80 | 164 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.454 | 0.371 | 95 | 101 | 160 |
+| `qwen/qwen3-14b` | 0.406 | 0.394 | 90 | 165 | 165 |
+| `cohere/command-r-plus-08-2024` | 0.534 | 0.334 | 88 | 59 | 167 |
+| `thinkingmachines/inkling-small` | 0.402 | 0.366 | 85 | 108 | 170 |
+| `inclusionai/ring-2.6-1t` | 0.447 | 0.299 | 64 | 82 | 191 |
+| `openai/gpt-3.5-turbo` | 0.260 | 0.484 | 112 | 489 | 143 |
+| `microsoft/phi-4` | 0.386 | 0.276 | 56 | 103 | 199 |
+| `qwen/qwen3.8-max` | 0.435 | 0.217 | 48 | 16 | 207 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.243 | 0.325 | 65 | 347 | 190 |
+| `thinkingmachines/inkling` | 0.395 | 0.174 | 35 | 26 | 195 |
+| `openai/o4-mini` | 0.272 | 0.093 | 20 | 30 | 235 |
+| `mistralai/mistral-small-2603` | 0.021 | 0.017 | 5 | 15 | 250 |
+| `qwen/qwen3-8b` | 0.000 | 0.000 | 0 | 1 | 255 |
 
 ## Boundary accuracy
 
@@ -383,51 +472,80 @@ For ads that match the truth at IoU >= 0.5, how far off were the predicted start
 
 | Model | Start MAE (s) | End MAE (s) |
 |---|---:|---:|
-| `qwen/qwen3-8b` | 0.02 | 0.01 |
-| `claude-sonnet-4-6` | 3.75 | 2.81 |
-| `qwen/qwen3.5-plus-02-15` | 5.49 | 1.34 |
-| `google/gemini-3.1-flash-lite` | 4.20 | 3.39 |
-| `claude-haiku-4-5-20251001` | 3.21 | 4.43 |
-| `x-ai/grok-4.3` | 4.47 | 3.45 |
-| `google/gemini-2.5-flash-lite` | 3.06 | 4.89 |
-| `mistralai/mistral-large-2512` | 3.95 | 4.59 |
-| `google/gemini-3.5-flash` | 4.75 | 3.89 |
-| `google/gemini-2.5-flash` | 3.78 | 5.05 |
-| `minimax/minimax-m3` | 5.61 | 3.26 |
-| `deepseek/deepseek-r1` | 4.20 | 4.72 |
-| `deepseek/deepseek-r1-0528` | 5.11 | 3.96 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 7.11 | 2.03 |
-| `qwen/qwen3.6-plus` | 6.06 | 3.39 |
-| `qwen/qwen3.6-flash` | 6.76 | 2.90 |
-| `qwen/qwen3.5-27b` | 5.86 | 4.12 |
-| `google/gemini-2.5-pro` | 6.87 | 3.46 |
-| `mistralai/mistral-medium-3.1` | 5.95 | 4.49 |
-| `google/gemma-4-31b-it` | 7.45 | 3.34 |
-| `openai/gpt-5.4` | 7.56 | 3.50 |
-| `deepseek/deepseek-v4-pro` | 7.34 | 3.80 |
-| `openai/gpt-5.5` | 7.84 | 3.97 |
-| `deepseek/deepseek-v3.2` | 6.53 | 5.30 |
-| `moonshotai/kimi-k2.6` | 9.52 | 2.37 |
-| `deepseek/deepseek-v4-flash` | 6.85 | 5.08 |
-| `openai/gpt-oss-120b` | 7.38 | 4.99 |
-| `openai/o4-mini` | 4.41 | 7.99 |
-| `mistralai/codestral-2508` | 4.65 | 8.18 |
-| `claude-opus-4-8` | 9.27 | 3.65 |
-| `cohere/command-a` | 5.35 | 7.65 |
-| `openai/o3` | 9.82 | 3.94 |
-| `claude-opus-4-7` | 11.28 | 2.57 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 2.41 | 12.50 |
-| `meta-llama/llama-3.3-70b-instruct` | 4.07 | 10.95 |
-| `qwen/qwen3-235b-a22b-2507` | 6.77 | 9.01 |
-| `openai/gpt-5.4-mini` | 7.23 | 10.53 |
-| `qwen/qwen3-14b` | 6.00 | 12.42 |
-| `meta-llama/llama-4-scout` | 5.56 | 13.09 |
-| `openai/gpt-3.5-turbo` | 5.79 | 13.03 |
-| `microsoft/phi-4` | 7.82 | 11.02 |
-| `meta-llama/llama-4-maverick` | 5.22 | 18.25 |
-| `nvidia/nemotron-nano-9b-v2` | 15.98 | 7.84 |
-| `cohere/command-r-plus-08-2024` | 11.76 | 12.55 |
-| `meta-llama/llama-3.1-8b-instruct` | 16.04 | 8.62 |
+| `mistralai/mistral-small-2603` | 0.00 | 0.39 |
+| `stepfun/step-3.7-flash` | 0.82 | 1.20 |
+| `qwen/qwen3-14b` | 1.59 | 4.08 |
+| `google/gemini-3.1-flash-lite` | 2.87 | 3.39 |
+| `claude-haiku-4-5-20251001` | 3.53 | 3.59 |
+| `google/gemini-3.5-flash-lite` | 3.03 | 4.19 |
+| `qwen/qwen3.6-plus` | 5.37 | 2.29 |
+| `google/gemini-2.5-flash` | 4.28 | 3.50 |
+| `qwen/qwen3.7-max` | 4.23 | 3.81 |
+| `qwen/qwen3.7-flash` | 5.73 | 2.53 |
+| `google/gemini-3.5-flash` | 5.05 | 3.26 |
+| `mistralai/mistral-medium-3-5` | 4.18 | 4.24 |
+| `google/gemini-3.6-flash` | 5.18 | 3.29 |
+| `deepseek/deepseek-r1` | 5.14 | 3.62 |
+| `x-ai/grok-4.5` | 5.80 | 3.13 |
+| `tencent/hy3` | 5.51 | 3.49 |
+| `thinkingmachines/inkling` | 6.39 | 2.69 |
+| `meta-llama/llama-3.3-70b-instruct` | 3.92 | 5.24 |
+| `deepseek/deepseek-v4-flash` | 4.62 | 4.54 |
+| `mistralai/mistral-large-2512` | 4.01 | 5.18 |
+| `x-ai/grok-4.3` | 5.30 | 3.98 |
+| `deepseek/deepseek-r1-0528` | 5.69 | 3.81 |
+| `qwen/qwen3.6-flash` | 7.35 | 2.20 |
+| `deepseek/deepseek-v4-pro` | 5.25 | 4.32 |
+| `openai/gpt-5.6-terra` | 5.91 | 3.70 |
+| `qwen/qwen3.5-plus-02-15` | 7.39 | 2.24 |
+| `claude-sonnet-4-6` | 6.62 | 3.09 |
+| `minimax/minimax-m3` | 6.94 | 2.78 |
+| `claude-fable-5` | 6.27 | 3.50 |
+| `claude-opus-4-8` | 7.29 | 2.64 |
+| `mistralai/mistral-medium-3.1` | 4.33 | 5.78 |
+| `claude-sonnet-5` | 6.70 | 3.51 |
+| `deepseek/deepseek-v4-flash-0731` | 4.40 | 5.89 |
+| `openai/gpt-5.5` | 7.15 | 3.40 |
+| `moonshotai/kimi-k2.6` | 8.57 | 1.99 |
+| `google/gemini-3.1-pro-preview` | 5.26 | 5.38 |
+| `qwen/qwen3.5-27b` | 7.72 | 3.09 |
+| `qwen/qwen3.7-plus` | 7.18 | 3.67 |
+| `deepseek/deepseek-v3.2` | 7.26 | 3.74 |
+| `thinkingmachines/inkling-small` | 4.58 | 6.57 |
+| `qwen/qwen3.8-max` | 3.85 | 7.32 |
+| `openai/gpt-5.6-luna` | 7.70 | 3.79 |
+| `moonshotai/kimi-k3` | 6.07 | 5.46 |
+| `z-ai/glm-5.2` | 6.21 | 5.51 |
+| `nvidia/nemotron-3-super-120b-a12b` | 5.70 | 6.05 |
+| `claude-opus-4-7` | 9.16 | 2.63 |
+| `meituan/longcat-2.0` | 4.24 | 7.59 |
+| `openai/gpt-5.6-sol` | 8.03 | 3.84 |
+| `meta/muse-spark-1.1` | 7.97 | 4.25 |
+| `google/gemini-2.5-pro` | 9.05 | 3.35 |
+| `google/gemini-2.5-flash-lite` | 5.88 | 6.54 |
+| `google/gemma-4-26b-a4b-it` | 1.93 | 10.74 |
+| `claude-opus-5` | 11.05 | 2.25 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 6.53 | 6.95 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 5.47 | 8.22 |
+| `openai/gpt-5.4` | 7.40 | 6.35 |
+| `xiaomi/mimo-v2.5` | 6.57 | 7.26 |
+| `cohere/command-a` | 5.47 | 8.42 |
+| `google/gemma-4-31b-it` | 9.18 | 4.80 |
+| `openai/gpt-oss-120b` | 8.98 | 5.07 |
+| `qwen/qwen3-235b-a22b-2507` | 4.31 | 10.26 |
+| `xiaomi/mimo-v2.5-pro` | 6.98 | 8.43 |
+| `openai/gpt-oss-20b` | 8.11 | 7.34 |
+| `mistralai/codestral-2508` | 5.37 | 10.76 |
+| `openai/o3` | 11.31 | 4.95 |
+| `openai/gpt-5.4-mini` | 6.87 | 11.19 |
+| `inclusionai/ring-2.6-1t` | 2.47 | 15.62 |
+| `meta-llama/llama-4-maverick` | 5.97 | 13.04 |
+| `microsoft/phi-4` | 7.04 | 12.22 |
+| `openai/o4-mini` | 5.95 | 13.31 |
+| `openai/gpt-3.5-turbo` | 4.94 | 15.47 |
+| `meta-llama/llama-3.1-8b-instruct` | 14.50 | 6.49 |
+| `cohere/command-r-plus-08-2024` | 6.02 | 15.86 |
+| `meta-llama/llama-4-scout` | 6.61 | 17.17 |
 
 ## Confidence calibration
 
@@ -435,51 +553,81 @@ Models include a self-reported `confidence` on each detected ad. A well-calibrat
 
 | Model | 0.00-0.70 | 0.70-0.90 | 0.90-0.95 | 0.95-0.99 | 0.99+ | total |
 |---|---:|---:|---:|---:|---:|---:|
-| `claude-haiku-4-5-20251001` | -- | 0.00 (n=5) | 0.52 (n=58) | 0.85 (n=235) | -- | 298 |
-| `claude-opus-4-7` | -- | 0.00 (n=6) | 0.29 (n=7) | 0.72 (n=189) | 0.91 (n=23) | 225 |
-| `claude-opus-4-8` | 0.00 (n=1) | 0.00 (n=19) | 0.12 (n=8) | 0.89 (n=223) | -- | 251 |
-| `claude-sonnet-4-6` | -- | 0.11 (n=18) | 0.71 (n=21) | 0.83 (n=205) | 0.66 (n=38) | 282 |
-| `cohere/command-a` | 0.00 (n=2) | 0.00 (n=28) | -- | 0.35 (n=382) | 0.00 (n=1) | 413 |
-| `cohere/command-r-plus-08-2024` | -- | -- | 0.00 (n=1) | 0.53 (n=19) | 0.66 (n=53) | 73 |
-| `deepseek/deepseek-r1` | -- | 0.00 (n=2) | 0.17 (n=6) | 0.58 (n=217) | 0.79 (n=90) | 315 |
-| `deepseek/deepseek-r1-0528` | 0.00 (n=1) | 0.00 (n=13) | 0.02 (n=43) | 0.20 (n=259) | 0.79 (n=147) | 463 |
-| `deepseek/deepseek-r1-distill-llama-70b` | -- | 0.02 (n=156) | -- | 0.23 (n=351) | -- | 507 |
-| `deepseek/deepseek-v3.2` | 0.00 (n=1) | 0.00 (n=3) | 0.00 (n=8) | 0.17 (n=129) | 0.79 (n=106) | 247 |
-| `deepseek/deepseek-v4-flash` | 0.00 (n=7) | 0.25 (n=4) | 0.20 (n=5) | 0.58 (n=172) | 0.80 (n=121) | 309 |
-| `deepseek/deepseek-v4-pro` | 0.00 (n=1) | 0.00 (n=7) | 0.00 (n=4) | 0.73 (n=106) | 0.75 (n=36) | 154 |
-| `google/gemini-2.5-flash` | -- | -- | 0.12 (n=40) | 0.77 (n=215) | 0.71 (n=85) | 340 |
-| `google/gemini-2.5-flash-lite` | -- | 1.00 (n=1) | -- | 0.48 (n=421) | 0.56 (n=9) | 431 |
-| `google/gemini-2.5-pro` | -- | 0.00 (n=12) | 0.00 (n=18) | 0.53 (n=66) | 0.82 (n=202) | 298 |
-| `google/gemini-3.1-flash-lite` | -- | 0.00 (n=3) | 0.00 (n=24) | 0.24 (n=75) | 0.81 (n=253) | 355 |
-| `google/gemini-3.5-flash` | -- | 0.00 (n=3) | 0.25 (n=12) | 0.16 (n=31) | 0.83 (n=213) | 259 |
-| `google/gemma-4-31b-it` | -- | 0.14 (n=7) | 0.12 (n=24) | 0.58 (n=83) | 0.82 (n=174) | 288 |
-| `meta-llama/llama-3.1-8b-instruct` | -- | 0.00 (n=2) | 0.00 (n=1) | 0.20 (n=319) | -- | 322 |
-| `meta-llama/llama-3.3-70b-instruct` | -- | 0.00 (n=17) | 0.50 (n=14) | 0.42 (n=60) | 0.69 (n=95) | 186 |
-| `meta-llama/llama-4-maverick` | 0.00 (n=1) | 0.00 (n=53) | 0.12 (n=41) | 0.63 (n=209) | 0.50 (n=2) | 306 |
-| `meta-llama/llama-4-scout` | -- | 0.00 (n=4) | 0.00 (n=5) | 0.52 (n=247) | 0.67 (n=21) | 277 |
-| `microsoft/phi-4` | -- | 0.00 (n=5) | 0.00 (n=3) | 0.16 (n=206) | -- | 214 |
-| `minimax/minimax-m3` | 0.00 (n=13) | 0.04 (n=23) | 0.27 (n=11) | 0.80 (n=204) | 0.81 (n=31) | 282 |
-| `mistralai/codestral-2508` | -- | 0.00 (n=1) | 0.00 (n=4) | 0.47 (n=352) | 0.00 (n=1) | 358 |
-| `mistralai/mistral-large-2512` | 0.00 (n=2) | 0.00 (n=31) | 0.00 (n=49) | 0.07 (n=196) | 0.69 (n=277) | 555 |
-| `mistralai/mistral-medium-3.1` | -- | 0.00 (n=1) | 0.00 (n=8) | 0.70 (n=250) | 0.71 (n=21) | 280 |
-| `moonshotai/kimi-k2.6` | 0.00 (n=30) | 0.04 (n=27) | 0.00 (n=2) | 0.52 (n=83) | 0.75 (n=63) | 205 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | -- | 0.00 (n=3) | 0.50 (n=4) | 0.64 (n=200) | 0.50 (n=2) | 209 |
-| `nvidia/nemotron-nano-9b-v2` | -- | 0.00 (n=4) | 0.00 (n=15) | 0.22 (n=334) | 0.47 (n=19) | 372 |
-| `openai/gpt-3.5-turbo` | -- | -- | 0.00 (n=5) | 0.24 (n=351) | 0.08 (n=226) | 582 |
-| `openai/gpt-5.4` | 0.00 (n=19) | 0.08 (n=37) | 0.00 (n=20) | 0.59 (n=32) | 0.87 (n=194) | 302 |
-| `openai/gpt-5.4-mini` | 0.00 (n=12) | 0.02 (n=41) | 0.00 (n=29) | 0.52 (n=50) | 0.80 (n=191) | 323 |
-| `openai/gpt-5.5` | 0.00 (n=7) | 0.19 (n=16) | 0.60 (n=5) | 0.82 (n=38) | 0.88 (n=168) | 234 |
-| `openai/gpt-oss-120b` | -- | 0.00 (n=4) | 0.10 (n=10) | 0.33 (n=128) | 0.70 (n=190) | 332 |
-| `openai/o3` | 0.00 (n=1) | -- | 0.36 (n=11) | 0.89 (n=139) | 1.00 (n=9) | 160 |
-| `openai/o4-mini` | -- | 0.00 (n=2) | -- | 0.46 (n=26) | 0.00 (n=1) | 29 |
-| `qwen/qwen3-14b` | -- | -- | 0.00 (n=29) | 0.41 (n=147) | -- | 176 |
-| `qwen/qwen3-235b-a22b-2507` | 0.00 (n=11) | 0.00 (n=5) | 0.00 (n=6) | 0.45 (n=310) | 0.26 (n=61) | 393 |
-| `qwen/qwen3-8b` | -- | -- | -- | 0.25 (n=4) | -- | 4 |
-| `qwen/qwen3.5-27b` | -- | 0.00 (n=7) | 0.00 (n=5) | 0.76 (n=217) | 0.00 (n=2) | 231 |
-| `qwen/qwen3.5-plus-02-15` | -- | 0.00 (n=6) | 0.14 (n=7) | 0.85 (n=196) | 0.82 (n=17) | 226 |
-| `qwen/qwen3.6-flash` | 0.00 (n=1) | 0.00 (n=4) | 0.00 (n=4) | 0.79 (n=258) | 0.83 (n=6) | 273 |
-| `qwen/qwen3.6-plus` | 0.00 (n=1) | 0.00 (n=4) | 0.00 (n=1) | 0.86 (n=230) | 0.33 (n=6) | 242 |
-| `x-ai/grok-4.3` | 0.00 (n=1) | 0.00 (n=4) | 0.25 (n=16) | 0.85 (n=229) | 0.69 (n=26) | 276 |
+| `claude-fable-5` | 0.00 (n=17) | 0.00 (n=45) | 0.62 (n=8) | 0.88 (n=242) | -- | 312 |
+| `claude-haiku-4-5-20251001` | 0.00 (n=1) | 0.36 (n=11) | 0.25 (n=12) | 0.82 (n=228) | 0.88 (n=33) | 285 |
+| `claude-opus-4-7` | 0.00 (n=8) | 0.00 (n=17) | 0.00 (n=31) | 0.84 (n=239) | 0.89 (n=9) | 304 |
+| `claude-opus-4-8` | 0.00 (n=9) | 0.00 (n=25) | 0.17 (n=23) | 0.86 (n=240) | -- | 297 |
+| `claude-opus-5` | 0.00 (n=7) | 0.00 (n=36) | 0.00 (n=15) | 0.89 (n=241) | -- | 299 |
+| `claude-sonnet-4-6` | 0.00 (n=2) | 0.04 (n=25) | 0.83 (n=6) | 0.88 (n=198) | 0.79 (n=38) | 269 |
+| `claude-sonnet-5` | 0.00 (n=18) | 0.05 (n=39) | 0.29 (n=14) | 0.85 (n=232) | -- | 303 |
+| `cohere/command-a` | 0.00 (n=63) | 0.00 (n=30) | 0.00 (n=45) | 0.35 (n=361) | 0.45 (n=20) | 519 |
+| `cohere/command-r-plus-08-2024` | -- | -- | 0.67 (n=15) | 0.68 (n=56) | 0.53 (n=76) | 147 |
+| `deepseek/deepseek-r1` | -- | 0.10 (n=10) | 0.00 (n=20) | 0.28 (n=185) | 0.74 (n=160) | 375 |
+| `deepseek/deepseek-r1-0528` | 0.00 (n=8) | 0.00 (n=12) | 0.00 (n=21) | 0.26 (n=193) | 0.77 (n=145) | 379 |
+| `deepseek/deepseek-r1-distill-llama-70b` | -- | 0.40 (n=10) | 0.00 (n=4) | 0.48 (n=151) | 0.53 (n=36) | 201 |
+| `deepseek/deepseek-v3.2` | -- | -- | 0.00 (n=6) | 0.73 (n=71) | 0.81 (n=108) | 185 |
+| `deepseek/deepseek-v4-flash` | 0.00 (n=9) | 0.00 (n=6) | 0.25 (n=4) | 0.78 (n=182) | 0.86 (n=37) | 238 |
+| `deepseek/deepseek-v4-flash-0731` | 0.33 (n=3) | 0.00 (n=5) | -- | 0.76 (n=158) | 0.78 (n=9) | 175 |
+| `deepseek/deepseek-v4-pro` | 0.00 (n=11) | 0.00 (n=9) | 0.00 (n=3) | 0.80 (n=164) | 0.88 (n=34) | 221 |
+| `google/gemini-2.5-flash` | -- | 0.00 (n=20) | 0.15 (n=93) | 0.81 (n=162) | 0.79 (n=95) | 370 |
+| `google/gemini-2.5-flash-lite` | -- | 0.00 (n=2) | 0.00 (n=60) | 0.53 (n=391) | -- | 453 |
+| `google/gemini-2.5-pro` | -- | 0.00 (n=10) | 0.00 (n=24) | 0.54 (n=69) | 0.75 (n=215) | 318 |
+| `google/gemini-3.1-flash-lite` | -- | 0.00 (n=3) | 0.00 (n=6) | 0.30 (n=122) | 0.81 (n=239) | 370 |
+| `google/gemini-3.1-pro-preview` | -- | 0.00 (n=13) | 0.00 (n=6) | 0.18 (n=33) | 0.86 (n=235) | 287 |
+| `google/gemini-3.5-flash` | -- | 0.00 (n=7) | 0.00 (n=1) | 0.50 (n=50) | 0.85 (n=219) | 277 |
+| `google/gemini-3.5-flash-lite` | -- | 0.00 (n=1) | 0.00 (n=2) | 0.77 (n=230) | 0.76 (n=37) | 270 |
+| `google/gemini-3.6-flash` | -- | 0.00 (n=4) | 0.00 (n=1) | 0.74 (n=207) | 0.98 (n=59) | 271 |
+| `google/gemma-4-26b-a4b-it` | -- | 0.00 (n=9) | 0.12 (n=41) | 0.56 (n=142) | 0.63 (n=111) | 303 |
+| `google/gemma-4-31b-it` | -- | 0.00 (n=7) | 0.07 (n=27) | 0.54 (n=84) | 0.79 (n=166) | 284 |
+| `inclusionai/ring-2.6-1t` | 0.00 (n=4) | 0.06 (n=16) | 0.25 (n=16) | 0.56 (n=103) | 0.14 (n=7) | 146 |
+| `meituan/longcat-2.0` | 0.00 (n=2) | 0.00 (n=13) | 0.08 (n=13) | 0.63 (n=143) | -- | 171 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.00 (n=17) | 0.22 (n=9) | 0.00 (n=23) | 0.17 (n=361) | 0.00 (n=8) | 418 |
+| `meta-llama/llama-3.3-70b-instruct` | -- | 0.00 (n=12) | 0.00 (n=21) | 0.46 (n=157) | 0.59 (n=82) | 272 |
+| `meta-llama/llama-4-maverick` | 0.00 (n=21) | 0.00 (n=65) | 0.00 (n=27) | 0.66 (n=237) | -- | 350 |
+| `meta-llama/llama-4-scout` | 0.00 (n=13) | 0.00 (n=1) | 0.09 (n=23) | 0.43 (n=184) | 0.45 (n=53) | 274 |
+| `meta/muse-spark-1.1` | -- | 0.00 (n=9) | 0.11 (n=9) | 0.86 (n=159) | 0.00 (n=1) | 178 |
+| `microsoft/phi-4` | -- | -- | 0.00 (n=6) | 0.37 (n=153) | -- | 159 |
+| `minimax/minimax-m3` | 0.00 (n=16) | 0.05 (n=22) | 0.17 (n=6) | 0.80 (n=174) | 0.93 (n=14) | 232 |
+| `mistralai/codestral-2508` | -- | 0.00 (n=2) | 0.09 (n=205) | 0.69 (n=211) | -- | 418 |
+| `mistralai/mistral-large-2512` | 0.00 (n=15) | 0.00 (n=86) | 0.00 (n=59) | 0.20 (n=290) | 0.80 (n=198) | 648 |
+| `mistralai/mistral-medium-3-5` | -- | -- | 0.00 (n=4) | 0.53 (n=85) | 0.78 (n=226) | 315 |
+| `mistralai/mistral-medium-3.1` | -- | 0.00 (n=5) | 0.06 (n=17) | 0.68 (n=275) | 0.67 (n=12) | 309 |
+| `mistralai/mistral-small-2603` | -- | -- | -- | 0.00 (n=5) | 0.33 (n=15) | 20 |
+| `moonshotai/kimi-k2.6` | 0.00 (n=25) | 0.00 (n=18) | 0.00 (n=4) | 0.49 (n=79) | 0.93 (n=55) | 181 |
+| `moonshotai/kimi-k3` | 0.00 (n=5) | 0.03 (n=29) | 0.00 (n=17) | 0.84 (n=204) | 1.00 (n=7) | 262 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.00 (n=1) | 0.00 (n=4) | 0.14 (n=7) | 0.60 (n=151) | 0.89 (n=45) | 208 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.00 (n=18) | 0.00 (n=4) | -- | 0.50 (n=171) | 0.84 (n=19) | 212 |
+| `openai/gpt-3.5-turbo` | -- | -- | 0.00 (n=31) | 0.20 (n=553) | 0.00 (n=76) | 660 |
+| `openai/gpt-5.4` | 0.00 (n=58) | 0.03 (n=40) | 0.06 (n=16) | 0.55 (n=47) | 0.83 (n=206) | 367 |
+| `openai/gpt-5.4-mini` | 0.00 (n=90) | 0.00 (n=66) | 0.00 (n=36) | 0.43 (n=53) | 0.76 (n=220) | 465 |
+| `openai/gpt-5.5` | 0.00 (n=7) | 0.09 (n=22) | 0.57 (n=7) | 0.86 (n=84) | 0.92 (n=136) | 256 |
+| `openai/gpt-5.6-luna` | 0.00 (n=7) | 0.17 (n=23) | 0.00 (n=7) | 0.36 (n=25) | 0.90 (n=210) | 272 |
+| `openai/gpt-5.6-sol` | 0.00 (n=10) | 0.14 (n=22) | 0.00 (n=12) | 0.06 (n=32) | 0.87 (n=230) | 306 |
+| `openai/gpt-5.6-terra` | 0.00 (n=7) | 0.00 (n=19) | 0.20 (n=10) | 0.44 (n=18) | 0.89 (n=212) | 266 |
+| `openai/gpt-oss-120b` | 0.00 (n=1) | 0.00 (n=4) | 0.00 (n=3) | 0.34 (n=146) | 0.70 (n=202) | 356 |
+| `openai/gpt-oss-20b` | -- | 0.00 (n=2) | 0.07 (n=15) | 0.36 (n=135) | 0.62 (n=140) | 292 |
+| `openai/o3` | 0.00 (n=2) | 0.00 (n=4) | 0.69 (n=16) | 0.88 (n=91) | 1.00 (n=3) | 116 |
+| `openai/o4-mini` | 0.00 (n=1) | 0.33 (n=3) | 0.00 (n=6) | 0.49 (n=39) | 0.00 (n=1) | 50 |
+| `qwen/qwen3-14b` | 0.00 (n=16) | 0.00 (n=18) | 0.60 (n=5) | 0.39 (n=221) | -- | 260 |
+| `qwen/qwen3-235b-a22b-2507` | 0.00 (n=19) | 0.00 (n=3) | 0.00 (n=2) | 0.42 (n=351) | 0.17 (n=23) | 398 |
+| `qwen/qwen3-8b` | -- | -- | -- | 0.00 (n=1) | -- | 1 |
+| `qwen/qwen3.5-27b` | -- | 0.20 (n=5) | 0.12 (n=16) | 0.70 (n=188) | -- | 209 |
+| `qwen/qwen3.5-plus-02-15` | -- | 0.00 (n=9) | 0.00 (n=4) | 0.79 (n=258) | 0.67 (n=15) | 286 |
+| `qwen/qwen3.6-flash` | 0.00 (n=1) | 0.00 (n=7) | 0.00 (n=6) | 0.77 (n=245) | 0.33 (n=3) | 262 |
+| `qwen/qwen3.6-plus` | -- | -- | 1.00 (n=1) | 0.66 (n=229) | 0.57 (n=14) | 244 |
+| `qwen/qwen3.7-flash` | -- | 0.00 (n=9) | 0.36 (n=11) | 0.75 (n=237) | 0.00 (n=2) | 259 |
+| `qwen/qwen3.7-max` | 0.00 (n=9) | 0.03 (n=29) | 0.29 (n=7) | 0.78 (n=255) | -- | 300 |
+| `qwen/qwen3.7-plus` | 0.00 (n=184) | 0.12 (n=26) | 0.00 (n=2) | 0.54 (n=342) | -- | 554 |
+| `qwen/qwen3.8-max` | -- | -- | -- | 0.71 (n=48) | 0.88 (n=16) | 64 |
+| `stepfun/step-3.7-flash` | -- | -- | 0.80 (n=5) | 0.87 (n=62) | 1.00 (n=1) | 68 |
+| `tencent/hy3` | 0.11 (n=9) | 0.00 (n=6) | 0.00 (n=2) | 0.81 (n=125) | 1.00 (n=1) | 143 |
+| `thinkingmachines/inkling` | 0.00 (n=1) | 0.17 (n=6) | 0.00 (n=4) | 0.48 (n=25) | 0.85 (n=26) | 62 |
+| `thinkingmachines/inkling-small` | 0.00 (n=38) | 0.00 (n=9) | 0.00 (n=15) | 0.65 (n=129) | 0.05 (n=19) | 210 |
+| `x-ai/grok-4.3` | -- | 0.25 (n=4) | 0.07 (n=14) | 0.79 (n=246) | 0.81 (n=21) | 285 |
+| `x-ai/grok-4.5` | -- | 0.00 (n=7) | 0.00 (n=12) | 0.84 (n=227) | 0.74 (n=34) | 280 |
+| `xiaomi/mimo-v2.5` | 0.00 (n=26) | 0.02 (n=44) | 0.00 (n=30) | 0.42 (n=258) | 0.65 (n=80) | 438 |
+| `xiaomi/mimo-v2.5-pro` | 0.00 (n=1) | 0.00 (n=16) | 0.00 (n=11) | 0.63 (n=119) | 0.76 (n=37) | 184 |
+| `z-ai/glm-5.2` | 0.03 (n=113) | 0.00 (n=29) | 0.00 (n=8) | 0.76 (n=220) | 0.78 (n=23) | 393 |
 
 See `report_assets/calibration.svg` for the visual reliability diagram.
 
@@ -489,52 +637,81 @@ Median latency hides outliers. p99 and max are what determines queue depth and w
 
 | Model | p50 | p90 | p95 | p99 | max |
 |---|---:|---:|---:|---:|---:|
-| `mistralai/codestral-2508` | 0.73s | 1.72s | 2.24s | 4.67s | 6.36s |
-| `google/gemini-3.1-flash-lite` | 0.79s | 1.27s | 1.44s | 1.96s | 17.47s |
-| `meta-llama/llama-3.1-8b-instruct` | 0.79s | 2.39s | 4.04s | 7.07s | 76.80s |
-| `meta-llama/llama-4-scout` | 0.84s | 3.23s | 4.44s | 6.25s | 16.81s |
-| `mistralai/mistral-medium-3.1` | 0.91s | 4.84s | 6.18s | 8.28s | 11.71s |
-| `google/gemini-2.5-flash-lite` | 0.92s | 1.92s | 3.23s | 6.53s | 17.01s |
-| `cohere/command-r-plus-08-2024` | 0.95s | 2.23s | 3.45s | 14.64s | 62.06s |
-| `google/gemini-2.5-flash` | 0.99s | 2.45s | 3.59s | 10.06s | 16.44s |
-| `meta-llama/llama-4-maverick` | 1.06s | 2.06s | 2.38s | 3.94s | 50.80s |
-| `claude-haiku-4-5-20251001` | 1.17s | 3.18s | 4.06s | 181.18s | 186.76s |
-| `openai/gpt-5.4-mini` | 1.18s | 1.66s | 2.24s | 3.13s | 4.94s |
-| `openai/gpt-3.5-turbo` | 1.26s | 1.77s | 1.95s | 2.58s | 8.25s |
-| `claude-sonnet-4-6` | 1.44s | 4.71s | 6.04s | 8.75s | 185.04s |
-| `meta-llama/llama-3.3-70b-instruct` | 1.47s | 3.22s | 4.82s | 14.03s | 45.01s |
-| `openai/gpt-5.4` | 1.82s | 2.58s | 3.12s | 4.81s | 17.20s |
-| `deepseek/deepseek-r1-distill-llama-70b` | 1.98s | 15.01s | 51.21s | 94.11s | 136.13s |
-| `claude-opus-4-7` | 2.17s | 3.56s | 4.21s | 6.25s | 181.97s |
-| `google/gemma-4-31b-it` | 2.21s | 14.13s | 19.39s | 66.10s | 377.81s |
-| `claude-opus-4-8` | 2.21s | 3.79s | 6.42s | 183.45s | 185.75s |
-| `qwen/qwen3-235b-a22b-2507` | 2.28s | 6.26s | 7.75s | 11.89s | 24.93s |
-| `microsoft/phi-4` | 2.29s | 6.71s | 11.55s | 203.39s | 229.43s |
-| `mistralai/mistral-large-2512` | 2.55s | 5.40s | 6.20s | 8.68s | 18.09s |
-| `deepseek/deepseek-v3.2` | 2.67s | 5.26s | 7.32s | 12.54s | 63.86s |
-| `openai/gpt-oss-120b` | 2.96s | 20.95s | 34.40s | 384.58s | 2880.77s |
-| `deepseek/deepseek-v4-flash` | 3.67s | 19.68s | 28.76s | 47.61s | 80.55s |
-| `cohere/command-a` | 3.78s | 8.49s | 11.46s | 30.31s | 65.77s |
-| `x-ai/grok-4.3` | 3.88s | 9.63s | 12.56s | 18.90s | 33.29s |
-| `google/gemini-3.5-flash` | 5.23s | 9.10s | 11.13s | 15.80s | 32.29s |
-| `openai/gpt-5.5` | 6.38s | 18.56s | 24.05s | 37.19s | 76.20s |
-| `openai/o4-mini` | 6.95s | 20.52s | 25.84s | 71.70s | 138.80s |
-| `mistralai/mistral-7b-instruct-v0.1` | 7.11s | 23.05s | 33.05s | 79.21s | 89.36s |
-| `openai/o3` | 8.08s | 19.36s | 27.07s | 57.15s | 76.89s |
-| `minimax/minimax-m3` | 8.80s | 30.01s | 42.72s | 71.09s | 84.45s |
-| `nvidia/nemotron-nano-9b-v2` | 12.05s | 31.04s | 36.70s | 50.76s | 65.31s |
-| `qwen/qwen3.6-flash` | 13.01s | 33.57s | 39.29s | 47.21s | 371.73s |
-| `google/gemini-2.5-pro` | 14.17s | 24.82s | 27.87s | 80.22s | 250.33s |
-| `deepseek/deepseek-r1-0528` | 16.52s | 81.21s | 94.87s | 136.08s | 285.69s |
-| `deepseek/deepseek-r1` | 19.86s | 90.13s | 153.13s | 264.17s | 364.40s |
-| `qwen/qwen3-14b` | 20.91s | 43.46s | 63.42s | 225.55s | 439.49s |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 24.21s | 82.63s | 86.23s | 99.39s | 106.19s |
-| `deepseek/deepseek-v4-pro` | 26.42s | 85.12s | 101.25s | 136.77s | 190.30s |
-| `moonshotai/kimi-k2.6` | 35.30s | 116.25s | 160.11s | 229.07s | 411.39s |
-| `qwen/qwen3.6-plus` | 39.88s | 69.37s | 74.53s | 90.19s | 100.27s |
-| `qwen/qwen3.5-plus-02-15` | 48.19s | 124.89s | 143.16s | 177.42s | 1486.87s |
-| `qwen/qwen3-8b` | 59.45s | 131.55s | 144.22s | 187.38s | 233.05s |
-| `qwen/qwen3.5-27b` | 68.74s | 273.44s | 1145.40s | 1651.28s | 2172.22s |
+| `microsoft/phi-4` | 0.49s | 3.14s | 5.50s | 69.96s | 101.52s |
+| `mistralai/mistral-small-2603` | 0.66s | 0.98s | 1.16s | 2.27s | 6.56s |
+| `google/gemini-3.5-flash-lite` | 0.67s | 1.23s | 1.42s | 1.77s | 2.60s |
+| `mistralai/mistral-medium-3.1` | 0.74s | 5.83s | 7.65s | 10.73s | 16.46s |
+| `google/gemini-2.5-flash` | 0.83s | 1.91s | 2.21s | 2.98s | 15.68s |
+| `google/gemini-2.5-flash-lite` | 0.84s | 1.50s | 1.75s | 3.01s | 6.73s |
+| `google/gemini-3.1-flash-lite` | 0.85s | 1.57s | 2.11s | 12.92s | 46.86s |
+| `mistralai/codestral-2508` | 0.88s | 2.14s | 2.54s | 3.45s | 8.33s |
+| `meta-llama/llama-4-scout` | 0.93s | 3.35s | 4.49s | 7.51s | 49.85s |
+| `meta-llama/llama-3.1-8b-instruct` | 0.93s | 2.92s | 4.34s | 5.14s | 9.27s |
+| `mistralai/mistral-medium-3-5` | 1.10s | 2.80s | 3.29s | 4.54s | 14.30s |
+| `meta-llama/llama-4-maverick` | 1.12s | 2.72s | 3.59s | 4.60s | 37.92s |
+| `openai/gpt-5.4-mini` | 1.13s | 1.86s | 2.45s | 3.16s | 6.40s |
+| `cohere/command-r-plus-08-2024` | 1.13s | 13.03s | 16.24s | 24.51s | 62.18s |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 1.24s | 3.00s | 5.94s | 14.87s | 68.31s |
+| `meta-llama/llama-3.3-70b-instruct` | 1.29s | 5.55s | 8.60s | 19.20s | 41.61s |
+| `openai/gpt-3.5-turbo` | 1.38s | 1.82s | 1.96s | 2.31s | 3.06s |
+| `google/gemma-4-26b-a4b-it` | 1.40s | 4.17s | 6.52s | 13.03s | 99.69s |
+| `openai/gpt-5.4` | 1.43s | 2.03s | 2.57s | 3.84s | 15.05s |
+| `minimax/minimax-m3` | 1.68s | 4.84s | 6.67s | 15.92s | 146.60s |
+| `cohere/command-a` | 1.72s | 2.54s | 2.92s | 4.17s | 5.73s |
+| `deepseek/deepseek-v3.2` | 1.74s | 8.05s | 10.84s | 15.95s | 88.47s |
+| `openai/gpt-5.6-terra` | 2.10s | 5.19s | 6.71s | 9.29s | 27.15s |
+| `xiaomi/mimo-v2.5-pro` | 2.19s | 4.89s | 6.41s | 11.76s | 55.00s |
+| `google/gemma-4-31b-it` | 2.45s | 7.79s | 11.72s | 24.30s | 164.44s |
+| `qwen/qwen3-235b-a22b-2507` | 2.51s | 5.52s | 7.43s | 15.66s | 18.61s |
+| `mistralai/mistral-large-2512` | 3.28s | 6.54s | 7.58s | 11.79s | 35.55s |
+| `openai/gpt-5.6-luna` | 3.46s | 8.81s | 11.35s | 20.00s | 83.66s |
+| `z-ai/glm-5.2` | 3.55s | 15.39s | 24.22s | 50.27s | 202.19s |
+| `claude-opus-5` | 3.67s | 63.46s | 64.55s | 182.66s | 244.12s |
+| `openai/gpt-5.6-sol` | 3.72s | 9.39s | 11.86s | 20.99s | 76.93s |
+| `x-ai/grok-4.3` | 3.73s | 8.76s | 10.34s | 12.67s | 20.15s |
+| `claude-sonnet-4-6` | 4.11s | 63.07s | 83.49s | 170.46s | 351.49s |
+| `xiaomi/mimo-v2.5` | 4.16s | 12.88s | 21.43s | 62.00s | 201.00s |
+| `meta/muse-spark-1.1` | 4.31s | 10.89s | 13.59s | 17.76s | 20.43s |
+| `google/gemini-3.6-flash` | 4.51s | 8.72s | 10.24s | 14.59s | 19.88s |
+| `claude-opus-4-7` | 4.60s | 64.27s | 66.02s | 183.69s | 245.11s |
+| `openai/gpt-5.5` | 5.36s | 16.34s | 23.68s | 45.89s | 61.80s |
+| `google/gemini-3.5-flash` | 5.59s | 9.27s | 11.20s | 16.40s | 20.77s |
+| `deepseek/deepseek-v4-flash` | 6.27s | 32.38s | 40.26s | 88.86s | 224.85s |
+| `openai/gpt-oss-120b` | 6.54s | 30.43s | 44.55s | 78.52s | 1677.95s |
+| `claude-fable-5` | 6.61s | 64.22s | 68.22s | 183.43s | 244.88s |
+| `openai/o3` | 6.66s | 17.18s | 20.44s | 29.16s | 176.74s |
+| `openai/o4-mini` | 7.34s | 20.82s | 25.55s | 54.13s | 73.95s |
+| `qwen/qwen3.6-flash` | 7.55s | 17.78s | 19.48s | 24.46s | 35.86s |
+| `claude-opus-4-8` | 7.76s | 63.15s | 68.92s | 104.92s | 245.48s |
+| `google/gemini-3.1-pro-preview` | 8.35s | 16.39s | 20.73s | 28.85s | 32.09s |
+| `claude-sonnet-5` | 8.48s | 62.69s | 66.02s | 146.69s | 248.07s |
+| `openai/gpt-oss-20b` | 9.18s | 38.09s | 51.77s | 72.93s | 571.38s |
+| `qwen/qwen3.7-flash` | 10.14s | 24.59s | 27.58s | 31.94s | 38.97s |
+| `meituan/longcat-2.0` | 10.53s | 69.38s | 77.08s | 88.11s | 122.09s |
+| `inclusionai/ring-2.6-1t` | 10.75s | 32.71s | 35.76s | 41.10s | 137.68s |
+| `x-ai/grok-4.5` | 10.86s | 42.26s | 52.43s | 83.77s | 120.19s |
+| `deepseek/deepseek-v4-flash-0731` | 13.20s | 44.63s | 61.85s | 130.27s | 326.89s |
+| `moonshotai/kimi-k3` | 13.78s | 55.72s | 96.34s | 160.79s | 298.31s |
+| `stepfun/step-3.7-flash` | 13.87s | 33.94s | 35.00s | 36.93s | 53.50s |
+| `google/gemini-2.5-pro` | 14.22s | 27.92s | 34.09s | 130.41s | 154.37s |
+| `qwen/qwen3-14b` | 14.39s | 42.03s | 59.03s | 163.41s | 246.83s |
+| `deepseek/deepseek-v4-pro` | 16.17s | 56.57s | 68.15s | 95.60s | 165.32s |
+| `thinkingmachines/inkling-small` | 18.51s | 28.02s | 30.60s | 36.06s | 82.20s |
+| `tencent/hy3` | 22.27s | 55.36s | 59.98s | 88.55s | 126.83s |
+| `nvidia/nemotron-3-super-120b-a12b` | 22.33s | 182.06s | 248.36s | 416.82s | 1201.50s |
+| `qwen/qwen3.7-max` | 23.41s | 54.27s | 62.65s | 75.47s | 76.89s |
+| `qwen/qwen3.7-plus` | 23.68s | 52.61s | 62.94s | 71.06s | 72.60s |
+| `claude-haiku-4-5-20251001` | 24.23s | 105.59s | 135.48s | 248.50s | 680.52s |
+| `deepseek/deepseek-r1-distill-llama-70b` | 27.21s | 68.34s | 97.56s | 138.12s | 158.13s |
+| `qwen/qwen3.5-plus-02-15` | 29.18s | 46.60s | 52.05s | 60.74s | 94.18s |
+| `deepseek/deepseek-r1-0528` | 29.36s | 172.78s | 208.22s | 296.84s | 415.53s |
+| `qwen/qwen3.8-max` | 29.66s | 87.68s | 90.22s | 93.28s | 97.65s |
+| `deepseek/deepseek-r1` | 35.66s | 170.50s | 195.41s | 276.94s | 428.59s |
+| `qwen/qwen3.6-plus` | 36.91s | 70.52s | 70.77s | 71.10s | 71.67s |
+| `qwen/qwen3.5-27b` | 37.62s | 106.00s | 126.80s | 163.08s | 989.60s |
+| `qwen/qwen3-8b` | 39.80s | 133.65s | 170.51s | 252.88s | 1187.74s |
+| `moonshotai/kimi-k2.6` | 55.69s | 126.30s | 164.28s | 249.82s | 485.45s |
+| `thinkingmachines/inkling` | 65.91s | 227.48s | 324.88s | 508.18s | 1063.70s |
 
 ## Output token efficiency
 
@@ -542,51 +719,81 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 
 | Model | Total output tokens | Ads detected | Tokens / ad | Cost / TP |
 |---|---:|---:|---:|---:|
-| `mistralai/mistral-medium-3.1` | 40,161 | 646 | 62 | $0.0023 |
-| `mistralai/codestral-2508` | 42,107 | 662 | 64 | $0.0020 |
-| `google/gemini-2.5-flash` | 67,460 | 925 | 73 | $0.0015 |
-| `google/gemini-3.1-flash-lite` | 60,147 | 815 | 74 | $0.0012 |
-| `openai/gpt-3.5-turbo` | 50,066 | 677 | 74 | $0.0049 |
-| `meta-llama/llama-3.3-70b-instruct` | 25,864 | 327 | 79 | $0.0010 |
-| `cohere/command-r-plus-08-2024` | 10,247 | 128 | 80 | $0.0573 |
-| `claude-sonnet-4-6` | 52,052 | 596 | 87 | $0.0167 |
-| `meta-llama/llama-3.1-8b-instruct` | 90,169 | 1015 | 89 | $0.0003 |
-| `meta-llama/llama-4-scout` | 48,083 | 540 | 89 | $0.0006 |
-| `mistralai/mistral-large-2512` | 108,068 | 1201 | 90 | $0.0027 |
-| `meta-llama/llama-4-maverick` | 38,620 | 415 | 93 | $0.0011 |
-| `claude-haiku-4-5-20251001` | 74,744 | 801 | 93 | $0.0052 |
-| `deepseek/deepseek-v3.2` | 33,405 | 348 | 96 | $0.0022 |
-| `google/gemini-2.5-flash-lite` | 89,161 | 917 | 97 | $0.0005 |
-| `google/gemma-4-31b-it` | 55,826 | 570 | 98 | $0.0007 |
-| `claude-opus-4-8` | 41,074 | 394 | 104 | $0.0393 |
-| `qwen/qwen3-235b-a22b-2507` | 59,253 | 560 | 106 | $0.0005 |
-| `cohere/command-a` | 55,492 | 522 | 106 | $0.0199 |
-| `openai/gpt-5.4` | 41,810 | 393 | 106 | $0.0133 |
-| `claude-opus-4-7` | 36,811 | 341 | 108 | $0.0488 |
-| `openai/gpt-5.4-mini` | 46,289 | 420 | 110 | $0.0043 |
-| `microsoft/phi-4` | 211,787 | 563 | 376 | $0.0022 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 264,150 | 586 | 451 | $0.0089 |
-| `deepseek/deepseek-v4-flash` | 492,887 | 597 | 826 | $0.0006 |
-| `x-ai/grok-4.3` | 547,955 | 595 | 921 | $0.0069 |
-| `openai/gpt-5.5` | 310,390 | 330 | 941 | $0.0361 |
-| `minimax/minimax-m3` | 576,740 | 469 | 1230 | $0.0023 |
-| `openai/gpt-oss-120b` | 736,151 | 585 | 1258 | $0.0004 |
-| `deepseek/deepseek-r1-0528` | 1,197,928 | 871 | 1375 | $0.0060 |
-| `deepseek/deepseek-r1` | 817,850 | 580 | 1410 | $0.0056 |
-| `nvidia/nemotron-nano-9b-v2` | 1,220,752 | 556 | 2196 | $0.0010 |
-| `qwen/qwen3-14b` | 504,429 | 194 | 2600 | $0.0021 |
-| `google/gemini-3.5-flash` | 1,095,187 | 379 | 2890 | $0.0191 |
-| `google/gemini-2.5-pro` | 1,295,072 | 440 | 2943 | $0.0192 |
-| `qwen/qwen3.6-flash` | 1,566,281 | 416 | 3765 | $0.0026 |
-| `openai/o3` | 700,781 | 182 | 3850 | $0.0223 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 1,461,554 | 370 | 3950 | $0.0017 |
-| `deepseek/deepseek-v4-pro` | 1,148,041 | 213 | 5390 | $0.0061 |
-| `qwen/qwen3.6-plus` | 1,990,086 | 369 | 5393 | $0.0056 |
-| `qwen/qwen3.5-plus-02-15` | 3,059,957 | 373 | 8204 | $0.0068 |
-| `moonshotai/kimi-k2.6` | 2,323,592 | 226 | 10281 | $0.0248 |
-| `openai/o4-mini` | 954,370 | 33 | 28920 | $0.1583 |
-| `qwen/qwen3.5-27b` | 9,663,262 | 307 | 31476 | $0.0196 |
-| `qwen/qwen3-8b` | 2,583,129 | 6 | 430522 | $0.2578 |
+| `claude-opus-4-7` | 29,485 | 615 | 48 | $0.0256 |
+| `claude-sonnet-5` | 36,216 | 612 | 59 | $0.0106 |
+| `meta-llama/llama-3.3-70b-instruct` | 28,052 | 470 | 60 | $0.0009 |
+| `google/gemini-3.1-flash-lite` | 50,395 | 842 | 60 | $0.0013 |
+| `claude-opus-4-8` | 36,858 | 605 | 61 | $0.0254 |
+| `claude-haiku-4-5-20251001` | 45,648 | 716 | 64 | $0.0049 |
+| `claude-fable-5` | 39,151 | 566 | 69 | $0.0493 |
+| `mistralai/codestral-2508` | 57,458 | 820 | 70 | $0.0022 |
+| `google/gemini-3.5-flash-lite` | 47,096 | 665 | 71 | $0.0018 |
+| `claude-opus-5` | 38,844 | 547 | 71 | $0.0250 |
+| `mistralai/mistral-medium-3.1` | 51,122 | 705 | 73 | $0.0025 |
+| `openai/gpt-3.5-turbo` | 56,074 | 767 | 73 | $0.0050 |
+| `deepseek/deepseek-v3.2` | 31,971 | 432 | 74 | $0.0022 |
+| `google/gemma-4-26b-a4b-it` | 37,850 | 495 | 76 | $0.0005 |
+| `cohere/command-r-plus-08-2024` | 15,352 | 196 | 78 | $0.0324 |
+| `mistralai/mistral-medium-3-5` | 65,551 | 833 | 79 | $0.0083 |
+| `meta-llama/llama-4-maverick` | 38,620 | 476 | 81 | $0.0014 |
+| `google/gemini-2.5-flash` | 80,965 | 975 | 83 | $0.0017 |
+| `claude-sonnet-4-6` | 43,175 | 516 | 84 | $0.0153 |
+| `cohere/command-a` | 60,841 | 655 | 93 | $0.0220 |
+| `openai/gpt-5.4-mini` | 56,545 | 599 | 94 | $0.0044 |
+| `google/gemma-4-31b-it` | 54,323 | 569 | 95 | $0.0007 |
+| `openai/gpt-5.4` | 45,697 | 470 | 97 | $0.0140 |
+| `mistralai/mistral-large-2512` | 126,901 | 1280 | 99 | $0.0028 |
+| `qwen/qwen3-235b-a22b-2507` | 65,771 | 633 | 104 | $0.0007 |
+| `google/gemini-2.5-flash-lite` | 102,580 | 987 | 104 | $0.0005 |
+| `meta-llama/llama-3.1-8b-instruct` | 166,649 | 1525 | 109 | $0.0009 |
+| `meta-llama/llama-4-scout` | 70,155 | 479 | 146 | $0.0011 |
+| `mistralai/mistral-small-2603` | 3,207 | 20 | 160 | $0.0349 |
+| `xiaomi/mimo-v2.5-pro` | 67,712 | 274 | 247 | $0.0048 |
+| `minimax/minimax-m3` | 120,297 | 471 | 255 | $0.0023 |
+| `openai/gpt-5.6-terra` | 111,389 | 365 | 305 | $0.0060 |
+| `openai/gpt-5.6-sol` | 153,677 | 412 | 373 | $0.0304 |
+| `xiaomi/mimo-v2.5` | 223,313 | 587 | 380 | $0.0010 |
+| `microsoft/phi-4` | 113,671 | 298 | 381 | $0.0014 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 112,208 | 229 | 490 | $0.0076 |
+| `x-ai/grok-4.3` | 490,642 | 684 | 717 | $0.0075 |
+| `openai/gpt-5.6-luna` | 283,948 | 390 | 728 | $0.0007 |
+| `z-ai/glm-5.2` | 413,174 | 529 | 781 | $0.0039 |
+| `openai/gpt-oss-120b` | 698,041 | 701 | 996 | $0.0003 |
+| `openai/gpt-5.5` | 396,159 | 363 | 1091 | $0.0379 |
+| `qwen/qwen3.7-plus` | 1,407,483 | 863 | 1631 | $0.0039 |
+| `qwen/qwen3.7-max` | 1,282,965 | 762 | 1684 | $0.0138 |
+| `google/gemini-3.6-flash` | 788,423 | 415 | 1900 | $0.0137 |
+| `x-ai/grok-4.5` | 938,537 | 451 | 2081 | $0.0156 |
+| `deepseek/deepseek-r1` | 1,397,958 | 657 | 2128 | $0.0086 |
+| `google/gemini-3.5-flash` | 953,694 | 439 | 2172 | $0.0162 |
+| `deepseek/deepseek-r1-0528` | 1,420,349 | 650 | 2185 | $0.0072 |
+| `moonshotai/kimi-k3` | 874,937 | 386 | 2267 | $0.0329 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 888,615 | 385 | 2308 | $0.0073 |
+| `openai/gpt-oss-20b` | 1,149,006 | 490 | 2345 | $0.0005 |
+| `google/gemini-3.1-pro-preview` | 1,101,910 | 463 | 2380 | $0.0237 |
+| `deepseek/deepseek-v4-flash` | 879,110 | 362 | 2428 | $0.0012 |
+| `qwen/qwen3-14b` | 792,165 | 318 | 2491 | $0.0044 |
+| `google/gemini-2.5-pro` | 1,371,169 | 512 | 2678 | $0.0210 |
+| `meituan/longcat-2.0` | 906,744 | 265 | 3422 | $0.0061 |
+| `qwen/qwen3.6-flash` | 1,468,826 | 420 | 3497 | $0.0029 |
+| `qwen/qwen3.5-plus-02-15` | 2,497,953 | 700 | 3569 | $0.0050 |
+| `qwen/qwen3.7-flash` | 1,477,726 | 388 | 3809 | $0.0004 |
+| `deepseek/deepseek-v4-pro` | 1,099,395 | 288 | 3817 | $0.0041 |
+| `qwen/qwen3.6-plus` | 2,010,766 | 464 | 4334 | $0.0073 |
+| `meta/muse-spark-1.1` | 1,075,701 | 236 | 4558 | $0.0164 |
+| `nvidia/nemotron-3-super-120b-a12b` | 1,508,154 | 290 | 5201 | $0.0017 |
+| `openai/o3` | 741,947 | 140 | 5300 | $0.0352 |
+| `deepseek/deepseek-v4-flash-0731` | 1,339,909 | 218 | 6146 | $0.0012 |
+| `inclusionai/ring-2.6-1t` | 1,286,827 | 169 | 7614 | $0.0039 |
+| `qwen/qwen3.5-27b` | 2,155,828 | 273 | 7897 | $0.0066 |
+| `thinkingmachines/inkling-small` | 2,312,665 | 260 | 8895 | $0.0122 |
+| `moonshotai/kimi-k2.6` | 2,581,920 | 202 | 12782 | $0.0209 |
+| `tencent/hy3` | 2,286,538 | 171 | 13372 | $0.0038 |
+| `qwen/qwen3.8-max` | 1,655,455 | 114 | 14522 | $0.0890 |
+| `stepfun/step-3.7-flash` | 1,508,225 | 92 | 16394 | $0.0073 |
+| `openai/o4-mini` | 1,079,864 | 52 | 20767 | $0.1059 |
+| `thinkingmachines/inkling` | 2,622,481 | 79 | 33196 | $0.0922 |
+| `qwen/qwen3-8b` | 2,139,222 | 1 | 2139222 | n/a |
 
 ## Trial variance (determinism check)
 
@@ -594,97 +801,137 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 
 | Model | Mean F1 stdev across episodes | Highest single-episode stdev |
 |---|---:|---:|
-| `claude-haiku-4-5-20251001` | 0.0017 | 0.0199 |
-| `qwen/qwen3.6-plus` | 0.0388 | 0.1582 |
-| `qwen/qwen3.6-flash` | 0.0761 | 0.2739 |
-| `x-ai/grok-4.3` | 0.0727 | 0.1963 |
-| `qwen/qwen3.5-plus-02-15` | 0.0347 | 0.1673 |
-| `claude-sonnet-4-6` | 0.0253 | 0.1826 |
-| `google/gemini-2.5-flash` | 0.0000 | 0.0000 |
-| `claude-opus-4-8` | 0.0536 | 0.1296 |
-| `google/gemini-3.1-flash-lite` | 0.0227 | 0.0913 |
-| `openai/gpt-5.5` | 0.0780 | 0.1863 |
-| `mistralai/mistral-medium-3.1` | 0.0613 | 0.1399 |
-| `google/gemini-3.5-flash` | 0.0328 | 0.1334 |
-| `google/gemma-4-31b-it` | 0.0568 | 0.1443 |
-| `google/gemini-2.5-pro` | 0.0504 | 0.1095 |
-| `deepseek/deepseek-v4-flash` | 0.1083 | 0.3130 |
-| `minimax/minimax-m3` | 0.0731 | 0.2236 |
-| `deepseek/deepseek-r1` | 0.1069 | 0.2739 |
-| `openai/gpt-5.4` | 0.0771 | 0.1253 |
-| `qwen/qwen3.5-27b` | 0.1510 | 0.3651 |
-| `claude-opus-4-7` | 0.0757 | 0.2739 |
-| `openai/gpt-oss-120b` | 0.1009 | 0.3651 |
-| `openai/gpt-5.4-mini` | 0.1148 | 0.2887 |
-| `google/gemini-2.5-flash-lite` | 0.0604 | 0.1532 |
-| `openai/o3` | 0.1556 | 0.4714 |
-| `meta-llama/llama-4-scout` | 0.1444 | 0.3759 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.1502 | 0.3651 |
-| `mistralai/codestral-2508` | 0.0817 | 0.1869 |
-| `mistralai/mistral-large-2512` | 0.0617 | 0.1520 |
-| `deepseek/deepseek-r1-0528` | 0.1499 | 0.2807 |
-| `qwen/qwen3-235b-a22b-2507` | 0.1198 | 0.2859 |
-| `meta-llama/llama-4-maverick` | 0.0242 | 0.1600 |
-| `cohere/command-a` | 0.0523 | 0.1217 |
-| `deepseek/deepseek-v4-pro` | 0.2175 | 0.4382 |
-| `moonshotai/kimi-k2.6` | 0.1578 | 0.2739 |
-| `deepseek/deepseek-v3.2` | 0.1999 | 0.5477 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.1332 | 0.3651 |
-| `nvidia/nemotron-nano-9b-v2` | 0.1757 | 0.3651 |
-| `openai/gpt-3.5-turbo` | 0.0094 | 0.0447 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.1064 | 0.3070 |
-| `qwen/qwen3-14b` | 0.1732 | 0.3322 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.1499 | 0.5477 |
-| `cohere/command-r-plus-08-2024` | 0.0884 | 0.4472 |
-| `microsoft/phi-4` | 0.1097 | 0.3651 |
-| `openai/o4-mini` | 0.1255 | 0.2981 |
-| `qwen/qwen3-8b` | 0.0106 | 0.1278 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.0000 | 0.0000 |
+| `claude-haiku-4-5-20251001` | 0.0415 | 0.1845 |
+| `claude-sonnet-4-6` | 0.0386 | 0.2236 |
+| `x-ai/grok-4.5` | 0.0190 | 0.0894 |
+| `google/gemini-3.6-flash` | 0.0114 | 0.0596 |
+| `x-ai/grok-4.3` | 0.0631 | 0.1675 |
+| `google/gemini-3.5-flash` | 0.0090 | 0.0555 |
+| `mistralai/mistral-medium-3-5` | 0.0239 | 0.1082 |
+| `openai/gpt-5.5` | 0.0259 | 0.0994 |
+| `claude-fable-5` | 0.0456 | 0.2449 |
+| `qwen/qwen3.5-plus-02-15` | 0.0302 | 0.1118 |
+| `google/gemini-3.5-flash-lite` | 0.0738 | 0.2226 |
+| `openai/gpt-5.6-terra` | 0.0559 | 0.1482 |
+| `claude-opus-4-8` | 0.0372 | 0.1565 |
+| `openai/gpt-5.6-luna` | 0.0440 | 0.1571 |
+| `google/gemini-3.1-pro-preview` | 0.0254 | 0.1118 |
+| `claude-opus-5` | 0.0113 | 0.0943 |
+| `google/gemini-3.1-flash-lite` | 0.0278 | 0.1118 |
+| `qwen/qwen3.6-flash` | 0.0842 | 0.2300 |
+| `qwen/qwen3.7-max` | 0.0505 | 0.1873 |
+| `openai/gpt-5.6-sol` | 0.0733 | 0.2739 |
+| `claude-sonnet-5` | 0.0904 | 0.2191 |
+| `claude-opus-4-7` | 0.0604 | 0.2145 |
+| `deepseek/deepseek-v4-flash` | 0.1230 | 0.4472 |
+| `qwen/qwen3.7-flash` | 0.1210 | 0.3742 |
+| `moonshotai/kimi-k3` | 0.0886 | 0.2981 |
+| `google/gemini-2.5-pro` | 0.0513 | 0.1659 |
+| `mistralai/mistral-medium-3.1` | 0.0462 | 0.1325 |
+| `google/gemini-2.5-flash` | 0.0131 | 0.1164 |
+| `openai/gpt-oss-120b` | 0.1260 | 0.2454 |
+| `deepseek/deepseek-v4-pro` | 0.1624 | 0.2733 |
+| `google/gemma-4-31b-it` | 0.1375 | 0.5055 |
+| `openai/gpt-5.4` | 0.0909 | 0.3118 |
+| `minimax/minimax-m3` | 0.2009 | 0.4472 |
+| `google/gemini-2.5-flash-lite` | 0.0704 | 0.1789 |
+| `qwen/qwen3.6-plus` | 0.1480 | 0.3635 |
+| `z-ai/glm-5.2` | 0.1169 | 0.1789 |
+| `deepseek/deepseek-v4-flash-0731` | 0.1872 | 0.5477 |
+| `deepseek/deepseek-v3.2` | 0.0721 | 0.3173 |
+| `meta/muse-spark-1.1` | 0.2236 | 0.4346 |
+| `openai/gpt-5.4-mini` | 0.0753 | 0.2236 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.1111 | 0.2549 |
+| `deepseek/deepseek-r1` | 0.1403 | 0.3651 |
+| `google/gemma-4-26b-a4b-it` | 0.1361 | 0.2981 |
+| `qwen/qwen3.5-27b` | 0.2144 | 0.4336 |
+| `mistralai/mistral-large-2512` | 0.0434 | 0.1491 |
+| `deepseek/deepseek-r1-0528` | 0.1604 | 0.3578 |
+| `openai/gpt-oss-20b` | 0.1630 | 0.4472 |
+| `meta-llama/llama-4-maverick` | 0.0330 | 0.1789 |
+| `qwen/qwen3.7-plus` | 0.0626 | 0.2454 |
+| `mistralai/codestral-2508` | 0.0691 | 0.2236 |
+| `qwen/qwen3-235b-a22b-2507` | 0.1504 | 0.3249 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.1166 | 0.3651 |
+| `tencent/hy3` | 0.1238 | 0.2460 |
+| `xiaomi/mimo-v2.5` | 0.1504 | 0.3249 |
+| `openai/o3` | 0.1878 | 0.4714 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.2311 | 0.4714 |
+| `meta-llama/llama-4-scout` | 0.2238 | 0.5477 |
+| `xiaomi/mimo-v2.5-pro` | 0.2166 | 0.3651 |
+| `cohere/command-a` | 0.0519 | 0.2140 |
+| `moonshotai/kimi-k2.6` | 0.1521 | 0.2888 |
+| `stepfun/step-3.7-flash` | 0.1555 | 0.4346 |
+| `meituan/longcat-2.0` | 0.1640 | 0.4714 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.1088 | 0.3789 |
+| `qwen/qwen3-14b` | 0.1158 | 0.1966 |
+| `cohere/command-r-plus-08-2024` | 0.1484 | 0.3651 |
+| `thinkingmachines/inkling-small` | 0.1666 | 0.3138 |
+| `inclusionai/ring-2.6-1t` | 0.1395 | 0.2828 |
+| `openai/gpt-3.5-turbo` | 0.0208 | 0.0994 |
+| `microsoft/phi-4` | 0.1084 | 0.3651 |
+| `qwen/qwen3.8-max` | 0.1118 | 0.2844 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.1645 | 0.3789 |
+| `thinkingmachines/inkling` | 0.1532 | 0.4561 |
+| `openai/o4-mini` | 0.1817 | 0.3651 |
+| `mistralai/mistral-small-2603` | 0.0000 | 0.0000 |
+| `qwen/qwen3-8b` | 0.0000 | 0.0000 |
 
 ## Cross-model agreement
 
-For each of the 171 (episode, window, trial-equivalent) entries, how many of the 46 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
+For each of the 171 (episode, window, trial-equivalent) entries, how many of the 75 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
 
 | Models predicting an ad | Window count | Share |
 |---:|---:|---:|
-| 2 of 46 | 1 | 0.6% |
-| 4 of 46 | 8 | 4.7% |
-| 5 of 46 | 15 | 8.8% |
-| 6 of 46 | 10 | 5.8% |
-| 7 of 46 | 7 | 4.1% |
-| 8 of 46 | 6 | 3.5% |
-| 9 of 46 | 7 | 4.1% |
-| 10 of 46 | 9 | 5.3% |
-| 11 of 46 | 8 | 4.7% |
-| 12 of 46 | 6 | 3.5% |
-| 13 of 46 | 6 | 3.5% |
-| 14 of 46 | 2 | 1.2% |
-| 15 of 46 | 3 | 1.8% |
-| 16 of 46 | 4 | 2.3% |
-| 17 of 46 | 1 | 0.6% |
-| 18 of 46 | 1 | 0.6% |
-| 19 of 46 | 2 | 1.2% |
-| 27 of 46 | 2 | 1.2% |
-| 28 of 46 | 1 | 0.6% |
-| 29 of 46 | 1 | 0.6% |
-| 31 of 46 | 2 | 1.2% |
-| 32 of 46 | 1 | 0.6% |
-| 34 of 46 | 1 | 0.6% |
-| 35 of 46 | 2 | 1.2% |
-| 37 of 46 | 2 | 1.2% |
-| 38 of 46 | 3 | 1.8% |
-| 39 of 46 | 6 | 3.5% |
-| 40 of 46 | 14 | 8.2% |
-| 41 of 46 | 16 | 9.4% |
-| 42 of 46 | 12 | 7.0% |
-| 43 of 46 | 9 | 5.3% |
-| 44 of 46 | 3 | 1.8% |
+| 5 of 75 | 1 | 0.6% |
+| 7 of 75 | 8 | 4.7% |
+| 8 of 75 | 4 | 2.3% |
+| 9 of 75 | 6 | 3.5% |
+| 10 of 75 | 12 | 7.0% |
+| 11 of 75 | 7 | 4.1% |
+| 12 of 75 | 4 | 2.3% |
+| 13 of 75 | 9 | 5.3% |
+| 14 of 75 | 4 | 2.3% |
+| 15 of 75 | 6 | 3.5% |
+| 16 of 75 | 10 | 5.8% |
+| 17 of 75 | 4 | 2.3% |
+| 18 of 75 | 6 | 3.5% |
+| 20 of 75 | 2 | 1.2% |
+| 22 of 75 | 4 | 2.3% |
+| 23 of 75 | 1 | 0.6% |
+| 24 of 75 | 1 | 0.6% |
+| 25 of 75 | 1 | 0.6% |
+| 26 of 75 | 1 | 0.6% |
+| 27 of 75 | 1 | 0.6% |
+| 29 of 75 | 1 | 0.6% |
+| 32 of 75 | 1 | 0.6% |
+| 35 of 75 | 1 | 0.6% |
+| 39 of 75 | 1 | 0.6% |
+| 40 of 75 | 1 | 0.6% |
+| 44 of 75 | 1 | 0.6% |
+| 46 of 75 | 2 | 1.2% |
+| 51 of 75 | 1 | 0.6% |
+| 52 of 75 | 1 | 0.6% |
+| 53 of 75 | 1 | 0.6% |
+| 59 of 75 | 1 | 0.6% |
+| 61 of 75 | 2 | 1.2% |
+| 62 of 75 | 2 | 1.2% |
+| 63 of 75 | 4 | 2.3% |
+| 64 of 75 | 5 | 2.9% |
+| 65 of 75 | 5 | 2.9% |
+| 66 of 75 | 11 | 6.4% |
+| 67 of 75 | 9 | 5.3% |
+| 68 of 75 | 10 | 5.8% |
+| 69 of 75 | 7 | 4.1% |
+| 70 of 75 | 7 | 4.1% |
+| 71 of 75 | 4 | 2.3% |
+| 72 of 75 | 1 | 0.6% |
 
 Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).
 
 ### Per-model alignment with consensus
 
-Same data, viewed per model. For each window, the **majority** is whether more than half of the 46 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
+Same data, viewed per model. For each window, the **majority** is whether more than half of the 75 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
 
 - **with-yes**: this model voted yes, majority also voted yes (likely true positive)
 - **with-no**: this model voted no, majority also voted no (likely true negative)
@@ -695,52 +942,81 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 
 | Model | with-yes | with-no | broke-yes | broke-no | Alignment |
 |---|---:|---:|---:|---:|---:|
-| `minimax/minimax-m3` | 74 | 95 | 1 | 1 | 98.8% |
-| `qwen/qwen3.5-plus-02-15` | 73 | 96 | 0 | 2 | 98.8% |
-| `x-ai/grok-4.3` | 73 | 96 | 0 | 2 | 98.8% |
-| `google/gemini-2.5-flash` | 74 | 94 | 2 | 1 | 98.2% |
-| `qwen/qwen3.5-27b` | 72 | 96 | 0 | 3 | 98.2% |
-| `claude-opus-4-8` | 71 | 96 | 0 | 4 | 97.7% |
-| `openai/gpt-oss-120b` | 75 | 92 | 4 | 0 | 97.7% |
-| `openai/gpt-5.5` | 73 | 93 | 3 | 2 | 97.1% |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 69 | 96 | 0 | 6 | 96.5% |
-| `claude-sonnet-4-6` | 67 | 96 | 0 | 8 | 95.3% |
-| `google/gemini-2.5-pro` | 75 | 88 | 8 | 0 | 95.3% |
-| `google/gemini-3.5-flash` | 67 | 96 | 0 | 8 | 95.3% |
-| `google/gemma-4-31b-it` | 73 | 90 | 6 | 2 | 95.3% |
-| `mistralai/mistral-medium-3.1` | 68 | 95 | 1 | 7 | 95.3% |
-| `qwen/qwen3.6-plus` | 68 | 95 | 1 | 7 | 95.3% |
-| `claude-haiku-4-5-20251001` | 69 | 93 | 3 | 6 | 94.7% |
-| `qwen/qwen3.6-flash` | 70 | 92 | 4 | 5 | 94.7% |
-| `openai/o3` | 63 | 96 | 0 | 12 | 93.0% |
-| `claude-opus-4-7` | 62 | 96 | 0 | 13 | 92.4% |
-| `meta-llama/llama-4-scout` | 73 | 85 | 11 | 2 | 92.4% |
-| `google/gemini-3.1-flash-lite` | 75 | 80 | 16 | 0 | 90.6% |
-| `meta-llama/llama-3.3-70b-instruct` | 64 | 89 | 7 | 11 | 89.5% |
-| `deepseek/deepseek-v4-flash` | 75 | 77 | 19 | 0 | 88.9% |
-| `nvidia/nemotron-nano-9b-v2` | 73 | 78 | 18 | 2 | 88.3% |
-| `meta-llama/llama-4-maverick` | 72 | 78 | 18 | 3 | 87.7% |
-| `deepseek/deepseek-r1` | 75 | 74 | 22 | 0 | 87.1% |
-| `meta-llama/llama-3.1-8b-instruct` | 70 | 78 | 18 | 5 | 86.5% |
-| `deepseek/deepseek-v4-pro` | 61 | 82 | 14 | 14 | 83.6% |
-| `google/gemini-2.5-flash-lite` | 75 | 68 | 28 | 0 | 83.6% |
-| `mistralai/codestral-2508` | 69 | 71 | 25 | 6 | 81.9% |
-| `openai/gpt-5.4` | 74 | 66 | 30 | 1 | 81.9% |
-| `qwen/qwen3-14b` | 65 | 73 | 23 | 10 | 80.7% |
-| `openai/gpt-5.4-mini` | 73 | 59 | 37 | 2 | 77.2% |
-| `cohere/command-a` | 71 | 56 | 40 | 4 | 74.3% |
-| `cohere/command-r-plus-08-2024` | 25 | 96 | 0 | 50 | 70.8% |
-| `openai/o4-mini` | 25 | 96 | 0 | 50 | 70.8% |
-| `deepseek/deepseek-v3.2` | 53 | 63 | 33 | 22 | 67.8% |
-| `mistralai/mistral-large-2512` | 74 | 41 | 55 | 1 | 67.3% |
-| `deepseek/deepseek-r1-0528` | 71 | 34 | 62 | 4 | 61.4% |
-| `qwen/qwen3-235b-a22b-2507` | 75 | 30 | 66 | 0 | 61.4% |
-| `openai/gpt-3.5-turbo` | 75 | 28 | 68 | 0 | 60.2% |
-| `qwen/qwen3-8b` | 2 | 96 | 0 | 73 | 57.3% |
-| `mistralai/mistral-7b-instruct-v0.1` | 0 | 96 | 0 | 75 | 56.1% |
-| `moonshotai/kimi-k2.6` | 48 | 42 | 54 | 27 | 52.6% |
-| `deepseek/deepseek-r1-distill-llama-70b` | 66 | 8 | 88 | 9 | 43.3% |
-| `microsoft/phi-4` | 55 | 14 | 82 | 20 | 40.4% |
+| `claude-opus-5` | 75 | 93 | 2 | 1 | 98.2% |
+| `claude-opus-4-8` | 74 | 93 | 2 | 2 | 97.7% |
+| `claude-fable-5` | 74 | 92 | 3 | 2 | 97.1% |
+| `claude-sonnet-5` | 72 | 94 | 1 | 4 | 97.1% |
+| `google/gemini-2.5-flash` | 75 | 91 | 4 | 1 | 97.1% |
+| `google/gemini-3.1-pro-preview` | 72 | 94 | 1 | 4 | 97.1% |
+| `openai/gpt-5.5` | 75 | 91 | 4 | 1 | 97.1% |
+| `qwen/qwen3.5-plus-02-15` | 71 | 95 | 0 | 5 | 97.1% |
+| `qwen/qwen3.6-flash` | 73 | 93 | 2 | 3 | 97.1% |
+| `qwen/qwen3.7-max` | 72 | 94 | 1 | 4 | 97.1% |
+| `x-ai/grok-4.3` | 72 | 94 | 1 | 4 | 97.1% |
+| `claude-opus-4-7` | 74 | 91 | 4 | 2 | 96.5% |
+| `google/gemini-3.5-flash` | 71 | 94 | 1 | 5 | 96.5% |
+| `google/gemini-3.6-flash` | 71 | 94 | 1 | 5 | 96.5% |
+| `openai/gpt-oss-120b` | 76 | 89 | 6 | 0 | 96.5% |
+| `qwen/qwen3.5-27b` | 72 | 93 | 2 | 4 | 96.5% |
+| `qwen/qwen3.7-flash` | 72 | 93 | 2 | 4 | 96.5% |
+| `deepseek/deepseek-v4-flash` | 74 | 90 | 5 | 2 | 95.9% |
+| `moonshotai/kimi-k3` | 73 | 91 | 4 | 3 | 95.9% |
+| `x-ai/grok-4.5` | 70 | 94 | 1 | 6 | 95.9% |
+| `claude-haiku-4-5-20251001` | 70 | 93 | 2 | 6 | 95.3% |
+| `claude-sonnet-4-6` | 69 | 94 | 1 | 7 | 95.3% |
+| `google/gemma-4-31b-it` | 75 | 88 | 7 | 1 | 95.3% |
+| `meta/muse-spark-1.1` | 68 | 95 | 0 | 8 | 95.3% |
+| `openai/gpt-5.6-luna` | 76 | 87 | 8 | 0 | 95.3% |
+| `google/gemini-2.5-pro` | 76 | 86 | 9 | 0 | 94.7% |
+| `deepseek/deepseek-v4-flash-0731` | 65 | 95 | 0 | 11 | 93.6% |
+| `google/gemma-4-26b-a4b-it` | 75 | 84 | 11 | 1 | 93.0% |
+| `qwen/qwen3.6-plus` | 70 | 89 | 6 | 6 | 93.0% |
+| `nvidia/nemotron-3-super-120b-a12b` | 66 | 91 | 4 | 10 | 91.8% |
+| `openai/gpt-5.6-terra` | 74 | 83 | 12 | 2 | 91.8% |
+| `openai/gpt-oss-20b` | 73 | 84 | 11 | 3 | 91.8% |
+| `openai/o3` | 62 | 95 | 0 | 14 | 91.8% |
+| `google/gemini-3.5-flash-lite` | 62 | 94 | 1 | 14 | 91.2% |
+| `meta-llama/llama-3.3-70b-instruct` | 70 | 86 | 9 | 6 | 91.2% |
+| `mistralai/mistral-medium-3-5` | 67 | 89 | 6 | 9 | 91.2% |
+| `google/gemini-3.1-flash-lite` | 76 | 79 | 16 | 0 | 90.6% |
+| `mistralai/mistral-medium-3.1` | 61 | 93 | 2 | 15 | 90.1% |
+| `qwen/qwen3-14b` | 72 | 82 | 13 | 4 | 90.1% |
+| `deepseek/deepseek-v4-pro` | 71 | 81 | 14 | 5 | 88.9% |
+| `inclusionai/ring-2.6-1t` | 61 | 91 | 4 | 15 | 88.9% |
+| `minimax/minimax-m3` | 65 | 85 | 10 | 11 | 87.7% |
+| `meta-llama/llama-4-maverick` | 76 | 72 | 23 | 0 | 86.5% |
+| `tencent/hy3` | 55 | 93 | 2 | 21 | 86.5% |
+| `xiaomi/mimo-v2.5-pro` | 71 | 74 | 21 | 5 | 84.8% |
+| `deepseek/deepseek-r1-distill-llama-70b` | 54 | 90 | 5 | 22 | 84.2% |
+| `meta-llama/llama-4-scout` | 71 | 73 | 22 | 5 | 84.2% |
+| `meituan/longcat-2.0` | 48 | 95 | 0 | 28 | 83.6% |
+| `deepseek/deepseek-v3.2` | 44 | 95 | 0 | 32 | 81.3% |
+| `google/gemini-2.5-flash-lite` | 75 | 59 | 36 | 1 | 78.4% |
+| `deepseek/deepseek-r1` | 76 | 56 | 39 | 0 | 77.2% |
+| `microsoft/phi-4` | 41 | 91 | 4 | 35 | 77.2% |
+| `openai/o4-mini` | 38 | 94 | 1 | 38 | 77.2% |
+| `openai/gpt-5.6-sol` | 75 | 55 | 40 | 1 | 76.0% |
+| `thinkingmachines/inkling` | 41 | 88 | 7 | 35 | 75.4% |
+| `meta-llama/llama-3.1-8b-instruct` | 70 | 57 | 38 | 6 | 74.3% |
+| `mistralai/codestral-2508` | 67 | 60 | 35 | 9 | 74.3% |
+| `stepfun/step-3.7-flash` | 32 | 95 | 0 | 44 | 74.3% |
+| `cohere/command-r-plus-08-2024` | 41 | 84 | 11 | 35 | 73.1% |
+| `openai/gpt-5.4` | 76 | 47 | 48 | 0 | 71.9% |
+| `qwen/qwen3.8-max` | 25 | 95 | 0 | 51 | 70.2% |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 68 | 51 | 44 | 8 | 69.6% |
+| `deepseek/deepseek-r1-0528` | 75 | 42 | 53 | 1 | 68.4% |
+| `mistralai/mistral-large-2512` | 75 | 34 | 61 | 1 | 63.7% |
+| `cohere/command-a` | 75 | 27 | 68 | 1 | 59.6% |
+| `moonshotai/kimi-k2.6` | 47 | 52 | 43 | 29 | 57.9% |
+| `thinkingmachines/inkling-small` | 60 | 39 | 56 | 16 | 57.9% |
+| `openai/gpt-5.4-mini` | 76 | 22 | 73 | 0 | 57.3% |
+| `z-ai/glm-5.2` | 75 | 23 | 72 | 1 | 57.3% |
+| `mistralai/mistral-small-2603` | 1 | 95 | 0 | 75 | 56.1% |
+| `qwen/qwen3-8b` | 1 | 95 | 0 | 75 | 56.1% |
+| `openai/gpt-3.5-turbo` | 75 | 13 | 82 | 1 | 51.5% |
+| `qwen/qwen3-235b-a22b-2507` | 74 | 14 | 81 | 2 | 51.5% |
+| `qwen/qwen3.7-plus` | 75 | 5 | 90 | 1 | 46.8% |
+| `xiaomi/mimo-v2.5` | 76 | 3 | 92 | 0 | 46.2% |
 
 ## Detection rate by ad characteristic
 
@@ -752,52 +1028,81 @@ Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cel
 
 | Model | long (>=90s) | medium (30-90s) | short (<30s) |
 |---|---:|---:|---:|
-| `claude-haiku-4-5-20251001` | 0.89 (n=140) | 0.93 (n=75) | 0.88 (n=40) |
-| `claude-opus-4-7` | 0.62 (n=140) | 0.75 (n=75) | 0.42 (n=40) |
-| `claude-opus-4-8` | 0.85 (n=140) | 0.80 (n=75) | 0.50 (n=40) |
-| `claude-sonnet-4-6` | 0.87 (n=140) | 0.84 (n=75) | 0.68 (n=40) |
-| `cohere/command-a` | 0.41 (n=140) | 0.63 (n=75) | 0.75 (n=40) |
-| `cohere/command-r-plus-08-2024` | 0.26 (n=140) | 0.05 (n=75) | 0.12 (n=40) |
-| `deepseek/deepseek-r1` | 0.79 (n=140) | 0.76 (n=75) | 0.78 (n=40) |
-| `deepseek/deepseek-r1-0528` | 0.60 (n=140) | 0.73 (n=75) | 0.75 (n=40) |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.25 (n=140) | 0.29 (n=75) | 0.62 (n=40) |
-| `deepseek/deepseek-v3.2` | 0.51 (n=140) | 0.31 (n=75) | 0.28 (n=40) |
-| `deepseek/deepseek-v4-flash` | 0.79 (n=140) | 0.79 (n=75) | 0.75 (n=40) |
-| `deepseek/deepseek-v4-pro` | 0.53 (n=140) | 0.29 (n=75) | 0.20 (n=40) |
-| `google/gemini-2.5-flash` | 0.89 (n=140) | 0.93 (n=75) | 0.88 (n=40) |
-| `google/gemini-2.5-flash-lite` | 0.79 (n=140) | 0.87 (n=75) | 0.75 (n=40) |
-| `google/gemini-2.5-pro` | 0.84 (n=140) | 0.79 (n=75) | 0.62 (n=40) |
-| `google/gemini-3.1-flash-lite` | 0.87 (n=140) | 0.87 (n=75) | 0.88 (n=40) |
-| `google/gemini-3.5-flash` | 0.72 (n=140) | 0.76 (n=75) | 0.65 (n=40) |
-| `google/gemma-4-31b-it` | 0.83 (n=140) | 0.72 (n=75) | 0.60 (n=40) |
-| `meta-llama/llama-3.1-8b-instruct` | 0.20 (n=140) | 0.28 (n=75) | 0.35 (n=40) |
-| `meta-llama/llama-3.3-70b-instruct` | 0.35 (n=140) | 0.37 (n=75) | 0.53 (n=40) |
-| `meta-llama/llama-4-maverick` | 0.50 (n=140) | 0.69 (n=75) | 0.38 (n=40) |
-| `meta-llama/llama-4-scout` | 0.54 (n=140) | 0.60 (n=75) | 0.55 (n=40) |
-| `microsoft/phi-4` | 0.07 (n=140) | 0.21 (n=75) | 0.15 (n=40) |
-| `minimax/minimax-m3` | 0.79 (n=140) | 0.72 (n=75) | 0.68 (n=40) |
-| `mistralai/codestral-2508` | 0.67 (n=140) | 0.69 (n=75) | 0.45 (n=40) |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.00 (n=140) | 0.00 (n=75) | 0.00 (n=40) |
-| `mistralai/mistral-large-2512` | 0.84 (n=140) | 0.81 (n=75) | 0.62 (n=40) |
-| `mistralai/mistral-medium-3.1` | 0.72 (n=140) | 0.79 (n=75) | 0.72 (n=40) |
-| `moonshotai/kimi-k2.6` | 0.30 (n=140) | 0.52 (n=75) | 0.25 (n=40) |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.45 (n=140) | 0.57 (n=75) | 0.60 (n=40) |
-| `nvidia/nemotron-nano-9b-v2` | 0.26 (n=140) | 0.41 (n=75) | 0.35 (n=40) |
-| `openai/gpt-3.5-turbo` | 0.31 (n=140) | 0.40 (n=75) | 0.75 (n=40) |
-| `openai/gpt-5.4` | 0.80 (n=140) | 0.73 (n=75) | 0.57 (n=40) |
-| `openai/gpt-5.4-mini` | 0.74 (n=140) | 0.63 (n=75) | 0.72 (n=40) |
-| `openai/gpt-5.5` | 0.74 (n=140) | 0.77 (n=75) | 0.57 (n=40) |
-| `openai/gpt-oss-120b` | 0.64 (n=140) | 0.75 (n=75) | 0.75 (n=40) |
-| `openai/o3` | 0.66 (n=140) | 0.44 (n=75) | 0.30 (n=40) |
-| `openai/o4-mini` | 0.03 (n=140) | 0.05 (n=75) | 0.10 (n=40) |
-| `qwen/qwen3-14b` | 0.23 (n=140) | 0.21 (n=75) | 0.30 (n=40) |
-| `qwen/qwen3-235b-a22b-2507` | 0.50 (n=140) | 0.65 (n=75) | 0.88 (n=40) |
-| `qwen/qwen3-8b` | 0.01 (n=140) | 0.00 (n=75) | 0.00 (n=40) |
-| `qwen/qwen3.5-27b` | 0.61 (n=140) | 0.69 (n=75) | 0.65 (n=40) |
-| `qwen/qwen3.5-plus-02-15` | 0.86 (n=116) | 0.81 (n=72) | 0.60 (n=40) |
-| `qwen/qwen3.6-flash` | 0.91 (n=140) | 0.72 (n=75) | 0.70 (n=40) |
-| `qwen/qwen3.6-plus` | 0.84 (n=140) | 0.83 (n=75) | 0.50 (n=40) |
-| `x-ai/grok-4.3` | 0.85 (n=140) | 0.91 (n=75) | 0.72 (n=40) |
+| `claude-fable-5` | 0.90 (n=140) | 0.85 (n=75) | 0.70 (n=40) |
+| `claude-haiku-4-5-20251001` | 0.88 (n=140) | 0.88 (n=75) | 0.85 (n=40) |
+| `claude-opus-4-7` | 0.97 (n=140) | 0.72 (n=75) | 0.45 (n=40) |
+| `claude-opus-4-8` | 0.92 (n=140) | 0.79 (n=75) | 0.57 (n=40) |
+| `claude-opus-5` | 0.96 (n=140) | 0.81 (n=75) | 0.50 (n=40) |
+| `claude-sonnet-4-6` | 0.89 (n=140) | 0.87 (n=75) | 0.53 (n=40) |
+| `claude-sonnet-5` | 0.91 (n=140) | 0.76 (n=75) | 0.47 (n=40) |
+| `cohere/command-a` | 0.47 (n=140) | 0.57 (n=75) | 0.62 (n=40) |
+| `cohere/command-r-plus-08-2024` | 0.48 (n=140) | 0.19 (n=75) | 0.17 (n=40) |
+| `deepseek/deepseek-r1` | 0.66 (n=140) | 0.68 (n=75) | 0.70 (n=40) |
+| `deepseek/deepseek-r1-0528` | 0.60 (n=140) | 0.67 (n=75) | 0.70 (n=40) |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.35 (n=140) | 0.25 (n=75) | 0.68 (n=40) |
+| `deepseek/deepseek-v3.2` | 0.71 (n=140) | 0.44 (n=75) | 0.17 (n=40) |
+| `deepseek/deepseek-v4-flash` | 0.75 (n=140) | 0.59 (n=75) | 0.65 (n=40) |
+| `deepseek/deepseek-v4-flash-0731` | 0.50 (n=140) | 0.51 (n=75) | 0.50 (n=40) |
+| `deepseek/deepseek-v4-pro` | 0.69 (n=140) | 0.59 (n=75) | 0.53 (n=40) |
+| `google/gemini-2.5-flash` | 0.89 (n=140) | 0.87 (n=75) | 0.78 (n=40) |
+| `google/gemini-2.5-flash-lite` | 0.83 (n=140) | 0.76 (n=75) | 0.85 (n=40) |
+| `google/gemini-2.5-pro` | 0.86 (n=140) | 0.71 (n=75) | 0.60 (n=40) |
+| `google/gemini-3.1-flash-lite` | 0.89 (n=140) | 0.93 (n=75) | 0.88 (n=40) |
+| `google/gemini-3.1-pro-preview` | 0.89 (n=140) | 0.83 (n=75) | 0.50 (n=40) |
+| `google/gemini-3.5-flash` | 0.89 (n=140) | 0.81 (n=75) | 0.62 (n=40) |
+| `google/gemini-3.5-flash-lite` | 0.87 (n=140) | 0.80 (n=75) | 0.57 (n=40) |
+| `google/gemini-3.6-flash` | 0.89 (n=140) | 0.85 (n=75) | 0.55 (n=40) |
+| `google/gemma-4-26b-a4b-it` | 0.50 (n=140) | 0.67 (n=75) | 0.88 (n=40) |
+| `google/gemma-4-31b-it` | 0.79 (n=140) | 0.65 (n=75) | 0.47 (n=40) |
+| `inclusionai/ring-2.6-1t` | 0.17 (n=140) | 0.32 (n=75) | 0.40 (n=40) |
+| `meituan/longcat-2.0` | 0.36 (n=140) | 0.35 (n=75) | 0.38 (n=40) |
+| `meta-llama/llama-3.1-8b-instruct` | 0.23 (n=140) | 0.33 (n=75) | 0.20 (n=40) |
+| `meta-llama/llama-3.3-70b-instruct` | 0.40 (n=140) | 0.55 (n=75) | 0.57 (n=40) |
+| `meta-llama/llama-4-maverick` | 0.59 (n=140) | 0.71 (n=75) | 0.53 (n=40) |
+| `meta-llama/llama-4-scout` | 0.43 (n=140) | 0.40 (n=75) | 0.38 (n=40) |
+| `meta/muse-spark-1.1` | 0.64 (n=140) | 0.40 (n=75) | 0.42 (n=40) |
+| `microsoft/phi-4` | 0.14 (n=140) | 0.35 (n=75) | 0.25 (n=40) |
+| `minimax/minimax-m3` | 0.64 (n=140) | 0.60 (n=75) | 0.53 (n=40) |
+| `mistralai/codestral-2508` | 0.71 (n=140) | 0.67 (n=75) | 0.35 (n=40) |
+| `mistralai/mistral-large-2512` | 0.89 (n=140) | 0.85 (n=75) | 0.70 (n=40) |
+| `mistralai/mistral-medium-3-5` | 0.89 (n=140) | 0.81 (n=75) | 0.88 (n=40) |
+| `mistralai/mistral-medium-3.1` | 0.78 (n=140) | 0.75 (n=75) | 0.75 (n=40) |
+| `mistralai/mistral-small-2603` | 0.00 (n=140) | 0.00 (n=75) | 0.12 (n=40) |
+| `moonshotai/kimi-k2.6` | 0.33 (n=140) | 0.47 (n=75) | 0.23 (n=40) |
+| `moonshotai/kimi-k3` | 0.71 (n=140) | 0.77 (n=75) | 0.55 (n=40) |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.44 (n=140) | 0.56 (n=75) | 0.70 (n=40) |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.39 (n=140) | 0.40 (n=75) | 0.45 (n=40) |
+| `openai/gpt-3.5-turbo` | 0.34 (n=140) | 0.45 (n=75) | 0.75 (n=40) |
+| `openai/gpt-5.4` | 0.90 (n=140) | 0.68 (n=75) | 0.55 (n=40) |
+| `openai/gpt-5.4-mini` | 0.85 (n=140) | 0.59 (n=75) | 0.70 (n=40) |
+| `openai/gpt-5.5` | 0.89 (n=140) | 0.76 (n=75) | 0.55 (n=40) |
+| `openai/gpt-5.6-luna` | 0.86 (n=140) | 0.72 (n=75) | 0.70 (n=40) |
+| `openai/gpt-5.6-sol` | 0.86 (n=140) | 0.76 (n=75) | 0.70 (n=40) |
+| `openai/gpt-5.6-terra` | 0.84 (n=140) | 0.75 (n=75) | 0.62 (n=40) |
+| `openai/gpt-oss-120b` | 0.69 (n=140) | 0.81 (n=75) | 0.85 (n=40) |
+| `openai/gpt-oss-20b` | 0.49 (n=140) | 0.57 (n=75) | 0.65 (n=40) |
+| `openai/o3` | 0.46 (n=140) | 0.28 (n=75) | 0.23 (n=40) |
+| `openai/o4-mini` | 0.06 (n=140) | 0.09 (n=75) | 0.12 (n=40) |
+| `qwen/qwen3-14b` | 0.20 (n=140) | 0.47 (n=75) | 0.68 (n=40) |
+| `qwen/qwen3-235b-a22b-2507` | 0.54 (n=140) | 0.64 (n=75) | 0.65 (n=40) |
+| `qwen/qwen3-8b` | 0.00 (n=140) | 0.00 (n=75) | 0.00 (n=40) |
+| `qwen/qwen3.5-27b` | 0.61 (n=140) | 0.41 (n=75) | 0.47 (n=40) |
+| `qwen/qwen3.5-plus-02-15` | 0.91 (n=140) | 0.81 (n=75) | 0.62 (n=40) |
+| `qwen/qwen3.6-flash` | 0.80 (n=140) | 0.71 (n=75) | 0.62 (n=40) |
+| `qwen/qwen3.6-plus` | 0.61 (n=140) | 0.64 (n=75) | 0.65 (n=40) |
+| `qwen/qwen3.7-flash` | 0.74 (n=140) | 0.71 (n=75) | 0.60 (n=40) |
+| `qwen/qwen3.7-max` | 0.79 (n=140) | 0.91 (n=75) | 0.62 (n=40) |
+| `qwen/qwen3.7-plus` | 0.76 (n=140) | 0.73 (n=75) | 0.62 (n=40) |
+| `qwen/qwen3.8-max` | 0.17 (n=140) | 0.29 (n=75) | 0.05 (n=40) |
+| `stepfun/step-3.7-flash` | 0.23 (n=95) | 0.35 (n=65) | 0.40 (n=35) |
+| `tencent/hy3` | 0.39 (n=140) | 0.47 (n=75) | 0.35 (n=40) |
+| `thinkingmachines/inkling` | 0.13 (n=119) | 0.22 (n=73) | 0.11 (n=38) |
+| `thinkingmachines/inkling-small` | 0.29 (n=140) | 0.43 (n=75) | 0.33 (n=40) |
+| `x-ai/grok-4.3` | 0.86 (n=140) | 0.85 (n=75) | 0.72 (n=40) |
+| `x-ai/grok-4.5` | 0.89 (n=140) | 0.87 (n=75) | 0.62 (n=40) |
+| `xiaomi/mimo-v2.5` | 0.70 (n=140) | 0.57 (n=75) | 0.53 (n=40) |
+| `xiaomi/mimo-v2.5-pro` | 0.48 (n=140) | 0.31 (n=75) | 0.33 (n=40) |
+| `z-ai/glm-5.2` | 0.80 (n=140) | 0.73 (n=75) | 0.55 (n=40) |
 
 ### By ad position
 
@@ -805,105 +1110,163 @@ Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-
 
 | Model | pre-roll (<10%) | mid-roll (10-90%) | post-roll (>90%) |
 |---|---:|---:|---:|
-| `claude-haiku-4-5-20251001` | 0.80 (n=75) | 0.96 (n=125) | 0.91 (n=55) |
-| `claude-opus-4-7` | 0.65 (n=75) | 0.55 (n=125) | 0.76 (n=55) |
-| `claude-opus-4-8` | 0.80 (n=75) | 0.77 (n=125) | 0.78 (n=55) |
-| `claude-sonnet-4-6` | 0.80 (n=75) | 0.86 (n=125) | 0.82 (n=55) |
-| `cohere/command-a` | 0.52 (n=75) | 0.52 (n=125) | 0.55 (n=55) |
-| `cohere/command-r-plus-08-2024` | 0.05 (n=75) | 0.28 (n=125) | 0.11 (n=55) |
-| `deepseek/deepseek-r1` | 0.65 (n=75) | 0.88 (n=125) | 0.71 (n=55) |
-| `deepseek/deepseek-r1-0528` | 0.60 (n=75) | 0.71 (n=125) | 0.64 (n=55) |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.33 (n=75) | 0.32 (n=125) | 0.31 (n=55) |
-| `deepseek/deepseek-v3.2` | 0.45 (n=75) | 0.53 (n=125) | 0.11 (n=55) |
-| `deepseek/deepseek-v4-flash` | 0.69 (n=75) | 0.86 (n=125) | 0.73 (n=55) |
-| `deepseek/deepseek-v4-pro` | 0.31 (n=75) | 0.50 (n=125) | 0.35 (n=55) |
-| `google/gemini-2.5-flash` | 0.80 (n=75) | 1.00 (n=125) | 0.82 (n=55) |
-| `google/gemini-2.5-flash-lite` | 0.69 (n=75) | 0.89 (n=125) | 0.78 (n=55) |
-| `google/gemini-2.5-pro` | 0.79 (n=75) | 0.82 (n=125) | 0.73 (n=55) |
-| `google/gemini-3.1-flash-lite` | 0.80 (n=75) | 0.99 (n=125) | 0.69 (n=55) |
-| `google/gemini-3.5-flash` | 0.67 (n=75) | 0.75 (n=125) | 0.73 (n=55) |
-| `google/gemma-4-31b-it` | 0.67 (n=75) | 0.81 (n=125) | 0.78 (n=55) |
-| `meta-llama/llama-3.1-8b-instruct` | 0.23 (n=75) | 0.26 (n=125) | 0.25 (n=55) |
-| `meta-llama/llama-3.3-70b-instruct` | 0.25 (n=75) | 0.46 (n=125) | 0.40 (n=55) |
-| `meta-llama/llama-4-maverick` | 0.49 (n=75) | 0.60 (n=125) | 0.45 (n=55) |
-| `meta-llama/llama-4-scout` | 0.47 (n=75) | 0.62 (n=125) | 0.53 (n=55) |
-| `microsoft/phi-4` | 0.24 (n=75) | 0.04 (n=125) | 0.16 (n=55) |
-| `minimax/minimax-m3` | 0.64 (n=75) | 0.84 (n=125) | 0.71 (n=55) |
-| `mistralai/codestral-2508` | 0.44 (n=75) | 0.73 (n=125) | 0.73 (n=55) |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.00 (n=75) | 0.00 (n=125) | 0.00 (n=55) |
-| `mistralai/mistral-large-2512` | 0.73 (n=75) | 0.87 (n=125) | 0.73 (n=55) |
-| `mistralai/mistral-medium-3.1` | 0.75 (n=75) | 0.74 (n=125) | 0.73 (n=55) |
-| `moonshotai/kimi-k2.6` | 0.29 (n=75) | 0.31 (n=125) | 0.55 (n=55) |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.45 (n=75) | 0.55 (n=125) | 0.49 (n=55) |
-| `nvidia/nemotron-nano-9b-v2` | 0.23 (n=75) | 0.30 (n=125) | 0.47 (n=55) |
-| `openai/gpt-3.5-turbo` | 0.31 (n=75) | 0.48 (n=125) | 0.36 (n=55) |
-| `openai/gpt-5.4` | 0.75 (n=75) | 0.78 (n=125) | 0.65 (n=55) |
-| `openai/gpt-5.4-mini` | 0.60 (n=75) | 0.83 (n=125) | 0.55 (n=55) |
-| `openai/gpt-5.5` | 0.73 (n=75) | 0.73 (n=125) | 0.71 (n=55) |
-| `openai/gpt-oss-120b` | 0.64 (n=75) | 0.73 (n=125) | 0.67 (n=55) |
-| `openai/o3` | 0.44 (n=75) | 0.59 (n=125) | 0.55 (n=55) |
-| `openai/o4-mini` | 0.01 (n=75) | 0.06 (n=125) | 0.05 (n=55) |
-| `qwen/qwen3-14b` | 0.13 (n=75) | 0.29 (n=125) | 0.25 (n=55) |
-| `qwen/qwen3-235b-a22b-2507` | 0.59 (n=75) | 0.62 (n=125) | 0.58 (n=55) |
-| `qwen/qwen3-8b` | 0.00 (n=75) | 0.01 (n=125) | 0.00 (n=55) |
-| `qwen/qwen3.5-27b` | 0.56 (n=75) | 0.69 (n=125) | 0.65 (n=55) |
-| `qwen/qwen3.5-plus-02-15` | 0.82 (n=66) | 0.83 (n=110) | 0.71 (n=52) |
-| `qwen/qwen3.6-flash` | 0.71 (n=75) | 0.92 (n=125) | 0.75 (n=55) |
-| `qwen/qwen3.6-plus` | 0.75 (n=75) | 0.84 (n=125) | 0.71 (n=55) |
-| `x-ai/grok-4.3` | 0.80 (n=75) | 0.90 (n=125) | 0.80 (n=55) |
+| `claude-fable-5` | 0.80 (n=75) | 0.94 (n=125) | 0.73 (n=55) |
+| `claude-haiku-4-5-20251001` | 0.80 (n=75) | 0.97 (n=125) | 0.76 (n=55) |
+| `claude-opus-4-7` | 0.76 (n=75) | 0.86 (n=125) | 0.80 (n=55) |
+| `claude-opus-4-8` | 0.80 (n=75) | 0.91 (n=125) | 0.67 (n=55) |
+| `claude-opus-5` | 0.85 (n=75) | 0.84 (n=125) | 0.84 (n=55) |
+| `claude-sonnet-4-6` | 0.73 (n=75) | 0.93 (n=125) | 0.73 (n=55) |
+| `claude-sonnet-5` | 0.79 (n=75) | 0.87 (n=125) | 0.64 (n=55) |
+| `cohere/command-a` | 0.49 (n=75) | 0.57 (n=125) | 0.47 (n=55) |
+| `cohere/command-r-plus-08-2024` | 0.25 (n=75) | 0.48 (n=125) | 0.16 (n=55) |
+| `deepseek/deepseek-r1` | 0.65 (n=75) | 0.74 (n=125) | 0.55 (n=55) |
+| `deepseek/deepseek-r1-0528` | 0.63 (n=75) | 0.68 (n=125) | 0.55 (n=55) |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.29 (n=75) | 0.39 (n=125) | 0.44 (n=55) |
+| `deepseek/deepseek-v3.2` | 0.63 (n=75) | 0.66 (n=125) | 0.18 (n=55) |
+| `deepseek/deepseek-v4-flash` | 0.61 (n=75) | 0.78 (n=125) | 0.58 (n=55) |
+| `deepseek/deepseek-v4-flash-0731` | 0.48 (n=75) | 0.53 (n=125) | 0.47 (n=55) |
+| `deepseek/deepseek-v4-pro` | 0.55 (n=75) | 0.73 (n=125) | 0.55 (n=55) |
+| `google/gemini-2.5-flash` | 0.73 (n=75) | 0.96 (n=125) | 0.82 (n=55) |
+| `google/gemini-2.5-flash-lite` | 0.68 (n=75) | 0.90 (n=125) | 0.78 (n=55) |
+| `google/gemini-2.5-pro` | 0.68 (n=75) | 0.87 (n=125) | 0.69 (n=55) |
+| `google/gemini-3.1-flash-lite` | 0.80 (n=75) | 0.99 (n=125) | 0.82 (n=55) |
+| `google/gemini-3.1-pro-preview` | 0.80 (n=75) | 0.86 (n=125) | 0.71 (n=55) |
+| `google/gemini-3.5-flash` | 0.75 (n=75) | 0.92 (n=125) | 0.73 (n=55) |
+| `google/gemini-3.5-flash-lite` | 0.79 (n=75) | 0.88 (n=125) | 0.65 (n=55) |
+| `google/gemini-3.6-flash` | 0.80 (n=75) | 0.89 (n=125) | 0.73 (n=55) |
+| `google/gemma-4-26b-a4b-it` | 0.57 (n=75) | 0.69 (n=125) | 0.47 (n=55) |
+| `google/gemma-4-31b-it` | 0.68 (n=75) | 0.75 (n=125) | 0.60 (n=55) |
+| `inclusionai/ring-2.6-1t` | 0.21 (n=75) | 0.30 (n=125) | 0.20 (n=55) |
+| `meituan/longcat-2.0` | 0.28 (n=75) | 0.44 (n=125) | 0.27 (n=55) |
+| `meta-llama/llama-3.1-8b-instruct` | 0.17 (n=75) | 0.28 (n=125) | 0.31 (n=55) |
+| `meta-llama/llama-3.3-70b-instruct` | 0.37 (n=75) | 0.52 (n=125) | 0.49 (n=55) |
+| `meta-llama/llama-4-maverick` | 0.59 (n=75) | 0.70 (n=125) | 0.45 (n=55) |
+| `meta-llama/llama-4-scout` | 0.32 (n=75) | 0.49 (n=125) | 0.36 (n=55) |
+| `meta/muse-spark-1.1` | 0.47 (n=75) | 0.64 (n=125) | 0.40 (n=55) |
+| `microsoft/phi-4` | 0.31 (n=75) | 0.10 (n=125) | 0.36 (n=55) |
+| `minimax/minimax-m3` | 0.43 (n=75) | 0.71 (n=125) | 0.62 (n=55) |
+| `mistralai/codestral-2508` | 0.37 (n=75) | 0.75 (n=125) | 0.75 (n=55) |
+| `mistralai/mistral-large-2512` | 0.79 (n=75) | 0.94 (n=125) | 0.73 (n=55) |
+| `mistralai/mistral-medium-3-5` | 0.73 (n=75) | 0.97 (n=125) | 0.82 (n=55) |
+| `mistralai/mistral-medium-3.1` | 0.80 (n=75) | 0.78 (n=125) | 0.67 (n=55) |
+| `mistralai/mistral-small-2603` | 0.00 (n=75) | 0.04 (n=125) | 0.00 (n=55) |
+| `moonshotai/kimi-k2.6` | 0.36 (n=75) | 0.31 (n=125) | 0.44 (n=55) |
+| `moonshotai/kimi-k3` | 0.71 (n=75) | 0.73 (n=125) | 0.65 (n=55) |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.52 (n=75) | 0.55 (n=125) | 0.44 (n=55) |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.31 (n=75) | 0.44 (n=125) | 0.44 (n=55) |
+| `openai/gpt-3.5-turbo` | 0.39 (n=75) | 0.48 (n=125) | 0.42 (n=55) |
+| `openai/gpt-5.4` | 0.72 (n=75) | 0.86 (n=125) | 0.67 (n=55) |
+| `openai/gpt-5.4-mini` | 0.67 (n=75) | 0.90 (n=125) | 0.53 (n=55) |
+| `openai/gpt-5.5` | 0.80 (n=75) | 0.86 (n=125) | 0.65 (n=55) |
+| `openai/gpt-5.6-luna` | 0.80 (n=75) | 0.90 (n=125) | 0.56 (n=55) |
+| `openai/gpt-5.6-sol` | 0.79 (n=75) | 0.88 (n=125) | 0.65 (n=55) |
+| `openai/gpt-5.6-terra` | 0.73 (n=75) | 0.87 (n=125) | 0.64 (n=55) |
+| `openai/gpt-oss-120b` | 0.69 (n=75) | 0.79 (n=125) | 0.73 (n=55) |
+| `openai/gpt-oss-20b` | 0.45 (n=75) | 0.61 (n=125) | 0.49 (n=55) |
+| `openai/o3` | 0.24 (n=75) | 0.45 (n=125) | 0.36 (n=55) |
+| `openai/o4-mini` | 0.08 (n=75) | 0.08 (n=125) | 0.07 (n=55) |
+| `qwen/qwen3-14b` | 0.33 (n=75) | 0.37 (n=125) | 0.35 (n=55) |
+| `qwen/qwen3-235b-a22b-2507` | 0.44 (n=75) | 0.66 (n=125) | 0.62 (n=55) |
+| `qwen/qwen3-8b` | 0.00 (n=75) | 0.00 (n=125) | 0.00 (n=55) |
+| `qwen/qwen3.5-27b` | 0.45 (n=75) | 0.59 (n=125) | 0.49 (n=55) |
+| `qwen/qwen3.5-plus-02-15` | 0.80 (n=75) | 0.90 (n=125) | 0.75 (n=55) |
+| `qwen/qwen3.6-flash` | 0.67 (n=75) | 0.84 (n=125) | 0.64 (n=55) |
+| `qwen/qwen3.6-plus` | 0.60 (n=75) | 0.67 (n=125) | 0.55 (n=55) |
+| `qwen/qwen3.7-flash` | 0.67 (n=75) | 0.77 (n=125) | 0.64 (n=55) |
+| `qwen/qwen3.7-max` | 0.72 (n=75) | 0.86 (n=125) | 0.75 (n=55) |
+| `qwen/qwen3.7-plus` | 0.77 (n=75) | 0.76 (n=125) | 0.60 (n=55) |
+| `qwen/qwen3.8-max` | 0.27 (n=75) | 0.08 (n=125) | 0.33 (n=55) |
+| `stepfun/step-3.7-flash` | 0.36 (n=55) | 0.32 (n=95) | 0.20 (n=45) |
+| `tencent/hy3` | 0.32 (n=75) | 0.47 (n=125) | 0.36 (n=55) |
+| `thinkingmachines/inkling` | 0.10 (n=69) | 0.15 (n=109) | 0.23 (n=52) |
+| `thinkingmachines/inkling-small` | 0.31 (n=75) | 0.32 (n=125) | 0.40 (n=55) |
+| `x-ai/grok-4.3` | 0.73 (n=75) | 0.92 (n=125) | 0.78 (n=55) |
+| `x-ai/grok-4.5` | 0.80 (n=75) | 0.92 (n=125) | 0.73 (n=55) |
+| `xiaomi/mimo-v2.5` | 0.49 (n=75) | 0.72 (n=125) | 0.64 (n=55) |
+| `xiaomi/mimo-v2.5-pro` | 0.35 (n=75) | 0.46 (n=125) | 0.35 (n=55) |
+| `z-ai/glm-5.2` | 0.68 (n=75) | 0.85 (n=125) | 0.58 (n=55) |
 
 ## Quick Comparison
 
-One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy.
+One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy. `Moderation blocked` is the share of attempted calls the provider refused on content grounds; those windows never reach scoring, so any non-zero value means that row's F1 was computed on a subset of the corpus and is not comparable to a row at `-`.
 
-| Model | F1 | Cost/ep | p50 | ep-crime-junkie-8ce498f299d7 | ep-daily-gist-chicago-70a82fe93a5c | ep-daily-tech-news-show-b576979e1fe8 | ep-daily-tech-news-show-c1904b8605f7 | ep-drink-champs-30c9a2d49f13 | ep-glt1412515089-373d5ba5007b | ep-it-s-a-thing-e339179dfad6 | ep-on-air-with-dan-and-alex2-574e4f303730 | ep-security-now-audio-2850b24903b2 | ep-the-brilliant-idiots-0bb9bf634c8e | ep-the-tim-dillon-show-f62bd5fa1cfe | ep-tosh-show-5f6894439bb6 | ep-ai-cloud-essentials-e8dc897fbd6b (no-ad) | ep-oxide-and-friends-ce789ff5b62e (no-ad) | F1 stdev |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `claude-haiku-4-5-20251001` | 0.837 | $1.2017 | 1.2s | 1.000 | 1.000 | 1.000 | 0.378 | 1.000 | 0.727 | 0.667 | 1.000 | 0.857 | 0.857 | 0.833 | 0.727 | PASS | PASS | 0.002 |
-| `qwen/qwen3.6-plus` | 0.807 | $1.1119 | 39.9s | 1.000 | 0.667 | 0.914 | 0.600 | 0.867 | 0.857 | 0.667 | 0.960 | 0.714 | 0.921 | 0.800 | 0.716 | PASS | PASS | 0.039 |
-| `qwen/qwen3.6-flash` | 0.802 | $0.5461 | 13.0s | 1.000 | 0.800 | 0.943 | 0.653 | 0.804 | 0.700 | 0.667 | 0.880 | 0.771 | 0.933 | 0.744 | 0.727 | FAIL (1 FP) | PASS | 0.076 |
-| `x-ai/grok-4.3` | 0.797 | $1.4987 | 3.9s | 1.000 | 0.533 | 0.971 | 0.547 | 0.946 | 0.864 | 0.667 | 0.840 | 0.714 | 0.914 | 0.781 | 0.782 | PASS | PASS | 0.073 |
-| `qwen/qwen3.5-plus-02-15` | 0.794 | $1.2346 | 48.2s | 1.000 | 0.600 | 0.857 | 0.653 | 0.842 | 0.886 | 0.667 | 0.800 | 0.714 | 0.886 | 0.800 | 0.827 | PASS | PASS | 0.035 |
-| `claude-sonnet-4-6` | 0.786 | $3.5376 | 1.4s | 1.000 | 0.800 | 1.000 | 0.627 | 0.938 | 0.571 | 0.667 | 0.800 | 0.714 | 0.971 | 0.615 | 0.727 | PASS | PASS | 0.025 |
-| `google/gemini-2.5-flash` | 0.777 | $0.3435 | 1.0s | 1.000 | 1.000 | 1.000 | 0.545 | 0.857 | 0.889 | 0.400 | 0.800 | 0.667 | 0.667 | 0.833 | 0.667 | PASS | PASS | 0.000 |
-| `claude-opus-4-8` | 0.767 | $7.8217 | 2.2s | 0.886 | 0.500 | 0.886 | 0.589 | 0.916 | 0.857 | 0.667 | 0.800 | 0.796 | 0.821 | 0.684 | 0.800 | PASS | PASS | 0.054 |
-| `google/gemini-3.1-flash-lite` | 0.756 | $0.2762 | 0.8s | 1.000 | 1.000 | 0.971 | 0.600 | 0.803 | 0.771 | 0.567 | 0.800 | 0.582 | 0.520 | 0.727 | 0.727 | FAIL (1 FP) | PASS | 0.023 |
-| `openai/gpt-5.5` | 0.750 | $6.6806 | 6.4s | 0.943 | 0.500 | 0.886 | 0.633 | 0.766 | 0.886 | 0.667 | 0.800 | 0.708 | 0.903 | 0.680 | 0.633 | FAIL (1 FP) | PASS | 0.078 |
-| `mistralai/mistral-medium-3.1` | 0.739 | $0.4380 | 0.9s | 0.876 | 0.667 | 0.821 | 0.556 | 0.550 | 0.883 | 0.667 | 1.000 | 0.718 | 0.679 | 0.745 | 0.702 | PASS | PASS | 0.061 |
-| `google/gemini-3.5-flash` | 0.738 | $3.5200 | 5.2s | 0.914 | 0.500 | 0.857 | 0.600 | 0.562 | 0.943 | 0.667 | 0.800 | 0.714 | 1.000 | 0.760 | 0.536 | PASS | PASS | 0.033 |
-| `google/gemma-4-31b-it` | 0.729 | $0.1291 | 2.2s | 1.000 | 0.480 | 0.850 | 0.600 | 0.723 | 0.950 | 0.667 | 1.000 | 0.667 | 0.700 | 0.799 | 0.311 | FAIL (1 FP) | PASS | 0.057 |
-| `google/gemini-2.5-pro` | 0.726 | $3.8631 | 14.2s | 0.971 | 0.500 | 0.864 | 0.578 | 0.821 | 0.956 | 0.667 | 0.720 | 0.650 | 0.653 | 0.720 | 0.609 | FAIL (1 FP) | FAIL (1 FP) | 0.050 |
-| `deepseek/deepseek-v4-flash` | 0.725 | $0.1182 | 3.7s | 0.864 | 0.527 | 0.933 | 0.569 | 0.532 | 0.901 | 0.733 | 0.773 | 0.695 | 0.717 | 0.791 | 0.669 | FAIL (1 FP) | PASS | 0.108 |
-| `minimax/minimax-m3` | 0.720 | $0.4367 | 8.8s | 0.971 | 0.600 | 0.943 | 0.569 | 0.705 | 0.892 | 0.667 | 0.800 | 0.676 | 0.528 | 0.680 | 0.609 | PASS | PASS | 0.073 |
-| `deepseek/deepseek-r1` | 0.702 | $1.1157 | 19.9s | 0.971 | 0.633 | 0.914 | 0.507 | 0.679 | 0.911 | 0.467 | 0.787 | 0.661 | 0.487 | 0.730 | 0.681 | FAIL (1 FP) | FAIL (1 FP) | 0.107 |
-| `openai/gpt-5.4` | 0.700 | $2.5345 | 1.8s | 1.000 | 0.500 | 0.892 | 0.567 | 0.676 | 0.641 | 0.613 | 0.920 | 0.668 | 0.568 | 0.735 | 0.622 | FAIL (1 FP) | FAIL (1 FP) | 0.077 |
-| `qwen/qwen3.5-27b` | 0.683 | $3.2163 | 68.7s | 0.914 | 0.667 | 0.743 | 0.582 | 0.675 | 0.757 | 0.600 | 0.740 | 0.488 | 0.716 | 0.607 | 0.707 | PASS | PASS | 0.151 |
-| `claude-opus-4-7` | 0.669 | $7.8054 | 2.2s | 0.857 | 0.200 | 0.886 | 0.378 | 0.393 | 0.857 | 0.667 | 0.800 | 0.771 | 0.836 | 0.760 | 0.622 | PASS | PASS | 0.076 |
-| `openai/gpt-oss-120b` | 0.653 | $0.0643 | 3.0s | 0.876 | 0.600 | 0.507 | 0.545 | 0.247 | 1.000 | 0.440 | 0.720 | 0.669 | 0.857 | 0.695 | 0.678 | FAIL (1 FP) | PASS | 0.101 |
-| `openai/gpt-5.4-mini` | 0.651 | $0.7644 | 1.2s | 0.906 | 0.833 | 0.943 | 0.524 | 0.595 | 0.645 | 0.500 | 0.800 | 0.643 | 0.375 | 0.443 | 0.607 | FAIL (1 FP) | FAIL (1 FP) | 0.115 |
-| `google/gemini-2.5-flash-lite` | 0.618 | $0.1104 | 0.9s | 1.000 | 0.500 | 0.821 | 0.489 | 0.698 | 0.599 | 0.261 | 0.800 | 0.411 | 0.580 | 0.579 | 0.676 | FAIL (1 FP) | PASS | 0.060 |
-| `openai/o3` | 0.595 | $3.0485 | 8.1s | 0.876 | 0.000 | 0.848 | 0.486 | 0.789 | 0.743 | 0.333 | 0.760 | 0.714 | 0.740 | 0.381 | 0.475 | PASS | PASS | 0.156 |
-| `meta-llama/llama-4-scout` | 0.591 | $0.0807 | 0.8s | 0.358 | 0.627 | 0.592 | 0.432 | 0.147 | 0.679 | 0.800 | 0.880 | 0.667 | 0.681 | 0.505 | 0.727 | PASS | PASS | 0.144 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.579 | $0.2159 | 24.2s | 0.943 | 0.667 | 0.648 | 0.364 | 0.208 | 0.810 | 0.267 | 0.753 | 0.749 | 0.613 | 0.290 | 0.633 | PASS | PASS | 0.150 |
-| `mistralai/codestral-2508` | 0.577 | $0.3241 | 0.7s | 0.950 | 0.667 | 0.698 | 0.551 | 0.343 | 0.303 | 0.420 | 0.693 | 0.501 | 0.542 | 0.535 | 0.718 | PASS | PASS | 0.082 |
-| `mistralai/mistral-large-2512` | 0.563 | $0.5599 | 2.6s | 0.733 | 0.427 | 0.978 | 0.545 | 0.574 | 0.368 | 0.513 | 0.800 | 0.367 | 0.310 | 0.409 | 0.727 | PASS | PASS | 0.062 |
-| `deepseek/deepseek-r1-0528` | 0.557 | $1.0181 | 16.5s | 0.787 | 0.647 | 0.911 | 0.417 | 0.260 | 0.558 | 0.404 | 0.693 | 0.421 | 0.338 | 0.545 | 0.708 | FAIL (27 FP) | FAIL (12 FP) | 0.150 |
-| `qwen/qwen3-235b-a22b-2507` | 0.529 | $0.0735 | 2.3s | 0.813 | 0.880 | 0.822 | 0.308 | 0.185 | 0.689 | 0.000 | 0.701 | 0.503 | 0.392 | 0.589 | 0.462 | FAIL (2 FP) | FAIL (6 FP) | 0.120 |
-| `meta-llama/llama-4-maverick` | 0.470 | $0.1508 | 1.1s | 1.000 | 0.000 | 0.771 | 0.228 | 0.316 | 0.703 | 0.000 | 0.800 | 0.660 | 0.492 | 0.222 | 0.444 | FAIL (1 FP) | PASS | 0.024 |
-| `cohere/command-a` | 0.464 | $2.6688 | 3.8s | 0.911 | 0.400 | 0.500 | 0.356 | 0.034 | 0.744 | 0.400 | 0.674 | 0.456 | 0.304 | 0.255 | 0.533 | FAIL (3 FP) | PASS | 0.052 |
-| `deepseek/deepseek-v4-pro` | 0.424 | $0.6376 | 26.4s | 0.819 | 0.133 | 0.507 | 0.381 | 0.420 | 0.477 | 0.267 | 0.280 | 0.634 | 0.180 | 0.687 | 0.305 | PASS | PASS | 0.218 |
-| `moonshotai/kimi-k2.6` | 0.422 | $2.2593 | 35.3s | 0.547 | 0.100 | 0.914 | 0.600 | 0.054 | 0.532 | 0.200 | 0.867 | 0.196 | 0.598 | 0.189 | 0.267 | FAIL (1 FP) | FAIL (4 FP) | 0.158 |
-| `deepseek/deepseek-v3.2` | 0.416 | $0.2328 | 2.7s | 0.686 | 0.300 | 0.622 | 0.396 | 0.301 | 0.584 | 0.400 | 0.400 | 0.553 | 0.100 | 0.389 | 0.257 | PASS | FAIL (2 FP) | 0.200 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.395 | $0.1008 | 1.5s | 0.702 | 0.100 | 0.420 | 0.129 | 0.024 | 0.771 | 0.267 | 0.133 | 0.728 | 0.557 | 0.400 | 0.514 | PASS | PASS | 0.133 |
-| `nvidia/nemotron-nano-9b-v2` | 0.316 | $0.0813 | 12.0s | 0.450 | 0.600 | 0.274 | 0.124 | 0.156 | 0.212 | 0.313 | 0.440 | 0.333 | 0.386 | 0.180 | 0.320 | FAIL (1 FP) | PASS | 0.176 |
-| `openai/gpt-3.5-turbo` | 0.315 | $0.5091 | 1.3s | 1.000 | 0.420 | 0.222 | 0.444 | 0.040 | 0.291 | 0.000 | 0.500 | 0.275 | 0.233 | 0.143 | 0.209 | FAIL (3 FP) | FAIL (10 FP) | 0.009 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.261 | $0.7331 | 2.0s | 0.547 | 0.453 | 0.067 | 0.228 | 0.000 | 0.333 | 0.000 | 0.397 | 0.317 | 0.301 | 0.126 | 0.357 | FAIL (2 FP) | FAIL (10 FP) | 0.106 |
-| `qwen/qwen3-14b` | 0.260 | $0.1261 | 20.9s | 0.190 | 0.000 | 0.518 | 0.114 | 0.047 | 0.478 | 0.000 | 0.360 | 0.351 | 0.390 | 0.244 | 0.429 | PASS | FAIL (1 FP) | 0.173 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.251 | $0.0207 | 0.8s | 0.168 | 0.700 | 0.231 | 0.084 | 0.224 | 0.286 | 0.400 | 0.367 | 0.141 | 0.000 | 0.211 | 0.197 | PASS | PASS | 0.150 |
-| `cohere/command-r-plus-08-2024` | 0.162 | $2.5787 | 1.0s | 0.000 | 0.000 | 0.000 | 0.384 | 0.330 | 0.000 | 0.200 | 0.000 | 0.687 | 0.000 | 0.057 | 0.289 | PASS | PASS | 0.088 |
-| `microsoft/phi-4` | 0.157 | $0.0713 | 2.3s | 0.562 | 0.000 | 0.160 | 0.144 | 0.059 | 0.000 | 0.000 | 0.400 | 0.076 | 0.174 | 0.312 | 0.000 | FAIL (3 FP) | FAIL (15 FP) | 0.110 |
-| `openai/o4-mini` | 0.075 | $1.8999 | 6.9s | 0.000 | 0.000 | 0.147 | 0.067 | 0.040 | 0.080 | 0.000 | 0.133 | 0.114 | 0.180 | 0.000 | 0.133 | PASS | PASS | 0.125 |
-| `qwen/qwen3-8b` | 0.005 | $0.2578 | 59.4s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.057 | 0.000 | PASS | PASS | 0.011 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | $0.0000 | 7.1s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | PASS | PASS | 0.000 |
+| Model | F1 | Cost/ep | p50 | ep-crime-junkie-8ce498f299d7 | ep-daily-gist-chicago-70a82fe93a5c | ep-daily-tech-news-show-b576979e1fe8 | ep-daily-tech-news-show-c1904b8605f7 | ep-drink-champs-30c9a2d49f13 | ep-glt1412515089-373d5ba5007b | ep-it-s-a-thing-e339179dfad6 | ep-on-air-with-dan-and-alex2-574e4f303730 | ep-security-now-audio-2850b24903b2 | ep-the-brilliant-idiots-0bb9bf634c8e | ep-the-tim-dillon-show-f62bd5fa1cfe | ep-tosh-show-5f6894439bb6 | ep-ai-cloud-essentials-e8dc897fbd6b (no-ad) | ep-oxide-and-friends-ce789ff5b62e (no-ad) | F1 stdev | Moderation blocked |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `claude-haiku-4-5-20251001` | 0.842 | $1.0820 | 24.2s | 1.000 | 1.000 | 1.000 | 0.567 | 0.937 | 0.814 | 0.667 | 0.920 | 0.714 | 1.000 | 0.812 | 0.669 | PASS | PASS | 0.041 | - |
+| `claude-sonnet-4-6` | 0.799 | $3.2386 | 4.1s | 1.000 | 0.600 | 1.000 | 0.556 | 0.891 | 0.857 | 0.667 | 0.773 | 0.695 | 1.000 | 0.667 | 0.879 | PASS | PASS | 0.039 | - |
+| `x-ai/grok-4.5` | 0.797 | $3.3554 | 10.9s | 0.956 | 0.500 | 1.000 | 0.509 | 0.899 | 0.857 | 0.667 | 0.960 | 0.714 | 0.857 | 0.800 | 0.848 | PASS | PASS | 0.019 | - |
+| `google/gemini-3.6-flash` | 0.796 | $2.8863 | 4.5s | 1.000 | 0.500 | 1.000 | 0.589 | 0.842 | 0.857 | 0.667 | 0.773 | 0.667 | 1.000 | 0.800 | 0.857 | PASS | PASS | 0.011 | - |
+| `x-ai/grok-4.3` | 0.789 | $1.6048 | 3.7s | 1.000 | 0.460 | 0.978 | 0.578 | 0.814 | 0.921 | 0.667 | 1.000 | 0.714 | 0.743 | 0.842 | 0.745 | PASS | PASS | 0.063 | - |
+| `google/gemini-3.5-flash` | 0.787 | $3.4202 | 5.6s | 1.000 | 0.500 | 1.000 | 0.578 | 0.873 | 0.857 | 0.667 | 0.800 | 0.714 | 1.000 | 0.800 | 0.656 | PASS | PASS | 0.009 | - |
+| `mistralai/mistral-medium-3-5` | 0.787 | $1.8393 | 1.1s | 1.000 | 0.800 | 1.000 | 0.589 | 0.833 | 0.740 | 0.667 | 1.000 | 0.714 | 0.667 | 0.716 | 0.715 | PASS | PASS | 0.024 | - |
+| `openai/gpt-5.5` | 0.784 | $7.6842 | 5.4s | 1.000 | 0.400 | 1.000 | 0.667 | 0.823 | 0.914 | 0.667 | 0.800 | 0.769 | 0.943 | 0.800 | 0.622 | FAIL (1 FP) | PASS | 0.026 | - |
+| `claude-fable-5` | 0.783 | $10.7552 | 6.6s | 0.933 | 0.700 | 0.978 | 0.529 | 0.770 | 0.857 | 0.667 | 0.960 | 0.667 | 0.667 | 0.800 | 0.864 | PASS | PASS | 0.046 | - |
+| `qwen/qwen3.5-plus-02-15` | 0.779 | $1.0746 | 29.2s | 1.000 | 0.500 | 0.889 | 0.545 | 0.967 | 0.857 | 0.667 | 0.960 | 0.686 | 0.800 | 0.748 | 0.727 | PASS | PASS | 0.030 | - |
+| `google/gemini-3.5-flash-lite` | 0.776 | $0.3643 | 0.7s | 0.876 | 1.000 | 0.892 | 0.502 | 0.959 | 0.531 | 0.667 | 0.933 | 0.695 | 0.700 | 0.825 | 0.727 | PASS | PASS | 0.074 | - |
+| `openai/gpt-5.6-terra` | 0.768 | $1.1951 | 2.1s | 1.000 | 0.400 | 0.950 | 0.653 | 0.774 | 0.857 | 0.600 | 0.960 | 0.716 | 0.791 | 0.800 | 0.711 | FAIL (2 FP) | FAIL (1 FP) | 0.056 | - |
+| `claude-opus-4-8` | 0.760 | $5.3661 | 7.8s | 0.889 | 0.800 | 0.956 | 0.527 | 0.870 | 0.743 | 0.667 | 0.800 | 0.695 | 0.556 | 0.800 | 0.822 | PASS | PASS | 0.037 | - |
+| `openai/gpt-5.6-luna` | 0.754 | $0.1402 | 3.5s | 0.933 | 0.400 | 1.000 | 0.609 | 0.778 | 0.949 | 0.667 | 0.693 | 0.758 | 0.793 | 0.800 | 0.667 | PASS | PASS | 0.044 | - |
+| `google/gemini-3.1-pro-preview` | 0.752 | $4.9160 | 8.3s | 1.000 | 0.500 | 0.950 | 0.578 | 0.834 | 0.857 | 0.633 | 0.667 | 0.667 | 0.857 | 0.800 | 0.676 | PASS | PASS | 0.025 | - |
+| `claude-opus-5` | 0.748 | $5.3761 | 3.7s | 1.000 | 0.400 | 1.000 | 0.564 | 0.863 | 0.857 | 0.500 | 0.800 | 0.857 | 0.667 | 0.800 | 0.667 | PASS | PASS | 0.011 | - |
+| `google/gemini-3.1-flash-lite` | 0.747 | $0.2988 | 0.8s | 0.950 | 0.800 | 0.956 | 0.567 | 0.858 | 0.681 | 0.667 | 0.800 | 0.588 | 0.540 | 0.833 | 0.727 | FAIL (1 FP) | PASS | 0.028 | - |
+| `qwen/qwen3.6-flash` | 0.747 | $0.5435 | 7.6s | 1.000 | 0.500 | 0.921 | 0.602 | 0.641 | 0.755 | 0.733 | 0.840 | 0.714 | 0.810 | 0.720 | 0.723 | PASS | PASS | 0.084 | - |
+| `qwen/qwen3.7-max` | 0.746 | $2.8109 | 23.4s | 0.950 | 0.500 | 1.000 | 0.462 | 0.628 | 0.857 | 0.667 | 0.840 | 0.695 | 0.821 | 0.848 | 0.681 | PASS | PASS | 0.051 | - |
+| `openai/gpt-5.6-sol` | 0.738 | $6.2293 | 3.7s | 1.000 | 0.420 | 1.000 | 0.600 | 0.648 | 0.739 | 0.467 | 0.747 | 0.736 | 0.834 | 0.773 | 0.889 | FAIL (3 FP) | FAIL (2 FP) | 0.073 | - |
+| `claude-sonnet-5` | 0.732 | $2.1452 | 8.5s | 0.938 | 0.560 | 0.911 | 0.492 | 0.806 | 0.857 | 0.633 | 0.960 | 0.693 | 0.503 | 0.785 | 0.647 | PASS | PASS | 0.090 | - |
+| `claude-opus-4-7` | 0.731 | $5.3293 | 4.6s | 0.978 | 0.400 | 1.000 | 0.767 | 0.825 | 0.857 | 0.667 | 0.740 | 0.693 | 0.578 | 0.727 | 0.538 | PASS | PASS | 0.060 | - |
+| `deepseek/deepseek-v4-flash` | 0.708 | $0.2046 | 6.3s | 1.000 | 0.673 | 0.886 | 0.402 | 0.687 | 0.921 | 0.467 | 0.800 | 0.673 | 0.903 | 0.733 | 0.355 | PASS | PASS | 0.123 | - |
+| `qwen/qwen3.7-flash` | 0.706 | $0.0725 | 10.1s | 1.000 | 0.500 | 0.771 | 0.602 | 0.546 | 0.664 | 0.600 | 0.800 | 0.714 | 0.769 | 0.785 | 0.718 | PASS | PASS | 0.121 | - |
+| `moonshotai/kimi-k3` | 0.703 | $5.9242 | 13.8s | 0.933 | 0.480 | 0.943 | 0.578 | 0.422 | 0.886 | 0.533 | 0.667 | 0.728 | 0.864 | 0.800 | 0.599 | FAIL (1 FP) | PASS | 0.089 | - |
+| `google/gemini-2.5-pro` | 0.700 | $4.1601 | 14.2s | 0.933 | 0.400 | 0.943 | 0.490 | 0.829 | 0.750 | 0.733 | 0.800 | 0.658 | 0.633 | 0.800 | 0.432 | FAIL (1 FP) | FAIL (1 FP) | 0.051 | - |
+| `mistralai/mistral-medium-3.1` | 0.699 | $0.4847 | 0.7s | 0.978 | 0.747 | 0.444 | 0.429 | 0.821 | 0.711 | 0.500 | 1.000 | 0.514 | 0.681 | 0.833 | 0.727 | PASS | PASS | 0.046 | - |
+| `google/gemini-2.5-flash` | 0.694 | $0.3796 | 0.8s | 1.000 | 0.473 | 0.889 | 0.500 | 0.800 | 1.000 | 0.333 | 0.800 | 0.625 | 0.500 | 0.833 | 0.571 | PASS | PASS | 0.013 | - |
+| `openai/gpt-oss-120b` | 0.692 | $0.0634 | 6.5s | 0.943 | 0.820 | 0.855 | 0.475 | 0.305 | 0.956 | 0.393 | 0.728 | 0.668 | 0.762 | 0.662 | 0.743 | FAIL (1 FP) | FAIL (1 FP) | 0.126 | - |
+| `deepseek/deepseek-v4-pro` | 0.680 | $0.6692 | 16.2s | 0.851 | 0.280 | 0.876 | 0.581 | 0.532 | 0.857 | 0.867 | 0.700 | 0.764 | 0.597 | 0.800 | 0.456 | FAIL (1 FP) | PASS | 0.162 | - |
+| `google/gemma-4-31b-it` | 0.667 | $0.1181 | 2.4s | 0.876 | 0.400 | 0.893 | 0.476 | 0.668 | 0.828 | 0.533 | 0.960 | 0.667 | 0.550 | 0.675 | 0.476 | FAIL (1 FP) | PASS | 0.137 | - |
+| `openai/gpt-5.4` | 0.634 | $2.7907 | 1.4s | 0.818 | 0.420 | 0.878 | 0.653 | 0.706 | 0.565 | 0.333 | 0.674 | 0.589 | 0.670 | 0.785 | 0.520 | FAIL (1 FP) | FAIL (3 FP) | 0.091 | - |
+| `minimax/minimax-m3` | 0.626 | $0.3575 | 1.7s | 0.507 | 0.533 | 0.547 | 0.429 | 0.798 | 0.853 | 0.800 | 0.780 | 0.552 | 0.599 | 0.399 | 0.719 | FAIL (1 FP) | FAIL (1 FP) | 0.201 | - |
+| `google/gemini-2.5-flash-lite` | 0.623 | $0.1132 | 0.8s | 0.943 | 0.800 | 0.971 | 0.545 | 0.657 | 0.460 | 0.309 | 0.720 | 0.569 | 0.438 | 0.459 | 0.609 | FAIL (2 FP) | PASS | 0.070 | - |
+| `qwen/qwen3.6-plus` | 0.607 | $1.1534 | 36.9s | 0.971 | 0.433 | 0.686 | 0.336 | 0.470 | 0.844 | 0.000 | 0.800 | 0.592 | 0.886 | 0.691 | 0.579 | PASS | PASS | 0.148 | - |
+| `z-ai/glm-5.2` | 0.606 | $0.7376 | 3.5s | 0.910 | 0.320 | 0.813 | 0.508 | 0.543 | 0.555 | 0.547 | 0.603 | 0.601 | 0.527 | 0.678 | 0.670 | FAIL (2 FP) | FAIL (5 FP) | 0.117 | - |
+| `deepseek/deepseek-v4-flash-0731` | 0.601 | $0.1482 | 13.2s | 0.905 | 0.667 | 0.706 | 0.295 | 0.365 | 0.743 | 0.400 | 0.740 | 0.612 | 0.943 | 0.636 | 0.203 | PASS | PASS | 0.187 | - |
+| `deepseek/deepseek-v3.2` | 0.599 | $0.3015 | 1.7s | 0.857 | 0.633 | 0.667 | 0.616 | 0.859 | 0.613 | 0.473 | 0.667 | 0.303 | 0.500 | 0.476 | 0.527 | PASS | PASS | 0.072 | - |
+| `meta/muse-spark-1.1` | 0.595 | $2.2536 | 4.3s | 0.813 | 0.433 | 0.771 | 0.456 | 0.604 | 0.766 | 0.267 | 0.667 | 0.623 | 0.680 | 0.604 | 0.451 | PASS | PASS | 0.224 | - |
+| `openai/gpt-5.4-mini` | 0.582 | $0.8470 | 1.1s | 0.956 | 0.800 | 1.000 | 0.533 | 0.563 | 0.442 | 0.100 | 0.800 | 0.488 | 0.241 | 0.514 | 0.542 | FAIL (2 FP) | FAIL (3 FP) | 0.075 | - |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.577 | $0.2194 | 22.3s | 0.971 | 0.760 | 0.785 | 0.417 | 0.029 | 0.892 | 0.000 | 0.800 | 0.736 | 0.754 | 0.462 | 0.319 | FAIL (1 FP) | PASS | 0.111 | - |
+| `deepseek/deepseek-r1` | 0.574 | $1.4743 | 35.7s | 0.857 | 0.360 | 0.848 | 0.352 | 0.365 | 0.746 | 0.267 | 0.800 | 0.543 | 0.462 | 0.620 | 0.669 | FAIL (1 FP) | FAIL (3 FP) | 0.140 | - |
+| `google/gemma-4-26b-a4b-it` | 0.572 | $0.0825 | 1.4s | 0.950 | 0.920 | 0.428 | 0.170 | 0.412 | 0.867 | 0.133 | 0.667 | 0.714 | 0.697 | 0.545 | 0.358 | FAIL (1 FP) | PASS | 0.136 | - |
+| `qwen/qwen3.5-27b` | 0.567 | $0.8941 | 37.6s | 0.373 | 0.640 | 0.598 | 0.417 | 0.625 | 0.800 | 0.600 | 0.693 | 0.751 | 0.586 | 0.373 | 0.350 | PASS | PASS | 0.214 | - |
+| `mistralai/mistral-large-2512` | 0.547 | $0.6184 | 3.3s | 0.933 | 0.407 | 0.893 | 0.545 | 0.574 | 0.400 | 0.320 | 0.800 | 0.333 | 0.239 | 0.449 | 0.667 | FAIL (1 FP) | PASS | 0.043 | - |
+| `deepseek/deepseek-r1-0528` | 0.540 | $1.1645 | 29.4s | 0.728 | 0.440 | 0.744 | 0.411 | 0.422 | 0.750 | 0.120 | 0.773 | 0.523 | 0.472 | 0.553 | 0.549 | FAIL (1 FP) | FAIL (8 FP) | 0.160 | - |
+| `openai/gpt-oss-20b` | 0.540 | $0.0620 | 9.2s | 0.943 | 0.780 | 0.421 | 0.279 | 0.147 | 0.692 | 0.300 | 0.560 | 0.678 | 0.825 | 0.483 | 0.375 | FAIL (1 FP) | FAIL (1 FP) | 0.163 | - |
+| `meta-llama/llama-4-maverick` | 0.522 | $0.2206 | 1.1s | 0.889 | 0.320 | 1.000 | 0.480 | 0.289 | 0.518 | 0.000 | 0.693 | 0.596 | 0.667 | 0.364 | 0.444 | FAIL (1 FP) | PASS | 0.033 | - |
+| `qwen/qwen3.7-plus` | 0.506 | $0.7238 | 23.7s | 0.744 | 0.400 | 0.667 | 0.468 | 0.394 | 0.455 | 0.393 | 0.514 | 0.459 | 0.270 | 0.580 | 0.728 | FAIL (2 FP) | FAIL (11 FP) | 0.063 | - |
+| `mistralai/codestral-2508` | 0.504 | $0.3585 | 0.9s | 0.800 | 0.400 | 0.800 | 0.307 | 0.452 | 0.371 | 0.400 | 0.610 | 0.487 | 0.300 | 0.401 | 0.727 | PASS | FAIL (1 FP) | 0.069 | - |
+| `qwen/qwen3-235b-a22b-2507` | 0.499 | $0.1078 | 2.5s | 0.731 | 0.480 | 0.709 | 0.436 | 0.186 | 0.372 | 0.233 | 0.701 | 0.652 | 0.359 | 0.597 | 0.529 | FAIL (1 FP) | FAIL (6 FP) | 0.150 | - |
+| `meta-llama/llama-3.3-70b-instruct` | 0.493 | $0.1107 | 1.3s | 0.800 | 0.567 | 0.774 | 0.295 | 0.040 | 0.659 | 0.267 | 0.480 | 0.769 | 0.571 | 0.329 | 0.363 | PASS | PASS | 0.117 | - |
+| `tencent/hy3` | 0.489 | $0.3876 | 22.3s | 0.781 | 0.100 | 0.743 | 0.229 | 0.033 | 0.848 | 0.000 | 0.753 | 0.664 | 0.836 | 0.346 | 0.539 | PASS | PASS | 0.124 | - |
+| `xiaomi/mimo-v2.5` | 0.471 | $0.1692 | 4.2s | 0.843 | 0.080 | 0.649 | 0.569 | 0.384 | 0.402 | 0.233 | 0.441 | 0.563 | 0.341 | 0.578 | 0.569 | FAIL (2 FP) | FAIL (7 FP) | 0.150 | - |
+| `openai/o3` | 0.457 | $3.3100 | 6.7s | 0.507 | 0.000 | 0.545 | 0.356 | 0.464 | 0.857 | 0.333 | 0.733 | 0.635 | 0.451 | 0.425 | 0.178 | PASS | PASS | 0.188 | - |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.453 | $0.7782 | 1.2s | 0.813 | 0.473 | 0.547 | 0.512 | 0.091 | 0.598 | 0.333 | 0.513 | 0.380 | 0.244 | 0.463 | 0.471 | FAIL (1 FP) | FAIL (4 FP) | 0.231 | - |
+| `meta-llama/llama-4-scout` | 0.442 | $0.1111 | 0.9s | 0.600 | 0.413 | 0.651 | 0.256 | 0.085 | 0.367 | 0.400 | 0.493 | 0.551 | 0.447 | 0.256 | 0.787 | FAIL (1 FP) | PASS | 0.224 | - |
+| `xiaomi/mimo-v2.5-pro` | 0.438 | $0.4954 | 2.2s | 0.651 | 0.400 | 0.518 | 0.414 | 0.383 | 0.705 | 0.100 | 0.300 | 0.501 | 0.641 | 0.386 | 0.253 | PASS | FAIL (1 FP) | 0.217 | - |
+| `cohere/command-a` | 0.425 | $2.9415 | 1.7s | 0.800 | 0.400 | 0.667 | 0.436 | 0.000 | 0.345 | 0.340 | 0.507 | 0.455 | 0.335 | 0.218 | 0.600 | FAIL (3 FP) | FAIL (5 FP) | 0.052 | - |
+| `moonshotai/kimi-k2.6` | 0.401 | $1.8854 | 55.7s | 0.581 | 0.080 | 0.819 | 0.181 | 0.036 | 0.473 | 0.000 | 0.813 | 0.533 | 0.397 | 0.394 | 0.510 | FAIL (1 FP) | FAIL (3 FP) | 0.152 | - |
+| `stepfun/step-3.7-flash` | 0.398 | $0.4302 | 13.9s | 0.886 | 0.733 | 0.240 | 0.000 | - | 0.781 | 0.000 | 0.633 | 0.366 | - | 0.279 | 0.067 | PASS | PASS | 0.156 | 15.2% |
+| `meituan/longcat-2.0` | 0.390 | $0.5573 | 10.5s | 0.000 | 0.233 | 0.613 | 0.436 | 0.400 | 0.781 | 0.333 | 0.500 | 0.482 | 0.280 | 0.152 | 0.473 | PASS | PASS | 0.164 | - |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.387 | $0.6913 | 27.2s | 0.373 | 0.593 | 0.160 | 0.422 | 0.312 | 0.971 | 0.000 | 0.500 | 0.542 | 0.374 | 0.346 | 0.050 | FAIL (1 FP) | PASS | 0.109 | - |
+| `qwen/qwen3-14b` | 0.385 | $0.3989 | 14.4s | 0.690 | 0.680 | 0.529 | 0.089 | 0.018 | 0.488 | 0.000 | 0.453 | 0.744 | 0.470 | 0.185 | 0.278 | FAIL (1 FP) | FAIL (1 FP) | 0.116 | - |
+| `cohere/command-r-plus-08-2024` | 0.381 | $2.8505 | 1.1s | 0.613 | 0.267 | 0.133 | 0.361 | 0.139 | 0.712 | 0.000 | 0.600 | 0.751 | 0.460 | 0.239 | 0.295 | PASS | PASS | 0.148 | - |
+| `thinkingmachines/inkling-small` | 0.358 | $1.0333 | 18.5s | 0.530 | 0.160 | 0.592 | 0.150 | 0.133 | 0.467 | 0.000 | 0.693 | 0.219 | 0.483 | 0.691 | 0.181 | FAIL (1 FP) | FAIL (6 FP) | 0.167 | - |
+| `inclusionai/ring-2.6-1t` | 0.337 | $0.2468 | 10.8s | 0.507 | 0.867 | 0.522 | 0.057 | 0.031 | 0.537 | 0.000 | 0.400 | 0.547 | 0.350 | 0.094 | 0.129 | PASS | PASS | 0.140 | - |
+| `openai/gpt-3.5-turbo` | 0.310 | $0.5564 | 1.4s | 0.803 | 0.400 | 0.222 | 0.622 | 0.055 | 0.263 | 0.000 | 0.444 | 0.286 | 0.211 | 0.200 | 0.218 | FAIL (2 FP) | FAIL (11 FP) | 0.021 | - |
+| `microsoft/phi-4` | 0.299 | $0.0792 | 0.5s | 0.237 | 0.000 | 0.427 | 0.239 | 0.000 | 0.000 | 0.400 | 0.800 | 0.228 | 0.620 | 0.423 | 0.217 | PASS | PASS | 0.108 | - |
+| `qwen/qwen3.8-max` | 0.272 | $4.2714 | 29.7s | 0.280 | 0.000 | 0.320 | 0.231 | 0.000 | 0.373 | 0.000 | 0.900 | 0.050 | 0.460 | 0.646 | 0.000 | PASS | PASS | 0.112 | - |
+| `meta-llama/llama-3.1-8b-instruct` | 0.259 | $0.0572 | 0.9s | 0.200 | 0.593 | 0.274 | 0.133 | 0.167 | 0.203 | 0.700 | 0.263 | 0.124 | 0.090 | 0.140 | 0.216 | PASS | FAIL (2 FP) | 0.164 | - |
+| `thinkingmachines/inkling` | 0.225 | $3.2258 | 65.9s | 0.307 | 0.000 | 0.427 | 0.124 | 0.042 | 0.200 | 0.000 | 0.627 | 0.315 | 0.460 | 0.202 | 0.000 | PASS | FAIL (1 FP) | 0.153 | - |
+| `openai/o4-mini` | 0.135 | $2.1179 | 7.3s | 0.160 | 0.133 | 0.147 | 0.067 | 0.000 | 0.147 | 0.000 | 0.267 | 0.202 | 0.360 | 0.000 | 0.133 | PASS | PASS | 0.182 | - |
+| `mistralai/mistral-small-2603` | 0.019 | $0.1745 | 0.7s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.222 | PASS | PASS | 0.000 | - |
+| `qwen/qwen3-8b` | 0.000 | $0.3256 | 39.8s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | PASS | PASS | 0.000 | - |
 
 ---
 
@@ -915,569 +1278,903 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 
 #### `claude-haiku-4-5-20251001`
 
-- F1 (avg across episodes): **0.837**
-- Total cost / episode: **$1.2017**
-- p50 / p95 latency: 1.17s / 4.06s
-- JSON compliance: 0.60
-- JSON mode: prompt-inject (0% native, 855 calls)
+- F1 (avg across episodes): **0.842**
+- Total cost / episode: **$1.0820**
+- p50 / p95 latency: 24.23s / 135.48s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `markdown_code_block`: 855
+- Extraction methods: `json_array_direct`: 855
 - Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 711
-- Extra keys observed: end_text, sponsor
-
-#### `qwen/qwen3.6-plus`
-
-- F1 (avg across episodes): **0.807**
-- Total cost / episode: **$1.1119**
-- p50 / p95 latency: 39.88s / 74.53s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 855
-- Verbosity: 813/855 calls over 1024 output tokens (95.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-
-#### `qwen/qwen3.6-flash`
-
-- F1 (avg across episodes): **0.802**
-- Total cost / episode: **$0.5461**
-- p50 / p95 latency: 13.01s / 39.29s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 855
-- Verbosity: 585/855 calls over 1024 output tokens (68.4%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-
-#### `x-ai/grok-4.3`
-
-- F1 (avg across episodes): **0.797**
-- Total cost / episode: **$1.4987**
-- p50 / p95 latency: 3.88s / 12.56s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.1%
-- Extraction methods: `json_array_direct`: 854, `parse_failure`: 1
-- Verbosity: 165/855 calls over 1024 output tokens (19.3%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-
-#### `qwen/qwen3.5-plus-02-15`
-
-- F1 (avg across episodes): **0.794**
-- Total cost / episode: **$1.2346**
-- p50 / p95 latency: 48.19s / 143.16s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 852 calls)
-- Parse failure rate: 0.1%
-- Extraction methods: `json_array_direct`: 851, `parse_failure`: 1
-- Verbosity: 749/852 calls over 1024 output tokens (87.9%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 384
-- Extra keys observed: end_text, sponsor
+- Segment category named on 716/716 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `claude-sonnet-4-6`
 
-- F1 (avg across episodes): **0.786**
-- Total cost / episode: **$3.5376**
-- p50 / p95 latency: 1.44s / 6.04s
-- JSON compliance: 0.96
-- JSON mode: prompt-inject (0% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 783, `markdown_code_block`: 57, `regex_json_array`: 15
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 461
-- Extra keys observed: end_text, sponsor
-
-#### `google/gemini-2.5-flash`
-
-- F1 (avg across episodes): **0.777**
-- Total cost / episode: **$0.3435**
-- p50 / p95 latency: 0.99s / 3.59s
+- F1 (avg across episodes): **0.799**
+- Total cost / episode: **$3.2386**
+- p50 / p95 latency: 4.11s / 83.49s
 - JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 855
 - Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 710
-- Extra keys observed: end_text, sponsor
+- Segment category named on 516/516 detections (100%); the rest stay uncategorized (resolver: production)
 
-#### `claude-opus-4-8`
+#### `x-ai/grok-4.5`
 
-- F1 (avg across episodes): **0.767**
-- Total cost / episode: **$7.8217**
-- p50 / p95 latency: 2.21s / 6.42s
-- JSON compliance: 0.99
-- JSON mode: prompt-inject (0% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 836, `json_object_single_ad_truncated`: 3, `regex_json_array`: 16
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 3 salvaged from truncated JSON (0.4%)
-
-#### `google/gemini-3.1-flash-lite`
-
-- F1 (avg across episodes): **0.756**
-- Total cost / episode: **$0.2762**
-- p50 / p95 latency: 0.79s / 1.44s
-- JSON compliance: 0.96
+- F1 (avg across episodes): **0.797**
+- Total cost / episode: **$3.3554**
+- p50 / p95 latency: 10.86s / 52.43s
+- JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 799, `regex_json_array`: 56
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 311/855 calls over 1024 output tokens (36.4%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 451/451 detections (100%); the rest stay uncategorized (resolver: production)
 
-#### `openai/gpt-5.5`
+#### `google/gemini-3.6-flash`
 
-- F1 (avg across episodes): **0.750**
-- Total cost / episode: **$6.6806**
-- p50 / p95 latency: 6.38s / 24.05s
-- JSON compliance: 0.87
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.1%
-- Extraction methods: `json_object_no_ads`: 494, `json_object_single_ad`: 360, `parse_failure`: 1
-- Verbosity: 76/855 calls over 1024 output tokens (8.9%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 332
-- Extra keys observed: end_text, sponsor
-
-#### `mistralai/mistral-medium-3.1`
-
-- F1 (avg across episodes): **0.739**
-- Total cost / episode: **$0.4380**
-- p50 / p95 latency: 0.91s / 6.18s
+- F1 (avg across episodes): **0.796**
+- Total cost / episode: **$2.8863**
+- p50 / p95 latency: 4.51s / 10.24s
 - JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 854, `json_object_single_ad_truncated`: 1
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 1 salvaged from truncated JSON (0.1%)
-- Schema violations: 608
-- Extra keys observed: end_text, sponsor
+- Verbosity: 302/855 calls over 1024 output tokens (35.3%); 1 hit max_tokens (0.1%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 414/415 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `x-ai/grok-4.3`
+
+- F1 (avg across episodes): **0.789**
+- Total cost / episode: **$1.6048**
+- p50 / p95 latency: 3.73s / 10.34s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 115/855 calls over 1024 output tokens (13.5%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 684/684 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `google/gemini-3.5-flash`
 
-- F1 (avg across episodes): **0.738**
-- Total cost / episode: **$3.5200**
-- p50 / p95 latency: 5.23s / 11.13s
+- F1 (avg across episodes): **0.787**
+- Total cost / episode: **$3.4202**
+- p50 / p95 latency: 5.59s / 11.20s
 - JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 850, `json_object_single_ad_truncated`: 1, `regex_json_array`: 4
-- Verbosity: 519/855 calls over 1024 output tokens (60.7%); 1 hit max_tokens (0.1%); 1 salvaged from truncated JSON (0.1%)
+- Extraction methods: `json_array_direct`: 852, `regex_json_array`: 3
+- Verbosity: 418/855 calls over 1024 output tokens (48.9%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 439/439 detections (100%); the rest stay uncategorized (resolver: production)
 
-#### `google/gemma-4-31b-it`
+#### `mistralai/mistral-medium-3-5`
 
-- F1 (avg across episodes): **0.729**
-- Total cost / episode: **$0.1291**
-- p50 / p95 latency: 2.21s / 19.39s
-- JSON compliance: 0.85
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.1%
-- Extraction methods: `bracket_fallback`: 1, `json_object_ads_key`: 455, `json_object_no_ads`: 216, `json_object_single_ad`: 180, `json_object_single_ad_truncated`: 2, `parse_failure`: 1
-- Verbosity: 3/855 calls over 1024 output tokens (0.4%); 3 hit max_tokens (0.4%); 2 salvaged from truncated JSON (0.2%)
-- Schema violations: 532
-- Extra keys observed: end_text, sponsor
-
-#### `google/gemini-2.5-pro`
-
-- F1 (avg across episodes): **0.726**
-- Total cost / episode: **$3.8631**
-- p50 / p95 latency: 14.17s / 27.87s
-- JSON compliance: 0.97
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 1.4%
-- Extraction methods: `json_array_direct`: 818, `parse_failure`: 12, `regex_json_array`: 25
-- Verbosity: 673/855 calls over 1024 output tokens (78.7%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 389
-- Extra keys observed: end_text, sponsor
-
-#### `deepseek/deepseek-v4-flash`
-
-- F1 (avg across episodes): **0.725**
-- Total cost / episode: **$0.1182**
-- p50 / p95 latency: 3.67s / 28.76s
-- JSON compliance: 0.81
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 2.0%
-- Extraction methods: `json_array_direct`: 102, `json_object_ads_key`: 435, `json_object_no_ads`: 21, `json_object_segments_key`: 7, `json_object_single_ad`: 272, `parse_failure`: 17, `regex_json_array`: 1
-- Verbosity: 181/855 calls over 1024 output tokens (21.2%); 2 hit max_tokens (0.2%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 631
-- Extra keys observed: end_text, sponsor
-
-#### `minimax/minimax-m3`
-
-- F1 (avg across episodes): **0.720**
-- Total cost / episode: **$0.4367**
-- p50 / p95 latency: 8.80s / 42.72s
-- JSON compliance: 0.88
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 1.6%
-- Extraction methods: `json_array_direct`: 625, `json_object_single_ad_truncated`: 1, `markdown_code_block`: 215, `parse_failure`: 14
-- Verbosity: 159/855 calls over 1024 output tokens (18.6%); 15 hit max_tokens (1.8%); 1 salvaged from truncated JSON (0.1%)
-
-#### `deepseek/deepseek-r1`
-
-- F1 (avg across episodes): **0.702**
-- Total cost / episode: **$1.1157**
-- p50 / p95 latency: 19.86s / 153.13s
-- JSON compliance: 0.97
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.7%
-- Extraction methods: `json_array_direct`: 760, `json_object_ads_key`: 2, `json_object_no_ads`: 17, `json_object_segments_key`: 7, `json_object_single_ad`: 44, `markdown_code_block`: 17, `parse_failure`: 6, `regex_json_array`: 2
-- Verbosity: 152/855 calls over 1024 output tokens (17.8%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 486
-- Extra keys observed: end_text, sponsor
-
-#### `openai/gpt-5.4`
-
-- F1 (avg across episodes): **0.700**
-- Total cost / episode: **$2.5345**
-- p50 / p95 latency: 1.82s / 3.12s
-- JSON compliance: 0.81
+- F1 (avg across episodes): **0.787**
+- Total cost / episode: **$1.8393**
+- p50 / p95 latency: 1.10s / 3.29s
+- JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_object_no_ads`: 326, `json_object_single_ad`: 529
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 398
-- Extra keys observed: end_text, sponsor
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 1/855 calls over 1024 output tokens (0.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 833/833 detections (100%); the rest stay uncategorized (resolver: production)
 
-#### `qwen/qwen3.5-27b`
+#### `openai/gpt-5.5`
 
-- F1 (avg across episodes): **0.683**
-- Total cost / episode: **$3.2163**
-- p50 / p95 latency: 68.74s / 1145.40s
-- JSON compliance: 0.85
+- F1 (avg across episodes): **0.784**
+- Total cost / episode: **$7.6842**
+- p50 / p95 latency: 5.36s / 23.68s
+- JSON compliance: 0.87
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 14.2%
-- Extraction methods: `json_array_direct`: 633, `json_object_no_ads`: 89, `json_object_single_ad`: 12, `parse_failure`: 121
-- Verbosity: 798/855 calls over 1024 output tokens (93.3%); 108 hit max_tokens (12.6%); 0 salvaged from truncated JSON (0.0%)
+- Parse failure rate: 0.4%
+- Extraction methods: `json_object_no_ads`: 489, `json_object_single_ad`: 363, `parse_failure`: 3
+- Verbosity: 108/855 calls over 1024 output tokens (12.6%); 3 hit max_tokens (0.4%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 363/363 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `claude-fable-5`
+
+- F1 (avg across episodes): **0.783**
+- Total cost / episode: **$10.7552**
+- p50 / p95 latency: 6.61s / 68.22s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 566/566 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.5-plus-02-15`
+
+- F1 (avg across episodes): **0.779**
+- Total cost / episode: **$1.0746**
+- p50 / p95 latency: 29.18s / 52.05s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.5%
+- Extraction methods: `json_array_direct`: 851, `parse_failure`: 4
+- Verbosity: 809/855 calls over 1024 output tokens (94.6%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 700/700 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-3.5-flash-lite`
+
+- F1 (avg across episodes): **0.776**
+- Total cost / episode: **$0.3643**
+- p50 / p95 latency: 0.67s / 1.42s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 853, `json_object_single_ad_truncated`: 1, `regex_json_array`: 1
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 664/665 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-5.6-terra`
+
+- F1 (avg across episodes): **0.768**
+- Total cost / episode: **$1.1951**
+- p50 / p95 latency: 2.10s / 6.71s
+- JSON compliance: 0.86
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_no_ads`: 458, `json_object_single_ad`: 397
+- Verbosity: 1/855 calls over 1024 output tokens (0.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 365/365 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `claude-opus-4-8`
+
+- F1 (avg across episodes): **0.760**
+- Total cost / episode: **$5.3661**
+- p50 / p95 latency: 7.76s / 68.92s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 605/605 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-5.6-luna`
+
+- F1 (avg across episodes): **0.754**
+- Total cost / episode: **$0.1402**
+- p50 / p95 latency: 3.46s / 11.35s
+- JSON compliance: 0.83
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 1.1%
+- Extraction methods: `json_object_ads_key`: 32, `json_object_no_ads`: 368, `json_object_single_ad`: 446, `parse_failure`: 9
+- Verbosity: 45/855 calls over 1024 output tokens (5.3%); 9 hit max_tokens (1.1%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 390/390 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-3.1-pro-preview`
+
+- F1 (avg across episodes): **0.752**
+- Total cost / episode: **$4.9160**
+- p50 / p95 latency: 8.35s / 20.73s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 397/855 calls over 1024 output tokens (46.4%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 463/463 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `claude-opus-5`
+
+- F1 (avg across episodes): **0.748**
+- Total cost / episode: **$5.3761**
+- p50 / p95 latency: 3.67s / 64.55s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 547/547 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-3.1-flash-lite`
+
+- F1 (avg across episodes): **0.747**
+- Total cost / episode: **$0.2988**
+- p50 / p95 latency: 0.85s / 2.11s
+- JSON compliance: 0.94
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 771, `json_object_single_ad_truncated`: 1, `regex_json_array`: 83
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 841/842 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.6-flash`
+
+- F1 (avg across episodes): **0.747**
+- Total cost / episode: **$0.5435**
+- p50 / p95 latency: 7.55s / 19.48s
+- JSON compliance: 0.96
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 3.5%
+- Extraction methods: `json_array_direct`: 820, `json_object_single_ad_truncated`: 5, `parse_failure`: 30
+- Verbosity: 568/855 calls over 1024 output tokens (66.4%); 35 hit max_tokens (4.1%); 5 salvaged from truncated JSON (0.6%)
+- Segment category named on 415/420 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.7-max`
+
+- F1 (avg across episodes): **0.746**
+- Total cost / episode: **$2.8109**
+- p50 / p95 latency: 23.41s / 62.65s
+- JSON compliance: 0.99
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.5%
+- Extraction methods: `json_array_direct`: 833, `json_object_single_ad`: 8, `json_object_single_ad_truncated`: 10, `parse_failure`: 4
+- Verbosity: 507/855 calls over 1024 output tokens (59.3%); 14 hit max_tokens (1.6%); 10 salvaged from truncated JSON (1.2%)
+- Segment category named on 752/762 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-5.6-sol`
+
+- F1 (avg across episodes): **0.738**
+- Total cost / episode: **$6.2293**
+- p50 / p95 latency: 3.72s / 11.86s
+- JSON compliance: 0.84
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_ads_key`: 53, `json_object_no_ads`: 368, `json_object_segments_key`: 3, `json_object_single_ad`: 431
+- Verbosity: 9/855 calls over 1024 output tokens (1.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 411/412 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `claude-sonnet-5`
+
+- F1 (avg across episodes): **0.732**
+- Total cost / episode: **$2.1452**
+- p50 / p95 latency: 8.48s / 66.02s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 854, `json_object_single_ad`: 1
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 612/612 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `claude-opus-4-7`
 
-- F1 (avg across episodes): **0.669**
-- Total cost / episode: **$7.8054**
-- p50 / p95 latency: 2.17s / 4.21s
+- F1 (avg across episodes): **0.731**
+- Total cost / episode: **$5.3293**
+- p50 / p95 latency: 4.60s / 66.02s
 - JSON compliance: 1.00
-- JSON mode: prompt-inject (0% native, 855 calls)
+- JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 850, `regex_json_array`: 5
+- Extraction methods: `json_array_direct`: 855
 - Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 341
-- Extra keys observed: end_text, sponsor
+- Segment category named on 615/615 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `deepseek/deepseek-v4-flash`
+
+- F1 (avg across episodes): **0.708**
+- Total cost / episode: **$0.2046**
+- p50 / p95 latency: 6.27s / 40.26s
+- JSON compliance: 0.82
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 5.5%
+- Extraction methods: `json_array_direct`: 93, `json_object_ads_key`: 175, `json_object_no_ads`: 266, `json_object_segments_key`: 6, `json_object_single_ad`: 268, `parse_failure`: 47
+- Verbosity: 299/855 calls over 1024 output tokens (35.0%); 46 hit max_tokens (5.4%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 362/362 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.7-flash`
+
+- F1 (avg across episodes): **0.706**
+- Total cost / episode: **$0.0725**
+- p50 / p95 latency: 10.14s / 27.58s
+- JSON compliance: 0.96
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 3.9%
+- Extraction methods: `json_array_direct`: 810, `json_object_single_ad_truncated`: 12, `parse_failure`: 33
+- Verbosity: 559/855 calls over 1024 output tokens (65.4%); 44 hit max_tokens (5.1%); 12 salvaged from truncated JSON (1.4%)
+- Segment category named on 377/388 detections (97%); the rest stay uncategorized (resolver: production)
+
+#### `moonshotai/kimi-k3`
+
+- F1 (avg across episodes): **0.703**
+- Total cost / episode: **$5.9242**
+- p50 / p95 latency: 13.78s / 96.34s
+- JSON compliance: 0.81
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 5.8%
+- Extraction methods: `json_array_direct`: 361, `json_object_ads_key`: 181, `json_object_no_ads`: 27, `json_object_single_ad`: 6, `json_object_single_ad_truncated`: 122, `parse_failure`: 50, `regex_json_array`: 108
+- Verbosity: 276/855 calls over 1024 output tokens (32.3%); 53 hit max_tokens (6.2%); 122 salvaged from truncated JSON (14.3%)
+- Segment category named on 264/386 detections (68%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-2.5-pro`
+
+- F1 (avg across episodes): **0.700**
+- Total cost / episode: **$4.1601**
+- p50 / p95 latency: 14.22s / 34.09s
+- JSON compliance: 0.96
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 1.4%
+- Extraction methods: `json_array_direct`: 805, `json_object_single_ad_truncated`: 9, `parse_failure`: 12, `regex_json_array`: 29
+- Verbosity: 637/855 calls over 1024 output tokens (74.5%); 9 hit max_tokens (1.1%); 9 salvaged from truncated JSON (1.1%)
+- Segment category named on 504/512 detections (98%); the rest stay uncategorized (resolver: production)
+
+#### `mistralai/mistral-medium-3.1`
+
+- F1 (avg across episodes): **0.699**
+- Total cost / episode: **$0.4847**
+- p50 / p95 latency: 0.74s / 7.65s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 705/705 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-2.5-flash`
+
+- F1 (avg across episodes): **0.694**
+- Total cost / episode: **$0.3796**
+- p50 / p95 latency: 0.83s / 2.21s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 852, `json_object_single_ad_truncated`: 3
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 973/975 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `openai/gpt-oss-120b`
 
-- F1 (avg across episodes): **0.653**
-- Total cost / episode: **$0.0643**
-- p50 / p95 latency: 2.96s / 34.40s
-- JSON compliance: 0.70
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 17.4%
-- Extraction methods: `json_array_direct`: 68, `json_object_ads_key`: 235, `json_object_no_ads`: 186, `json_object_single_ad`: 188, `json_object_single_ad_truncated`: 6, `parse_failure`: 149, `regex_json_array`: 23
-- Verbosity: 162/855 calls over 1024 output tokens (18.9%); 2 hit max_tokens (0.2%); 6 salvaged from truncated JSON (0.7%)
-
-#### `openai/gpt-5.4-mini`
-
-- F1 (avg across episodes): **0.651**
-- Total cost / episode: **$0.7644**
-- p50 / p95 latency: 1.18s / 2.24s
-- JSON compliance: 0.81
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_object_ads_key`: 2, `json_object_no_ads`: 300, `json_object_segments_key`: 2, `json_object_single_ad`: 551
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-
-#### `google/gemini-2.5-flash-lite`
-
-- F1 (avg across episodes): **0.618**
-- Total cost / episode: **$0.1104**
-- p50 / p95 latency: 0.92s / 3.23s
-- JSON compliance: 0.97
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 2.2%
-- Extraction methods: `json_array_direct`: 793, `json_object_single_ad_truncated`: 43, `parse_failure`: 19
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 43 salvaged from truncated JSON (5.0%)
-
-#### `openai/o3`
-
-- F1 (avg across episodes): **0.595**
-- Total cost / episode: **$3.0485**
-- p50 / p95 latency: 8.08s / 27.07s
-- JSON compliance: 0.92
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.6%
-- Extraction methods: `json_object_ads_key`: 34, `json_object_no_ads`: 621, `json_object_segments_key`: 12, `json_object_single_ad`: 183, `parse_failure`: 5
-- Verbosity: 246/855 calls over 1024 output tokens (28.8%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 132
-- Extra keys observed: end_text, sponsor
-
-#### `meta-llama/llama-4-scout`
-
-- F1 (avg across episodes): **0.591**
-- Total cost / episode: **$0.0807**
-- p50 / p95 latency: 0.84s / 4.44s
-- JSON compliance: 0.82
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 1.1%
-- Extraction methods: `bracket_fallback`: 37, `json_array_direct`: 5, `json_object_ads_key`: 644, `json_object_no_ads`: 92, `json_object_single_ad`: 62, `parse_failure`: 9, `regex_json_array`: 6
-- Verbosity: 1/855 calls over 1024 output tokens (0.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 507
-- Extra keys observed: end_text, sponsor
-
-#### `nvidia/llama-3.3-nemotron-super-49b-v1.5`
-
-- F1 (avg across episodes): **0.579**
-- Total cost / episode: **$0.2159**
-- p50 / p95 latency: 24.21s / 86.23s
-- JSON compliance: 0.71
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 14.5%
-- Extraction methods: `json_array_direct`: 441, `json_object_single_ad_truncated`: 3, `markdown_code_block`: 257, `parse_failure`: 124, `regex_json_array`: 30
-- Verbosity: 515/855 calls over 1024 output tokens (60.2%); 58 hit max_tokens (6.8%); 3 salvaged from truncated JSON (0.4%)
-- Schema violations: 266
-- Extra keys observed: end_text, sponsor
-
-#### `mistralai/codestral-2508`
-
-- F1 (avg across episodes): **0.577**
-- Total cost / episode: **$0.3241**
-- p50 / p95 latency: 0.73s / 2.24s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 855
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 622
-- Extra keys observed: end_text, sponsor
-
-#### `mistralai/mistral-large-2512`
-
-- F1 (avg across episodes): **0.563**
-- Total cost / episode: **$0.5599**
-- p50 / p95 latency: 2.55s / 6.20s
-- JSON compliance: 1.00
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 855
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 1342
-- Extra keys observed: end_text, sponsor
-
-#### `deepseek/deepseek-r1-0528`
-
-- F1 (avg across episodes): **0.557**
-- Total cost / episode: **$1.0181**
-- p50 / p95 latency: 16.52s / 94.87s
+- F1 (avg across episodes): **0.692**
+- Total cost / episode: **$0.0634**
+- p50 / p95 latency: 6.54s / 44.55s
 - JSON compliance: 0.88
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 9.7%
-- Extraction methods: `json_array_direct`: 700, `json_object_ads_key`: 34, `json_object_no_ads`: 3, `json_object_single_ad`: 30, `json_object_single_ad_truncated`: 3, `markdown_code_block`: 2, `parse_failure`: 83
-- Verbosity: 341/855 calls over 1024 output tokens (39.9%); 38 hit max_tokens (4.4%); 3 salvaged from truncated JSON (0.4%)
-- Schema violations: 694
-- Extra keys observed: end_text, sponsor
-
-#### `qwen/qwen3-235b-a22b-2507`
-
-- F1 (avg across episodes): **0.529**
-- Total cost / episode: **$0.0735**
-- p50 / p95 latency: 2.28s / 7.75s
-- JSON compliance: 0.79
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 173, `json_object_ads_key`: 1, `json_object_no_ads`: 94, `json_object_single_ad`: 587
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-
-#### `meta-llama/llama-4-maverick`
-
-- F1 (avg across episodes): **0.470**
-- Total cost / episode: **$0.1508**
-- p50 / p95 latency: 1.06s / 2.38s
-- JSON compliance: 0.81
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_object_no_ads`: 315, `json_object_single_ad`: 540
-- Verbosity: 3/855 calls over 1024 output tokens (0.4%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 372
-- Extra keys observed: end_text, sponsor
-
-#### `cohere/command-a`
-
-- F1 (avg across episodes): **0.464**
-- Total cost / episode: **$2.6688**
-- p50 / p95 latency: 3.78s / 11.46s
-- JSON compliance: 0.71
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.0%
-- Extraction methods: `json_object_no_ads`: 29, `json_object_single_ad`: 826
-- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 478
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 1.1%
+- Extraction methods: `json_array_direct`: 28, `json_object_ads_key`: 181, `json_object_no_ads`: 429, `json_object_single_ad`: 202, `json_object_single_ad_truncated`: 1, `parse_failure`: 9, `regex_json_array`: 5
+- Verbosity: 224/855 calls over 1024 output tokens (26.2%); 3 hit max_tokens (0.4%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 700/701 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `deepseek/deepseek-v4-pro`
 
-- F1 (avg across episodes): **0.424**
-- Total cost / episode: **$0.6376**
-- p50 / p95 latency: 26.42s / 101.25s
+- F1 (avg across episodes): **0.680**
+- Total cost / episode: **$0.6692**
+- p50 / p95 latency: 16.17s / 68.15s
 - JSON compliance: 0.87
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 2.7%
-- Extraction methods: `json_array_direct`: 229, `json_object_ads_key`: 63, `json_object_no_ads`: 131, `json_object_segments_key`: 314, `json_object_single_ad`: 86, `json_object_single_ad_truncated`: 2, `markdown_code_block`: 5, `parse_failure`: 23, `regex_json_array`: 2
-- Verbosity: 433/855 calls over 1024 output tokens (50.6%); 15 hit max_tokens (1.8%); 2 salvaged from truncated JSON (0.2%)
+- Parse failure rate: 5.3%
+- Extraction methods: `json_array_direct`: 434, `json_object_ads_key`: 10, `json_object_no_ads`: 39, `json_object_segments_key`: 205, `json_object_single_ad`: 118, `json_object_single_ad_truncated`: 3, `parse_failure`: 45, `regex_json_array`: 1
+- Verbosity: 376/855 calls over 1024 output tokens (44.0%); 39 hit max_tokens (4.6%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 282/288 detections (98%); the rest stay uncategorized (resolver: production)
 
-#### `moonshotai/kimi-k2.6`
+#### `google/gemma-4-31b-it`
 
-- F1 (avg across episodes): **0.422**
-- Total cost / episode: **$2.2593**
-- p50 / p95 latency: 35.30s / 160.11s
-- JSON compliance: 0.57
+- F1 (avg across episodes): **0.667**
+- Total cost / episode: **$0.1181**
+- p50 / p95 latency: 2.45s / 11.72s
+- JSON compliance: 0.87
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 28.0%
-- Extraction methods: `json_array_direct`: 68, `json_object_ads_key`: 35, `json_object_no_ads`: 109, `json_object_segments_key`: 2, `json_object_single_ad`: 397, `markdown_code_block`: 5, `parse_failure`: 239
-- Verbosity: 767/855 calls over 1024 output tokens (89.7%); 113 hit max_tokens (13.2%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 234
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 14, `json_object_ads_key`: 378, `json_object_no_ads`: 283, `json_object_single_ad`: 180
+- Verbosity: 4/855 calls over 1024 output tokens (0.5%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 569/569 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-5.4`
+
+- F1 (avg across episodes): **0.634**
+- Total cost / episode: **$2.7907**
+- p50 / p95 latency: 1.43s / 2.57s
+- JSON compliance: 0.80
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_no_ads`: 274, `json_object_single_ad`: 581
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 470/470 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `minimax/minimax-m3`
+
+- F1 (avg across episodes): **0.626**
+- Total cost / episode: **$0.3575**
+- p50 / p95 latency: 1.68s / 6.67s
+- JSON compliance: 0.88
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.5%
+- Extraction methods: `json_array_direct`: 340, `json_object_ads_key`: 4, `json_object_no_ads`: 262, `json_object_single_ad`: 48, `markdown_code_block`: 188, `parse_failure`: 4, `regex_json_array`: 9
+- Verbosity: 18/855 calls over 1024 output tokens (2.1%); 2 hit max_tokens (0.2%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 470/471 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemini-2.5-flash-lite`
+
+- F1 (avg across episodes): **0.623**
+- Total cost / episode: **$0.1132**
+- p50 / p95 latency: 0.84s / 1.75s
+- JSON compliance: 0.97
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 2.0%
+- Extraction methods: `json_array_direct`: 791, `json_object_single_ad_truncated`: 47, `parse_failure`: 17
+- Verbosity: 6/855 calls over 1024 output tokens (0.7%); 0 hit max_tokens (0.0%); 47 salvaged from truncated JSON (5.5%)
+- Segment category named on 945/987 detections (96%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.6-plus`
+
+- F1 (avg across episodes): **0.607**
+- Total cost / episode: **$1.1534**
+- p50 / p95 latency: 36.91s / 70.77s
+- JSON compliance: 0.90
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 10.1%
+- Extraction methods: `json_array_direct`: 748, `json_object_single_ad_truncated`: 21, `parse_failure`: 86
+- Verbosity: 789/855 calls over 1024 output tokens (92.3%); 107 hit max_tokens (12.5%); 21 salvaged from truncated JSON (2.5%)
+- Segment category named on 444/464 detections (96%); the rest stay uncategorized (resolver: production)
+
+#### `z-ai/glm-5.2`
+
+- F1 (avg across episodes): **0.606**
+- Total cost / episode: **$0.7376**
+- p50 / p95 latency: 3.55s / 24.22s
+- JSON compliance: 0.73
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 3.4%
+- Extraction methods: `json_array_direct`: 5, `json_object_ad_key`: 4, `json_object_ads_key`: 95, `json_object_no_ads`: 86, `json_object_single_ad`: 635, `json_object_single_ad_truncated`: 1, `parse_failure`: 29
+- Verbosity: 103/855 calls over 1024 output tokens (12.0%); 6 hit max_tokens (0.7%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 522/529 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `deepseek/deepseek-v4-flash-0731`
+
+- F1 (avg across episodes): **0.601**
+- Total cost / episode: **$0.1482**
+- p50 / p95 latency: 13.20s / 61.85s
+- JSON compliance: 0.73
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 18.5%
+- Extraction methods: `json_array_direct`: 224, `json_object_ads_key`: 9, `json_object_no_ads`: 222, `json_object_single_ad`: 238, `json_object_single_ad_truncated`: 3, `parse_failure`: 158, `regex_json_array`: 1
+- Verbosity: 394/855 calls over 1024 output tokens (46.1%); 155 hit max_tokens (18.1%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 215/218 detections (99%); the rest stay uncategorized (resolver: production)
 
 #### `deepseek/deepseek-v3.2`
 
-- F1 (avg across episodes): **0.416**
-- Total cost / episode: **$0.2328**
-- p50 / p95 latency: 2.67s / 7.32s
-- JSON compliance: 0.88
+- F1 (avg across episodes): **0.599**
+- Total cost / episode: **$0.3015**
+- p50 / p95 latency: 1.74s / 10.84s
+- JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_array_direct`: 501, `json_object_ads_key`: 16, `json_object_no_ads`: 3, `json_object_single_ad`: 335
+- Extraction methods: `json_array_direct`: 853, `json_object_ads_key`: 2
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 432/432 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `meta/muse-spark-1.1`
+
+- F1 (avg across episodes): **0.595**
+- Total cost / episode: **$2.2536**
+- p50 / p95 latency: 4.31s / 13.59s
+- JSON compliance: 0.93
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.5%
+- Extraction methods: `json_object_ads_key`: 28, `json_object_no_ads`: 643, `json_object_segments_key`: 3, `json_object_single_ad`: 175, `json_object_single_ad_truncated`: 2, `parse_failure`: 4
+- Verbosity: 432/855 calls over 1024 output tokens (50.5%); 6 hit max_tokens (0.7%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 235/236 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-5.4-mini`
+
+- F1 (avg across episodes): **0.582**
+- Total cost / episode: **$0.8470**
+- p50 / p95 latency: 1.13s / 2.45s
+- JSON compliance: 0.78
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_no_ads`: 218, `json_object_single_ad`: 637
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 599/599 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `nvidia/nemotron-3-super-120b-a12b`
+
+- F1 (avg across episodes): **0.577**
+- Total cost / episode: **$0.2194**
+- p50 / p95 latency: 22.33s / 248.36s
+- JSON compliance: 0.79
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 14.9%
+- Extraction methods: `json_array_direct`: 520, `json_object_ads_key`: 1, `json_object_no_ads`: 40, `json_object_single_ad`: 160, `json_object_single_ad_truncated`: 6, `parse_failure`: 127, `regex_json_array`: 1
+- Verbosity: 486/855 calls over 1024 output tokens (56.8%); 128 hit max_tokens (15.0%); 6 salvaged from truncated JSON (0.7%)
+- Segment category named on 284/290 detections (98%); the rest stay uncategorized (resolver: production)
+
+#### `deepseek/deepseek-r1`
+
+- F1 (avg across episodes): **0.574**
+- Total cost / episode: **$1.4743**
+- p50 / p95 latency: 35.66s / 195.41s
+- JSON compliance: 0.84
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 9.9%
+- Extraction methods: `json_array_direct`: 494, `json_object_ads_key`: 182, `json_object_segments_key`: 1, `json_object_single_ad`: 90, `json_object_single_ad_truncated`: 3, `parse_failure`: 85
+- Verbosity: 387/855 calls over 1024 output tokens (45.3%); 88 hit max_tokens (10.3%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 654/657 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `google/gemma-4-26b-a4b-it`
+
+- F1 (avg across episodes): **0.572**
+- Total cost / episode: **$0.0825**
+- p50 / p95 latency: 1.40s / 6.52s
+- JSON compliance: 0.84
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_ads_key`: 73, `json_object_no_ads`: 372, `json_object_single_ad`: 410
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 495/495 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.5-27b`
+
+- F1 (avg across episodes): **0.567**
+- Total cost / episode: **$0.8941**
+- p50 / p95 latency: 37.62s / 126.80s
+- JSON compliance: 0.70
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 29.6%
+- Extraction methods: `json_array_direct`: 460, `json_object_no_ads`: 124, `json_object_single_ad`: 17, `json_object_single_ad_truncated`: 1, `parse_failure`: 253
+- Verbosity: 574/855 calls over 1024 output tokens (67.1%); 132 hit max_tokens (15.4%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 272/273 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `mistralai/mistral-large-2512`
+
+- F1 (avg across episodes): **0.547**
+- Total cost / episode: **$0.6184**
+- p50 / p95 latency: 3.28s / 7.58s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 1280/1280 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `deepseek/deepseek-r1-0528`
+
+- F1 (avg across episodes): **0.540**
+- Total cost / episode: **$1.1645**
+- p50 / p95 latency: 29.36s / 208.22s
+- JSON compliance: 0.84
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 11.2%
+- Extraction methods: `json_array_direct`: 535, `json_object_ads_key`: 154, `json_object_no_ads`: 7, `json_object_segments_key`: 4, `json_object_single_ad`: 55, `json_object_single_ad_truncated`: 4, `parse_failure`: 96
+- Verbosity: 391/855 calls over 1024 output tokens (45.7%); 100 hit max_tokens (11.7%); 4 salvaged from truncated JSON (0.5%)
+- Segment category named on 644/650 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-oss-20b`
+
+- F1 (avg across episodes): **0.540**
+- Total cost / episode: **$0.0620**
+- p50 / p95 latency: 9.18s / 51.77s
+- JSON compliance: 0.80
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 11.6%
+- Extraction methods: `json_array_direct`: 26, `json_object_ads_key`: 121, `json_object_no_ads`: 430, `json_object_single_ad`: 176, `json_object_single_ad_truncated`: 3, `parse_failure`: 99
+- Verbosity: 349/855 calls over 1024 output tokens (40.8%); 94 hit max_tokens (11.0%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 486/490 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `meta-llama/llama-4-maverick`
+
+- F1 (avg across episodes): **0.522**
+- Total cost / episode: **$0.2206**
+- p50 / p95 latency: 1.12s / 3.59s
+- JSON compliance: 0.79
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_no_ads`: 259, `json_object_single_ad`: 596
 - Verbosity: 1/855 calls over 1024 output tokens (0.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 263
-- Extra keys observed: end_text, sponsor
+- Segment category named on 476/476 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.7-plus`
+
+- F1 (avg across episodes): **0.506**
+- Total cost / episode: **$0.7238**
+- p50 / p95 latency: 23.68s / 62.94s
+- JSON compliance: 0.80
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 2.6%
+- Extraction methods: `json_array_direct`: 242, `json_object_ads_key`: 3, `json_object_no_ads`: 86, `json_object_single_ad`: 500, `json_object_single_ad_truncated`: 2, `parse_failure`: 22
+- Verbosity: 678/855 calls over 1024 output tokens (79.3%); 23 hit max_tokens (2.7%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 859/863 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `mistralai/codestral-2508`
+
+- F1 (avg across episodes): **0.504**
+- Total cost / episode: **$0.3585**
+- p50 / p95 latency: 0.88s / 2.54s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 820/820 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3-235b-a22b-2507`
+
+- F1 (avg across episodes): **0.499**
+- Total cost / episode: **$0.1078**
+- p50 / p95 latency: 2.51s / 7.43s
+- JSON compliance: 0.84
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 227, `json_object_no_ads`: 169, `json_object_single_ad`: 459
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 633/633 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `meta-llama/llama-3.3-70b-instruct`
 
-- F1 (avg across episodes): **0.395**
-- Total cost / episode: **$0.1008**
-- p50 / p95 latency: 1.47s / 4.82s
-- JSON compliance: 0.55
+- F1 (avg across episodes): **0.493**
+- Total cost / episode: **$0.1107**
+- p50 / p95 latency: 1.29s / 8.60s
+- JSON compliance: 0.88
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 35.1%
-- Extraction methods: `json_array_direct`: 143, `json_object_ads_key`: 1, `json_object_no_ads`: 144, `json_object_single_ad`: 264, `parse_failure`: 300, `regex_json_array`: 3
-- Verbosity: 1/855 calls over 1024 output tokens (0.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 378
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 147, `json_object_no_ads`: 380, `json_object_single_ad`: 322, `json_object_single_ad_truncated`: 4, `regex_json_array`: 2
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 4 salvaged from truncated JSON (0.5%)
+- Segment category named on 466/470 detections (99%); the rest stay uncategorized (resolver: production)
 
-#### `nvidia/nemotron-nano-9b-v2`
+#### `tencent/hy3`
 
-- F1 (avg across episodes): **0.316**
-- Total cost / episode: **$0.0813**
-- p50 / p95 latency: 12.05s / 36.70s
-- JSON compliance: 0.92
+- F1 (avg across episodes): **0.489**
+- Total cost / episode: **$0.3876**
+- p50 / p95 latency: 22.27s / 59.98s
+- JSON compliance: 0.62
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 6.5%
-- Extraction methods: `json_array_direct`: 770, `json_object_single_ad_truncated`: 15, `parse_failure`: 56, `regex_json_array`: 14
-- Verbosity: 489/855 calls over 1024 output tokens (57.2%); 11 hit max_tokens (1.3%); 15 salvaged from truncated JSON (1.8%)
-- Schema violations: 476
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 27.6%
+- Extraction methods: `bracket_fallback`: 12, `json_array_direct`: 144, `json_object_ads_key`: 10, `json_object_no_ads`: 198, `json_object_single_ad`: 249, `json_object_single_ad_truncated`: 6, `parse_failure`: 236
+- Verbosity: 786/855 calls over 1024 output tokens (91.9%); 239 hit max_tokens (28.0%); 6 salvaged from truncated JSON (0.7%)
+- Segment category named on 165/171 detections (96%); the rest stay uncategorized (resolver: production)
 
-#### `openai/gpt-3.5-turbo`
+#### `xiaomi/mimo-v2.5`
 
-- F1 (avg across episodes): **0.315**
-- Total cost / episode: **$0.5091**
-- p50 / p95 latency: 1.26s / 1.95s
+- F1 (avg across episodes): **0.471**
+- Total cost / episode: **$0.1692**
+- p50 / p95 latency: 4.16s / 21.43s
+- JSON compliance: 0.73
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 3.0%
+- Extraction methods: `json_object_ads_detected_key`: 1, `json_object_ads_key`: 54, `json_object_no_ads`: 160, `json_object_segments_key`: 2, `json_object_single_ad`: 492, `json_object_single_ad_truncated`: 48, `markdown_code_block`: 18, `parse_failure`: 26, `regex_json_array`: 54
+- Verbosity: 36/855 calls over 1024 output tokens (4.2%); 20 hit max_tokens (2.3%); 48 salvaged from truncated JSON (5.6%)
+- Segment category named on 533/587 detections (91%); the rest stay uncategorized (resolver: production)
+
+#### `openai/o3`
+
+- F1 (avg across episodes): **0.457**
+- Total cost / episode: **$3.3100**
+- p50 / p95 latency: 6.66s / 20.44s
+- JSON compliance: 0.93
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.7%
+- Extraction methods: `json_object_ads_key`: 87, `json_object_no_ads`: 613, `json_object_segments_key`: 30, `json_object_single_ad`: 119, `parse_failure`: 6
+- Verbosity: 280/855 calls over 1024 output tokens (32.7%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 140/140 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `nvidia/nemotron-3-ultra-550b-a55b`
+
+- F1 (avg across episodes): **0.453**
+- Total cost / episode: **$0.7782**
+- p50 / p95 latency: 1.24s / 5.94s
+- JSON compliance: 0.89
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.4%
+- Extraction methods: `json_array_direct`: 448, `json_object_ads_key`: 59, `json_object_no_ads`: 56, `json_object_segments_key`: 37, `json_object_single_ad`: 252, `parse_failure`: 3
+- Verbosity: 25/855 calls over 1024 output tokens (2.9%); 1 hit max_tokens (0.1%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 229/229 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `meta-llama/llama-4-scout`
+
+- F1 (avg across episodes): **0.442**
+- Total cost / episode: **$0.1111**
+- p50 / p95 latency: 0.93s / 4.49s
+- JSON compliance: 0.83
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 3.2%
+- Extraction methods: `bracket_fallback`: 31, `json_array_direct`: 56, `json_object_ads_key`: 349, `json_object_no_ads`: 262, `json_object_segments_key`: 10, `json_object_single_ad`: 110, `json_object_single_ad_truncated`: 3, `parse_failure`: 27, `regex_json_array`: 7
+- Verbosity: 9/855 calls over 1024 output tokens (1.1%); 0 hit max_tokens (0.0%); 3 salvaged from truncated JSON (0.4%)
+- Segment category named on 473/479 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `xiaomi/mimo-v2.5-pro`
+
+- F1 (avg across episodes): **0.438**
+- Total cost / episode: **$0.4954**
+- p50 / p95 latency: 2.19s / 6.41s
+- JSON compliance: 0.90
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 2.6%
+- Extraction methods: `json_object_ads_detected_key`: 1, `json_object_ads_key`: 133, `json_object_advertisement_segments_key`: 7, `json_object_no_ads`: 552, `json_object_segments_key`: 11, `json_object_single_ad`: 119, `json_object_single_ad_truncated`: 5, `parse_failure`: 22, `regex_json_array`: 5
+- Verbosity: 9/855 calls over 1024 output tokens (1.1%); 1 hit max_tokens (0.1%); 5 salvaged from truncated JSON (0.6%)
+- Segment category named on 267/274 detections (97%); the rest stay uncategorized (resolver: production)
+
+#### `cohere/command-a`
+
+- F1 (avg across episodes): **0.425**
+- Total cost / episode: **$2.9415**
+- p50 / p95 latency: 1.72s / 2.92s
 - JSON compliance: 0.71
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.6%
-- Extraction methods: `json_object_no_ads`: 50, `json_object_single_ad`: 800, `parse_failure`: 5
+- Parse failure rate: 0.0%
+- Extraction methods: `json_object_no_ads`: 21, `json_object_single_ad`: 834
 - Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 593
-- Extra keys observed: end_text, sponsor
+- Segment category named on 653/655 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `moonshotai/kimi-k2.6`
+
+- F1 (avg across episodes): **0.401**
+- Total cost / episode: **$1.8854**
+- p50 / p95 latency: 55.69s / 164.28s
+- JSON compliance: 0.63
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 29.7%
+- Extraction methods: `json_array_direct`: 270, `json_object_ads_key`: 57, `json_object_no_ads`: 77, `json_object_segments_key`: 3, `json_object_single_ad`: 188, `json_object_single_ad_truncated`: 6, `parse_failure`: 254
+- Verbosity: 826/855 calls over 1024 output tokens (96.6%); 260 hit max_tokens (30.4%); 6 salvaged from truncated JSON (0.7%)
+- Segment category named on 194/202 detections (96%); the rest stay uncategorized (resolver: production)
+
+#### `stepfun/step-3.7-flash`
+
+- F1 (avg across episodes): **0.398**
+- Total cost / episode: **$0.4302**
+- p50 / p95 latency: 13.87s / 35.00s
+- JSON compliance: 0.56
+- JSON mode: native (100% native, 725 calls)
+- Parse failure rate: 32.3%
+- Extraction methods: `json_object_ads_key`: 380, `json_object_no_ads`: 4, `json_object_single_ad`: 103, `json_object_single_ad_truncated`: 4, `parse_failure`: 234
+- Verbosity: 388/725 calls over 1024 output tokens (53.5%); 238 hit max_tokens (32.8%); 4 salvaged from truncated JSON (0.6%)
+- Segment category named on 89/92 detections (97%); the rest stay uncategorized (resolver: production)
+
+#### `meituan/longcat-2.0`
+
+- F1 (avg across episodes): **0.390**
+- Total cost / episode: **$0.5573**
+- p50 / p95 latency: 10.53s / 77.08s
+- JSON compliance: 0.42
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 50.2%
+- Extraction methods: `json_object_ads_key`: 414, `json_object_no_ads`: 8, `json_object_single_ad`: 1, `json_object_single_ad_truncated`: 2, `parse_failure`: 429, `regex_json_array`: 1
+- Verbosity: 287/855 calls over 1024 output tokens (33.6%); 92 hit max_tokens (10.8%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 263/265 detections (99%); the rest stay uncategorized (resolver: production)
 
 #### `deepseek/deepseek-r1-distill-llama-70b`
 
-- F1 (avg across episodes): **0.261**
-- Total cost / episode: **$0.7331**
-- p50 / p95 latency: 1.98s / 51.21s
-- JSON compliance: 0.74
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 1.8%
-- Extraction methods: `json_array_direct`: 20, `json_object_ads_key`: 68, `json_object_no_ads`: 104, `json_object_single_ad`: 642, `json_object_single_ad_truncated`: 5, `parse_failure`: 15, `regex_json_array`: 1
-- Verbosity: 57/855 calls over 1024 output tokens (6.7%); 17 hit max_tokens (2.0%); 5 salvaged from truncated JSON (0.6%)
-- Schema violations: 474
-- Extra keys observed: end_text, sponsor
+- F1 (avg across episodes): **0.387**
+- Total cost / episode: **$0.6913**
+- p50 / p95 latency: 27.21s / 97.56s
+- JSON compliance: 0.39
+- JSON mode: prompt-inject (0% native, 855 calls)
+- Parse failure rate: 15.8%
+- Extraction methods: `json_array_direct`: 36, `json_object_single_ad_truncated`: 1, `markdown_code_block`: 110, `parse_failure`: 135, `regex_json_array`: 573
+- Verbosity: 241/855 calls over 1024 output tokens (28.2%); 57 hit max_tokens (6.7%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 360/385 detections (94%); the rest stay uncategorized (resolver: production)
 
 #### `qwen/qwen3-14b`
 
-- F1 (avg across episodes): **0.260**
-- Total cost / episode: **$0.1261**
-- p50 / p95 latency: 20.91s / 63.42s
-- JSON compliance: 0.28
+- F1 (avg across episodes): **0.385**
+- Total cost / episode: **$0.3989**
+- p50 / p95 latency: 14.39s / 59.03s
+- JSON compliance: 0.60
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 60.4%
-- Extraction methods: `json_object_no_ads`: 1, `json_object_single_ad`: 338, `parse_failure`: 516
-- Verbosity: 91/855 calls over 1024 output tokens (10.6%); 10 hit max_tokens (1.2%); 0 salvaged from truncated JSON (0.0%)
-
-#### `meta-llama/llama-3.1-8b-instruct`
-
-- F1 (avg across episodes): **0.251**
-- Total cost / episode: **$0.0207**
-- p50 / p95 latency: 0.79s / 4.04s
-- JSON compliance: 0.85
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 0.1%
-- Extraction methods: `json_array_direct`: 371, `json_object_no_ads`: 66, `json_object_single_ad`: 417, `parse_failure`: 1
-- Verbosity: 26/855 calls over 1024 output tokens (3.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 1270
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 15.3%
+- Extraction methods: `json_object_no_ads`: 10, `json_object_single_ad`: 712, `json_object_single_ad_truncated`: 2, `parse_failure`: 131
+- Verbosity: 155/855 calls over 1024 output tokens (18.1%); 23 hit max_tokens (2.7%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 318/318 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `cohere/command-r-plus-08-2024`
 
-- F1 (avg across episodes): **0.162**
-- Total cost / episode: **$2.5787**
-- p50 / p95 latency: 0.95s / 3.45s
-- JSON compliance: 0.98
+- F1 (avg across episodes): **0.381**
+- Total cost / episode: **$2.8505**
+- p50 / p95 latency: 1.13s / 16.24s
+- JSON compliance: 0.93
 - JSON mode: native (100% native, 855 calls)
 - Parse failure rate: 0.0%
-- Extraction methods: `json_object_ads_key`: 27, `json_object_no_ads`: 783, `json_object_single_ad`: 45
+- Extraction methods: `json_object_ads_key`: 5, `json_object_no_ads`: 661, `json_object_single_ad`: 189
 - Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 132
-- Extra keys observed: end_text, sponsor
+- Segment category named on 196/196 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `thinkingmachines/inkling-small`
+
+- F1 (avg across episodes): **0.358**
+- Total cost / episode: **$1.0333**
+- p50 / p95 latency: 18.51s / 30.60s
+- JSON compliance: 0.58
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 29.2%
+- Extraction methods: `json_object_no_ads`: 281, `json_object_single_ad`: 284, `json_object_single_ad_truncated`: 4, `parse_failure`: 250, `regex_json_array`: 36
+- Verbosity: 715/855 calls over 1024 output tokens (83.6%); 290 hit max_tokens (33.9%); 4 salvaged from truncated JSON (0.5%)
+- Segment category named on 251/260 detections (97%); the rest stay uncategorized (resolver: production)
+
+#### `inclusionai/ring-2.6-1t`
+
+- F1 (avg across episodes): **0.337**
+- Total cost / episode: **$0.2468**
+- p50 / p95 latency: 10.75s / 35.76s
+- JSON compliance: 0.81
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 12.9%
+- Extraction methods: `bracket_fallback`: 1, `json_object_no_ads`: 568, `json_object_segments_key`: 6, `json_object_single_ad`: 168, `json_object_single_ad_truncated`: 2, `parse_failure`: 110
+- Verbosity: 479/855 calls over 1024 output tokens (56.0%); 111 hit max_tokens (13.0%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 167/169 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `openai/gpt-3.5-turbo`
+
+- F1 (avg across episodes): **0.310**
+- Total cost / episode: **$0.5564**
+- p50 / p95 latency: 1.38s / 1.96s
+- JSON compliance: 0.70
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.6%
+- Extraction methods: `json_object_no_ads`: 19, `json_object_single_ad`: 831, `parse_failure`: 5
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 767/767 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `microsoft/phi-4`
 
-- F1 (avg across episodes): **0.157**
-- Total cost / episode: **$0.0713**
-- p50 / p95 latency: 2.29s / 11.55s
-- JSON compliance: 0.86
+- F1 (avg across episodes): **0.299**
+- Total cost / episode: **$0.0792**
+- p50 / p95 latency: 0.49s / 5.50s
+- JSON compliance: 0.98
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 1.1%
-- Extraction methods: `json_array_direct`: 421, `json_object_ads_key`: 31, `json_object_no_ads`: 27, `json_object_segments_key`: 20, `json_object_single_ad`: 335, `json_object_window_segments`: 2, `parse_failure`: 9, `regex_json_array`: 10
-- Verbosity: 19/855 calls over 1024 output tokens (2.2%); 12 hit max_tokens (1.4%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 412
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 1.5%
+- Extraction methods: `json_array_direct`: 828, `json_object_no_ads`: 4, `json_object_single_ad`: 3, `json_object_single_ad_truncated`: 7, `parse_failure`: 13
+- Verbosity: 21/855 calls over 1024 output tokens (2.5%); 20 hit max_tokens (2.3%); 7 salvaged from truncated JSON (0.8%)
+- Segment category named on 292/298 detections (98%); the rest stay uncategorized (resolver: production)
+
+#### `qwen/qwen3.8-max`
+
+- F1 (avg across episodes): **0.272**
+- Total cost / episode: **$4.2714**
+- p50 / p95 latency: 29.66s / 90.22s
+- JSON compliance: 0.73
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 26.9%
+- Extraction methods: `json_array_direct`: 621, `json_object_single_ad`: 3, `json_object_single_ad_truncated`: 1, `parse_failure`: 230
+- Verbosity: 456/855 calls over 1024 output tokens (53.3%); 231 hit max_tokens (27.0%); 1 salvaged from truncated JSON (0.1%)
+- Segment category named on 113/114 detections (99%); the rest stay uncategorized (resolver: production)
+
+#### `meta-llama/llama-3.1-8b-instruct`
+
+- F1 (avg across episodes): **0.259**
+- Total cost / episode: **$0.0572**
+- p50 / p95 latency: 0.93s / 4.34s
+- JSON compliance: 0.82
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 208, `json_object_no_ads`: 138, `json_object_single_ad`: 509
+- Verbosity: 45/855 calls over 1024 output tokens (5.3%); 5 hit max_tokens (0.6%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 1525/1525 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `thinkingmachines/inkling`
+
+- F1 (avg across episodes): **0.225**
+- Total cost / episode: **$3.2258**
+- p50 / p95 latency: 65.91s / 324.88s
+- JSON compliance: 0.35
+- JSON mode: native (100% native, 846 calls)
+- Parse failure rate: 50.8%
+- Extraction methods: `bracket_fallback`: 81, `json_object_ads_key`: 3, `json_object_no_ads`: 142, `json_object_single_ad`: 188, `json_object_single_ad_truncated`: 2, `parse_failure`: 430
+- Verbosity: 703/846 calls over 1024 output tokens (83.1%); 505 hit max_tokens (59.7%); 2 salvaged from truncated JSON (0.2%)
+- Segment category named on 77/79 detections (97%); the rest stay uncategorized (resolver: production)
 
 #### `openai/o4-mini`
 
-- F1 (avg across episodes): **0.075**
-- Total cost / episode: **$1.8999**
-- p50 / p95 latency: 6.95s / 25.84s
-- JSON compliance: 0.05
+- F1 (avg across episodes): **0.135**
+- Total cost / episode: **$2.1179**
+- p50 / p95 latency: 7.34s / 25.55s
+- JSON compliance: 0.07
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 93.9%
-- Extraction methods: `json_object_no_ads`: 19, `json_object_single_ad`: 33, `parse_failure`: 803
-- Verbosity: 340/855 calls over 1024 output tokens (39.8%); 12 hit max_tokens (1.4%); 0 salvaged from truncated JSON (0.0%)
-- Schema violations: 28
-- Extra keys observed: end_text, sponsor
+- Parse failure rate: 91.0%
+- Extraction methods: `json_object_no_ads`: 24, `json_object_segments_key`: 1, `json_object_single_ad`: 52, `parse_failure`: 778
+- Verbosity: 380/855 calls over 1024 output tokens (44.4%); 17 hit max_tokens (2.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 52/52 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `mistralai/mistral-small-2603`
+
+- F1 (avg across episodes): **0.019**
+- Total cost / episode: **$0.1745**
+- p50 / p95 latency: 0.66s / 1.16s
+- JSON compliance: 1.00
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 0.0%
+- Extraction methods: `json_array_direct`: 855
+- Verbosity: 0/855 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 20/20 detections (100%); the rest stay uncategorized (resolver: production)
 
 #### `qwen/qwen3-8b`
 
-- F1 (avg across episodes): **0.005**
-- Total cost / episode: **$0.2578**
-- p50 / p95 latency: 59.45s / 144.22s
-- JSON compliance: 0.01
-- JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 97.4%
-- Extraction methods: `bracket_fallback`: 18, `json_array_direct`: 4, `parse_failure`: 833
-- Verbosity: 588/855 calls over 1024 output tokens (68.8%); 119 hit max_tokens (13.9%); 0 salvaged from truncated JSON (0.0%)
-
-#### `mistralai/mistral-7b-instruct-v0.1`
-
 - F1 (avg across episodes): **0.000**
-- Total cost / episode: **$0.0000**
-- p50 / p95 latency: 7.11s / 33.05s
-- JSON compliance: 0.16
+- Total cost / episode: **$0.3256**
+- p50 / p95 latency: 39.80s / 170.51s
+- JSON compliance: 0.10
 - JSON mode: native (100% native, 855 calls)
-- Parse failure rate: 59.5%
-- Extraction methods: `bracket_fallback`: 1, `parse_failure`: 509, `regex_json_array`: 345
-- Verbosity: 15/855 calls over 1024 output tokens (1.8%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
+- Parse failure rate: 88.9%
+- Extraction methods: `bracket_fallback`: 15, `json_array_direct`: 1, `json_object_no_ads`: 79, `parse_failure`: 760
+- Verbosity: 547/855 calls over 1024 output tokens (64.0%); 263 hit max_tokens (30.8%); 0 salvaged from truncated JSON (0.0%)
+- Segment category named on 1/1 detections (100%); the rest stay uncategorized (resolver: production)
 
 
 ### Per-Episode Detail
@@ -1492,52 +2189,81 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
+| `claude-fable-5` | PASS | 0 |
 | `claude-haiku-4-5-20251001` | PASS | 0 |
 | `claude-opus-4-7` | PASS | 0 |
 | `claude-opus-4-8` | PASS | 0 |
+| `claude-opus-5` | PASS | 0 |
 | `claude-sonnet-4-6` | PASS | 0 |
+| `claude-sonnet-5` | PASS | 0 |
 | `cohere/command-r-plus-08-2024` | PASS | 0 |
 | `deepseek/deepseek-v3.2` | PASS | 0 |
-| `deepseek/deepseek-v4-pro` | PASS | 0 |
+| `deepseek/deepseek-v4-flash` | PASS | 0 |
+| `deepseek/deepseek-v4-flash-0731` | PASS | 0 |
 | `google/gemini-2.5-flash` | PASS | 0 |
+| `google/gemini-3.1-pro-preview` | PASS | 0 |
 | `google/gemini-3.5-flash` | PASS | 0 |
+| `google/gemini-3.5-flash-lite` | PASS | 0 |
+| `google/gemini-3.6-flash` | PASS | 0 |
+| `inclusionai/ring-2.6-1t` | PASS | 0 |
+| `meituan/longcat-2.0` | PASS | 0 |
 | `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
 | `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
-| `meta-llama/llama-4-scout` | PASS | 0 |
-| `minimax/minimax-m3` | PASS | 0 |
+| `meta/muse-spark-1.1` | PASS | 0 |
+| `microsoft/phi-4` | PASS | 0 |
 | `mistralai/codestral-2508` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
+| `mistralai/mistral-medium-3-5` | PASS | 0 |
 | `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
+| `mistralai/mistral-small-2603` | PASS | 0 |
+| `openai/gpt-5.6-luna` | PASS | 0 |
 | `openai/o3` | PASS | 0 |
 | `openai/o4-mini` | PASS | 0 |
-| `qwen/qwen3-14b` | PASS | 0 |
 | `qwen/qwen3-8b` | PASS | 0 |
 | `qwen/qwen3.5-27b` | PASS | 0 |
 | `qwen/qwen3.5-plus-02-15` | PASS | 0 |
+| `qwen/qwen3.6-flash` | PASS | 0 |
 | `qwen/qwen3.6-plus` | PASS | 0 |
+| `qwen/qwen3.7-flash` | PASS | 0 |
+| `qwen/qwen3.7-max` | PASS | 0 |
+| `qwen/qwen3.8-max` | PASS | 0 |
+| `stepfun/step-3.7-flash` | PASS | 0 |
+| `tencent/hy3` | PASS | 0 |
+| `thinkingmachines/inkling` | PASS | 0 |
 | `x-ai/grok-4.3` | PASS | 0 |
+| `x-ai/grok-4.5` | PASS | 0 |
+| `xiaomi/mimo-v2.5-pro` | PASS | 0 |
 | `deepseek/deepseek-r1` | FAIL | 1 |
-| `deepseek/deepseek-v4-flash` | FAIL | 1 |
-| `google/gemini-2.5-flash-lite` | FAIL | 1 |
+| `deepseek/deepseek-r1-0528` | FAIL | 1 |
+| `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 1 |
+| `deepseek/deepseek-v4-pro` | FAIL | 1 |
 | `google/gemini-2.5-pro` | FAIL | 1 |
 | `google/gemini-3.1-flash-lite` | FAIL | 1 |
+| `google/gemma-4-26b-a4b-it` | FAIL | 1 |
 | `google/gemma-4-31b-it` | FAIL | 1 |
 | `meta-llama/llama-4-maverick` | FAIL | 1 |
+| `meta-llama/llama-4-scout` | FAIL | 1 |
+| `minimax/minimax-m3` | FAIL | 1 |
+| `mistralai/mistral-large-2512` | FAIL | 1 |
 | `moonshotai/kimi-k2.6` | FAIL | 1 |
-| `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
+| `moonshotai/kimi-k3` | FAIL | 1 |
+| `nvidia/nemotron-3-super-120b-a12b` | FAIL | 1 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | FAIL | 1 |
 | `openai/gpt-5.4` | FAIL | 1 |
-| `openai/gpt-5.4-mini` | FAIL | 1 |
 | `openai/gpt-5.5` | FAIL | 1 |
 | `openai/gpt-oss-120b` | FAIL | 1 |
-| `qwen/qwen3.6-flash` | FAIL | 1 |
-| `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 2 |
-| `qwen/qwen3-235b-a22b-2507` | FAIL | 2 |
+| `openai/gpt-oss-20b` | FAIL | 1 |
+| `qwen/qwen3-14b` | FAIL | 1 |
+| `qwen/qwen3-235b-a22b-2507` | FAIL | 1 |
+| `thinkingmachines/inkling-small` | FAIL | 1 |
+| `google/gemini-2.5-flash-lite` | FAIL | 2 |
+| `openai/gpt-3.5-turbo` | FAIL | 2 |
+| `openai/gpt-5.4-mini` | FAIL | 2 |
+| `openai/gpt-5.6-terra` | FAIL | 2 |
+| `qwen/qwen3.7-plus` | FAIL | 2 |
+| `xiaomi/mimo-v2.5` | FAIL | 2 |
+| `z-ai/glm-5.2` | FAIL | 2 |
 | `cohere/command-a` | FAIL | 3 |
-| `microsoft/phi-4` | FAIL | 3 |
-| `openai/gpt-3.5-turbo` | FAIL | 3 |
-| `deepseek/deepseek-r1-0528` | FAIL | 27 |
+| `openai/gpt-5.6-sol` | FAIL | 3 |
 
 #### `ep-crime-junkie-8ce498f299d7`: MISSING: Christopher “Cole” Thomas
 
@@ -1548,50 +2274,79 @@ One subsection per episode in the corpus, showing how every model performed on t
 | Model | F1 | F1 stdev |
 |-------|----|----------|
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
+| `claude-opus-5` | 1.000 | 0.000 |
 | `claude-sonnet-4-6` | 1.000 | 0.000 |
+| `deepseek/deepseek-v4-flash` | 1.000 | 0.000 |
 | `google/gemini-2.5-flash` | 1.000 | 0.000 |
-| `google/gemini-2.5-flash-lite` | 1.000 | 0.000 |
-| `google/gemini-3.1-flash-lite` | 1.000 | 0.000 |
-| `google/gemma-4-31b-it` | 1.000 | 0.000 |
-| `meta-llama/llama-4-maverick` | 1.000 | 0.000 |
-| `openai/gpt-3.5-turbo` | 1.000 | 0.000 |
-| `openai/gpt-5.4` | 1.000 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 1.000 | 0.000 |
+| `google/gemini-3.5-flash` | 1.000 | 0.000 |
+| `google/gemini-3.6-flash` | 1.000 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 1.000 | 0.000 |
+| `openai/gpt-5.5` | 1.000 | 0.000 |
+| `openai/gpt-5.6-sol` | 1.000 | 0.000 |
+| `openai/gpt-5.6-terra` | 1.000 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 1.000 | 0.000 |
 | `qwen/qwen3.6-flash` | 1.000 | 0.000 |
-| `qwen/qwen3.6-plus` | 1.000 | 0.000 |
+| `qwen/qwen3.7-flash` | 1.000 | 0.000 |
 | `x-ai/grok-4.3` | 1.000 | 0.000 |
-| `deepseek/deepseek-r1` | 0.971 | 0.064 |
-| `google/gemini-2.5-pro` | 0.971 | 0.064 |
-| `minimax/minimax-m3` | 0.971 | 0.064 |
-| `mistralai/codestral-2508` | 0.950 | 0.112 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.943 | 0.078 |
-| `openai/gpt-5.5` | 0.943 | 0.078 |
-| `google/gemini-3.5-flash` | 0.914 | 0.078 |
-| `qwen/qwen3.5-27b` | 0.914 | 0.078 |
-| `cohere/command-a` | 0.911 | 0.050 |
-| `openai/gpt-5.4-mini` | 0.906 | 0.103 |
-| `claude-opus-4-8` | 0.886 | 0.064 |
-| `mistralai/mistral-medium-3.1` | 0.876 | 0.137 |
-| `openai/gpt-oss-120b` | 0.876 | 0.137 |
-| `openai/o3` | 0.876 | 0.137 |
-| `deepseek/deepseek-v4-flash` | 0.864 | 0.089 |
-| `claude-opus-4-7` | 0.857 | 0.000 |
-| `deepseek/deepseek-v4-pro` | 0.819 | 0.085 |
-| `qwen/qwen3-235b-a22b-2507` | 0.813 | 0.119 |
-| `deepseek/deepseek-r1-0528` | 0.787 | 0.197 |
-| `mistralai/mistral-large-2512` | 0.733 | 0.149 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.702 | 0.259 |
-| `deepseek/deepseek-v3.2` | 0.686 | 0.104 |
-| `microsoft/phi-4` | 0.562 | 0.136 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.547 | 0.268 |
-| `moonshotai/kimi-k2.6` | 0.547 | 0.203 |
-| `nvidia/nemotron-nano-9b-v2` | 0.450 | 0.201 |
-| `meta-llama/llama-4-scout` | 0.358 | 0.203 |
-| `qwen/qwen3-14b` | 0.190 | 0.294 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.168 | 0.159 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
+| `claude-opus-4-7` | 0.978 | 0.050 |
+| `mistralai/mistral-medium-3.1` | 0.978 | 0.050 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.971 | 0.064 |
+| `qwen/qwen3.6-plus` | 0.971 | 0.064 |
+| `openai/gpt-5.4-mini` | 0.956 | 0.061 |
+| `x-ai/grok-4.5` | 0.956 | 0.061 |
+| `google/gemini-3.1-flash-lite` | 0.950 | 0.112 |
+| `google/gemma-4-26b-a4b-it` | 0.950 | 0.112 |
+| `qwen/qwen3.7-max` | 0.950 | 0.112 |
+| `google/gemini-2.5-flash-lite` | 0.943 | 0.078 |
+| `openai/gpt-oss-120b` | 0.943 | 0.078 |
+| `openai/gpt-oss-20b` | 0.943 | 0.078 |
+| `claude-sonnet-5` | 0.938 | 0.091 |
+| `claude-fable-5` | 0.933 | 0.061 |
+| `google/gemini-2.5-pro` | 0.933 | 0.061 |
+| `moonshotai/kimi-k3` | 0.933 | 0.061 |
+| `openai/gpt-5.6-luna` | 0.933 | 0.061 |
+| `mistralai/mistral-large-2512` | 0.933 | 0.149 |
+| `z-ai/glm-5.2` | 0.910 | 0.124 |
+| `deepseek/deepseek-v4-flash-0731` | 0.905 | 0.147 |
+| `claude-opus-4-8` | 0.889 | 0.000 |
+| `meta-llama/llama-4-maverick` | 0.889 | 0.000 |
+| `stepfun/step-3.7-flash` | 0.886 | 0.064 |
+| `google/gemini-3.5-flash-lite` | 0.876 | 0.137 |
+| `google/gemma-4-31b-it` | 0.876 | 0.137 |
+| `deepseek/deepseek-r1` | 0.857 | 0.175 |
+| `deepseek/deepseek-v3.2` | 0.857 | 0.000 |
+| `deepseek/deepseek-v4-pro` | 0.851 | 0.260 |
+| `xiaomi/mimo-v2.5` | 0.843 | 0.151 |
+| `openai/gpt-5.4` | 0.818 | 0.040 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.813 | 0.162 |
+| `meta/muse-spark-1.1` | 0.813 | 0.272 |
+| `openai/gpt-3.5-turbo` | 0.803 | 0.057 |
+| `cohere/command-a` | 0.800 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.800 | 0.209 |
+| `mistralai/codestral-2508` | 0.800 | 0.112 |
+| `tencent/hy3` | 0.781 | 0.104 |
+| `qwen/qwen3.7-plus` | 0.744 | 0.091 |
+| `qwen/qwen3-235b-a22b-2507` | 0.731 | 0.152 |
+| `deepseek/deepseek-r1-0528` | 0.728 | 0.097 |
+| `qwen/qwen3-14b` | 0.690 | 0.163 |
+| `xiaomi/mimo-v2.5-pro` | 0.651 | 0.163 |
+| `cohere/command-r-plus-08-2024` | 0.613 | 0.119 |
+| `meta-llama/llama-4-scout` | 0.600 | 0.091 |
+| `moonshotai/kimi-k2.6` | 0.581 | 0.144 |
+| `thinkingmachines/inkling-small` | 0.530 | 0.314 |
+| `inclusionai/ring-2.6-1t` | 0.507 | 0.146 |
+| `minimax/minimax-m3` | 0.507 | 0.146 |
+| `openai/o3` | 0.507 | 0.146 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.373 | 0.037 |
+| `qwen/qwen3.5-27b` | 0.373 | 0.239 |
+| `thinkingmachines/inkling` | 0.307 | 0.174 |
+| `qwen/qwen3.8-max` | 0.280 | 0.284 |
+| `microsoft/phi-4` | 0.237 | 0.229 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.200 | 0.209 |
+| `openai/o4-mini` | 0.160 | 0.219 |
+| `meituan/longcat-2.0` | 0.000 | 0.000 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-daily-gist-chicago-70a82fe93a5c`: Suburban apartment market heats up
@@ -1603,51 +2358,80 @@ One subsection per episode in the corpus, showing how every model performed on t
 | Model | F1 | F1 stdev |
 |-------|----|----------|
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
-| `google/gemini-2.5-flash` | 1.000 | 0.000 |
-| `google/gemini-3.1-flash-lite` | 1.000 | 0.000 |
-| `qwen/qwen3-235b-a22b-2507` | 0.880 | 0.110 |
-| `openai/gpt-5.4-mini` | 0.833 | 0.236 |
-| `claude-sonnet-4-6` | 0.800 | 0.183 |
-| `qwen/qwen3.6-flash` | 0.800 | 0.274 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.700 | 0.183 |
-| `mistralai/codestral-2508` | 0.667 | 0.000 |
-| `mistralai/mistral-medium-3.1` | 0.667 | 0.000 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.667 | 0.000 |
-| `qwen/qwen3.5-27b` | 0.667 | 0.204 |
-| `qwen/qwen3.6-plus` | 0.667 | 0.000 |
-| `deepseek/deepseek-r1-0528` | 0.647 | 0.228 |
-| `deepseek/deepseek-r1` | 0.633 | 0.217 |
-| `meta-llama/llama-4-scout` | 0.627 | 0.376 |
-| `minimax/minimax-m3` | 0.600 | 0.224 |
-| `nvidia/nemotron-nano-9b-v2` | 0.600 | 0.365 |
-| `openai/gpt-oss-120b` | 0.600 | 0.365 |
-| `qwen/qwen3.5-plus-02-15` | 0.600 | 0.091 |
-| `x-ai/grok-4.3` | 0.533 | 0.075 |
-| `deepseek/deepseek-v4-flash` | 0.527 | 0.313 |
-| `claude-opus-4-8` | 0.500 | 0.000 |
-| `google/gemini-2.5-flash-lite` | 0.500 | 0.000 |
-| `google/gemini-2.5-pro` | 0.500 | 0.000 |
+| `google/gemini-3.5-flash-lite` | 1.000 | 0.000 |
+| `google/gemma-4-26b-a4b-it` | 0.920 | 0.110 |
+| `inclusionai/ring-2.6-1t` | 0.867 | 0.183 |
+| `openai/gpt-oss-120b` | 0.820 | 0.205 |
+| `claude-opus-4-8` | 0.800 | 0.000 |
+| `google/gemini-2.5-flash-lite` | 0.800 | 0.000 |
+| `google/gemini-3.1-flash-lite` | 0.800 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 0.800 | 0.000 |
+| `openai/gpt-5.4-mini` | 0.800 | 0.000 |
+| `openai/gpt-oss-20b` | 0.780 | 0.179 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.760 | 0.219 |
+| `mistralai/mistral-medium-3.1` | 0.747 | 0.073 |
+| `stepfun/step-3.7-flash` | 0.733 | 0.435 |
+| `claude-fable-5` | 0.700 | 0.245 |
+| `qwen/qwen3-14b` | 0.680 | 0.164 |
+| `deepseek/deepseek-v4-flash` | 0.673 | 0.239 |
+| `deepseek/deepseek-v4-flash-0731` | 0.667 | 0.408 |
+| `qwen/qwen3.5-27b` | 0.640 | 0.434 |
+| `deepseek/deepseek-v3.2` | 0.633 | 0.075 |
+| `claude-sonnet-4-6` | 0.600 | 0.224 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.593 | 0.379 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.593 | 0.379 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.567 | 0.091 |
+| `claude-sonnet-5` | 0.560 | 0.219 |
+| `minimax/minimax-m3` | 0.533 | 0.298 |
+| `google/gemini-3.1-pro-preview` | 0.500 | 0.000 |
 | `google/gemini-3.5-flash` | 0.500 | 0.000 |
-| `openai/gpt-5.4` | 0.500 | 0.000 |
-| `openai/gpt-5.5` | 0.500 | 0.000 |
-| `google/gemma-4-31b-it` | 0.480 | 0.045 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.453 | 0.307 |
-| `mistralai/mistral-large-2512` | 0.427 | 0.072 |
-| `openai/gpt-3.5-turbo` | 0.420 | 0.045 |
+| `google/gemini-3.6-flash` | 0.500 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.500 | 0.000 |
+| `qwen/qwen3.6-flash` | 0.500 | 0.000 |
+| `qwen/qwen3.7-flash` | 0.500 | 0.000 |
+| `qwen/qwen3.7-max` | 0.500 | 0.000 |
+| `x-ai/grok-4.5` | 0.500 | 0.000 |
+| `qwen/qwen3-235b-a22b-2507` | 0.480 | 0.179 |
+| `moonshotai/kimi-k3` | 0.480 | 0.045 |
+| `google/gemini-2.5-flash` | 0.473 | 0.116 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.473 | 0.306 |
+| `x-ai/grok-4.3` | 0.460 | 0.055 |
+| `deepseek/deepseek-r1-0528` | 0.440 | 0.358 |
+| `meta/muse-spark-1.1` | 0.433 | 0.435 |
+| `qwen/qwen3.6-plus` | 0.433 | 0.253 |
+| `openai/gpt-5.4` | 0.420 | 0.045 |
+| `openai/gpt-5.6-sol` | 0.420 | 0.045 |
+| `meta-llama/llama-4-scout` | 0.413 | 0.433 |
+| `mistralai/mistral-large-2512` | 0.407 | 0.060 |
+| `claude-opus-4-7` | 0.400 | 0.000 |
+| `claude-opus-5` | 0.400 | 0.000 |
 | `cohere/command-a` | 0.400 | 0.000 |
-| `deepseek/deepseek-v3.2` | 0.300 | 0.274 |
-| `claude-opus-4-7` | 0.200 | 0.274 |
-| `deepseek/deepseek-v4-pro` | 0.133 | 0.298 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.100 | 0.224 |
-| `moonshotai/kimi-k2.6` | 0.100 | 0.224 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
+| `google/gemini-2.5-pro` | 0.400 | 0.000 |
+| `google/gemma-4-31b-it` | 0.400 | 0.000 |
+| `mistralai/codestral-2508` | 0.400 | 0.224 |
+| `openai/gpt-3.5-turbo` | 0.400 | 0.000 |
+| `openai/gpt-5.5` | 0.400 | 0.000 |
+| `openai/gpt-5.6-luna` | 0.400 | 0.000 |
+| `openai/gpt-5.6-terra` | 0.400 | 0.000 |
+| `qwen/qwen3.7-plus` | 0.400 | 0.000 |
+| `xiaomi/mimo-v2.5-pro` | 0.400 | 0.365 |
+| `deepseek/deepseek-r1` | 0.360 | 0.207 |
+| `meta-llama/llama-4-maverick` | 0.320 | 0.179 |
+| `z-ai/glm-5.2` | 0.320 | 0.179 |
+| `deepseek/deepseek-v4-pro` | 0.280 | 0.259 |
+| `cohere/command-r-plus-08-2024` | 0.267 | 0.365 |
+| `meituan/longcat-2.0` | 0.233 | 0.325 |
+| `thinkingmachines/inkling-small` | 0.160 | 0.219 |
+| `openai/o4-mini` | 0.133 | 0.298 |
+| `tencent/hy3` | 0.100 | 0.224 |
+| `moonshotai/kimi-k2.6` | 0.080 | 0.179 |
+| `xiaomi/mimo-v2.5` | 0.080 | 0.179 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `openai/o3` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
-| `qwen/qwen3-14b` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
+| `qwen/qwen3.8-max` | 0.000 | 0.000 |
+| `thinkingmachines/inkling` | 0.000 | 0.000 |
 
 #### `ep-daily-tech-news-show-b576979e1fe8`: Motorola Razr Fold is a Noble Competitor to the Galaxy Z Fold 7 - DTNS 5269
 
@@ -1658,50 +2442,79 @@ One subsection per episode in the corpus, showing how every model performed on t
 | Model | F1 | F1 stdev |
 |-------|----|----------|
 | `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
+| `claude-opus-4-7` | 1.000 | 0.000 |
+| `claude-opus-5` | 1.000 | 0.000 |
 | `claude-sonnet-4-6` | 1.000 | 0.000 |
-| `google/gemini-2.5-flash` | 1.000 | 0.000 |
-| `mistralai/mistral-large-2512` | 0.978 | 0.050 |
-| `google/gemini-3.1-flash-lite` | 0.971 | 0.064 |
-| `x-ai/grok-4.3` | 0.971 | 0.064 |
-| `minimax/minimax-m3` | 0.943 | 0.078 |
-| `openai/gpt-5.4-mini` | 0.943 | 0.078 |
-| `qwen/qwen3.6-flash` | 0.943 | 0.078 |
-| `deepseek/deepseek-v4-flash` | 0.933 | 0.061 |
-| `deepseek/deepseek-r1` | 0.914 | 0.078 |
-| `moonshotai/kimi-k2.6` | 0.914 | 0.078 |
-| `qwen/qwen3.6-plus` | 0.914 | 0.078 |
-| `deepseek/deepseek-r1-0528` | 0.911 | 0.145 |
-| `openai/gpt-5.4` | 0.892 | 0.062 |
-| `claude-opus-4-7` | 0.886 | 0.064 |
-| `claude-opus-4-8` | 0.886 | 0.064 |
-| `openai/gpt-5.5` | 0.886 | 0.064 |
-| `google/gemini-2.5-pro` | 0.864 | 0.089 |
-| `google/gemini-3.5-flash` | 0.857 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.857 | 0.000 |
-| `google/gemma-4-31b-it` | 0.850 | 0.137 |
-| `openai/o3` | 0.848 | 0.119 |
-| `qwen/qwen3-235b-a22b-2507` | 0.822 | 0.149 |
-| `google/gemini-2.5-flash-lite` | 0.821 | 0.110 |
-| `mistralai/mistral-medium-3.1` | 0.821 | 0.066 |
-| `meta-llama/llama-4-maverick` | 0.771 | 0.048 |
-| `qwen/qwen3.5-27b` | 0.743 | 0.104 |
-| `mistralai/codestral-2508` | 0.698 | 0.079 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.648 | 0.043 |
-| `deepseek/deepseek-v3.2` | 0.622 | 0.153 |
-| `meta-llama/llama-4-scout` | 0.592 | 0.243 |
-| `qwen/qwen3-14b` | 0.518 | 0.332 |
-| `openai/gpt-oss-120b` | 0.507 | 0.164 |
-| `deepseek/deepseek-v4-pro` | 0.507 | 0.146 |
-| `cohere/command-a` | 0.500 | 0.000 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.420 | 0.045 |
-| `nvidia/nemotron-nano-9b-v2` | 0.274 | 0.194 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.231 | 0.132 |
+| `google/gemini-3.5-flash` | 1.000 | 0.000 |
+| `google/gemini-3.6-flash` | 1.000 | 0.000 |
+| `meta-llama/llama-4-maverick` | 1.000 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 1.000 | 0.000 |
+| `openai/gpt-5.4-mini` | 1.000 | 0.000 |
+| `openai/gpt-5.5` | 1.000 | 0.000 |
+| `openai/gpt-5.6-luna` | 1.000 | 0.000 |
+| `openai/gpt-5.6-sol` | 1.000 | 0.000 |
+| `qwen/qwen3.7-max` | 1.000 | 0.000 |
+| `x-ai/grok-4.5` | 1.000 | 0.000 |
+| `claude-fable-5` | 0.978 | 0.050 |
+| `x-ai/grok-4.3` | 0.978 | 0.050 |
+| `google/gemini-2.5-flash-lite` | 0.971 | 0.064 |
+| `claude-opus-4-8` | 0.956 | 0.061 |
+| `google/gemini-3.1-flash-lite` | 0.956 | 0.061 |
+| `google/gemini-3.1-pro-preview` | 0.950 | 0.112 |
+| `openai/gpt-5.6-terra` | 0.950 | 0.112 |
+| `google/gemini-2.5-pro` | 0.943 | 0.078 |
+| `moonshotai/kimi-k3` | 0.943 | 0.078 |
+| `qwen/qwen3.6-flash` | 0.921 | 0.114 |
+| `claude-sonnet-5` | 0.911 | 0.145 |
+| `mistralai/mistral-large-2512` | 0.893 | 0.071 |
+| `google/gemma-4-31b-it` | 0.893 | 0.107 |
+| `google/gemini-3.5-flash-lite` | 0.892 | 0.062 |
+| `google/gemini-2.5-flash` | 0.889 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.889 | 0.000 |
+| `deepseek/deepseek-v4-flash` | 0.886 | 0.064 |
+| `openai/gpt-5.4` | 0.878 | 0.125 |
+| `deepseek/deepseek-v4-pro` | 0.876 | 0.137 |
+| `openai/gpt-oss-120b` | 0.855 | 0.149 |
+| `deepseek/deepseek-r1` | 0.848 | 0.119 |
+| `moonshotai/kimi-k2.6` | 0.819 | 0.195 |
+| `z-ai/glm-5.2` | 0.813 | 0.162 |
+| `mistralai/codestral-2508` | 0.800 | 0.112 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.785 | 0.255 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.774 | 0.126 |
+| `qwen/qwen3.7-flash` | 0.771 | 0.192 |
+| `meta/muse-spark-1.1` | 0.771 | 0.152 |
+| `deepseek/deepseek-r1-0528` | 0.744 | 0.198 |
+| `tencent/hy3` | 0.743 | 0.104 |
+| `qwen/qwen3-235b-a22b-2507` | 0.709 | 0.206 |
+| `deepseek/deepseek-v4-flash-0731` | 0.706 | 0.189 |
+| `qwen/qwen3.6-plus` | 0.686 | 0.104 |
+| `deepseek/deepseek-v3.2` | 0.667 | 0.000 |
+| `cohere/command-a` | 0.667 | 0.000 |
+| `qwen/qwen3.7-plus` | 0.667 | 0.000 |
+| `meta-llama/llama-4-scout` | 0.651 | 0.163 |
+| `xiaomi/mimo-v2.5` | 0.649 | 0.175 |
+| `meituan/longcat-2.0` | 0.613 | 0.119 |
+| `qwen/qwen3.5-27b` | 0.598 | 0.197 |
+| `thinkingmachines/inkling-small` | 0.592 | 0.206 |
+| `minimax/minimax-m3` | 0.547 | 0.166 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.547 | 0.117 |
+| `openai/o3` | 0.545 | 0.209 |
+| `qwen/qwen3-14b` | 0.529 | 0.039 |
+| `inclusionai/ring-2.6-1t` | 0.522 | 0.118 |
+| `xiaomi/mimo-v2.5-pro` | 0.518 | 0.332 |
+| `mistralai/mistral-medium-3.1` | 0.444 | 0.000 |
+| `google/gemma-4-26b-a4b-it` | 0.428 | 0.103 |
+| `microsoft/phi-4` | 0.427 | 0.138 |
+| `thinkingmachines/inkling` | 0.427 | 0.273 |
+| `openai/gpt-oss-20b` | 0.421 | 0.144 |
+| `qwen/qwen3.8-max` | 0.320 | 0.179 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.274 | 0.181 |
+| `stepfun/step-3.7-flash` | 0.240 | 0.219 |
 | `openai/gpt-3.5-turbo` | 0.222 | 0.000 |
-| `microsoft/phi-4` | 0.160 | 0.219 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.160 | 0.219 |
 | `openai/o4-mini` | 0.147 | 0.202 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.067 | 0.149 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.133 | 0.183 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-daily-tech-news-show-c1904b8605f7`: Switch 2 Prices Rise, Forecast Drops - DTNS 5265
@@ -1712,52 +2525,81 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `qwen/qwen3.5-plus-02-15` | 0.653 | 0.030 |
-| `qwen/qwen3.6-flash` | 0.653 | 0.030 |
-| `openai/gpt-5.5` | 0.633 | 0.075 |
-| `claude-sonnet-4-6` | 0.627 | 0.037 |
-| `google/gemini-3.1-flash-lite` | 0.600 | 0.000 |
-| `google/gemini-3.5-flash` | 0.600 | 0.000 |
-| `google/gemma-4-31b-it` | 0.600 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.600 | 0.000 |
-| `moonshotai/kimi-k2.6` | 0.600 | 0.091 |
-| `claude-opus-4-8` | 0.589 | 0.024 |
-| `qwen/qwen3.5-27b` | 0.582 | 0.082 |
-| `google/gemini-2.5-pro` | 0.578 | 0.030 |
-| `minimax/minimax-m3` | 0.569 | 0.045 |
-| `deepseek/deepseek-v4-flash` | 0.569 | 0.070 |
-| `openai/gpt-5.4` | 0.567 | 0.091 |
-| `mistralai/mistral-medium-3.1` | 0.556 | 0.024 |
-| `mistralai/codestral-2508` | 0.551 | 0.187 |
-| `x-ai/grok-4.3` | 0.547 | 0.064 |
-| `google/gemini-2.5-flash` | 0.545 | 0.000 |
+| `claude-opus-4-7` | 0.767 | 0.130 |
+| `openai/gpt-5.5` | 0.667 | 0.000 |
+| `openai/gpt-5.4` | 0.653 | 0.030 |
+| `openai/gpt-5.6-terra` | 0.653 | 0.030 |
+| `openai/gpt-3.5-turbo` | 0.622 | 0.099 |
+| `deepseek/deepseek-v3.2` | 0.616 | 0.052 |
+| `openai/gpt-5.6-luna` | 0.609 | 0.096 |
+| `qwen/qwen3.6-flash` | 0.602 | 0.043 |
+| `qwen/qwen3.7-flash` | 0.602 | 0.043 |
+| `openai/gpt-5.6-sol` | 0.600 | 0.115 |
+| `google/gemini-3.6-flash` | 0.589 | 0.024 |
+| `mistralai/mistral-medium-3-5` | 0.589 | 0.024 |
+| `deepseek/deepseek-v4-pro` | 0.581 | 0.084 |
+| `google/gemini-3.1-pro-preview` | 0.578 | 0.030 |
+| `google/gemini-3.5-flash` | 0.578 | 0.030 |
+| `moonshotai/kimi-k3` | 0.578 | 0.030 |
+| `x-ai/grok-4.3` | 0.578 | 0.030 |
+| `xiaomi/mimo-v2.5` | 0.569 | 0.135 |
+| `claude-haiku-4-5-20251001` | 0.567 | 0.030 |
+| `google/gemini-3.1-flash-lite` | 0.567 | 0.030 |
+| `claude-opus-5` | 0.564 | 0.094 |
+| `claude-sonnet-4-6` | 0.556 | 0.024 |
+| `google/gemini-2.5-flash-lite` | 0.545 | 0.000 |
 | `mistralai/mistral-large-2512` | 0.545 | 0.000 |
-| `openai/gpt-oss-120b` | 0.545 | 0.076 |
-| `openai/gpt-5.4-mini` | 0.524 | 0.157 |
-| `deepseek/deepseek-r1` | 0.507 | 0.082 |
-| `google/gemini-2.5-flash-lite` | 0.489 | 0.083 |
-| `openai/o3` | 0.486 | 0.166 |
-| `openai/gpt-3.5-turbo` | 0.444 | 0.000 |
-| `meta-llama/llama-4-scout` | 0.432 | 0.133 |
-| `deepseek/deepseek-r1-0528` | 0.417 | 0.107 |
-| `deepseek/deepseek-v3.2` | 0.396 | 0.120 |
-| `cohere/command-r-plus-08-2024` | 0.384 | 0.154 |
-| `deepseek/deepseek-v4-pro` | 0.381 | 0.241 |
-| `claude-haiku-4-5-20251001` | 0.378 | 0.020 |
-| `claude-opus-4-7` | 0.378 | 0.119 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.364 | 0.250 |
-| `cohere/command-a` | 0.356 | 0.122 |
-| `qwen/qwen3-235b-a22b-2507` | 0.308 | 0.106 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.228 | 0.012 |
-| `meta-llama/llama-4-maverick` | 0.228 | 0.012 |
-| `microsoft/phi-4` | 0.144 | 0.221 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.129 | 0.118 |
-| `nvidia/nemotron-nano-9b-v2` | 0.124 | 0.124 |
-| `qwen/qwen3-14b` | 0.114 | 0.256 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.084 | 0.116 |
+| `qwen/qwen3.5-plus-02-15` | 0.545 | 0.000 |
+| `openai/gpt-5.4-mini` | 0.533 | 0.122 |
+| `claude-fable-5` | 0.529 | 0.044 |
+| `claude-opus-4-8` | 0.527 | 0.025 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.512 | 0.158 |
+| `x-ai/grok-4.5` | 0.509 | 0.020 |
+| `z-ai/glm-5.2` | 0.508 | 0.147 |
+| `google/gemini-3.5-flash-lite` | 0.502 | 0.113 |
+| `google/gemini-2.5-flash` | 0.500 | 0.000 |
+| `claude-sonnet-5` | 0.492 | 0.017 |
+| `google/gemini-2.5-pro` | 0.490 | 0.039 |
+| `meta-llama/llama-4-maverick` | 0.480 | 0.110 |
+| `google/gemma-4-31b-it` | 0.476 | 0.070 |
+| `openai/gpt-oss-120b` | 0.475 | 0.136 |
+| `qwen/qwen3.7-plus` | 0.468 | 0.144 |
+| `qwen/qwen3.7-max` | 0.462 | 0.000 |
+| `meta/muse-spark-1.1` | 0.456 | 0.072 |
+| `meituan/longcat-2.0` | 0.436 | 0.158 |
+| `cohere/command-a` | 0.436 | 0.020 |
+| `qwen/qwen3-235b-a22b-2507` | 0.436 | 0.020 |
+| `mistralai/mistral-medium-3.1` | 0.429 | 0.133 |
+| `minimax/minimax-m3` | 0.429 | 0.044 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.422 | 0.115 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.417 | 0.181 |
+| `qwen/qwen3.5-27b` | 0.417 | 0.096 |
+| `xiaomi/mimo-v2.5-pro` | 0.414 | 0.138 |
+| `deepseek/deepseek-r1-0528` | 0.411 | 0.098 |
+| `deepseek/deepseek-v4-flash` | 0.402 | 0.089 |
+| `cohere/command-r-plus-08-2024` | 0.361 | 0.115 |
+| `openai/o3` | 0.356 | 0.210 |
+| `deepseek/deepseek-r1` | 0.352 | 0.108 |
+| `qwen/qwen3.6-plus` | 0.336 | 0.242 |
+| `mistralai/codestral-2508` | 0.307 | 0.126 |
+| `deepseek/deepseek-v4-flash-0731` | 0.295 | 0.021 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.295 | 0.104 |
+| `openai/gpt-oss-20b` | 0.279 | 0.157 |
+| `meta-llama/llama-4-scout` | 0.256 | 0.046 |
+| `microsoft/phi-4` | 0.239 | 0.015 |
+| `qwen/qwen3.8-max` | 0.231 | 0.132 |
+| `tencent/hy3` | 0.229 | 0.128 |
+| `moonshotai/kimi-k2.6` | 0.181 | 0.166 |
+| `google/gemma-4-26b-a4b-it` | 0.170 | 0.184 |
+| `thinkingmachines/inkling-small` | 0.150 | 0.224 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.133 | 0.199 |
+| `thinkingmachines/inkling` | 0.124 | 0.170 |
+| `qwen/qwen3-14b` | 0.089 | 0.122 |
 | `openai/o4-mini` | 0.067 | 0.149 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `inclusionai/ring-2.6-1t` | 0.057 | 0.128 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
+| `stepfun/step-3.7-flash` | 0.000 | 0.000 |
 
 #### `ep-drink-champs-30c9a2d49f13`: Episode 501 w/ Warren Sapp
 
@@ -1767,52 +2609,80 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
-| `x-ai/grok-4.3` | 0.946 | 0.065 |
-| `claude-sonnet-4-6` | 0.938 | 0.021 |
-| `claude-opus-4-8` | 0.916 | 0.037 |
-| `qwen/qwen3.6-plus` | 0.867 | 0.025 |
-| `google/gemini-2.5-flash` | 0.857 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.842 | 0.000 |
-| `google/gemini-2.5-pro` | 0.821 | 0.030 |
-| `qwen/qwen3.6-flash` | 0.804 | 0.092 |
-| `google/gemini-3.1-flash-lite` | 0.803 | 0.024 |
-| `openai/o3` | 0.789 | 0.133 |
-| `openai/gpt-5.5` | 0.766 | 0.149 |
-| `google/gemma-4-31b-it` | 0.723 | 0.144 |
-| `minimax/minimax-m3` | 0.705 | 0.094 |
-| `google/gemini-2.5-flash-lite` | 0.698 | 0.086 |
-| `deepseek/deepseek-r1` | 0.679 | 0.086 |
-| `openai/gpt-5.4` | 0.676 | 0.106 |
-| `qwen/qwen3.5-27b` | 0.675 | 0.102 |
-| `openai/gpt-5.4-mini` | 0.595 | 0.087 |
-| `mistralai/mistral-large-2512` | 0.574 | 0.090 |
-| `google/gemini-3.5-flash` | 0.562 | 0.015 |
-| `mistralai/mistral-medium-3.1` | 0.550 | 0.064 |
-| `deepseek/deepseek-v4-flash` | 0.532 | 0.102 |
-| `deepseek/deepseek-v4-pro` | 0.420 | 0.039 |
-| `claude-opus-4-7` | 0.393 | 0.050 |
-| `mistralai/codestral-2508` | 0.343 | 0.119 |
-| `cohere/command-r-plus-08-2024` | 0.330 | 0.191 |
-| `meta-llama/llama-4-maverick` | 0.316 | 0.000 |
-| `deepseek/deepseek-v3.2` | 0.301 | 0.056 |
-| `deepseek/deepseek-r1-0528` | 0.260 | 0.104 |
-| `openai/gpt-oss-120b` | 0.247 | 0.086 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.224 | 0.056 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.208 | 0.093 |
-| `qwen/qwen3-235b-a22b-2507` | 0.185 | 0.131 |
-| `nvidia/nemotron-nano-9b-v2` | 0.156 | 0.026 |
-| `meta-llama/llama-4-scout` | 0.147 | 0.048 |
-| `microsoft/phi-4` | 0.059 | 0.081 |
-| `moonshotai/kimi-k2.6` | 0.054 | 0.075 |
-| `qwen/qwen3-14b` | 0.047 | 0.065 |
-| `openai/gpt-3.5-turbo` | 0.040 | 0.037 |
-| `openai/o4-mini` | 0.040 | 0.089 |
-| `cohere/command-a` | 0.034 | 0.047 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.024 | 0.053 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.967 | 0.049 |
+| `google/gemini-3.5-flash-lite` | 0.959 | 0.042 |
+| `claude-haiku-4-5-20251001` | 0.937 | 0.086 |
+| `x-ai/grok-4.5` | 0.899 | 0.023 |
+| `claude-sonnet-4-6` | 0.891 | 0.005 |
+| `google/gemini-3.5-flash` | 0.873 | 0.055 |
+| `claude-opus-4-8` | 0.870 | 0.026 |
+| `claude-opus-5` | 0.863 | 0.041 |
+| `deepseek/deepseek-v3.2` | 0.859 | 0.038 |
+| `google/gemini-3.1-flash-lite` | 0.858 | 0.029 |
+| `google/gemini-3.6-flash` | 0.842 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 0.834 | 0.019 |
+| `mistralai/mistral-medium-3-5` | 0.833 | 0.064 |
+| `google/gemini-2.5-pro` | 0.829 | 0.029 |
+| `claude-opus-4-7` | 0.825 | 0.037 |
+| `openai/gpt-5.5` | 0.823 | 0.055 |
+| `mistralai/mistral-medium-3.1` | 0.821 | 0.047 |
+| `x-ai/grok-4.3` | 0.814 | 0.168 |
+| `claude-sonnet-5` | 0.806 | 0.070 |
+| `google/gemini-2.5-flash` | 0.800 | 0.041 |
+| `minimax/minimax-m3` | 0.798 | 0.105 |
+| `openai/gpt-5.6-luna` | 0.778 | 0.000 |
+| `openai/gpt-5.6-terra` | 0.774 | 0.064 |
+| `claude-fable-5` | 0.770 | 0.017 |
+| `openai/gpt-5.4` | 0.706 | 0.110 |
+| `deepseek/deepseek-v4-flash` | 0.687 | 0.079 |
+| `google/gemma-4-31b-it` | 0.668 | 0.131 |
+| `google/gemini-2.5-flash-lite` | 0.657 | 0.160 |
+| `openai/gpt-5.6-sol` | 0.648 | 0.089 |
+| `qwen/qwen3.6-flash` | 0.641 | 0.085 |
+| `qwen/qwen3.7-max` | 0.628 | 0.187 |
+| `qwen/qwen3.5-27b` | 0.625 | 0.089 |
+| `meta/muse-spark-1.1` | 0.604 | 0.230 |
+| `mistralai/mistral-large-2512` | 0.574 | 0.021 |
+| `openai/gpt-5.4-mini` | 0.563 | 0.123 |
+| `qwen/qwen3.7-flash` | 0.546 | 0.224 |
+| `z-ai/glm-5.2` | 0.543 | 0.069 |
+| `deepseek/deepseek-v4-pro` | 0.532 | 0.190 |
+| `qwen/qwen3.6-plus` | 0.470 | 0.331 |
+| `openai/o3` | 0.464 | 0.202 |
+| `mistralai/codestral-2508` | 0.452 | 0.091 |
+| `deepseek/deepseek-r1-0528` | 0.422 | 0.235 |
+| `moonshotai/kimi-k3` | 0.422 | 0.094 |
+| `google/gemma-4-26b-a4b-it` | 0.412 | 0.213 |
+| `meituan/longcat-2.0` | 0.400 | 0.163 |
+| `qwen/qwen3.7-plus` | 0.394 | 0.046 |
+| `xiaomi/mimo-v2.5` | 0.384 | 0.096 |
+| `xiaomi/mimo-v2.5-pro` | 0.383 | 0.152 |
+| `deepseek/deepseek-v4-flash-0731` | 0.365 | 0.195 |
+| `deepseek/deepseek-r1` | 0.365 | 0.082 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.312 | 0.059 |
+| `openai/gpt-oss-120b` | 0.305 | 0.100 |
+| `meta-llama/llama-4-maverick` | 0.289 | 0.006 |
+| `qwen/qwen3-235b-a22b-2507` | 0.186 | 0.152 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.167 | 0.041 |
+| `openai/gpt-oss-20b` | 0.147 | 0.087 |
+| `cohere/command-r-plus-08-2024` | 0.139 | 0.078 |
+| `thinkingmachines/inkling-small` | 0.133 | 0.122 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.091 | 0.124 |
+| `meta-llama/llama-4-scout` | 0.085 | 0.062 |
+| `openai/gpt-3.5-turbo` | 0.055 | 0.001 |
+| `thinkingmachines/inkling` | 0.042 | 0.083 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.040 | 0.089 |
+| `moonshotai/kimi-k2.6` | 0.036 | 0.081 |
+| `tencent/hy3` | 0.033 | 0.075 |
+| `inclusionai/ring-2.6-1t` | 0.031 | 0.069 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.029 | 0.064 |
+| `qwen/qwen3-14b` | 0.018 | 0.041 |
+| `cohere/command-a` | 0.000 | 0.000 |
+| `microsoft/phi-4` | 0.000 | 0.000 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
+| `qwen/qwen3.8-max` | 0.000 | 0.000 |
 
 #### `ep-glt1412515089-373d5ba5007b`: #2496 - Julia Mossbridge
 
@@ -1822,51 +2692,80 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `openai/gpt-oss-120b` | 1.000 | 0.000 |
-| `google/gemini-2.5-pro` | 0.956 | 0.061 |
-| `google/gemma-4-31b-it` | 0.950 | 0.112 |
-| `google/gemini-3.5-flash` | 0.943 | 0.078 |
-| `deepseek/deepseek-r1` | 0.911 | 0.050 |
-| `deepseek/deepseek-v4-flash` | 0.901 | 0.112 |
-| `minimax/minimax-m3` | 0.892 | 0.062 |
-| `google/gemini-2.5-flash` | 0.889 | 0.000 |
-| `openai/gpt-5.5` | 0.886 | 0.186 |
-| `qwen/qwen3.5-plus-02-15` | 0.886 | 0.064 |
-| `mistralai/mistral-medium-3.1` | 0.883 | 0.089 |
-| `x-ai/grok-4.3` | 0.864 | 0.196 |
+| `google/gemini-2.5-flash` | 1.000 | 0.000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.971 | 0.064 |
+| `openai/gpt-oss-120b` | 0.956 | 0.061 |
+| `openai/gpt-5.6-luna` | 0.949 | 0.070 |
+| `deepseek/deepseek-v4-flash` | 0.921 | 0.114 |
+| `x-ai/grok-4.3` | 0.921 | 0.114 |
+| `openai/gpt-5.5` | 0.914 | 0.078 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.892 | 0.062 |
+| `moonshotai/kimi-k3` | 0.886 | 0.064 |
+| `google/gemma-4-26b-a4b-it` | 0.867 | 0.122 |
+| `claude-fable-5` | 0.857 | 0.000 |
 | `claude-opus-4-7` | 0.857 | 0.000 |
-| `claude-opus-4-8` | 0.857 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.857 | 0.000 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.810 | 0.143 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.771 | 0.048 |
-| `google/gemini-3.1-flash-lite` | 0.771 | 0.040 |
-| `qwen/qwen3.5-27b` | 0.757 | 0.117 |
-| `cohere/command-a` | 0.744 | 0.057 |
-| `openai/o3` | 0.743 | 0.104 |
-| `claude-haiku-4-5-20251001` | 0.727 | 0.000 |
-| `meta-llama/llama-4-maverick` | 0.703 | 0.033 |
-| `qwen/qwen3.6-flash` | 0.700 | 0.046 |
-| `qwen/qwen3-235b-a22b-2507` | 0.689 | 0.101 |
-| `meta-llama/llama-4-scout` | 0.679 | 0.202 |
-| `openai/gpt-5.4-mini` | 0.645 | 0.052 |
-| `openai/gpt-5.4` | 0.641 | 0.070 |
-| `google/gemini-2.5-flash-lite` | 0.599 | 0.042 |
-| `deepseek/deepseek-v3.2` | 0.584 | 0.088 |
-| `claude-sonnet-4-6` | 0.571 | 0.000 |
-| `deepseek/deepseek-r1-0528` | 0.558 | 0.044 |
-| `moonshotai/kimi-k2.6` | 0.532 | 0.031 |
-| `qwen/qwen3-14b` | 0.478 | 0.179 |
-| `deepseek/deepseek-v4-pro` | 0.477 | 0.164 |
-| `mistralai/mistral-large-2512` | 0.368 | 0.097 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.333 | 0.039 |
-| `mistralai/codestral-2508` | 0.303 | 0.142 |
-| `openai/gpt-3.5-turbo` | 0.291 | 0.008 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.286 | 0.202 |
-| `nvidia/nemotron-nano-9b-v2` | 0.212 | 0.160 |
-| `openai/o4-mini` | 0.080 | 0.179 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
+| `claude-opus-5` | 0.857 | 0.000 |
+| `claude-sonnet-4-6` | 0.857 | 0.000 |
+| `claude-sonnet-5` | 0.857 | 0.000 |
+| `deepseek/deepseek-v4-pro` | 0.857 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 0.857 | 0.000 |
+| `google/gemini-3.5-flash` | 0.857 | 0.000 |
+| `google/gemini-3.6-flash` | 0.857 | 0.000 |
+| `openai/gpt-5.6-terra` | 0.857 | 0.000 |
+| `openai/o3` | 0.857 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.857 | 0.000 |
+| `qwen/qwen3.7-max` | 0.857 | 0.000 |
+| `x-ai/grok-4.5` | 0.857 | 0.000 |
+| `minimax/minimax-m3` | 0.853 | 0.094 |
+| `tencent/hy3` | 0.848 | 0.119 |
+| `qwen/qwen3.6-plus` | 0.844 | 0.099 |
+| `google/gemma-4-31b-it` | 0.828 | 0.114 |
+| `claude-haiku-4-5-20251001` | 0.814 | 0.185 |
+| `qwen/qwen3.5-27b` | 0.800 | 0.183 |
+| `meituan/longcat-2.0` | 0.781 | 0.104 |
+| `stepfun/step-3.7-flash` | 0.781 | 0.104 |
+| `meta/muse-spark-1.1` | 0.766 | 0.204 |
+| `qwen/qwen3.6-flash` | 0.755 | 0.068 |
+| `google/gemini-2.5-pro` | 0.750 | 0.000 |
+| `deepseek/deepseek-r1-0528` | 0.750 | 0.095 |
+| `deepseek/deepseek-r1` | 0.746 | 0.152 |
+| `claude-opus-4-8` | 0.743 | 0.156 |
+| `deepseek/deepseek-v4-flash-0731` | 0.743 | 0.104 |
+| `mistralai/mistral-medium-3-5` | 0.740 | 0.108 |
+| `openai/gpt-5.6-sol` | 0.739 | 0.048 |
+| `cohere/command-r-plus-08-2024` | 0.712 | 0.269 |
+| `mistralai/mistral-medium-3.1` | 0.711 | 0.099 |
+| `xiaomi/mimo-v2.5-pro` | 0.705 | 0.144 |
+| `openai/gpt-oss-20b` | 0.692 | 0.075 |
+| `google/gemini-3.1-flash-lite` | 0.681 | 0.047 |
+| `qwen/qwen3.7-flash` | 0.664 | 0.374 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.659 | 0.073 |
+| `deepseek/deepseek-v3.2` | 0.613 | 0.119 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.598 | 0.208 |
+| `openai/gpt-5.4` | 0.565 | 0.129 |
+| `z-ai/glm-5.2` | 0.555 | 0.131 |
+| `inclusionai/ring-2.6-1t` | 0.537 | 0.146 |
+| `google/gemini-3.5-flash-lite` | 0.531 | 0.223 |
+| `meta-llama/llama-4-maverick` | 0.518 | 0.025 |
+| `qwen/qwen3-14b` | 0.488 | 0.148 |
+| `moonshotai/kimi-k2.6` | 0.473 | 0.169 |
+| `thinkingmachines/inkling-small` | 0.467 | 0.144 |
+| `google/gemini-2.5-flash-lite` | 0.460 | 0.014 |
+| `qwen/qwen3.7-plus` | 0.455 | 0.022 |
+| `openai/gpt-5.4-mini` | 0.442 | 0.078 |
+| `xiaomi/mimo-v2.5` | 0.402 | 0.031 |
+| `mistralai/mistral-large-2512` | 0.400 | 0.080 |
+| `qwen/qwen3.8-max` | 0.373 | 0.239 |
+| `qwen/qwen3-235b-a22b-2507` | 0.372 | 0.218 |
+| `mistralai/codestral-2508` | 0.371 | 0.016 |
+| `meta-llama/llama-4-scout` | 0.367 | 0.342 |
+| `cohere/command-a` | 0.345 | 0.011 |
+| `openai/gpt-3.5-turbo` | 0.263 | 0.005 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.203 | 0.027 |
+| `thinkingmachines/inkling` | 0.200 | 0.231 |
+| `openai/o4-mini` | 0.147 | 0.202 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-it-s-a-thing-e339179dfad6`: SOUP shots - It's a Thing 418
@@ -1877,52 +2776,81 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `meta-llama/llama-4-scout` | 0.800 | 0.183 |
-| `deepseek/deepseek-v4-flash` | 0.733 | 0.149 |
+| `deepseek/deepseek-v4-pro` | 0.867 | 0.183 |
+| `minimax/minimax-m3` | 0.800 | 0.447 |
+| `google/gemini-2.5-pro` | 0.733 | 0.149 |
+| `qwen/qwen3.6-flash` | 0.733 | 0.149 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.700 | 0.274 |
+| `claude-fable-5` | 0.667 | 0.000 |
 | `claude-haiku-4-5-20251001` | 0.667 | 0.000 |
 | `claude-opus-4-7` | 0.667 | 0.000 |
 | `claude-opus-4-8` | 0.667 | 0.000 |
 | `claude-sonnet-4-6` | 0.667 | 0.000 |
-| `google/gemini-2.5-pro` | 0.667 | 0.000 |
+| `google/gemini-3.1-flash-lite` | 0.667 | 0.000 |
 | `google/gemini-3.5-flash` | 0.667 | 0.000 |
-| `google/gemma-4-31b-it` | 0.667 | 0.000 |
-| `minimax/minimax-m3` | 0.667 | 0.000 |
-| `mistralai/mistral-medium-3.1` | 0.667 | 0.000 |
+| `google/gemini-3.5-flash-lite` | 0.667 | 0.000 |
+| `google/gemini-3.6-flash` | 0.667 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 0.667 | 0.000 |
 | `openai/gpt-5.5` | 0.667 | 0.000 |
+| `openai/gpt-5.6-luna` | 0.667 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
-| `qwen/qwen3.6-flash` | 0.667 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.667 | 0.000 |
+| `qwen/qwen3.7-max` | 0.667 | 0.000 |
 | `x-ai/grok-4.3` | 0.667 | 0.000 |
-| `openai/gpt-5.4` | 0.613 | 0.119 |
+| `x-ai/grok-4.5` | 0.667 | 0.000 |
+| `claude-sonnet-5` | 0.633 | 0.075 |
+| `google/gemini-3.1-pro-preview` | 0.633 | 0.075 |
+| `openai/gpt-5.6-terra` | 0.600 | 0.091 |
 | `qwen/qwen3.5-27b` | 0.600 | 0.365 |
-| `google/gemini-3.1-flash-lite` | 0.567 | 0.091 |
-| `mistralai/mistral-large-2512` | 0.513 | 0.152 |
-| `openai/gpt-5.4-mini` | 0.500 | 0.289 |
-| `deepseek/deepseek-r1` | 0.467 | 0.274 |
-| `openai/gpt-oss-120b` | 0.440 | 0.055 |
-| `mistralai/codestral-2508` | 0.420 | 0.045 |
-| `deepseek/deepseek-r1-0528` | 0.404 | 0.281 |
-| `cohere/command-a` | 0.400 | 0.000 |
-| `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
-| `google/gemini-2.5-flash` | 0.400 | 0.000 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
+| `qwen/qwen3.7-flash` | 0.600 | 0.365 |
+| `z-ai/glm-5.2` | 0.547 | 0.117 |
+| `google/gemma-4-31b-it` | 0.533 | 0.506 |
+| `moonshotai/kimi-k3` | 0.533 | 0.298 |
+| `claude-opus-5` | 0.500 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.500 | 0.000 |
+| `deepseek/deepseek-v3.2` | 0.473 | 0.116 |
+| `deepseek/deepseek-v4-flash` | 0.467 | 0.447 |
+| `openai/gpt-5.6-sol` | 0.467 | 0.274 |
+| `deepseek/deepseek-v4-flash-0731` | 0.400 | 0.548 |
+| `meta-llama/llama-4-scout` | 0.400 | 0.548 |
+| `microsoft/phi-4` | 0.400 | 0.365 |
+| `mistralai/codestral-2508` | 0.400 | 0.000 |
+| `openai/gpt-oss-120b` | 0.393 | 0.245 |
+| `qwen/qwen3.7-plus` | 0.393 | 0.245 |
+| `cohere/command-a` | 0.340 | 0.195 |
+| `google/gemini-2.5-flash` | 0.333 | 0.000 |
+| `meituan/longcat-2.0` | 0.333 | 0.471 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.333 | 0.471 |
+| `openai/gpt-5.4` | 0.333 | 0.312 |
 | `openai/o3` | 0.333 | 0.471 |
-| `nvidia/nemotron-nano-9b-v2` | 0.313 | 0.301 |
-| `deepseek/deepseek-v4-pro` | 0.267 | 0.365 |
+| `mistralai/mistral-large-2512` | 0.320 | 0.057 |
+| `google/gemini-2.5-flash-lite` | 0.309 | 0.051 |
+| `openai/gpt-oss-20b` | 0.300 | 0.447 |
+| `deepseek/deepseek-r1` | 0.267 | 0.365 |
 | `meta-llama/llama-3.3-70b-instruct` | 0.267 | 0.365 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.267 | 0.365 |
-| `google/gemini-2.5-flash-lite` | 0.261 | 0.153 |
-| `cohere/command-r-plus-08-2024` | 0.200 | 0.447 |
-| `moonshotai/kimi-k2.6` | 0.200 | 0.274 |
+| `meta/muse-spark-1.1` | 0.267 | 0.365 |
+| `qwen/qwen3-235b-a22b-2507` | 0.233 | 0.325 |
+| `xiaomi/mimo-v2.5` | 0.233 | 0.325 |
+| `google/gemma-4-26b-a4b-it` | 0.133 | 0.298 |
+| `deepseek/deepseek-r1-0528` | 0.120 | 0.179 |
+| `openai/gpt-5.4-mini` | 0.100 | 0.224 |
+| `xiaomi/mimo-v2.5-pro` | 0.100 | 0.224 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
+| `inclusionai/ring-2.6-1t` | 0.000 | 0.000 |
 | `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
-| `microsoft/phi-4` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
+| `moonshotai/kimi-k2.6` | 0.000 | 0.000 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.000 | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
 | `openai/o4-mini` | 0.000 | 0.000 |
 | `qwen/qwen3-14b` | 0.000 | 0.000 |
-| `qwen/qwen3-235b-a22b-2507` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
+| `qwen/qwen3.6-plus` | 0.000 | 0.000 |
+| `qwen/qwen3.8-max` | 0.000 | 0.000 |
+| `stepfun/step-3.7-flash` | 0.000 | 0.000 |
+| `tencent/hy3` | 0.000 | 0.000 |
+| `thinkingmachines/inkling` | 0.000 | 0.000 |
+| `thinkingmachines/inkling-small` | 0.000 | 0.000 |
 
 #### `ep-on-air-with-dan-and-alex2-574e4f303730`: Ryanair Wants Alcohol Bans, Emirates' $6.8B Record Profit & Buying Spirit Airlines?!
 
@@ -1932,51 +2860,80 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
-| `google/gemma-4-31b-it` | 1.000 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 1.000 | 0.000 |
 | `mistralai/mistral-medium-3.1` | 1.000 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.960 | 0.089 |
-| `openai/gpt-5.4` | 0.920 | 0.110 |
-| `meta-llama/llama-4-scout` | 0.880 | 0.110 |
-| `qwen/qwen3.6-flash` | 0.880 | 0.110 |
-| `moonshotai/kimi-k2.6` | 0.867 | 0.183 |
-| `x-ai/grok-4.3` | 0.840 | 0.089 |
-| `claude-opus-4-7` | 0.800 | 0.000 |
+| `x-ai/grok-4.3` | 1.000 | 0.000 |
+| `claude-fable-5` | 0.960 | 0.089 |
+| `claude-sonnet-5` | 0.960 | 0.089 |
+| `google/gemma-4-31b-it` | 0.960 | 0.089 |
+| `openai/gpt-5.6-terra` | 0.960 | 0.089 |
+| `qwen/qwen3.5-plus-02-15` | 0.960 | 0.089 |
+| `x-ai/grok-4.5` | 0.960 | 0.089 |
+| `google/gemini-3.5-flash-lite` | 0.933 | 0.149 |
+| `claude-haiku-4-5-20251001` | 0.920 | 0.110 |
+| `qwen/qwen3.8-max` | 0.900 | 0.224 |
+| `qwen/qwen3.6-flash` | 0.840 | 0.089 |
+| `qwen/qwen3.7-max` | 0.840 | 0.089 |
+| `moonshotai/kimi-k2.6` | 0.813 | 0.119 |
 | `claude-opus-4-8` | 0.800 | 0.000 |
-| `claude-sonnet-4-6` | 0.800 | 0.000 |
+| `claude-opus-5` | 0.800 | 0.000 |
+| `deepseek/deepseek-r1` | 0.800 | 0.000 |
+| `deepseek/deepseek-v4-flash` | 0.800 | 0.000 |
 | `google/gemini-2.5-flash` | 0.800 | 0.000 |
-| `google/gemini-2.5-flash-lite` | 0.800 | 0.000 |
+| `google/gemini-2.5-pro` | 0.800 | 0.000 |
 | `google/gemini-3.1-flash-lite` | 0.800 | 0.000 |
 | `google/gemini-3.5-flash` | 0.800 | 0.000 |
-| `meta-llama/llama-4-maverick` | 0.800 | 0.000 |
-| `minimax/minimax-m3` | 0.800 | 0.000 |
+| `microsoft/phi-4` | 0.800 | 0.183 |
 | `mistralai/mistral-large-2512` | 0.800 | 0.000 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.800 | 0.000 |
 | `openai/gpt-5.4-mini` | 0.800 | 0.000 |
 | `openai/gpt-5.5` | 0.800 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.800 | 0.000 |
-| `deepseek/deepseek-r1` | 0.787 | 0.137 |
-| `deepseek/deepseek-v4-flash` | 0.773 | 0.060 |
-| `openai/o3` | 0.760 | 0.146 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.753 | 0.185 |
-| `qwen/qwen3.5-27b` | 0.740 | 0.134 |
-| `google/gemini-2.5-pro` | 0.720 | 0.073 |
-| `openai/gpt-oss-120b` | 0.720 | 0.073 |
+| `qwen/qwen3.6-plus` | 0.800 | 0.000 |
+| `qwen/qwen3.7-flash` | 0.800 | 0.000 |
+| `minimax/minimax-m3` | 0.780 | 0.179 |
+| `claude-sonnet-4-6` | 0.773 | 0.060 |
+| `deepseek/deepseek-r1-0528` | 0.773 | 0.060 |
+| `google/gemini-3.6-flash` | 0.773 | 0.060 |
+| `tencent/hy3` | 0.753 | 0.185 |
+| `openai/gpt-5.6-sol` | 0.747 | 0.073 |
+| `claude-opus-4-7` | 0.740 | 0.134 |
+| `deepseek/deepseek-v4-flash-0731` | 0.740 | 0.134 |
+| `openai/o3` | 0.733 | 0.149 |
+| `openai/gpt-oss-120b` | 0.728 | 0.105 |
+| `google/gemini-2.5-flash-lite` | 0.720 | 0.179 |
 | `qwen/qwen3-235b-a22b-2507` | 0.701 | 0.098 |
-| `deepseek/deepseek-r1-0528` | 0.693 | 0.174 |
-| `mistralai/codestral-2508` | 0.693 | 0.060 |
-| `cohere/command-a` | 0.674 | 0.081 |
-| `openai/gpt-3.5-turbo` | 0.500 | 0.000 |
-| `nvidia/nemotron-nano-9b-v2` | 0.440 | 0.055 |
-| `deepseek/deepseek-v3.2` | 0.400 | 0.365 |
-| `microsoft/phi-4` | 0.400 | 0.365 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.397 | 0.076 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.367 | 0.217 |
-| `qwen/qwen3-14b` | 0.360 | 0.239 |
-| `deepseek/deepseek-v4-pro` | 0.280 | 0.438 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.133 | 0.298 |
-| `openai/o4-mini` | 0.133 | 0.298 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `deepseek/deepseek-v4-pro` | 0.700 | 0.245 |
+| `meta-llama/llama-4-maverick` | 0.693 | 0.060 |
+| `openai/gpt-5.6-luna` | 0.693 | 0.060 |
+| `qwen/qwen3.5-27b` | 0.693 | 0.213 |
+| `thinkingmachines/inkling-small` | 0.693 | 0.060 |
+| `openai/gpt-5.4` | 0.674 | 0.081 |
+| `deepseek/deepseek-v3.2` | 0.667 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 0.667 | 0.000 |
+| `google/gemma-4-26b-a4b-it` | 0.667 | 0.000 |
+| `meta/muse-spark-1.1` | 0.667 | 0.408 |
+| `moonshotai/kimi-k3` | 0.667 | 0.000 |
+| `stepfun/step-3.7-flash` | 0.633 | 0.415 |
+| `thinkingmachines/inkling` | 0.627 | 0.128 |
+| `mistralai/codestral-2508` | 0.610 | 0.052 |
+| `z-ai/glm-5.2` | 0.603 | 0.114 |
+| `cohere/command-r-plus-08-2024` | 0.600 | 0.365 |
+| `openai/gpt-oss-20b` | 0.560 | 0.146 |
+| `qwen/qwen3.7-plus` | 0.514 | 0.032 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.513 | 0.366 |
+| `cohere/command-a` | 0.507 | 0.214 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.500 | 0.000 |
+| `meituan/longcat-2.0` | 0.500 | 0.000 |
+| `meta-llama/llama-4-scout` | 0.493 | 0.303 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.480 | 0.179 |
+| `qwen/qwen3-14b` | 0.453 | 0.197 |
+| `openai/gpt-3.5-turbo` | 0.444 | 0.000 |
+| `xiaomi/mimo-v2.5` | 0.441 | 0.094 |
+| `inclusionai/ring-2.6-1t` | 0.400 | 0.283 |
+| `xiaomi/mimo-v2.5-pro` | 0.300 | 0.298 |
+| `openai/o4-mini` | 0.267 | 0.365 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.263 | 0.283 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-oxide-and-friends-ce789ff5b62e`: Mechanical Engineering at Oxide [chapter images]
@@ -1987,32 +2944,43 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
+| `claude-fable-5` | PASS | 0 |
 | `claude-haiku-4-5-20251001` | PASS | 0 |
 | `claude-opus-4-7` | PASS | 0 |
 | `claude-opus-4-8` | PASS | 0 |
+| `claude-opus-5` | PASS | 0 |
 | `claude-sonnet-4-6` | PASS | 0 |
-| `cohere/command-a` | PASS | 0 |
+| `claude-sonnet-5` | PASS | 0 |
 | `cohere/command-r-plus-08-2024` | PASS | 0 |
+| `deepseek/deepseek-r1-distill-llama-70b` | PASS | 0 |
+| `deepseek/deepseek-v3.2` | PASS | 0 |
 | `deepseek/deepseek-v4-flash` | PASS | 0 |
+| `deepseek/deepseek-v4-flash-0731` | PASS | 0 |
 | `deepseek/deepseek-v4-pro` | PASS | 0 |
 | `google/gemini-2.5-flash` | PASS | 0 |
 | `google/gemini-2.5-flash-lite` | PASS | 0 |
 | `google/gemini-3.1-flash-lite` | PASS | 0 |
+| `google/gemini-3.1-pro-preview` | PASS | 0 |
 | `google/gemini-3.5-flash` | PASS | 0 |
+| `google/gemini-3.5-flash-lite` | PASS | 0 |
+| `google/gemini-3.6-flash` | PASS | 0 |
+| `google/gemma-4-26b-a4b-it` | PASS | 0 |
 | `google/gemma-4-31b-it` | PASS | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
+| `inclusionai/ring-2.6-1t` | PASS | 0 |
+| `meituan/longcat-2.0` | PASS | 0 |
 | `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
 | `meta-llama/llama-4-maverick` | PASS | 0 |
 | `meta-llama/llama-4-scout` | PASS | 0 |
-| `minimax/minimax-m3` | PASS | 0 |
-| `mistralai/codestral-2508` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `meta/muse-spark-1.1` | PASS | 0 |
+| `microsoft/phi-4` | PASS | 0 |
 | `mistralai/mistral-large-2512` | PASS | 0 |
+| `mistralai/mistral-medium-3-5` | PASS | 0 |
 | `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
-| `nvidia/nemotron-nano-9b-v2` | PASS | 0 |
+| `mistralai/mistral-small-2603` | PASS | 0 |
+| `moonshotai/kimi-k3` | PASS | 0 |
+| `nvidia/nemotron-3-super-120b-a12b` | PASS | 0 |
 | `openai/gpt-5.5` | PASS | 0 |
-| `openai/gpt-oss-120b` | PASS | 0 |
+| `openai/gpt-5.6-luna` | PASS | 0 |
 | `openai/o3` | PASS | 0 |
 | `openai/o4-mini` | PASS | 0 |
 | `qwen/qwen3-8b` | PASS | 0 |
@@ -2020,19 +2988,37 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.5-plus-02-15` | PASS | 0 |
 | `qwen/qwen3.6-flash` | PASS | 0 |
 | `qwen/qwen3.6-plus` | PASS | 0 |
+| `qwen/qwen3.7-flash` | PASS | 0 |
+| `qwen/qwen3.7-max` | PASS | 0 |
+| `qwen/qwen3.8-max` | PASS | 0 |
+| `stepfun/step-3.7-flash` | PASS | 0 |
+| `tencent/hy3` | PASS | 0 |
 | `x-ai/grok-4.3` | PASS | 0 |
-| `deepseek/deepseek-r1` | FAIL | 1 |
+| `x-ai/grok-4.5` | PASS | 0 |
 | `google/gemini-2.5-pro` | FAIL | 1 |
-| `openai/gpt-5.4` | FAIL | 1 |
-| `openai/gpt-5.4-mini` | FAIL | 1 |
+| `minimax/minimax-m3` | FAIL | 1 |
+| `mistralai/codestral-2508` | FAIL | 1 |
+| `openai/gpt-5.6-terra` | FAIL | 1 |
+| `openai/gpt-oss-120b` | FAIL | 1 |
+| `openai/gpt-oss-20b` | FAIL | 1 |
 | `qwen/qwen3-14b` | FAIL | 1 |
-| `deepseek/deepseek-v3.2` | FAIL | 2 |
-| `moonshotai/kimi-k2.6` | FAIL | 4 |
+| `thinkingmachines/inkling` | FAIL | 1 |
+| `xiaomi/mimo-v2.5-pro` | FAIL | 1 |
+| `meta-llama/llama-3.1-8b-instruct` | FAIL | 2 |
+| `openai/gpt-5.6-sol` | FAIL | 2 |
+| `deepseek/deepseek-r1` | FAIL | 3 |
+| `moonshotai/kimi-k2.6` | FAIL | 3 |
+| `openai/gpt-5.4` | FAIL | 3 |
+| `openai/gpt-5.4-mini` | FAIL | 3 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | FAIL | 4 |
+| `cohere/command-a` | FAIL | 5 |
+| `z-ai/glm-5.2` | FAIL | 5 |
 | `qwen/qwen3-235b-a22b-2507` | FAIL | 6 |
-| `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 10 |
-| `openai/gpt-3.5-turbo` | FAIL | 10 |
-| `deepseek/deepseek-r1-0528` | FAIL | 12 |
-| `microsoft/phi-4` | FAIL | 15 |
+| `thinkingmachines/inkling-small` | FAIL | 6 |
+| `xiaomi/mimo-v2.5` | FAIL | 7 |
+| `deepseek/deepseek-r1-0528` | FAIL | 8 |
+| `openai/gpt-3.5-turbo` | FAIL | 11 |
+| `qwen/qwen3.7-plus` | FAIL | 11 |
 
 #### `ep-security-now-audio-2850b24903b2`: SN 1077: A Browser AI API? - End of Bug Bounties?
 
@@ -2042,51 +3028,80 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-haiku-4-5-20251001` | 0.857 | 0.000 |
-| `claude-opus-4-8` | 0.796 | 0.092 |
-| `claude-opus-4-7` | 0.771 | 0.078 |
-| `qwen/qwen3.6-flash` | 0.771 | 0.078 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.749 | 0.046 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.728 | 0.056 |
-| `mistralai/mistral-medium-3.1` | 0.718 | 0.140 |
-| `claude-sonnet-4-6` | 0.714 | 0.000 |
+| `claude-opus-5` | 0.857 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.769 | 0.000 |
+| `openai/gpt-5.5` | 0.769 | 0.000 |
+| `deepseek/deepseek-v4-pro` | 0.764 | 0.084 |
+| `openai/gpt-5.6-luna` | 0.758 | 0.025 |
+| `qwen/qwen3.5-27b` | 0.751 | 0.153 |
+| `cohere/command-r-plus-08-2024` | 0.751 | 0.033 |
+| `qwen/qwen3-14b` | 0.744 | 0.099 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.736 | 0.030 |
+| `openai/gpt-5.6-sol` | 0.736 | 0.030 |
+| `moonshotai/kimi-k3` | 0.728 | 0.056 |
+| `openai/gpt-5.6-terra` | 0.716 | 0.036 |
+| `claude-haiku-4-5-20251001` | 0.714 | 0.000 |
 | `google/gemini-3.5-flash` | 0.714 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.714 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.714 | 0.000 |
+| `google/gemma-4-26b-a4b-it` | 0.714 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 0.714 | 0.000 |
+| `qwen/qwen3.6-flash` | 0.714 | 0.000 |
+| `qwen/qwen3.7-flash` | 0.714 | 0.000 |
 | `x-ai/grok-4.3` | 0.714 | 0.000 |
-| `openai/o3` | 0.714 | 0.118 |
-| `openai/gpt-5.5` | 0.708 | 0.056 |
-| `deepseek/deepseek-v4-flash` | 0.695 | 0.067 |
-| `cohere/command-r-plus-08-2024` | 0.687 | 0.055 |
-| `minimax/minimax-m3` | 0.676 | 0.021 |
-| `openai/gpt-oss-120b` | 0.669 | 0.045 |
-| `openai/gpt-5.4` | 0.668 | 0.032 |
-| `meta-llama/llama-4-scout` | 0.667 | 0.090 |
-| `google/gemini-2.5-flash` | 0.667 | 0.000 |
+| `x-ai/grok-4.5` | 0.714 | 0.000 |
+| `claude-opus-4-8` | 0.695 | 0.026 |
+| `claude-sonnet-4-6` | 0.695 | 0.026 |
+| `qwen/qwen3.7-max` | 0.695 | 0.026 |
+| `google/gemini-3.5-flash-lite` | 0.695 | 0.044 |
+| `claude-sonnet-5` | 0.693 | 0.060 |
+| `claude-opus-4-7` | 0.693 | 0.038 |
+| `qwen/qwen3.5-plus-02-15` | 0.686 | 0.064 |
+| `openai/gpt-oss-20b` | 0.678 | 0.081 |
+| `deepseek/deepseek-v4-flash` | 0.673 | 0.103 |
+| `openai/gpt-oss-120b` | 0.668 | 0.032 |
+| `claude-fable-5` | 0.667 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 0.667 | 0.000 |
+| `google/gemini-3.6-flash` | 0.667 | 0.000 |
 | `google/gemma-4-31b-it` | 0.667 | 0.000 |
-| `deepseek/deepseek-r1` | 0.661 | 0.074 |
-| `meta-llama/llama-4-maverick` | 0.660 | 0.037 |
-| `google/gemini-2.5-pro` | 0.650 | 0.023 |
-| `openai/gpt-5.4-mini` | 0.643 | 0.035 |
-| `deepseek/deepseek-v4-pro` | 0.634 | 0.150 |
-| `google/gemini-3.1-flash-lite` | 0.582 | 0.015 |
-| `deepseek/deepseek-v3.2` | 0.553 | 0.070 |
-| `qwen/qwen3-235b-a22b-2507` | 0.503 | 0.286 |
-| `mistralai/codestral-2508` | 0.501 | 0.047 |
-| `qwen/qwen3.5-27b` | 0.488 | 0.090 |
-| `cohere/command-a` | 0.456 | 0.030 |
-| `deepseek/deepseek-r1-0528` | 0.421 | 0.105 |
-| `google/gemini-2.5-flash-lite` | 0.411 | 0.072 |
-| `mistralai/mistral-large-2512` | 0.367 | 0.054 |
-| `qwen/qwen3-14b` | 0.351 | 0.257 |
-| `nvidia/nemotron-nano-9b-v2` | 0.333 | 0.183 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.317 | 0.022 |
-| `openai/gpt-3.5-turbo` | 0.275 | 0.006 |
-| `moonshotai/kimi-k2.6` | 0.196 | 0.245 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.141 | 0.096 |
-| `openai/o4-mini` | 0.114 | 0.156 |
-| `microsoft/phi-4` | 0.076 | 0.105 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `tencent/hy3` | 0.664 | 0.064 |
+| `google/gemini-2.5-pro` | 0.658 | 0.019 |
+| `qwen/qwen3-235b-a22b-2507` | 0.652 | 0.095 |
+| `openai/o3` | 0.635 | 0.169 |
+| `google/gemini-2.5-flash` | 0.625 | 0.000 |
+| `meta/muse-spark-1.1` | 0.623 | 0.026 |
+| `deepseek/deepseek-v4-flash-0731` | 0.612 | 0.096 |
+| `z-ai/glm-5.2` | 0.601 | 0.070 |
+| `meta-llama/llama-4-maverick` | 0.596 | 0.016 |
+| `qwen/qwen3.6-plus` | 0.592 | 0.052 |
+| `openai/gpt-5.4` | 0.589 | 0.025 |
+| `google/gemini-3.1-flash-lite` | 0.588 | 0.000 |
+| `google/gemini-2.5-flash-lite` | 0.569 | 0.081 |
+| `xiaomi/mimo-v2.5` | 0.563 | 0.138 |
+| `minimax/minimax-m3` | 0.552 | 0.200 |
+| `meta-llama/llama-4-scout` | 0.551 | 0.138 |
+| `inclusionai/ring-2.6-1t` | 0.547 | 0.035 |
+| `deepseek/deepseek-r1` | 0.543 | 0.078 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.542 | 0.048 |
+| `moonshotai/kimi-k2.6` | 0.533 | 0.212 |
+| `deepseek/deepseek-r1-0528` | 0.523 | 0.127 |
+| `mistralai/mistral-medium-3.1` | 0.514 | 0.078 |
+| `xiaomi/mimo-v2.5-pro` | 0.501 | 0.122 |
+| `openai/gpt-5.4-mini` | 0.488 | 0.042 |
+| `mistralai/codestral-2508` | 0.487 | 0.049 |
+| `meituan/longcat-2.0` | 0.482 | 0.109 |
+| `qwen/qwen3.7-plus` | 0.459 | 0.017 |
+| `cohere/command-a` | 0.455 | 0.000 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.380 | 0.117 |
+| `stepfun/step-3.7-flash` | 0.366 | 0.154 |
+| `mistralai/mistral-large-2512` | 0.333 | 0.008 |
+| `thinkingmachines/inkling` | 0.315 | 0.112 |
+| `deepseek/deepseek-v3.2` | 0.303 | 0.317 |
+| `openai/gpt-3.5-turbo` | 0.286 | 0.000 |
+| `microsoft/phi-4` | 0.228 | 0.085 |
+| `thinkingmachines/inkling-small` | 0.219 | 0.212 |
+| `openai/o4-mini` | 0.202 | 0.211 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.124 | 0.170 |
+| `qwen/qwen3.8-max` | 0.050 | 0.112 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-the-brilliant-idiots-0bb9bf634c8e`: Class Rank
@@ -2097,51 +3112,79 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
+| `claude-haiku-4-5-20251001` | 1.000 | 0.000 |
+| `claude-sonnet-4-6` | 1.000 | 0.000 |
 | `google/gemini-3.5-flash` | 1.000 | 0.000 |
-| `claude-sonnet-4-6` | 0.971 | 0.064 |
-| `qwen/qwen3.6-flash` | 0.933 | 0.149 |
-| `qwen/qwen3.6-plus` | 0.921 | 0.114 |
-| `x-ai/grok-4.3` | 0.914 | 0.078 |
-| `openai/gpt-5.5` | 0.903 | 0.092 |
-| `qwen/qwen3.5-plus-02-15` | 0.886 | 0.064 |
-| `claude-haiku-4-5-20251001` | 0.857 | 0.000 |
-| `openai/gpt-oss-120b` | 0.857 | 0.000 |
-| `claude-opus-4-7` | 0.836 | 0.048 |
-| `claude-opus-4-8` | 0.821 | 0.110 |
-| `openai/o3` | 0.740 | 0.279 |
-| `deepseek/deepseek-v4-flash` | 0.717 | 0.046 |
-| `qwen/qwen3.5-27b` | 0.716 | 0.236 |
-| `google/gemma-4-31b-it` | 0.700 | 0.046 |
-| `meta-llama/llama-4-scout` | 0.681 | 0.074 |
-| `mistralai/mistral-medium-3.1` | 0.679 | 0.098 |
-| `google/gemini-2.5-flash` | 0.667 | 0.000 |
-| `google/gemini-2.5-pro` | 0.653 | 0.030 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.613 | 0.119 |
-| `moonshotai/kimi-k2.6` | 0.598 | 0.234 |
-| `google/gemini-2.5-flash-lite` | 0.580 | 0.045 |
-| `openai/gpt-5.4` | 0.568 | 0.125 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.557 | 0.032 |
-| `mistralai/codestral-2508` | 0.542 | 0.099 |
-| `minimax/minimax-m3` | 0.528 | 0.099 |
-| `google/gemini-3.1-flash-lite` | 0.520 | 0.038 |
-| `meta-llama/llama-4-maverick` | 0.492 | 0.160 |
-| `deepseek/deepseek-r1` | 0.487 | 0.043 |
-| `qwen/qwen3-235b-a22b-2507` | 0.392 | 0.096 |
-| `qwen/qwen3-14b` | 0.390 | 0.102 |
-| `nvidia/nemotron-nano-9b-v2` | 0.386 | 0.232 |
-| `openai/gpt-5.4-mini` | 0.375 | 0.141 |
-| `deepseek/deepseek-r1-0528` | 0.338 | 0.045 |
-| `mistralai/mistral-large-2512` | 0.310 | 0.018 |
-| `cohere/command-a` | 0.304 | 0.020 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.301 | 0.127 |
-| `openai/gpt-3.5-turbo` | 0.233 | 0.006 |
-| `deepseek/deepseek-v4-pro` | 0.180 | 0.249 |
-| `openai/o4-mini` | 0.180 | 0.249 |
-| `microsoft/phi-4` | 0.174 | 0.105 |
-| `deepseek/deepseek-v3.2` | 0.100 | 0.224 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `google/gemini-3.6-flash` | 1.000 | 0.000 |
+| `deepseek/deepseek-v4-flash-0731` | 0.943 | 0.078 |
+| `openai/gpt-5.5` | 0.943 | 0.078 |
+| `deepseek/deepseek-v4-flash` | 0.903 | 0.092 |
+| `qwen/qwen3.6-plus` | 0.886 | 0.186 |
+| `moonshotai/kimi-k3` | 0.864 | 0.089 |
+| `google/gemini-3.1-pro-preview` | 0.857 | 0.000 |
+| `x-ai/grok-4.5` | 0.857 | 0.000 |
+| `tencent/hy3` | 0.836 | 0.120 |
+| `openai/gpt-5.6-sol` | 0.834 | 0.145 |
+| `openai/gpt-oss-20b` | 0.825 | 0.120 |
+| `qwen/qwen3.7-max` | 0.821 | 0.110 |
+| `qwen/qwen3.6-flash` | 0.810 | 0.230 |
+| `qwen/qwen3.5-plus-02-15` | 0.800 | 0.112 |
+| `openai/gpt-5.6-luna` | 0.793 | 0.059 |
+| `openai/gpt-5.6-terra` | 0.791 | 0.148 |
+| `qwen/qwen3.7-flash` | 0.769 | 0.167 |
+| `openai/gpt-oss-120b` | 0.762 | 0.135 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.754 | 0.102 |
+| `x-ai/grok-4.3` | 0.743 | 0.156 |
+| `google/gemini-3.5-flash-lite` | 0.700 | 0.046 |
+| `google/gemma-4-26b-a4b-it` | 0.697 | 0.115 |
+| `mistralai/mistral-medium-3.1` | 0.681 | 0.074 |
+| `meta/muse-spark-1.1` | 0.680 | 0.164 |
+| `openai/gpt-5.4` | 0.670 | 0.053 |
+| `claude-fable-5` | 0.667 | 0.000 |
+| `claude-opus-5` | 0.667 | 0.000 |
+| `meta-llama/llama-4-maverick` | 0.667 | 0.000 |
+| `mistralai/mistral-medium-3-5` | 0.667 | 0.000 |
+| `xiaomi/mimo-v2.5-pro` | 0.641 | 0.151 |
+| `google/gemini-2.5-pro` | 0.633 | 0.075 |
+| `microsoft/phi-4` | 0.620 | 0.164 |
+| `minimax/minimax-m3` | 0.599 | 0.299 |
+| `deepseek/deepseek-v4-pro` | 0.597 | 0.234 |
+| `qwen/qwen3.5-27b` | 0.586 | 0.190 |
+| `claude-opus-4-7` | 0.578 | 0.122 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.571 | 0.000 |
+| `claude-opus-4-8` | 0.556 | 0.104 |
+| `google/gemma-4-31b-it` | 0.550 | 0.112 |
+| `google/gemini-3.1-flash-lite` | 0.540 | 0.055 |
+| `z-ai/glm-5.2` | 0.527 | 0.120 |
+| `claude-sonnet-5` | 0.503 | 0.182 |
+| `deepseek/deepseek-v3.2` | 0.500 | 0.000 |
+| `google/gemini-2.5-flash` | 0.500 | 0.000 |
+| `thinkingmachines/inkling-small` | 0.483 | 0.149 |
+| `deepseek/deepseek-r1-0528` | 0.472 | 0.158 |
+| `qwen/qwen3-14b` | 0.470 | 0.141 |
+| `deepseek/deepseek-r1` | 0.462 | 0.134 |
+| `cohere/command-r-plus-08-2024` | 0.460 | 0.055 |
+| `qwen/qwen3.8-max` | 0.460 | 0.055 |
+| `thinkingmachines/inkling` | 0.460 | 0.456 |
+| `openai/o3` | 0.451 | 0.306 |
+| `meta-llama/llama-4-scout` | 0.447 | 0.274 |
+| `google/gemini-2.5-flash-lite` | 0.438 | 0.069 |
+| `moonshotai/kimi-k2.6` | 0.397 | 0.289 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.374 | 0.167 |
+| `openai/o4-mini` | 0.360 | 0.351 |
+| `qwen/qwen3-235b-a22b-2507` | 0.359 | 0.061 |
+| `inclusionai/ring-2.6-1t` | 0.350 | 0.241 |
+| `xiaomi/mimo-v2.5` | 0.341 | 0.181 |
+| `cohere/command-a` | 0.335 | 0.102 |
+| `mistralai/codestral-2508` | 0.300 | 0.021 |
+| `meituan/longcat-2.0` | 0.280 | 0.284 |
+| `qwen/qwen3.7-plus` | 0.270 | 0.009 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.244 | 0.250 |
+| `openai/gpt-5.4-mini` | 0.241 | 0.008 |
+| `mistralai/mistral-large-2512` | 0.239 | 0.028 |
+| `openai/gpt-3.5-turbo` | 0.211 | 0.008 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.090 | 0.083 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-the-tim-dillon-show-f62bd5fa1cfe`: 495 - Hantavirus Cruise & iPad Babies
@@ -2152,52 +3195,81 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-haiku-4-5-20251001` | 0.833 | 0.000 |
+| `qwen/qwen3.7-max` | 0.848 | 0.034 |
+| `x-ai/grok-4.3` | 0.842 | 0.040 |
 | `google/gemini-2.5-flash` | 0.833 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.800 | 0.000 |
-| `qwen/qwen3.6-plus` | 0.800 | 0.000 |
-| `google/gemma-4-31b-it` | 0.799 | 0.077 |
-| `deepseek/deepseek-v4-flash` | 0.791 | 0.058 |
-| `x-ai/grok-4.3` | 0.781 | 0.120 |
-| `claude-opus-4-7` | 0.760 | 0.089 |
-| `google/gemini-3.5-flash` | 0.760 | 0.089 |
-| `mistralai/mistral-medium-3.1` | 0.745 | 0.062 |
-| `qwen/qwen3.6-flash` | 0.744 | 0.057 |
-| `openai/gpt-5.4` | 0.735 | 0.110 |
-| `deepseek/deepseek-r1` | 0.730 | 0.084 |
-| `google/gemini-3.1-flash-lite` | 0.727 | 0.000 |
-| `google/gemini-2.5-pro` | 0.720 | 0.110 |
-| `openai/gpt-oss-120b` | 0.695 | 0.071 |
-| `deepseek/deepseek-v4-pro` | 0.687 | 0.124 |
-| `claude-opus-4-8` | 0.684 | 0.130 |
-| `minimax/minimax-m3` | 0.680 | 0.110 |
-| `openai/gpt-5.5` | 0.680 | 0.110 |
-| `claude-sonnet-4-6` | 0.615 | 0.000 |
-| `qwen/qwen3.5-27b` | 0.607 | 0.157 |
-| `qwen/qwen3-235b-a22b-2507` | 0.589 | 0.125 |
-| `google/gemini-2.5-flash-lite` | 0.579 | 0.064 |
-| `deepseek/deepseek-r1-0528` | 0.545 | 0.210 |
-| `mistralai/codestral-2508` | 0.535 | 0.036 |
-| `meta-llama/llama-4-scout` | 0.505 | 0.072 |
-| `openai/gpt-5.4-mini` | 0.443 | 0.130 |
-| `mistralai/mistral-large-2512` | 0.409 | 0.059 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.400 | 0.000 |
-| `deepseek/deepseek-v3.2` | 0.389 | 0.147 |
-| `openai/o3` | 0.381 | 0.087 |
-| `microsoft/phi-4` | 0.312 | 0.084 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.290 | 0.254 |
-| `cohere/command-a` | 0.255 | 0.100 |
-| `qwen/qwen3-14b` | 0.244 | 0.177 |
-| `meta-llama/llama-4-maverick` | 0.222 | 0.000 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.211 | 0.073 |
-| `moonshotai/kimi-k2.6` | 0.189 | 0.107 |
-| `nvidia/nemotron-nano-9b-v2` | 0.180 | 0.130 |
-| `openai/gpt-3.5-turbo` | 0.143 | 0.000 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.126 | 0.138 |
-| `cohere/command-r-plus-08-2024` | 0.057 | 0.128 |
-| `qwen/qwen3-8b` | 0.057 | 0.128 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `google/gemini-3.1-flash-lite` | 0.833 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.833 | 0.000 |
+| `google/gemini-3.5-flash-lite` | 0.825 | 0.070 |
+| `claude-haiku-4-5-20251001` | 0.812 | 0.047 |
+| `claude-fable-5` | 0.800 | 0.000 |
+| `claude-opus-4-8` | 0.800 | 0.000 |
+| `claude-opus-5` | 0.800 | 0.000 |
+| `deepseek/deepseek-v4-pro` | 0.800 | 0.000 |
+| `google/gemini-2.5-pro` | 0.800 | 0.000 |
+| `google/gemini-3.1-pro-preview` | 0.800 | 0.000 |
+| `google/gemini-3.5-flash` | 0.800 | 0.000 |
+| `google/gemini-3.6-flash` | 0.800 | 0.000 |
+| `moonshotai/kimi-k3` | 0.800 | 0.000 |
+| `openai/gpt-5.5` | 0.800 | 0.000 |
+| `openai/gpt-5.6-luna` | 0.800 | 0.000 |
+| `openai/gpt-5.6-terra` | 0.800 | 0.000 |
+| `x-ai/grok-4.5` | 0.800 | 0.000 |
+| `claude-sonnet-5` | 0.785 | 0.033 |
+| `openai/gpt-5.4` | 0.785 | 0.033 |
+| `qwen/qwen3.7-flash` | 0.785 | 0.033 |
+| `openai/gpt-5.6-sol` | 0.773 | 0.060 |
+| `qwen/qwen3.5-plus-02-15` | 0.748 | 0.047 |
+| `deepseek/deepseek-v4-flash` | 0.733 | 0.094 |
+| `claude-opus-4-7` | 0.727 | 0.000 |
+| `qwen/qwen3.6-flash` | 0.720 | 0.110 |
+| `mistralai/mistral-medium-3-5` | 0.716 | 0.063 |
+| `qwen/qwen3.6-plus` | 0.691 | 0.081 |
+| `thinkingmachines/inkling-small` | 0.691 | 0.088 |
+| `z-ai/glm-5.2` | 0.678 | 0.053 |
+| `google/gemma-4-31b-it` | 0.675 | 0.240 |
+| `claude-sonnet-4-6` | 0.667 | 0.000 |
+| `openai/gpt-oss-120b` | 0.662 | 0.114 |
+| `qwen/qwen3.8-max` | 0.646 | 0.117 |
+| `deepseek/deepseek-v4-flash-0731` | 0.636 | 0.129 |
+| `deepseek/deepseek-r1` | 0.620 | 0.117 |
+| `meta/muse-spark-1.1` | 0.604 | 0.192 |
+| `qwen/qwen3-235b-a22b-2507` | 0.597 | 0.126 |
+| `qwen/qwen3.7-plus` | 0.580 | 0.020 |
+| `xiaomi/mimo-v2.5` | 0.578 | 0.121 |
+| `deepseek/deepseek-r1-0528` | 0.553 | 0.200 |
+| `google/gemma-4-26b-a4b-it` | 0.545 | 0.201 |
+| `openai/gpt-5.4-mini` | 0.514 | 0.132 |
+| `openai/gpt-oss-20b` | 0.483 | 0.167 |
+| `deepseek/deepseek-v3.2` | 0.476 | 0.070 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.463 | 0.168 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.462 | 0.155 |
+| `google/gemini-2.5-flash-lite` | 0.459 | 0.069 |
+| `mistralai/mistral-large-2512` | 0.449 | 0.048 |
+| `openai/o3` | 0.425 | 0.222 |
+| `microsoft/phi-4` | 0.423 | 0.076 |
+| `mistralai/codestral-2508` | 0.401 | 0.027 |
+| `minimax/minimax-m3` | 0.399 | 0.367 |
+| `moonshotai/kimi-k2.6` | 0.394 | 0.167 |
+| `xiaomi/mimo-v2.5-pro` | 0.386 | 0.252 |
+| `qwen/qwen3.5-27b` | 0.373 | 0.147 |
+| `meta-llama/llama-4-maverick` | 0.364 | 0.000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.346 | 0.107 |
+| `tencent/hy3` | 0.346 | 0.118 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.329 | 0.097 |
+| `stepfun/step-3.7-flash` | 0.279 | 0.016 |
+| `meta-llama/llama-4-scout` | 0.256 | 0.144 |
+| `cohere/command-r-plus-08-2024` | 0.239 | 0.177 |
+| `cohere/command-a` | 0.218 | 0.081 |
+| `thinkingmachines/inkling` | 0.202 | 0.211 |
+| `openai/gpt-3.5-turbo` | 0.200 | 0.068 |
+| `qwen/qwen3-14b` | 0.185 | 0.182 |
+| `meituan/longcat-2.0` | 0.152 | 0.140 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.140 | 0.097 |
+| `inclusionai/ring-2.6-1t` | 0.094 | 0.130 |
+| `mistralai/mistral-small-2603` | 0.000 | 0.000 |
 | `openai/o4-mini` | 0.000 | 0.000 |
+| `qwen/qwen3-8b` | 0.000 | 0.000 |
 
 #### `ep-tosh-show-5f6894439bb6`: My Mom - Emergency Pod
 
@@ -2207,106 +3279,172 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `qwen/qwen3.5-plus-02-15` | 0.827 | 0.167 |
-| `claude-opus-4-8` | 0.800 | 0.122 |
-| `x-ai/grok-4.3` | 0.782 | 0.122 |
-| `claude-haiku-4-5-20251001` | 0.727 | 0.000 |
-| `claude-sonnet-4-6` | 0.727 | 0.000 |
+| `openai/gpt-5.6-sol` | 0.889 | 0.000 |
+| `claude-sonnet-4-6` | 0.879 | 0.125 |
+| `claude-fable-5` | 0.864 | 0.041 |
+| `google/gemini-3.6-flash` | 0.857 | 0.053 |
+| `x-ai/grok-4.5` | 0.848 | 0.034 |
+| `claude-opus-4-8` | 0.822 | 0.049 |
+| `meta-llama/llama-4-scout` | 0.787 | 0.142 |
+| `x-ai/grok-4.3` | 0.745 | 0.145 |
+| `openai/gpt-oss-120b` | 0.743 | 0.153 |
+| `qwen/qwen3.7-plus` | 0.728 | 0.124 |
 | `google/gemini-3.1-flash-lite` | 0.727 | 0.000 |
-| `meta-llama/llama-4-scout` | 0.727 | 0.000 |
-| `mistralai/mistral-large-2512` | 0.727 | 0.000 |
-| `qwen/qwen3.6-flash` | 0.727 | 0.000 |
-| `mistralai/codestral-2508` | 0.718 | 0.055 |
-| `qwen/qwen3.6-plus` | 0.716 | 0.158 |
-| `deepseek/deepseek-r1-0528` | 0.708 | 0.159 |
-| `qwen/qwen3.5-27b` | 0.707 | 0.141 |
-| `mistralai/mistral-medium-3.1` | 0.702 | 0.057 |
-| `deepseek/deepseek-r1` | 0.681 | 0.094 |
-| `openai/gpt-oss-120b` | 0.678 | 0.139 |
-| `google/gemini-2.5-flash-lite` | 0.676 | 0.070 |
-| `deepseek/deepseek-v4-flash` | 0.669 | 0.174 |
-| `google/gemini-2.5-flash` | 0.667 | 0.000 |
-| `openai/gpt-5.5` | 0.633 | 0.126 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.633 | 0.226 |
-| `claude-opus-4-7` | 0.622 | 0.186 |
-| `openai/gpt-5.4` | 0.622 | 0.099 |
-| `minimax/minimax-m3` | 0.609 | 0.080 |
-| `google/gemini-2.5-pro` | 0.609 | 0.096 |
-| `openai/gpt-5.4-mini` | 0.607 | 0.068 |
-| `google/gemini-3.5-flash` | 0.536 | 0.133 |
-| `cohere/command-a` | 0.533 | 0.122 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.514 | 0.101 |
-| `openai/o3` | 0.475 | 0.106 |
-| `qwen/qwen3-235b-a22b-2507` | 0.462 | 0.116 |
+| `google/gemini-3.5-flash-lite` | 0.727 | 0.000 |
+| `mistralai/codestral-2508` | 0.727 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.727 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.727 | 0.000 |
+| `qwen/qwen3.6-flash` | 0.723 | 0.122 |
+| `minimax/minimax-m3` | 0.719 | 0.066 |
+| `qwen/qwen3.7-flash` | 0.718 | 0.055 |
+| `mistralai/mistral-medium-3-5` | 0.715 | 0.027 |
+| `openai/gpt-5.6-terra` | 0.711 | 0.099 |
+| `qwen/qwen3.7-max` | 0.681 | 0.047 |
+| `google/gemini-3.1-pro-preview` | 0.676 | 0.070 |
+| `z-ai/glm-5.2` | 0.670 | 0.115 |
+| `deepseek/deepseek-r1` | 0.669 | 0.147 |
+| `claude-haiku-4-5-20251001` | 0.669 | 0.040 |
+| `mistralai/mistral-large-2512` | 0.667 | 0.000 |
+| `openai/gpt-5.6-luna` | 0.667 | 0.157 |
+| `claude-opus-5` | 0.667 | 0.000 |
+| `google/gemini-3.5-flash` | 0.656 | 0.023 |
+| `claude-sonnet-5` | 0.647 | 0.104 |
+| `openai/gpt-5.5` | 0.622 | 0.099 |
+| `google/gemini-2.5-flash-lite` | 0.609 | 0.080 |
+| `cohere/command-a` | 0.600 | 0.000 |
+| `moonshotai/kimi-k3` | 0.599 | 0.248 |
+| `qwen/qwen3.6-plus` | 0.579 | 0.363 |
+| `google/gemini-2.5-flash` | 0.571 | 0.000 |
+| `xiaomi/mimo-v2.5` | 0.569 | 0.179 |
+| `deepseek/deepseek-r1-0528` | 0.549 | 0.120 |
+| `openai/gpt-5.4-mini` | 0.542 | 0.114 |
+| `tencent/hy3` | 0.539 | 0.246 |
+| `claude-opus-4-7` | 0.538 | 0.215 |
+| `qwen/qwen3-235b-a22b-2507` | 0.529 | 0.172 |
+| `deepseek/deepseek-v3.2` | 0.527 | 0.078 |
+| `openai/gpt-5.4` | 0.520 | 0.110 |
+| `moonshotai/kimi-k2.6` | 0.510 | 0.103 |
+| `google/gemma-4-31b-it` | 0.476 | 0.145 |
+| `meituan/longcat-2.0` | 0.473 | 0.093 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0.471 | 0.325 |
+| `deepseek/deepseek-v4-pro` | 0.456 | 0.273 |
+| `meta/muse-spark-1.1` | 0.451 | 0.162 |
 | `meta-llama/llama-4-maverick` | 0.444 | 0.000 |
-| `qwen/qwen3-14b` | 0.429 | 0.178 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.357 | 0.139 |
-| `nvidia/nemotron-nano-9b-v2` | 0.320 | 0.137 |
-| `google/gemma-4-31b-it` | 0.311 | 0.122 |
-| `deepseek/deepseek-v4-pro` | 0.305 | 0.312 |
-| `cohere/command-r-plus-08-2024` | 0.289 | 0.087 |
-| `moonshotai/kimi-k2.6` | 0.267 | 0.149 |
-| `deepseek/deepseek-v3.2` | 0.257 | 0.251 |
-| `openai/gpt-3.5-turbo` | 0.209 | 0.012 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.197 | 0.017 |
+| `google/gemini-2.5-pro` | 0.432 | 0.166 |
+| `openai/gpt-oss-20b` | 0.375 | 0.275 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.363 | 0.065 |
+| `google/gemma-4-26b-a4b-it` | 0.358 | 0.175 |
+| `deepseek/deepseek-v4-flash` | 0.355 | 0.156 |
+| `qwen/qwen3.5-27b` | 0.350 | 0.267 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0.319 | 0.201 |
+| `cohere/command-r-plus-08-2024` | 0.295 | 0.021 |
+| `qwen/qwen3-14b` | 0.278 | 0.094 |
+| `xiaomi/mimo-v2.5-pro` | 0.253 | 0.258 |
+| `mistralai/mistral-small-2603` | 0.222 | 0.000 |
+| `openai/gpt-3.5-turbo` | 0.218 | 0.010 |
+| `microsoft/phi-4` | 0.217 | 0.046 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.216 | 0.032 |
+| `deepseek/deepseek-v4-flash-0731` | 0.203 | 0.196 |
+| `thinkingmachines/inkling-small` | 0.181 | 0.262 |
+| `openai/o3` | 0.178 | 0.169 |
 | `openai/o4-mini` | 0.133 | 0.183 |
-| `microsoft/phi-4` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `inclusionai/ring-2.6-1t` | 0.129 | 0.197 |
+| `stepfun/step-3.7-flash` | 0.067 | 0.149 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.050 | 0.112 |
 | `qwen/qwen3-8b` | 0.000 | 0.000 |
+| `qwen/qwen3.8-max` | 0.000 | 0.000 |
+| `thinkingmachines/inkling` | 0.000 | 0.000 |
 
 
 ### Parser stress test
 
 How each model's responses were actually parsed. Columns are extraction methods, ordered alphabetically; rows are models, sorted by parse-failure rate (cleanest at top). `json_array_direct` is the happy path: a bare JSON array we could `json.loads` and process immediately. `markdown_code_block` means we had to strip triple-backtick fences first; `json_object_*` means the model wrapped the array in an outer object and we had to find the array key; `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile. It works today, but a small prompt change can break the parser.
 
-| Model | bracket_fallback | json_array_direct | json_object_ads_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | json_object_window_segments | markdown_code_block | parse_failure | regex_json_array |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 855 | 0 | 0 |
-| `claude-opus-4-7` | 0 | 850 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 |
-| `claude-opus-4-8` | 0 | 836 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 16 |
-| `claude-sonnet-4-6` | 0 | 783 | 0 | 0 | 0 | 0 | 0 | 0 | 57 | 0 | 15 |
-| `cohere/command-a` | 0 | 0 | 0 | 29 | 0 | 826 | 0 | 0 | 0 | 0 | 0 |
-| `cohere/command-r-plus-08-2024` | 0 | 0 | 27 | 783 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
-| `deepseek/deepseek-v3.2` | 0 | 501 | 16 | 3 | 0 | 335 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemini-2.5-flash` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemini-3.1-flash-lite` | 0 | 799 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 56 |
-| `google/gemini-3.5-flash` | 0 | 850 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 4 |
-| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 315 | 0 | 540 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/codestral-2508` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/mistral-large-2512` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/mistral-medium-3.1` | 0 | 854 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
-| `openai/gpt-5.4` | 0 | 0 | 0 | 326 | 0 | 529 | 0 | 0 | 0 | 0 | 0 |
-| `openai/gpt-5.4-mini` | 0 | 0 | 2 | 300 | 2 | 551 | 0 | 0 | 0 | 0 | 0 |
-| `qwen/qwen3-235b-a22b-2507` | 0 | 173 | 1 | 94 | 0 | 587 | 0 | 0 | 0 | 0 | 0 |
-| `qwen/qwen3.6-flash` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `qwen/qwen3.6-plus` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemma-4-31b-it` | 1 | 0 | 455 | 216 | 0 | 180 | 2 | 0 | 0 | 1 | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | 0 | 371 | 0 | 66 | 0 | 417 | 0 | 0 | 0 | 1 | 0 |
-| `openai/gpt-5.5` | 0 | 0 | 0 | 494 | 0 | 360 | 0 | 0 | 0 | 1 | 0 |
-| `x-ai/grok-4.3` | 0 | 854 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| `qwen/qwen3.5-plus-02-15` | 0 | 851 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 50 | 0 | 800 | 0 | 0 | 0 | 5 | 0 |
-| `openai/o3` | 0 | 0 | 34 | 621 | 12 | 183 | 0 | 0 | 0 | 5 | 0 |
-| `deepseek/deepseek-r1` | 0 | 760 | 2 | 17 | 7 | 44 | 0 | 0 | 17 | 6 | 2 |
-| `meta-llama/llama-4-scout` | 37 | 5 | 644 | 92 | 0 | 62 | 0 | 0 | 0 | 9 | 6 |
-| `microsoft/phi-4` | 0 | 421 | 31 | 27 | 20 | 335 | 0 | 2 | 0 | 9 | 10 |
-| `google/gemini-2.5-pro` | 0 | 818 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 25 |
-| `minimax/minimax-m3` | 0 | 625 | 0 | 0 | 0 | 0 | 1 | 0 | 215 | 14 | 0 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0 | 20 | 68 | 104 | 0 | 642 | 5 | 0 | 0 | 15 | 1 |
-| `deepseek/deepseek-v4-flash` | 0 | 102 | 435 | 21 | 7 | 272 | 0 | 0 | 0 | 17 | 1 |
-| `google/gemini-2.5-flash-lite` | 0 | 793 | 0 | 0 | 0 | 0 | 43 | 0 | 0 | 19 | 0 |
-| `deepseek/deepseek-v4-pro` | 0 | 229 | 63 | 131 | 314 | 86 | 2 | 0 | 5 | 23 | 2 |
-| `nvidia/nemotron-nano-9b-v2` | 0 | 770 | 0 | 0 | 0 | 0 | 15 | 0 | 0 | 56 | 14 |
-| `deepseek/deepseek-r1-0528` | 0 | 700 | 34 | 3 | 0 | 30 | 3 | 0 | 2 | 83 | 0 |
-| `qwen/qwen3.5-27b` | 0 | 633 | 0 | 89 | 0 | 12 | 0 | 0 | 0 | 121 | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0 | 441 | 0 | 0 | 0 | 0 | 3 | 0 | 257 | 124 | 30 |
-| `openai/gpt-oss-120b` | 0 | 68 | 235 | 186 | 0 | 188 | 6 | 0 | 0 | 149 | 23 |
-| `moonshotai/kimi-k2.6` | 0 | 68 | 35 | 109 | 2 | 397 | 0 | 0 | 5 | 239 | 0 |
-| `meta-llama/llama-3.3-70b-instruct` | 0 | 143 | 1 | 144 | 0 | 264 | 0 | 0 | 0 | 300 | 3 |
-| `mistralai/mistral-7b-instruct-v0.1` | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 509 | 345 |
-| `qwen/qwen3-14b` | 0 | 0 | 0 | 1 | 0 | 338 | 0 | 0 | 0 | 516 | 0 |
-| `openai/o4-mini` | 0 | 0 | 0 | 19 | 0 | 33 | 0 | 0 | 0 | 803 | 0 |
-| `qwen/qwen3-8b` | 18 | 4 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 833 | 0 |
+| Model | bracket_fallback | json_array_direct | json_object_ad_key | json_object_ads_detected_key | json_object_ads_key | json_object_advertisement_segments_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | markdown_code_block | parse_failure | regex_json_array |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `claude-fable-5` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-haiku-4-5-20251001` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-opus-4-7` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-opus-4-8` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-opus-5` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-sonnet-4-6` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-sonnet-5` | 0 | 854 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| `cohere/command-a` | 0 | 0 | 0 | 0 | 0 | 0 | 21 | 0 | 834 | 0 | 0 | 0 | 0 |
+| `cohere/command-r-plus-08-2024` | 0 | 0 | 0 | 0 | 5 | 0 | 661 | 0 | 189 | 0 | 0 | 0 | 0 |
+| `deepseek/deepseek-v3.2` | 0 | 853 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemini-2.5-flash` | 0 | 852 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 0 | 0 | 0 |
+| `google/gemini-3.1-flash-lite` | 0 | 771 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 83 |
+| `google/gemini-3.1-pro-preview` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemini-3.5-flash` | 0 | 852 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 |
+| `google/gemini-3.5-flash-lite` | 0 | 853 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 1 |
+| `google/gemini-3.6-flash` | 0 | 854 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `google/gemma-4-26b-a4b-it` | 0 | 0 | 0 | 0 | 73 | 0 | 372 | 0 | 410 | 0 | 0 | 0 | 0 |
+| `google/gemma-4-31b-it` | 0 | 14 | 0 | 0 | 378 | 0 | 283 | 0 | 180 | 0 | 0 | 0 | 0 |
+| `meta-llama/llama-3.1-8b-instruct` | 0 | 208 | 0 | 0 | 0 | 0 | 138 | 0 | 509 | 0 | 0 | 0 | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | 0 | 147 | 0 | 0 | 0 | 0 | 380 | 0 | 322 | 4 | 0 | 0 | 2 |
+| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 0 | 0 | 0 | 259 | 0 | 596 | 0 | 0 | 0 | 0 |
+| `mistralai/codestral-2508` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-large-2512` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-medium-3-5` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-medium-3.1` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-small-2603` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.4` | 0 | 0 | 0 | 0 | 0 | 0 | 274 | 0 | 581 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.4-mini` | 0 | 0 | 0 | 0 | 0 | 0 | 218 | 0 | 637 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.6-sol` | 0 | 0 | 0 | 0 | 53 | 0 | 368 | 3 | 431 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.6-terra` | 0 | 0 | 0 | 0 | 0 | 0 | 458 | 0 | 397 | 0 | 0 | 0 | 0 |
+| `qwen/qwen3-235b-a22b-2507` | 0 | 227 | 0 | 0 | 0 | 0 | 169 | 0 | 459 | 0 | 0 | 0 | 0 |
+| `x-ai/grok-4.3` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `x-ai/grok-4.5` | 0 | 855 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `nvidia/nemotron-3-ultra-550b-a55b` | 0 | 448 | 0 | 0 | 59 | 0 | 56 | 37 | 252 | 0 | 0 | 3 | 0 |
+| `openai/gpt-5.5` | 0 | 0 | 0 | 0 | 0 | 0 | 489 | 0 | 363 | 0 | 0 | 3 | 0 |
+| `meta/muse-spark-1.1` | 0 | 0 | 0 | 0 | 28 | 0 | 643 | 3 | 175 | 2 | 0 | 4 | 0 |
+| `minimax/minimax-m3` | 0 | 340 | 0 | 0 | 4 | 0 | 262 | 0 | 48 | 0 | 188 | 4 | 9 |
+| `qwen/qwen3.5-plus-02-15` | 0 | 851 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 4 | 0 |
+| `qwen/qwen3.7-max` | 0 | 833 | 0 | 0 | 0 | 0 | 0 | 0 | 8 | 10 | 0 | 4 | 0 |
+| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 0 | 0 | 0 | 19 | 0 | 831 | 0 | 0 | 5 | 0 |
+| `openai/o3` | 0 | 0 | 0 | 0 | 87 | 0 | 613 | 30 | 119 | 0 | 0 | 6 | 0 |
+| `openai/gpt-5.6-luna` | 0 | 0 | 0 | 0 | 32 | 0 | 368 | 0 | 446 | 0 | 0 | 9 | 0 |
+| `openai/gpt-oss-120b` | 0 | 28 | 0 | 0 | 181 | 0 | 429 | 0 | 202 | 1 | 0 | 9 | 5 |
+| `google/gemini-2.5-pro` | 0 | 805 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 12 | 29 |
+| `microsoft/phi-4` | 0 | 828 | 0 | 0 | 0 | 0 | 4 | 0 | 3 | 7 | 0 | 13 | 0 |
+| `google/gemini-2.5-flash-lite` | 0 | 791 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 47 | 0 | 17 | 0 |
+| `qwen/qwen3.7-plus` | 0 | 242 | 0 | 0 | 3 | 0 | 86 | 0 | 500 | 2 | 0 | 22 | 0 |
+| `xiaomi/mimo-v2.5-pro` | 0 | 0 | 0 | 1 | 133 | 7 | 552 | 11 | 119 | 5 | 0 | 22 | 5 |
+| `xiaomi/mimo-v2.5` | 0 | 0 | 0 | 1 | 54 | 0 | 160 | 2 | 492 | 48 | 18 | 26 | 54 |
+| `meta-llama/llama-4-scout` | 31 | 56 | 0 | 0 | 349 | 0 | 262 | 10 | 110 | 3 | 0 | 27 | 7 |
+| `z-ai/glm-5.2` | 0 | 5 | 4 | 0 | 95 | 0 | 86 | 0 | 635 | 1 | 0 | 29 | 0 |
+| `qwen/qwen3.6-flash` | 0 | 820 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 30 | 0 |
+| `qwen/qwen3.7-flash` | 0 | 810 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 | 33 | 0 |
+| `deepseek/deepseek-v4-pro` | 0 | 434 | 0 | 0 | 10 | 0 | 39 | 205 | 118 | 3 | 0 | 45 | 1 |
+| `deepseek/deepseek-v4-flash` | 0 | 93 | 0 | 0 | 175 | 0 | 266 | 6 | 268 | 0 | 0 | 47 | 0 |
+| `moonshotai/kimi-k3` | 0 | 361 | 0 | 0 | 181 | 0 | 27 | 0 | 6 | 122 | 0 | 50 | 108 |
+| `deepseek/deepseek-r1` | 0 | 494 | 0 | 0 | 182 | 0 | 0 | 1 | 90 | 3 | 0 | 85 | 0 |
+| `qwen/qwen3.6-plus` | 0 | 748 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 21 | 0 | 86 | 0 |
+| `deepseek/deepseek-r1-0528` | 0 | 535 | 0 | 0 | 154 | 0 | 7 | 4 | 55 | 4 | 0 | 96 | 0 |
+| `openai/gpt-oss-20b` | 0 | 26 | 0 | 0 | 121 | 0 | 430 | 0 | 176 | 3 | 0 | 99 | 0 |
+| `inclusionai/ring-2.6-1t` | 1 | 0 | 0 | 0 | 0 | 0 | 568 | 6 | 168 | 2 | 0 | 110 | 0 |
+| `nvidia/nemotron-3-super-120b-a12b` | 0 | 520 | 0 | 0 | 1 | 0 | 40 | 0 | 160 | 6 | 0 | 127 | 1 |
+| `qwen/qwen3-14b` | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | 712 | 2 | 0 | 131 | 0 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 110 | 135 | 573 |
+| `deepseek/deepseek-v4-flash-0731` | 0 | 224 | 0 | 0 | 9 | 0 | 222 | 0 | 238 | 3 | 0 | 158 | 1 |
+| `qwen/qwen3.8-max` | 0 | 621 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 1 | 0 | 230 | 0 |
+| `tencent/hy3` | 12 | 144 | 0 | 0 | 10 | 0 | 198 | 0 | 249 | 6 | 0 | 236 | 0 |
+| `thinkingmachines/inkling-small` | 0 | 0 | 0 | 0 | 0 | 0 | 281 | 0 | 284 | 4 | 0 | 250 | 36 |
+| `qwen/qwen3.5-27b` | 0 | 460 | 0 | 0 | 0 | 0 | 124 | 0 | 17 | 1 | 0 | 253 | 0 |
+| `moonshotai/kimi-k2.6` | 0 | 270 | 0 | 0 | 57 | 0 | 77 | 3 | 188 | 6 | 0 | 254 | 0 |
+| `stepfun/step-3.7-flash` | 0 | 0 | 0 | 0 | 380 | 0 | 4 | 0 | 103 | 4 | 0 | 234 | 0 |
+| `meituan/longcat-2.0` | 0 | 0 | 0 | 0 | 414 | 0 | 8 | 0 | 1 | 2 | 0 | 429 | 1 |
+| `thinkingmachines/inkling` | 81 | 0 | 0 | 0 | 3 | 0 | 142 | 0 | 188 | 2 | 0 | 430 | 0 |
+| `qwen/qwen3-8b` | 15 | 1 | 0 | 0 | 0 | 0 | 79 | 0 | 0 | 0 | 0 | 760 | 0 |
+| `openai/o4-mini` | 0 | 0 | 0 | 0 | 0 | 0 | 24 | 1 | 52 | 0 | 0 | 778 | 0 |
+
+### Deprecated Models
+
+Historical data preserved; excluded from headline rankings.
+
+- `mistralai/mistral-7b-instruct-v0.1`: F1 0.000, cost $0.0000/ep
+- `nvidia/llama-3.3-nemotron-super-49b-v1.5`: F1 0.579, cost $0.0000/ep
+- `nvidia/nemotron-nano-9b-v2`: F1 0.316, cost $0.0000/ep
 
 ## Methodology
 
@@ -2316,7 +3454,7 @@ Reproducibility settings used for this run. The benchmark sends the same prompts
 - max_tokens: 4096 (matches MinusPod production)
 - response_format: json_object (with prompt-injection fallback when provider rejects native)
 - Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)
-- Pricing snapshot: 2026-06-02T23:38:06.275985Z
+- Pricing snapshot: 2026-08-07T17:23:44.665500Z
 - Corpus episodes: 14
 
 ## Transcript source
@@ -2548,11 +3686,11 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-07-12T11:18:23Z
-- Unique work units (current state, last-write-wins after retries): 39330
-- Raw rows in calls.jsonl: 39961 (631 superseded by later retries; kept for audit)
-- Successful: 39327
-- Failed: 3
-- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $340.6741
-- Active pricing snapshot: 2026-06-02T23:38:06.275985Z
-- System prompt: live (sha256:cade17f4)
+- Report generated: 2026-08-07T17:24:24Z
+- Unique work units (current state, last-write-wins after retries): 66690
+- Raw rows in calls.jsonl: 110033 (43343 superseded by later retries; kept for audit)
+- Successful: 66551
+- Failed: 139
+- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $972.7198
+- Active pricing snapshot: 2026-08-07T17:23:44.665500Z
+- System prompt: live (sha256:1030b29e)
