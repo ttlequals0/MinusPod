@@ -46,6 +46,33 @@ What `verify` checks (so reviewers don't have to):
 
 If `verify` passes, the episode is mergeable on data quality. The reviewer's job is then narrow: source legitimacy, genre fit, and PII hygiene (see "Copyright and PII" below).
 
+## Test your change locally
+
+`benchmark run` sweeps every model in `benchmark.toml` against every corpus episode. That is the full matrix and it costs real money. But `benchmark.toml` is gitignored and yours alone, so trim it to one or two cheap models first:
+
+```toml
+[[models]]
+id = "openai/gpt-5.6-luna"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-v4-flash-0731"
+provider = "openrouter"
+```
+
+Then:
+
+```sh
+uv run benchmark run --dry-run   # call count, before spending anything
+uv run benchmark run
+```
+
+Completed work is skipped on re-run, keyed by (model, episode, trial, window, prompt_hash), so an interrupted run resumes where it stopped. Editing the system prompt changes every key and re-runs everything.
+
+Keep a second config and pass `--config cheap.toml` if you would rather not edit your main one.
+
+`benchmark run` has no per-model or per-episode filter, so trimming the config is the way to scope a run.
+
 ## PR type 2: add a model
 
 Workflow:
@@ -55,6 +82,8 @@ Workflow:
 3. Run `uv run benchmark validate` to confirm the config parses.
 
 Your PR diff should be one file: `benchmark.toml.example`.
+
+That template is not what the sweep reads. `benchmark.toml` is gitignored, so a maintainer copies your entry across before the next run. Retired models stay in the file with `deprecated = true` rather than being deleted, which keeps their historical rows in the report and stops the sweep from calling a slug that no longer resolves.
 
 You do not need to run the benchmark sweep yourself. Maintainers run it post-merge for cost reasons. A single episode against a single new model is roughly $0.01 to $0.30. A maintainer batches model adds before regenerating the public report.
 
@@ -103,11 +132,26 @@ When unsure, open a GitHub issue with the episode URL and a one-paragraph descri
 
 ## Cost expectations
 
-- **Episode-add PR**: zero contributor cost. The capture and verify steps don't call any LLM. A maintainer runs the sweep post-merge, which adds the new episode against the existing model list.
-- **Model-add PR**: zero contributor cost. A maintainer runs the sweep against the existing corpus.
-- **Code PR**: zero. Tests run against fixture data. No LLM calls.
+Zero for all three PR types if you let a maintainer run the sweep.
+
+If you test locally, budget from measured data. One episode against one model for a single trial, across 1,050 pairs in the 2026-08 sweep:
+
+| | cost |
+|---|---|
+| cheapest | $0.0007 |
+| median | $0.0420 |
+| 90th percentile | $0.3222 |
+| most expensive | $2.4391 |
+
+The model drives that spread far more than the episode does. A short episode on a small open-weight model costs a fraction of a cent; a long one on a frontier reasoning model runs past a dollar. Pick from the cheap end while iterating.
 
 Free-tier OpenRouter models stay free during maintainer sweeps because the benchmark sends the OpenRouter attribution headers (see `src/benchmark/llm.py`).
+
+## When a model fails instead of scoring
+
+Producing no answer is different from answering badly, and the report separates them. The 2026-08 sweep saw a provider refuse transcripts on content grounds, a model whose only route rejected native JSON mode, shared-pool rate limits, and an account setting that blocked every call.
+
+`results/failure-modes.md` records which of those are properties of the model and which are conditions of your account or the provider. If a model-add PR comes back with a row full of errors, read that before concluding the model is bad.
 
 ## Where to ask
 
