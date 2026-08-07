@@ -652,8 +652,11 @@ def _render_run_metadata(
     lines += [
         f"- Successful: {successful}",
         f"- Failed: {failed}",
-        f"- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): ${lifetime_actual:.4f}",
+        f"- Lifetime list-price cost (sum of at-runtime costs, includes superseded rows): ${lifetime_actual:.4f}",
         f"- Lifetime tokens (same basis): {in_tokens:,} in + {out_tokens:,} out = {in_tokens + out_tokens:,}",
+        "- Note: every input token is priced at list rate. Providers that serve a repeated prompt from"
+        " cache bill less than this, and the harness does not record cache hits, so a real invoice for"
+        " this run will come in under the figure above.",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
         f"- System prompt: {prompt_source}",
     ]
