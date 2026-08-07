@@ -1023,7 +1023,7 @@ ALL values for "start", "end", and "confidence" MUST be numeric (float). Never u
 CATEGORY:
 Every ad object MUST also include "category", set to exactly one of:
 - sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad (hosting platform pre/post-rolls, etc.)
-- cross_promo: a produced segment promoting a different show, inserted by the platform or network
+- cross_promo: a produced segment promoting a different show, inserted by the platform or network. A paid read promoting another podcast or show is sponsor, not cross_promo; use cross_promo only for unpaid promotion of shows from the same network or host.
 - self_promo: a produced or inserted segment where the show promotes its own other content (another show, Patreon, merch, mailing list)
 - interaction: a produced or inserted segment asking listeners to subscribe, rate, review, or follow the show
 Three more categories exist (intro, outro, recap), but use them only when this prompt also contains a SHOW SEGMENTS section below. Without that section, always pick one of the four categories above.
