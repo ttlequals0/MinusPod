@@ -47,8 +47,47 @@ def _distinct_colors(n: int) -> list[tuple[float, ...]]:
         palette.extend(plt.get_cmap(name).colors)
     if n <= len(palette):
         return palette[:n]
-    cmap = plt.get_cmap("hsv")
-    return [cmap(i / n) for i in range(n)]
+    # Past the categorical maps, hsv sampled at n steps puts near-identical hues
+    # side by side and wraps (0 and 1 are both red), so a 75-model chart reads as
+    # repeated colours. Golden-angle hue stepping spreads them instead, and
+    # cycling lightness and saturation separates hues that land close anyway.
+    import colorsys
+    golden = 0.618033988749895
+    extra = []
+    for i in range(n - len(palette)):
+        h = (i * golden) % 1.0
+        sat = (0.55, 0.85, 0.70)[i % 3]
+        val = (0.90, 0.65, 0.78)[i % 3]
+        extra.append(colorsys.hsv_to_rgb(h, sat, val) + (1.0,))
+    return palette + extra
+
+
+def _legend_below(fig, n_entries: int, plot_height: float):
+    """Put the model legend under the plot, growing the figure to fit it.
+
+    The legend has one row per model. Clamping the reserved fraction (the old
+    behaviour) makes it overlap the axes once the roster outgrows the space, so
+    size the figure to the legend instead and keep the plot area fixed.
+    """
+    ncol = 1 if n_entries <= 6 else 2 if n_entries <= 30 else 3
+    rows = (n_entries + ncol - 1) // ncol
+    # Each entry is "model  (F1 x.xxx, $x.xxxx/ep)", so a column needs about
+    # 5in at 8pt. Widen the canvas with the column count or the labels clip.
+    width = max(fig.get_size_inches()[0], 5.2 * ncol)
+    legend_height = 0.35 + 0.19 * rows          # inches
+    # Gap keeps the x-axis label clear of the legend frame.
+    gap = 0.45
+    total = plot_height + legend_height + gap
+    fig.set_size_inches(width, total)
+    legend = fig.legend(
+        loc="lower center", bbox_to_anchor=(0.5, 0.004), ncol=ncol, fontsize=8,
+        frameon=True, edgecolor="lightgray", columnspacing=1.6,
+        handletextpad=0.6, borderpad=0.6,
+    )
+    legend.get_frame().set_alpha(0.95)
+    fig.subplots_adjust(left=0.09, right=0.97, top=1 - 0.5 / total,
+                        bottom=(legend_height + gap) / total)
+    return legend
 
 
 def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
@@ -75,24 +114,7 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     ax.set_title("Cost vs F1 by model", fontsize=12, fontweight="bold")
     ax.grid(True, alpha=0.3)
 
-    ncol = 2 if len(points) > 6 else 1
-    legend = fig.legend(
-        loc="lower center",
-        bbox_to_anchor=(0.5, 0.02),
-        ncol=ncol,
-        fontsize=9,
-        frameon=True,
-        edgecolor="lightgray",
-        columnspacing=2.0,
-        handletextpad=0.7,
-        borderpad=0.8,
-    )
-    legend.get_frame().set_alpha(0.95)
-
-    # Reserve enough bottom space for the legend; 0.45 fits ~7-row 2-column legend
-    rows = (len(points) + ncol - 1) // ncol
-    bottom = min(0.55, 0.10 + 0.038 * rows)
-    fig.subplots_adjust(left=0.10, right=0.96, top=0.93, bottom=bottom)
+    _legend_below(fig, len(points), plot_height=9)
     _save_svg(fig, path)
     plt.close(fig)
 
@@ -429,12 +451,7 @@ def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> 
     ax.set_ylim(-0.02, 1.02)
     ax.grid(True, alpha=0.3)
 
-    ncol = 2 if len(points) > 6 else 1
-    fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=ncol,
-               fontsize=8, frameon=True, edgecolor="lightgray")
-    rows = (len(points) + ncol - 1) // ncol
-    bottom = min(0.55, 0.10 + 0.035 * rows)
-    fig.subplots_adjust(left=0.10, right=0.96, top=0.90, bottom=bottom)
+    _legend_below(fig, len(points), plot_height=9)
     _save_svg(fig, path)
     plt.close(fig)
 
@@ -503,12 +520,7 @@ def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> 
     ax.set_ylim(-0.02, 1.02)
     ax.grid(True, alpha=0.3, which="both")
 
-    ncol = 2 if len(points) > 6 else 1
-    fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=ncol,
-               fontsize=8, frameon=True, edgecolor="lightgray")
-    rows = (len(points) + ncol - 1) // ncol
-    bottom = min(0.55, 0.10 + 0.035 * rows)
-    fig.subplots_adjust(left=0.10, right=0.96, top=0.92, bottom=bottom)
+    _legend_below(fig, len(points), plot_height=8)
     _save_svg(fig, path)
     plt.close(fig)
 

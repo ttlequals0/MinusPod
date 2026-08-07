@@ -151,7 +151,7 @@ Free-tier OpenRouter models stay free during maintainer sweeps because the bench
 
 Producing no answer is different from answering badly, and the report separates them. The 2026-08 sweep saw a provider refuse transcripts on content grounds, a model whose only route rejected native JSON mode, shared-pool rate limits, and an account setting that blocked every call.
 
-`results/failure-modes.md` records which of those are properties of the model and which are conditions of your account or the provider. If a model-add PR comes back with a row full of errors, read that before concluding the model is bad.
+`results/parse-and-moderation.md` covers the two failures a retry will not fix: a provider refusing the transcript, and a model that cannot reliably emit JSON. If a model-add PR comes back with a row full of errors, read that before concluding the model is bad.
 
 ## Where to ask
 

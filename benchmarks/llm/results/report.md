@@ -3678,7 +3678,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-07T18:33:14Z
+- Report generated: 2026-08-07T18:40:43Z
 - Unique work units (current state, last-write-wins after retries): 64125
 - Raw rows in calls.jsonl: 70072 (5947 superseded by later retries; kept for audit)
 - Successful: 63986
