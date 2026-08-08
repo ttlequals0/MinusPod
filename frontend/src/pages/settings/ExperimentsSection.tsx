@@ -23,6 +23,12 @@ interface ExperimentsSectionProps {
   onResetPrompts: () => void;
   resetIsPending: boolean;
   modelOptions?: Array<{ id: string; label: string }>;
+  // Per-prompt reset (issue #626); the override fields have no button of
+  // their own since resetting the base prompt clears its override too.
+  reviewPromptIsDefault?: boolean;
+  resurrectPromptIsDefault?: boolean;
+  onResetReviewPrompt?: () => void;
+  onResetResurrectPrompt?: () => void;
 }
 
 function ExperimentsSection({
@@ -31,6 +37,10 @@ function ExperimentsSection({
   onResetPrompts,
   resetIsPending,
   modelOptions = [],
+  reviewPromptIsDefault,
+  resurrectPromptIsDefault,
+  onResetReviewPrompt,
+  onResetResurrectPrompt,
 }: ExperimentsSectionProps) {
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
@@ -181,6 +191,8 @@ function ExperimentsSection({
                 Placeholders: <code>{'{sponsor_database}'}</code>, <code>{'{max_boundary_shift_seconds}'}</code>. Remove a placeholder to skip that injection.
               </>
             }
+            onReset={onResetReviewPrompt}
+            isDefault={reviewPromptIsDefault}
           />
           <PromptField
             id="reviewPromptOverride"
@@ -205,6 +217,8 @@ function ExperimentsSection({
                 Second-guesses validator rejections in the resurrection band. Placeholder: <code>{'{sponsor_database}'}</code>.
               </>
             }
+            onReset={onResetResurrectPrompt}
+            isDefault={resurrectPromptIsDefault}
           />
           <PromptField
             id="resurrectPromptOverride"

@@ -1,3 +1,5 @@
+import ConfirmResetButton from './ConfirmResetButton';
+
 interface PromptFieldProps {
   id: string;
   label: string;
@@ -5,6 +7,10 @@ interface PromptFieldProps {
   onChange: (value: string) => void;
   helpText?: React.ReactNode;
   rows?: number;
+  // Per-prompt reset (issue #626): shown beside the label only when a
+  // handler is supplied and the prompt is not already at its default.
+  onReset?: () => void;
+  isDefault?: boolean;
 }
 
 export default function PromptField({
@@ -14,12 +20,19 @@ export default function PromptField({
   onChange,
   helpText,
   rows = 6,
+  onReset,
+  isDefault,
 }: PromptFieldProps) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
-        {label}
-      </label>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <label htmlFor={id} className="block text-sm font-medium text-foreground">
+          {label}
+        </label>
+        {onReset && isDefault === false && (
+          <ConfirmResetButton label="Reset" onConfirm={onReset} size="compact" />
+        )}
+      </div>
       <textarea
         id={id}
         value={value}

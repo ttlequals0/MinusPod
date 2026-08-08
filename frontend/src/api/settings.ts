@@ -25,6 +25,14 @@ export async function resetPrompts(): Promise<{ message: string }> {
   });
 }
 
+export type PromptName = 'system' | 'verification' | 'review' | 'resurrect' | 'chapter';
+
+export async function resetPrompt(name: PromptName): Promise<{ value: string; isDefault: boolean }> {
+  return apiRequest<{ value: string; isDefault: boolean }>(`/settings/prompts/${name}/reset`, {
+    method: 'POST',
+  });
+}
+
 export async function regenerateFeedKey(): Promise<{ feedAuthKey: string }> {
   return apiRequest<{ feedAuthKey: string }>('/settings/feed-auth/regenerate-key', {
     method: 'POST',

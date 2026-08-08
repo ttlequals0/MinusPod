@@ -21,6 +21,14 @@ interface PromptsSectionProps {
   onChapterPromptOverrideChange: (prompt: string) => void;
   onResetPrompts: () => void;
   resetIsPending: boolean;
+  // Per-prompt reset (issue #626); overrides have no button of their own
+  // since resetting the base prompt clears its override too.
+  systemPromptIsDefault?: boolean;
+  verificationPromptIsDefault?: boolean;
+  chapterPromptIsDefault?: boolean;
+  onResetSystemPrompt?: () => void;
+  onResetVerificationPrompt?: () => void;
+  onResetChapterPrompt?: () => void;
 }
 
 function PromptsSection({
@@ -38,6 +46,12 @@ function PromptsSection({
   onChapterPromptOverrideChange,
   onResetPrompts,
   resetIsPending,
+  systemPromptIsDefault,
+  verificationPromptIsDefault,
+  chapterPromptIsDefault,
+  onResetSystemPrompt,
+  onResetVerificationPrompt,
+  onResetChapterPrompt,
 }: PromptsSectionProps) {
   return (
     <CollapsibleSection title="Prompts">
@@ -48,6 +62,8 @@ function PromptsSection({
           value={systemPrompt}
           onChange={onSystemPromptChange}
           helpText="Instructions sent to the AI model for the initial ad detection pass"
+          onReset={onResetSystemPrompt}
+          isDefault={systemPromptIsDefault}
         />
         <PromptField
           id="systemPromptOverride"
@@ -64,6 +80,8 @@ function PromptsSection({
           value={verificationPrompt}
           onChange={onVerificationPromptChange}
           helpText="Instructions for the verification pass to detect ads missed by the first pass"
+          onReset={onResetVerificationPrompt}
+          isDefault={verificationPromptIsDefault}
         />
         <PromptField
           id="verificationPromptOverride"
@@ -82,6 +100,8 @@ function PromptsSection({
           helpText={'Instructions for chapter topic detection. Placeholders: {num_splits}, '
             + '{segment_start}, {segment_end}, {continuation_block}, {description_block}, '
             + '{hints_block}, {transcript}.'}
+          onReset={onResetChapterPrompt}
+          isDefault={chapterPromptIsDefault}
         />
         <PromptField
           id="chapterPromptOverride"

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, resetPrompt, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import type { PromptName } from '../api/settings';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -728,6 +729,15 @@ function Settings() {
     },
   });
 
+  // Per-prompt reset (issue #626), same re-seed contract as resetPromptsMutation above.
+  const resetPromptMutation = useMutation({
+    mutationFn: (name: PromptName) => resetPrompt(name),
+    onSuccess: () => {
+      setRehydratePending(true);
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
   const cleanupMutation = useMutation({
     mutationFn: runCleanup,
     onSuccess: () => {
@@ -1010,6 +1020,12 @@ function Settings() {
         onChapterPromptOverrideChange={setChapterPromptOverride}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
+        systemPromptIsDefault={settings?.systemPrompt.isDefault}
+        verificationPromptIsDefault={settings?.verificationPrompt.isDefault}
+        chapterPromptIsDefault={settings?.chapterPrompt.isDefault}
+        onResetSystemPrompt={() => resetPromptMutation.mutate('system')}
+        onResetVerificationPrompt={() => resetPromptMutation.mutate('verification')}
+        onResetChapterPrompt={() => resetPromptMutation.mutate('chapter')}
       />
 
       <CommunityPatternsSection />
@@ -1022,6 +1038,10 @@ function Settings() {
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
         modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
+        reviewPromptIsDefault={settings?.reviewPrompt.isDefault}
+        resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
+        onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
+        onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
       />
 
       <AudioCueDetectionSection audioCue={audioCue} onChange={setAudioCue} />
@@ -1128,9 +1148,9 @@ function Settings() {
       </SettingsBulkCollapseProvider>
 
       {/* Error display */}
-      {(updateMutation.error || resetMutation.error || resetPromptsMutation.error) && (
+      {(updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) && (
         <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
-          {((updateMutation.error || resetMutation.error || resetPromptsMutation.error) as Error).message}
+          {((updateMutation.error || resetMutation.error || resetPromptsMutation.error || resetPromptMutation.error) as Error).message}
         </div>
       )}
 
