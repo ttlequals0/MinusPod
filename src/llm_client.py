@@ -84,6 +84,15 @@ _JSON_FORMAT_SYSTEM_INSTRUCTION = (
     "Malformed JSON causes parsing failures.</output_format>"
 )
 
+# Substrings seen in 400s from endpoints that reject response_format / structured outputs.
+_JSON_MODE_REJECTIONS = ("response_format", "structured-outputs", "structured outputs")
+
+
+def _rejects_json_mode(err: str) -> bool:
+    """True if the error text indicates the endpoint rejects JSON-mode output."""
+    low = err.lower()
+    return any(k in low for k in _JSON_MODE_REJECTIONS)
+
 
 def _log_content(label: str, content: str, max_length: int = 2000):
     """Log LLM content at DEBUG level with intelligent truncation.
@@ -822,10 +831,26 @@ class OpenAICompatibleClient(LLMClient):
             return kw
 
         def _send(tok, tmp, reasoning):
+            from openai import BadRequestError
             kw = _build_kwargs(tok, tmp, reasoning)
-            if cached_param is not None:
-                return self._client.chat.completions.create(**kw)
-            return self._call_with_token_param_fallback(model, kw, token_param)
+            try:
+                if cached_param is not None:
+                    return self._client.chat.completions.create(**kw)
+                return self._call_with_token_param_fallback(model, kw, token_param)
+            except BadRequestError as e:
+                # kw may have been mutated in place by the token-param fallback above;
+                # only treat this as a JSON-mode rejection, not an unrelated 400.
+                sent_rf = 'response_format' in kw
+                flag = self._get_json_format_supported()
+                if sent_rf and flag is not True and _rejects_json_mode(str(e)):
+                    self._json_format_supported = False
+                    self._persist_json_format_flag()
+                    logger.warning(
+                        "Endpoint rejected response_format at runtime; "
+                        "retrying once with prompt-injection fallback")
+                    kw2 = _build_kwargs(tok, tmp, reasoning)
+                    return self._client.chat.completions.create(**kw2)
+                raise
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
             "OpenAI", model,
@@ -997,7 +1022,7 @@ class OpenAICompatibleClient(LLMClient):
             self._json_format_supported = True
             logger.info(f"Endpoint supports response_format json_object ({safe_url_for_log(self.base_url, keep_path=True)})")
         except BadRequestError as e:
-            if 'response_format' in str(e).lower():
+            if _rejects_json_mode(str(e)):
                 self._json_format_supported = False
                 logger.info(
                     f"Endpoint does not support response_format json_object ({safe_url_for_log(self.base_url, keep_path=True)}); "
@@ -1010,7 +1035,11 @@ class OpenAICompatibleClient(LLMClient):
             logger.warning(f"json_format probe failed (non-fatal): {e}")
             return None
 
-        # Persist to DB so we don't re-probe after restart
+        self._persist_json_format_flag()
+        return self._json_format_supported
+
+    def _persist_json_format_flag(self):
+        """Persist self._json_format_supported to DB so we don't re-probe after restart."""
         try:
             from database import Database
             db = Database()
@@ -1021,8 +1050,6 @@ class OpenAICompatibleClient(LLMClient):
             )
         except Exception as e:
             logger.warning(f"Could not persist json_format probe result: {e}")
-
-        return self._json_format_supported
 
     def _try_ollama_native_list(self) -> List[LLMModel]:
         """Try Ollama's native /api/tags endpoint as a fallback for model listing.
