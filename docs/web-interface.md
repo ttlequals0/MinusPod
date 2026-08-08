@@ -15,7 +15,10 @@ The server includes a web-based management UI at `/ui/`:
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
 - Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (serves episodes exactly as published, with no transcription, detection, or cutting), or cue-only (experimental; cuts from cue pairs and previously learned ad patterns, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
-- Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, processing mode, language, hide unprocessed, tags) sit at the top; cue tuning and the rarely-changed Advanced controls each fold into their own card
+- Feed detail page groups its controls into collapsible sections so the page stays scannable. Inside Feed Settings, everyday controls (network, source feed, auto-process, title blacklist, processing mode, queue priority, language, hide unprocessed, tags) sit at the top; Segment actions, Cue tuning, and the rarely-changed Advanced controls each fold into their own card
+- Per-feed episode title blacklist: glob patterns under "Skip episodes by title" skip queuing and just-in-time processing for matching titles; a "Skipped episodes" select chooses whether a skipped episode is served with original audio (default) or hidden. Manual reprocess of a skipped episode overrides the blacklist. See [Configuration > Title blacklist](configuration.md#title-blacklist)
+- Per-feed queue priority (High / Normal / Low) on the feed settings page, with automatic boosts for fresh episodes (when the global "Process new episodes first" setting is on) and manual reprocesses. See [Configuration > Queue priority](configuration.md#queue-priority)
+- Segment actions card on the feed settings page: per-category remove/beep/keep overrides, an Inherit/On/Off show-segments choice, and a bulk re-render button. A matching global **Segment actions** card in Settings sets the defaults every feed inherits. See [How It Works > Segment Categories](how-it-works.md#segment-categories)
 - Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus totals for episodes processed, ads removed, time saved, and LLM cost
 - Dashboard feeds show compact per-status counts (for example "10 Disc / 2 Pend / 4 Comp") so feed health is visible without clicking in
 - Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
@@ -27,7 +30,7 @@ The server includes a web-based management UI at `/ui/`:
 - Sponsor management: view, add, edit, and remove sponsors, each with its linked-pattern count, created and last-matched dates, and tags; plus a tab for name normalization rules
 - Processing history with stats, filtering by podcast, and CSV/JSON export
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
-- Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
+- Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost. Each customizable prompt has its own Reset button next to its label (visible but disabled at default), alongside the section-wide reset-all button
 - Scheduled database backups (Settings > Data & Security): cron schedule, destination, keep count, and a Back up now button that works even with the schedule off
 - Offline queue (Settings): optionally hold episodes while a self-hosted LLM or Whisper endpoint is down and process them automatically when it returns, with a configurable give-up window
 - Real-time status bar showing processing progress across all pages
@@ -140,6 +143,10 @@ When a feed has a max ad duration cap or cue-gated approval on, ads that cannot 
 When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming; confirming with moved boundaries cuts only the span inside the pins.
 
 The episode list shows an amber "N held" chip for any episode with pending held ads. See [Held for Review](how-it-works.md#held-for-review) for what triggers a hold.
+
+### Partial Detection
+
+When the AI detection pass fails but pattern and cross-fetch evidence already produced cuts, the episode still publishes: an amber "Partial detection" badge appears in the episode header (hover for the failure reason), and a warning banner below explains that some ads may remain, with a **Re-run detection** button that reprocesses using the LLM. See [How It Works > Partial Detection](how-it-works.md#partial-detection) for when this happens and the automatic follow-up re-detect.
 
 ### Processing stats
 

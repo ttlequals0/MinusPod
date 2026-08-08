@@ -40,6 +40,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **DAI (dynamic ad insertion)** - Ads spliced into the audio by the publisher's server at download time, so every download can carry a different ad load. This is why the same episode can be 46 minutes one fetch and 55 the next. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
+**Defined pattern** - A user-created or synced community ad pattern. Its match always cuts the matched segment, overriding whatever action the segment's category resolves to. An auto-learned pattern is not defined and still respects segment actions. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+
 **Detections Not Cut** - The episode page section listing regions the detector flagged but left in the audio: rejected by validation, below the confidence threshold, or vetoed by the reviewer. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
 
 **Deferred** - An episode parked because the LLM or transcription endpoint was unreachable. It retries automatically when the endpoint comes back instead of burning through its retry budget. [Configuration > Offline Queue](configuration.md#offline-queue)
@@ -76,6 +78,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## P
 
+**Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
+
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and served exactly as published, and the feed URL stays the same so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
 
 **Pattern** - Anything MinusPod has learned from confirmed ads and reapplies to new episodes: text patterns from transcripts and audio fingerprints. Patterns catch repeat ads without spending LLM tokens. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
@@ -87,6 +91,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Processing queue** - The line episodes wait in; one episode processes at a time. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified. [Web Interface > Processing stats](web-interface.md#processing-stats)
+
+## Q
+
+**Queue priority** - A per-feed High/Normal/Low processing-order preference, with automatic boosts for episodes published in the last 48 hours and for manual reprocesses. [Configuration > Queue priority](configuration.md#queue-priority)
 
 ## R
 
@@ -102,7 +110,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Second scan** - See Verification pass.
 
-**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds that opt in via the show-segments toggle; the other four categories are always detected. [How It Works > Segment Categories](how-it-works.md#segment-categories)
+**Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally on the **Segment actions** card and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds where show-segments detection resolves to on (a per-feed Inherit/On/Off choice, falling back to the global default); the other four categories are always detected. A defined pattern's match always cuts regardless of the resolved action. [How It Works > Segment Categories](how-it-works.md#segment-categories)
   - Sponsor - Paid ads, including dynamically inserted ones
   - Cross-promo - Promos for other shows and the network
   - Self-promo - The show's own Patreon, merch, and subscribe asks
@@ -120,6 +128,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## T
 
 **Text pattern** - A learned chunk of ad transcript matched against new episodes by similarity. Deterministic: if the same ad copy appears, it hits. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+
+**Title blacklist** - A per-feed list of case-insensitive glob patterns (e.g. `Bonus Episode *`) that skip processing for matching episode titles. A per-feed choice serves a skipped episode unmodified or hides it from the feed. Manual reprocess overrides it. [Configuration > Title blacklist](configuration.md#title-blacklist)
 
 **Transcript (VTT)** - The Podcasting 2.0 transcript MinusPod generates for the processed audio, with cut regions accounted for. [Podcasting 2.0](podcasting-2.0.md)
 

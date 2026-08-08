@@ -27,6 +27,8 @@ Customize ad detection in Settings:
 - **Ad break filler gap threshold** - ads in the same break separated by less than this many seconds of speech are merged into one cut. Default 12 seconds. Set to 0 to disable. Merges that would exceed 5 minutes total are skipped. See [Nearby-Ad Merge](how-it-works.md#nearby-ad-merge)
 - **LLM Tunables** - See below
 
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under Experiments) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+
 ### Detection Tuning
 
 Settings > Ad Detection has two grouped subsections for tuning how aggressively the verification pass and the cross-fetch differential stage act on what they find. All six controls are database settings; API: `PUT /api/v1/settings/ad-detection` (see `openapi.yaml`).
@@ -137,7 +139,9 @@ The served feed URL does not change, which is the point: your app keeps pulling 
 
 Every detected marker carries a category (what kind of content it is) that resolves to an action (what happens to the audio). See [How It Works > Segment Categories](how-it-works.md#segment-categories) for the pipeline behavior, including the keep-action guards and how a changed action map applies to already-processed episodes.
 
-Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds that turn on the show-segments toggle below; a feed without it enabled has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
+Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds where show-segments detection resolves to on (see below); a feed where it resolves to off has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
+
+A **defined** pattern (one you created, or one synced in from the community pattern list) always cuts its matched segment, overriding whatever action the category resolves to. Only auto-learned patterns respect segment actions. See [How It Works > Segment Categories](how-it-works.md#segment-categories).
 
 | Category | Covers | Detected by default |
 |---|---|---|
@@ -157,11 +161,34 @@ Each category maps to one action:
 | Beep | Replaced with a tone; the episode's duration is unchanged. |
 | Keep | Left in the audio untouched. |
 
-Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Set the global map at Settings > Global Defaults > **Segment actions**. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
+Resolution order: a per-feed override, if set, wins; otherwise the global default applies; otherwise the action is remove. Segment actions have their own dedicated **Segment actions** card in Settings (a sibling of Global Defaults, not nested inside it). Set the global map there. Set per-feed overrides on the feed's settings page under the same **Segment actions** heading; each category starts inherited from the global map until you set it explicitly. API: global map is `segmentCategoryActions` on `PUT /api/v1/settings/ad-detection` (a partial map, merged over the stored global map); per-feed overrides are `segmentCategoryActions` on `PATCH /api/v1/feeds/{slug}` (replaces the stored override map outright; `null` clears every override).
 
-The feed settings page also has a **Detect intro, outro, and housekeeping segments** toggle (`detectShowSegments` on the same PATCH endpoint), off by default. This toggle gates whether intro, outro, and recap markers exist at all: with it off, the LLM never produces those markers for that feed, so the intro/outro/recap rows of the action map above have nothing to act on regardless of how they are set. Turning it on adds intro/outro/recap detection to that feed's LLM detection windows; the other four categories are detected regardless of this toggle.
+Show-segments detection (whether intro, outro, and recap markers get produced at all) has its own global default alongside the global action map on the **Segment actions** card, off by default, and saves immediately when toggled. A feed inherits that default until it sets its own value: the feed settings page exposes an explicit **Inherit / On / Off** choice (`detectShowSegments` on `PATCH /api/v1/feeds/{slug}`; `null` means inherit) and shows the effective value while inheriting. With detection off, the LLM never produces intro/outro/recap markers for that feed, so those rows of the action map have nothing to act on regardless of how they are set. With it on, intro/outro/recap detection is added to that feed's LLM detection windows; the other four categories are detected regardless of this setting.
 
 Changing an action map only affects episodes processed after the change. To apply a new map to an already-processed feed, use the **Re-render episodes with current segment actions** button on the feed settings page (`POST /api/v1/feeds/{slug}/rerender-segments`), which recuts every processed episode that still has a retained original, saved transcript, and ad detections. Episodes that do not meet those preconditions are skipped, not counted as queued.
+
+### Queue priority
+
+Each feed has a **Queue priority**: High, Normal (default), or Low, set on the feed's settings page. High processes ahead of other queued episodes; Low runs only once nothing else is waiting.
+
+Two automatic boosts stack on top of a feed's base priority:
+
+| Boost | When it applies |
+|---|---|
+| Fresh episode | The episode's publish date is within 48 hours of now, and the global **Process new episodes first** setting (Settings > Global Defaults, on by default) is on. |
+| Manual reprocess | You reprocess an episode by hand (Reprocess, Full Analysis, or Re-detect Ads). Always applies, regardless of the global setting. |
+
+Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the global toggle is `processNewEpisodesFirst` on `PUT /api/v1/settings`.
+
+### Title blacklist
+
+Each feed can list glob patterns under **Skip episodes by title** on its settings page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.
+
+Matching is against the whole title, case-insensitive. `*` is a wildcard; a pattern with no wildcard must match the entire title exactly, so a substring match needs `*` on both sides. For example `Bonus Episode *` skips any title starting with "Bonus Episode", and `*live show*` skips any title containing "live show" anywhere.
+
+A per-feed **Skipped episodes** choice decides how a skipped episode is served: **Keep in feed with original audio** (default) serves it unmodified in the RSS feed, or **Hide from feed** drops it from the served feed entirely. Either way the episode is unaffected by the blacklist if you reprocess it manually: a manual reprocess always overrides the blacklist and processes the episode normally.
+
+API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
 ## Experiments
 
