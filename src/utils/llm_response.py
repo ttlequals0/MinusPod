@@ -66,6 +66,23 @@ def _strip_preamble(text: str, slug: Optional[str], episode_id: Optional[str]) -
     return cleaned
 
 
+_NON_AD_TYPES = {'content', 'show', 'music', 'intro', 'outro'}
+
+
+def _segment_entries_to_ads(entries):
+    """Segments-wrapped responses: an entry with start/end is an ad unless an
+    explicit type marks it non-ad (models rarely emit type at all, #631)."""
+    ads = []
+    for s in entries:
+        if not isinstance(s, dict) or 'start' not in s or 'end' not in s:
+            continue
+        t = str(s.get('type', '')).lower()
+        if t and t != 'advertisement' and t in _NON_AD_TYPES:
+            continue
+        ads.append(s)
+    return ads
+
+
 def extract_json_ads_array(
     response_text: str,
     slug: Optional[str] = None,
@@ -97,16 +114,14 @@ def extract_json_ads_array(
                     if key in window and isinstance(window[key], list):
                         ads = window[key]
                         if key == 'segments':
-                            ads = [s for s in ads
-                                   if isinstance(s, dict) and s.get('type') == 'advertisement']
+                            ads = _segment_entries_to_ads(ads)
                         return ads, f"json_object_window_{key}"
             ad_keys = ['ads', 'ad', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
             for key in ad_keys:
                 if key in parsed and isinstance(parsed[key], list):
                     return parsed[key], f"json_object_{key}_key"
             if 'segments' in parsed and isinstance(parsed['segments'], list):
-                ads = [s for s in parsed['segments']
-                       if isinstance(s, dict) and s.get('type') == 'advertisement']
+                ads = _segment_entries_to_ads(parsed['segments'])
                 return ads, "json_object_segments_key"
             _has_start = any('start' in k.lower() for k in parsed)
             _has_end = any('end' in k.lower() and k.lower() != 'endorser' for k in parsed)
