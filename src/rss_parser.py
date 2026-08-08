@@ -11,7 +11,10 @@ import requests
 
 from urllib.parse import urlparse
 
-from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN, get_env_backed_int
+from config import (
+    APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, MAX_RSS_BYTES_MIN,
+    get_env_backed_int, title_matches_skip_patterns,
+)
 from defusedxml.common import DefusedXmlException
 from feedparser.sanitizer import _sanitize_html as sanitize_html
 from defusedxml.ElementTree import fromstring as defused_fromstring
@@ -877,7 +880,8 @@ class RSSParser:
                     title_override: Optional[str] = None,
                     watermark_artwork: bool = False,
                     feed_auth_key: Optional[str] = None,
-                    own_episode_guids: bool = False) -> str:
+                    own_episode_guids: bool = False,
+                    hide_title_patterns: Optional[str] = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -910,6 +914,9 @@ class RSSParser:
             own_episode_guids: When True, item GUIDs are the MinusPod episode
                 ids (isPermaLink="false") instead of upstream's entry ids
                 (#598), matching the DB-appended items.
+            hide_title_patterns: JSON array of glob patterns (title_skip_action
+                'hide'). Entries whose title matches are dropped from the
+                served feed, both upstream and DB-appended.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1011,6 +1018,8 @@ class RSSParser:
             episode_id = self.generate_episode_id(episode_url, entry.get('id'))
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
+            if title_matches_skip_patterns(entry.get('title', ''), hide_title_patterns):
+                continue
             included_episode_ids.add(episode_id)
             modified_url = episode_public_url(self._resolved_base_url(), slug,
                                               episode_id, key=feed_auth_key)
@@ -1070,6 +1079,8 @@ class RSSParser:
             for ep in extra_episodes:
                 ep_id = ep['episode_id']
                 if ep_id in included_episode_ids:
+                    continue
+                if title_matches_skip_patterns(ep.get('title', ''), hide_title_patterns):
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key)

@@ -3,6 +3,7 @@
 All magic numbers and thresholds should be defined here
 for easy tuning and consistency across the codebase.
 """
+import fnmatch
 import json
 import logging
 import os
@@ -201,6 +202,18 @@ def count_not_cut(markers) -> int:
     return sum(1 for m in markers
                if not m.get('was_cut', True) and not is_pending_review(m)
                and m.get('action_applied') != 'keep')
+
+
+def title_matches_skip_patterns(title, patterns_json):
+    """Case-insensitive fnmatch against the feed's title skip list."""
+    if not title or not patterns_json:
+        return False
+    try:
+        patterns = json.loads(patterns_json)
+    except (ValueError, TypeError):
+        return False
+    low = title.lower()
+    return any(fnmatch.fnmatch(low, str(p).lower()) for p in patterns if p)
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content

@@ -239,6 +239,43 @@ def _serialize_queue_priority(raw) -> str:
     return _QUEUE_PRIORITY_API_VALUES.get(raw, 'normal')
 
 
+_TITLE_SKIP_PATTERN_MAX_LEN = 200
+_TITLE_SKIP_PATTERNS_MAX_COUNT = 50
+
+
+def _normalize_title_skip_patterns(value):
+    """Validate the per-feed titleSkipPatterns glob list.
+
+    Returns (db_value, error). None or an empty list clears the blacklist
+    (stored NULL). Each pattern must be a 1-200 char string; max 50 patterns.
+    """
+    if value is None:
+        return None, None
+    if not isinstance(value, list):
+        return None, 'titleSkipPatterns must be an array of strings or null'
+    if len(value) > _TITLE_SKIP_PATTERNS_MAX_COUNT:
+        return None, f'titleSkipPatterns must have at most {_TITLE_SKIP_PATTERNS_MAX_COUNT} patterns'
+    for p in value:
+        if not isinstance(p, str) or not (1 <= len(p) <= _TITLE_SKIP_PATTERN_MAX_LEN):
+            return None, f'titleSkipPatterns entries must be strings of 1-{_TITLE_SKIP_PATTERN_MAX_LEN} characters'
+    if not value:
+        return None, None
+    return json.dumps(value), None
+
+
+def _normalize_title_skip_action(value):
+    """Validate the per-feed titleSkipAction (served-RSS visibility).
+
+    Returns (db_value, error). None or 'serve_original' clears the override
+    (stored NULL, the default). 'hide' is stored as-is.
+    """
+    if value in (None, 'serve_original'):
+        return None, None
+    if value == 'hide':
+        return value, None
+    return None, "titleSkipAction must be one of: serve_original, hide"
+
+
 def _normalize_segment_category_actions(value):
     """Validate a per-feed segmentCategoryActions override (issue #565).
 
@@ -271,6 +308,20 @@ def _deserialize_segment_category_actions(raw):
     except (TypeError, ValueError):
         return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def _deserialize_title_skip_patterns(raw):
+    """Parse the stored title_skip_patterns JSON back for API responses.
+
+    Always returns a list, empty when unset or unparsable.
+    """
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 
 from config import AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN
@@ -411,6 +462,8 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
+        'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
+        'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
         'segmentCategoryActions': _deserialize_segment_category_actions(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
@@ -956,6 +1009,18 @@ def update_feed(slug):
             return error_response(qp_err, 400)
         updates['queue_priority'] = qp_val
 
+    if 'titleSkipPatterns' in data:
+        patterns_val, patterns_err = _normalize_title_skip_patterns(data['titleSkipPatterns'])
+        if patterns_err:
+            return error_response(patterns_err, 400)
+        updates['title_skip_patterns'] = patterns_val
+
+    if 'titleSkipAction' in data:
+        action_val, action_err = _normalize_title_skip_action(data['titleSkipAction'])
+        if action_err:
+            return error_response(action_err, 400)
+        updates['title_skip_action'] = action_val
+
     if 'segmentCategoryActions' in data:
         actions_val, actions_err = _normalize_segment_category_actions(
             data['segmentCategoryActions'])
@@ -1058,7 +1123,8 @@ def update_feed(slug):
         # own_episode_guids rewrites every item <guid> (#598).
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
                 or 'title_override' in updates or 'source_url' in updates
-                or 'own_episode_guids' in updates):
+                or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
+                or 'title_skip_action' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed

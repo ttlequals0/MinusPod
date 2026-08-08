@@ -41,16 +41,20 @@ class QueueMixin:
         setting = self.get_setting('auto_process_enabled')
         return setting == 'true' if setting else True  # Default to enabled
 
-    def is_auto_process_enabled_for_podcast(self, slug: str) -> bool:
+    def is_auto_process_enabled_for_podcast(self, slug: str,
+                                            podcast: Optional[Dict] = None) -> bool:
         """Check if auto-process is enabled for a specific podcast.
 
+        podcast: an already-fetched row, so a caller that needs other columns
+        too does not pay for a second get_podcast_by_slug query.
         Returns: True if enabled (considering both global and podcast-level settings)
         """
         # Check global setting first
         global_enabled = self.is_auto_process_enabled()
 
         # Get podcast-level override
-        podcast = self.get_podcast_by_slug(slug)
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
         if not podcast:
             return global_enabled
 

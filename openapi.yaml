@@ -570,6 +570,25 @@ paths:
                     - low
                     - null
                   description: Per-feed auto-process queue priority (issue 625). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting; 'normal' or null uses the default ordering. Changing it re-stamps this feed's already-queued pending episodes immediately.
+                titleSkipPatterns:
+                  type:
+                    - array
+                    - 'null'
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 200
+                  maxItems: 50
+                  description: Per-feed episode title blacklist. Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; the on-demand serve path returns the upstream audio untouched instead. Null or an empty array clears the blacklist.
+                titleSkipAction:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - serve_original
+                    - hide
+                    - null
+                  description: What happens to a title-blacklisted episode in the served RSS. 'serve_original' (default, null) keeps the entry in the feed; 'hide' removes it from the served feed entirely.
                 cueTemplateScoreOverride:
                   type:
                     - number
@@ -7809,6 +7828,17 @@ components:
             - normal
             - low
           description: Per-feed auto-process queue priority (issue 625), always resolved to one of the three values ('normal' covers both an explicit normal setting and no override). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting.
+        titleSkipPatterns:
+          type: array
+          items:
+            type: string
+          description: Per-feed episode title blacklist, always an array (empty when unset). Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+        titleSkipAction:
+          type: string
+          enum:
+            - serve_original
+            - hide
+          description: What happens to a title-blacklisted episode in the served RSS, always resolved to one of the two values ('serve_original' covers both an explicit setting and no override). 'hide' removes the entry from the served feed entirely.
         processingMode:
           type: string
           enum:

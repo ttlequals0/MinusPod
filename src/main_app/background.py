@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 
-from config import MAX_EPISODE_RETRIES
+from config import MAX_EPISODE_RETRIES, title_matches_skip_patterns
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
@@ -153,18 +153,37 @@ def background_queue_processor():
                 description = queued.get('description')
 
                 try:
+                    # One podcast fetch feeds both gates below (auto-process
+                    # override and title_skip_patterns live on the same row).
+                    podcast = db.get_podcast_by_slug(slug)
+                    auto_process_enabled = db.is_auto_process_enabled_for_podcast(slug, podcast=podcast)
+                    title_blacklisted = title_matches_skip_patterns(
+                        title, podcast.get('title_skip_patterns') if podcast else None)
+
+                    # An explicit user reprocess bypasses both gates below; only
+                    # fetched when a gate would otherwise skip this claim.
+                    user_requested = False
+                    if not auto_process_enabled or title_blacklisted:
+                        episode_row = db.get_episode(slug, episode_id)
+                        user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
+
                     # Auto-process gate (inside the try so a gate error reverts the
                     # claimed row instead of leaving it stuck in 'processing'): skip
                     # if disabled, UNLESS the episode was explicitly reprocessed by a
                     # user (reprocess_requested_at set).
-                    if not db.is_auto_process_enabled_for_podcast(slug):
-                        episode_row = db.get_episode(slug, episode_id)
-                        user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
+                    if not auto_process_enabled:
                         if not user_requested:
                             db.update_queue_status(queue_id, 'completed', 'Auto-process disabled for this feed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
                             continue
                         refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
+
+                    # Title blacklist gate: mirrors the auto-process gate above,
+                    # also bypassed by an explicit user reprocess.
+                    if title_blacklisted and not user_requested:
+                        db.update_queue_status(queue_id, 'completed', 'skipped: title blacklist')
+                        refresh_logger.info(f"[{slug}:{episode_id}] Skipped - title blacklist match: {title}")
+                        continue
 
                     refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 

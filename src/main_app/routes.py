@@ -11,7 +11,7 @@ from pathlib import Path
 
 import requests
 import requests.exceptions
-from flask import Response, send_file, abort, send_from_directory, request
+from flask import Response, send_file, abort, redirect, send_from_directory, request
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
@@ -21,6 +21,7 @@ from config import (
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
+    title_matches_skip_patterns,
 )
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
@@ -473,6 +474,12 @@ def register_routes(app):
         episode_title = ep_data.get('title', 'Unknown')
         episode_description = ep_data.get('description')
         episode_artwork_url = ep_data.get('artwork_url')
+
+        # Title blacklist: serve the upstream audio untouched, never process.
+        title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
+        if title_matches_skip_patterns(episode_title, title_skip_patterns):
+            feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
+            return redirect(original_url, code=302)
 
         # Start background processing (non-blocking)
         started, reason = start_background_processing(

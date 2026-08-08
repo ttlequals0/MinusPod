@@ -8,6 +8,7 @@ from email.utils import parsedate_to_datetime
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     FEED_REFRESH_FAILURE_COUNT_INTERVAL,
+    title_matches_skip_patterns,
 )
 
 from database.episodes import normalize_published_at
@@ -401,6 +402,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                             is_recent = False
 
                     if is_recent:
+                        if title_matches_skip_patterns(
+                                ep.get('title'), podcast.get('title_skip_patterns') if podcast else None):
+                            refresh_logger.info(f"[{slug}] Skipping title-blacklisted episode: {ep.get('title')}")
+                            continue
                         # New recent episode - queue for processing
                         # iso_published already calculated above for deduplication check
                         feed_priority = podcast.get('queue_priority') if podcast else None
@@ -505,6 +510,11 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # None while feed auth is disabled, so serving reverts to keyless URLs
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
+    # 'hide' drops title-blacklisted episodes from the served feed entirely;
+    # 'serve_original'/NULL (the default) leaves them in place.
+    hide_title_patterns = None
+    if (podcast or {}).get('title_skip_action') == 'hide':
+        hide_title_patterns = podcast.get('title_skip_patterns')
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
                                           max_episodes=feed_cap,
                                           extra_episodes=extra_episodes,
@@ -514,7 +524,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           title_override=(podcast or {}).get('title_override'),
                                           watermark_artwork=watermark_artwork,
                                           feed_auth_key=feed_auth_key,
-                                          own_episode_guids=(podcast or {}).get('own_episode_guids'))
+                                          own_episode_guids=(podcast or {}).get('own_episode_guids'),
+                                          hide_title_patterns=hide_title_patterns)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
 

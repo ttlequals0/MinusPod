@@ -345,6 +345,11 @@ class SchemaMixin:
             ('cue_only_safety', 'TEXT'),
             # Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
             ('queue_priority', 'INTEGER'),
+            # Episode title blacklist: JSON array of glob patterns matched
+            # case-insensitively; title_skip_action controls served-RSS
+            # visibility (NULL/'serve_original' keep, 'hide' drops it).
+            ('title_skip_patterns', 'TEXT'),
+            ('title_skip_action', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

@@ -270,3 +270,96 @@ def test_patch_queue_priority_same_value_skips_restamp(app_client, seeded_feed, 
 
     assert resp.status_code == 200
     assert restamp_calls == []
+
+
+# -- titleSkipPatterns / titleSkipAction (episode title blacklist) --
+
+def test_get_feed_defaults_title_skip_fields(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}')
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body['titleSkipPatterns'] == []
+    assert body['titleSkipAction'] == 'serve_original'
+
+
+def test_patch_sets_title_skip_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleSkipPatterns': ['Weekly Sponsor*', 'Ad Break*']},
+                            headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleSkipPatterns'] == ['Weekly Sponsor*', 'Ad Break*']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_patterns'] == \
+        '["Weekly Sponsor*", "Ad Break*"]'
+
+
+def test_patch_null_resets_title_skip_patterns(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}',
+                     json={'titleSkipPatterns': ['Ad Break*']}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleSkipPatterns': None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleSkipPatterns'] == []
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_patterns'] is None
+
+
+@pytest.mark.parametrize('patterns', [
+    'not-a-list',
+    ['x' * 201],
+    [''],
+    ['ok'] * 51,
+])
+def test_patch_invalid_title_skip_patterns_rejected(app_client, seeded_feed, patterns):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleSkipPatterns': patterns}, headers=headers)
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_patterns'] is None
+
+
+def test_patch_sets_title_skip_action_hide(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleSkipAction': 'hide'}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleSkipAction'] == 'hide'
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_action'] == 'hide'
+
+
+def test_patch_null_resets_title_skip_action(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'titleSkipAction': 'hide'}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'titleSkipAction': None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['titleSkipAction'] == 'serve_original'
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_action'] is None
+
+
+def test_patch_invalid_title_skip_action_rejected(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'titleSkipAction': 'delete'}, headers=headers)
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['title_skip_action'] is None

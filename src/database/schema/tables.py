@@ -75,6 +75,12 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     cue_only_safety TEXT,
     -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
     queue_priority INTEGER,
+    -- Episode title blacklist: JSON array of case-insensitive glob patterns.
+    -- A matching episode is never queued or JIT-processed.
+    title_skip_patterns TEXT,
+    -- Served-RSS handling for a blacklisted episode: NULL/'serve_original'
+    -- keeps it in the feed untouched, 'hide' drops it from the served feed.
+    title_skip_action TEXT,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
