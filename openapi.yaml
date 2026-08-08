@@ -560,6 +560,16 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null resets to the default 'auto' behavior.
+                queuePriority:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - high
+                    - normal
+                    - low
+                    - null
+                  description: Per-feed auto-process queue priority (issue 625). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting; 'normal' or null uses the default ordering. Changing it re-stamps this feed's already-queued pending episodes immediately.
                 cueTemplateScoreOverride:
                   type:
                     - number
@@ -7792,6 +7802,13 @@ components:
             - 'off'
             - null
           description: Per-feed chapters mode. 'auto' preserves publisher-embedded chapters when enough survive the cut, otherwise generates them; 'generate' always generates new chapters; 'off' skips the chapter step entirely; null means not set, which resolves to 'auto'.
+        queuePriority:
+          type: string
+          enum:
+            - high
+            - normal
+            - low
+          description: Per-feed auto-process queue priority (issue 625), always resolved to one of the three values ('normal' covers both an explicit normal setting and no override). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting.
         processingMode:
           type: string
           enum:

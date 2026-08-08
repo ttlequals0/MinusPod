@@ -215,6 +215,30 @@ def _normalize_chapters_mode(value):
     return None, f"chaptersMode must be one of: {', '.join(sorted(VALID_CHAPTERS_MODES))}"
 
 
+# API queuePriority -> DB queue_priority column (#625). 'normal' stores NULL
+# (not 0) to keep unset rows clean; both read back as 'normal' downstream.
+QUEUE_PRIORITY_DB_VALUES = {'high': 10, 'low': -10}
+_QUEUE_PRIORITY_API_VALUES = {v: k for k, v in QUEUE_PRIORITY_DB_VALUES.items()}
+
+
+def _normalize_queue_priority(value):
+    """Validate the per-feed queuePriority override (#625).
+
+    Returns (db_value, error). None or 'normal' clears the override (stored
+    NULL). 'high'/'low' map to +-10. Any other value is rejected.
+    """
+    if value is None or value == 'normal':
+        return None, None
+    if value in QUEUE_PRIORITY_DB_VALUES:
+        return QUEUE_PRIORITY_DB_VALUES[value], None
+    return None, 'queuePriority must be one of: high, normal, low'
+
+
+def _serialize_queue_priority(raw) -> str:
+    """DB queue_priority column back to the API's three-value enum."""
+    return _QUEUE_PRIORITY_API_VALUES.get(raw, 'normal')
+
+
 def _normalize_segment_category_actions(value):
     """Validate a per-feed segmentCategoryActions override (issue #565).
 
@@ -386,6 +410,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'titleOverride': podcast.get('title_override'),
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
+        'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'segmentCategoryActions': _deserialize_segment_category_actions(
             podcast.get('segment_category_actions')),
         'processingMode': resolve_feed_processing_mode(podcast),
@@ -925,6 +950,12 @@ def update_feed(slug):
             return error_response(chapters_err, 400)
         updates['chapters_mode'] = chapters_val
 
+    if 'queuePriority' in data:
+        qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
+        if qp_err:
+            return error_response(qp_err, 400)
+        updates['queue_priority'] = qp_val
+
     if 'segmentCategoryActions' in data:
         actions_val, actions_err = _normalize_segment_category_actions(
             data['segmentCategoryActions'])
@@ -1001,6 +1032,12 @@ def update_feed(slug):
     try:
         db.update_podcast(slug, **updates)
         logger.info(f"Updated feed {slug}: {updates}")
+
+        # A priority change re-stamps still-pending queue rows so it takes
+        # effect immediately instead of waiting for their next re-enqueue.
+        # Skipped when the PATCH resent the current value (no-op retry).
+        if 'queue_priority' in updates and updates['queue_priority'] != podcast.get('queue_priority'):
+            db.restamp_pending_priorities(podcast['id'], updates['queue_priority'] or 0)
 
         # Invalidate feed cache since we modified a feed
         from main_app.feeds import invalidate_feed_cache

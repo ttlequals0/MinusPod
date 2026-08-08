@@ -211,6 +211,7 @@ export interface UpdateFeedPayload {
   titleOverride?: string | null;
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
+  queuePriority?: 'high' | 'normal' | 'low' | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;

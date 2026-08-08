@@ -217,6 +217,33 @@ describe('FeedSettingsPanel chapters mode control', () => {
   });
 });
 
+describe('FeedSettingsPanel queue priority control (#625)', () => {
+  const QUEUE_PRIORITY_SELECT_NAME = 'Queue priority';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders Normal when queuePriority is unset', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: QUEUE_PRIORITY_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('normal');
+  });
+
+  it('renders the current value when queuePriority is low', () => {
+    renderPanel(makeFeed({ queuePriority: 'low' }));
+    const select = screen.getByRole('combobox', { name: QUEUE_PRIORITY_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('low');
+  });
+
+  it('selecting High fires updateFeed with queuePriority high', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: QUEUE_PRIORITY_SELECT_NAME }), 'high');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queuePriority: 'high' });
+  });
+});
+
 describe('FeedSettingsPanel source URL row (#484)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

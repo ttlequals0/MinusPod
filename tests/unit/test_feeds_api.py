@@ -168,3 +168,85 @@ def test_own_episode_guids_migration_idempotent(app_client, seeded_feed):
     assert 'own_episode_guids' in cols
     assert db._add_column_if_missing(conn, 'podcasts', 'own_episode_guids',
                                      'INTEGER', cols) is False
+
+
+# -- queuePriority (#625) --
+
+def _insert_pending_queue_row(db, podcast_id, episode_id):
+    conn = db.get_connection()
+    conn.execute(
+        """INSERT INTO auto_process_queue
+           (podcast_id, episode_id, original_url, title, status, priority, created_at)
+           VALUES (?, ?, ?, ?, 'pending', 0, datetime('now'))""",
+        (podcast_id, episode_id, f'https://example.com/{episode_id}.mp3', 'Test')
+    )
+    conn.commit()
+
+
+def test_get_feed_defaults_queue_priority_to_normal(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+
+    resp = app_client.get(f'/api/v1/feeds/{slug}')
+    assert resp.status_code == 200
+    assert resp.get_json()['queuePriority'] == 'normal'
+
+
+@pytest.mark.parametrize('value,db_value', [('high', 10), ('normal', None), ('low', -10)])
+def test_patch_sets_each_queue_priority_value(app_client, seeded_feed, value, db_value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'queuePriority': value}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['queuePriority'] == value
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['queuePriority'] == value
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['queue_priority'] == db_value
+
+
+def test_patch_null_resets_queue_priority(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'queuePriority': 'high'}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'queuePriority': None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.get_json()['queuePriority'] == 'normal'
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['queue_priority'] is None
+
+
+def test_patch_invalid_queue_priority_rejected_and_column_unchanged(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'queuePriority': 'high'}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'queuePriority': 'urgent'}, headers=headers)
+    assert resp.status_code == 400
+    body = resp.get_json()
+    assert 'error' in body
+    assert 'queuePriority' in body['error']
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['queue_priority'] == 10
+
+
+def test_patch_queue_priority_restamps_pending_queue_rows(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    db = seeded_feed['db']
+    podcast_id = db.get_podcast_by_slug(slug)['id']
+    _insert_pending_queue_row(db, podcast_id, 'ep-pending')
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}',
+                            json={'queuePriority': 'high'}, headers=headers)
+    assert resp.status_code == 200
+
+    conn = db.get_connection()
+    row = conn.execute(
+        "SELECT priority FROM auto_process_queue WHERE episode_id = 'ep-pending'"
+    ).fetchone()
+    assert row['priority'] == 10

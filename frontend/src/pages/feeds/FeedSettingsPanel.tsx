@@ -677,6 +677,29 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             </div>
           </div>
 
+          {/* Per-feed auto-process queue priority (#625) */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.queuePriority || 'normal'}
+                onChange={(e) => updateMutation.mutate({
+                  queuePriority: e.target.value as 'high' | 'normal' | 'low',
+                })}
+                disabled={updateMutation.isPending}
+                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+                aria-label="Queue priority"
+              >
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                High processes before other queued episodes. Low runs only when nothing else is waiting.
+              </p>
+            </div>
+          </div>
+
           {/* Per-feed transcription language override */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
             <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
