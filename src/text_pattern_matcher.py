@@ -1371,13 +1371,9 @@ class TextPatternMatcher:
                 )
                 return None
 
-        # Learning dedupe: only a span that has passed every validation gate
-        # above (contamination, sponsor-in-intro, brand occurrence) may
-        # credit an existing pattern's confirmation_count -- crediting on a
-        # rejected span would inflate stats that feed promotion decisions.
-        # Reuses a near-identical existing pattern for this podcast instead
-        # of inserting, so an auto-learned near-duplicate never competes
-        # with a defined pattern's category (#565).
+        # Only a span that passed every validation gate above may credit an
+        # existing pattern's confirmation_count, and reuses a near-identical
+        # existing pattern instead of inserting a duplicate (#565).
         try:
             existing_patterns = (
                 self.db.get_ad_patterns(podcast_id=podcast_id) if podcast_id else []

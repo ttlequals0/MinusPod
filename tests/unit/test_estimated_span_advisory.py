@@ -31,6 +31,31 @@ def test_estimated_pattern_span_does_not_clear_hold():
     assert held, "estimated span must not corroborate the differential hold"
 
 
+def test_estimated_pattern_stage_promotion_does_not_corroborate_hold():
+    # Three-member fold: claude folds with an estimated text_pattern member
+    # first (promoting last's stage to text_pattern via stage priority),
+    # then a held differential folds in with segments=None. The promoted
+    # stage must still be recognized as advisory so it cannot corroborate
+    # the hold.
+    ads = [
+        {'start': 2000.0, 'end': 2044.0, 'confidence': 0.9,
+         'detection_stage': 'claude', 'reason': 'ad read', 'category': 'sponsor'},
+        {'start': 2005.0, 'end': 2043.0, 'confidence': 0.85,
+         'detection_stage': 'text_pattern', 'pattern_id': 600,
+         'span_estimated': True, 'sponsor': 'Acme',
+         'reason': 'Acme (pattern #600)', 'category': 'sponsor'},
+        {'start': 2040.0, 'end': 2084.0, 'confidence': 0.95,
+         'detection_stage': 'dai_differential',
+         'differential_uncorroborated': True, 'held_for_review': True,
+         'reason': 'Audio differs across fetches', 'category': 'sponsor'},
+    ]
+    d = AdDetector.__new__(AdDetector)
+    merged = d._merge_detection_results(ads, None, action_map=None)
+    assert len(merged) == 1
+    assert merged[0].get('held_for_review')
+    assert merged[0].get('differential_uncorroborated')
+
+
 def test_merge_matches_propagates_estimated_span_conservatively():
     # A fully grounded match (100-140, higher confidence -> wins as "best")
     # folds with a lower-confidence match whose start is duration-estimated

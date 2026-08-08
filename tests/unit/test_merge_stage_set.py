@@ -84,6 +84,22 @@ def test_hold_cleared_when_corroborator_folded_before_stage_overwrite():
     assert not merged[0].get('held_for_review')
 
 
+def test_pattern_defined_survives_fold_into_claude_first_marker():
+    # A defined-pattern member folding into a claude-first marker must still
+    # stamp pattern_defined on the merged result: the keep partition only
+    # ever sees the merged marker, not the individual members.
+    ads = [
+        {'start': 100.0, 'end': 150.0, 'confidence': 0.9,
+         'detection_stage': 'claude', 'category': 'cross_promo'},
+        {'start': 110.0, 'end': 145.0, 'confidence': 0.85,
+         'detection_stage': 'text_pattern', 'pattern_id': 600,
+         'pattern_defined': True, 'category': 'cross_promo'},
+    ]
+    merged = _merge(_detector(), ads)
+    assert len(merged) == 1
+    assert merged[0].get('pattern_defined') is True
+
+
 def test_member_stages_and_label_span_are_stripped_before_return():
     ads = [
         {'start': 2000.0, 'end': 2040.0, 'confidence': 0.9,

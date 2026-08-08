@@ -2380,9 +2380,14 @@ class AdDetector:
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
 
+                # A defined pattern's cut authority survives the fold (#541):
+                # OR the flag so it is never lost to whichever member wins the stage.
+                if current.get('pattern_defined'):
+                    last['pattern_defined'] = True
+
                 # Accumulate every stage folded in: the priority overwrite
                 # below keeps only the winner, which would otherwise lose an
-                # earlier corroborator's stage (#541, DTNS 5313).
+                # earlier corroborator's stage (#541).
                 member_stages = last.setdefault(
                     _MEMBER_STAGES,
                     [last_corroborating_stage] if last_corroborating_stage else [])
@@ -2400,6 +2405,12 @@ class AdDetector:
                 if stage_priority.get(current.get('detection_stage'), 2) < stage_priority.get(last.get('detection_stage'), 2):
                     last['detection_stage'] = current['detection_stage']
                     last['pattern_id'] = current.get('pattern_id')
+                    # span_estimated travels with the stage: without it a later
+                    # fold reads the promoted stage as grounded, not advisory.
+                    last['span_estimated'] = current.get('span_estimated', False)
+                    for key in ('text_start', 'text_end'):
+                        if key in current:
+                            last[key] = current[key]
 
                 # Keep sponsor and reason as a consistent pair from the SAME
                 # member, so a merged marker never shows one ad's sponsor with
@@ -2547,6 +2558,7 @@ class AdDetector:
                     combined['end'] = max(a['end'], b['end'])
                     combined['confidence'] = max(a_conf, b_conf)
                     combined['sponsor'] = sponsor
+                    combined['pattern_defined'] = bool(a.get('pattern_defined')) or bool(b.get('pattern_defined'))
 
                     category_source = primary
                     if action_map is not None:

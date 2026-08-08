@@ -181,8 +181,9 @@ def is_edge_cue_snapped(ad, edge: str) -> bool:
 def is_pending_review(marker) -> bool:
     """A marker awaiting a human decision: held for review and not cut. Single
     source of truth for the pending-review bucket and count. Missing was_cut
-    defaults to True (cut) to match the API's marker bucketing, so a legacy
-    marker without the field is never counted as a phantom pending review."""
+    defaults to True (cut) here; the API defaults it by episode status instead,
+    so a legacy marker without the field is never counted as a phantom pending
+    review."""
     return bool(marker.get('held_for_review')) and not marker.get('was_cut', True)
 
 
