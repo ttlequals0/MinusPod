@@ -198,6 +198,55 @@ class TestChapterPromptSettings:
         assert data['chapterPromptOverride']['value'] == ''
 
 
+class TestSinglePromptReset:
+    """#626: per-prompt reset lets one prompt be restored without clobbering
+    the others (the bulk /settings/prompts/reset resets all five)."""
+
+    NAME_TO_KEY = {
+        'system': 'systemPrompt',
+        'verification': 'verificationPrompt',
+        'review': 'reviewPrompt',
+        'resurrect': 'resurrectPrompt',
+        'chapter': 'chapterPrompt',
+    }
+
+    @pytest.mark.parametrize('name,response_key', list(NAME_TO_KEY.items()))
+    def test_resets_only_the_named_prompt(self, client, name, response_key):
+        db = database.Database()
+        db.set_setting(f'{name}_prompt', f'custom {name}', is_default=False)
+        db.set_setting(f'{name}_prompt_override', 'extra rules', is_default=False)
+        # Untouched sibling: must survive the reset below.
+        other = 'review' if name != 'review' else 'chapter'
+        db.set_setting(f'{other}_prompt', f'custom {other}', is_default=False)
+
+        response = client.post(f'/api/v1/settings/prompts/{name}/reset')
+        assert response.status_code == 200, response.data
+        body = json.loads(response.data)
+        assert body['isDefault'] is True
+
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data[response_key]['isDefault'] is True
+        assert body['value'] == data[response_key]['value']
+        other_key = self.NAME_TO_KEY[other]
+        assert data[other_key]['value'] == f'custom {other}'
+        assert data[other_key]['isDefault'] is False
+
+    def test_unknown_name_returns_404(self, client):
+        response = client.post('/api/v1/settings/prompts/bogus/reset')
+        assert response.status_code == 404
+
+    def test_clears_the_override(self, client):
+        db = database.Database()
+        db.set_setting('review_prompt_override', 'extra rules', is_default=False)
+
+        response = client.post('/api/v1/settings/prompts/review/reset')
+        assert response.status_code == 200, response.data
+
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['reviewPromptOverride']['value'] == ''
+        assert data['reviewPromptOverride']['isDefault'] is True
+
+
 class TestWebhookUrlValidation:
     """Issue #158: webhooks must accept private-IP / non-default-port URLs
     (the OPERATOR_CONFIGURED trust posture used by LLM and Whisper base URLs)

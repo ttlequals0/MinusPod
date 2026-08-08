@@ -4132,6 +4132,36 @@ paths:
                   message:
                     type: string
 
+  /settings/prompts/{name}/reset:
+    post:
+      tags:
+        - Settings
+      summary: Reset a single prompt
+      description: Reset one prompt (system, verification, review, resurrect, or chapter) and its override to defaults
+      operationId: resetSinglePrompt
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Prompt to reset
+          schema:
+            type: string
+            enum: [system, verification, review, resurrect, chapter]
+      responses:
+        '200':
+          description: Prompt reset to default
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: string
+                  isDefault:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /settings/models:
     get:
       tags:

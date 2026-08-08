@@ -18,6 +18,13 @@ assert_eq "$code" "200" 'reset is idempotent on second call'
 code=$(auth_code POST /api/v1/settings/prompts/reset 29)
 assert_eq "$code" "200" 'POST /settings/prompts/reset returns 200'
 
+# Reset a single prompt -> 200; unknown name -> 404.
+code=$(auth_code POST /api/v1/settings/prompts/system/reset 29)
+assert_eq "$code" "200" 'POST /settings/prompts/system/reset returns 200'
+
+code=$(auth_code POST /api/v1/settings/prompts/bogus/reset 29)
+assert_eq "$code" "404" 'POST /settings/prompts/bogus/reset returns 404'
+
 # Verify the reset restored the read endpoint to a valid shape.
 code=$(auth_code GET /api/v1/settings 29)
 assert_eq "$code" "200" 'GET /settings returns 200 after reset'

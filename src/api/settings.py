@@ -1662,6 +1662,39 @@ def reset_prompts_only():
     return json_response({'message': 'Prompts reset to defaults'})
 
 
+@api.route('/settings/prompts/<name>/reset', methods=['POST'])
+@log_request
+def reset_single_prompt(name):
+    """Reset one prompt (and its override) to default; per-key twin of reset_prompts_only."""
+    from database import (
+        DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
+        DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
+        DEFAULT_CHAPTER_PROMPT,
+    )
+    defaults = {
+        'system': DEFAULT_SYSTEM_PROMPT,
+        'verification': DEFAULT_VERIFICATION_PROMPT,
+        'review': DEFAULT_REVIEW_PROMPT,
+        'resurrect': DEFAULT_RESURRECT_PROMPT,
+        'chapter': DEFAULT_CHAPTER_PROMPT,
+    }
+    if name not in defaults:
+        return error_response('unknown prompt name', 404)
+
+    db = get_database()
+    prompt_key = f'{name}_prompt'
+    db.reset_setting(prompt_key)
+    db.set_setting(f'{name}_prompt_override', '', is_default=True)
+    logger.info(f"Reset {prompt_key} to default")
+
+    settings = _settings_view(db.get_all_settings())
+    value = _setting_value(settings, prompt_key, defaults[name]) or defaults[name]
+    return json_response({
+        'value': value,
+        'isDefault': _setting_is_default(settings, prompt_key),
+    })
+
+
 def _ensure_openrouter_aliases_present(models: list) -> None:
     """Prepend OpenRouter router aliases (openrouter/free, openrouter/auto) that
     aren't already in the list. These are valid model IDs but are not returned by
