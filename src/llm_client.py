@@ -850,6 +850,21 @@ class OpenAICompatibleClient(LLMClient):
                         "retrying once with prompt-injection fallback")
                     kw2 = _build_kwargs(tok, tmp, reasoning)
                     return self._client.chat.completions.create(**kw2)
+                if sent_rf and flag is None:
+                    # Unrecognized 400 wording on an unprobed endpoint: try the
+                    # fallback speculatively, only persist if it actually fixes it.
+                    logger.warning(
+                        "Unrecognized 400 with response_format set on unprobed "
+                        "endpoint; speculatively retrying with prompt-injection fallback")
+                    self._json_format_supported = False
+                    kw2 = _build_kwargs(tok, tmp, reasoning)
+                    try:
+                        response = self._client.chat.completions.create(**kw2)
+                    except BadRequestError:
+                        self._json_format_supported = None
+                        raise e
+                    self._persist_json_format_flag()
+                    return response
                 raise
 
         response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
