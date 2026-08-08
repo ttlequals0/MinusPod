@@ -255,18 +255,18 @@ describe('FeedSettingsPanel title blacklist controls', () => {
   });
 
   it('renders existing patterns as chips', () => {
-    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *', 'Best of *'] }));
-    expect(screen.getByText('JRE MMA Show *')).toBeDefined();
+    renderPanel(makeFeed({ titleSkipPatterns: ['Bonus Episode *', 'Best of *'] }));
+    expect(screen.getByText('Bonus Episode *')).toBeDefined();
     expect(screen.getByText('Best of *')).toBeDefined();
   });
 
   it('adding a pattern fires updateFeed with the appended list', async () => {
-    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *'] }));
+    renderPanel(makeFeed({ titleSkipPatterns: ['Bonus Episode *'] }));
     await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
     await userEvent.type(screen.getByLabelText('New title pattern'), 'Best of *');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
-      titleSkipPatterns: ['JRE MMA Show *', 'Best of *'],
+      titleSkipPatterns: ['Bonus Episode *', 'Best of *'],
     });
   });
 
@@ -282,8 +282,8 @@ describe('FeedSettingsPanel title blacklist controls', () => {
   });
 
   it('removing a pattern fires updateFeed without it', async () => {
-    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *', 'Best of *'] }));
-    await userEvent.click(screen.getByRole('button', { name: 'Remove JRE MMA Show *' }));
+    renderPanel(makeFeed({ titleSkipPatterns: ['Bonus Episode *', 'Best of *'] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Bonus Episode *' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
       titleSkipPatterns: ['Best of *'],
     });

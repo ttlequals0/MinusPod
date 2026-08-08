@@ -11,19 +11,25 @@ States:
 import logging
 import threading
 import time
+from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Cap on the triggering-failure text embedded in CircuitBreakerOpen messages.
+_CAUSE_MAX_LEN = 200
 
 
 class CircuitBreakerOpen(Exception):
     """Raised when the circuit breaker is open and the call is rejected."""
 
-    def __init__(self, name: str, seconds_until_retry: float):
+    def __init__(self, name: str, seconds_until_retry: float, cause: Optional[str] = None):
         self.name = name
         self.seconds_until_retry = seconds_until_retry
-        super().__init__(
-            f"Circuit breaker '{name}' is open, retry in {seconds_until_retry:.0f}s"
-        )
+        self.cause = cause
+        message = f"Circuit breaker '{name}' is open, retry in {seconds_until_retry:.0f}s"
+        if cause:
+            message += f" (opened by: {cause})"
+        super().__init__(message)
 
 
 class CircuitBreaker:
@@ -62,6 +68,7 @@ class CircuitBreaker:
         self._state = self.CLOSED
         self._failure_count = 0
         self._last_failure_time = 0.0
+        self._cause: Optional[str] = None
         self._lock = threading.Lock()
 
     @property
@@ -86,7 +93,7 @@ class CircuitBreaker:
             current_state = self._evaluate_state()
             if current_state == self.OPEN:
                 seconds_left = self.recovery_timeout - (time.time() - self._last_failure_time)
-                raise CircuitBreakerOpen(self.name, max(0, seconds_left))
+                raise CircuitBreakerOpen(self.name, max(0, seconds_left), cause=self._cause)
 
     def record_success(self):
         """Record a successful call. Resets the circuit to CLOSED."""
@@ -95,14 +102,18 @@ class CircuitBreaker:
                 logger.info(f"Circuit breaker '{self.name}': {self._state} -> CLOSED (success)")
             self._state = self.CLOSED
             self._failure_count = 0
+            self._cause = None
 
-    def record_failure(self):
+    def record_failure(self, error: Optional[Exception] = None):
         """Record a failed call. Opens the circuit after threshold failures.
 
         Callers must NOT invoke this for HTTP 429 / rate-limit errors --
         throttling is the provider asking us to slow down, not a provider
         outage, and counting it would open the breaker during normal free-tier
         use.
+
+        error: triggering exception; its text becomes the open-circuit cause
+        so a later CircuitBreakerOpen still surfaces it (e.g. an auth outage).
         """
         with self._lock:
             self._failure_count += 1
@@ -110,6 +121,7 @@ class CircuitBreaker:
 
             if self._state == self.HALF_OPEN:
                 self._state = self.OPEN
+                self._cause = self._format_cause(error)
                 logger.warning(
                     f"Circuit breaker '{self.name}': HALF_OPEN -> OPEN "
                     f"(probe failed, retry in {self.recovery_timeout}s)"
@@ -122,6 +134,16 @@ class CircuitBreaker:
                         f"retry in {self.recovery_timeout}s)"
                     )
                 self._state = self.OPEN
+                self._cause = self._format_cause(error)
+
+    @staticmethod
+    def _format_cause(error: Optional[Exception]) -> Optional[str]:
+        if error is None:
+            return None
+        text = str(error)
+        if len(text) > _CAUSE_MAX_LEN:
+            text = text[:_CAUSE_MAX_LEN] + '...'
+        return text
 
     def reset(self):
         """Manually reset the circuit breaker to CLOSED."""
@@ -129,3 +151,4 @@ class CircuitBreaker:
             self._state = self.CLOSED
             self._failure_count = 0
             self._last_failure_time = 0.0
+            self._cause = None

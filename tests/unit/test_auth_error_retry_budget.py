@@ -15,6 +15,7 @@ from config import MAX_EPISODE_RETRIES
 from llm_client import is_auth_error
 from main_app import db
 from main_app.processing import _handle_processing_failure
+from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 
 
 def test_wrapper_401_is_auth():
@@ -40,6 +41,37 @@ def test_wrapped_billing_401_is_not_auth():
 
 def test_wrapped_invalid_key_401_is_auth():
     assert is_auth_error(Exception("error code: 401 - invalid api key"))
+
+
+class TestBreakerMaskedAuthError:
+    """A wrapper auth outage can trip the breaker before is_auth_error ever
+    sees the original 401; the resulting CircuitBreakerOpen must still carry
+    the auth marker so the retry-budget freeze isn't bypassed."""
+
+    def test_breaker_opened_by_auth_error_is_detected_as_auth(self):
+        cb = CircuitBreaker("test-auth-mask", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception(
+            "Error code: 401 - {'error': {'code': 'claude_cli_not_authenticated'}}"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert is_auth_error(exc_info.value)
+
+    def test_breaker_opened_by_generic_500_is_not_auth(self):
+        cb = CircuitBreaker("test-generic-mask", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("Error code: 500 - internal server error"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert not is_auth_error(exc_info.value)
+
+    def test_cause_cleared_after_recovery_stops_masking_as_auth(self):
+        cb = CircuitBreaker("test-recover-mask", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception(
+            "Error code: 401 - {'error': {'code': 'claude_cli_not_authenticated'}}"))
+        cb.record_success()  # recovery probe succeeded, breaker closes
+        cb.record_failure(Exception("Error code: 500 - internal server error"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert not is_auth_error(exc_info.value)
 
 
 SLUG = 'auth-error-retry-budget-feed'

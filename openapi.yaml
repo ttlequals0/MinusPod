@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.86.1
+  version: 2.86.2
   contact:
     name: MinusPod
   license:
@@ -579,7 +579,7 @@ paths:
                     minLength: 1
                     maxLength: 200
                   maxItems: 50
-                  description: Per-feed episode title blacklist. Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
+                  description: Per-feed episode title blacklist. Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
                 titleSkipAction:
                   type:
                     - string
@@ -7868,7 +7868,7 @@ components:
           type: array
           items:
             type: string
-          description: Per-feed episode title blacklist, always an array (empty when unset). Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
+          description: Per-feed episode title blacklist, always an array (empty when unset). Each pattern is matched against the whole episode title, case-insensitively (fnmatch glob); use '*' as a wildcard, e.g. 'Bonus Episode *' matches any title starting with 'Bonus Episode'. Without a wildcard the whole title must match, so a plain substring needs surrounding '*' wildcards. A matching episode is never queued or JIT-processed.
         titleSkipAction:
           type: string
           enum:

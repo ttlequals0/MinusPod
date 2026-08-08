@@ -43,6 +43,15 @@ release notes.
   (GHSA-7p8r-x3mc-p8w7), and transitive nanoid (GHSA-2v37-7h3g-55p8).
   All three were failing the CI audit gates.
 
+## [2.86.2] - 2026-08-08
+
+### Fixed
+
+- Circuit-breaker-masked auth outages now freeze the retry budget like
+  direct auth failures.
+- Title blacklist helper text explains whole-title glob matching and uses
+  a neutral example.
+
 ## [2.86.1] - 2026-08-08
 
 ### Added

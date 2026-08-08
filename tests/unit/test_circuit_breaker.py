@@ -126,3 +126,62 @@ class TestCircuitBreakerCheck:
         with pytest.raises(CircuitBreakerOpen) as exc_info:
             cb.check()
         assert exc_info.value.name == "my-service"
+
+
+class TestCircuitBreakerCause:
+    """The triggering failure's text should ride along on the open exception."""
+
+    def test_cause_included_in_open_exception(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("Error code: 401 - claude_cli_not_authenticated"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert "claude_cli_not_authenticated" in str(exc_info.value)
+        assert exc_info.value.cause == "Error code: 401 - claude_cli_not_authenticated"
+
+    def test_no_cause_when_failure_recorded_without_error(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.cause is None
+        assert "opened by" not in str(exc_info.value)
+
+    def test_cause_truncated_to_200_chars(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("x" * 300))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert len(exc_info.value.cause) == 203  # 200 chars + '...'
+        assert exc_info.value.cause == "x" * 200 + "..."
+
+    def test_cause_cleared_on_record_success(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("original failure"))
+        cb.record_success()
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.cause is None
+        assert "original failure" not in str(exc_info.value)
+
+    def test_cause_cleared_on_reset(self):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("original failure"))
+        cb.reset()
+        cb.record_failure()
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.cause is None
+        assert "original failure" not in str(exc_info.value)
+
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_cause_updated_on_half_open_probe_failure(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("first failure"))
+        _advance_time(61)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+        cb.record_failure(Exception("probe failure"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.cause == "probe failure"

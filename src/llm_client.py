@@ -380,13 +380,13 @@ class LLMClient(ABC):
         if self._circuit_breaker:
             self._circuit_breaker.check()
 
-    def _record_circuit_breaker(self, success: bool):
+    def _record_circuit_breaker(self, success: bool, error: Optional[Exception] = None):
         """Record success/failure on the circuit breaker after API call."""
         if self._circuit_breaker:
             if success:
                 self._circuit_breaker.record_success()
             else:
-                self._circuit_breaker.record_failure()
+                self._circuit_breaker.record_failure(error)
 
     def _warn_if_truncated(self, stop_indicator: str, max_tokens: int, model: str):
         """Log a warning if the LLM response was truncated due to max_tokens."""
@@ -456,13 +456,13 @@ class LLMClient(ABC):
                     response = send_fn(eff_max, eff_temp, eff_reasoning)
                 except Exception as e2:
                     if not is_rate_limit_error(e2):
-                        self._record_circuit_breaker(success=False)
+                        self._record_circuit_breaker(success=False, error=e2)
                     raise
                 return response, eff_max, eff_temp, eff_reasoning
 
             will_fallback = _should_fallback_retry(e, episode_id, pass_name)
             if not is_rate_limit_error(e) and not will_fallback:
-                self._record_circuit_breaker(success=False)
+                self._record_circuit_breaker(success=False, error=e)
             if not will_fallback:
                 raise
             _log_fallback(provider_label, episode_id, pass_name, model,
@@ -473,7 +473,7 @@ class LLMClient(ABC):
                 response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
             except Exception as e2:
                 if not is_rate_limit_error(e2):
-                    self._record_circuit_breaker(success=False)
+                    self._record_circuit_breaker(success=False, error=e2)
                 raise
             return response, defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
 

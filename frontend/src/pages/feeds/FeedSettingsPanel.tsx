@@ -658,7 +658,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           addTitleSkipPattern();
                         }
                       }}
-                      placeholder="JRE MMA Show *"
+                      placeholder="Bonus Episode *"
                       aria-label="New title pattern"
                       maxLength={200}
                       className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
@@ -689,7 +689,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <p className="text-xs text-destructive">{titleSkipPatternError}</p>
               )}
               <p className="text-xs text-muted-foreground">
-                Episodes whose titles match a pattern are not processed. Use * as a wildcard, for example JRE MMA Show *.
+                Patterns match the whole episode title, case-insensitively. Use * as a wildcard: Bonus Episode * skips titles starting with Bonus Episode. Without a wildcard the whole title must match.
               </p>
             </div>
           </div>
