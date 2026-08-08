@@ -56,13 +56,9 @@ def test_label_goes_to_covering_member_not_longest_reason():
 
 
 def test_hold_cleared_when_corroborator_folded_before_stage_overwrite():
-    # Shadow-chain: a text_pattern corroborator folds in first, then a
-    # corroborated (non-held) dai_differential ad folds in and, by stage
-    # priority, overwrites last's stage away from 'text_pattern' before the
-    # uncorroborated differential arrives. A single pre-merge-stage snapshot
-    # would see only 'dai_differential' at that point and re-hold the
-    # marker despite the earlier independent corroborator; the accumulated
-    # stage set must still see 'text_pattern' and clear the hold.
+    # Stage priority overwrites last's stage away from 'text_pattern' before
+    # the uncorroborated differential arrives; the accumulated stage set must
+    # still see 'text_pattern' and clear the hold.
     ads = [
         {'start': 2000.0, 'end': 2020.0, 'confidence': 0.9,
          'detection_stage': 'text_pattern', 'pattern_id': 600,

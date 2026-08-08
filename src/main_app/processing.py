@@ -3217,10 +3217,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         cue_gate_enabled=cue_gate_enabled,
         podcast_id=podcast_id,
     )
-    # Resolved here (not just by the caller's later re-partition) so the
-    # merge step below never folds ads whose categories now resolve to
-    # different actions; _recut_episode passes its own resolution back in
-    # so both places agree, and reuses it again for the keep/cut partition.
+    # Resolved here so the merge step below sees current category actions;
+    # _recut_episode passes its own resolution back in so both agree.
     if segment_actions is None:
         segment_actions = db.resolve_segment_actions(slug)
     validation_result = validator.validate(
@@ -3403,10 +3401,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # Resolve podcast_id once from the episode row so _build_recut_ad_list's
         # per-feed override lookup uses it instead of the slug fallback.
         recut_podcast_id = (episode_data or {}).get('podcast_id')
-        # Resolved once and reused below: a category that now resolves 'keep'
-        # comes back out of ads_to_remove, and 'keep' beats an older approval
-        # (no timestamp to compare). A previously kept marker whose category
-        # now resolves 'remove'/'beep' is simply re-validated on its own merits.
+        # Resolved once and reused below so a category now resolving 'keep'
+        # comes back out of ads_to_remove, beating an older approval.
         segment_actions = db.resolve_segment_actions(slug)
         ads_to_remove, all_ads_with_validation = _build_recut_ad_list(
             slug, episode_id, segments, original_duration,

@@ -32,11 +32,8 @@ def test_estimated_pattern_span_does_not_clear_hold():
 
 
 def test_estimated_pattern_stage_promotion_does_not_corroborate_hold():
-    # Three-member fold: claude folds with an estimated text_pattern member
-    # first (promoting last's stage to text_pattern via stage priority),
-    # then a held differential folds in with segments=None. The promoted
-    # stage must still be recognized as advisory so it cannot corroborate
-    # the hold.
+    # Three-member fold promotes last's stage to text_pattern before the held
+    # differential arrives; that promoted stage must still count as advisory.
     ads = [
         {'start': 2000.0, 'end': 2044.0, 'confidence': 0.9,
          'detection_stage': 'claude', 'reason': 'ad read', 'category': 'sponsor'},
@@ -57,11 +54,8 @@ def test_estimated_pattern_stage_promotion_does_not_corroborate_hold():
 
 
 def test_merge_matches_propagates_estimated_span_conservatively():
-    # A fully grounded match (100-140, higher confidence -> wins as "best")
-    # folds with a lower-confidence match whose start is duration-estimated
-    # (60-145). Taking span_estimated only from the winning member would
-    # silently drop the advisory flag and let label reach expand to the
-    # ungrounded 60-145 span.
+    # Grounded 100-140 match (wins as "best") folds with an estimated 60-145
+    # one; span_estimated must survive from the losing member too.
     matcher = TextPatternMatcher.__new__(TextPatternMatcher)
     grounded = TextMatch(pattern_id=1, start=100.0, end=140.0, confidence=0.95,
                           sponsor='Acme', match_type='outro',

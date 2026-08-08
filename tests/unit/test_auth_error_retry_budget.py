@@ -34,6 +34,14 @@ def test_processing_duration_digits_are_not_auth():
     assert not is_auth_error(Exception("processing took 40100ms"))
 
 
+def test_wrapped_billing_401_is_not_auth():
+    assert not is_auth_error(Exception("error code: 401 - billing limit reached"))
+
+
+def test_wrapped_invalid_key_401_is_auth():
+    assert is_auth_error(Exception("error code: 401 - invalid api key"))
+
+
 SLUG = 'auth-error-retry-budget-feed'
 AUTH_ERROR = Exception(
     "Ad detection failed: All 5 detection windows failed (last error: "

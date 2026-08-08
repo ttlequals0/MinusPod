@@ -325,10 +325,8 @@ def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
 
 
 def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkeypatch):
-    # A never-cut ad next to a previously-cut one must NOT merge (validator
-    # guard): folding them would let the previously-cut stamp force-accept
-    # the whole span, silently cutting the never-cut half too. Each keeps
-    # its own outcome: the previously-cut one stays cut, the new one is held.
+    # Must NOT merge: folding would let the previously-cut stamp force-accept
+    # the whole span. Each keeps its own outcome.
     ads = [
         {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
          'reason': 'promo one'},  # not previously cut

@@ -65,8 +65,8 @@ release notes.
   the learning validation guards count toward match-credit stats.
 - Pass-1 sponsor hint amplified: defined patterns now contribute category
   and an opening snippet to the hint; auto-learned patterns contribute
-  names only. Both are capped, and neither contributes match spans or
-  timestamps.
+  names only. The detailed list is capped, and neither tier contributes
+  match spans or timestamps.
 - Default detection prompt: a paid read for another show is now classified
   as sponsor rather than cross_promo. Instances running a customized
   detection prompt need to reset it to pick up this change.

@@ -1628,7 +1628,8 @@ def is_auth_error(error: Exception) -> bool:
     ``is_limit_exceeded_error`` instead, so each error fires exactly one of
     the Auth Failure / Limit Exceeded webhook events. Falls back to string
     markers for wrapped errors (e.g. multi-window failures) that lose the
-    original SDK exception type.
+    original SDK exception type; a bare "401" also requires auth wording so
+    a wrapped billing error is not misclassified as an auth outage.
     """
     if is_limit_exceeded_error(error):
         return False
@@ -1647,7 +1648,10 @@ def is_auth_error(error: Exception) -> bool:
     text = str(error).lower()
     if any(marker in text for marker in _AUTH_ERROR_MARKERS):
         return True
-    return 'error code: 401' in text or text.startswith('401')
+    if 'error code: 401' in text or text.startswith('401'):
+        return any(word in text for word in
+                    ('unauthorized', 'api key', 'authentication', 'credential'))
+    return False
 
 
 def is_limit_exceeded_error(error: Exception) -> bool:
