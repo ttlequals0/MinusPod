@@ -579,7 +579,7 @@ paths:
                     minLength: 1
                     maxLength: 200
                   maxItems: 50
-                  description: Per-feed episode title blacklist. Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; the on-demand serve path returns the upstream audio untouched instead. Null or an empty array clears the blacklist.
+                  description: Per-feed episode title blacklist. Case-insensitive glob patterns (fnmatch); a plain substring needs surrounding '*' wildcards. A matching episode is never queued from RSS refresh or JIT-processed; requests for a skipped episode's audio redirect to the upstream enclosure instead. Null or an empty array clears the blacklist.
                 titleSkipAction:
                   type:
                     - string
