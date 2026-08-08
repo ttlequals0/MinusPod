@@ -44,6 +44,7 @@ vi.mock('./settings/AudioSection', () => ({ default: () => null }));
 vi.mock('./settings/CoverArtSection', () => ({ default: () => null }));
 vi.mock('./settings/AdDetectionSection', () => ({ default: () => null }));
 vi.mock('./settings/GlobalDefaultsSection', () => ({ default: () => null }));
+vi.mock('./settings/SegmentActionsSection', () => ({ default: () => null }));
 vi.mock('./settings/Podcasting20Section', () => ({ default: () => null }));
 vi.mock('./settings/AudioCueDetectionSection', () => ({ default: () => null }));
 vi.mock('./settings/PositionalPriorSection', () => ({ default: () => null }));

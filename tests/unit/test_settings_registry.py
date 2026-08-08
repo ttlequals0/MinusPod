@@ -54,6 +54,7 @@ SEED_SNAPSHOT = {
     'chapters_enabled': 'true',
     'chapters_model': 'claude-haiku-4-5-20251001',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
+    'detect_show_segments': '0',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
     'enable_ad_review': 'false',
@@ -149,6 +150,7 @@ EXPECTED_AD_RESET_KEYS = {
 # must never wipe a live key) and the *_prompt_override keys (memory obs
 # 26236: cleared by reset_prompts_only, not reset_setting).
 NON_RESETTABLE_KEYS = (
+    'detect_show_segments',
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
     'max_feed_episodes', 'offline_queue_enabled', 'offline_queue_ttl_hours',
     'only_expose_processed_default', 'omit_temperature',
@@ -371,11 +373,12 @@ class TestGetDefaults:
         # whisperApiTimeoutSeconds added after that (80 -> 81).
         # chapterPrompt added after that (81 -> 82).
         # artworkBadgePosition added after that (82 -> 83).
+        # detectShowSegments added after that (83 -> 84).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 83
+        assert len(payload_keys) == 84
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

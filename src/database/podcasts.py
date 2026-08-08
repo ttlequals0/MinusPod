@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Optional, Dict, List
 
-from config import resolve_segment_category_actions_map
+from config import coerce_bool_setting, resolve_segment_category_actions_map
 from utils.constants import EpisodeStatus
 from utils.time import utc_now_iso
 
@@ -538,6 +538,19 @@ class PodcastMixin:
         if per_feed is not None:
             return bool(per_feed)
         return self.get_setting('only_expose_processed_default') == 'true'
+
+    def resolve_detect_show_segments(self, slug: str,
+                                     podcast: Optional[Dict] = None) -> bool:
+        """Resolve detect_show_segments for a podcast: per-feed value if
+        non-NULL (0=off, 1=on), else the detect_show_segments global
+        setting, else False.
+        """
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        per_feed = podcast.get('detect_show_segments') if podcast else None
+        if per_feed is not None:
+            return bool(per_feed)
+        return coerce_bool_setting(self.get_setting('detect_show_segments'))
 
     def resolve_segment_actions(self, slug: str,
                                 podcast: Optional[Dict] = None) -> Dict[str, str]:

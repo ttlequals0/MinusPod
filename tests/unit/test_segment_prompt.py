@@ -38,6 +38,9 @@ class _FakeDb:
             return None
         return {'slug': slug, 'detect_show_segments': self._detect_show_segments}
 
+    def resolve_detect_show_segments(self, slug):
+        return self._detect_show_segments
+
     def resolve_segment_actions(self, slug):
         if self._segment_actions is not None:
             return self._segment_actions

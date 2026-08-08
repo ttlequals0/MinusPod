@@ -659,8 +659,8 @@ PROCESSING_MODE_COLUMN_UPDATES = {
 def resolve_skip_second_pass(podcast_row):
     """Whether the feed opts out of the pass-2 verification scan (issue #599).
 
-    Per-feed only, like detect_show_segments: there is no global default that
-    could silently disable verification everywhere. NULL/0 runs pass 2.
+    Per-feed only: there is no global default that could silently disable
+    verification everywhere. NULL/0 runs pass 2.
     """
     return bool(podcast_row and podcast_row.get('skip_second_pass'))
 

@@ -518,6 +518,41 @@ describe('FeedSettingsPanel show-segments toggle (#565)', () => {
     await userEvent.click(screen.getByRole('switch', { name: 'Detect show segments' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: true });
   });
+
+  it('unset (inherit): renders muted, reflects the global default, and shows an Inherit chip', async () => {
+    mockGetSettings.mockResolvedValue({ detectShowSegments: { value: true, isDefault: false } });
+    renderPanel(makeFeed());
+
+    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
+    await waitFor(() => expect(toggle.getAttribute('aria-checked')).toBe('true'));
+    expect(toggle.className).toContain('bg-muted');
+
+    const cluster = toggle.parentElement as HTMLElement;
+    expect(within(cluster).getByText('Inherit')).toBeDefined();
+    expect(within(cluster).queryByRole('button', { name: 'Clear' })).toBeNull();
+  });
+
+  it('explicit true: renders unmuted with a Clear button, not an Inherit chip', () => {
+    renderPanel(makeFeed({ detectShowSegments: true }));
+
+    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect(toggle.className).not.toContain('bg-muted');
+
+    const cluster = toggle.parentElement as HTMLElement;
+    expect(within(cluster).getByRole('button', { name: 'Clear' })).toBeDefined();
+    expect(within(cluster).queryByText('Inherit')).toBeNull();
+  });
+
+  it('Clear fires updateFeed with detectShowSegments null', async () => {
+    renderPanel(makeFeed({ detectShowSegments: true }));
+
+    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
+    const cluster = toggle.parentElement as HTMLElement;
+    await userEvent.click(within(cluster).getByRole('button', { name: 'Clear' }));
+
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: null });
+  });
 });
 
 describe('FeedSettingsPanel episode GUIDs toggle (#598)', () => {

@@ -40,6 +40,7 @@ import CoverArtSection from './settings/CoverArtSection';
 import { refreshAllArtwork } from '../api/feeds';
 import AdDetectionSection from './settings/AdDetectionSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
+import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
@@ -232,6 +233,7 @@ function Settings() {
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
+  const [detectShowSegments, setDetectShowSegments] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
   const [audioBitrate, setAudioBitrate] = useState('');
@@ -487,6 +489,7 @@ function Settings() {
     // Global behavior / output toggles
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
+    { key: 'detectShowSegments', kind: 'val', useDefault: true, value: detectShowSegments, set: setDetectShowSegments },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
@@ -884,9 +887,14 @@ function Settings() {
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+      />
+
+      <SegmentActionsSection
         segmentCategoryActions={settings?.segmentCategoryActions?.value ?? settings?.defaults?.segmentCategoryActions ?? {}}
         onSegmentCategoryActionChange={(category, action) =>
           tunableMutation.mutate({ segmentCategoryActions: { [category]: action } })}
+        detectShowSegments={detectShowSegments}
+        onDetectShowSegmentsChange={setDetectShowSegments}
       />
 
       <LLMProviderSection

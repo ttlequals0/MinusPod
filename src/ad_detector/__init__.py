@@ -714,17 +714,17 @@ class AdDetector:
     def _podcast_wants_show_segments(self, slug: str) -> bool:
         """Return whether this podcast opted into intro/outro/recap detection.
 
-        One DB lookup per detect_ads() call, not per window (same pattern
-        as _build_known_pattern_hint).
+        Per-feed value if explicitly set, else the detect_show_segments
+        global default. One DB lookup per detect_ads() call, not per window
+        (same pattern as _build_known_pattern_hint).
         """
         if not slug or not self.db:
             return False
         try:
-            podcast = self.db.get_podcast_by_slug(slug)
+            return self.db.resolve_detect_show_segments(slug)
         except Exception as e:
             logger.warning(f"Could not check detect_show_segments for {slug}: {e}")
             return False
-        return bool(podcast and podcast.get('detect_show_segments'))
 
     def _resolve_segment_action_map(self, slug: str) -> Optional[Dict[str, str]]:
         """Resolve the feed's category->action map once per detection run,

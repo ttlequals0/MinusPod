@@ -112,7 +112,8 @@ export interface Feed {
   // categories are present (others inherit the global map); null/absent
   // means there are no per-feed overrides at all.
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>> | null;
-  // Also detect intro/outro/recap/housekeeping segments. Off by default.
+  // Also detect intro/outro/recap/housekeeping segments. Null inherits the
+  // global detectShowSegments default.
   detectShowSegments?: boolean | null;
   // Serve MinusPod episode ids as RSS item GUIDs (#598). Null/false pass
   // upstream GUIDs through; new feeds are created with true.
@@ -418,6 +419,7 @@ export interface Settings {
   rssRefreshIntervalMinutes: SettingValueNumber;
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
+  detectShowSegments: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
   artworkBadgePosition: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
@@ -507,6 +509,7 @@ export interface Settings {
     rssRefreshIntervalMinutes: number;
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
+    detectShowSegments: boolean;
     artworkWatermarkEnabled: boolean;
     artworkBadgePosition: string;
     feedAuthEnabled: boolean;
@@ -598,6 +601,7 @@ export interface UpdateSettingsPayload {
   // PATCH, which replaces the stored map outright).
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
+  detectShowSegments?: boolean;
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
   feedAuthEnabled?: boolean;

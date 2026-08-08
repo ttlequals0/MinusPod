@@ -66,3 +66,35 @@ class TestOnlyExposeProcessedResolution:
         conn.execute("DELETE FROM settings WHERE key = 'only_expose_processed_default'")
         conn.commit()
         assert temp_db.is_only_expose_processed_for_podcast(feed_slug) is False
+
+
+class TestDetectShowSegmentsResolution:
+    def test_per_feed_null_inherits_global_on(self, temp_db, feed_slug):
+        temp_db.set_setting('detect_show_segments', 'true', is_default=False)
+        # Per-feed left at seeded default NULL.
+        assert temp_db.resolve_detect_show_segments(feed_slug) is True
+
+    def test_per_feed_null_inherits_global_off(self, temp_db, feed_slug):
+        temp_db.set_setting('detect_show_segments', 'false', is_default=False)
+        assert temp_db.resolve_detect_show_segments(feed_slug) is False
+
+    def test_per_feed_explicit_off_beats_global_on(self, temp_db, feed_slug):
+        temp_db.set_setting('detect_show_segments', 'true', is_default=False)
+        temp_db.update_podcast(feed_slug, detect_show_segments=0)
+        assert temp_db.resolve_detect_show_segments(feed_slug) is False
+
+    def test_per_feed_explicit_on_beats_global_off(self, temp_db, feed_slug):
+        temp_db.set_setting('detect_show_segments', 'false', is_default=False)
+        temp_db.update_podcast(feed_slug, detect_show_segments=1)
+        assert temp_db.resolve_detect_show_segments(feed_slug) is True
+
+    def test_no_global_setting_defaults_to_false(self, temp_db, feed_slug):
+        conn = temp_db.get_connection()
+        conn.execute("DELETE FROM settings WHERE key = 'detect_show_segments'")
+        conn.commit()
+        assert temp_db.resolve_detect_show_segments(feed_slug) is False
+
+    def test_passing_in_podcast_dict_avoids_extra_lookup(self, temp_db, feed_slug):
+        temp_db.update_podcast(feed_slug, detect_show_segments=1)
+        podcast = temp_db.get_podcast_by_slug(feed_slug)
+        assert temp_db.resolve_detect_show_segments(feed_slug, podcast=podcast) is True

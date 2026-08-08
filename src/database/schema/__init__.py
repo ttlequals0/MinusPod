@@ -338,7 +338,8 @@ class SchemaMixin:
             # segment_category_actions setting at resolve time.
             ('segment_category_actions', 'TEXT'),
             # Per-feed opt-in for show-segment (intro/outro/recap) detection
-            # (issue #565); NULL/0 = off, 1 = on, no global to inherit.
+            # (issue #565); NULL = inherit the detect_show_segments global
+            # setting, 0 = explicit off, 1 = explicit on.
             ('detect_show_segments', 'INTEGER'),
             # Cue-only mode: transcription opt-out and safety policy
             ('skip_transcription', 'INTEGER'),

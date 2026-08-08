@@ -968,23 +968,38 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
               {segmentActionError && <p className="text-xs text-destructive">{segmentActionError}</p>}
 
-              {/* Show-segment detection (issue #565): off by default. */}
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Show segments:</span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <ToggleSwitch
-                      checked={feed.detectShowSegments === true}
-                      onChange={(v) => updateMutation.mutate({ detectShowSegments: v })}
-                      disabled={updateMutation.isPending}
-                      ariaLabel="Detect show segments"
-                    />
-                    <span>Detect show segments</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground">
+              {/* Show-segment detection (issue #565): tri-state, inheriting
+                  the global detectShowSegments default when unset. */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm pt-2 border-t border-border">
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block">Show segments</span>
+                  <span className="text-xs text-muted-foreground/70 block">
                     Finds the show&apos;s intro, outro and credits, and preview bumpers so you
                     can keep or cut them by category. Rough edges where music dominates.
-                  </p>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <ToggleSwitch
+                    checked={feed.detectShowSegments ?? (settings?.detectShowSegments?.value ?? false)}
+                    muted={feed.detectShowSegments == null}
+                    onChange={(v) => updateMutation.mutate({ detectShowSegments: v })}
+                    disabled={updateMutation.isPending}
+                    ariaLabel="Detect show segments"
+                  />
+                  {feed.detectShowSegments == null ? (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-secondary text-muted-foreground">
+                      Inherit
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => updateMutation.mutate({ detectShowSegments: null })}
+                      disabled={updateMutation.isPending}
+                      className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
 

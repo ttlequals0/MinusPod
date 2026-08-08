@@ -734,7 +734,7 @@ paths:
                   type:
                     - boolean
                     - 'null'
-                  description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
+                  description: Per-feed opt-in to detect intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. true/false override the global detectShowSegments setting for this feed; null falls back to it.
                 skipSecondPass:
                   type:
                     - boolean
@@ -3799,6 +3799,9 @@ paths:
                 onlyExposeProcessedDefault:
                   type: boolean
                   description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
+                detectShowSegments:
+                  type: boolean
+                  description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
                 rssRefreshIntervalMinutes:
                   type: integer
                   minimum: 5
@@ -8025,7 +8028,7 @@ components:
           type:
             - boolean
             - 'null'
-          description: Whether this feed detects intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null and false both mean off, the default.
+          description: Whether this feed detects intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Null means use the global detectShowSegments setting. true/false override the global for this feed.
         ownEpisodeGuids:
           type:
             - boolean
@@ -9121,6 +9124,14 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        detectShowSegments:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Global default for detecting intro, outro, and recap/housekeeping segments (per-feed detectShowSegments overrides when set)
+            isDefault:
+              type: boolean
         rssRefreshIntervalMinutes:
           type: object
           properties:
@@ -9358,6 +9369,8 @@ components:
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:
+              type: boolean
+            detectShowSegments:
               type: boolean
             rssRefreshIntervalMinutes:
               type: integer
