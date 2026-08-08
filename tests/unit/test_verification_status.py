@@ -1,11 +1,4 @@
-"""Regression test: an aborted pass-2 verification must not read as clean.
-
-A CUDA-OOM-aborted re-transcription returns {'status': 'transcription_failed'}
-(verification_pass.py also returns 'no_segments' when the transcript comes
-back empty), both with empty 'ads'/'ads_processed'. Before this fix,
-_run_verification_pass never read 'status', so the empty-ads branch logged
-"Verification: clean" and returned verification_ok=True regardless.
-"""
+"""An incomplete verification pass (no_segments/transcription_failed) must not report a clean scan."""
 from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
