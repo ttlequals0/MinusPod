@@ -424,6 +424,7 @@ export interface Settings {
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
+  processNewEpisodesFirst: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
   artworkBadgePosition: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
@@ -514,6 +515,7 @@ export interface Settings {
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
     detectShowSegments: boolean;
+    processNewEpisodesFirst: boolean;
     artworkWatermarkEnabled: boolean;
     artworkBadgePosition: string;
     feedAuthEnabled: boolean;
@@ -606,6 +608,7 @@ export interface UpdateSettingsPayload {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
   detectShowSegments?: boolean;
+  processNewEpisodesFirst?: boolean;
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
   feedAuthEnabled?: boolean;

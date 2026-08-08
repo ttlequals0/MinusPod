@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.86.0
+  version: 2.86.1
   contact:
     name: MinusPod
   license:
@@ -3802,6 +3802,9 @@ paths:
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
+                processNewEpisodesFirst:
+                  type: boolean
+                  description: Whether episodes published within the last 48 hours get an automatic queue-priority boost ahead of the rest of the auto-process backlog. On by default.
                 rssRefreshIntervalMinutes:
                   type: integer
                   minimum: 5
@@ -9132,6 +9135,14 @@ components:
               description: Global default for detecting intro, outro, and recap/housekeeping segments (per-feed detectShowSegments overrides when set)
             isDefault:
               type: boolean
+        processNewEpisodesFirst:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether episodes published within the last 48 hours get an automatic queue-priority boost ahead of the rest of the auto-process backlog. On by default.
+            isDefault:
+              type: boolean
         rssRefreshIntervalMinutes:
           type: object
           properties:
@@ -9371,6 +9382,8 @@ components:
             onlyExposeProcessedDefault:
               type: boolean
             detectShowSegments:
+              type: boolean
+            processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:
               type: integer

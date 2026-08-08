@@ -43,6 +43,22 @@ release notes.
   (GHSA-7p8r-x3mc-p8w7), and transitive nanoid (GHSA-2v37-7h3g-55p8).
   All three were failing the CI audit gates.
 
+## [2.86.1] - 2026-08-08
+
+### Added
+
+- Global "process new episodes first" setting controlling the automatic
+  fresh-episode queue boost.
+
+### Fixed
+
+- Global show-segments toggle saves immediately instead of waiting for
+  Save Changes.
+- Per-prompt reset buttons stay visible at default, disabled instead of
+  hidden.
+- Feed show-segments control is an explicit Inherit/On/Off choice that
+  shows the effective value when inheriting.
+
 ## [2.86.0] - 2026-08-07
 
 ### Added

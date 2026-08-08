@@ -17,12 +17,13 @@ FRESH_WINDOW_HOURS = 48
 _QUEUE_STATUS_ITEMS_LIMIT = 100
 
 
-def compute_queue_priority(feed_priority, published_at_iso, manual=False, now=None):
+def compute_queue_priority(feed_priority, published_at_iso, manual=False, now=None,
+                            apply_fresh_boost=True):
     """Base feed priority plus boosts for fresh episodes and manual requests."""
     p = int(feed_priority or 0)
     if manual:
         p += MANUAL_REQUEST_BOOST
-    if published_at_iso:
+    if apply_fresh_boost and published_at_iso:
         try:
             published = datetime.fromisoformat(published_at_iso.replace('Z', '+00:00'))
             now = now or datetime.now(timezone.utc)

@@ -149,13 +149,15 @@ beforeEach(() => {
 });
 
 describe('Settings: per-prompt reset', () => {
-  it('hides the system-prompt reset button once the field is back at default', async () => {
+  it('renders the per-field reset buttons disabled once every prompt is back at default', async () => {
     mockGetSettings.mockResolvedValue(makeSettings({ systemPrompt: sv('default system prompt', true) }));
     renderSettings();
     await waitFor(() => {
       expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
     });
-    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
+    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
+    expect(resetButtons.length).toBeGreaterThan(0);
+    for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
   });
 
   it('fires resetPrompt("system") on the second click, not resetPrompts', async () => {
@@ -211,14 +213,17 @@ describe('Settings: per-prompt reset', () => {
       expect(screen.getByLabelText('Review prompt (confirm / adjust / reject)')).toBeDefined();
     });
 
+    // system/verification/chapter are at their default (disabled); review
+    // and resurrect are customized (enabled), in that DOM order.
     const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
-    expect(resetButtons).toHaveLength(2);
+    expect(resetButtons).toHaveLength(5);
+    const [reviewBtn, resurrectBtn] = resetButtons.slice(3);
 
-    await user.click(resetButtons[0]);
+    await user.click(reviewBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(mockResetPrompt).toHaveBeenCalledWith('review');
 
-    await user.click(resetButtons[1]);
+    await user.click(resurrectBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(mockResetPrompt).toHaveBeenCalledWith('resurrect');
   });

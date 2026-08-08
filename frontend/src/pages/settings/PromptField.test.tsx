@@ -1,6 +1,7 @@
 /**
  * Tests for the per-prompt reset affordance on PromptField (#626): hidden
- * without a handler or at default, two-click confirm before onReset.
+ * only without a handler, disabled (not hidden) at default, two-click
+ * confirm before onReset.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -13,14 +14,18 @@ describe('PromptField: per-prompt reset', () => {
     expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
   });
 
-  it('hides the reset button when the prompt is already at its default', () => {
+  it('renders the reset button disabled when the prompt is already at its default', () => {
     render(<PromptField id="p" label="Prompt" value="hello" onChange={() => {}} onReset={() => {}} isDefault />);
-    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
+    const btn = screen.getByRole('button', { name: 'Reset' });
+    expect(btn).toHaveProperty('disabled', true);
+    expect(btn.getAttribute('title')).toBe('Already the default');
   });
 
-  it('shows the reset button when the prompt has been customized', () => {
+  it('shows the reset button enabled when the prompt has been customized', () => {
     render(<PromptField id="p" label="Prompt" value="hello" onChange={() => {}} onReset={() => {}} isDefault={false} />);
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeDefined();
+    const btn = screen.getByRole('button', { name: 'Reset' });
+    expect(btn).toHaveProperty('disabled', false);
+    expect(btn.getAttribute('title')).toBeNull();
   });
 
   it('requires a second click before firing onReset', async () => {

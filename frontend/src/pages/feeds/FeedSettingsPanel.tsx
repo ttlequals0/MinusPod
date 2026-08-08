@@ -11,6 +11,7 @@ import { ExperimentalBadge } from '../../components/ExperimentalBadge';
 import { FeedTagsEditor } from '../../components/FeedTagsEditor';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import TriStateSelect from '../../components/TriStateSelect';
+import TriStateToggle from '../../components/TriStateToggle';
 import SegmentActionToggle from '../../components/SegmentActionToggle';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, SEGMENT_CATEGORY_DESCRIPTIONS, DEFAULT_SEGMENT_ACTION,
@@ -832,6 +833,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </select>
               <p className="text-xs text-muted-foreground">
                 High processes before other queued episodes. Low runs only when nothing else is waiting.
+                New episodes and manual reprocesses get an automatic boost.
               </p>
             </div>
           </div>
@@ -978,27 +980,24 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     can keep or cut them by category. Rough edges where music dominates.
                   </span>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <ToggleSwitch
-                    checked={feed.detectShowSegments ?? (settings?.detectShowSegments?.value ?? false)}
-                    muted={feed.detectShowSegments == null}
-                    onChange={(v) => updateMutation.mutate({ detectShowSegments: v })}
+                <div className="flex flex-col items-start sm:items-end gap-1">
+                  <TriStateToggle
+                    value={feed.detectShowSegments == null ? 'inherit' : feed.detectShowSegments ? 'on' : 'off'}
+                    options={[
+                      { value: 'inherit', label: 'Inherit' },
+                      { value: 'on', label: 'On' },
+                      { value: 'off', label: 'Off' },
+                    ]}
+                    onChange={(v) => updateMutation.mutate({
+                      detectShowSegments: v === 'inherit' ? null : v === 'on',
+                    })}
                     disabled={updateMutation.isPending}
-                    ariaLabel="Detect show segments"
+                    ariaLabel="Show segments"
                   />
-                  {feed.detectShowSegments == null ? (
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-secondary text-muted-foreground">
-                      Inherit
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => updateMutation.mutate({ detectShowSegments: null })}
-                      disabled={updateMutation.isPending}
-                      className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
-                    >
-                      Clear
-                    </button>
+                  {feed.detectShowSegments == null && (
+                    <p className="text-xs text-muted-foreground">
+                      Following the global setting (currently {(settings?.detectShowSegments?.value ?? false) ? 'on' : 'off'}).
+                    </p>
                   )}
                 </div>
               </div>

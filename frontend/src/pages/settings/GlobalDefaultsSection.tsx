@@ -13,6 +13,8 @@ interface GlobalDefaultsSectionProps {
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
+  processNewEpisodesFirst: boolean;
+  onProcessNewEpisodesFirstChange: (enabled: boolean) => void;
 }
 
 function GlobalDefaultsSection({
@@ -26,6 +28,8 @@ function GlobalDefaultsSection({
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
   onOnlyExposeProcessedDefaultChange,
+  processNewEpisodesFirst,
+  onProcessNewEpisodesFirstChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -47,6 +51,23 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             When a feed refresh discovers a new episode, queue it for processing automatically. Per-feed Auto-Process can override this.
+          </p>
+        </div>
+
+        {/* Process new episodes first: fresh-episode queue boost, saves immediately */}
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={processNewEpisodesFirst}
+              onChange={onProcessNewEpisodesFirstChange}
+              ariaLabel="Process new episodes first"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Process new episodes first
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Episodes published in the last 48 hours jump ahead of queued backlog.
           </p>
         </div>
 

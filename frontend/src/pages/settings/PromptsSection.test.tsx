@@ -28,7 +28,7 @@ function baseProps() {
 }
 
 describe('PromptsSection: per-prompt reset', () => {
-  it('hides all per-field reset buttons when every prompt is at its default', () => {
+  it('renders all per-field reset buttons disabled when every prompt is at its default', () => {
     render(
       <PromptsSection
         {...baseProps()}
@@ -40,7 +40,9 @@ describe('PromptsSection: per-prompt reset', () => {
         onResetChapterPrompt={vi.fn()}
       />,
     );
-    expect(screen.queryAllByRole('button', { name: 'Reset' })).toHaveLength(0);
+    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
+    expect(resetButtons).toHaveLength(3);
+    for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
     // Bulk reset button stays regardless of per-field state.
     expect(screen.getByRole('button', { name: 'Reset Prompts to Default' })).toBeDefined();
   });
@@ -85,7 +87,7 @@ describe('PromptsSection: per-prompt reset', () => {
         onResetChapterPrompt={onResetChapterPrompt}
       />,
     );
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = screen.getAllByRole('button', { name: 'Reset' })[2];
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(onResetChapterPrompt).toHaveBeenCalledTimes(1);

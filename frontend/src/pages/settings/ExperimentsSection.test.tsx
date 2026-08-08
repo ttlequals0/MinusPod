@@ -24,7 +24,7 @@ function baseReviewer(): ReviewerState {
 }
 
 describe('ExperimentsSection: per-prompt reset', () => {
-  it('hides both per-field reset buttons when both prompts are at their default', () => {
+  it('renders both per-field reset buttons disabled when both prompts are at their default', () => {
     render(
       <ExperimentsSection
         reviewer={baseReviewer()}
@@ -37,7 +37,9 @@ describe('ExperimentsSection: per-prompt reset', () => {
         onResetResurrectPrompt={vi.fn()}
       />,
     );
-    expect(screen.queryAllByRole('button', { name: 'Reset' })).toHaveLength(0);
+    const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
+    expect(resetButtons).toHaveLength(2);
+    for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Reset Reviewer Prompts to Default' })).toBeDefined();
   });
 
@@ -80,7 +82,7 @@ describe('ExperimentsSection: per-prompt reset', () => {
         onResetResurrectPrompt={onResetResurrectPrompt}
       />,
     );
-    const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
+    const resetBtn = screen.getAllByRole('button', { name: 'Reset' })[1];
     await user.click(resetBtn);
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(onResetResurrectPrompt).toHaveBeenCalledTimes(1);

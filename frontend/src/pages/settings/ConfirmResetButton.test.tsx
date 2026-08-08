@@ -37,4 +37,14 @@ describe('ConfirmResetButton', () => {
     const btn = screen.getByRole('button', { name: 'Resetting...' });
     expect(btn).toHaveProperty('disabled', true);
   });
+
+  it('disables via the disabled prop without switching to the pending label', () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmResetButton label="Reset" disabled title="Already the default" onConfirm={onConfirm} />);
+    const btn = screen.getByRole('button', { name: 'Reset' });
+    expect(btn).toHaveProperty('disabled', true);
+    expect(btn.getAttribute('title')).toBe('Already the default');
+    fireEvent.click(btn);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });

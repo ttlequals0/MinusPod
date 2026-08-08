@@ -203,6 +203,9 @@ def get_settings():
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
     detect_show_segments_default = coerce_bool_setting(_setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
+    process_new_episodes_first = coerce_bool_setting(_setting_value(
+        settings, 'process_new_episodes_first',
+        registry_default('process_new_episodes_first')))
     artwork_watermark_value = _setting_value(
         settings, 'artwork_watermark_enabled',
         registry_default('artwork_watermark_enabled'))
@@ -507,6 +510,8 @@ def get_settings():
             'only_expose_processed_default', only_expose_processed_default),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
+        'processNewEpisodesFirst': _sv(
+            'process_new_episodes_first', process_new_episodes_first),
         'artworkWatermarkEnabled': _sv(
             'artwork_watermark_enabled', artwork_watermark_enabled),
         'artworkBadgePosition': _sv(
@@ -792,6 +797,11 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['detectShowSegments'] else 'false'
         db.set_setting('detect_show_segments', value, is_default=False)
         logger.info(f"Updated detect-show-segments default to: {value}")
+
+    if 'processNewEpisodesFirst' in data:
+        value = 'true' if data['processNewEpisodesFirst'] else 'false'
+        db.set_setting('process_new_episodes_first', value, is_default=False)
+        logger.info(f"Updated process-new-episodes-first to: {value}")
 
     if 'artworkWatermarkEnabled' in data:
         value = 'true' if data['artworkWatermarkEnabled'] else 'false'

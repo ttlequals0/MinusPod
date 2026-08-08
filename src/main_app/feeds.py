@@ -364,6 +364,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         if db.is_auto_process_enabled_for_podcast(slug):
             queued_count = 0
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
+            # Read once per refresh, not per episode.
+            fresh_boost_enabled = db.get_setting_bool('process_new_episodes_first', True)
 
             # Bulk-load episode statuses to avoid N+1 queries
             ep_statuses, title_date_map = db.get_episode_statuses_for_podcast(slug)
@@ -409,7 +411,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                         # New recent episode - queue for processing
                         # iso_published already calculated above for deduplication check
                         feed_priority = podcast.get('queue_priority') if podcast else None
-                        priority = compute_queue_priority(feed_priority, iso_published, manual=False)
+                        priority = compute_queue_priority(
+                            feed_priority, iso_published, manual=False,
+                            apply_fresh_boost=fresh_boost_enabled)
                         queue_id = db.queue_episode_for_processing(
                             slug, ep['id'], ep['url'], ep.get('title'), iso_published,
                             ep.get('description'), priority=priority

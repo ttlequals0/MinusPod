@@ -500,56 +500,60 @@ describe('FeedSettingsPanel segment action overrides (#565)', () => {
   });
 });
 
-describe('FeedSettingsPanel show-segments toggle (#565)', () => {
+describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSettings.mockResolvedValue({});
     mockUpdateFeed.mockResolvedValue(makeFeed());
   });
 
-  it('renders off by default', () => {
+  it('selects Inherit by default and shows the effective global value', async () => {
+    mockGetSettings.mockResolvedValue({ detectShowSegments: { value: false, isDefault: true } });
     renderPanel(makeFeed());
-    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
+
+    const group = screen.getByRole('radiogroup', { name: 'Show segments' });
+    await waitFor(() => {
+      expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
+    });
+    expect(screen.getByText('Following the global setting (currently off).')).toBeDefined();
   });
 
-  it('enabling fires updateFeed with detectShowSegments true', async () => {
-    renderPanel(makeFeed());
-    await userEvent.click(screen.getByRole('switch', { name: 'Detect show segments' }));
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: true });
-  });
-
-  it('unset (inherit): renders muted, reflects the global default, and shows an Inherit chip', async () => {
+  it('reflects a global default of on in the helper text', async () => {
     mockGetSettings.mockResolvedValue({ detectShowSegments: { value: true, isDefault: false } });
     renderPanel(makeFeed());
 
-    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
-    await waitFor(() => expect(toggle.getAttribute('aria-checked')).toBe('true'));
-    expect(toggle.className).toContain('bg-muted');
-
-    const cluster = toggle.parentElement as HTMLElement;
-    expect(within(cluster).getByText('Inherit')).toBeDefined();
-    expect(within(cluster).queryByRole('button', { name: 'Clear' })).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByText('Following the global setting (currently on).')).toBeDefined();
+    });
   });
 
-  it('explicit true: renders unmuted with a Clear button, not an Inherit chip', () => {
-    renderPanel(makeFeed({ detectShowSegments: true }));
-
-    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    expect(toggle.className).not.toContain('bg-muted');
-
-    const cluster = toggle.parentElement as HTMLElement;
-    expect(within(cluster).getByRole('button', { name: 'Clear' })).toBeDefined();
-    expect(within(cluster).queryByText('Inherit')).toBeNull();
+  it('selecting On fires updateFeed with detectShowSegments true', async () => {
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: 'Show segments' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'On' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: true });
   });
 
-  it('Clear fires updateFeed with detectShowSegments null', async () => {
+  it('selecting Off fires updateFeed with detectShowSegments false', async () => {
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: 'Show segments' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Off' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: false });
+  });
+
+  it('explicit true: selects On and hides the helper text', () => {
     renderPanel(makeFeed({ detectShowSegments: true }));
 
-    const toggle = screen.getByRole('switch', { name: 'Detect show segments' });
-    const cluster = toggle.parentElement as HTMLElement;
-    await userEvent.click(within(cluster).getByRole('button', { name: 'Clear' }));
+    const group = screen.getByRole('radiogroup', { name: 'Show segments' });
+    expect(within(group).getByRole('radio', { name: 'On' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.queryByText(/Following the global setting/)).toBeNull();
+  });
+
+  it('selecting Inherit fires updateFeed with detectShowSegments null', async () => {
+    renderPanel(makeFeed({ detectShowSegments: true }));
+
+    const group = screen.getByRole('radiogroup', { name: 'Show segments' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Inherit' }));
 
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { detectShowSegments: null });
   });

@@ -312,6 +312,11 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'detect_show_segments': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='detectShowSegments', payload_kind='bool'),
+    # Whether the RSS-refresh enqueue path boosts episodes published within
+    # FRESH_WINDOW_HOURS ahead of the rest of the auto-process queue.
+    'process_new_episodes_first': SettingSpec(
+        default='1', seeded=True, resettable=False,
+        payload_key='processNewEpisodesFirst', payload_kind='bool'),
     'volume_threshold_db': SettingSpec(
         default='3.0', seeded=True, resettable=False),
     'transition_threshold_db': SettingSpec(

@@ -27,6 +27,8 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst
+        onProcessNewEpisodesFirstChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -52,8 +54,37 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst
+        onProcessNewEpisodesFirstChange={() => {}}
       />
       <button onClick={() => onCommit({ podpingEnabled })}>Commit</button>
+    </>
+  );
+}
+
+interface ProcessNewFirstState {
+  processNewEpisodesFirst: boolean;
+}
+
+function ProcessNewFirstHarness({ onCommit }: { onCommit: (payload: ProcessNewFirstState) => void }) {
+  const [processNewEpisodesFirst, setProcessNewEpisodesFirst] = useState(true);
+  return (
+    <>
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
+        rssRefreshIntervalMinutes={15}
+        onRssRefreshIntervalMinutesChange={() => {}}
+        podpingEnabled={false}
+        onPodpingEnabledChange={() => {}}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst={processNewEpisodesFirst}
+        onProcessNewEpisodesFirstChange={setProcessNewEpisodesFirst}
+      />
+      <button onClick={() => onCommit({ processNewEpisodesFirst })}>Commit</button>
     </>
   );
 }
@@ -143,6 +174,25 @@ describe('GlobalDefaultsSection: Podping notifications toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({ podpingEnabled: false });
+  });
+});
+
+describe('GlobalDefaultsSection: Process new episodes first toggle', () => {
+  it('renders on by default', () => {
+    render(<ProcessNewFirstHarness onCommit={() => {}} />);
+    const toggle = screen.getByRole('switch', { name: 'Process new episodes first' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('commits { processNewEpisodesFirst: false } after switching off', async () => {
+    let committed: ProcessNewFirstState | null = null;
+    render(<ProcessNewFirstHarness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('switch', { name: 'Process new episodes first' }));
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+
+    expect(committed).toEqual({ processNewEpisodesFirst: false });
   });
 });
 

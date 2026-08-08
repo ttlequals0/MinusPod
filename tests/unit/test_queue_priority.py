@@ -73,6 +73,16 @@ class TestComputeQueuePriority:
     def test_invalid_published_at_is_ignored(self):
         assert compute_queue_priority(5, 'not-a-date') == 5
 
+    def test_fresh_boost_applied_by_default(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        published = _iso(now - timedelta(hours=1))
+        assert compute_queue_priority(0, published, now=now) == FRESH_EPISODE_BOOST
+
+    def test_fresh_boost_absent_when_disabled(self):
+        now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        published = _iso(now - timedelta(hours=1))
+        assert compute_queue_priority(0, published, now=now, apply_fresh_boost=False) == 0
+
 
 class TestQueueOrdering:
     def test_high_priority_beats_older_normal(self, temp_db):

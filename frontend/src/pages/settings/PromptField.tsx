@@ -7,8 +7,9 @@ interface PromptFieldProps {
   onChange: (value: string) => void;
   helpText?: React.ReactNode;
   rows?: number;
-  // Per-prompt reset (issue #626): shown beside the label only when a
-  // handler is supplied and the prompt is not already at its default.
+  // Per-prompt reset (issue #626): shown beside the label whenever a handler
+  // is supplied, disabled while the prompt is already at its default so the
+  // affordance stays visible instead of disappearing.
   onReset?: () => void;
   isDefault?: boolean;
 }
@@ -29,8 +30,14 @@ export default function PromptField({
         <label htmlFor={id} className="block text-sm font-medium text-foreground">
           {label}
         </label>
-        {onReset && isDefault === false && (
-          <ConfirmResetButton label="Reset" onConfirm={onReset} size="compact" />
+        {onReset && (
+          <ConfirmResetButton
+            label="Reset"
+            onConfirm={onReset}
+            size="compact"
+            disabled={isDefault !== false}
+            title={isDefault !== false ? 'Already the default' : undefined}
+          />
         )}
       </div>
       <textarea
