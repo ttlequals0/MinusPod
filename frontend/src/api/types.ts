@@ -102,6 +102,12 @@ export interface Feed {
   skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  // Per-feed episode title blacklist: fnmatch glob patterns matched against
+  // episode titles. A match is never queued or JIT-processed.
+  titleSkipPatterns?: string[];
+  // Served-RSS visibility for a title-blacklisted episode. Absent/null
+  // resolves to 'serve_original'.
+  titleSkipAction?: 'serve_original' | 'hide' | null;
   // Per-feed segment-action overrides (issue #565): only overridden
   // categories are present (others inherit the global map); null/absent
   // means there are no per-feed overrides at all.

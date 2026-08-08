@@ -236,6 +236,8 @@ export interface UpdateFeedPayload {
   skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  titleSkipPatterns?: string[];
+  titleSkipAction?: 'serve_original' | 'hide' | null;
   // Per-feed segment-action overrides (issue #565). The backend replaces
   // the stored map outright, so callers must send the full desired partial
   // map (not just the changed key); null clears every override.

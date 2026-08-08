@@ -244,6 +244,59 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
   });
 });
 
+describe('FeedSettingsPanel title blacklist controls', () => {
+  const ADD_BUTTON_NAME = '+ Add pattern';
+  const ACTION_SELECT_NAME = 'Skipped episodes';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders existing patterns as chips', () => {
+    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *', 'Best of *'] }));
+    expect(screen.getByText('JRE MMA Show *')).toBeDefined();
+    expect(screen.getByText('Best of *')).toBeDefined();
+  });
+
+  it('adding a pattern fires updateFeed with the appended list', async () => {
+    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *'] }));
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    await userEvent.type(screen.getByLabelText('New title pattern'), 'Best of *');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      titleSkipPatterns: ['JRE MMA Show *', 'Best of *'],
+    });
+  });
+
+  it('removing a pattern fires updateFeed without it', async () => {
+    renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *', 'Best of *'] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove JRE MMA Show *' }));
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', {
+      titleSkipPatterns: ['Best of *'],
+    });
+  });
+
+  it('defaults the skip action select to serve_original', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: ACTION_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('serve_original');
+  });
+
+  it('renders the server value for the skip action select', () => {
+    renderPanel(makeFeed({ titleSkipAction: 'hide' }));
+    const select = screen.getByRole('combobox', { name: ACTION_SELECT_NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('hide');
+  });
+
+  it('selecting Hide fires updateFeed with titleSkipAction hide', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: ACTION_SELECT_NAME }), 'hide');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { titleSkipAction: 'hide' });
+  });
+});
+
 describe('FeedSettingsPanel source URL row (#484)', () => {
   beforeEach(() => {
     vi.clearAllMocks();

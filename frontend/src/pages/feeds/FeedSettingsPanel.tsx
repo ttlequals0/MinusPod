@@ -18,7 +18,7 @@ import {
 } from '../../utils/segmentCategory';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 
 interface Props {
   feed: Feed;
@@ -130,6 +130,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [rerenderResult, setRerenderResult] = useState<RerenderSegmentsResult | null>(null);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
   const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
+  const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
+  const [titleSkipPatternInput, setTitleSkipPatternInput] = useState('');
   // Local source of truth for the per-feed override map, not the `feed`
   // prop: the PATCH replaces the stored map outright with no server merge,
   // so building from a stale prop between edits would drop the earlier one.
@@ -365,6 +367,23 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     });
   };
 
+  const addTitleSkipPattern = () => {
+    const pattern = titleSkipPatternInput.trim();
+    if (!pattern) return;
+    const current = feed.titleSkipPatterns ?? [];
+    if (!current.includes(pattern)) {
+      updateMutation.mutate({ titleSkipPatterns: [...current, pattern] });
+    }
+    setTitleSkipPatternInput('');
+    setAddingTitleSkipPattern(false);
+  };
+
+  const removeTitleSkipPattern = (pattern: string) => {
+    updateMutation.mutate({
+      titleSkipPatterns: (feed.titleSkipPatterns ?? []).filter((p) => p !== pattern),
+    });
+  };
+
   const processingMode = feed.processingMode ?? 'standard';
   const cueOnlyActive = processingMode === 'cue_only';
 
@@ -574,6 +593,106 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Episode title blacklist: skip episodes whose title matches a glob pattern */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+              Skip episodes by title:
+            </span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              {(feed.titleSkipPatterns ?? []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {feed.titleSkipPatterns!.map((p) => (
+                    <span
+                      key={p}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                    >
+                      {p}
+                      <button
+                        type="button"
+                        onClick={() => removeTitleSkipPattern(p)}
+                        disabled={updateMutation.isPending}
+                        className="text-blue-700/60 dark:text-blue-400/60 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                        aria-label={`Remove ${p}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                {!addingTitleSkipPattern ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddingTitleSkipPattern(true)}
+                    disabled={updateMutation.isPending}
+                    className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
+                  >
+                    + Add pattern
+                  </button>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={titleSkipPatternInput}
+                      onChange={(e) => setTitleSkipPatternInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addTitleSkipPattern();
+                        }
+                      }}
+                      placeholder="JRE MMA Show *"
+                      aria-label="New title pattern"
+                      className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTitleSkipPattern}
+                      disabled={updateMutation.isPending || !titleSkipPatternInput.trim()}
+                      className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingTitleSkipPattern(false);
+                        setTitleSkipPatternInput('');
+                      }}
+                      className={`px-2 py-1 text-xs rounded ${btnOutline}`}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Episodes whose titles match a pattern are not processed. Use * as a wildcard, for example JRE MMA Show *.
+              </p>
+            </div>
+          </div>
+
+          {/* Served-feed visibility for a title-blacklisted episode */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+              Skipped episodes:
+            </span>
+            <select
+              value={feed.titleSkipAction ?? 'serve_original'}
+              onChange={(e) => updateMutation.mutate({
+                titleSkipAction: e.target.value as UpdateFeedPayload['titleSkipAction'],
+              })}
+              disabled={updateMutation.isPending}
+              className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+              aria-label="Skipped episodes"
+            >
+              <option value="serve_original">Keep in feed with original audio</option>
+              <option value="hide">Hide from feed</option>
+            </select>
           </div>
 
           {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
