@@ -37,13 +37,6 @@ release notes.
 - `docs/llm-providers.md` model recommendations refreshed from the 2026-08
   sweep, including a note on provider-side content moderation.
 
-### Fixed
-
-- A defined pattern folding into a claude-first marker during merge no
-  longer loses its cut authority, and an estimated pattern span promoted
-  to a merged marker's detection stage no longer masquerades as grounded
-  corroboration for a differential hold.
-
 ### Security
 
 - cryptography 49.0.0 to 50.0.0 (PYSEC-2026-3552), transitive fast-uri
@@ -97,6 +90,9 @@ release notes.
   reverting on any retry failure.
 - #631: LLM responses wrapped in a `segments` field now parse ads that are
   missing a `type` field.
+- Merge propagation: a defined pattern folding into a claude-first marker,
+  or an estimated span promoted to a merged marker's stage, now carries its
+  flag through detector and validator merges instead of losing it mid-fold.
 - Auth-class LLM failures (invalid key, forbidden, unauthorized) no longer
   consume the episode's retry budget.
 - Markers persisted by a failed processing run no longer display as cut
