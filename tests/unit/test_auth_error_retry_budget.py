@@ -1,0 +1,73 @@
+"""Auth-class LLM failures must not consume the episode retry budget.
+
+A claude-wrapper auth outage (401 body containing claude_cli_not_authenticated)
+is operator-fixable and can outlast any retry ladder, so it must not increment
+retry_count or trigger the permanently_failed transition.
+"""
+from unittest.mock import patch
+
+import pytest
+
+from tests.app_bootstrap import bootstrap
+
+_test_data_dir = bootstrap('auth_error_retry_budget_test_')
+from config import MAX_EPISODE_RETRIES
+from llm_client import is_auth_error
+from main_app import db
+from main_app.processing import _handle_processing_failure
+
+
+def test_wrapper_401_is_auth():
+    assert is_auth_error(Exception(
+        "Error code: 401 - {'error': {'code': 'claude_cli_not_authenticated'}}"))
+
+
+def test_plain_401_is_auth():
+    assert is_auth_error(Exception("401 authentication_error: invalid api key"))
+
+
+def test_rate_limit_is_not_auth():
+    assert not is_auth_error(Exception("429 rate limit exceeded"))
+
+
+def test_processing_duration_digits_are_not_auth():
+    assert not is_auth_error(Exception("processing took 40100ms"))
+
+
+SLUG = 'auth-error-retry-budget-feed'
+AUTH_ERROR = Exception(
+    "Ad detection failed: All 5 detection windows failed (last error: "
+    "Error code: 401 - {'error': {'code': 'claude_cli_not_authenticated'}})")
+
+
+@pytest.fixture
+def seeded_episode():
+    db.create_podcast(SLUG, 'https://example.com/feed.xml', title='Auth Retry Budget Test')
+    db.upsert_episode(SLUG, 'ep-1', title='Episode 1', status='processing',
+                      original_url='https://example.com/ep1.mp3',
+                      retry_count=MAX_EPISODE_RETRIES - 1)
+    yield 'ep-1'
+    db.delete_podcast(SLUG)
+
+
+def _fail(episode_id, error):
+    episode_data = db.get_episode(SLUG, episode_id)
+    with patch('main_app.processing.status_service'):
+        _handle_processing_failure(SLUG, episode_id, 'Episode 1', 'Auth Retry Budget Test',
+                                   episode_data, error, start_time=0.0)
+
+
+class TestAuthOutageRetryBudget:
+    def test_auth_outage_does_not_increment_retry_count(self, seeded_episode):
+        _fail(seeded_episode, AUTH_ERROR)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['retry_count'] == MAX_EPISODE_RETRIES - 1  # unchanged
+        assert episode['status'] == 'failed'
+        assert 'claude_cli_not_authenticated' in episode['error_message']
+
+    def test_auth_outage_does_not_trigger_permanent_failure_at_ladder_ceiling(self, seeded_episode):
+        # retry_count already one below MAX_EPISODE_RETRIES: a normal
+        # transient failure here would tip into permanently_failed.
+        _fail(seeded_episode, AUTH_ERROR)
+        episode = db.get_episode(SLUG, seeded_episode)
+        assert episode['status'] != 'permanently_failed'

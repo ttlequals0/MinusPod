@@ -1618,12 +1618,17 @@ def is_llm_api_error(error: Exception) -> bool:
     return False
 
 
+_AUTH_ERROR_MARKERS = ('claude_cli_not_authenticated', 'authentication_error')
+
+
 def is_auth_error(error: Exception) -> bool:
     """Check if error is an LLM authentication/authorization failure (401/403).
 
     Billing/quota 401/403s are excluded -- they classify as
     ``is_limit_exceeded_error`` instead, so each error fires exactly one of
-    the Auth Failure / Limit Exceeded webhook events.
+    the Auth Failure / Limit Exceeded webhook events. Falls back to string
+    markers for wrapped errors (e.g. multi-window failures) that lose the
+    original SDK exception type.
     """
     if is_limit_exceeded_error(error):
         return False
@@ -1639,7 +1644,10 @@ def is_auth_error(error: Exception) -> bool:
             return True
         if isinstance(error, o.APIError) and _provider_status_code(error) in (401, 403):
             return True
-    return False
+    text = str(error).lower()
+    if any(marker in text for marker in _AUTH_ERROR_MARKERS):
+        return True
+    return 'error code: 401' in text or text.startswith('401')
 
 
 def is_limit_exceeded_error(error: Exception) -> bool:

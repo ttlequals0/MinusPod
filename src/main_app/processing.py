@@ -87,7 +87,7 @@ from llm_capabilities import (
 )
 from llm_client import (
     is_retryable_error, is_llm_api_error, is_rate_limit_error,
-    is_limit_exceeded_error, LimitExceededError,
+    is_limit_exceeded_error, is_auth_error, LimitExceededError,
     start_episode_token_tracking, get_episode_token_totals,
 )
 from offline_queue import is_offline_queue_enabled
@@ -3587,7 +3587,19 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     # 429 retries don't burn retry_count (#238).
     rate_limited = is_rate_limit_error(error)
 
-    if transient:
+    # Auth outages are operator-fixable and can outlast any retry ladder, so
+    # they must not burn retry_count or trip permanently_failed, regardless
+    # of how is_transient_error classifies the wrapped error text.
+    auth_outage = is_auth_error(error)
+
+    if auth_outage:
+        new_retry_count = current_retry
+        new_status = EpisodeStatus.FAILED.value
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Auth-class LLM failure; retry budget "
+            f"unchanged ({current_retry}/{MAX_EPISODE_RETRIES})"
+        )
+    elif transient:
         if rate_limited:
             new_retry_count = current_retry
             new_status = EpisodeStatus.FAILED.value
