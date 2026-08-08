@@ -250,3 +250,23 @@ def test_patch_queue_priority_restamps_pending_queue_rows(app_client, seeded_fee
         "SELECT priority FROM auto_process_queue WHERE episode_id = 'ep-pending'"
     ).fetchone()
     assert row['priority'] == 10
+
+
+def test_patch_queue_priority_same_value_skips_restamp(app_client, seeded_feed, monkeypatch):
+    slug = seeded_feed['slug']
+    db = seeded_feed['db']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'queuePriority': 'high'}, headers=headers)
+
+    restamp_calls = []
+    monkeypatch.setattr(
+        type(db), 'restamp_pending_priorities',
+        lambda self, *args, **kwargs: restamp_calls.append((args, kwargs))
+    )
+
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'queuePriority': 'high'}, headers=headers)
+
+    assert resp.status_code == 200
+    assert restamp_calls == []
