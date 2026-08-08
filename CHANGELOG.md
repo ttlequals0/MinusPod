@@ -43,6 +43,58 @@ release notes.
   (GHSA-7p8r-x3mc-p8w7), and transitive nanoid (GHSA-2v37-7h3g-55p8).
   All three were failing the CI audit gates.
 
+## [2.86.0] - 2026-08-07
+
+### Added
+
+- Two-tier pattern trust: user-created and community patterns are marked
+  "defined"; auto-learned patterns are not. Defined status now drives cut,
+  merge, and pass-1 hint behavior throughout the detection pipeline.
+
+### Changed
+
+- A user-created or community ad pattern now always cuts its matched
+  segment, overriding segment-action keep settings. This applies to both
+  the keep partition and the late keep safety net; auto-learned patterns
+  are unaffected and still respect keep settings.
+- Text-pattern merging: when a defined pattern overlaps an auto-learned
+  one, the defined pattern wins ownership of the merged span. The absorbed
+  pattern keeps credit for its own matches.
+- Pattern learning dedupe: a near-identical text update now updates the
+  existing pattern instead of inserting a duplicate. Only spans that pass
+  the learning validation guards count toward match-credit stats.
+- Pass-1 sponsor hint amplified: defined patterns now contribute category
+  and an opening snippet to the hint; auto-learned patterns contribute
+  names only. Both are capped, and neither contributes match spans or
+  timestamps.
+- Default detection prompt: a paid read for another show is now classified
+  as sponsor rather than cross_promo. Instances running a customized
+  detection prompt need to reset it to pick up this change.
+- Differential holds now corroborate against all merged member stages
+  instead of a single stage; merged marker labels follow whichever member
+  covers the marker.
+- Duration-estimated pattern spans are now advisory only: they no longer
+  contribute to hold corroboration or label reach. The estimated flag
+  survives match merges conservatively, so a merge with any estimated
+  member stays advisory.
+- Validator merge is now action- and cut-status-aware. A recut can no
+  longer restore (un-cut) an ad segment that was already cut.
+
+### Fixed
+
+- An aborted verification pass, one where transcription failed or produced
+  no segments, no longer reports a clean scan.
+- #629: widened matching for JSON-mode rejection responses, plus runtime
+  self-correction that retries without JSON mode. A speculative JSON-mode
+  fallback for unprobed endpoints now persists only after it succeeds,
+  reverting on any retry failure.
+- #631: LLM responses wrapped in a `segments` field now parse ads that are
+  missing a `type` field.
+- Auth-class LLM failures (invalid key, forbidden, unauthorized) no longer
+  consume the episode's retry budget.
+- Markers persisted by a failed processing run no longer display as cut
+  ads.
+
 ## [2.85.2] - 2026-08-03
 
 ### Added
