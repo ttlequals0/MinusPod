@@ -44,7 +44,7 @@ Each detected ad shows a badge indicating which stage found it:
 
 The verification model can be configured separately from the first pass model in Settings.
 
-A pass-2 detection that overlaps an already-accepted ad is folded into the recut at step 5 above. A **standalone miss** - one that overlaps no pass-1 marker - goes through a separate confidence gate instead of being silently discarded:
+A pass-2 detection that overlaps an already-accepted ad is folded into the recut at step 5 above. A **standalone miss** (one that overlaps no pass-1 marker) goes through a separate confidence gate instead of being silently discarded:
 
 - Above the autocut floor (Settings > Ad Detection, off by default): cuts automatically, the same as any other gated cut.
 - Otherwise, once it clears the hold floor (default 0.60): holds for review with hold reason `verification_miss`, shown as a "Verification catch" chip in [Held for Review](#held-for-review).
@@ -94,7 +94,7 @@ After ad detection, a validation layer reviews each detection before audio proce
 Ads are classified as:
 - **ACCEPT** - High confidence, removed from audio
 - **REVIEW** - Medium confidence, removed but flagged for review
-- **REJECT** - Too short/long, low confidence, or missing ad signals - kept in audio
+- **REJECT** - Too short/long, low confidence, or missing ad signals; kept in audio
 
 Rejected ads appear in a separate "Rejected Detections" section in the UI so you can verify the validator's decisions.
 
