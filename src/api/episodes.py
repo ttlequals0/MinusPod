@@ -379,7 +379,8 @@ def get_episode(slug, episode_id):
             all_markers = json.loads(episode['ad_markers_json'])
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
-                was_cut = marker.get('was_cut', True)
+                # Markers persisted by a failed run were never cut.
+                was_cut = marker.get('was_cut', episode.get('status') == EpisodeStatus.PROCESSED)
                 # Absent stays absent. Defaulting to 'sponsor' here meant the
                 # UI could not tell a real sponsor read from a marker no stage
                 # ever classified.
