@@ -1174,8 +1174,13 @@ def _current_config_key() -> str:
         return f"{provider}:{base}"
     return f"unknown:{provider}"
 
-# Circuit breaker for LLM API calls (one per process, shared across threads)
-_llm_circuit_breaker = CircuitBreaker("llm-api", failure_threshold=5, recovery_timeout=60)
+# Circuit breaker for LLM API calls (one per process, shared across threads).
+# cause_classifier is a lazy lambda (not `is_auth_error` directly) because
+# that function is defined further down this module; the name is only
+# resolved when the breaker actually opens, well after import completes.
+_llm_circuit_breaker = CircuitBreaker(
+    "llm-api", failure_threshold=5, recovery_timeout=60,
+    cause_classifier=lambda error: is_auth_error(error))
 
 # Per-episode token accumulator.
 #
@@ -1628,9 +1633,15 @@ def is_auth_error(error: Exception) -> bool:
     ``is_limit_exceeded_error`` instead, so each error fires exactly one of
     the Auth Failure / Limit Exceeded webhook events. Falls back to string
     markers for wrapped errors (e.g. multi-window failures) that lose the
-    original SDK exception type; a bare "401" also requires auth wording so
-    a wrapped billing error is not misclassified as an auth outage.
+    original SDK exception type; a bare "401"/"403" also requires auth
+    wording so a wrapped billing error is not misclassified as an auth
+    outage. ``auth_cause`` short-circuits this for a CircuitBreakerOpen
+    raised while the breaker is open: it was classified from the full,
+    untruncated triggering error at open time (see CircuitBreaker), so it
+    survives the ~200-char truncation applied to the embedded cause text.
     """
+    if getattr(error, 'auth_cause', False):
+        return True
     if is_limit_exceeded_error(error):
         return False
     a = _anthropic_exc()
@@ -1648,7 +1659,8 @@ def is_auth_error(error: Exception) -> bool:
     text = str(error).lower()
     if any(marker in text for marker in _AUTH_ERROR_MARKERS):
         return True
-    if 'error code: 401' in text or text.startswith('401'):
+    if (text.startswith('401') or text.startswith('403')
+            or 'error code: 401' in text or 'error code: 403' in text):
         return any(word in text for word in
                     ('unauthorized', 'api key', 'authentication', 'credential'))
     return False

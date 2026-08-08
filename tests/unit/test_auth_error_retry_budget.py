@@ -43,6 +43,14 @@ def test_wrapped_invalid_key_401_is_auth():
     assert is_auth_error(Exception("error code: 401 - invalid api key"))
 
 
+def test_wrapped_invalid_key_403_is_auth():
+    assert is_auth_error(Exception("error code: 403 - invalid api key"))
+
+
+def test_wrapped_billing_403_is_not_auth():
+    assert not is_auth_error(Exception("error code: 403 - billing hard limit reached"))
+
+
 class TestBreakerMaskedAuthError:
     """A wrapper auth outage can trip the breaker before is_auth_error ever
     sees the original 401; the resulting CircuitBreakerOpen must still carry
@@ -71,6 +79,60 @@ class TestBreakerMaskedAuthError:
         cb.record_failure(Exception("Error code: 500 - internal server error"))
         with pytest.raises(CircuitBreakerOpen) as exc_info:
             cb.check()
+        assert not is_auth_error(exc_info.value)
+
+
+class TestBreakerMaskedAuthErrorSurvivesTruncation:
+    """The ~200-char truncated `cause` embedded in the CircuitBreakerOpen
+    message can drop the auth marker from a verbose 401 body. Wiring
+    is_auth_error in as the breaker's cause_classifier (as production does
+    for _llm_circuit_breaker) classifies from the full trigger text instead,
+    so truncation cannot hide the outage."""
+
+    def _breaker(self, name):
+        return CircuitBreaker(name, failure_threshold=1, recovery_timeout=60,
+                               cause_classifier=is_auth_error)
+
+    def test_verbose_401_beyond_truncation_still_classifies_as_auth(self):
+        cb = self._breaker("test-verbose-401")
+        verbose_body = (
+            "Error code: 401 - " + ("padding " * 30) +
+            "{'error': {'code': 'claude_cli_not_authenticated'}}")
+        cb.record_failure(Exception(verbose_body))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        # The truncated message alone no longer proves auth (marker cut off).
+        assert 'claude_cli_not_authenticated' not in str(exc_info.value)
+        # But the attribute, classified from the full text, still does.
+        assert exc_info.value.auth_cause is True
+        assert is_auth_error(exc_info.value)
+
+    def test_verbose_403_beyond_truncation_still_classifies_as_auth(self):
+        cb = self._breaker("test-verbose-403")
+        verbose_body = "Error code: 403 - " + ("padding " * 30) + "invalid api key"
+        cb.record_failure(Exception(verbose_body))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.auth_cause is True
+        assert is_auth_error(exc_info.value)
+
+    def test_billing_403_does_not_classify_as_auth(self):
+        cb = self._breaker("test-billing-403")
+        cb.record_failure(Exception("Error code: 403 - billing hard limit reached"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.auth_cause is False
+        assert not is_auth_error(exc_info.value)
+
+    def test_auth_cause_attribute_cleared_after_close(self):
+        cb = self._breaker("test-attr-clear")
+        cb.record_failure(Exception(
+            "Error code: 401 - {'error': {'code': 'claude_cli_not_authenticated'}}"))
+        cb.record_success()  # breaker closes
+        cb.record_failure(Exception("Error code: 500 - internal server error"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.auth_cause is False
         assert not is_auth_error(exc_info.value)
 
 
