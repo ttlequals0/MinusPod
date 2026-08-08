@@ -121,6 +121,38 @@ class TestRuntimeJsonModeFallback:
         injected = second_kwargs['messages'][0]['content']
         assert injected.count('<output_format>') == 1
 
+    def test_non_bad_request_retry_failure_reverts_flag_and_reraises_original(self):
+        """Speculative retry raising a non-BadRequestError (rate limit, timeout,
+        etc.) must still revert the flag and surface the original 400."""
+        import httpx
+        from openai import RateLimitError
+        client = _make_client()
+        client._token_param_cache['test-model'] = 'max_completion_tokens'
+        original_error = _bad_request_error("400 output schema mode is not available for this model")
+        request = httpx.Request("POST", "https://example.com/v1/chat/completions")
+        rate_limit_error = RateLimitError(
+            "Error code: 429 - Rate limit reached",
+            response=httpx.Response(429, request=request),
+            body={"error": {"message": "Rate limit reached"}},
+        )
+        client._client.chat.completions.create.side_effect = [original_error, rate_limit_error]
+        client._persist_json_format_flag = MagicMock()
+
+        try:
+            client.messages_create(
+                model="test-model", max_tokens=100, system="test system",
+                messages=[{"role": "user", "content": "hi"}],
+                response_format={"type": "json_object"},
+            )
+            assert False, "expected the original BadRequestError to propagate"
+        except RateLimitError:
+            assert False, "the retry's exception must not replace the original"
+        except Exception as e:
+            assert "output schema mode is not available" in str(e)
+        assert client._client.chat.completions.create.call_count == 2
+        assert client._json_format_supported is None
+        client._persist_json_format_flag.assert_not_called()
+
     def test_token_param_fallback_not_shadowed_for_uncached_model(self):
         """Uncached model: a token-param 400 must still reach
         _call_with_token_param_fallback rather than the json-mode handler."""

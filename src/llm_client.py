@@ -860,7 +860,10 @@ class OpenAICompatibleClient(LLMClient):
                     kw2 = _build_kwargs(tok, tmp, reasoning)
                     try:
                         response = self._client.chat.completions.create(**kw2)
-                    except BadRequestError:
+                    except Exception:
+                        # Any retry failure (not just another 400) means the
+                        # speculative fallback is unconfirmed; revert and
+                        # surface the original error, not the retry's.
                         self._json_format_supported = None
                         raise e
                     self._persist_json_format_flag()
