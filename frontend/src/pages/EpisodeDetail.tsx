@@ -606,7 +606,7 @@ function EpisodeDetail() {
           <div className="mt-4 pt-4 border-t border-border">
             <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
               <span>
-                The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain and the verification pass did not run.
+                The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain.
               </span>
               <button
                 type="button"

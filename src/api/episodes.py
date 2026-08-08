@@ -351,6 +351,23 @@ def _low_ad_yield(db, episode, runs):
     }
 
 
+def _partial_detection(episode, runs):
+    """Degraded pass-1 completion (episodes.detection_degraded). Window
+    counts come from the run that produced the served audio (the latest
+    completed one, same lookup _low_ad_yield uses above), when available."""
+    reason = episode.get('detection_degraded')
+    if not reason:
+        return None
+    latest_completed = _latest_completed_run(runs) if runs else None
+    latest_stats = ((latest_completed or {}).get('stats')) or {}
+    windows = latest_stats.get('windows') or {}
+    return {
+        'reason': reason,
+        'windowsFailed': windows.get('failed'),
+        'windowsTotal': windows.get('total'),
+    }
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>', methods=['GET'])
 @log_request
 def get_episode(slug, episode_id):
@@ -452,8 +469,7 @@ def get_episode(slug, episode_id):
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
-        'partialDetection': ({'reason': episode['detection_degraded']}
-                             if episode.get('detection_degraded') else None),
+        'partialDetection': _partial_detection(episode, processing_runs),
         'daiDifferential': dai_differential,
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

@@ -224,8 +224,9 @@ export interface EpisodeDetail extends Episode {
     sampleSize: number;
   } | null;
   // Set when pass-1 LLM detection failed and the episode was published on
-  // pattern/cross-fetch markers alone (degraded continue).
-  partialDetection?: { reason: string } | null;
+  // pattern/cross-fetch markers alone (degraded continue). Window counts
+  // are null when not cheaply available from the run's stats blob.
+  partialDetection?: { reason: string; windowsFailed: number | null; windowsTotal: number | null } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };

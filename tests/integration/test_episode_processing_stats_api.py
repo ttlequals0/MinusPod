@@ -151,15 +151,39 @@ def test_low_ad_yield_absent_for_normal_yield(app_client, seeded):
 
 
 def test_partial_detection_present_when_degraded(app_client, seeded):
-    db, slug = seeded['db'], seeded['slug']
+    db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
     seeded['seed']('aaa000000009', original=1000, new=900)
     db.upsert_episode(slug, 'aaa000000009',
                       detection_degraded='Ad detection failed: Overloaded')
+    # windowsFailed/windowsTotal come from the run that produced the served
+    # audio (the latest completed processing_history row), same lookup
+    # _low_ad_yield uses.
+    db.record_processing_history(
+        podcast_id=podcast['id'], podcast_slug=slug, podcast_title='Proc',
+        episode_id='aaa000000009', episode_title='Degraded', status='completed',
+        ads_detected=1, processing_stats=STATS_DB)
 
     _authed(app_client)
     resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/aaa000000009')
     assert resp.get_json()['partialDetection'] == {
         'reason': 'Ad detection failed: Overloaded',
+        'windowsFailed': 0,
+        'windowsTotal': 7,
+    }
+
+
+def test_partial_detection_window_counts_null_without_run_stats(app_client, seeded):
+    db, slug = seeded['db'], seeded['slug']
+    seeded['seed']('ccc000000009', original=1000, new=900)
+    db.upsert_episode(slug, 'ccc000000009',
+                      detection_degraded='Ad detection failed: Overloaded')
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/ccc000000009')
+    assert resp.get_json()['partialDetection'] == {
+        'reason': 'Ad detection failed: Overloaded',
+        'windowsFailed': None,
+        'windowsTotal': None,
     }
 
 

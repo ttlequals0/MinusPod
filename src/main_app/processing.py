@@ -2889,8 +2889,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
 
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version):
-    """Upsert the processed episode row and update related DB state."""
+                            processed_version, detection_degraded=None):
+    """Upsert the processed episode row and update related DB state.
+
+    ``detection_degraded``: the sanitized reason string when THIS run
+    degraded, else None to clear a flag left by an earlier failure.
+    """
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
     processed_file_rel = episode_relative_path(episode_id, processed_version)
@@ -2912,9 +2916,11 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         reprocess_requested_at=None,
         deferred_at=None,
         deferred_service=None,
-        # A clean run (LLM detection ran and succeeded) clears a degraded
-        # flag left by an earlier pass-1 failure.
-        detection_degraded=None)
+        # A clean run clears a degraded flag left by an earlier pass-1
+        # failure; a degraded run re-stamps its own reason so this write
+        # (which resets error_message etc. unconditionally) does not
+        # clobber the flag the detection stage just set.
+        detection_degraded=detection_degraded)
 
     try:
         removed = storage.cleanup_stale_audio_versions(
@@ -3096,7 +3102,8 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
-                            processed_version)
+                            processed_version,
+                            detection_degraded=(run_stats or {}).get('detection_degraded'))
     _refresh_rss_for_slug(slug, episode_id)
 
     processing_time = time.time() - start_time

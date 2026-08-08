@@ -927,13 +927,13 @@ describe('Partial detection (degraded pass-1)', () => {
   it('shows the Partial detection pill and banner when partialDetection is set', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
-      partialDetection: { reason: 'Ad detection failed: Overloaded' },
+      partialDetection: { reason: 'Ad detection failed: Overloaded', windowsFailed: 2, windowsTotal: 5 },
     }));
     await waitFor(() => {
       expect(screen.getByText('Partial detection')).toBeDefined();
     });
     expect(screen.getByText(
-      'The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain and the verification pass did not run.',
+      'The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain.',
     )).toBeDefined();
   });
 
@@ -950,7 +950,7 @@ describe('Partial detection (degraded pass-1)', () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
-      partialDetection: { reason: 'Ad detection failed: Overloaded' },
+      partialDetection: { reason: 'Ad detection failed: Overloaded', windowsFailed: 2, windowsTotal: 5 },
     }));
     await waitFor(() => {
       expect(screen.getByText('Partial detection')).toBeDefined();

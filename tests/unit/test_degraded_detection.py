@@ -104,7 +104,7 @@ class TestDegradedContinue:
 
 
 class TestPersistEpisodeStateClearsFlag:
-    def test_clean_run_clears_detection_degraded(self):
+    def _call(self, detection_degraded=None):
         with ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
             db = p(processing, 'db')
@@ -116,8 +116,52 @@ class TestPersistEpisodeStateClearsFlag:
             processing._persist_episode_state(
                 'degraded-feed', 'ep1', pass1_cut_count=1, verification_count=0,
                 first_pass_count=1, original_duration=100.0, new_duration=90.0,
-                processed_version=1)
+                processed_version=1, detection_degraded=detection_degraded)
+        return db
 
+    def test_clean_run_clears_detection_degraded(self):
+        db = self._call(detection_degraded=None)
+        _, kwargs = db.upsert_episode.call_args
+        assert kwargs['detection_degraded'] is None
+
+    def test_degraded_run_persists_its_own_reason(self):
+        db = self._call(detection_degraded='Overloaded (server busy)')
+        _, kwargs = db.upsert_episode.call_args
+        assert kwargs['detection_degraded'] == 'Overloaded (server busy)'
+
+
+class TestFinalizeEpisodeComposesPersistDegradedFlag:
+    """_finalize_episode is the sole caller of _persist_episode_state; this
+    covers that composition end to end (the bug: an unconditional None write
+    in _persist_episode_state clobbered the flag the SAME run had just set,
+    so it never survived past the run that produced it)."""
+
+    def _call_finalize(self, run_stats):
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+            db = p(processing, 'db')
+            storage = p(processing, 'storage')
+            mock_path = MagicMock()
+            mock_path.exists.return_value = False
+            storage.get_original_path.return_value = mock_path
+            p(processing, '_refresh_rss_for_slug')
+            p(processing, '_log_completion_summary')
+            p(processing, '_record_history_and_event')
+
+            processing._finalize_episode(
+                'degraded-feed', 'ep1', 'Ep Title', 'Podcast',
+                pass1_cut_count=1, verification_count=0, first_pass_count=1,
+                original_duration=100.0, new_duration=90.0, start_time=0.0,
+                processed_version=1, run_stats=run_stats)
+        return db
+
+    def test_degraded_publish_persists_detection_degraded(self):
+        db = self._call_finalize({'detection_degraded': 'Overloaded (server busy)'})
+        _, kwargs = db.upsert_episode.call_args
+        assert kwargs['detection_degraded'] == 'Overloaded (server busy)'
+
+    def test_subsequent_clean_run_clears_it(self):
+        db = self._call_finalize({})
         _, kwargs = db.upsert_episode.call_args
         assert kwargs['detection_degraded'] is None
 
