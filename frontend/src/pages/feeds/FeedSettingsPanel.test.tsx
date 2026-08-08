@@ -270,6 +270,17 @@ describe('FeedSettingsPanel title blacklist controls', () => {
     });
   });
 
+  it('a failed add keeps the editor open with its value and shows the error', async () => {
+    mockUpdateFeed.mockRejectedValueOnce(new Error('titleSkipPatterns entries must be strings of 1-200 characters'));
+    renderPanel(makeFeed());
+    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
+    const input = screen.getByLabelText('New title pattern');
+    await userEvent.type(input, 'Best of *');
+    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+    expect(await screen.findByText('titleSkipPatterns entries must be strings of 1-200 characters')).toBeDefined();
+    expect((screen.getByLabelText('New title pattern') as HTMLInputElement).value).toBe('Best of *');
+  });
+
   it('removing a pattern fires updateFeed without it', async () => {
     renderPanel(makeFeed({ titleSkipPatterns: ['JRE MMA Show *', 'Best of *'] }));
     await userEvent.click(screen.getByRole('button', { name: 'Remove JRE MMA Show *' }));

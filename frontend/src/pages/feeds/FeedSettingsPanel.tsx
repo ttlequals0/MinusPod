@@ -132,6 +132,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
   const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
   const [titleSkipPatternInput, setTitleSkipPatternInput] = useState('');
+  const [titleSkipPatternError, setTitleSkipPatternError] = useState<string | null>(null);
   // Local source of truth for the per-feed override map, not the `feed`
   // prop: the PATCH replaces the stored map outright with no server merge,
   // so building from a stale prop between edits would drop the earlier one.
@@ -371,16 +372,27 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     const pattern = titleSkipPatternInput.trim();
     if (!pattern) return;
     const current = feed.titleSkipPatterns ?? [];
-    if (!current.includes(pattern)) {
-      updateMutation.mutate({ titleSkipPatterns: [...current, pattern] });
+    if (current.includes(pattern)) {
+      setTitleSkipPatternInput('');
+      setAddingTitleSkipPattern(false);
+      return;
     }
-    setTitleSkipPatternInput('');
-    setAddingTitleSkipPattern(false);
+    setTitleSkipPatternError(null);
+    updateMutation.mutate({ titleSkipPatterns: [...current, pattern] }, {
+      onSuccess: () => {
+        setTitleSkipPatternInput('');
+        setAddingTitleSkipPattern(false);
+      },
+      onError: (e) => setTitleSkipPatternError(getErrorMessage(e, 'Failed to add pattern')),
+    });
   };
 
   const removeTitleSkipPattern = (pattern: string) => {
+    setTitleSkipPatternError(null);
     updateMutation.mutate({
       titleSkipPatterns: (feed.titleSkipPatterns ?? []).filter((p) => p !== pattern),
+    }, {
+      onError: (e) => setTitleSkipPatternError(getErrorMessage(e, 'Failed to remove pattern')),
     });
   };
 
@@ -647,6 +659,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       }}
                       placeholder="JRE MMA Show *"
                       aria-label="New title pattern"
+                      maxLength={200}
                       className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
                     />
                     <button
@@ -662,6 +675,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       onClick={() => {
                         setAddingTitleSkipPattern(false);
                         setTitleSkipPatternInput('');
+                        setTitleSkipPatternError(null);
                       }}
                       className={`px-2 py-1 text-xs rounded ${btnOutline}`}
                     >
@@ -670,6 +684,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </>
                 )}
               </div>
+              {titleSkipPatternError && (
+                <p className="text-xs text-destructive">{titleSkipPatternError}</p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Episodes whose titles match a pattern are not processed. Use * as a wildcard, for example JRE MMA Show *.
               </p>
