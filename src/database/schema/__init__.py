@@ -235,6 +235,10 @@ class SchemaMixin:
             ('rss_duration', 'REAL'),
             # Upstream podcast:chapters JSON URL (issue #560 follow-up)
             ('upstream_chapters_url', 'TEXT'),
+            # Degraded pass-1 completion: sanitized error when a transient,
+            # non-auth LLM failure published on pattern/cross-fetch markers
+            # alone. NULL on a clean run.
+            ('detection_degraded', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

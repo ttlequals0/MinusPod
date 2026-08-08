@@ -231,7 +231,7 @@ class EpisodeMixin:
                                'error_message', 'ad_detection_status', 'artwork_url',
                                'reprocess_mode', 'reprocess_requested_at', 'retry_count',
                                'published_at', 'episode_number',
-                               'deferred_at', 'deferred_service'):
+                               'deferred_at', 'deferred_service', 'detection_degraded'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':

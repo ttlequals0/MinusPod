@@ -223,6 +223,9 @@ export interface EpisodeDetail extends Episode {
     feedAverageSeconds: number;
     sampleSize: number;
   } | null;
+  // Set when pass-1 LLM detection failed and the episode was published on
+  // pattern/cross-fetch markers alone (degraded continue).
+  partialDetection?: { reason: string } | null;
   // Adjacent episodes in the same feed (newest-first order): `previous` is the
   // newer episode, `next` the older one. Either is null at a feed boundary.
   navigation?: { previous: EpisodeNeighbor | null; next: EpisodeNeighbor | null };

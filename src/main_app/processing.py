@@ -683,7 +683,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             positional_prior_hint="", dai_differential=None,
                             keep_content=None, skip_llm=False,
                             force_create_from_pairs=False,
-                            strict_pair_roles=False, episode_duration=0.0):
+                            strict_pair_roles=False, episode_duration=0.0,
+                            run_stats=None):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     ``keep_content``: None lets the detector resolve the per-feed mode from
@@ -693,6 +694,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     ``skip_llm``/``force_create_from_pairs``/``strict_pair_roles``: cue_only
     preset plumbing. ``episode_duration`` backstops the cue-pair fraction
     guard when transcription (and its segment list) is skipped.
+    ``run_stats``: caller's run_stats dict; stamped with detection_degraded
+    when pass 1 fails but publishes on pattern/cross-fetch markers alone.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -722,15 +725,34 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     if ad_detection_status == 'failed':
         error_msg = ad_result.get('error', 'Unknown error')
         audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
-        db.upsert_episode(slug, episode_id, ad_detection_status='failed')
         if ad_result.get('connectivity'):
             # Endpoint unreachable rather than a bad response: typed so the
             # offline queue (#482) can defer instead of failing the episode.
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise ServiceUnavailableError('llm', f"Ad detection failed: {error_msg}")
         if ad_result.get('limit_exceeded'):
             # Typed so the failure handler sees a terminal limit error instead
             # of re-classifying the stringified 429 text as transient (#491).
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise LimitExceededError(f"Ad detection failed: {error_msg}")
+        # Degraded continue: a transient, non-auth failure that still left
+        # pattern/fingerprint/cross-fetch markers (gathered before Claude ran)
+        # publishes those instead of failing the whole episode. Auth-class
+        # failures keep raising so the outer handler's no-retry-budget-burn
+        # path (is_auth_error) is unchanged; zero markers is still a hard fail.
+        classification_error = Exception(error_msg)
+        if (first_pass_ads and is_transient_error(classification_error)
+                and not is_auth_error(classification_error)):
+            sanitized = ' '.join(error_msg.split())[:300]
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Ad detection degraded: publishing "
+                f"{len(first_pass_ads)} pattern/cross-fetch marker(s) ({sanitized})")
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed',
+                              detection_degraded=sanitized)
+            if run_stats is not None:
+                run_stats['detection_degraded'] = sanitized
+            return first_pass_ads, len(first_pass_ads), ad_result
+        db.upsert_episode(slug, episode_id, ad_detection_status='failed')
         raise Exception(f"Ad detection failed: {error_msg}")
 
     db.upsert_episode(slug, episode_id, ad_detection_status='success')
@@ -2889,7 +2911,10 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         reprocess_mode=None,
         reprocess_requested_at=None,
         deferred_at=None,
-        deferred_service=None)
+        deferred_service=None,
+        # A clean run (LLM detection ran and succeeded) clears a degraded
+        # flag left by an earlier pass-1 failure.
+        detection_degraded=None)
 
     try:
         removed = storage.cleanup_stale_audio_versions(
@@ -2917,6 +2942,29 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         db.index_episode(episode_id, slug)
     except Exception as idx_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to update search index: {idx_err}")
+
+
+def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_title,
+                                      podcast_name, episode_description,
+                                      episode_published_at, episode_data, run_stats):
+    """Queue one low-priority llm-mode re-detect after a degraded publish.
+
+    Fires only on the transition into degraded (episode_data is the row as
+    it stood before this run): a run that was already degraded, or one that
+    degrades again on the automatic re-detect itself, does not re-enqueue.
+    """
+    if not (run_stats or {}).get('detection_degraded'):
+        return
+    if (episode_data or {}).get('detection_degraded'):
+        return
+    db.upsert_episode(slug, episode_id, reprocess_mode='llm',
+                       reprocess_requested_at=utc_now_iso())
+    db.upsert_episode_for_processing(
+        slug, episode_id, episode_url, episode_title,
+        episode_published_at, episode_description, priority=-10)
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Degraded pass-1 detection; queued one "
+        f"low-priority automatic llm re-detect")
 
 
 def _refresh_rss_for_slug(slug, episode_id):
@@ -3734,6 +3782,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if skip_transcription_active:
         run_stats['transcription_skipped'] = True
 
+    def _fire_degraded_redetect():
+        # Closes over this run's fixed identifiers; episode_data is the
+        # pre-run snapshot captured above, so the transition-into-degraded
+        # guard sees the row as it stood before this run.
+        _maybe_enqueue_degraded_redetect(
+            slug, episode_id, episode_url, episode_title, podcast_name,
+            episode_description, episode_published_at, episode_data, run_stats)
+
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
         mem_info = get_available_memory_gb()
@@ -3910,6 +3966,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     force_create_from_pairs=cue_only,
                     strict_pair_roles=cue_only,
                     episode_duration=episode_duration,
+                    run_stats=run_stats,
                 )
                 _check_cancel(cancel_event, slug, episode_id)
 
@@ -4250,6 +4307,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    audio_cue_detections=audio_cue_count,
                                    owns_failure=False,
                                    progress=recut_progress):
+                    _fire_degraded_redetect()
                     return True
                 if recut_progress.get('mutated'):
                     # The recut already replaced the markers and the audio, so
@@ -4274,6 +4332,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                audio_cue_detections=audio_cue_count,
                                run_stats=run_stats,
                                ads_held=held_count, ads_not_cut=not_cut_count)
+
+            _fire_degraded_redetect()
 
             status_service.complete_job()
             return True

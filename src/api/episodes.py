@@ -452,6 +452,8 @@ def get_episode(slug, episode_id):
         'corrections': corrections,
         'cueDetections': cue_detections,
         'adDetectionStatus': episode.get('ad_detection_status'),
+        'partialDetection': ({'reason': episode['detection_degraded']}
+                             if episode.get('detection_degraded') else None),
         'daiDifferential': dai_differential,
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

@@ -918,6 +918,50 @@ describe('Correction submit error toast (#565)', () => {
   });
 });
 
+describe('Partial detection (degraded pass-1)', () => {
+  beforeEach(() => {
+    mockReprocessEpisode.mockReset();
+    mockReprocessEpisode.mockResolvedValue({});
+  });
+
+  it('shows the Partial detection pill and banner when partialDetection is set', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      partialDetection: { reason: 'Ad detection failed: Overloaded' },
+    }));
+    await waitFor(() => {
+      expect(screen.getByText('Partial detection')).toBeDefined();
+    });
+    expect(screen.getByText(
+      'The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain and the verification pass did not run.',
+    )).toBeDefined();
+  });
+
+  it('does not show the pill or banner when partialDetection is null', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], partialDetection: null }));
+    await waitFor(() => {
+      expect(screen.getByText('Test Episode')).toBeDefined();
+    });
+    expect(screen.queryByText('Partial detection')).toBeNull();
+    expect(screen.queryByText(/AI detection pass failed/)).toBeNull();
+  });
+
+  it('the Re-run detection button fires reprocess with mode llm', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      partialDetection: { reason: 'Ad detection failed: Overloaded' },
+    }));
+    await waitFor(() => {
+      expect(screen.getByText('Partial detection')).toBeDefined();
+    });
+    await user.click(screen.getByRole('button', { name: 'Re-run detection' }));
+    await waitFor(() => {
+      expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'llm');
+    });
+  });
+});
+
 describe('Regenerate Chapters: progress and result feedback', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();

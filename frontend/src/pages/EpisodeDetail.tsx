@@ -449,6 +449,14 @@ function EpisodeDetail() {
                   Low ad yield
                 </span>
               )}
+              {episode.partialDetection && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-warning cursor-help"
+                  title={episode.partialDetection.reason}
+                >
+                  Partial detection
+                </span>
+              )}
               {episode.transcriptVttAvailable && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
                   VTT
@@ -590,6 +598,24 @@ function EpisodeDetail() {
                   : 'Processing failed'}
               </p>
               <p className="break-words">{failureReason}</p>
+            </div>
+          </div>
+        )}
+
+        {episode.partialDetection && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+              <span>
+                The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain and the verification pass did not run.
+              </span>
+              <button
+                type="button"
+                onClick={() => reprocessMutation.mutate('llm')}
+                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Re-run detection
+              </button>
             </div>
           </div>
         )}

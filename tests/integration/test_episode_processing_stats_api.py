@@ -150,6 +150,28 @@ def test_low_ad_yield_absent_for_normal_yield(app_client, seeded):
     assert resp.get_json()['lowAdYield'] is None
 
 
+def test_partial_detection_present_when_degraded(app_client, seeded):
+    db, slug = seeded['db'], seeded['slug']
+    seeded['seed']('aaa000000009', original=1000, new=900)
+    db.upsert_episode(slug, 'aaa000000009',
+                      detection_degraded='Ad detection failed: Overloaded')
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/aaa000000009')
+    assert resp.get_json()['partialDetection'] == {
+        'reason': 'Ad detection failed: Overloaded',
+    }
+
+
+def test_partial_detection_absent_when_not_degraded(app_client, seeded):
+    slug = seeded['slug']
+    seeded['seed']('bbb000000009', original=1000, new=900)
+
+    _authed(app_client)
+    resp = app_client.get(f'/api/v1/feeds/{slug}/episodes/bbb000000009')
+    assert resp.get_json()['partialDetection'] is None
+
+
 def test_history_rows_carry_downloaded_duration(app_client, seeded):
     db, slug, podcast = seeded['db'], seeded['slug'], seeded['podcast']
     db.record_processing_history(
