@@ -2410,6 +2410,15 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         verification_cue_count = verification_result.get('audio_cue_count', 0)
         storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
 
+        v_status = verification_result.get('status')
+        if v_status in ('no_segments', 'transcription_failed'):
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Verification incomplete ({v_status}); "
+                "not reporting a clean scan")
+            return (verification_count, v_ads_for_ui, v_cuts_for_assets,
+                    v_ads_held, processed_path, verification_cue_count,
+                    False, v_corroborated_count)
+
         # Heuristic roll detection on pass 2
         _apply_pass2_heuristic_rolls(
             slug, episode_id, verification_ads_processed,
