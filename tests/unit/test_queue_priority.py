@@ -188,3 +188,32 @@ class TestRestampPendingPriorities:
             "SELECT priority FROM auto_process_queue WHERE episode_id = 'fresh-ep'"
         ).fetchone()
         assert row['priority'] == FRESH_EPISODE_BOOST
+
+    def test_restamp_skips_fresh_boost_when_setting_off(self, temp_db):
+        pid = _create_podcast(temp_db, 'pod-l')
+        temp_db.set_setting('process_new_episodes_first', 'false', is_default=False)
+        published = _iso(datetime.now(timezone.utc) - timedelta(hours=1))
+        _insert_queue_row(temp_db, pid, 'fresh-ep', priority=0, status='pending',
+                          published_at=published)
+
+        temp_db.restamp_pending_priorities(pid, feed_priority=0)
+
+        conn = temp_db.get_connection()
+        row = conn.execute(
+            "SELECT priority FROM auto_process_queue WHERE episode_id = 'fresh-ep'"
+        ).fetchone()
+        assert row['priority'] == 0
+
+    def test_restamp_applies_fresh_boost_when_setting_on_by_default(self, temp_db):
+        pid = _create_podcast(temp_db, 'pod-m')
+        published = _iso(datetime.now(timezone.utc) - timedelta(hours=1))
+        _insert_queue_row(temp_db, pid, 'fresh-ep', priority=0, status='pending',
+                          published_at=published)
+
+        temp_db.restamp_pending_priorities(pid, feed_priority=0)
+
+        conn = temp_db.get_connection()
+        row = conn.execute(
+            "SELECT priority FROM auto_process_queue WHERE episode_id = 'fresh-ep'"
+        ).fetchone()
+        assert row['priority'] == FRESH_EPISODE_BOOST

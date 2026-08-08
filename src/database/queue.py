@@ -297,13 +297,16 @@ class QueueMixin:
         re-enqueues on its own). Returns rows touched.
         """
         conn = self.get_connection()
+        apply_fresh_boost = self.get_setting_bool('process_new_episodes_first', True)
         rows = conn.execute(
             """SELECT id, published_at FROM auto_process_queue
                WHERE podcast_id = ? AND status = 'pending'""",
             (podcast_id,)
         ).fetchall()
         for row in rows:
-            new_priority = compute_queue_priority(feed_priority, row['published_at'], manual=False)
+            new_priority = compute_queue_priority(
+                feed_priority, row['published_at'], manual=False,
+                apply_fresh_boost=apply_fresh_boost)
             conn.execute(
                 """UPDATE auto_process_queue SET priority = ?,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
