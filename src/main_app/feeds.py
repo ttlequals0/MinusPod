@@ -12,6 +12,7 @@ from config import (
 
 from database.episodes import normalize_published_at
 from database.podcasts import podping_declaration_columns
+from database.queue import compute_queue_priority
 from utils.http import safe_url_for_log
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -402,9 +403,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     if is_recent:
                         # New recent episode - queue for processing
                         # iso_published already calculated above for deduplication check
+                        feed_priority = podcast.get('queue_priority') if podcast else None
+                        priority = compute_queue_priority(feed_priority, iso_published, manual=False)
                         queue_id = db.queue_episode_for_processing(
                             slug, ep['id'], ep['url'], ep.get('title'), iso_published,
-                            ep.get('description')
+                            ep.get('description'), priority=priority
                         )
                         if queue_id:
                             queued_count += 1

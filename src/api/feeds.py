@@ -19,6 +19,7 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from cancel import cancel_processing
+from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
@@ -1407,10 +1408,13 @@ def rerender_segments(slug):
                 episode.get('published_at'),
             )
             if not started:
+                priority = compute_queue_priority(
+                    podcast.get('queue_priority'), episode.get('published_at'), manual=True)
                 db.upsert_episode_for_processing(
                     slug, episode_id, episode.get('original_url'),
                     episode.get('title', 'Unknown'),
                     episode.get('published_at'), episode.get('description'),
+                    priority=priority,
                 )
                 get_status_service().queue_episode(
                     slug, episode_id, episode.get('title', 'Unknown'),

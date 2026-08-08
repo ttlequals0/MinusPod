@@ -73,6 +73,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     skip_second_pass INTEGER DEFAULT 0,
     skip_transcription INTEGER,
     cue_only_safety TEXT,
+    -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
+    queue_priority INTEGER,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
@@ -277,6 +279,8 @@ TABLE_DDL['auto_process_queue'] = """CREATE TABLE IF NOT EXISTS auto_process_que
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','completed','failed')),
     attempts INTEGER DEFAULT 0,
     error_message TEXT,
+    -- Dequeue priority (#625): higher runs first, ties broken by created_at ASC
+    priority INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -488,6 +492,7 @@ CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status);
 CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_status_created ON auto_process_queue(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_queue_status_priority ON auto_process_queue(status, priority DESC, created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id);
 
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);

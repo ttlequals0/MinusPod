@@ -22,6 +22,7 @@ from config import (
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
 )
+from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
 from utils.constants import EpisodeStatus
 from utils.safe_http import URLTrust, safe_head
@@ -501,9 +502,12 @@ def register_routes(app):
             # feed with auto-process off.
             db.upsert_episode(slug, episode_id,
                               reprocess_requested_at=utc_now_iso())
+            feed_priority = db.get_podcast_queue_priority(slug)
+            priority = compute_queue_priority(
+                feed_priority, ep_data.get('published'), manual=True)
             db.upsert_episode_for_processing(
                 slug, episode_id, original_url, episode_title,
-                ep_data.get('published'), episode_description)
+                ep_data.get('published'), episode_description, priority=priority)
             status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
             queue_position = status_service.get_queue_position(slug, episode_id)
             feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), queued at position {queue_position}")

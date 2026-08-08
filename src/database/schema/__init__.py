@@ -343,6 +343,8 @@ class SchemaMixin:
             # Cue-only mode: transcription opt-out and safety policy
             ('skip_transcription', 'INTEGER'),
             ('cue_only_safety', 'TEXT'),
+            # Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
+            ('queue_priority', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
@@ -823,6 +825,26 @@ class SchemaMixin:
                 logger.info("Migration: Added description column to auto_process_queue table")
         except Exception as e:
             logger.debug(f"auto_process_queue description migration: {e}")
+
+        # Migration: Add priority to auto_process_queue if missing, plus the
+        # index that orders the dequeue by it (#625)
+        try:
+            cursor = conn.execute("PRAGMA table_info(auto_process_queue)")
+            queue_columns = [row['name'] for row in cursor.fetchall()]
+            if 'priority' not in queue_columns:
+                conn.execute("""
+                    ALTER TABLE auto_process_queue
+                    ADD COLUMN priority INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added priority column to auto_process_queue table")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_queue_status_priority "
+                "ON auto_process_queue(status, priority DESC, created_at)"
+            )
+            conn.commit()
+        except Exception as e:
+            logger.debug(f"auto_process_queue priority migration: {e}")
 
         # Create new indexes for podcasts table (will fail silently if already exist)
         try:

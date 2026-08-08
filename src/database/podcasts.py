@@ -114,6 +114,15 @@ class PodcastMixin:
         row = cursor.fetchone()
         return row['detection_mode'] if row else None
 
+    def get_podcast_queue_priority(self, slug: str) -> Optional[int]:
+        """Per-feed queue_priority column only -- cheap single-row lookup for
+        call sites that need it without the full get_podcast_by_slug join."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT queue_priority FROM podcasts WHERE slug = ?", (slug,))
+        row = cursor.fetchone()
+        return row['queue_priority'] if row else None
+
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
         'cue_pair_min_break_override',
@@ -217,6 +226,7 @@ class PodcastMixin:
                 'podping_checked_at', 'channel_metadata_at',
                 'segment_category_actions', 'detect_show_segments',
                 'skip_second_pass', 'skip_transcription', 'cue_only_safety',
+                'queue_priority',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

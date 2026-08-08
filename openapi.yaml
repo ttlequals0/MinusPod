@@ -5318,6 +5318,25 @@ paths:
                   total:
                     type: integer
                     description: Total episodes in queue
+                  items:
+                    type: array
+                    description: Pending/processing rows in dequeue order (priority DESC, createdAt ASC), capped at 100
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        episodeId:
+                          type: string
+                        podcastSlug:
+                          type: string
+                        status:
+                          type: string
+                        priority:
+                          type: integer
+                          description: Higher runs first; feed base (10/0/-10) plus manual (+20) and fresh-episode (+5) boosts
+                        createdAt:
+                          type: string
     delete:
       tags:
         - System

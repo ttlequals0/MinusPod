@@ -241,7 +241,18 @@ def get_queue_status():
         'completed': queue_stats.get('completed', 0),
         'failed': queue_stats.get('failed', 0),
         'deferred': db.count_deferred_episodes(),
-        'total': queue_stats.get('total', 0)
+        'total': queue_stats.get('total', 0),
+        'items': [
+            {
+                'id': item['id'],
+                'episodeId': item['episode_id'],
+                'podcastSlug': item['podcast_slug'],
+                'status': item['status'],
+                'priority': item['priority'],
+                'createdAt': item['created_at'],
+            }
+            for item in queue_stats.get('items', [])
+        ],
     })
 
 

@@ -1,11 +1,36 @@
 """Auto-process queue mixin for MinusPod database."""
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Set, Tuple
 
 from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
+
+# Priority boosts (#625): applied on top of the feed's base queue_priority
+# (10 high / 0 normal / -10 low) at enqueue time.
+FRESH_EPISODE_BOOST = 5
+MANUAL_REQUEST_BOOST = 20
+FRESH_WINDOW_HOURS = 48
+
+# Bound on the row-level detail returned by get_queue_status.
+_QUEUE_STATUS_ITEMS_LIMIT = 100
+
+
+def compute_queue_priority(feed_priority, published_at_iso, manual=False, now=None):
+    """Base feed priority plus boosts for fresh episodes and manual requests."""
+    p = int(feed_priority or 0)
+    if manual:
+        p += MANUAL_REQUEST_BOOST
+    if published_at_iso:
+        try:
+            published = datetime.fromisoformat(published_at_iso.replace('Z', '+00:00'))
+            now = now or datetime.now(timezone.utc)
+            if (now - published) <= timedelta(hours=FRESH_WINDOW_HOURS):
+                p += FRESH_EPISODE_BOOST
+        except ValueError:
+            pass
+    return p
 
 
 class QueueMixin:
@@ -41,7 +66,8 @@ class QueueMixin:
     def queue_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,
                                       published_at: str = None,
-                                      description: str = None) -> Optional[int]:
+                                      description: str = None,
+                                      priority: int = 0) -> Optional[int]:
         """Add an episode to the auto-process queue. Returns queue ID or None if already queued."""
         conn = self.get_connection()
 
@@ -56,10 +82,10 @@ class QueueMixin:
         try:
             cursor = conn.execute(
                 """INSERT INTO auto_process_queue
-                   (podcast_id, episode_id, original_url, title, published_at, description)
-                   VALUES (?, ?, ?, ?, ?, ?)
+                   (podcast_id, episode_id, original_url, title, published_at, description, priority)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
-                (podcast_id, episode_id, original_url, title, published_at, description)
+                (podcast_id, episode_id, original_url, title, published_at, description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
@@ -71,7 +97,8 @@ class QueueMixin:
     def upsert_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,
                                       published_at: str = None,
-                                      description: str = None) -> Optional[int]:
+                                      description: str = None,
+                                      priority: int = 0) -> Optional[int]:
         """Add or reset an episode in the auto-process queue to 'pending'.
 
         Unlike queue_episode_for_processing (which skips already-queued rows),
@@ -95,19 +122,23 @@ class QueueMixin:
             cursor = conn.execute(
                 """INSERT INTO auto_process_queue
                    (podcast_id, episode_id, original_url, title, published_at, description,
-                    status, attempts, error_message)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL)
+                    priority, status, attempts, error_message)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL)
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                      status = 'pending',
                      attempts = CASE WHEN auto_process_queue.status = 'pending'
                                      THEN auto_process_queue.attempts ELSE 0 END,
+                     -- A row already pending keeps its priority; only a
+                     -- reopened completed/failed row picks up the new value.
+                     priority = CASE WHEN auto_process_queue.status = 'pending'
+                                     THEN auto_process_queue.priority ELSE excluded.priority END,
                      error_message = NULL,
                      original_url = excluded.original_url,
                      title = COALESCE(excluded.title, auto_process_queue.title),
                      published_at = COALESCE(excluded.published_at, auto_process_queue.published_at),
                      description = COALESCE(excluded.description, auto_process_queue.description),
                      updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
-                (podcast_id, episode_id, original_url, title, published_at, description)
+                (podcast_id, episode_id, original_url, title, published_at, description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.lastrowid else None
@@ -125,7 +156,7 @@ class QueueMixin:
                FROM auto_process_queue q
                JOIN podcasts p ON q.podcast_id = p.id
                WHERE q.status = 'pending'
-               ORDER BY q.created_at ASC
+               ORDER BY q.priority DESC, q.created_at ASC
                LIMIT 1"""
         )
         row = cursor.fetchone()
@@ -148,7 +179,7 @@ class QueueMixin:
                    FROM auto_process_queue q
                    JOIN podcasts p ON q.podcast_id = p.id
                    WHERE q.status = 'pending'
-                   ORDER BY q.created_at ASC
+                   ORDER BY q.priority DESC, q.created_at ASC
                    LIMIT 1"""
             ).fetchone()
             if row is None:
@@ -225,7 +256,8 @@ class QueueMixin:
             raise
 
     def get_queue_status(self) -> Dict:
-        """Get auto-process queue status summary."""
+        """Auto-process queue status summary, plus the pending/processing rows
+        (with priority) driving the dequeue order (#625)."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT
@@ -237,7 +269,45 @@ class QueueMixin:
                FROM auto_process_queue"""
         )
         row = cursor.fetchone()
-        return dict(row) if row else {'pending': 0, 'processing': 0, 'completed': 0, 'failed': 0, 'total': 0}
+        result = dict(row) if row else {'pending': 0, 'processing': 0, 'completed': 0, 'failed': 0, 'total': 0}
+
+        items = conn.execute(
+            """SELECT q.id, q.episode_id, q.status, q.priority, q.created_at,
+                      p.slug as podcast_slug
+               FROM auto_process_queue q
+               JOIN podcasts p ON q.podcast_id = p.id
+               WHERE q.status IN ('pending', 'processing')
+               ORDER BY q.priority DESC, q.created_at ASC
+               LIMIT ?""",
+            (_QUEUE_STATUS_ITEMS_LIMIT,)
+        ).fetchall()
+        result['items'] = [dict(r) for r in items]
+        return result
+
+    def restamp_pending_priorities(self, podcast_id: int, feed_priority: int) -> int:
+        """Re-stamp pending queue rows for a podcast after its feed priority changes.
+
+        Approximation: recomputes each row as compute_queue_priority(feed_priority,
+        row.published_at, manual=False), so a manual boost already applied to a
+        still-pending row is lost. Acceptable because a manual reprocess
+        re-enqueues (and re-stamps) quickly on its own. Returns rows touched.
+        """
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT id, published_at FROM auto_process_queue
+               WHERE podcast_id = ? AND status = 'pending'""",
+            (podcast_id,)
+        ).fetchall()
+        for row in rows:
+            new_priority = compute_queue_priority(feed_priority, row['published_at'], manual=False)
+            conn.execute(
+                """UPDATE auto_process_queue SET priority = ?,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ?""",
+                (new_priority, row['id'])
+            )
+        conn.commit()
+        return len(rows)
 
     def clear_completed_queue_items(self, older_than_hours: int = 24) -> int:
         """Clear completed queue items older than specified hours. Returns count deleted."""

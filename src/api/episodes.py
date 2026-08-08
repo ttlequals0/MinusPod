@@ -18,6 +18,7 @@ from config import (
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
+from database.queue import compute_queue_priority
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
@@ -786,9 +787,11 @@ def reprocess_episode(slug, episode_id):
                 'status': 'processing'
             }, 202)
         else:
+            priority = compute_queue_priority(
+                podcast.get('queue_priority'), episode_published_at, manual=True)
             db.upsert_episode_for_processing(
                 slug, episode_id, episode_url, episode_title,
-                episode_published_at, episode_description
+                episode_published_at, episode_description, priority=priority
             )
             get_status_service().queue_episode(slug, episode_id, episode_title, podcast_name)
             logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
@@ -1140,12 +1143,15 @@ def bulk_episode_action(slug):
             try:
                 ep = episodes_by_id.get(episode_id)
                 if ep:
+                    priority = compute_queue_priority(
+                        podcast.get('queue_priority'), ep.get('published_at'), manual=True)
                     db.upsert_episode_for_processing(
                         slug, episode_id,
                         ep.get('original_url', ''),
                         ep.get('title'),
                         ep.get('published_at'),
                         ep.get('description'),
+                        priority=priority,
                     )
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Could not enqueue for processing: {e}")
@@ -1488,9 +1494,11 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'status': 'processing'
             }, 202)  # 202 Accepted
         else:
+            priority = compute_queue_priority(
+                podcast.get('queue_priority'), episode_published_at, manual=True)
             db.upsert_episode_for_processing(
                 slug, episode_id, episode_url, episode_title,
-                episode_published_at, episode_description
+                episode_published_at, episode_description, priority=priority
             )
             get_status_service().queue_episode(slug, episode_id, episode_title, podcast_name)
             logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
