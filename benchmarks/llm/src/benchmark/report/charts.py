@@ -393,14 +393,20 @@ def _render_agreement_chart(
     # Color gradient: low agreement = red, mid = yellow, high = green
     colors = ["#d62728" if i < n_models * 0.25 else "#f0a020" if i < n_models * 0.75 else "#2ca02c" for i in xs]
 
-    fig, ax = plt.subplots(figsize=(11, 5.5))
+    # Past ~30 bars the two-line labels and every-integer ticks collide into an
+    # unreadable smear, so rotate the labels and thin the ticks.
+    dense = len(xs) > 30
+    peak = counts.max()
+    fig, ax = plt.subplots(figsize=(max(11, 0.17 * len(xs)), 5.5))
     bars = ax.bar(xs, counts, color=colors, edgecolor="black", linewidth=0.4)
     for bar, c in zip(bars, counts):
         if c == 0:
             continue
-        ax.text(bar.get_x() + bar.get_width() / 2, c + max(counts) * 0.01,
-                f"{c}\n({c * 100 / total:.0f}%)",
-                ha="center", va="bottom", fontsize=8)
+        pct = f"{c * 100 / total:.0f}%"
+        ax.text(bar.get_x() + bar.get_width() / 2, c + peak * 0.02,
+                f"{c} ({pct})" if dense else f"{c}\n({pct})",
+                ha="center", va="bottom", fontsize=7 if dense else 8,
+                rotation=90 if dense else 0)
     ax.set_xlabel(f"Models predicting at least one ad (out of {n_models})", fontsize=10)
     ax.set_ylabel("Window count", fontsize=10)
     ax.set_title(
@@ -408,9 +414,14 @@ def _render_agreement_chart(
         "Left = nobody flags (clear non-ad), right = everyone agrees (clear ad), middle = contested",
         fontsize=11, fontweight="bold",
     )
-    ax.set_xticks(xs)
-    ax.set_xticklabels([str(i) for i in xs], fontsize=8)
-    ax.set_ylim(0, max(counts) * 1.15)
+    step = (len(xs) + 24) // 25
+    ticks = list(range(0, n_models + 1, step))
+    if ticks[-1] != n_models:
+        ticks.append(n_models)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([str(i) for i in ticks], fontsize=8)
+    ax.set_xlim(-1, n_models + 1)
+    ax.set_ylim(0, peak * (1.45 if dense else 1.15))
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
     _save_svg(fig, path)

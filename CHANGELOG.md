@@ -37,6 +37,14 @@ release notes.
 - `docs/llm-providers.md` model recommendations refreshed from the 2026-08
   sweep, including a note on provider-side content moderation.
 
+### Fixed
+
+- Cross-model agreement chart was unreadable at 75 models: every integer
+  got an x tick so the labels ran together, and the two-line bar labels
+  overlapped each other. Ticks now thin out to about 25 across any
+  model count, and bar labels rotate to a single line once the chart passes
+  30 bars.
+
 ### Security
 
 - cryptography 49.0.0 to 50.0.0 (PYSEC-2026-3552), transitive fast-uri
