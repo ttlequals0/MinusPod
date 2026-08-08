@@ -21,6 +21,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW, CUE_ONLY_SAFETY_AUTO_CUT,
     CUE_ONLY_AUTOCUT_CONFIDENCE,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
+    normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
 from utils.markers import mark_distinct_merge
 from utils.text import extract_text_from_segments
@@ -353,7 +354,8 @@ class AdValidator:
         return plain
 
     def validate(self, ads: List[Dict],
-                 audio_analysis: Optional[Dict] = None) -> ValidationResult:
+                 audio_analysis: Optional[Dict] = None,
+                 actions_map: Optional[Dict[str, str]] = None) -> ValidationResult:
         """Validate all ads and return results.
 
         Args:
@@ -361,6 +363,10 @@ class AdValidator:
             audio_analysis: Stored audio-analysis dict for the episode
                 (AudioAnalysisResult.to_dict() shape); used to corroborate
                 heuristic markers with measured audio evidence
+            actions_map: Resolved segment-category -> action map (see
+                config.resolve_segment_category_actions_map); when given,
+                the merge step will not fold ads whose categories resolve
+                to different actions
 
         Returns:
             ValidationResult with validated ads and statistics
@@ -384,7 +390,7 @@ class AdValidator:
         ads = [ad for ad in ads if ad['end'] > ad['start']]
 
         # Step 3: Merge tiny gaps
-        ads = self._merge_close_ads(ads, result)
+        ads = self._merge_close_ads(ads, result, actions_map=actions_map)
 
         # Step 3.5: Extend trailing ad to end of episode if close
         ads = self._extend_trailing_ad(ads, result)
@@ -999,13 +1005,16 @@ class AdValidator:
                     return True
         return False
 
-    def _merge_close_ads(self, ads: List[Dict],
-                         result: ValidationResult) -> List[Dict]:
+    def _merge_close_ads(self, ads: List[Dict], result: ValidationResult,
+                         actions_map: Optional[Dict[str, str]] = None) -> List[Dict]:
         """Merge ads with tiny gaps.
 
         Args:
             ads: List of ad markers
             result: ValidationResult to record corrections
+            actions_map: Resolved segment-category -> action map; blocks a
+                merge across ads whose categories resolve to different
+                actions
 
         Returns:
             Merged ads
@@ -1029,6 +1038,25 @@ class AdValidator:
                     != bool(current.get('differential_uncorroborated'))
                     or bool(last.get('held_for_review'))
                     != bool(current.get('held_for_review'))):
+                merged.append(current.copy())
+                continue
+
+            # Never fold ads whose categories resolve to different actions:
+            # a merged span could only be cut or kept as a whole, silently
+            # applying one category's action to the other's audio.
+            if actions_map is not None:
+                a_last = actions_map.get(
+                    normalize_segment_category(last.get('category')), DEFAULT_SEGMENT_ACTION)
+                a_cur = actions_map.get(
+                    normalize_segment_category(current.get('category')), DEFAULT_SEGMENT_ACTION)
+                if a_last != a_cur:
+                    merged.append(current.copy())
+                    continue
+
+            # Recut path: never fold a previously-cut ad into a marker that
+            # was not cut (or vice versa); the keep partition runs after
+            # this merge and would swallow the cut.
+            if bool(last.get('_saved_was_cut')) != bool(current.get('_saved_was_cut')):
                 merged.append(current.copy())
                 continue
 

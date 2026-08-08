@@ -37,7 +37,7 @@ def _isolate_db():
 def test_refine_and_validate_passes_audio_analysis_to_validator(monkeypatch):
     captured = {}
 
-    def fake_validate(self, ads, audio_analysis=None):
+    def fake_validate(self, ads, audio_analysis=None, actions_map=None):
         captured['audio_analysis'] = audio_analysis
         return ValidationResult(ads=[])
 
@@ -65,7 +65,7 @@ def test_refine_and_validate_passes_audio_analysis_to_validator(monkeypatch):
 def test_build_recut_ad_list_passes_stored_audio_analysis(monkeypatch):
     captured = {}
 
-    def fake_validate(self, ads, audio_analysis=None):
+    def fake_validate(self, ads, audio_analysis=None, actions_map=None):
         captured['audio_analysis'] = audio_analysis
         return ValidationResult(ads=[])
 

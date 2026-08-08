@@ -324,10 +324,11 @@ def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
     )
 
 
-def test_build_recut_merge_survivor_inherits_saved_cut_stamp(monkeypatch):
-    # The merge survivor is the FIRST ad. When the first was NOT previously cut
-    # but the absorbed second WAS, the saved-cut stamp must propagate to the
-    # survivor so the merged span (containing previously-cut audio) stays cut.
+def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkeypatch):
+    # A never-cut ad next to a previously-cut one must NOT merge (validator
+    # guard): folding them would let the previously-cut stamp force-accept
+    # the whole span, silently cutting the never-cut half too. Each keeps
+    # its own outcome: the previously-cut one stays cut, the new one is held.
     ads = [
         {'start': 100.0, 'end': 160.0, 'confidence': 0.95,
          'reason': 'promo one'},  # not previously cut
@@ -338,9 +339,14 @@ def test_build_recut_merge_survivor_inherits_saved_cut_stamp(monkeypatch):
     ads_to_remove, all_ads = processing._build_recut_ad_list(
         'slug', 'ep', [], 3600.0, '', 0.80
     )
-    assert ads_to_remove, "Merged span containing previously-cut audio must be cut"
-    assert not any(a.get('held_for_review') for a in all_ads), (
-        "Merged span with previously-cut audio must not resurrect as held"
+    assert {a['start'] for a in ads_to_remove} == {162.0}, (
+        "Previously-cut span must still be cut; the never-cut span must not"
+    )
+    assert len(all_ads) == 2
+    first, second = sorted(all_ads, key=lambda a: a['start'])
+    assert first.get('held_for_review'), "Never-cut span must be held for review"
+    assert not second.get('held_for_review'), (
+        "Previously-cut span must not resurrect as held"
     )
 
 
@@ -422,10 +428,10 @@ def _spy_validate(monkeypatch, captured):
     import ad_validator
     orig = ad_validator.AdValidator.validate
 
-    def spy(self, ads_arg, audio_analysis=None):
+    def spy(self, ads_arg, audio_analysis=None, actions_map=None):
         captured['called'] = True
         captured['audio_analysis'] = audio_analysis
-        return orig(self, ads_arg, audio_analysis=audio_analysis)
+        return orig(self, ads_arg, audio_analysis=audio_analysis, actions_map=actions_map)
 
     monkeypatch.setattr(ad_validator.AdValidator, 'validate', spy)
 
