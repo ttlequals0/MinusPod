@@ -175,6 +175,17 @@ class TestCircuitBreakerCause:
         assert exc_info.value.cause is None
         assert "original failure" not in str(exc_info.value)
 
+    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
+    def test_cause_updated_on_half_open_probe_failure(self, mock_time):
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
+        cb.record_failure(Exception("first failure"))
+        _advance_time(61)
+        assert cb.state == CircuitBreaker.HALF_OPEN
+        cb.record_failure(Exception("probe failure"))
+        with pytest.raises(CircuitBreakerOpen) as exc_info:
+            cb.check()
+        assert exc_info.value.cause == "probe failure"
+
 
 class TestCircuitBreakerCauseClassifier:
     """cause_classifier runs on the full, untruncated trigger error, so its
@@ -228,13 +239,13 @@ class TestCircuitBreakerCauseClassifier:
             cb.check()
         assert exc_info.value.auth_cause is False
 
-    @patch('utils.circuit_breaker.time.time', side_effect=_get_mock_time)
-    def test_cause_updated_on_half_open_probe_failure(self, mock_time):
-        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60)
-        cb.record_failure(Exception("first failure"))
-        _advance_time(61)
-        assert cb.state == CircuitBreaker.HALF_OPEN
-        cb.record_failure(Exception("probe failure"))
+    def test_raising_classifier_still_opens_breaker_with_auth_cause_false(self):
+        def _boom(e):
+            raise ValueError("classifier blew up")
+
+        cb = CircuitBreaker("test", failure_threshold=1, recovery_timeout=60,
+                             cause_classifier=_boom)
+        cb.record_failure(Exception("some failure"))
         with pytest.raises(CircuitBreakerOpen) as exc_info:
             cb.check()
-        assert exc_info.value.cause == "probe failure"
+        assert exc_info.value.auth_cause is False

@@ -167,7 +167,11 @@ class CircuitBreaker:
         """Run cause_classifier on the full, untruncated trigger error."""
         if self._cause_classifier is None or error is None:
             return False
-        return bool(self._cause_classifier(error))
+        try:
+            return bool(self._cause_classifier(error))
+        except Exception:
+            # Classification must never break failure recording.
+            return False
 
     def reset(self):
         """Manually reset the circuit breaker to CLOSED."""
