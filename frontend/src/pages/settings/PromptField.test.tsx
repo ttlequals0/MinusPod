@@ -1,7 +1,6 @@
 /**
- * Tests for the per-prompt reset affordance on PromptField (issue #626):
- * hidden without a handler or when already at default, two-click confirm
- * before firing onReset.
+ * Tests for the per-prompt reset affordance on PromptField (#626): hidden
+ * without a handler or at default, two-click confirm before onReset.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

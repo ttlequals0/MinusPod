@@ -1,10 +1,7 @@
 /**
- * Integration tests for per-prompt reset wiring on the Settings page (issue
- * #626): the two-click confirm fires the single-prompt reset endpoint (not
- * the bulk one), and a successful reset re-seeds the textarea from the
- * refetched settings the same way the existing "reset all prompts" button
- * does. Every section unrelated to prompts is stubbed; only PromptsSection
- * and ExperimentsSection render for real.
+ * Integration tests for per-prompt reset wiring on the Settings page (#626):
+ * the two-click confirm fires the single-prompt reset endpoint, not the bulk
+ * one, and re-seeds the textarea from the refetched settings.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -102,10 +99,8 @@ vi.mock('../api/feeds', () => ({
   refreshAllArtwork: vi.fn(),
 }));
 
-// Every field this test cares about is set explicitly; anything else falls
-// back to a neutral SettingValue so the page's ~65-field hydration registry
-// (which reads settings[key].value/.isDefault generically) never dereferences
-// undefined for the many sections that are stubbed out above.
+// Fields not set explicitly fall back to a neutral SettingValue so the
+// page's generic hydration registry never dereferences undefined.
 function sv(value: string, isDefault: boolean): SettingValue {
   return { value, isDefault };
 }
@@ -135,9 +130,8 @@ function makeSettings(overrides: Partial<Record<string, unknown>> = {}): Setting
 function makeClient() {
   return new QueryClient({
     // structuralSharing off: TanStack's default replaceEqualDeep would walk
-    // the settings Proxy via Object.keys and rebuild it as a plain object,
-    // silently dropping the fallback trap for every field the test doesn't
-    // override.
+    // the settings Proxy and rebuild it as a plain object, dropping the
+    // fallback trap for every field the test doesn't override.
     defaultOptions: { queries: { retry: false, staleTime: 0, structuralSharing: false }, mutations: { retry: false } },
   });
 }

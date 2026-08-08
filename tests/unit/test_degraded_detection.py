@@ -1,13 +1,6 @@
-"""Tests for degraded pass-1 completion (partial detection).
-
-When pass-1 LLM detection fails entirely but pattern/fingerprint/cross-fetch
-markers were already gathered, a transient, non-auth failure publishes those
-markers instead of failing the episode outright (_detect_ads_first_pass).
-The episode row records the degradation (detection_degraded), a clean rerun
-clears it (_persist_episode_state), and exactly one automatic low-priority
-llm re-detect is queued on the transition into degraded
-(_maybe_enqueue_degraded_redetect).
-"""
+"""Tests for degraded pass-1 completion (partial detection): a transient,
+non-auth pass-1 failure publishes existing pattern/cross-fetch markers
+instead of failing the episode outright."""
 import os
 import sys
 import tempfile
@@ -132,10 +125,8 @@ class TestPersistEpisodeStateClearsFlag:
 
 
 class TestFinalizeEpisodeComposesPersistDegradedFlag:
-    """_finalize_episode is the sole caller of _persist_episode_state; this
-    covers that composition end to end (the bug: an unconditional None write
-    in _persist_episode_state clobbered the flag the SAME run had just set,
-    so it never survived past the run that produced it)."""
+    """_finalize_episode is the sole caller of _persist_episode_state; covers
+    that composition end to end, including a run's own degraded flag."""
 
     def _call_finalize(self, run_stats):
         with ExitStack() as stack:
@@ -207,8 +198,8 @@ class TestMaybeEnqueueDegradedRedetect:
 
 
 class TestRecutPreservesDegradedFlag:
-    """A recut only re-cuts existing markers -- detection never runs -- so it
-    must not clear a detection_degraded flag it had no part in setting."""
+    """A recut never runs detection, so it must not clear a
+    detection_degraded flag it had no part in setting."""
 
     def _run_recut(self, episode_data, run_stats=None):
         with ExitStack() as stack:

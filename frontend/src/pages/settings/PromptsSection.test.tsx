@@ -1,8 +1,7 @@
 /**
- * Tests for per-prompt reset wiring in PromptsSection (issue #626): each of
- * the three base prompt fields gets its own two-click reset button wired to
- * a distinct callback, gated on that field's isDefault flag. The bulk
- * "Reset Prompts to Default" button is unaffected.
+ * Tests for per-prompt reset wiring in PromptsSection (#626): each base
+ * prompt field gets its own two-click reset button; the bulk button is
+ * unaffected.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

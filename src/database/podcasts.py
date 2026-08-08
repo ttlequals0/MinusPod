@@ -115,8 +115,7 @@ class PodcastMixin:
         return row['detection_mode'] if row else None
 
     def get_podcast_queue_priority(self, slug: str) -> Optional[int]:
-        """Per-feed queue_priority column only -- cheap single-row lookup for
-        call sites that need it without the full get_podcast_by_slug join."""
+        """Per-feed queue_priority column only, without the full get_podcast_by_slug join."""
         conn = self.get_connection()
         cursor = conn.execute(
             "SELECT queue_priority FROM podcasts WHERE slug = ?", (slug,))

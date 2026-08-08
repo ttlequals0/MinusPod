@@ -291,10 +291,9 @@ class QueueMixin:
     def restamp_pending_priorities(self, podcast_id: int, feed_priority: int) -> int:
         """Re-stamp pending queue rows for a podcast after its feed priority changes.
 
-        Approximation: recomputes each row as compute_queue_priority(feed_priority,
-        row.published_at, manual=False), so a manual boost already applied to a
-        still-pending row is lost. Acceptable because a manual reprocess
-        re-enqueues (and re-stamps) quickly on its own. Returns rows touched.
+        Approximation: recomputes each row with manual=False, so a manual boost
+        already applied to a still-pending row is lost (a manual reprocess
+        re-enqueues on its own). Returns rows touched.
         """
         conn = self.get_connection()
         rows = conn.execute(

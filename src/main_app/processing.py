@@ -736,10 +736,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise LimitExceededError(f"Ad detection failed: {error_msg}")
         # Degraded continue: a transient, non-auth failure that still left
-        # pattern/fingerprint/cross-fetch markers (gathered before Claude ran)
-        # publishes those instead of failing the whole episode. Auth-class
-        # failures keep raising so the outer handler's no-retry-budget-burn
-        # path (is_auth_error) is unchanged; zero markers is still a hard fail.
+        # pattern/cross-fetch markers publishes those instead of failing the
+        # episode. Auth-class failures and zero markers still raise.
         classification_error = Exception(error_msg)
         if (first_pass_ads and is_transient_error(classification_error)
                 and not is_auth_error(classification_error)):
@@ -2892,7 +2890,7 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
                             processed_version, detection_degraded=None):
     """Upsert the processed episode row and update related DB state.
 
-    ``detection_degraded``: the sanitized reason string when THIS run
+    ``detection_degraded``: the sanitized reason string when this run
     degraded, else None to clear a flag left by an earlier failure.
     """
     original_final = storage.get_original_path(slug, episode_id)
@@ -2916,10 +2914,9 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         reprocess_requested_at=None,
         deferred_at=None,
         deferred_service=None,
-        # A clean run clears a degraded flag left by an earlier pass-1
-        # failure; a degraded run re-stamps its own reason so this write
-        # (which resets error_message etc. unconditionally) does not
-        # clobber the flag the detection stage just set.
+        # A clean run clears a degraded flag from an earlier failure; a
+        # degraded run re-stamps its own reason so this unconditional
+        # write does not clobber the flag detection just set.
         detection_degraded=detection_degraded)
 
     try:
@@ -3563,12 +3560,9 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                                             cut=pass1_cut_count,
                                             held=held_count,
                                             not_cut=not_cut_count)
-        # A recut re-cuts from existing markers only -- detection never runs,
-        # so it must not clear a degraded flag it had no part in setting.
-        # The corroborated-hold-approval caller passes the current run's own
-        # run_stats (which _finalize_episode already reads detection_degraded
-        # from), so it is left untouched; a standalone recut (no run_stats)
-        # instead forwards the flag already on the pre-recut episode row.
+        # A recut never runs detection, so it must not clear a degraded flag it
+        # had no part in setting: forward the pre-recut row's flag when this
+        # call has no run_stats of its own to carry it.
         finalize_run_stats = run_stats
         if finalize_run_stats is None and (episode_data or {}).get('detection_degraded'):
             finalize_run_stats = {'detection_degraded': episode_data['detection_degraded']}

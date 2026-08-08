@@ -50,6 +50,23 @@ release notes.
 - Two-tier pattern trust: user-created and community patterns are marked
   "defined"; auto-learned patterns are not. Defined status now drives cut,
   merge, and pass-1 hint behavior throughout the detection pipeline.
+- Feed queue priority (#625): normal, high, or low, with automatic boosts
+  for episodes published in the last 48 hours and for episodes a user
+  explicitly reprocesses. Boosts stack on top of the feed's base priority.
+- Per-feed episode title blacklist: case-insensitive glob patterns skip
+  queuing and just-in-time processing for matching episodes. A per-feed
+  choice serves a skipped episode unmodified in the RSS feed or hides it
+  entirely.
+- Per-prompt reset buttons in settings (#626): each AI prompt resets to its
+  default individually instead of only all-or-nothing.
+- A dedicated global Segment actions settings card, plus a global default
+  for show-segments (intro/outro/recap) detection that feeds inherit
+  unless they set their own value.
+- Partial detection: when the AI detection pass fails but pattern and
+  cross-fetch evidence already produced cuts, the episode publishes with a
+  warning banner and a re-run button instead of failing outright. Window
+  counts are exposed in the API, and one automatic low-priority re-detect
+  is queued.
 
 ### Changed
 
@@ -97,6 +114,8 @@ release notes.
   consume the episode's retry budget.
 - Markers persisted by a failed processing run no longer display as cut
   ads.
+- TTL caches are now bounded with a size cap and eviction, rather than
+  growing without limit (#621).
 
 ## [2.85.2] - 2026-08-03
 

@@ -1,8 +1,7 @@
 /**
- * Tests for per-prompt reset wiring in ExperimentsSection (issue #626): the
- * review and resurrect prompt fields each get their own two-click reset
- * button wired to a distinct callback. The bulk
- * "Reset Reviewer Prompts to Default" button is unaffected.
+ * Tests for per-prompt reset wiring in ExperimentsSection (#626): review and
+ * resurrect each get their own two-click reset button; the bulk button is
+ * unaffected.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
