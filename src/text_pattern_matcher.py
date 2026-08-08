@@ -8,7 +8,6 @@ for host-read ads that follow similar scripts but aren't identical.
 import logging
 import re
 from dataclasses import dataclass, field, replace
-from difflib import SequenceMatcher
 from typing import List, Optional, Dict, Tuple
 import json
 
@@ -24,6 +23,7 @@ from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import INVALID_SPONSOR_VALUES
 from utils.community_tags import UNIVERSAL_TAG
 from utils.language import get_pattern_language
+from utils.pattern_similarity import similarity, canonicalize_for_dedupe
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -60,6 +60,7 @@ AD_TRANSITION_PHRASES = [
 MAX_PATTERN_CHARS = 3500
 
 # Near-duplicate threshold for learning dedupe in create_pattern_from_ad.
+# Applies to canonicalized text (see canonicalize_for_dedupe), not raw text.
 LEARNING_DEDUPE_SIMILARITY_THRESHOLD = 0.9
 
 # Words a sponsor-name guess after a transition phrase should never be (the
@@ -307,6 +308,10 @@ class AdPattern:
     source_language: Optional[str] = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
     category: Optional[str] = None  # Segment category (#565); None on a legacy/unmigrated row
     created_by: Optional[str] = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
+
+    @property
+    def is_defined(self) -> bool:
+        return is_defined_pattern({'created_by': self.created_by, 'source': self.source})
 
 
 class TextPatternMatcher:
@@ -727,9 +732,7 @@ class TextPatternMatcher:
                         sponsor=pattern.sponsor,
                         match_type="content",
                         category=pattern.category,
-                        defined=is_defined_pattern(
-                            {'created_by': pattern.created_by, 'source': pattern.source}
-                        ),
+                        defined=pattern.is_defined,
                     ))
 
         window_bounds = []
@@ -814,9 +817,7 @@ class TextPatternMatcher:
                             match_type="intro",
                             category=pattern.category,
                             matched_text=matched,
-                            defined=is_defined_pattern(
-                                {'created_by': pattern.created_by, 'source': pattern.source}
-                            ),
+                            defined=pattern.is_defined,
                             span_estimated=span_estimated,
                             text_start=start_time,
                             text_end=intro_text_end if span_estimated else end_time,
@@ -855,9 +856,7 @@ class TextPatternMatcher:
                             match_type="outro",
                             category=pattern.category,
                             matched_text=matched,
-                            defined=is_defined_pattern(
-                                {'created_by': pattern.created_by, 'source': pattern.source}
-                            ),
+                            defined=pattern.is_defined,
                             span_estimated=span_estimated,
                             text_start=outro_text_start if span_estimated else start_time,
                             text_end=end_time,
@@ -1384,7 +1383,7 @@ class TextPatternMatcher:
             existing_text = existing_pattern.get('text_template') or ''
             if not existing_text:
                 continue
-            sim = SequenceMatcher(None, ad_text.lower(), existing_text.lower()).ratio()
+            sim = similarity(canonicalize_for_dedupe(ad_text), canonicalize_for_dedupe(existing_text))
             if sim >= LEARNING_DEDUPE_SIMILARITY_THRESHOLD:
                 logger.info(
                     f"Near-duplicate of pattern #{existing_pattern['id']} "

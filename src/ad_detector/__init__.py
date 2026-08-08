@@ -775,7 +775,7 @@ class AdDetector:
             if not sponsor or sponsor.lower() in junk:
                 continue
             if is_defined_pattern(p) and len(tier1) < self._HINT_TIER1_CAP:
-                snippet = (p.get('intro_text') or p.get('outro_text') or '')[:self._HINT_SNIPPET_CHARS]
+                snippet = truncate(p.get('intro_text') or p.get('outro_text') or '', self._HINT_SNIPPET_CHARS)
                 category = p.get('category') or 'sponsor'
                 line = f"- {sponsor} ({category} read)."
                 if snippet:

@@ -1068,9 +1068,6 @@ class AdValidator:
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
-                # A merged span containing any previously-cut audio stays cut.
-                if current.get('_saved_was_cut'):
-                    last['_saved_was_cut'] = True
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
@@ -1082,8 +1079,6 @@ class AdValidator:
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
-                if current.get('_saved_was_cut'):
-                    last['_saved_was_cut'] = True
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
                 result.corrections.append(f"Merged ads across {gap:.1f}s silent gap")
