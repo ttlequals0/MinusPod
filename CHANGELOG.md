@@ -77,7 +77,7 @@ release notes.
 - Text-pattern merging: when a defined pattern overlaps an auto-learned
   one, the defined pattern wins ownership of the merged span. The absorbed
   pattern keeps credit for its own matches.
-- Pattern learning dedupe: a near-identical text update now updates the
+- Pattern learning dedupe: learning a near-identical text now updates the
   existing pattern instead of inserting a duplicate. Only spans that pass
   the learning validation guards count toward match-credit stats.
 - Pass-1 sponsor hint amplified: defined patterns now contribute category
