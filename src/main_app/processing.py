@@ -3563,6 +3563,15 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                                             cut=pass1_cut_count,
                                             held=held_count,
                                             not_cut=not_cut_count)
+        # A recut re-cuts from existing markers only -- detection never runs,
+        # so it must not clear a degraded flag it had no part in setting.
+        # The corroborated-hold-approval caller passes the current run's own
+        # run_stats (which _finalize_episode already reads detection_degraded
+        # from), so it is left untouched; a standalone recut (no run_stats)
+        # instead forwards the flag already on the pre-recut episode row.
+        finalize_run_stats = run_stats
+        if finalize_run_stats is None and (episode_data or {}).get('detection_degraded'):
+            finalize_run_stats = {'detection_degraded': episode_data['detection_degraded']}
         _finalize_episode(slug, episode_id, episode_title, podcast_name,
                            first_pass_count, verification_count=verification_count,
                            first_pass_count=first_pass_count,
@@ -3570,7 +3579,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                            new_duration=new_duration, start_time=start_time,
                            processed_version=new_version,
                            audio_cue_detections=audio_cue_detections,
-                           run_stats=run_stats,
+                           run_stats=finalize_run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count)
         status_service.complete_job()
         return True

@@ -11,6 +11,7 @@ llm re-detect is queued on the transition into degraded
 import os
 import sys
 import tempfile
+import time
 from contextlib import ExitStack
 from unittest.mock import ANY, MagicMock, patch
 
@@ -203,3 +204,67 @@ class TestMaybeEnqueueDegradedRedetect:
         db = self._call({'detection_degraded': 'boom'}, None)
         db.upsert_episode.assert_called_once()
         db.upsert_episode_for_processing.assert_called_once()
+
+
+class TestRecutPreservesDegradedFlag:
+    """A recut only re-cuts existing markers -- detection never runs -- so it
+    must not clear a detection_degraded flag it had no part in setting."""
+
+    def _run_recut(self, episode_data, run_stats=None):
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+            db = p(processing, 'db')
+            storage = p(processing, 'storage')
+            p(processing, 'status_service')
+            p(processing, '_copy_retained_original_to_temp',
+              return_value='/tmp/degraded-recut-work.mp3')
+            p(processing, '_build_recut_ad_list', return_value=([], []))
+            p(processing, '_generate_assets')
+            finalize = p(processing, '_finalize_episode')
+            local_ap_cls = p(processing, 'AudioProcessor')
+            p(processing.os.path, 'exists', return_value=False)
+            p(processing.shutil, 'move')
+
+            db.get_episode.return_value = episode_data
+            db.get_original_segments.return_value = [{'start': 0.0, 'end': 60.0}]
+            db.get_all_settings.return_value = {}
+            db.resolve_segment_actions.return_value = {}
+            storage.get_original_path.return_value.exists.return_value = True
+            storage.get_applied_cuts.return_value = None
+            storage.get_episode_path.return_value = '/tmp/degraded-recut-final.mp3'
+
+            local_ap = local_ap_cls.return_value
+            local_ap.get_audio_duration.return_value = 60.0
+            local_ap.process_episode.return_value = ('/tmp/degraded-recut-cut.mp3', [])
+
+            processing._recut_episode(
+                'degraded-feed', 'ep1', 'Episode', 'Podcast', 'desc',
+                time.time(), cancel_event=None, run_stats=run_stats)
+        return finalize
+
+    def test_standalone_recut_preserves_existing_degraded_flag(self):
+        # No run_stats: the standalone/bulk recut entrypoint (rerender-segments
+        # API, reprocess mode=recut) never ran detection this call.
+        episode_data = {'podcast_id': 1, 'processed_version': 0,
+                        'detection_degraded': 'Overloaded (server busy)'}
+        finalize = self._run_recut(episode_data, run_stats=None)
+        _, kwargs = finalize.call_args
+        assert kwargs['run_stats'] == {'detection_degraded': 'Overloaded (server busy)'}
+
+    def test_standalone_recut_stays_clean_when_not_previously_degraded(self):
+        episode_data = {'podcast_id': 1, 'processed_version': 0,
+                        'detection_degraded': None}
+        finalize = self._run_recut(episode_data, run_stats=None)
+        _, kwargs = finalize.call_args
+        assert kwargs['run_stats'] is None
+
+    def test_corroborated_hold_recut_forwards_its_own_run_stats_unchanged(self):
+        # A recut folded into an active pipeline run passes that run's real
+        # run_stats through untouched, even if it differs from the stale
+        # on-disk flag (this run is the authority on its own outcome).
+        episode_data = {'podcast_id': 1, 'processed_version': 0,
+                        'detection_degraded': 'stale reason on disk'}
+        run_stats = {'detection_degraded': 'fresh reason from this run'}
+        finalize = self._run_recut(episode_data, run_stats=run_stats)
+        _, kwargs = finalize.call_args
+        assert kwargs['run_stats'] is run_stats
