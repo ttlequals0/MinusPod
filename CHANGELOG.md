@@ -44,6 +44,13 @@ release notes.
   any of those resets.
 - `docs/llm-providers.md` model recommendations refreshed from the 2026-08
   sweep, including a note on provider-side content moderation.
+- An unconfigured model (`claude_model`, `verification_model`, or
+  `chapters_model` unset) is no longer a silent failure. Boot logs one
+  error line naming the missing settings, `/health` adds an
+  `llm_model_configured` check without affecting overall status, ad
+  detection fails the episode immediately with the exact error message
+  instead of exhausting the retry ladder, and chapter generation degrades
+  to fallback titles and boundaries instead of failing the episode.
 
 ### Fixed
 

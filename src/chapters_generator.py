@@ -203,6 +203,9 @@ class ChaptersGenerator:
         # degraded run doesn't look like a normal short episode.
         self._topic_detection_failed: bool = False
         self._title_generation_failed: bool = False
+        # Set when get_chapters_model() raises; appended to the degradation
+        # reason below instead of just the generic "... failed" text.
+        self._model_not_configured_message: Optional[str] = None
         self.chapters_degraded: bool = False
         self.chapters_degradation_reason: Optional[str] = None
 
@@ -397,6 +400,10 @@ class ChaptersGenerator:
             logger.info(f"AI detected {len(chapters)} topic boundaries")
             return chapters
 
+        except ModelNotConfiguredError as e:
+            logger.warning(f"Chapter topic detection skipped: {e}")
+            self._model_not_configured_message = str(e)
+            return None
         except Exception as e:
             logger.error(f"Failed to detect topic boundaries: {e}")
             return None
@@ -461,6 +468,11 @@ class ChaptersGenerator:
                 chapters[req['index']]['title'] = title
                 chapters[req['index']]['needs_title'] = False
 
+        except ModelNotConfiguredError as e:
+            logger.warning(f"Chapter title generation skipped: {e}")
+            self._model_not_configured_message = str(e)
+            self._title_generation_failed = True
+            return self._apply_generic_titles(chapters)
         except Exception as e:
             logger.error(f"Failed to generate chapter titles: {e}")
             self._title_generation_failed = True
@@ -752,6 +764,7 @@ class ChaptersGenerator:
         self._episode_id = episode_id
         self._topic_detection_failed = False
         self._title_generation_failed = False
+        self._model_not_configured_message = None
         self.chapters_degraded = False
         self.chapters_degradation_reason = None
 
@@ -823,6 +836,8 @@ class ChaptersGenerator:
                 reasons.append('chapter topic detection failed')
             if self._title_generation_failed:
                 reasons.append('chapter title generation failed')
+            if self._model_not_configured_message:
+                reasons.append(self._model_not_configured_message)
             reason = '; '.join(reasons)
             self.chapters_degraded = True
             self.chapters_degradation_reason = reason

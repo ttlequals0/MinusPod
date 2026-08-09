@@ -76,6 +76,7 @@ from config import (
     resolve_differential_fetch_setting,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
+    ModelNotConfiguredError,
 )
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
@@ -147,6 +148,10 @@ def is_transient_error(error: Exception) -> bool:
     then applies episode-processing-specific checks for network, OOM, CDN, and
     audio format errors.
     """
+    # Unconfigured model is operator-fixable but never self-resolves on retry.
+    if isinstance(error, ModelNotConfiguredError):
+        return False
+
     # Endpoint-unreachable errors are transient by definition; with the
     # offline queue (#482) disabled this keeps today's retry behavior.
     if isinstance(error, ServiceUnavailableError):

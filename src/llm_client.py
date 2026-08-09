@@ -56,6 +56,7 @@ from config import (
     PROVIDER_OLLAMA,
     PROVIDERS_NON_ANTHROPIC,
     coerce_bool_setting,
+    ModelNotConfiguredError,
 )
 from llm_capabilities import (
     get_pass_defaults,
@@ -1511,6 +1512,9 @@ def is_retryable_error(error: Exception) -> bool:
 
     Works with both Anthropic and OpenAI error types.
     """
+    # Unconfigured model never self-resolves; no LLM call was even attempted.
+    if isinstance(error, ModelNotConfiguredError):
+        return False
     # Structural 429s are never retryable -- the request itself exceeds the
     # provider's per-minute cap, no amount of backoff will help.
     if isinstance(error, StructuralRateLimitError):

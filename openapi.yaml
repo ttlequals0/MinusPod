@@ -4280,6 +4280,13 @@ paths:
                         type: boolean
                       queue_available:
                         type: boolean
+                      llm_model_configured:
+                        type: boolean
+                        description: >-
+                          Whether a detection model is configured. Informational
+                          only; false does not flip overall status to unhealthy,
+                          since an instance with no model still serves
+                          already-processed feeds.
                   version:
                     type: string
         '503':

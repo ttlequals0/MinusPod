@@ -686,6 +686,19 @@ def _background_threads_enabled() -> bool:
     return 'pytest' not in sys.modules
 
 
+def _log_missing_model_settings(db_instance):
+    """Log one ERROR line naming any of the three model settings left unset."""
+    missing_models = [
+        key for key in ('claude_model', 'verification_model', 'chapters_model')
+        if not db_instance.get_setting(key)
+    ]
+    if missing_models:
+        logger.error(
+            f"No model configured for: {', '.join(missing_models)}. "
+            "Set them in Settings > AI models, or set OPENAI_MODEL before first start."
+        )
+
+
 # Startup initialization (runs when module is imported by gunicorn)
 def _startup():
     """Initialize the application on startup.
@@ -729,6 +742,13 @@ def _startup():
             verify_llm_connection()
         except Exception as e:
             logger.warning(f"LLM verification skipped: {e}")
+
+        # Surface unconfigured models loudly: an install can legitimately
+        # boot with none set, but it must not fail silently at first use.
+        try:
+            _log_missing_model_settings(db)
+        except Exception as e:
+            logger.warning(f"Model configuration check skipped: {e}")
 
         # Seed sponsor and normalization data. The 2.0.13 rewrite made this
         # idempotent (per-startup name-diff insert), so it must run on the
