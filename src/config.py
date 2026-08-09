@@ -1244,7 +1244,7 @@ class ModelNotConfiguredError(ValueError):
         self.setting_key = setting_key
         super().__init__(message or (
             f"No model configured for {setting_key}. Set it in Settings > "
-            "AI models, or set OPENAI_MODEL before first start."
+            "AI models, or set OPENAI_MODEL and restart."
         ))
 
 

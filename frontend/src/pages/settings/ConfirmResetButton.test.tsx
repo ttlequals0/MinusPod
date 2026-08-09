@@ -55,10 +55,10 @@ describe('ConfirmResetButton', () => {
         label="Reset All"
         isPending={false}
         onConfirm={onConfirm}
-        confirmHint="Also clears your AI model choices, which you will need to pick again."
+        confirmHint="Also clears your AI model choices; you may need to pick them again."
       />
     );
-    const hint = 'Also clears your AI model choices, which you will need to pick again.';
+    const hint = 'Also clears your AI model choices; you may need to pick them again.';
     expect(screen.queryByText(hint)).toBeNull();
     fireEvent.click(screen.getByRole('button'));
     expect(screen.getByText(hint)).toBeTruthy();

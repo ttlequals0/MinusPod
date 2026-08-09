@@ -695,7 +695,7 @@ def _log_missing_model_settings(db_instance):
     if missing_models:
         logger.error(
             f"No model configured for: {', '.join(missing_models)}. "
-            "Set them in Settings > AI models, or set OPENAI_MODEL before first start."
+            "Set them in Settings > AI models, or set OPENAI_MODEL and restart."
         )
 
 

@@ -245,7 +245,7 @@ describe('Settings: Reset All copy', () => {
 
     const resetAllBtn = await screen.findByRole('button', { name: 'Reset All' });
     expect(resetAllBtn.getAttribute('title')).toBe(
-      'Also clears your AI model choices, which you will need to pick again.'
+      'Also clears your AI model choices; you may need to pick them again.'
     );
   });
 });
