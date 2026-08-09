@@ -228,3 +228,24 @@ describe('Settings: per-prompt reset', () => {
     expect(mockResetPrompt).toHaveBeenCalledWith('resurrect');
   });
 });
+
+describe('Settings: Reset All copy', () => {
+  it('warns that model choices are cleared by the bulk ad-detection reset', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings());
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
+    });
+
+    // Editing a field flips hasChanges, which is what shows the sticky
+    // save bar holding the "Reset All" button.
+    await user.type(screen.getByLabelText('First Pass System Prompt'), ' edited');
+
+    const resetAllBtn = await screen.findByRole('button', { name: 'Reset All' });
+    expect(resetAllBtn.getAttribute('title')).toBe(
+      'Also clears your AI model choices, which you will need to pick again.'
+    );
+  });
+});

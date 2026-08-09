@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ClaudeModel } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -38,6 +39,47 @@ function AIModelsSection({
     return <option value={value}>{value} (current, not in catalog)</option>;
   };
 
+  const renderModelSelect = ({
+    id,
+    label,
+    value,
+    onChange,
+    description,
+  }: {
+    id: string;
+    label: string;
+    value: string;
+    onChange: (model: string) => void;
+    description: ReactNode;
+  }) => {
+    const notConfigured = !value;
+    return (
+      <div>
+        <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
+          {label}
+        </label>
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        >
+          {notConfigured && <option value="">Not configured</option>}
+          {renderOrphan(value)}
+          {models?.map((model) => (
+            <option key={model.id} value={model.id}>
+              {formatModelLabel(model)}
+            </option>
+          ))}
+        </select>
+        {notConfigured && (
+          <p className="mt-1 text-sm text-muted-foreground">Pick a model before processing episodes.</p>
+        )}
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+    );
+  };
+
   return (
     <CollapsibleSection
       title="AI Models"
@@ -74,71 +116,30 @@ function AIModelsSection({
       )}
 
       <div className="space-y-4">
-        <div>
-          <label htmlFor="model" className="block text-sm font-medium text-foreground mb-2">
-            Ad Detection Model
-          </label>
-          <select
-            id="model"
-            value={selectedModel}
-            onChange={(e) => onSelectedModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-          >
-            {renderOrphan(selectedModel)}
-            {models?.map((model) => (
-              <option key={model.id} value={model.id}>
-                {formatModelLabel(model)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds the initial value on first startup.
-          </p>
-        </div>
+        {renderModelSelect({
+          id: 'model',
+          label: 'Ad Detection Model',
+          value: selectedModel,
+          onChange: onSelectedModelChange,
+          description:
+            'Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds the initial value on first startup.',
+        })}
 
-        <div>
-          <label htmlFor="verificationModel" className="block text-sm font-medium text-foreground mb-2">
-            Verification Model
-          </label>
-          <select
-            id="verificationModel"
-            value={verificationModel}
-            onChange={(e) => onVerificationModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-          >
-            {renderOrphan(verificationModel)}
-            {models?.map((model) => (
-              <option key={model.id} value={model.id}>
-                {formatModelLabel(model)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Re-runs detection on processed audio to catch missed ads (can differ for cost optimization)
-          </p>
-        </div>
+        {renderModelSelect({
+          id: 'verificationModel',
+          label: 'Verification Model',
+          value: verificationModel,
+          onChange: onVerificationModelChange,
+          description: 'Re-runs detection on processed audio to catch missed ads (can differ for cost optimization)',
+        })}
 
-        <div>
-          <label htmlFor="chaptersModel" className="block text-sm font-medium text-foreground mb-2">
-            Chapters Model
-          </label>
-          <select
-            id="chaptersModel"
-            value={chaptersModel}
-            onChange={(e) => onChaptersModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-          >
-            {renderOrphan(chaptersModel)}
-            {models?.map((model) => (
-              <option key={model.id} value={model.id}>
-                {formatModelLabel(model)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Chapter title generation and topic detection (smaller/cheaper models work well)
-          </p>
-        </div>
+        {renderModelSelect({
+          id: 'chaptersModel',
+          label: 'Chapters Model',
+          value: chaptersModel,
+          onChange: onChaptersModelChange,
+          description: 'Chapter title generation and topic detection (smaller/cheaper models work well)',
+        })}
       </div>
     </CollapsibleSection>
   );

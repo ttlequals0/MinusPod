@@ -1168,6 +1168,7 @@ function Settings() {
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton
               label="Reset All"
+              title="Also clears your AI model choices, which you will need to pick again."
               isPending={resetMutation.isPending}
               onConfirm={() => resetMutation.mutate()}
             />
