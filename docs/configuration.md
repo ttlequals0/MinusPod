@@ -205,7 +205,7 @@ When to enable it:
 - Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
 - Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
 
-Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With the default Claude pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With a typical pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
 
 Settings live under Experiments -> Ad Reviewer:
 

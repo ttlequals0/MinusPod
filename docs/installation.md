@@ -33,12 +33,15 @@
 
 ## Quick Start
 
+Minimum setup before first boot: `BASE_URL`, `MINUSPOD_MASTER_PASSPHRASE`, a provider credential (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and `OPENAI_MODEL` to pick a model up front. Skip `OPENAI_MODEL` if you'd rather choose a model in Settings > AI models on first run instead; either way, MinusPod won't process an episode until a model is configured. Everything else is configured from the web UI or the API: env vars only seed a setting the first time it is unset, and the stored value wins after that.
+
 ```bash
 # 1. Create environment file
 cat > .env << EOF
 ANTHROPIC_API_KEY=your-key-here
 BASE_URL=http://localhost:8000
 MINUSPOD_MASTER_PASSPHRASE=long-random-string-you-will-not-lose
+OPENAI_MODEL=claude-haiku-4-5
 EOF
 
 # 2. Create data directory

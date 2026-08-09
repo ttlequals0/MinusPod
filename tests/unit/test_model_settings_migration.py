@@ -1,14 +1,5 @@
-"""Tests for the 2.86.3 upgrade migrations in
-src/database/schema/__init__.py:
-
-1. `clear_seeded_model_defaults`: deletes is_default=1 rows for the three
-   model settings so a stale system-chosen model id does not survive into
-   the require-explicit-model contract.
-2. LLM_PROVIDER adoption: the pre-existing ENV_BACKED_SETTINGS per-boot
-   resync now validates the env value (config._validate_llm_provider)
-   before adopting it into the is_default=1 `llm_provider` row, so a typo
-   falls back safely with a warning instead of being written verbatim.
-"""
+"""Tests for the 2.86.3 model-settings migrations: clearing system-seeded
+model defaults on upgrade, and validated LLM_PROVIDER adoption."""
 import logging
 
 import pytest

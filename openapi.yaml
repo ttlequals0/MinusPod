@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.86.2
+  version: 2.86.3
   contact:
     name: MinusPod
   license:
@@ -3554,16 +3554,16 @@ paths:
                   description: Optional override appended to the chapter topic-detection prompt (empty by default)
                 claudeModel:
                   type: string
-                  description: AI model ID to use for first pass ad detection
-                  example: claude-sonnet-4-5-20250929
+                  description: AI model ID to use for first pass ad detection. No model ships by default; unset until configured.
+                  example: claude-haiku-4-5
                 verificationModel:
                   type: string
-                  description: AI model ID for verification pass (can differ from first pass)
-                  example: claude-sonnet-4-5-20250929
+                  description: AI model ID for verification pass (can differ from first pass). No model ships by default; unset until configured.
+                  example: claude-haiku-4-5
                 chaptersModel:
                   type: string
-                  description: Model for chapter title generation and topic detection (defaults to Haiku for cost efficiency)
-                  example: claude-haiku-4-5-20251001
+                  description: Model for chapter title generation and topic detection (smaller/cheaper models work well). No model ships by default; unset until configured.
+                  example: claude-haiku-4-5
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)

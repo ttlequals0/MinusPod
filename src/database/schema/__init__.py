@@ -1373,13 +1373,9 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"seeded model defaults clear failed: {e}")
 
-        # Per-boot (not schema_migrations-gated): seed a still-absent model
-        # row from OPENAI_MODEL. Must run after the clear above so a stale
-        # system default is removed before the operator's env value seeds
-        # it, in the same boot. _seed_default_settings never reaches these
-        # keys on a fresh DB: _run_env_backed_settings_migration above
-        # already inserted rows for other keys, so the settings-table-empty
-        # check in _migrate_from_json is false by the time it runs.
+        # Per-boot, not schema_migrations-gated: seeds an absent model row
+        # from OPENAI_MODEL, run after the clear above so a stale default is
+        # removed and reseeded in the same boot.
         try:
             self._seed_model_settings_from_env(conn)
         except Exception as e:
@@ -1864,13 +1860,10 @@ class SchemaMixin:
     def _run_clear_seeded_model_defaults(self, conn):
         """One-time clear of system-seeded model settings (2.86.3).
 
-        Before resolvers required an explicit model, `claude_model`,
-        `verification_model` and `chapters_model` could be seeded with a
-        hardcoded model id that later goes stale. DELETE only rows still
-        flagged `is_default = 1`; a row the operator chose (`is_default = 0`)
-        is never touched. Clearing leaves the setting unset, so the operator
-        gets the actionable `ModelNotConfiguredError` instead of the old
-        model returning a provider 404 forever.
+        DELETEs claude_model/verification_model/chapters_model rows still
+        flagged is_default=1 so a stale shipped id becomes unconfigured
+        instead of 404ing forever; operator-chosen rows (is_default=0) are
+        untouched.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'clear_seeded_model_defaults'"
@@ -1899,11 +1892,9 @@ class SchemaMixin:
     def _seed_model_settings_from_env(self, conn):
         """Seed an absent model row from OPENAI_MODEL (2.86.3).
 
-        Not schema_migrations-gated: a row can go absent again later via
-        reset or the provider prune, so this must re-check every boot. An
-        absent row means nobody has configured the model, so the operator's
-        env var is the declared intent; a present row (either is_default
-        value) is never touched.
+        Runs every boot, not just once: a row can go absent again via reset
+        or the provider prune. A present row, either is_default value, is
+        never touched.
         """
         env_model = os.environ.get('OPENAI_MODEL')
         if not env_model:

@@ -122,7 +122,7 @@ function AIModelsSection({
           value: selectedModel,
           onChange: onSelectedModelChange,
           description:
-            'Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds the initial value on first startup.',
+            'Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds this value while it is unset.',
         })}
 
         {renderModelSelect({

@@ -204,19 +204,15 @@ class TestBootLogsMissingModelSettings:
 
 
 class TestDetectAdsFirstPassPreservesModelNotConfiguredType:
-    """Regression: the real pipeline seam (_detect_ads_first_pass converting
-    ad_detector's failure dict into a raised exception) must not downgrade a
-    model-not-configured failure to a bare Exception. A bare Exception hits
-    the "assume transient for unknown errors" default in is_transient_error
-    and burns the full retry ladder before permanently_failed -- exactly what
-    ModelNotConfiguredError must never do."""
+    """Regression: _detect_ads_first_pass must not downgrade a
+    model-not-configured failure to a bare Exception, which is_transient_error
+    treats as transient and retries to exhaustion instead of failing fast."""
 
     SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
 
     def _run_first_pass(self, ad_result):
         """Drive the real _detect_ads_first_pass with only ad_detector/db/
-        storage/status_service stubbed, exactly like ad_detector.detect_ads()
-        would hand back a genuine ModelNotConfiguredError failure."""
+        storage/status_service stubbed."""
         ctx = EpisodeContext(slug='model-not-configured-seam-feed',
                              episode_id='ep-1', podcast_id='1')
         with ExitStack() as stack:

@@ -17,7 +17,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL. Override for private proxies or regional endpoints. |
 | `ANTHROPIC_BASE_URL` | _(anthropic default)_ | Anthropic API base URL. Override for private proxies. |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
-| `OPENAI_MODEL` | _(none)_ | Seed model for OpenAI-compatible/Ollama/OpenRouter providers. **Required for Ollama** (e.g. `qwen3:14b`). Defaults to `claude-sonnet-4-5-20250929` for openai-compatible if unset. Seed-only: read once on first startup; after that the stored value wins, so change the model in the Settings UI. There is no `LLM_MODEL` variable. |
+| `OPENAI_MODEL` | _(none)_ | Model id that seeds `claude_model`, `verification_model`, and `chapters_model` whenever one of those settings is unset. No shipped default exists: **required for Ollama** (e.g. `qwen3:14b`) and needed for OpenAI-compatible/OpenRouter unless you pick a model in Settings > AI models instead. Once a setting has a stored value the env var no longer touches it. Processing fails with a message pointing at Settings > AI models until every model setting is configured. There is no `LLM_MODEL` variable. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
 | `WHISPER_MODEL` | `small` | Whisper model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |

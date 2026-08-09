@@ -134,10 +134,9 @@ class SettingSpec:
     env:            env var consulted by registry_default() before `default`.
     env_blank_is_unset: `os.environ.get(env) or default` semantics (a blank
                     env value falls through to `default`).
-    factory:        lazy default (prompt constants, operator env models);
-                    wins over env/default. A factory returning None (unset
-                    model keys) is skipped at seed time and clears the row
-                    at reset time instead of writing a default.
+    factory:        lazy default (prompts, operator env models); wins over
+                    env/default. Returning None skips seeding and clears
+                    the row at reset instead of writing a default.
     reset_factory:  reset-time override when reset must differ from the
                     seed-time default (e.g. env-backed transcription timeouts
                     that re-read the env var at reset).
@@ -610,9 +609,8 @@ def registry_get_default(key: str) -> Any:
 def iter_seed_defaults():
     """(key, value) pairs for schema seeding, in registry order.
 
-    A None default (unset model keys with no operator env value) is
-    skipped: the settings.value column is NOT NULL, and an absent row is
-    the correct "unconfigured" state anyway.
+    Skips a None default (unset model keys): the value column is NOT NULL,
+    and an absent row is the correct unconfigured state.
     """
     result = []
     for key, spec in SETTINGS_REGISTRY.items():

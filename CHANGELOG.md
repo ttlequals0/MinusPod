@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.86.3] - 2026-08-09
 
 ### Added
 
@@ -54,6 +54,15 @@ release notes.
 
 ### Fixed
 
+- An install carrying a system-written model id from the old
+  hardcoded-default seeding is cleared to unconfigured on upgrade, so it
+  fails with an actionable message instead of looping on a provider 404.
+- Model settings now seed from `OPENAI_MODEL` whenever a row is absent.
+  The previous seed path only fired on an empty settings table, which
+  never happened in practice because schema migrations always populate
+  other rows first.
+- An unrecognized `LLM_PROVIDER` value is rejected with a warning instead
+  of being written into the stored setting verbatim.
 - Cross-model agreement chart was unreadable at 75 models: every integer
   got an x tick so the labels ran together, and the two-line bar labels
   overlapped each other. Ticks now thin out to about 25 across any
