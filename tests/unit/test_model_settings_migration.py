@@ -141,7 +141,6 @@ class TestClearSeededModelDefaults:
 
 class TestProviderAdoption:
     def test_env_set_and_differs_and_is_default_adopts(self, db, monkeypatch):
-        monkeypatch.setenv('LLM_PROVIDER', 'anthropic')
         monkeypatch.setenv('LLM_PROVIDER', 'openai-compatible')
 
         db._run_schema_migrations()
