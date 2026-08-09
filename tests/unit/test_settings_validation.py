@@ -388,8 +388,9 @@ class TestProviderChangeModelPruning:
 
     def test_populated_catalog_still_prunes_stale_selections(self, client):
         """The prune is the original feature -- a model not in the new
-        provider's catalog still gets reset. Regression guard so the empty-
-        list fix above does not over-correct into never-pruning."""
+        provider's catalog still gets cleared (unset, not rewritten to a
+        literal). Regression guard so the empty-list fix above does not
+        over-correct into never-pruning."""
         db = database.Database()
         db.set_setting('llm_provider', 'anthropic', is_default=False)
         db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
@@ -407,7 +408,7 @@ class TestProviderChangeModelPruning:
                 content_type='application/json',
             )
         assert response.status_code == 200, response.data
-        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('claude_model') is None
         assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
 
 

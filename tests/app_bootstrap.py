@@ -20,14 +20,9 @@ Notes:
   Storage() call constructs one rooted at the new data dir. Off by default
   because modules that never re-instantiate Storage should keep whatever
   instance an earlier module's main_app import created.
-- model_env sets OPENAI_MODEL so a DB seeded during a test run gets a model
-  the same way a real operator install would, mirroring the SECRET_KEY
-  setdefault (first bootstrap() call in the session wins, same as it does for
-  SECRET_KEY). Pass model_env=None to opt out for a test that specifically
-  wants an unconfigured install; note the env var may already be set by an
-  earlier module in the same session, so an unconfigured test should also
-  clear/monkeypatch it or use ensure_model_configured()'s inverse (set the
-  DB setting directly) rather than relying on opt-out alone.
+- model_env sets OPENAI_MODEL so a seeded DB gets a model, mirroring the
+  SECRET_KEY setdefault (first bootstrap() call wins). Pass model_env=None
+  to opt out; the env var may persist from an earlier module regardless.
 """
 import atexit
 import os
@@ -76,13 +71,10 @@ def bootstrap(prefix, secret_key='test-secret', passphrase=None,
 
 
 def ensure_model_configured(db, model='test-model'):
-    """Write claude_model directly so get_model()/get_verification_model()/
-    get_chapters_model() resolve instead of raising ModelNotConfiguredError.
+    """Ensure claude_model is set so model resolvers do not raise.
 
-    claude_model is never auto-seeded (not even from OPENAI_MODEL -- it has
-    no seed factory), so bootstrap()'s env var alone does not cover it. Call
-    this on any real Database a test's code path reaches, once the DB is
-    constructed (schema seeding, if any, has already run by then).
+    No-op if already seeded from OPENAI_MODEL; call after DB construction
+    for a path (e.g. temp_db) that may not have OPENAI_MODEL in its env.
     """
     if not db.get_setting('claude_model'):
         db.set_setting('claude_model', model, is_default=True)

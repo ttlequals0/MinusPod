@@ -52,7 +52,6 @@ SEED_SNAPSHOT = {
     'audio_normalize_intensity': 'normal',
     'auto_process_enabled': 'true',
     'chapters_enabled': 'true',
-    'chapters_model': 'claude-haiku-4-5-20251001',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
     'process_new_episodes_first': '1',
@@ -88,7 +87,6 @@ SEED_SNAPSHOT = {
     'transition_threshold_db': '3.5',
     'verification_miss_autocut_min_confidence': '0',
     'verification_miss_hold_min_confidence': '0.60',
-    'verification_model': 'claude-sonnet-4-5-20250929',
     'verification_prompt': ('sha256', 'd806d3afc4c443cbac88157cb78b934b4b3f0d72587326485156e5168cd09a7b'),
     'volume_threshold_db': '3.0',
     'vtt_transcripts_enabled': 'true',
@@ -208,6 +206,29 @@ class TestSeedSnapshot:
             assert is_default == 1, f"{key} seeded with is_default={is_default}"
             _assert_value(key, value, expected)
 
+    def test_seed_with_openai_model_env_populates_model_keys(
+            self, temp_db, clean_env, monkeypatch):
+        monkeypatch.setenv('OPENAI_MODEL', 'gpt-5-mini')
+        conn = temp_db.get_connection()
+        conn.execute("DELETE FROM settings")
+        conn.commit()
+        temp_db._seed_default_settings(conn)
+        rows = _settings_rows(temp_db)
+
+        for key in ('claude_model', 'verification_model', 'chapters_model'):
+            assert rows[key] == ('gpt-5-mini', 1), f"{key}: {rows[key]!r}"
+
+    def test_seed_without_openai_model_env_leaves_model_keys_unset(
+            self, temp_db, clean_env):
+        conn = temp_db.get_connection()
+        conn.execute("DELETE FROM settings")
+        conn.commit()
+        temp_db._seed_default_settings(conn)
+        rows = _settings_rows(temp_db)
+
+        for key in ('claude_model', 'verification_model', 'chapters_model'):
+            assert key not in rows, f"{key} unexpectedly seeded: {rows.get(key)!r}"
+
     def test_fresh_db_init_registry_rows(self, clean_env, tmp_path):
         # On a fresh full init, migrations run before _migrate_from_json, so
         # env-backed and reviewer keys are inserted by migrations and the
@@ -267,8 +288,6 @@ class TestResetSetting:
             'silence_snap_noise_db': '-50.0',
             'pricing_source_mode': 'auto',
             'transcribe_max_chunk_seconds': '600',
-            'claude_model': 'claude-sonnet-4-5-20250929',
-            'chapters_model': 'claude-haiku-4-5-20251001',
         }
         for key, value in expected.items():
             temp_db.set_setting(key, 'customized', is_default=False)
@@ -276,6 +295,18 @@ class TestResetSetting:
             rows = _settings_rows(temp_db)
             assert rows[key] == (value, 1), (
                 f"{key}: {rows[key]!r} != {(value, 1)!r}")
+
+    def test_reset_model_key_clears_row_without_env(self, temp_db, clean_env):
+        for key in ('claude_model', 'verification_model', 'chapters_model'):
+            temp_db.set_setting(key, 'openai/gpt-stale', is_default=False)
+            assert temp_db.reset_setting(key) is True
+            assert temp_db.get_setting(key) is None
+
+    def test_reset_model_key_uses_env_when_set(self, temp_db, clean_env, monkeypatch):
+        monkeypatch.setenv('OPENAI_MODEL', 'gpt-5-mini')
+        temp_db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
+        assert temp_db.reset_setting('claude_model') is True
+        assert temp_db.get_setting('claude_model') == 'gpt-5-mini'
 
     def test_reset_prompt_restores_default_text(self, temp_db, clean_env):
         temp_db.set_setting('system_prompt', 'my prompt', is_default=False)

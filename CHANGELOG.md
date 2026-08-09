@@ -34,6 +34,14 @@ release notes.
 
 ### Changed
 
+- **Breaking:** `claude_model`, `verification_model`, and `chapters_model`
+  no longer seed or reset to a hardcoded literal. They seed from
+  `OPENAI_MODEL` when the operator has set it and stay unset otherwise;
+  resetting one (individually, via a provider change, or via the bulk
+  ad-detection reset) clears it back to unset instead of writing a shipped
+  default. An install that relied on the old shipped default must
+  configure a model explicitly in Settings (or via `OPENAI_MODEL`) after
+  any of those resets.
 - `docs/llm-providers.md` model recommendations refreshed from the 2026-08
   sweep, including a note on provider-side content moderation.
 

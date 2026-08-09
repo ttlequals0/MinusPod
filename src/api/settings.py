@@ -1123,10 +1123,10 @@ def _apply_provider_fields(db, data):
                 current = db.get_setting(setting_key)
                 if current and current not in advertised:
                     logger.info(
-                        "Resetting %s='%s' on provider change: not advertised by new provider",
+                        "Clearing %s='%s' on provider change: not advertised by new provider",
                         setting_key, current,
                     )
-                    db.reset_setting(setting_key)
+                    db.clear_setting(setting_key)
         else:
             logger.warning(
                 "Skipping model prune after provider change: new provider's "

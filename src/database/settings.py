@@ -8,7 +8,6 @@ from config import (
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
     coerce_bool_setting, get_env_backed_int,
     STAGE_TUNABLE_DEFAULTS,
-    PROVIDER_ANTHROPIC,
     DEFAULT_OPENAI_BASE_URL,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -98,42 +97,8 @@ def _default_chapter_prompt() -> str:
 
 
 def _seed_env_openai_model() -> Optional[str]:
-    """OPENAI_MODEL when the *env-configured* provider is non-Anthropic.
-
-    Seed-time only: the settings table is empty when seeding runs, so the
-    provider can only come from the environment.
-    """
-    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    return os.environ.get('OPENAI_MODEL') if provider != 'anthropic' else None
-
-
-def _seed_detection_model() -> str:
-    # No shipped default (Task 1 of the require-explicit-models plan); the
-    # registry restructuring that removes the empty-string placeholder is Task 2.
-    return _seed_env_openai_model() or ''
-
-
-def _seed_chapters_model() -> str:
-    return _seed_env_openai_model() or ''
-
-
-def _reset_detection_model() -> str:
-    """Provider-aware default at reset time (effective provider reads DB)."""
-    from llm_client import get_effective_provider
-    if get_effective_provider() != PROVIDER_ANTHROPIC:
-        return os.environ.get('OPENAI_MODEL') or ''
-    return ''
-
-
-def _reset_chapters_model() -> str:
-    from llm_client import get_effective_provider
-    if get_effective_provider() != PROVIDER_ANTHROPIC:
-        return os.environ.get('OPENAI_MODEL') or ''
-    return ''
-
-
-def _payload_chapters_model() -> str:
-    return ''
+    """OPENAI_MODEL when the operator has set it; no shipped fallback."""
+    return os.environ.get('OPENAI_MODEL')
 
 
 def _payload_max_artwork_bytes() -> int:
@@ -169,11 +134,13 @@ class SettingSpec:
     env:            env var consulted by registry_default() before `default`.
     env_blank_is_unset: `os.environ.get(env) or default` semantics (a blank
                     env value falls through to `default`).
-    factory:        lazy default (prompt constants, provider-aware models);
-                    wins over env/default.
+    factory:        lazy default (prompt constants, operator env models);
+                    wins over env/default. A factory returning None (unset
+                    model keys) is skipped at seed time and clears the row
+                    at reset time instead of writing a default.
     reset_factory:  reset-time override when reset must differ from the
-                    seed-time default (e.g. provider-aware model defaults
-                    read the DB-effective provider at reset).
+                    seed-time default (e.g. env-backed transcription timeouts
+                    that re-read the env var at reset).
     secret:         reset clears via clear_secret (SECRET_SETTING_KEYS).
     stage_tunable:  reset clears the row; DB > env > default at read time.
     env_backed:     ENV_BACKED_SETTINGS owns the default (env var, fallback,
@@ -240,19 +207,16 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'resurrect_prompt_override': SettingSpec(resettable=False),
     'chapter_prompt_override': SettingSpec(resettable=False),
 
-    # -- Models --
+    # -- Models: no shipped default, seed/reset only from operator env --
     'claude_model': SettingSpec(
-        reset_factory=_reset_detection_model, in_ad_reset=True,
-        payload_key='claudeModel',
-        payload_factory=lambda: ''),
+        factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
+        payload_key='claudeModel', payload_kind='str', default=None),
     'verification_model': SettingSpec(
-        factory=_seed_detection_model, reset_factory=_reset_detection_model,
-        seeded=True, in_ad_reset=True, payload_key='verificationModel',
-        payload_factory=lambda: ''),
+        factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
+        payload_key='verificationModel', payload_kind='str', default=None),
     'chapters_model': SettingSpec(
-        factory=_seed_chapters_model, reset_factory=_reset_chapters_model,
-        seeded=True, in_ad_reset=True, payload_key='chaptersModel',
-        payload_factory=_payload_chapters_model),
+        factory=_seed_env_openai_model, seeded=True, in_ad_reset=True,
+        payload_key='chaptersModel', payload_kind='str', default=None),
 
     # -- Ad reviewer (seeded; only the prompts are resettable) --
     'enable_ad_review': SettingSpec(
@@ -644,9 +608,21 @@ def registry_get_default(key: str) -> Any:
 
 
 def iter_seed_defaults():
-    """(key, value) pairs for schema seeding, in registry order."""
-    return [(key, registry_default(key))
-            for key, spec in SETTINGS_REGISTRY.items() if spec.seeded]
+    """(key, value) pairs for schema seeding, in registry order.
+
+    A None default (unset model keys with no operator env value) is
+    skipped: the settings.value column is NOT NULL, and an absent row is
+    the correct "unconfigured" state anyway.
+    """
+    result = []
+    for key, spec in SETTINGS_REGISTRY.items():
+        if not spec.seeded:
+            continue
+        value = registry_default(key)
+        if value is None:
+            continue
+        result.append((key, value))
+    return result
 
 
 def iter_refreshable_defaults():
@@ -711,13 +687,21 @@ class SettingsMixin:
         )
         conn.commit()
 
+    def clear_setting(self, key: str):
+        """Delete a setting row outright so it reads as unset."""
+        conn = self.get_connection()
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        conn.commit()
+
     def reset_setting(self, key: str):
         """Reset a setting to its default value (SETTINGS_REGISTRY-driven).
 
         Secret keys (provider api keys) get DELETEd so the env-var
         fallback in ``llm_client`` takes over. Writing an empty-string
         row would leave a residue that reads as "configured but empty"
-        and also trips the plaintext-secret read warning.
+        and also trips the plaintext-secret read warning. Model keys with
+        no operator env value resolve to None and are DELETEd the same way,
+        instead of writing a shipped literal.
         """
         spec = SETTINGS_REGISTRY.get(key)
         if spec is None or not spec.resettable:
@@ -738,6 +722,9 @@ class SettingsMixin:
         # env_backed keys fall through: registry_default() resolves them via
         # resolve_env_backed_default (they carry no reset_factory).
         value = spec.reset_factory() if spec.reset_factory else registry_default(key)
+        if value is None:
+            self.clear_setting(key)
+            return True
         self.set_setting(key, value, is_default=True)
         return True
 
@@ -788,9 +775,7 @@ class SettingsMixin:
         row leaves no residue for an inquisitive attacker who somehow got
         read access to the ``settings`` table but not the ciphertext.
         """
-        conn = self.get_connection()
-        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
-        conn.commit()
+        self.clear_setting(key)
 
     # ========== System Settings Methods (for schema versioning) ==========
 
