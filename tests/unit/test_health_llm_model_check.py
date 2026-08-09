@@ -1,4 +1,4 @@
-"""Tests for /health surfacing whether a detection model is configured (#4)."""
+"""Tests for /health surfacing whether a detection model is configured."""
 from unittest.mock import MagicMock, patch
 
 import pytest

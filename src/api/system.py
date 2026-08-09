@@ -75,7 +75,7 @@ def health_check():
 
     status = 'healthy' if all(checks.values()) else 'unhealthy'
 
-    # Visible but never gates readiness -- an instance with no model
+    # Visible but never gates readiness: an instance with no model
     # configured still serves already-processed feeds.
     try:
         checks['llm_model_configured'] = bool(db.get_setting('claude_model'))

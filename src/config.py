@@ -1238,11 +1238,14 @@ PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
 class ModelNotConfiguredError(ValueError):
     """Raised when a resolver has no configured model to return."""
 
-    def __init__(self, setting_key: str):
-        super().__init__(
+    def __init__(self, setting_key: str, message: Optional[str] = None):
+        # message: reconstructs this type after it crossed a dict boundary
+        # (e.g. ad_detector's failure response) with the original text intact.
+        self.setting_key = setting_key
+        super().__init__(message or (
             f"No model configured for {setting_key}. Set it in Settings > "
             "AI models, or set OPENAI_MODEL before first start."
-        )
+        ))
 
 
 # ============================================================

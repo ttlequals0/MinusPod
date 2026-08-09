@@ -740,6 +740,12 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             # of re-classifying the stringified 429 text as transient (#491).
             db.upsert_episode(slug, episode_id, ad_detection_status='failed')
             raise LimitExceededError(f"Ad detection failed: {error_msg}")
+        if ad_result.get('model_not_configured'):
+            # Typed so is_transient_error sees ModelNotConfiguredError instead of
+            # a bare Exception, which defaults to transient and burns the retry
+            # ladder. error_msg is already the exact resolver message.
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
+            raise ModelNotConfiguredError('claude_model', error_msg)
         # Degraded continue: a transient, non-auth failure that still left
         # pattern/cross-fetch markers publishes those instead of failing the
         # episode. Auth-class failures and zero markers still raise.

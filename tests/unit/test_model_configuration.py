@@ -1,4 +1,5 @@
 """Tests for model resolvers requiring an explicit configured model (no hardcoded default)."""
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,7 +11,8 @@ from ad_detector import AdDetector
 import chapters_generator
 from config import MAX_EPISODE_RETRIES, ModelNotConfiguredError
 from llm_client import is_retryable_error
-from main_app import db
+from main_app import db, processing
+from main_app.episode_context import EpisodeContext
 from main_app.processing import _handle_processing_failure, is_transient_error
 
 
@@ -199,3 +201,57 @@ class TestBootLogsMissingModelSettings:
         with caplog.at_level(logging.ERROR, logger='podcast.app'):
             _log_missing_model_settings(stub_db)
         assert not [r for r in caplog.records if r.levelno == logging.ERROR]
+
+
+class TestDetectAdsFirstPassPreservesModelNotConfiguredType:
+    """Regression: the real pipeline seam (_detect_ads_first_pass converting
+    ad_detector's failure dict into a raised exception) must not downgrade a
+    model-not-configured failure to a bare Exception. A bare Exception hits
+    the "assume transient for unknown errors" default in is_transient_error
+    and burns the full retry ladder before permanently_failed -- exactly what
+    ModelNotConfiguredError must never do."""
+
+    SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
+
+    def _run_first_pass(self, ad_result):
+        """Drive the real _detect_ads_first_pass with only ad_detector/db/
+        storage/status_service stubbed, exactly like ad_detector.detect_ads()
+        would hand back a genuine ModelNotConfiguredError failure."""
+        ctx = EpisodeContext(slug='model-not-configured-seam-feed',
+                             episode_id='ep-1', podcast_id='1')
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+            ad_detector_mock = p(processing, 'ad_detector')
+            p(processing, 'db')
+            p(processing, 'storage')
+            p(processing, 'status_service')
+            ad_detector_mock.process_transcript.return_value = ad_result
+            processing._detect_ads_first_pass(
+                ctx, self.SEGMENTS, '/tmp/ep.mp3', skip_patterns=False,
+                audio_analysis_result=None, progress_callback=None,
+            )
+
+    def test_reproduction_through_the_real_seam(self, seeded_model_episode):
+        resolver_error = ModelNotConfiguredError('claude_model')
+        ad_result = {'status': 'failed', 'error': str(resolver_error), 'ads': [],
+                     'model_not_configured': True, 'retryable': False,
+                     'detection_stats': {}}
+
+        with pytest.raises(ModelNotConfiguredError) as exc_info:
+            self._run_first_pass(ad_result)
+
+        # (a) the raised type survives the dict-to-exception conversion.
+        assert exc_info.type is ModelNotConfiguredError
+        assert str(exc_info.value) == str(resolver_error)
+        # (b) that type classifies as permanent, not "unknown -> transient".
+        assert is_transient_error(exc_info.value) is False
+
+        # (c) the real failure handler must not burn the retry ladder.
+        episode_data = db.get_episode(MODEL_RETRY_SLUG, seeded_model_episode)
+        with patch('main_app.processing.status_service'):
+            _handle_processing_failure(MODEL_RETRY_SLUG, seeded_model_episode, 'Episode 1',
+                                       'Model Retry Budget Test', episode_data,
+                                       exc_info.value, start_time=0.0)
+        episode = db.get_episode(MODEL_RETRY_SLUG, seeded_model_episode)
+        assert episode['retry_count'] == MAX_EPISODE_RETRIES - 1  # unchanged
+        assert episode['status'] == 'permanently_failed'
