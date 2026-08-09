@@ -1364,7 +1364,7 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"artwork re-download priming failed: {e}")
 
-        # One-shot clear of system-seeded model defaults (2.86.3): a stale
+        # One-shot clear of system-seeded model defaults (2.86.4): a stale
         # model id written by the old hardcoded-default seeding logic must
         # not survive into the new require-explicit-model contract.
         try:
@@ -1858,7 +1858,7 @@ class SchemaMixin:
         )
 
     def _run_clear_seeded_model_defaults(self, conn):
-        """One-time clear of unusable system-seeded model settings (2.86.3).
+        """One-time clear of unusable system-seeded model settings (2.86.4).
 
         Only clears a shipped Anthropic id left on a non-Anthropic provider,
         which can never resolve. A working default is left alone.
@@ -1897,7 +1897,7 @@ class SchemaMixin:
         )
 
     def _seed_model_settings_from_env(self, conn):
-        """Seed an absent model row from OPENAI_MODEL (2.86.3).
+        """Seed an absent model row from OPENAI_MODEL (2.86.4).
 
         Runs every boot, not just once: a row can go absent again via reset
         or the provider prune. A present row, either is_default value, is

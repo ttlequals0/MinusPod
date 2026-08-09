@@ -1,4 +1,4 @@
-"""Tests for the 2.86.3 model-settings migrations: clearing system-seeded
+"""Tests for the 2.86.4 model-settings migrations: clearing system-seeded
 model defaults on upgrade, and validated LLM_PROVIDER adoption."""
 import logging
 
