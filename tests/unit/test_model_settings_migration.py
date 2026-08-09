@@ -56,7 +56,11 @@ def _clear_gate(db, name):
 
 
 class TestClearSeededModelDefaults:
-    def test_seeded_row_is_deleted(self, db):
+    def test_seeded_row_is_deleted(self, db, monkeypatch):
+        # No OPENAI_MODEL here: isolates the clear from the separate
+        # per-boot env-seed step, which would otherwise refill the row it
+        # just emptied (see TestSeedModelSettingsFromEnv for that behavior).
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
         _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
 
@@ -76,7 +80,8 @@ class TestClearSeededModelDefaults:
         assert row['value'] == 'claude-opus-4-6'
         assert row['is_default'] == 0
 
-    def test_all_three_keys_cleared_when_seeded(self, db):
+    def test_all_three_keys_cleared_when_seeded(self, db, monkeypatch):
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
         for key in MODEL_KEYS:
             _set_row(db, key, 'stale-model-id', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
@@ -100,7 +105,8 @@ class TestClearSeededModelDefaults:
         finally:
             Database._instance = None
 
-    def test_idempotent_second_run_does_not_clear_a_row_set_in_between(self, db):
+    def test_idempotent_second_run_does_not_clear_a_row_set_in_between(self, db, monkeypatch):
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
         _set_row(db, 'claude_model', 'stale-model-id', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
         db._run_schema_migrations()
@@ -170,3 +176,66 @@ class TestProviderAdoption:
         row = _row(db, 'llm_provider')
         assert row['value'] == 'ollama'
         assert row['is_default'] == 0
+
+
+class TestSeedModelSettingsFromEnv:
+    """Fresh-install regression: _migrate_from_json's seed gate never fires
+    because _run_schema_migrations already inserts env-backed rows first, so
+    an absent model row must be seeded from OPENAI_MODEL directly."""
+
+    def test_fresh_db_with_openai_model_seeds_all_three(self, tmp_path, monkeypatch):
+        monkeypatch.setenv('OPENAI_MODEL', 'operator-env-model')
+        Database._instance = None
+        fresh_db = Database(data_dir=str(tmp_path))
+        try:
+            for key in MODEL_KEYS:
+                assert fresh_db.get_setting(key) == 'operator-env-model'
+        finally:
+            Database._instance = None
+
+    def test_fresh_db_without_openai_model_leaves_all_three_absent(self, tmp_path, monkeypatch):
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
+        Database._instance = None
+        fresh_db = Database(data_dir=str(tmp_path))
+        try:
+            for key in MODEL_KEYS:
+                assert fresh_db.get_setting(key) is None
+        finally:
+            Database._instance = None
+
+    def test_stale_row_is_cleared_then_reseeded_from_env_same_boot(self, db, monkeypatch):
+        _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
+        _clear_gate(db, 'clear_seeded_model_defaults')
+        monkeypatch.setenv('OPENAI_MODEL', 'operator-env-model')
+
+        db._run_schema_migrations()
+
+        row = _row(db, 'claude_model')
+        assert row['value'] == 'operator-env-model'
+        assert row['is_default'] == 1
+
+    def test_operator_set_row_never_overridden(self, db, monkeypatch):
+        _set_row(db, 'claude_model', 'operator-choice', is_default=False)
+        monkeypatch.setenv('OPENAI_MODEL', 'a-different-env-model')
+
+        db._run_schema_migrations()
+
+        row = _row(db, 'claude_model')
+        assert row['value'] == 'operator-choice'
+        assert row['is_default'] == 0
+
+    def test_idempotent_across_two_runs(self, db, monkeypatch):
+        # Row absent (e.g. after a provider prune), not the fixture's
+        # already-seeded row: a present row is never touched by this step,
+        # so re-seeding it is not what idempotency means here.
+        conn = db.get_connection()
+        conn.execute("DELETE FROM settings WHERE key = 'claude_model'")
+        conn.commit()
+        monkeypatch.setenv('OPENAI_MODEL', 'operator-env-model')
+
+        db._run_schema_migrations()
+        first = _row(db, 'claude_model')['value']
+        db._run_schema_migrations()
+        second = _row(db, 'claude_model')['value']
+
+        assert first == second == 'operator-env-model'

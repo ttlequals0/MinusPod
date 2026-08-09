@@ -1373,6 +1373,19 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"seeded model defaults clear failed: {e}")
 
+        # Per-boot (not schema_migrations-gated): seed a still-absent model
+        # row from OPENAI_MODEL. Must run after the clear above so a stale
+        # system default is removed before the operator's env value seeds
+        # it, in the same boot. _seed_default_settings never reaches these
+        # keys on a fresh DB: _run_env_backed_settings_migration above
+        # already inserted rows for other keys, so the settings-table-empty
+        # check in _migrate_from_json is false by the time it runs.
+        try:
+            self._seed_model_settings_from_env(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"model settings env seed failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1882,6 +1895,35 @@ class SchemaMixin:
             "Migration: cleared seeded model defaults for %s",
             ", ".join(cleared) if cleared else "none (nothing to clear)",
         )
+
+    def _seed_model_settings_from_env(self, conn):
+        """Seed an absent model row from OPENAI_MODEL (2.86.3).
+
+        Not schema_migrations-gated: a row can go absent again later via
+        reset or the provider prune, so this must re-check every boot. An
+        absent row means nobody has configured the model, so the operator's
+        env var is the declared intent; a present row (either is_default
+        value) is never touched.
+        """
+        env_model = os.environ.get('OPENAI_MODEL')
+        if not env_model:
+            return
+
+        seeded = []
+        for key in ('claude_model', 'verification_model', 'chapters_model'):
+            cur = conn.execute(
+                """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+                   ON CONFLICT(key) DO NOTHING""",
+                (key, env_model),
+            )
+            if cur.rowcount:
+                seeded.append(key)
+
+        if seeded:
+            conn.commit()
+            logger.info(
+                "Seeded %s from OPENAI_MODEL (row was absent)", ", ".join(seeded)
+            )
 
     def _run_reset_legacy_skip_second_pass(self, conn):
         """One-time reset of `podcasts.skip_second_pass` values from the old column.
