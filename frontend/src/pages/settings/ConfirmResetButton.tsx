@@ -11,6 +11,9 @@ interface ConfirmResetButtonProps {
   // used when there's nothing to reset, e.g. a prompt already at default.
   disabled?: boolean;
   title?: string;
+  // Consequence shown as visible text while armed, for touch users who never
+  // see a title tooltip.
+  confirmHint?: string;
 }
 
 // Two-click destructive reset (issue #513): the first click arms the button
@@ -19,6 +22,7 @@ interface ConfirmResetButtonProps {
 // secondary-background text.
 function ConfirmResetButton({
   label, isPending = false, onConfirm, size = 'default', disabled = false, title,
+  confirmHint,
 }: ConfirmResetButtonProps) {
   const [armed, setArmed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,7 +31,7 @@ function ConfirmResetButton({
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  return (
+  const button = (
     <button
       type="button"
       title={title}
@@ -52,6 +56,14 @@ function ConfirmResetButton({
     >
       {isPending ? 'Resetting...' : armed ? 'Click again to confirm' : label}
     </button>
+  );
+
+  if (!confirmHint) return button;
+  return (
+    <div className="flex flex-col gap-1">
+      {button}
+      {armed && <p className="text-xs text-muted-foreground">{confirmHint}</p>}
+    </div>
   );
 }
 

@@ -1169,6 +1169,7 @@ function Settings() {
             <ConfirmResetButton
               label="Reset All"
               title="Also clears your AI model choices, which you will need to pick again."
+              confirmHint="Also clears your AI model choices, which you will need to pick again."
               isPending={resetMutation.isPending}
               onConfirm={() => resetMutation.mutate()}
             />

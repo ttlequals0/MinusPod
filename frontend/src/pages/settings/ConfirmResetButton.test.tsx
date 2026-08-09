@@ -47,4 +47,24 @@ describe('ConfirmResetButton', () => {
     fireEvent.click(btn);
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  it('shows the consequence as visible text only while armed', () => {
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmResetButton
+        label="Reset All"
+        isPending={false}
+        onConfirm={onConfirm}
+        confirmHint="Also clears your AI model choices, which you will need to pick again."
+      />
+    );
+    const hint = 'Also clears your AI model choices, which you will need to pick again.';
+    expect(screen.queryByText(hint)).toBeNull();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText(hint)).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(3100);
+    });
+    expect(screen.queryByText(hint)).toBeNull();
+  });
 });
