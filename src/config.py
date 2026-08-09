@@ -1233,10 +1233,17 @@ PROVIDER_OLLAMA = 'ollama'
 PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
 
 # ============================================================
-# Default LLM Models
+# Model Configuration Errors
 # ============================================================
-DEFAULT_AD_DETECTION_MODEL = "claude-sonnet-4-5-20250929"
-DEFAULT_CHAPTERS_MODEL = "claude-haiku-4-5-20251001"
+class ModelNotConfiguredError(ValueError):
+    """Raised when a resolver has no configured model to return."""
+
+    def __init__(self, setting_key: str):
+        super().__init__(
+            f"No model configured for {setting_key}. Set it in Settings > "
+            "AI models, or set OPENAI_MODEL before first start."
+        )
+
 
 # ============================================================
 # User-Agent Strings

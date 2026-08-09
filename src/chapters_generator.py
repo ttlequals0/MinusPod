@@ -4,8 +4,8 @@ import math
 import re
 from typing import List, Dict, Optional, Tuple
 
-from config import DEFAULT_CHAPTERS_MODEL as _DEFAULT_CHAPTERS_MODEL
 from config import (
+    ModelNotConfiguredError,
     normalize_segment_category, resolve_chapter_geometry,
     resolve_stage_tunables,
 )
@@ -16,8 +16,7 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    get_llm_timeout, get_llm_max_retries, get_effective_provider,
-    PROVIDER_ANTHROPIC,
+    get_llm_timeout, get_llm_max_retries,
 )
 from utils.llm_call import call_llm
 
@@ -166,13 +165,8 @@ def _format_hints_block(hints: List[Dict]) -> str:
     )
 
 
-# Default model for chapter generation tasks (titles, topic detection, splitting).
-# Uses Haiku for cost efficiency -- these are simple classification/generation tasks.
-CHAPTERS_MODEL = _DEFAULT_CHAPTERS_MODEL
-
-
 def get_chapters_model() -> str:
-    """Get configured chapters model from database or fall back to default."""
+    """Get configured chapters model from database, else the detection model, else raise."""
     try:
         db = Database()
 
@@ -180,17 +174,14 @@ def get_chapters_model() -> str:
         if model:
             return model
 
-        # Provider-aware fallback: use the primary detection model for non-Anthropic providers
-        # (Ollama doesn't have Anthropic model names like claude-haiku-4-5-20251001)
-        provider = get_effective_provider()
-        if provider != PROVIDER_ANTHROPIC:
-            primary_model = db.get_setting('claude_model')
-            if primary_model:
-                return primary_model
+        # Reuse the configured detection model: correct for every provider.
+        primary_model = db.get_setting('claude_model')
+        if primary_model:
+            return primary_model
     except Exception as e:
         logger.warning(f"Could not load chapters model from DB: {e}")
 
-    return CHAPTERS_MODEL
+    raise ModelNotConfiguredError('chapters_model')
 
 
 class ChaptersGenerator:

@@ -8,7 +8,7 @@ from config import (
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
     coerce_bool_setting, get_env_backed_int,
     STAGE_TUNABLE_DEFAULTS,
-    DEFAULT_AD_DETECTION_MODEL, PROVIDER_ANTHROPIC,
+    PROVIDER_ANTHROPIC,
     DEFAULT_OPENAI_BASE_URL,
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -108,33 +108,32 @@ def _seed_env_openai_model() -> Optional[str]:
 
 
 def _seed_detection_model() -> str:
-    return _seed_env_openai_model() or DEFAULT_AD_DETECTION_MODEL
+    # No shipped default (Task 1 of the require-explicit-models plan); the
+    # registry restructuring that removes the empty-string placeholder is Task 2.
+    return _seed_env_openai_model() or ''
 
 
 def _seed_chapters_model() -> str:
-    from chapters_generator import CHAPTERS_MODEL
-    return _seed_env_openai_model() or CHAPTERS_MODEL
+    return _seed_env_openai_model() or ''
 
 
 def _reset_detection_model() -> str:
     """Provider-aware default at reset time (effective provider reads DB)."""
     from llm_client import get_effective_provider
     if get_effective_provider() != PROVIDER_ANTHROPIC:
-        return os.environ.get('OPENAI_MODEL') or DEFAULT_AD_DETECTION_MODEL
-    return DEFAULT_AD_DETECTION_MODEL
+        return os.environ.get('OPENAI_MODEL') or ''
+    return ''
 
 
 def _reset_chapters_model() -> str:
-    from chapters_generator import CHAPTERS_MODEL
     from llm_client import get_effective_provider
     if get_effective_provider() != PROVIDER_ANTHROPIC:
-        return os.environ.get('OPENAI_MODEL') or CHAPTERS_MODEL
-    return CHAPTERS_MODEL
+        return os.environ.get('OPENAI_MODEL') or ''
+    return ''
 
 
 def _payload_chapters_model() -> str:
-    from chapters_generator import CHAPTERS_MODEL
-    return CHAPTERS_MODEL
+    return ''
 
 
 def _payload_max_artwork_bytes() -> int:
@@ -245,11 +244,11 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
     'claude_model': SettingSpec(
         reset_factory=_reset_detection_model, in_ad_reset=True,
         payload_key='claudeModel',
-        payload_factory=lambda: DEFAULT_AD_DETECTION_MODEL),
+        payload_factory=lambda: ''),
     'verification_model': SettingSpec(
         factory=_seed_detection_model, reset_factory=_reset_detection_model,
         seeded=True, in_ad_reset=True, payload_key='verificationModel',
-        payload_factory=lambda: DEFAULT_AD_DETECTION_MODEL),
+        payload_factory=lambda: ''),
     'chapters_model': SettingSpec(
         factory=_seed_chapters_model, reset_factory=_reset_chapters_model,
         seeded=True, in_ad_reset=True, payload_key='chaptersModel',

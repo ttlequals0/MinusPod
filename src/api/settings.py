@@ -151,7 +151,6 @@ def get_settings():
         DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
         DEFAULT_CHAPTER_PROMPT,
     )
-    from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from config import (
         AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
         AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
@@ -166,7 +165,6 @@ def get_settings():
         SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
         SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     )
-    from chapters_generator import CHAPTERS_MODEL
     settings = _settings_view(db.get_all_settings())
 
     # Shorthand for building {value, isDefault} response dicts
@@ -178,9 +176,9 @@ def get_settings():
         }
 
     # Get current model settings
-    current_model = _setting_value(settings, 'claude_model', DEFAULT_MODEL)
-    verification_model = _setting_value(settings, 'verification_model', DEFAULT_MODEL)
-    chapters_model = _setting_value(settings, 'chapters_model', CHAPTERS_MODEL)
+    current_model = _setting_value(settings, 'claude_model')
+    verification_model = _setting_value(settings, 'verification_model')
+    chapters_model = _setting_value(settings, 'chapters_model')
 
     # Get whisper model setting (defaults to env var or 'small')
     default_whisper_model = registry_default('whisper_model')
