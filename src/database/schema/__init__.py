@@ -1364,6 +1364,15 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"artwork re-download priming failed: {e}")
 
+        # One-shot clear of system-seeded model defaults (2.86.3): a stale
+        # model id written by the old hardcoded-default seeding logic must
+        # not survive into the new require-explicit-model contract.
+        try:
+            self._run_clear_seeded_model_defaults(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"seeded model defaults clear failed: {e}")
+
         # Refresh default prompts to mention audio cue evidence (#350).
         # Marker phrase per prompt is unique to this revision and idempotent:
         # only overwrite a prompt that is still the stored default and lacks
@@ -1839,6 +1848,41 @@ class SchemaMixin:
             cur.rowcount,
         )
 
+    def _run_clear_seeded_model_defaults(self, conn):
+        """One-time clear of system-seeded model settings (2.86.3).
+
+        Before resolvers required an explicit model, `claude_model`,
+        `verification_model` and `chapters_model` could be seeded with a
+        hardcoded model id that later goes stale. DELETE only rows still
+        flagged `is_default = 1`; a row the operator chose (`is_default = 0`)
+        is never touched. Clearing leaves the setting unset, so the operator
+        gets the actionable `ModelNotConfiguredError` instead of the old
+        model returning a provider 404 forever.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'clear_seeded_model_defaults'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        cleared = []
+        for key in ('claude_model', 'verification_model', 'chapters_model'):
+            cur = conn.execute(
+                "DELETE FROM settings WHERE key = ? AND is_default = 1", (key,)
+            )
+            if cur.rowcount:
+                cleared.append(key)
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('clear_seeded_model_defaults')"
+        )
+        conn.commit()
+        logger.info(
+            "Migration: cleared seeded model defaults for %s",
+            ", ".join(cleared) if cleared else "none (nothing to clear)",
+        )
+
     def _run_reset_legacy_skip_second_pass(self, conn):
         """One-time reset of `podcasts.skip_second_pass` values from the old column.
 
@@ -2278,7 +2322,14 @@ class SchemaMixin:
                 )
 
         # Step 3: per-boot resync (also inserts missing rows for new keys).
-        for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+        for db_key, env_var, _fallback, validator in ENV_BACKED_SETTINGS:
+            raw_env = os.environ.get(env_var)
+            if raw_env is not None and validator is not None and not validator(raw_env):
+                logger.warning(
+                    "env-backed-settings: %s=%r is not a recognized value for "
+                    "%s; falling back to the registry default",
+                    env_var, raw_env, db_key,
+                )
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(
                 "SELECT value, is_default FROM settings WHERE key = ?",

@@ -1722,6 +1722,13 @@ def _validate_reviewer_parallel(value: str) -> bool:
     return AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX
 
 
+def _validate_llm_provider(value: str) -> bool:
+    """Reject an unrecognized LLM_PROVIDER so a typo falls back safely
+    instead of being adopted verbatim into the stored setting."""
+    return value in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
+                      PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA)
+
+
 def _validate_positive_int(value: str) -> bool:
     """Loose boot-time gate for size caps; reads clamp to the MIN/MAX
     constants below, so an oversized env value degrades to the clamp
@@ -1807,7 +1814,7 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
 # - validator runs on the env_var value at boot. If validation fails the
 #   env_var is ignored and the registry's fallback_default is used instead.
 ENV_BACKED_SETTINGS = (
-    ('llm_provider', 'LLM_PROVIDER', 'anthropic', None),
+    ('llm_provider', 'LLM_PROVIDER', 'anthropic', _validate_llm_provider),
     ('audio_bitrate', 'AUDIO_BITRATE', DEFAULT_AUDIO_BITRATE, _validate_audio_bitrate),
     ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
     (
