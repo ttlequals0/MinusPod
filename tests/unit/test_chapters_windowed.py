@@ -7,7 +7,7 @@ untouched stretches at the end. Detection now runs a window at a time.
 
 from types import SimpleNamespace
 
-from tests.app_bootstrap import bootstrap
+from tests.app_bootstrap import bootstrap, ensure_model_configured
 
 _test_data_dir = bootstrap('chapters_windowed_test_')
 
@@ -283,6 +283,9 @@ class _PromptCapture:
 
 
 def _capture_prompt(**kwargs):
+    # Called at test-run time, after collection-time bootstrap() churn from
+    # later-collected modules has settled onto the session's real singleton.
+    ensure_model_configured(database.Database())
     gen = ChaptersGenerator(api_key='test')
     stub = _PromptCapture()
     gen._llm_client = stub

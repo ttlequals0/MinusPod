@@ -94,6 +94,8 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(processing, 'status_service')
         storage = p(processing, 'storage')
         audio_processor = p(processing, 'audio_processor')
+        p(processing.ad_detector, 'get_model', return_value='test-model')
+        p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)

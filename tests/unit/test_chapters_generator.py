@@ -23,6 +23,13 @@ def _no_retry_sleep(monkeypatch):
     monkeypatch.setattr('utils.llm_call.time.sleep', lambda _s: None)
 
 
+@pytest.fixture(autouse=True)
+def _model_configured(monkeypatch):
+    """This module has no real Database (no bootstrap() call); stub the
+    model resolver rather than standing one up just for this."""
+    monkeypatch.setattr('chapters_generator.get_chapters_model', lambda: 'test-model')
+
+
 @dataclass
 class _StubResponse:
     content: str

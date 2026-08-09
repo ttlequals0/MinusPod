@@ -84,6 +84,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         p(processing, 'status_service')
         storage = p(processing, 'storage')
         audio_processor = p(processing, 'audio_processor')
+        p(processing.ad_detector, 'get_model', return_value='test-model')
+        p(processing.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
         p(processing, 'get_min_cut_confidence', return_value=0.8)

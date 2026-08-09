@@ -894,6 +894,8 @@ def _run_fold_branch(recut_result=True, recut_mutates=False):
         p(processing_mod, 'status_service')
         storage = p(processing_mod, 'storage')
         audio_processor_mod = p(processing_mod, 'audio_processor')
+        p(processing_mod.ad_detector, 'get_model', return_value='test-model')
+        p(processing_mod.ad_detector, 'get_verification_model', return_value='test-model')
         p(processing_mod, 'start_episode_token_tracking')
         p(processing_mod, 'get_available_memory_gb', return_value=None)
         p(processing_mod, 'get_min_cut_confidence', return_value=0.8)
