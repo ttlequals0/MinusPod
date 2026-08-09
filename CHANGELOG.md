@@ -54,9 +54,12 @@ release notes.
 
 ### Fixed
 
-- An install carrying a system-written model id from the old
-  hardcoded-default seeding is cleared to unconfigured on upgrade, so it
-  fails with an actionable message instead of looping on a provider 404.
+- A non-Anthropic install carrying a shipped Anthropic model id from the
+  old hardcoded-default seeding has it cleared on upgrade, so it fails
+  with an actionable message instead of looping on a provider 404. The
+  clear is limited to that case: a model you chose yourself, and a shipped
+  default that still resolves on an Anthropic install, are both left
+  alone.
 - Model settings now seed from `OPENAI_MODEL` whenever a row is absent.
   The previous seed path only fired on an empty settings table, which
   never happened in practice because schema migrations always populate

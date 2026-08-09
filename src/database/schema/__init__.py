@@ -1858,12 +1858,10 @@ class SchemaMixin:
         )
 
     def _run_clear_seeded_model_defaults(self, conn):
-        """One-time clear of system-seeded model settings (2.86.3).
+        """One-time clear of unusable system-seeded model settings (2.86.3).
 
-        DELETEs claude_model/verification_model/chapters_model rows still
-        flagged is_default=1 so a stale shipped id becomes unconfigured
-        instead of 404ing forever; operator-chosen rows (is_default=0) are
-        untouched.
+        Only clears a shipped Anthropic id left on a non-Anthropic provider,
+        which can never resolve. A working default is left alone.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'clear_seeded_model_defaults'"
@@ -1871,13 +1869,22 @@ class SchemaMixin:
         if gate is not None:
             return
 
+        from config import PROVIDER_ANTHROPIC
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = 'llm_provider'"
+        ).fetchone()
+        provider = (row['value'] if row else None) or os.environ.get(
+            'LLM_PROVIDER', PROVIDER_ANTHROPIC)
+
         cleared = []
-        for key in ('claude_model', 'verification_model', 'chapters_model'):
-            cur = conn.execute(
-                "DELETE FROM settings WHERE key = ? AND is_default = 1", (key,)
-            )
-            if cur.rowcount:
-                cleared.append(key)
+        if provider != PROVIDER_ANTHROPIC:
+            for key in ('claude_model', 'verification_model', 'chapters_model'):
+                cur = conn.execute(
+                    "DELETE FROM settings WHERE key = ? AND is_default = 1 "
+                    "AND value LIKE 'claude-%'", (key,)
+                )
+                if cur.rowcount:
+                    cleared.append(key)
 
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "

@@ -52,6 +52,7 @@ class TestClearSeededModelDefaults:
         # per-boot env-seed step, which would otherwise refill the row it
         # just emptied (see TestSeedModelSettingsFromEnv for that behavior).
         monkeypatch.delenv('OPENAI_MODEL', raising=False)
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
         _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
 
@@ -72,15 +73,40 @@ class TestClearSeededModelDefaults:
         assert row['is_default'] == 0
 
     def test_all_three_keys_cleared_when_seeded(self, db, monkeypatch):
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
         monkeypatch.delenv('OPENAI_MODEL', raising=False)
         for key in MODEL_KEYS:
-            _set_row(db, key, 'stale-model-id', is_default=True)
+            _set_row(db, key, 'claude-sonnet-4-5-20250929', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
 
         db._run_schema_migrations()
 
         for key in MODEL_KEYS:
             assert _row(db, key) is None
+
+    def test_anthropic_install_keeps_its_seeded_default(self, db, monkeypatch):
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
+        monkeypatch.setenv('LLM_PROVIDER', 'anthropic')
+        _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
+        _clear_gate(db, 'clear_seeded_model_defaults')
+
+        db._run_schema_migrations()
+
+        row = _row(db, 'claude_model')
+        assert row is not None
+        assert row['value'] == 'claude-sonnet-4-5-20250929'
+
+    def test_non_anthropic_keeps_a_non_claude_seeded_value(self, db, monkeypatch):
+        monkeypatch.delenv('OPENAI_MODEL', raising=False)
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
+        _set_row(db, 'claude_model', 'qwen3:14b', is_default=True)
+        _clear_gate(db, 'clear_seeded_model_defaults')
+
+        db._run_schema_migrations()
+
+        row = _row(db, 'claude_model')
+        assert row is not None
+        assert row['value'] == 'qwen3:14b'
 
     def test_fresh_db_with_no_seeded_rows_is_unaffected(self, tmp_path, monkeypatch):
         monkeypatch.delenv('OPENAI_MODEL', raising=False)
@@ -98,7 +124,8 @@ class TestClearSeededModelDefaults:
 
     def test_idempotent_second_run_does_not_clear_a_row_set_in_between(self, db, monkeypatch):
         monkeypatch.delenv('OPENAI_MODEL', raising=False)
-        _set_row(db, 'claude_model', 'stale-model-id', is_default=True)
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
+        _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
         db._run_schema_migrations()
         assert _row(db, 'claude_model') is None
@@ -114,7 +141,7 @@ class TestClearSeededModelDefaults:
 
 class TestProviderAdoption:
     def test_env_set_and_differs_and_is_default_adopts(self, db, monkeypatch):
-        _set_row(db, 'llm_provider', 'anthropic', is_default=True)
+        monkeypatch.setenv('LLM_PROVIDER', 'anthropic')
         monkeypatch.setenv('LLM_PROVIDER', 'openai-compatible')
 
         db._run_schema_migrations()
@@ -134,7 +161,7 @@ class TestProviderAdoption:
         assert row['is_default'] == 0
 
     def test_env_unset_leaves_row_untouched(self, db, monkeypatch):
-        _set_row(db, 'llm_provider', 'anthropic', is_default=True)
+        monkeypatch.setenv('LLM_PROVIDER', 'anthropic')
         monkeypatch.delenv('LLM_PROVIDER', raising=False)
 
         db._run_schema_migrations()
@@ -144,7 +171,7 @@ class TestProviderAdoption:
         assert row['is_default'] == 1
 
     def test_unknown_env_value_leaves_row_untouched_and_warns(self, db, monkeypatch, caplog):
-        _set_row(db, 'llm_provider', 'anthropic', is_default=True)
+        monkeypatch.setenv('LLM_PROVIDER', 'anthropic')
         monkeypatch.setenv('LLM_PROVIDER', 'not-a-real-provider')
 
         with caplog.at_level(logging.WARNING):
@@ -195,6 +222,7 @@ class TestSeedModelSettingsFromEnv:
             Database._instance = None
 
     def test_stale_row_is_cleared_then_reseeded_from_env_same_boot(self, db, monkeypatch):
+        monkeypatch.setenv('LLM_PROVIDER', 'ollama')
         _set_row(db, 'claude_model', 'claude-sonnet-4-5-20250929', is_default=True)
         _clear_gate(db, 'clear_seeded_model_defaults')
         monkeypatch.setenv('OPENAI_MODEL', 'operator-env-model')
