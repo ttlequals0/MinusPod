@@ -9,6 +9,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- `docs/workflows.md`: a visual map of episode processing. Eight generated
+  SVG diagrams (light and dark) covering how work reaches the queue, the
+  eleven pipeline stages, the five evidence sources and five marker
+  outcomes, the five per-feed processing modes, the four re-run modes, the
+  pattern learning loop, and what happens when a stage fails. Linked from
+  the project README and the docs index.
+- `scripts/generate_workflow_diagrams.py`: builds those diagrams from the
+  `frontend/src/index.css` design tokens, so they follow the app's own
+  light and dark palettes.
+
 ## [2.86.4] - 2026-08-09
 
 ### Added

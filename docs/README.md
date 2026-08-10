@@ -5,6 +5,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 ## Contents
 
 - [How It Works & Detection Pipeline](how-it-works.md) - the transcription -> detection -> cut pipeline, verification pass, sliding windows, processing queue, validation, pattern learning, audio analysis
+- [Episode Processing Workflows](workflows.md) - visual map of the pipeline, the five processing modes, re-runs, and failure paths
 - [Installation](installation.md) - requirements, quick start, CPU-only image, Intel hybrid CPU tuning
 - [Web Interface](web-interface.md) - the management UI, ad editor workflow, screenshots
 - [Configuration & Experiments](configuration.md) - settings, per-stage LLM tuning, VAD gap detector, provider keys, ad reviewer, community patterns, scheduled backups

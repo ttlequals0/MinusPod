@@ -91,6 +91,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 | Topic | |
 |---|---|
 | [How It Works & Detection Pipeline](docs/how-it-works.md) | Verification pass, sliding windows, queue, validation, pattern learning, audio analysis |
+| [Episode Processing Workflows](docs/workflows.md) | Visual map of the pipeline, the five processing modes, re-runs, and failure paths |
 | [Installation & Upgrading](docs/installation.md) | Requirements, quick start, CPU image, upgrading to 2.0.0+ |
 | [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
 | [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, scheduled backups |
