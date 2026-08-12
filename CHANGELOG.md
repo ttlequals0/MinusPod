@@ -9,10 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.87.0] - 2026-08-12
 
 ### Added
 
+- Skip-to-content link, so keyboard users can jump past the nav on every
+  page.
+- `--c-blue`, `--c-purple`, and `--c-teal` design tokens for the accent
+  hues the design guide defines, plus `--highlight` for search matches.
+  Stage, scope, and category badges now follow the theme instead of
+  carrying fixed Tailwind hues.
+- `frontend/src/components/fieldStyles.ts`: shared focus-ring, text-input,
+  and select recipes, the counterpart to the existing `buttonStyles.ts`.
+- `DraftNumberInput`: the numeric field for settings where a blank value
+  means "inherit the default", promoted out of `StageTunablesSection` so
+  every such field shares one implementation.
 - `docs/workflows.md`: a visual map of episode processing. Eight generated
   SVG diagrams (light and dark) covering how work reaches the queue, the
   eleven pipeline stages, the five evidence sources and five marker
@@ -22,6 +33,41 @@ release notes.
 - `scripts/generate_workflow_diagrams.py`: builds those diagrams from the
   `frontend/src/index.css` design tokens, so they follow the app's own
   light and dark palettes.
+- Mobile card layout for the episode processing-runs table, which
+  previously only rendered as a horizontally scrolled 11-column table.
+
+### Changed
+
+- Dialogs are now reachable by keyboard: `Modal` sets `role="dialog"` and
+  `aria-modal`, traps Tab inside the panel, restores focus to whatever
+  opened it, and closes on Escape by default.
+- Dropdown menus support Arrow, Home, and End navigation, expose menu
+  roles and `aria-expanded`, and return focus to their trigger on close.
+- Every button, link, select, and textarea shows a visible focus ring.
+  Coverage went from 69 of roughly 430 controls to all of them.
+- The five `window.confirm` prompts became in-app confirmation dialogs, so
+  destructive actions are styled, themed, and screen-reader reachable.
+- Checkboxes and numeric inputs across the app render through the shared
+  `Checkbox`, `NumberInput`, and `DraftNumberInput` components rather than
+  hand-rolled markup. `Checkbox` gained `label` and `id` props to support
+  both plain rows and rows whose whole body is the click target.
+- Selects collapsed from 20 hand-written class recipes onto one.
+- Badges use the design guide's single shape; the pill-shaped variants and
+  the shadow on the login card are gone.
+
+### Fixed
+
+- Status and stage colors now respond to all 20 themes. 341 hardcoded
+  Tailwind color classes across roughly 40 files moved onto design tokens,
+  along with the remaining hardcoded hex values in the charts, the
+  waveform fallback, and the search highlight.
+
+### Dependencies
+
+- vite 8.1.5 to 8.2.1, @vitejs/plugin-react 6.0.3 to 6.0.5,
+  typescript-eslint and @typescript-eslint/eslint-plugin to 8.67.0,
+  happy-dom to 20.11.2, openai 2.51.0 to 2.53.0, huggingface-hub 1.26.0
+  to 1.26.1.
 
 ## [2.86.4] - 2026-08-09
 
