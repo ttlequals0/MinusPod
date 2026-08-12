@@ -21,7 +21,7 @@ import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguage
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
-import DraftNumberInput from '../../components/DraftNumberInput';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -91,9 +91,9 @@ function CueOverrideRow({
     <div className="flex items-center gap-2 flex-wrap">
       <DraftNumberInput
         min={min} max={max} step={step}
-        value={value === '' ? null : Number(value)}
+        value={parseOptionalNumber(value)}
         fallback={null}
-        parse={(raw) => (raw === '' ? null : Number(raw))}
+        parse={parseOptionalNumber}
         onChange={(v) => setValue(v === null ? '' : String(v))}
         placeholder={placeholder}
         onBlur={onBlur}
@@ -476,9 +476,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <div className="flex items-center gap-2">
                 <label className="text-muted-foreground w-16 shrink-0">Feed cap:</label>
                 <DraftNumberInput
-                  value={editMaxEpisodes === '' ? null : Number(editMaxEpisodes)}
+                  value={parseOptionalNumber(editMaxEpisodes)}
                   fallback={null}
-                  parse={(raw) => (raw === '' ? null : Number(raw))}
+                  parse={parseOptionalNumber}
                   onChange={(v) => setEditMaxEpisodes(v === null ? '' : String(v))}
                   placeholder="300"
                   min={10}

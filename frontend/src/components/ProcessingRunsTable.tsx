@@ -116,6 +116,10 @@ const COLUMNS: Column[] = [
   { label: 'Cost', render: (run) => `$${run.llmCost.toFixed(2)}` },
 ];
 
+const COLUMN = Object.fromEntries(COLUMNS.map((c) => [c.label, c])) as Record<string, Column>;
+// The card shows Run and Result in its header, so the detail list skips them.
+const CARD_ROWS = COLUMNS.filter((c) => c.label !== 'Run' && c.label !== 'Result');
+
 function runKey(run: EpisodeProcessingRun): string {
   return `${run.runNumber}-${run.processedAt}`;
 }
@@ -164,11 +168,11 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
         {runs.map((run) => (
           <div key={runKey(run)} className="bg-card border border-border rounded-lg p-4 text-sm">
             <div className="flex items-center justify-between gap-2 mb-2 font-medium">
-              <span>{COLUMNS[0].render(run)}</span>
-              <span>{COLUMNS[2].render(run)}</span>
+              <span>{COLUMN.Run.render(run)}</span>
+              <span>{COLUMN.Result.render(run)}</span>
             </div>
             <dl className="space-y-1">
-              {COLUMNS.slice(1).filter((c) => c.label !== 'Result').map((col) => (
+              {CARD_ROWS.map((col) => (
                 <div key={col.label} className="flex justify-between gap-3">
                   <dt className="text-muted-foreground shrink-0">{col.label}</dt>
                   <dd className="text-right">{col.render(run)}</dd>

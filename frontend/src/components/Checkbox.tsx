@@ -10,8 +10,8 @@ interface CheckboxProps {
   /** Text beside the box. Checkbox then renders its own <label>. */
   label?: ReactNode;
   labelClassName?: string;
-  /** For rows whose whole body is the click target: the caller keeps its
-   *  <label htmlFor={id}> and Checkbox renders a <span>, so labels never nest. */
+  /** Set when an ancestor already labels this box; Checkbox then renders a
+   *  <span> rather than a <label>, so labels never nest. */
   id?: string;
 }
 
@@ -19,7 +19,7 @@ function Checkbox({
   checked, onChange, disabled, className = '', ariaLabel, title, label,
   labelClassName = 'text-sm text-foreground', id,
 }: CheckboxProps) {
-  const Wrapper = label ? 'label' : 'span';
+  const Wrapper = id ? 'span' : 'label';
   return (
     <Wrapper
       className={`relative inline-flex items-center ${label ? 'gap-2' : ''} ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}

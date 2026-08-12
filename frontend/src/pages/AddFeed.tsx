@@ -7,7 +7,7 @@ import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
-import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../components/DraftNumberInput';
+import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
 import { focusRing } from '../components/fieldStyles';
 
 // URL validation patterns
@@ -380,9 +380,9 @@ function AddFeed() {
               </label>
               <DraftNumberInput
                 id="maxEpisodes"
-                value={maxEpisodes === '' ? null : Number(maxEpisodes)}
+                value={parseOptionalNumber(maxEpisodes)}
                 fallback={null}
-                parse={(raw) => (raw === '' ? null : Number(raw))}
+                parse={parseOptionalNumber}
                 onChange={(v) => setMaxEpisodes(v === null ? '' : String(v))}
                 placeholder="300 (default)"
                 min={10}

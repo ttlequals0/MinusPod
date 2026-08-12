@@ -36,7 +36,7 @@ import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { formatDate } from '../../utils/format';
 import Checkbox from '../../components/Checkbox';
-import DraftNumberInput from '../../components/DraftNumberInput';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing } from '../../components/fieldStyles';
 
 const PICKER_PAGE_SIZE = 50;
@@ -491,9 +491,9 @@ function CueTemplatesPanel({ slug }: Props) {
                             max={0.99}
                             step={0.01}
                             ariaLabel={`Match threshold for ${t.label}`}
-                            value={editThresholdValue === '' ? null : Number(editThresholdValue)}
+                            value={parseOptionalNumber(editThresholdValue)}
                             fallback={null}
-                            parse={(raw) => (raw === '' ? null : Number(raw))}
+                            parse={parseOptionalNumber}
                             onChange={(v) => setEditThresholdValue(v === null ? '' : String(v))}
                             onBlur={() => commitThreshold(t)}
                             onKeyDown={(e) => {
@@ -923,9 +923,9 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               max={CUE_SCORE_MAX}
               step={0.05}
               placeholder="default"
-              value={scoreOverride === '' ? null : Number(scoreOverride)}
+              value={parseOptionalNumber(scoreOverride)}
               fallback={null}
-              parse={(raw) => (raw === '' ? null : Number(raw))}
+              parse={parseOptionalNumber}
               onChange={(v) => setScoreOverride(v === null ? '' : String(v))}
               className={`w-28 px-3 py-1.5 ${fieldCls} text-sm font-mono`}
             />

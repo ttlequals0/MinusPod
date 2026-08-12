@@ -9,7 +9,7 @@ import { useTransientState } from '../../hooks/useTransientState';
 import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
-import DraftNumberInput from '../../components/DraftNumberInput';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing } from '../../components/fieldStyles';
 
 interface EmailDraft {
@@ -154,9 +154,9 @@ function EmailSettingsForm() {
             min={1}
             max={65535}
             step={1}
-            value={draft.smtpPort === '' ? null : Number(draft.smtpPort)}
+            value={parseOptionalNumber(draft.smtpPort)}
             fallback={null}
-            parse={(raw) => (raw === '' ? null : Number(raw))}
+            parse={parseOptionalNumber}
             onChange={(v) => set('smtpPort', v === null ? '' : String(v))}
             className={emailInputClass}
           />

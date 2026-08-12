@@ -5,7 +5,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
-import DraftNumberInput from '../../components/DraftNumberInput';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 
 interface LLMProviderSectionProps {
@@ -201,9 +201,9 @@ function OllamaNumCtxField({
         max={131072}
         step={512}
         placeholder="Blank = model default"
-        value={draft === '' ? null : Number(draft)}
+        value={parseOptionalNumber(draft)}
         fallback={null}
-        parse={(raw) => (raw === '' ? null : Number(raw))}
+        parse={parseOptionalNumber}
         onChange={(v) => setDraft(v === null ? '' : String(v))}
         onBlur={commit}
         onKeyDown={(e) => {

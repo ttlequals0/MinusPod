@@ -95,7 +95,7 @@ function EpisodeRow({
           onTouchEnd={(e) => { e.stopPropagation(); }}
           className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >
-          <Checkbox checked={selected} onChange={() => {}} />
+          <Checkbox id={`select-${episode.id}`} checked={selected} onChange={() => {}} />
         </button>
       )}
       <Link

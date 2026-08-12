@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { focusRing } from './fieldStyles';
 
+// Blank or unparseable input reads as "no value" rather than NaN.
+export function parseOptionalNumber(raw: string): number | null {
+  if (raw.trim() === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 export const DRAFT_NUMBER_INPUT_CLASS =
   `w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm ${focusRing} disabled:opacity-60`;
 
@@ -23,15 +30,9 @@ interface DraftNumberInputProps {
   autoFocus?: boolean;
 }
 
-/**
- * Numeric field whose value may be empty, meaning "inherit the default".
- *
- * Use this wherever a blank input is meaningful; use NumberInput when the field
- * always holds a number. Reports every change immediately rather than on blur,
- * so a typed value is captured even if the user never blurs, which matters on
- * mobile. Keeps a local text buffer for typing fluidity and re-syncs from the
- * source only while unfocused.
- */
+// Numeric field whose value may be empty, meaning "inherit the default"; use
+// NumberInput when the field always holds a number. Commits on every keystroke
+// rather than on blur, so a typed value survives when the user never blurs.
 export default function DraftNumberInput({
   value, fallback, min, max, step, placeholder, parse, onChange,
   className = DRAFT_NUMBER_INPUT_CLASS, disabled, id, ariaLabel, ariaInvalid, onBlur, onKeyDown, autoFocus,
