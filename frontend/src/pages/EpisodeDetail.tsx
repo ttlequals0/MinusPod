@@ -85,7 +85,7 @@ function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: st
       aria-label="Open in editor"
       title="Open in editor"
       data-testid={testId}
-      className={`p-1.5 rounded-full ${btnSecondary} transition-colors shrink-0 touch-manipulation`}
+      className={`p-1.5 rounded ${btnSecondary} transition-colors shrink-0 touch-manipulation`}
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -436,14 +436,14 @@ function EpisodeDetail() {
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
               <span
-                className={`px-2 py-0.5 rounded-full text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}${failureReason ? ' cursor-help' : ''}`}
+                className={`px-2 py-0.5 rounded text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}${failureReason ? ' cursor-help' : ''}`}
                 title={failureReason}
               >
                 {episode.status}
               </span>
               {episode.lowAdYield && (
                 <span
-                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-warning/20 text-warning cursor-help"
+                  className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
                   title={`This run removed ${formatDuration(episode.lowAdYield.removedSeconds)} of ads; this feed's recent episodes average ${formatDuration(episode.lowAdYield.feedAverageSeconds)}. The downloaded copy may have arrived with unfilled ad slots, or ads were missed.`}
                 >
                   Low ad yield
@@ -451,25 +451,25 @@ function EpisodeDetail() {
               )}
               {episode.partialDetection && (
                 <span
-                  className="px-2 py-0.5 rounded-full text-xs font-medium bg-warning/20 text-warning cursor-help"
+                  className="px-2 py-0.5 rounded text-xs font-medium bg-warning/20 text-warning cursor-help"
                   title={episode.partialDetection.reason}
                 >
                   Partial detection
                 </span>
               )}
               {episode.transcriptVttAvailable && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-c-blue/20 text-c-blue">
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-blue/20 text-c-blue">
                   VTT
                 </span>
               )}
               {episode.chaptersAvailable && (
-                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-c-purple/20 text-c-purple">
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-purple/20 text-c-purple">
                   Chapters
                 </span>
               )}
               {episode.daiDifferential && (
                 <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                  className={`px-2 py-0.5 rounded text-xs font-medium ${
                     episode.daiDifferential.status === 'ok'
                       ? 'bg-destructive/20 text-destructive'
                       : 'bg-muted text-muted-foreground'

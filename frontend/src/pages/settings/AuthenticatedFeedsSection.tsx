@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -7,6 +8,7 @@ import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settin
 import { regenerateAllFeeds } from '../../api/feeds';
 import { btnSecondary } from '../../components/buttonStyles';
 import { getErrorMessage } from '../../api/client';
+import { ConfirmModal } from '../../components/Modal';
 
 function AuthenticatedFeedsSection() {
   const queryClient = useQueryClient();
@@ -44,9 +46,10 @@ function AuthenticatedFeedsSection() {
     },
   });
 
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+
   function handleRegenerateKey() {
-    if (!window.confirm('Every subscribed app immediately loses access until re-subscribed with the new key. Continue?')) return;
-    regenerateKeyMutation.mutate();
+    setConfirmRegenerate(true);
   }
 
   return (
@@ -132,6 +135,18 @@ function AuthenticatedFeedsSection() {
           </div>
         )}
       </div>
+      {confirmRegenerate && (
+        <ConfirmModal
+          title="Regenerate feed key?"
+          confirmLabel="Regenerate key"
+          busyLabel="Regenerating..."
+          pending={regenerateKeyMutation.isPending}
+          onCancel={() => setConfirmRegenerate(false)}
+          onConfirm={() => { setConfirmRegenerate(false); regenerateKeyMutation.mutate(); }}
+        >
+          <p>Every subscribed app immediately loses access until it is re-subscribed with the new key.</p>
+        </ConfirmModal>
+      )}
     </CollapsibleSection>
   );
 }

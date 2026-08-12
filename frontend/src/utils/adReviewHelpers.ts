@@ -39,13 +39,16 @@ export function formatTime(seconds: number): string {
 // it would only show a muted grey waveform at rest. Return the theme primary
 // for BOTH the bar and the progress fill so the two editors read as one vivid,
 // identically-themed waveform. Single source: changing this shifts both.
+// Slate light --primary, for the window-less and unresolved-variable paths.
+const DEFAULT_WAVE = 'hsl(194 66% 45%)';
+
 export function getThemeWaveformColors(): { waveColor: string; progressColor: string } {
   if (typeof window === 'undefined') {
-    return { waveColor: '#22d3ee', progressColor: '#22d3ee' };
+    return { waveColor: DEFAULT_WAVE, progressColor: DEFAULT_WAVE };
   }
   const primary = getComputedStyle(document.documentElement)
     .getPropertyValue('--primary').trim();
-  const color = primary ? `hsl(${primary})` : '#22d3ee';
+  const color = primary ? `hsl(${primary})` : DEFAULT_WAVE;
   return { waveColor: color, progressColor: color };
 }
 

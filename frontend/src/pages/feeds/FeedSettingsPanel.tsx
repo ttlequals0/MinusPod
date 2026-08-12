@@ -20,6 +20,7 @@ import {
 import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguages';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { ConfirmModal } from '../../components/Modal';
 
 interface Props {
   feed: Feed;
@@ -129,6 +130,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const [editSourceUrl, setEditSourceUrl] = useState('');
   const [sourceUrlError, setSourceUrlError] = useState<string | null>(null);
   const [rerenderResult, setRerenderResult] = useState<RerenderSegmentsResult | null>(null);
+  const [confirmRerender, setConfirmRerender] = useState(false);
   const [rerenderError, setRerenderError] = useState<string | null>(null);
   const [segmentActionError, setSegmentActionError] = useState<string | null>(null);
   const [addingTitleSkipPattern, setAddingTitleSkipPattern] = useState(false);
@@ -276,12 +278,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     },
   });
 
-  const handleRerenderClick = () => {
-    if (!window.confirm(
-      'Re-render all processed episodes of this feed using the current segment actions? Episodes without a retained original are skipped.',
-    )) return;
-    rerenderMutation.mutate();
-  };
+  const handleRerenderClick = () => setConfirmRerender(true);
 
   const startEditingSourceUrl = () => {
     setEditSourceUrl(feed.sourceUrl);
@@ -1287,6 +1284,19 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
         </div>
       </CollapsibleSection>
+      {confirmRerender && (
+        <ConfirmModal
+          title="Re-render processed episodes?"
+          confirmLabel="Re-render"
+          busyLabel="Starting..."
+          destructive={false}
+          pending={rerenderMutation.isPending}
+          onCancel={() => setConfirmRerender(false)}
+          onConfirm={() => { setConfirmRerender(false); rerenderMutation.mutate(); }}
+        >
+          <p>Every processed episode of this feed is re-rendered using the current segment actions. Episodes without a retained original are skipped.</p>
+        </ConfirmModal>
+      )}
     </div>
   );
 }

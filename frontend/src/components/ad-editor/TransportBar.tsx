@@ -81,7 +81,7 @@ function TransportBar({
           <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
             <Rewind className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded-full ${primaryBtn}`} title="Play / pause (Space)">
+          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn}`} title="Play / pause (Space)">
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>
           {onPlaySelection && (

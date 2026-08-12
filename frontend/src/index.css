@@ -33,6 +33,10 @@
     --c-blue: 221.2 83.2% 53.3%;
     --c-purple: 271.5 81.3% 55.9%;
     --c-teal: 175.3 77.4% 26.1%;
+    /* Search highlight. Deliberately identical in light and dark: a
+       highlighter should read the same way in both. */
+    --highlight: 51 100% 63%;
+    --highlight-foreground: 24 10% 10%;
   }
 
   /* Bootswatch Slate dark mode */
@@ -130,6 +134,6 @@ summary.list-none::-webkit-details-marker { display: none; }
    varies). Dark text stays legible on the fill in both light and dark themes. */
 mark,
 ::highlight(settings-search) {
-  background-color: #fde047;
-  color: #1c1917;
+  background-color: hsl(var(--highlight));
+  color: hsl(var(--highlight-foreground));
 }

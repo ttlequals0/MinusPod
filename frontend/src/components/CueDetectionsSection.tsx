@@ -73,7 +73,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
       defaultOpen={hasPending}
       storageKey={`episode-cue-detections-${episodeId}`}
       headerRight={
-        <span className="px-2 py-0.5 text-xs rounded-full bg-secondary text-secondary-foreground">
+        <span className="px-2 py-0.5 text-xs rounded bg-secondary text-secondary-foreground">
           {detections.length}
         </span>
       }
@@ -97,7 +97,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     aria-label={playingKey === String(d.id) ? 'Pause match' : 'Play this match'}
                     title={playingKey === String(d.id) ? 'Pause' : 'Play this match'}
-                    className={`p-1.5 rounded-full ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
+                    className={`p-1.5 rounded ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
                   >
                     {playingKey === String(d.id) ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>

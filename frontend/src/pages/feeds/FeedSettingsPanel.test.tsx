@@ -758,26 +758,26 @@ describe('FeedSettingsPanel re-render segments (#565)', () => {
   });
 
   it('does nothing when the confirm dialog is dismissed', async () => {
-    window.confirm = vi.fn().mockReturnValue(false);
     renderPanel(makeFeed());
     await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockRerenderSegments).not.toHaveBeenCalled();
   });
 
   it('confirming posts the rerender request and shows the queued/skipped result', async () => {
-    window.confirm = vi.fn().mockReturnValue(true);
     mockRerenderSegments.mockResolvedValue({ queued: 3, skipped: 1 });
     renderPanel(makeFeed());
     await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Re-render' }));
     expect(mockRerenderSegments).toHaveBeenCalledWith('test-feed');
     expect(await screen.findByText('3 episodes queued, 1 skipped.')).toBeDefined();
   });
 
   it('shows the backend error message when the request fails', async () => {
-    window.confirm = vi.fn().mockReturnValue(true);
     mockRerenderSegments.mockRejectedValue(new Error('Feed not found'));
     renderPanel(makeFeed());
     await userEvent.click(screen.getByRole('button', { name: 'Re-render episodes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Re-render' }));
     expect(await screen.findByText('Feed not found')).toBeDefined();
   });
 });

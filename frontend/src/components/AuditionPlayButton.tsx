@@ -16,7 +16,7 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad' }: {
       onClick={onClick}
       aria-label={playing ? `Pause ${label}` : `Play ${label}`}
       title={playing ? 'Pause' : `Play ${label}`}
-      className={`p-1.5 rounded-full ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
+      className={`p-1.5 rounded ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
     >
       {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
     </button>

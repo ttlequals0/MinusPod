@@ -58,7 +58,6 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
 }
 
 function generateChartColors(primary: string, count: number): string[] {
-  if (!primary) return Array(count).fill('#6366f1');
   const match = primary.match(/hsl\((\d[\d.]*)\s*[ ,]\s*(\d[\d.]*)%?\s*[ ,]\s*(\d[\d.]*)%?\)/);
   if (!match) return Array(count).fill(primary);
   const hue = parseFloat(match[1]);
@@ -79,14 +78,14 @@ export default function StatsPage() {
   // rect, which read as a second bar rather than a hover highlight (#592).
   const tooltipStyle = useMemo(() => ({
     contentStyle: {
-      backgroundColor: theme.card || '#1a1a2e',
-      border: `1px solid ${theme.border || '#333'}`,
+      backgroundColor: theme.card,
+      border: `1px solid ${theme.border}`,
       borderRadius: 8,
-      color: theme.foreground || '#fff',
+      color: theme.foreground,
     },
-    labelStyle: { color: theme.foreground || '#fff' },
-    itemStyle: { color: theme.foreground || '#fff' },
-    cursor: { fill: theme.border || '#333', opacity: 0.3 },
+    labelStyle: { color: theme.foreground },
+    itemStyle: { color: theme.foreground },
+    cursor: { fill: theme.border, opacity: 0.3 },
   }), [theme.card, theme.border, theme.foreground]);
 
   const { data: feeds } = useQuery({ ...feedsQueryOptions, select: (r) => r.feeds });
@@ -287,13 +286,13 @@ export default function StatsPage() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Top Podcasts by Ads Removed</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
-                <XAxis type="number" tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
+                <XAxis type="number" tick={{ fill: theme.foreground, fontSize: 12 }} />
                 <YAxis
                   dataKey="podcastTitle"
                   type="category"
                   width={130}
-                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
+                  tick={{ fill: theme.foreground, fontSize: 12 }}
                   tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + '..' : v}
                 />
                 <Tooltip {...tooltipStyle} />
@@ -313,15 +312,15 @@ export default function StatsPage() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Episodes Processed by Day</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byDay.days} margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
                 <XAxis
                   dataKey="day"
-                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
+                  tick={{ fill: theme.foreground, fontSize: 12 }}
                   tickFormatter={(v: string) => v.slice(0, 3)}
                 />
-                <YAxis tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
+                <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="count" name="Episodes" fill={theme.primary || '#6366f1'} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" name="Episodes" fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -368,15 +367,15 @@ export default function StatsPage() {
           {cueHistogram.length > 0 && (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={cueHistogram} margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
                 <XAxis
                   dataKey="scoreFrom"
-                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
+                  tick={{ fill: theme.foreground, fontSize: 12 }}
                 />
-                <YAxis tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
+                <YAxis tick={{ fill: theme.foreground, fontSize: 12 }} />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="matches" name="Matches (affected cuts)"
-                     fill={theme.primary || '#6366f1'} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+                     fill={theme.primary} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="nearMisses" name="Near-misses (never affected cuts)"
                      fill="#f59e0b" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
               </BarChart>

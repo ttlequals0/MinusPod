@@ -4,6 +4,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { ConfirmModal } from '../../components/Modal';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -28,6 +29,7 @@ function SecuritySection({
   const [rotateError, setRotateError] = useState<string | null>(null);
   const [rotateSuccess, setRotateSuccess] = useState<string | null>(null);
   const [isRotating, setIsRotating] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
 
   async function handleRotatePassphrase(e: FormEvent) {
     e.preventDefault();
@@ -44,11 +46,11 @@ function SecuritySection({
       setRotateError('New passphrase confirmation does not match.');
       return;
     }
-    if (!window.confirm(
-      'After rotation you MUST update MINUSPOD_MASTER_PASSPHRASE in the container environment and restart the container. ' +
-      'If you forget, stored keys will be unreadable on next restart. ' +
-      'If you lose the new passphrase, the stored keys are unrecoverable. Continue?',
-    )) return;
+    setConfirmRotate(true);
+  }
+
+  async function doRotate() {
+    setConfirmRotate(false);
     setIsRotating(true);
     try {
       const r = await rotateMasterPassphrase(oldPassphrase, newPassphrase);
@@ -293,6 +295,19 @@ function SecuritySection({
           </form>
         )}
       </div>
+      {confirmRotate && (
+        <ConfirmModal
+          title="Rotate the master passphrase?"
+          confirmLabel="Rotate passphrase"
+          busyLabel="Rotating..."
+          pending={isRotating}
+          onCancel={() => setConfirmRotate(false)}
+          onConfirm={doRotate}
+        >
+          <p>After rotating you must update MINUSPOD_MASTER_PASSPHRASE in the container environment and restart the container.</p>
+          <p>If you skip that step, stored keys are unreadable on the next restart. If you lose the new passphrase, the stored keys cannot be recovered.</p>
+        </ConfirmModal>
+      )}
     </CollapsibleSection>
   );
 }

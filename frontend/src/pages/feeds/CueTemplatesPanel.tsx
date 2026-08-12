@@ -9,6 +9,7 @@ import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal'
 import {
   ghostBtn, primaryBtn, fieldCls, modalBackdrop, modalPanel, useEscape,
 } from '../../components/cueScanStyles';
+import { ConfirmModal } from '../../components/Modal';
 import {
   CUE_TYPE_OPTIONS,
   cueTemplateAudioUrl,
@@ -807,6 +808,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
   const [suggestion, setSuggestion] = useState<ThresholdSuggestResponse | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [pendingThreshold, setPendingThreshold] = useState<number | null>(null);
   const activeRef = useRef(true);
   useEffect(() => () => { activeRef.current = false; }, []);
 
@@ -852,11 +854,12 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
   };
 
   const applySuggested = async (value: number) => {
+    setPendingThreshold(value);
+  };
+
+  const doApplySuggested = async (value: number) => {
+    setPendingThreshold(null);
     setApplied(false);
-    if (!window.confirm(
-      `Set the per-feed cue match threshold to ${value.toFixed(2)} for this feed? ` +
-      `The global setting will not change.`,
-    )) return;
     try {
       await updateFeed(slug, { cueTemplateScoreOverride: value });
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
@@ -1051,6 +1054,18 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           </div>
         )}
       </div>
+      {pendingThreshold !== null && (
+        <ConfirmModal
+          title="Apply the suggested threshold?"
+          confirmLabel="Apply threshold"
+          busyLabel="Applying..."
+          destructive={false}
+          onCancel={() => setPendingThreshold(null)}
+          onConfirm={() => doApplySuggested(pendingThreshold)}
+        >
+          <p>Sets this feed's cue match threshold to {pendingThreshold.toFixed(2)}. The global setting does not change.</p>
+        </ConfirmModal>
+      )}
     </div>
   );
 }

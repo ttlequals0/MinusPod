@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ProviderName, ProviderStatus } from '../../api/providers';
 import { getErrorMessage } from '../../api/client';
+import { ConfirmModal } from '../../components/Modal';
 import { useTransientState } from '../../hooks/useTransientState';
 
 interface ProviderKeyFieldProps {
@@ -24,7 +25,7 @@ const CHIP = {
 function StatusChip({ source }: { source: ProviderStatus['source'] }) {
   const c = CHIP[source];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${c.bg}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${c.bg}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
       {c.text}
     </span>
@@ -40,6 +41,7 @@ function ProviderKeyField({
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [savedNotice, setSavedNotice] = useTransientState(false, 4000);
   const [error, setError] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const showActions = status.source === 'db' || draft.length > 0;
   // Test reads the SAVED key from the backend, not the draft. If the user
@@ -63,8 +65,8 @@ function ProviderKeyField({
     finally { setBusy(null); }
   }
 
-  async function handleClear() {
-    if (!window.confirm(`Remove stored ${provider} key? The environment variable (if any) will be used instead.`)) return;
+  async function doClear() {
+    setConfirmClear(false);
     setBusy('clear'); setError(null); setTestResult(null);
     try { await onClear(provider); setDraft(''); }
     catch (e) { setError(getErrorMessage(e, 'Clear failed')); }
@@ -135,7 +137,7 @@ function ProviderKeyField({
             <button
               type="button"
               disabled={busy !== null}
-              onClick={handleClear}
+              onClick={() => setConfirmClear(true)}
               className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-destructive hover:bg-secondary disabled:opacity-50"
             >
               Clear
@@ -154,6 +156,18 @@ function ProviderKeyField({
         </div>
       )}
       {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+      {confirmClear && (
+        <ConfirmModal
+          title={`Remove stored ${provider} key?`}
+          confirmLabel="Remove key"
+          busyLabel="Removing..."
+          pending={busy === 'clear'}
+          onCancel={() => setConfirmClear(false)}
+          onConfirm={doClear}
+        >
+          <p>The environment variable, if one is set, will be used instead.</p>
+        </ConfirmModal>
+      )}
     </div>
   );
 }

@@ -21,7 +21,7 @@ const STATUS_BADGE_STYLES = {
 function StatusBadge({ variant, label }: { variant: 'green' | 'muted'; label: string }) {
   const s = STATUS_BADGE_STYLES[variant];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${s.bg}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {label}
     </span>

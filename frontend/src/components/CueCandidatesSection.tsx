@@ -221,7 +221,7 @@ function CueCandidatesSection({
                       title={hasOriginalAudio
                         ? (isPlaying ? 'Stop' : 'Play this sound')
                         : 'Original audio not retained for this episode'}
-                      className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation"
+                      className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation"
                     >
                       {isPlaying ? (
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
