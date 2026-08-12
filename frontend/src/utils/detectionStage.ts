@@ -16,54 +16,54 @@ export type DetectionStage =
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
     label: 'Pass 1',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
   },
   claude: {
     label: 'Pass 1',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
   },
   fingerprint: {
     label: 'Pass 1',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
   },
   text_pattern: {
     label: 'Pass 1',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
   },
   language: {
     label: 'Pass 1',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
   },
   verification: {
     label: 'Pass 2',
-    className: 'bg-purple-500/20 text-purple-600 dark:text-purple-400',
+    className: 'bg-c-purple/20 text-c-purple',
   },
   manual: {
     label: 'Manual',
-    className: 'bg-amber-500/20 text-warning',
+    className: 'bg-warning/20 text-warning',
   },
   cue_pair: {
     label: 'Cue pair',
-    className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
+    className: 'bg-c-purple/20 text-c-purple',
   },
   keep_content: {
     label: 'Keep-content',
-    className: 'bg-teal-500/20 text-teal-600 dark:text-teal-400',
+    className: 'bg-c-teal/20 text-c-teal',
   },
   vad_gap: {
     label: 'VAD gap',
-    className: 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400',
+    className: 'bg-c-teal/20 text-c-teal',
   },
   heuristic_preroll: {
     label: 'Pre-roll',
-    className: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+    className: 'bg-success/20 text-success',
   },
   heuristic_postroll: {
     label: 'Post-roll',
-    className: 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+    className: 'bg-success/20 text-success',
   },
   dai_differential: {
     label: 'Cross-fetch',
-    className: 'bg-rose-500/20 text-rose-600 dark:text-rose-400',
+    className: 'bg-destructive/20 text-destructive',
   },
 };

@@ -142,7 +142,7 @@ function TransportBar({
           <span>/</span>
           {selectionInfo ?? <span>{formatTime(selectionDuration)} selection</span>}
           {inSelection && (
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-500 text-[10px] font-semibold uppercase tracking-wider">
+            <span className="ml-1 px-1.5 py-0.5 rounded bg-warning/15 text-warning text-[10px] font-semibold uppercase tracking-wider">
               {selectionLabel}
             </span>
           )}

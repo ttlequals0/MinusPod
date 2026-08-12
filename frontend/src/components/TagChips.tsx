@@ -20,7 +20,7 @@ const ACCENT_BY_TAG: Record<string, string> = {
   mental_health: 'bg-rose-600/15 text-rose-700 dark:text-rose-400',
 };
 
-const DEFAULT_ACCENT = 'bg-slate-500/15 text-slate-700 dark:text-slate-300';
+const DEFAULT_ACCENT = 'bg-muted text-muted-foreground';
 const UNIVERSAL_ACCENT = 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 border border-indigo-500/40';
 
 function tagClass(tag: string): string {

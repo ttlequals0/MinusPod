@@ -362,7 +362,7 @@ function TranscriptionSection({
             </button>
             {timeoutsSaveIsSuccess && !timeoutsError && <SavedBadge />}
             {timeoutsError && (
-              <span className="text-sm text-red-600 dark:text-red-400">{timeoutsError}</span>
+              <span className="text-sm text-destructive">{timeoutsError}</span>
             )}
           </div>
         </div>

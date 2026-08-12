@@ -28,6 +28,11 @@
     --input: 210 15% 85%;
     --ring: 194 66% 45%;
     --radius: 0.5rem;
+    /* Accent hues from the design guide's fixed palette. Mode-driven only,
+       never per theme, so a stage or scope badge reads the same everywhere. */
+    --c-blue: 221.2 83.2% 53.3%;
+    --c-purple: 271.5 81.3% 55.9%;
+    --c-teal: 175.3 77.4% 26.1%;
   }
 
   /* Bootswatch Slate dark mode */
@@ -55,6 +60,9 @@
     --border: 210 8% 22%;
     --input: 210 8% 22%;
     --ring: 194 66% 61%;
+    --c-blue: 213.1 93.9% 67.8%;
+    --c-purple: 270 95.2% 75.3%;
+    --c-teal: 172.5 66% 50.4%;
   }
 }
 

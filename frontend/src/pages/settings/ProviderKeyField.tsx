@@ -16,8 +16,8 @@ interface ProviderKeyFieldProps {
 }
 
 const CHIP = {
-  db:   { bg: 'bg-green-500/10 text-success', dot: 'bg-green-500', text: 'Stored encrypted' },
-  env:  { bg: 'bg-amber-500/10 text-warning', dot: 'bg-amber-500', text: 'Using env fallback' },
+  db:   { bg: 'bg-success/10 text-success', dot: 'bg-success', text: 'Stored encrypted' },
+  env:  { bg: 'bg-warning/10 text-warning', dot: 'bg-warning', text: 'Using env fallback' },
   none: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/60', text: 'Not set' },
 } as const;
 

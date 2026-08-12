@@ -92,14 +92,14 @@ export function FeedTagsEditor({ slug }: Props) {
                       {tags.user.map((t) => (
                         <span
                           key={t}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/15 text-c-blue"
                         >
                           {t}
                           <button
                             type="button"
                             onClick={() => removeTag(t)}
                             disabled={save.isPending}
-                            className="text-blue-700/60 dark:text-blue-400/60 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                            className="text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50"
                             aria-label={`Remove ${t}`}
                           >
                             ×
@@ -160,7 +160,7 @@ export function FeedTagsEditor({ slug }: Props) {
                 </>
               )}
               {save.isError && (
-                <span className="text-xs text-red-600 dark:text-red-400">
+                <span className="text-xs text-destructive">
                   {(save.error as Error)?.message || 'Save failed'}
                 </span>
               )}

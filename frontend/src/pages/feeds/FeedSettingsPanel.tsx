@@ -95,7 +95,7 @@ function CueOverrideRow({
       />
       <span className="text-xs text-muted-foreground">{hint}</span>
       {feedValue != null && (
-        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+        <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-blue/20 text-c-blue">
           Override: {formatOverride(feedValue)}
         </span>
       )}
@@ -502,14 +502,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {(feed.networkIdOverride || feed.networkId) && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.networkIdOverride
-                    ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
-                    : 'bg-green-500/20 text-success'
+                    ? 'bg-warning/20 text-warning'
+                    : 'bg-success/20 text-success'
                 }`}>
                   {feed.networkIdOverride ? 'Override' : 'Detected'}: {feed.networkIdOverride || feed.networkId}
                 </span>
               )}
               {feed.daiPlatform && (
-                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded text-xs font-medium">
+                <span className="px-2 py-0.5 bg-c-purple/20 text-c-purple rounded text-xs font-medium">
                   DAI: {feed.daiPlatform}
                 </span>
               )}
@@ -599,8 +599,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.autoProcessOverride
-                    ? 'bg-green-500/20 text-success'
-                    : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                    ? 'bg-success/20 text-success'
+                    : 'bg-destructive/20 text-destructive'
                 }`}>
                   {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
                 </span>
@@ -619,14 +619,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   {feed.titleSkipPatterns!.map((p) => (
                     <span
                       key={p}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-blue-500/15 text-blue-700 dark:text-blue-400"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/15 text-c-blue"
                     >
                       {p}
                       <button
                         type="button"
                         onClick={() => removeTitleSkipPattern(p)}
                         disabled={updateMutation.isPending}
-                        className="text-blue-700/60 dark:text-blue-400/60 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                        className="text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50"
                         aria-label={`Remove ${p}`}
                       >
                         ×
@@ -860,7 +860,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 ))}
               </select>
               {feed.languageOverride && (
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-blue/20 text-c-blue">
                   Override: {labelForLanguage(feed.languageOverride)}
                 </span>
               )}
@@ -880,8 +880,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   feed.onlyExposeProcessedEpisodes
-                    ? 'bg-green-500/20 text-success'
-                    : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                    ? 'bg-success/20 text-success'
+                    : 'bg-destructive/20 text-destructive'
                 }`}>
                   {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
                 </span>
@@ -1062,7 +1062,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <span className="text-xs text-muted-foreground">Empty = use global</span>
                   <ExperimentalBadge />
                   {feed.cueCreateFromPairsOverride != null && (
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-c-blue/20 text-c-blue">
                       Override: {feed.cueCreateFromPairsOverride ? 'on' : 'off'}
                     </span>
                   )}
@@ -1260,7 +1260,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-medium ${
                         feed.differentialFetchEffective
-                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                          ? 'bg-destructive/20 text-destructive'
                           : 'bg-secondary text-muted-foreground'
                       }`}
                       title={feed.differentialFetchEffective
@@ -1271,7 +1271,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </span>
                     {feed.daiLikely && (
                       <span
-                        className="px-2 py-0.5 rounded text-xs font-medium bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                        className="px-2 py-0.5 rounded text-xs font-medium bg-destructive/20 text-destructive"
                         title="This feed's audio URLs route through a known dynamic ad insertion service."
                       >
                         DAI likely

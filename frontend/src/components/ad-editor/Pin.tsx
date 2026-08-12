@@ -55,11 +55,11 @@ export function Pin({
   const isStart = kind === 'start';
   const isDivider = kind === 'divider';
   const color = isDivider
-    ? 'bg-amber-500'
-    : isStart ? 'bg-emerald-500' : 'bg-rose-500';
+    ? 'bg-warning'
+    : isStart ? 'bg-success' : 'bg-destructive';
   const ringColor = isDivider
-    ? 'ring-amber-500/40'
-    : isStart ? 'ring-emerald-500/40' : 'ring-rose-500/40';
+    ? 'ring-warning/40'
+    : isStart ? 'ring-success/40' : 'ring-destructive/40';
   const labelText = isDivider ? 'SPLIT' : isStart ? 'START' : 'END';
 
   // The legal range for this pin, used by both drag and keyboard so they
@@ -161,13 +161,13 @@ export function Pin({
     >
       {/* Compact circle pinhead at top. */}
       <div
-        className={`absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white ${color} shadow-md ${
+        className={`absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-card ${color} shadow-md ${
           dragging ? `ring-4 ${ringColor} scale-125 motion-reduce:scale-100` : ''
         } transition-transform motion-reduce:transition-none`}
       />
       {/* Time label -- only visible while dragging or on hover. */}
       <div
-        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-white text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
+        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-primary-foreground text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 motion-reduce:transition-none pointer-events-none ${
           dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
         }`}
       >

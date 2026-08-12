@@ -49,7 +49,7 @@ function OfflineQueueSection() {
         // A failed GET must not render the editable form from fallback
         // defaults; one Save click would overwrite the real stored settings.
         <div className="space-y-2">
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p className="text-sm text-destructive">
             Could not load offline queue settings.
           </p>
           <button
@@ -108,14 +108,14 @@ function OfflineQueueSection() {
           </div>
 
           {data.deferredCount > 0 && (
-            <p className="text-sm text-purple-600 dark:text-purple-400">
+            <p className="text-sm text-c-purple">
               {data.deferredCount} episode{data.deferredCount === 1 ? '' : 's'} currently
               waiting for an endpoint to come back.
             </p>
           )}
 
           {saveError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
+            <p className="text-sm text-destructive">{saveError}</p>
           )}
 
           <div className="flex items-center gap-2">

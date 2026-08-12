@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { btnGhost } from './buttonStyles';
+import { btnGhost, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 import UpdateBanner from './UpdateBanner';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
@@ -27,7 +28,7 @@ function NavLink({ to, label, active, onClick }: NavLinkProps) {
     <Link
       to={to}
       onClick={onClick}
-      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${focusRing} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
@@ -64,6 +65,12 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-background">
+      <a
+        href="#main"
+        className={`sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 px-3 py-2 rounded text-sm ${btnPrimary} ${focusRing}`}
+      >
+        Skip to content
+      </a>
       {/* GlobalStatusBar is fixed at top-0 (z-50) and only rendered while
           processing is active. This opaque spacer reserves its 2.5rem strip and,
           being sticky, also covers that strip so page content never shows through
@@ -96,7 +103,7 @@ function Layout() {
             <div className="flex items-center gap-2">
               <Link
                 to="/search"
-                className={`p-2 rounded-md ${btnGhost} transition-colors`}
+                className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Search"
                 title="Search"
               >
@@ -106,7 +113,7 @@ function Layout() {
               </Link>
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-md ${btnGhost} transition-colors`}
+                className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle theme"
               >
                 {theme === 'dark' ? (
@@ -132,7 +139,7 @@ function Layout() {
               {isPasswordSet && (
                 <button
                   onClick={handleLogout}
-                  className={`p-2 rounded-md ${btnGhost} transition-colors`}
+                  className={`p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                   aria-label="Log out"
                   title="Log out"
                 >
@@ -148,7 +155,7 @@ function Layout() {
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`sm:hidden p-2 rounded-md ${btnGhost} transition-colors`}
+                className={`sm:hidden p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? (
@@ -180,7 +187,7 @@ function Layout() {
           </div>
         )}
       </header>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <UpdateBanner />
         <Outlet />
       </main>

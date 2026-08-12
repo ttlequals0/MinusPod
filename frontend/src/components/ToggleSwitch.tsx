@@ -1,3 +1,5 @@
+import { focusRing } from './fieldStyles';
+
 interface ToggleSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
@@ -12,7 +14,7 @@ function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchPr
       aria-checked={checked}
       aria-label={ariaLabel}
       tabIndex={disabled ? -1 : 0}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${focusRing} ${
         checked ? 'bg-primary' : 'bg-secondary'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       onClick={() => {
@@ -27,7 +29,7 @@ function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchPr
       }}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+        className={`inline-block h-4 w-4 transform rounded-full bg-primary-foreground transition-transform ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />

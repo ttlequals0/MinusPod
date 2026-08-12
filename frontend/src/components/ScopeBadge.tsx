@@ -11,10 +11,10 @@ export function ScopeBadge({
   podcastClassName?: string;
 }) {
   if (pattern.scope === 'global') {
-    return <span className="px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-600 dark:text-blue-400">Global</span>;
+    return <span className="px-2 py-0.5 text-xs rounded bg-c-blue/20 text-c-blue">Global</span>;
   }
   if (pattern.scope === 'network') {
-    return <span className="px-2 py-0.5 text-xs rounded bg-purple-500/20 text-purple-600 dark:text-purple-400">Network: {pattern.network_id}</span>;
+    return <span className="px-2 py-0.5 text-xs rounded bg-c-purple/20 text-c-purple">Network: {pattern.network_id}</span>;
   }
   if (pattern.scope === 'podcast') {
     return (

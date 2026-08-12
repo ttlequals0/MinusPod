@@ -77,7 +77,7 @@ function DatabaseBackupSection() {
         // A failed GET must not render the editable form from fallback defaults;
         // one Save click would overwrite the real stored settings.
         <div className="space-y-2">
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p className="text-sm text-destructive">
             Could not load backup settings.
           </p>
           <button
@@ -190,7 +190,7 @@ function DatabaseBackupSection() {
           </div>
 
           {saveError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>
+            <p className="text-sm text-destructive">{saveError}</p>
           )}
 
           <div className="flex items-center gap-2">
@@ -217,7 +217,7 @@ function DatabaseBackupSection() {
               </span>
             )}
             {runNow.isError && (
-              <span className="ml-1 text-sm text-red-600 dark:text-red-400">
+              <span className="ml-1 text-sm text-destructive">
                 {(runNow.error as Error)?.message || 'Backup failed'}
               </span>
             )}
@@ -236,7 +236,7 @@ function DatabaseBackupSection() {
               </div>
             )}
             {data?.lastError && (
-              <div className="text-red-600 dark:text-red-400">
+              <div className="text-destructive">
                 <span className="font-medium">Last error:</span> {data.lastError}
               </div>
             )}

@@ -153,7 +153,7 @@ function HistoryPage() {
             title="Filter the list below by failed runs"
             className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
           >
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.failedCount}</div>
+            <div className="text-2xl font-bold text-destructive">{stats.failedCount}</div>
             <div className="text-sm text-muted-foreground">Failed</div>
           </button>
           <div className="bg-card border border-border rounded-lg p-4">
@@ -227,12 +227,12 @@ function HistoryPage() {
                   {entry.podcastTitle}
                 </Link>
                 {entry.status === 'completed' ? (
-                  <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-success">
+                  <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
                     Completed
                   </span>
                 ) : (
                   <span
-                    className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400 cursor-help"
+                    className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive cursor-help"
                     title={entry.errorMessage || 'Processing failed'}
                   >
                     Failed
@@ -345,12 +345,12 @@ function HistoryPage() {
                     </td>
                     <td className="px-4 py-3">
                       {entry.status === 'completed' ? (
-                        <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-success">
+                        <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
                           Completed
                         </span>
                       ) : (
                         <span
-                          className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400 cursor-help"
+                          className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive cursor-help"
                           title={entry.errorMessage || 'Processing failed'}
                         >
                           Failed

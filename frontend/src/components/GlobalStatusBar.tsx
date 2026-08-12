@@ -244,7 +244,7 @@ function GlobalStatusBar() {
         {/* Connection indicator */}
         <span
           className={`w-2 h-2 rounded-full shrink-0 ${
-            isConnected ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
+            isConnected ? 'bg-success' : 'bg-warning animate-pulse'
           }`}
           aria-label={isConnected ? 'Connected' : 'Reconnecting'}
         />
@@ -373,10 +373,10 @@ function GlobalStatusBar() {
                     key={refresh.slug}
                     className="text-xs text-foreground flex items-center gap-1"
                   >
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-c-blue animate-pulse" />
                     <span className="truncate">{refresh.podcastName}</span>
                     {refresh.newEpisodes > 0 && (
-                      <span className="text-green-500 font-medium">
+                      <span className="text-success font-medium">
                         +{refresh.newEpisodes} new
                       </span>
                     )}

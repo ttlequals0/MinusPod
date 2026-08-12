@@ -263,10 +263,10 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                         <span className="font-medium">{p.sponsor || '(unknown sponsor)'}</span>
                         <span className="text-xs text-muted-foreground">[{p.scope}]</span>
                         {p.source === PATTERN_SOURCE_COMMUNITY && (
-                          <span className="text-xs text-teal-700 dark:text-teal-400">community</span>
+                          <span className="text-xs text-c-teal">community</span>
                         )}
                         {patternOverrides[p.id] && destination === 'community' && (
-                          <span className="text-xs text-amber-700 dark:text-amber-400">override</span>
+                          <span className="text-xs text-warning">override</span>
                         )}
                       </div>
                       {p.text_template && (
@@ -342,7 +342,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
             )}
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-destructive">{error}</p>
             )}
 
             <div className="flex justify-end gap-2">
@@ -410,7 +410,7 @@ function CommunityPreview({
             </summary>
             <ul className="space-y-2 pl-3">
               {rejected.map((r) => (
-                <li key={r.id} className="border-l-2 border-red-300 dark:border-red-700 pl-2">
+                <li key={r.id} className="border-l-2 border-destructive pl-2">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground">#{r.id}</span>
                     <span className="font-medium">{r.sponsor || '(unknown sponsor)'}</span>

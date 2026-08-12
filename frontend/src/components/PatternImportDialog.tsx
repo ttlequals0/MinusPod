@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { apiRequest, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
+import { btnOutline } from './buttonStyles';
+import { focusRing, selectBase } from './fieldStyles';
 
 interface Props {
   open: boolean;
@@ -71,7 +73,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1">Mode</label>
         <select
-          className="w-full rounded border border-slate-300 dark:border-slate-700 bg-transparent px-2 py-1 text-sm"
+          className={`w-full ${selectBase}`}
           value={mode}
           onChange={(e) => setMode(e.target.value as ImportMode)}
           disabled={busy}
@@ -85,7 +87,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
       {result && (
         <div className="text-sm mb-4">
           {result.error ? (
-            <p className="text-red-600 dark:text-red-400">{result.error}</p>
+            <p className="text-destructive">{result.error}</p>
           ) : (
             <p>
               Imported {result.importedCount ?? 0}, updated {result.updatedCount ?? 0},
@@ -99,7 +101,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1.5 text-sm rounded border border-slate-300 dark:border-slate-700"
+          className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing} transition-colors`}
           disabled={busy}
         >
           Close

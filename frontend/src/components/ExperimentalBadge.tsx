@@ -3,7 +3,7 @@
 export function ExperimentalBadge({ title }: { title?: string }) {
   return (
     <span
-      className="px-2 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning align-middle"
+      className="px-2 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning align-middle"
       title={title || 'Experimental: cuts here come from audio cues alone'}
     >
       Experimental

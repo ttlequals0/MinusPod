@@ -22,7 +22,7 @@ export default function UpdateBanner() {
   if (!target || dismissed === target.version) return null;
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
       <span>
         MinusPod {target.version} is available
         {target.url ? (
@@ -39,7 +39,7 @@ export default function UpdateBanner() {
       <button
         type="button"
         aria-label="Dismiss"
-        className="shrink-0 rounded px-2 py-1 hover:bg-amber-500/20"
+        className="shrink-0 rounded px-2 py-1 hover:bg-warning/20"
         onClick={() => setDismissed(target.version)}
       >
         Dismiss

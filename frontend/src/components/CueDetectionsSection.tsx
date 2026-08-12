@@ -8,6 +8,7 @@ import { episodeOriginalUrl } from '../api/feeds';
 import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { btnDestructive, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -20,12 +21,12 @@ type OutcomeMeta = { label: string; className: string; title: string };
 const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
   pair: {
     label: 'Paired',
-    className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
+    className: 'bg-c-purple/20 text-c-purple',
     title: 'Two cues bracketed and created an ad',
   },
   snap: {
     label: 'Snapped',
-    className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+    className: 'bg-c-blue/20 text-c-blue',
     title: 'Moved an ad edge onto this cue',
   },
   none: {
@@ -35,7 +36,7 @@ const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
   },
   below_threshold: {
     label: 'missed - below threshold',
-    className: 'bg-amber-500/15 text-warning',
+    className: 'bg-warning/15 text-warning',
     title: 'Scored just under the feed threshold; never a signal, never affected a cut',
   },
 };
@@ -138,7 +139,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
                         disabled={pending}
-                        className="px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium bg-green-600 hover:bg-green-700 active:bg-green-800 text-white disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnPrimary} ${focusRing} disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0`}
                       >
                         Confirm
                       </button>
@@ -156,7 +157,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                         className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                           d.verdict === 'confirmed'
                             ? 'bg-success/20 text-success'
-                            : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                            : 'bg-destructive/20 text-destructive'
                         }`}
                       >
                         {d.verdict === 'confirmed' ? 'Confirmed' : 'Rejected'}

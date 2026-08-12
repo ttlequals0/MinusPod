@@ -19,7 +19,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
   }
   const label = SEGMENT_CATEGORY_LABELS[category as SegmentCategory] ?? category;
   return (
-    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-indigo-500/20 text-indigo-600 dark:text-indigo-400">
+    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-c-purple/20 text-c-purple">
       {label}
     </span>
   );

@@ -103,7 +103,7 @@ function SuggestionCard({
         ))}
       </ul>
       {warning && (
-        <p className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">{warning}</p>
+        <p className="mt-2 text-xs text-warning">{warning}</p>
       )}
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>

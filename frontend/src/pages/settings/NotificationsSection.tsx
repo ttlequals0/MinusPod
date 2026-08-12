@@ -187,14 +187,14 @@ function WebhooksBlock() {
                     {wh.url.length > 50 ? wh.url.slice(0, 50) + '...' : wh.url}
                   </span>
                   {wh.payloadTemplate && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-c-blue/10 text-c-blue">
                       custom template
                     </span>
                   )}
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded ${
                       wh.enabled
-                        ? 'bg-green-500/10 text-success'
+                        ? 'bg-success/10 text-success'
                         : 'bg-muted text-muted-foreground'
                     }`}
                   >
@@ -217,7 +217,7 @@ function WebhooksBlock() {
                 {testResult?.id === wh.id && (
                   <p
                     className={`text-xs mt-1 ${
-                      testResult.success ? 'text-green-500' : 'text-destructive'
+                      testResult.success ? 'text-success' : 'text-destructive'
                     }`}
                   >
                     {testResult.message}
@@ -341,7 +341,7 @@ function WebhooksBlock() {
               <div
                 className={`mt-2 p-3 rounded-lg text-xs font-mono whitespace-pre-wrap ${
                   templatePreview.valid
-                    ? 'bg-green-500/10 text-success'
+                    ? 'bg-success/10 text-success'
                     : 'bg-destructive/10 text-destructive'
                 }`}
               >

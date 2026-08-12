@@ -23,8 +23,8 @@ export const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
 // Wider than the ghost icon buttons (px-2) to fit the bracketed [play] glyphs.
 export const selectionBtn =
   'inline-flex items-center gap-0.5 px-2 py-1.5 rounded transition-colors ' +
-  'border border-amber-600/50 text-amber-600 bg-amber-500/10 ' +
-  'hover:bg-amber-500/20 hover:border-amber-600 ' +
-  'dark:border-amber-500/60 dark:text-amber-500 dark:hover:border-amber-500 ' +
-  'focus:outline-hidden focus:ring-2 focus:ring-amber-500 ' +
+  'border border-warning/50 text-warning bg-warning/10 ' +
+  'hover:bg-warning/20 hover:border-warning ' +
+  'dark:border-warning/60 dark:text-warning dark:hover:border-warning ' +
+  'focus:outline-hidden focus:ring-2 focus:ring-warning ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';

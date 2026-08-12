@@ -24,8 +24,8 @@ function StatusBadge({ active }: { active: boolean }) {
     <span
       className={`px-2 py-0.5 text-xs rounded ${
         active
-          ? 'bg-green-500/20 text-success'
-          : 'bg-red-500/20 text-red-600 dark:text-red-400'
+          ? 'bg-success/20 text-success'
+          : 'bg-destructive/20 text-destructive'
       }`}
     >
       {active ? 'Active' : 'Inactive'}
@@ -282,7 +282,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
         >
           <p>This permanently removes the sponsor.</p>
           {deleteTarget.pattern_count > 0 && (
-            <p className="text-yellow-600 dark:text-yellow-400">
+            <p className="text-warning">
               {deleteTarget.pattern_count} linked ad pattern
               {deleteTarget.pattern_count === 1 ? '' : 's'} will be unlinked (kept, not deleted).
             </p>
@@ -336,7 +336,7 @@ function NormalizationsSection() {
           <div key={n.id} className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-start justify-between gap-2 mb-2">
               <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
-              <span className="shrink-0 px-2 py-0.5 text-xs rounded bg-slate-500/15 text-slate-700 dark:text-slate-300">{n.category}</span>
+              <span className="shrink-0 px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
             </div>
             <div className="text-sm text-foreground mb-3 break-all">
               <span className="text-muted-foreground">→ </span>{n.canonical}
@@ -376,7 +376,7 @@ function NormalizationsSection() {
                   <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
                   <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className="px-2 py-0.5 text-xs rounded bg-slate-500/15 text-slate-700 dark:text-slate-300">{n.category}</span>
+                    <span className="px-2 py-0.5 text-xs rounded bg-muted text-muted-foreground">{n.category}</span>
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">

@@ -339,7 +339,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     onClick={() => focusSponsor(i)}
                     className={`rounded text-[10px] text-foreground flex items-center justify-center gap-1 px-1 overflow-hidden focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                       i === shortIdx
-                        ? 'bg-rose-500/30 border border-rose-500'
+                        ? 'bg-destructive/30 border border-destructive'
                         : 'bg-primary/20'
                     }`}
                     style={{ width: `${Math.max(2, width)}%` }}

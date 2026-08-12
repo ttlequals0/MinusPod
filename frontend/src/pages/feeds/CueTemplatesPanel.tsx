@@ -411,13 +411,13 @@ function CueTemplatesPanel({ slug }: Props) {
                       <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
-                          <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 align-middle">
+                          <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-c-purple/20 text-c-purple align-middle">
                             NETWORK
                           </span>
                         )}
                         {t.quiet && (
                           <span
-                            className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning align-middle"
+                            className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning align-middle"
                             title="No matches in recent episodes. Recapture this cue to keep it working."
                           >
                             quiet
@@ -596,7 +596,7 @@ function CueTemplatesPanel({ slug }: Props) {
               <div className="mt-3 space-y-1">
                 {advisoryQuery.data.templateHints!.map((h) => (
                   <p key={h.templateId} className="text-sm text-muted-foreground">
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-warning mr-2">
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-warning/20 text-warning mr-2">
                       {h.hint === 'raise_threshold' ? 'Raise threshold' : 'Re-capture cue'}
                     </span>
                     {h.label || `Template ${h.templateId}`}: {h.rejected} rejected

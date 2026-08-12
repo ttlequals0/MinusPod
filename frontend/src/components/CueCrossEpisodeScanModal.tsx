@@ -380,7 +380,7 @@ export default function CueCrossEpisodeScanModal({
                           {(c.end - c.start).toFixed(2)}s
                         </span>
                         {c.episodeMatches != null && (
-                          <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                          <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-c-blue/20 text-c-blue">
                             {/* episodeMatches counts SIBLINGS; the target is always a match too, so +1. */}
                             in {c.episodeMatches + 1} of {episodeCount} eps
                           </span>

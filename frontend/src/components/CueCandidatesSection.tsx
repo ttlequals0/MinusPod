@@ -240,8 +240,8 @@ function CueCandidatesSection({
                       </span>
                       <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                         c.kind === 'intro' || c.kind === 'outro'
-                          ? 'bg-amber-500/20 text-warning'
-                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                          ? 'bg-warning/20 text-warning'
+                          : 'bg-c-blue/20 text-c-blue'
                       }`}>
                         {cueCandidateLabel(c)}
                       </span>

@@ -11,7 +11,8 @@ import {
   purgeAllCommunityPatterns,
 } from '../../api/community';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnDestructive, btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
 
 interface Draft {
@@ -133,7 +134,7 @@ function CommunityPatternsSection() {
           )}
 
           {cronError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{cronError}</p>
+            <p className="text-sm text-destructive">{cronError}</p>
           )}
 
           <div className="pt-2 border-t border-border space-y-2">
@@ -179,7 +180,7 @@ function CommunityPatternsSection() {
             </button>
             {save.isSuccess && <SavedBadge className="ml-1" />}
             {syncNow.isError && (
-              <span className="ml-1 text-sm text-red-600 dark:text-red-400">
+              <span className="ml-1 text-sm text-destructive">
                 {(syncNow.error as Error)?.message || 'Sync failed'}
               </span>
             )}
@@ -205,7 +206,7 @@ function CommunityPatternsSection() {
               </div>
             )}
             {data?.lastError && (
-              <div className="text-red-600 dark:text-red-400">
+              <div className="text-destructive">
                 <span className="font-medium">Last error:</span> {data.lastError}
               </div>
             )}
@@ -224,7 +225,7 @@ function CommunityPatternsSection() {
                   type="button"
                   onClick={() => purge.mutate()}
                   disabled={purge.isPending}
-                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 text-sm"
+                  className={`px-3 py-1.5 rounded-lg ${btnDestructive} ${focusRing} disabled:opacity-50 text-sm transition-colors`}
                 >
                   {purge.isPending ? 'Removing...' : 'Yes, remove all'}
                 </button>
@@ -241,7 +242,7 @@ function CommunityPatternsSection() {
               <button
                 type="button"
                 onClick={() => { setPurgeResult(null); setConfirmPurge(true); }}
-                className="px-3 py-1.5 rounded-lg border border-red-500 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
+                className="px-3 py-1.5 rounded-lg border border-destructive text-destructive hover:bg-destructive dark:hover:bg-destructive/20 text-sm"
               >
                 Remove all community patterns
               </button>

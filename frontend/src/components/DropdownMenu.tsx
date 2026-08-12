@@ -1,5 +1,6 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { focusRing } from './fieldStyles';
 
 export interface DropdownMenuItem {
   title: string;
@@ -32,6 +33,36 @@ function DropdownMenu({
 }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const close = (refocus = true) => {
+    setOpen(false);
+    if (refocus) triggerRef.current?.focus();
+  };
+
+  // Arrow keys walk the items, Home/End jump to the ends.
+  const onItemKeyDown = (e: ReactKeyboardEvent, i: number) => {
+    const move = (next: number) => {
+      e.preventDefault();
+      itemRefs.current[(next + items.length) % items.length]?.focus();
+    };
+    if (e.key === 'ArrowDown') move(i + 1);
+    else if (e.key === 'ArrowUp') move(i - 1);
+    else if (e.key === 'Home') move(0);
+    else if (e.key === 'End') move(items.length - 1);
+    else if (e.key === 'Tab') close(false);
+  };
+
+  const onTriggerKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    setOpen(true);
+    queueMicrotask(() => {
+      const i = e.key === 'ArrowDown' ? 0 : items.length - 1;
+      itemRefs.current[i]?.focus();
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +70,7 @@ function DropdownMenu({
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') close();
     };
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('touchstart', onPointerDown);
@@ -54,23 +85,27 @@ function DropdownMenu({
   return (
     <div className="relative" ref={rootRef}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
+        onKeyDown={onTriggerKeyDown}
         disabled={disabled}
-        className={triggerClassName}
+        className={`${triggerClassName} ${focusRing}`}
         title={title}
         aria-label={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
       >
         {triggerLabel}
         <ChevronDown className={`${chevronClassName} transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-1 w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
-
+        <div role="menu" className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-1 w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
           {items.map((item, i) => {
             const isFirst = i === 0;
             const isLast = i === items.length - 1;
             const cls = [
               'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
+              focusRing,
               isFirst ? 'rounded-t-lg' : '',
               isLast ? 'rounded-b-lg' : '',
               isFirst ? '' : 'border-t border-border',
@@ -78,10 +113,13 @@ function DropdownMenu({
             return (
               <button
                 key={item.title}
+                ref={(el) => { itemRefs.current[i] = el; }}
+                role="menuitem"
                 onClick={() => {
-                  setOpen(false);
+                  close();
                   item.onClick();
                 }}
+                onKeyDown={(e) => onItemKeyDown(e, i)}
                 className={cls}
               >
                 <span className="block text-sm font-medium text-foreground">{item.title}</span>

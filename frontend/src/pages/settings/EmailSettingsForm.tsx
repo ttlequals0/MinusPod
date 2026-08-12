@@ -306,7 +306,7 @@ function EmailSettingsForm() {
           </span>
         )}
         {testResult && (
-          <span className={`text-xs ${testResult.success ? 'text-green-500' : 'text-destructive'}`}>
+          <span className={`text-xs ${testResult.success ? 'text-success' : 'text-destructive'}`}>
             {testResult.message}
           </span>
         )}

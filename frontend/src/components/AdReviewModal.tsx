@@ -718,7 +718,7 @@ function AdReviewModal({
           : boundsWindow && (adStart < boundsWindow.min || adEnd > boundsWindow.max)
             ? `Selection must stay within the detected span (${formatTime(boundsWindow.min)} - ${formatTime(boundsWindow.max)})`
             : null;
-  const inputBorderClass = boundaryError ? 'border-rose-500' : 'border-border';
+  const inputBorderClass = boundaryError ? 'border-destructive' : 'border-border';
 
   // With Confirm hidden (Detected Ads), an unmoved-boundary save would emit
   // a plain confirm the host discards, so the button and C shortcut go inert.
@@ -956,7 +956,7 @@ function AdReviewModal({
                 aria-hidden
               />
               <div
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-amber-500 pointer-events-none"
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-warning pointer-events-none"
                 style={{ left: `${(currentTime / totalDuration) * 100}%` }}
                 aria-hidden
               />
@@ -1109,13 +1109,13 @@ function AdReviewModal({
                     }}
                   >
                     {/* Compact circle pinhead at top. */}
-                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white bg-amber-500 shadow-md cursor-ew-resize" />
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-card bg-warning shadow-md cursor-ew-resize" />
                     {/* Time label -- hover or while moving. */}
-                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none opacity-0 group-hover/cursor:opacity-100">
+                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-warning text-warning-foreground text-[10px] font-bold whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none opacity-0 group-hover/cursor:opacity-100">
                       ▶ {formatTime(currentTime)}
                     </div>
                     {/* Stem */}
-                    <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)] pointer-events-none" />
+                    <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-warning shadow-[0_0_4px_rgba(245,158,11,0.8)] pointer-events-none" />
                     {/* Wider hit area */}
                     <div className="absolute inset-y-0 -inset-x-4 cursor-ew-resize" />
                   </div>
@@ -1213,7 +1213,7 @@ function AdReviewModal({
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={commitStartInput}
               onKeyDown={timeInputKeyDown(adStart, setStartInput)}
-              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-emerald-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
+              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-success font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
             />
             <span>-</span>
             <input
@@ -1226,11 +1226,11 @@ function AdReviewModal({
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={commitEndInput}
               onKeyDown={timeInputKeyDown(adEnd, setEndInput)}
-              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-rose-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
+              className={`w-20 px-1.5 py-0.5 rounded border bg-background text-destructive font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring ${inputBorderClass}`}
             />
             <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
             {boundariesMoved && !boundaryError && (
-              <span className="text-xs text-amber-500">
+              <span className="text-xs text-warning">
                 (originally {formatTime(item.start)} – {formatTime(item.end)})
               </span>
             )}
@@ -1238,7 +1238,7 @@ function AdReviewModal({
           {boundaryError && (
             <div
               role="alert"
-              className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 text-xs font-medium"
+              className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-destructive/10 text-destructive text-xs font-medium"
             >
               <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>{boundaryError}</span>
@@ -1272,8 +1272,8 @@ function AdReviewModal({
           />
 
           <div className="mt-2 text-xs text-muted-foreground">
-            Drag the <span className="text-emerald-500 font-semibold">START</span> /{' '}
-            <span className="text-rose-500 font-semibold">END</span> pins above the waveform.{' '}
+            Drag the <span className="text-success font-semibold">START</span> /{' '}
+            <span className="text-destructive font-semibold">END</span> pins above the waveform.{' '}
             <kbd>Space</kbd> play • <kbd>,</kbd>/<kbd>.</kbd> expand window • mouse-wheel to zoom • <kbd>C</kbd> confirm • <kbd>R</kbd> not an ad • <kbd>S</kbd> skip
           </div>
         </div>

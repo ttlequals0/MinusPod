@@ -130,7 +130,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <div className="text-xs text-muted-foreground">Confirmations</div>
           </div>
           <div className="bg-secondary/50 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            <div className="text-2xl font-bold text-destructive">
               {pattern.false_positive_count}
             </div>
             <div className="text-xs text-muted-foreground">False Positives</div>
@@ -268,7 +268,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Disabled Reason
                 </label>
-                <div className="text-sm text-red-600 dark:text-red-400">
+                <div className="text-sm text-destructive">
                   {pattern.disabled_reason}
                 </div>
               </div>
@@ -391,7 +391,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       {/* Error Display */}
       {(updateMutation.isError || deleteMutation.isError || splitMutation.isError) && (
         <div className="px-4 pb-4">
-          <div className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 rounded p-2">
+          <div className="text-sm text-destructive bg-destructive/10 rounded p-2">
             {splitMutation.isError
               ? getErrorMessage(splitMutation.error, 'Failed to split pattern.')
               : `${deleteMutation.isError ? 'Failed to delete pattern.' : 'Failed to save changes.'} Please try again.`}

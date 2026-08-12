@@ -17,7 +17,7 @@ function CopyButton({
   label = 'Copy URL',
   copiedLabel = 'Copied',
   className = '',
-  copiedClassName = 'text-green-500',
+  copiedClassName = 'text-success',
   labelClassName = 'text-xs',
   hideLabelOnMobile = false,
 }: CopyButtonProps) {

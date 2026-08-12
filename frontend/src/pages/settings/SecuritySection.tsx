@@ -125,8 +125,8 @@ function SecuritySection({
       </div>
 
       {!isPasswordSet && (
-        <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-          <p className="text-sm text-yellow-600 dark:text-yellow-400">
+        <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
+          <p className="text-sm text-warning">
             {cryptoReady
               ? 'The master passphrase encrypts stored API keys but does not restrict access to this app; anyone with network access still has full control. Set a password below to protect it.'
               : 'This instance has no password, so anyone with network access has full control: they can read everything, change settings, delete feeds, and download a complete database backup. Set a password below to protect it.'}
@@ -188,7 +188,7 @@ function SecuritySection({
         )}
 
         {passwordSuccess && (
-          <div className="p-3 rounded-lg bg-green-500/10 text-success text-sm">
+          <div className="p-3 rounded-lg bg-success/10 text-success text-sm">
             {passwordSuccess}
           </div>
         )}
@@ -216,7 +216,7 @@ function SecuritySection({
         </p>
 
         {plaintextSecretsCount > 0 && (
-          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+          <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
             {plaintextSecretsCount} provider key
             {plaintextSecretsCount === 1 ? '' : 's'} still stored as plaintext.
             {cryptoReady
@@ -232,7 +232,7 @@ function SecuritySection({
           </p>
         ) : (
           <form onSubmit={handleRotatePassphrase} className="space-y-3">
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300 space-y-1">
+            <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning space-y-1">
               <p>After clicking Rotate, update <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in your container environment to the new value and restart the container.</p>
               <p>Other Gunicorn workers keep the old key cached until restart, so stored keys may fail to decrypt in the meantime.</p>
               <p>Lose the new passphrase and the stored keys are unrecoverable. Back it up first.</p>

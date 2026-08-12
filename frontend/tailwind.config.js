@@ -32,6 +32,9 @@ export default {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        'c-blue': 'hsl(var(--c-blue))',
+        'c-purple': 'hsl(var(--c-purple))',
+        'c-teal': 'hsl(var(--c-teal))',
       },
       borderRadius: {
         lg: 'var(--radius)',

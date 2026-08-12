@@ -84,10 +84,10 @@ function DataManagementSection({
     if (status === 'success') {
       return (
         <div className="flex items-center gap-2 mt-3">
-          <svg className="h-4 w-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="h-4 w-4 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          <span className="text-xs text-green-500">Downloaded successfully</span>
+          <span className="text-xs text-success">Downloaded successfully</span>
         </div>
       );
     }

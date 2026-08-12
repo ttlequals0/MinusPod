@@ -6,27 +6,27 @@ import { AuditionPlayButton } from '../../components/AuditionPlayButton';
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import { formatTimestamp, formatDate } from '../../utils/format';
-import { btnDestructive, btnOutline } from '../../components/buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
 // validation rejects and human "Not an ad" decisions once a recut restores
 // the span (marker_status in src/detection_review.py keys on was_cut).
 export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
-  accepted: ['Accepted', 'bg-green-500/10 text-success'],
-  rejected: ['Not cut', 'bg-red-500/10 text-red-600 dark:text-red-400'],
-  pending: ['Pending', 'bg-amber-500/10 text-warning'],
+  accepted: ['Accepted', 'bg-success/10 text-success'],
+  rejected: ['Not cut', 'bg-destructive/10 text-destructive'],
+  pending: ['Pending', 'bg-warning/10 text-warning'],
 };
 
 export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
   unresolved: ['Unresolved', 'bg-secondary text-muted-foreground'],
-  confirmed: ['Confirmed', 'bg-green-500/10 text-success'],
+  confirmed: ['Confirmed', 'bg-success/10 text-success'],
   dismissed: ['Not an ad', 'bg-secondary text-muted-foreground'],
 };
 
 // Only beep and keep get a badge. remove is what a cut ad normally is, so
 // labelling it would put a chip on nearly every row and say nothing.
 const ACTION_BADGE: Record<string, [string, string]> = {
-  beep: ['Beeped', 'bg-sky-500/10 text-sky-600 dark:text-sky-400'],
+  beep: ['Beeped', 'bg-c-blue/10 text-c-blue'],
   keep: ['Kept', 'bg-muted text-muted-foreground'],
 };
 
@@ -137,7 +137,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onApprove?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}bg-green-600 hover:bg-green-700 text-white disabled:opacity-50`}
+          className={`${btn} ${growCls}${btnPrimary} disabled:opacity-50`}
         >
           Confirm ad
         </button>

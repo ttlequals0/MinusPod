@@ -172,13 +172,13 @@ function PatternsPage() {
   const getStatusBadge = (isActive: boolean) => {
     if (isActive) {
       return (
-        <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-success">
+        <span className="px-2 py-0.5 text-xs rounded bg-success/20 text-success">
           Active
         </span>
       );
     }
     return (
-      <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400">
+      <span className="px-2 py-0.5 text-xs rounded bg-destructive/20 text-destructive">
         Inactive
       </span>
     );
@@ -295,13 +295,13 @@ function PatternsPage() {
             </div>
             <div>
               <p className="text-muted-foreground">Unknown Sponsor</p>
-              <p className={`font-medium ${stats.no_sponsor > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-foreground'}`}>
+              <p className={`font-medium ${stats.no_sponsor > 0 ? 'text-warning' : 'text-foreground'}`}>
                 {stats.no_sponsor}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">High False Pos.</p>
-              <p className={`font-medium ${stats.high_false_positive_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+              <p className={`font-medium ${stats.high_false_positive_count > 0 ? 'text-destructive' : 'text-foreground'}`}>
                 {stats.high_false_positive_count}
               </p>
             </div>
@@ -433,7 +433,7 @@ function PatternsPage() {
                 <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                 <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
-                  <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-warning">
+                  <span className="px-2 py-0.5 text-xs rounded bg-warning/20 text-warning">
                     Manual
                   </span>
                 )}
@@ -470,7 +470,7 @@ function PatternsPage() {
               <span className="text-success">
                 Confirmed: {pattern.confirmation_count}
               </span>
-              <span className={pattern.false_positive_count > 0 ? 'text-red-600 dark:text-red-400' : ''}>
+              <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
                 False Pos: {pattern.false_positive_count}
               </span>
               <span className="ml-auto">
@@ -533,7 +533,7 @@ function PatternsPage() {
                       <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
-                        <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-warning">
+                        <span className="px-2 py-0.5 text-xs rounded bg-warning/20 text-warning">
                           Manual
                         </span>
                       )}
@@ -564,7 +564,7 @@ function PatternsPage() {
                   <td className="px-2 py-3 whitespace-nowrap">
                     <span className={`text-sm font-medium ${
                       pattern.false_positive_count > 0
-                        ? 'text-red-600 dark:text-red-400'
+                        ? 'text-destructive'
                         : 'text-muted-foreground'
                     }`}>
                       {pattern.false_positive_count}

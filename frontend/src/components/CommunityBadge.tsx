@@ -16,7 +16,7 @@ export function CommunityBadge({ communityId, version, protected: isProtected }:
         e.stopPropagation();
         setExpanded((v) => !v);
       }}
-      className="px-2 py-0.5 text-xs rounded bg-teal-500/15 text-teal-700 dark:text-teal-400 hover:bg-teal-500/25 transition-colors"
+      className="px-2 py-0.5 text-xs rounded bg-c-teal/15 text-c-teal hover:bg-c-teal/25 transition-colors"
       title="Community pattern"
     >
       community{version ? ` v${version}` : ''} · {expanded ? communityId : short}

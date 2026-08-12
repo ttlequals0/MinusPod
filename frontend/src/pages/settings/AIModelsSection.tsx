@@ -108,8 +108,8 @@ function AIModelsSection({
       }
     >
       {!modelsLoading && models && models.length === 0 && (
-        <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-          <p className="text-sm text-yellow-600 dark:text-yellow-400">
+        <div className="mb-4 p-3 rounded-lg bg-warning/10 border border-warning/20">
+          <p className="text-sm text-warning">
             No models available from the LLM provider. Check that your provider is configured correctly and the endpoint is reachable.
           </p>
         </div>

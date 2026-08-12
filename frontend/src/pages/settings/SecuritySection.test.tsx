@@ -50,10 +50,10 @@ describe('SecuritySection warning: no password, passphrase set', () => {
     const warning = screen.queryByText(PASSPHRASE_TEXT);
     expect(warning).not.toBeNull();
     expect(screen.queryByText(NO_PASSWORD_TEXT)).toBeNull();
-    // Same amber severity styling as the original warning container.
+    // Same warning severity styling as the original container.
     const container = warning!.closest('div');
-    expect(container?.className).toContain('bg-yellow-500/10');
-    expect(container?.className).toContain('border-yellow-500/20');
+    expect(container?.className).toContain('bg-warning/10');
+    expect(container?.className).toContain('border-warning/20');
   });
 });
 

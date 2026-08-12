@@ -322,7 +322,7 @@ function AddFeed() {
               isUrl && touched && urlValidation.error
                 ? 'border-destructive focus:ring-destructive'
                 : isUrl && touched && urlValidation.warning
-                  ? 'border-yellow-500 focus:ring-yellow-500'
+                  ? 'border-warning focus:ring-warning'
                   : 'border-input'
             }`}
           />
@@ -330,7 +330,7 @@ function AddFeed() {
             <p className="mt-1 text-sm text-destructive">{urlValidation.error}</p>
           )}
           {isUrl && touched && !urlValidation.error && urlValidation.warning && (
-            <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-500">{urlValidation.warning}</p>
+            <p className="mt-1 text-sm text-warning">{urlValidation.warning}</p>
           )}
         </div>
 

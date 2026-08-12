@@ -47,12 +47,12 @@ function ResultStatsGrid({ queued, skipped, queuedLabel }: {
 }) {
   return (
     <div className="grid grid-cols-2 gap-4 text-center mb-4">
-      <div className="p-3 rounded-lg bg-green-500/10">
+      <div className="p-3 rounded-lg bg-success/10">
         <p className="text-2xl font-bold text-success">{queued}</p>
         <p className="text-xs text-muted-foreground">{queuedLabel}</p>
       </div>
-      <div className="p-3 rounded-lg bg-yellow-500/10">
-        <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{skipped}</p>
+      <div className="p-3 rounded-lg bg-warning/10">
+        <p className="text-2xl font-bold text-warning">{skipped}</p>
         <p className="text-xs text-muted-foreground">Skipped</p>
       </div>
     </div>
@@ -351,7 +351,7 @@ function FeedDetail() {
                   {feedDisplayTitle(feed)}
                 </h1>
                 {feed.titleOverride && (
-                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/15 text-blue-700 dark:text-blue-400">
+                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-c-blue/15 text-c-blue">
                     Custom
                   </span>
                 )}
@@ -399,7 +399,7 @@ function FeedDetail() {
               text={feed.feedUrl}
               label="Copy Feed URL"
               className={`px-4 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
-              copiedClassName="text-green-500 bg-green-500/10 sm:bg-transparent"
+              copiedClassName="text-success bg-success/10 sm:bg-transparent"
               labelClassName="text-sm"
             />
           </div>
@@ -640,7 +640,7 @@ function FeedDetail() {
                 ? 'This will queue all processed episodes that have a saved transcript. The transcript is reused (no re-transcription); audio is re-analyzed and re-cut. Episodes without a transcript are skipped.'
                 : 'This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.'}
             </p>
-            <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-6">
+            <p className="text-sm text-warning mb-6">
               This operation cannot be undone. Episodes currently processing will be skipped.
             </p>
             <div className="flex gap-3 justify-end">

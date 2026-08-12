@@ -129,7 +129,7 @@ export function PatternExportEditRow({
           />
           <TagChips tags={tags} />
           {unknownTags.length > 0 && (
-            <p className="text-xs text-rose-600 dark:text-rose-400">
+            <p className="text-xs text-destructive">
               Unknown tags will be rejected: {unknownTags.join(', ')}. See patterns/vocabulary.json.
             </p>
           )}

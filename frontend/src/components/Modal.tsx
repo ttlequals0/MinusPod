@@ -1,5 +1,6 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 // Shared modal recipes. cueScanStyles re-exports these for the cue feature's
 // recipe-based modals; everything else renders through <Modal>.
@@ -20,11 +21,52 @@ export function useEscape(onClose: () => void, enabled = true) {
   }, [onClose, enabled]);
 }
 
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+// Keeps Tab inside the dialog and returns focus to the trigger on close, so a
+// keyboard user is never dropped onto the page behind an open dialog.
+export function useFocusTrap(panelRef: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const targets = () => Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE))
+      .filter((el) => el.offsetParent !== null || el === document.activeElement);
+
+    (targets()[0] ?? panel).focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = targets();
+      if (items.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && (active === first || !panel.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      }
+    };
+
+    panel.addEventListener('keydown', onKey);
+    return () => {
+      panel.removeEventListener('keydown', onKey);
+      previous?.focus?.();
+    };
+  }, [panelRef]);
+}
+
 interface ModalProps {
   // Called by Escape / click-outside when those are enabled.
   onClose: () => void;
-  // Both default off: most dialogs close only via their explicit buttons,
-  // and each migrated dialog must keep its pre-existing behavior.
+  // Escape closes by default; pass false for a dialog that must not.
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
   // Sizing/layout plus any text-color override. The panel deliberately sets
@@ -36,14 +78,20 @@ interface ModalProps {
 }
 
 export function Modal({
-  onClose, closeOnEscape = false, closeOnBackdrop = false, panelClassName = '', children,
+  onClose, closeOnEscape = true, closeOnBackdrop = false, panelClassName = '', children,
 }: ModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape);
+  useFocusTrap(panelRef);
 
   return (
     <div className={modalBackdrop} onClick={closeOnBackdrop ? onClose : undefined}>
       <div
-        className={`${modalPanelBase} ${panelClassName}`}
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className={`${modalPanelBase} ${focusRing} ${panelClassName}`}
         onClick={closeOnBackdrop ? (e) => e.stopPropagation() : undefined}
       >
         {children}

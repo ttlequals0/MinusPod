@@ -1,13 +1,13 @@
 import { EPISODE_STATUS_KEYS, type EpisodeStatusKey } from '../api/types';
 
 export const EPISODE_STATUS_COLORS: Record<string, string> = {
-  discovered: 'bg-blue-500/20 text-blue-600 dark:text-blue-400',
+  discovered: 'bg-c-blue/20 text-c-blue',
   pending: 'bg-muted text-muted-foreground',
-  processing: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
-  completed: 'bg-green-500/20 text-success',
+  processing: 'bg-warning/20 text-warning',
+  completed: 'bg-success/20 text-success',
   failed: 'bg-destructive/20 text-destructive',
   permanently_failed: 'bg-destructive/20 text-destructive',
-  deferred: 'bg-purple-500/20 text-purple-600 dark:text-purple-400',
+  deferred: 'bg-c-purple/20 text-c-purple',
 };
 
 export const EPISODE_STATUS_LABELS: Record<string, string> = {
@@ -29,13 +29,13 @@ export const EPISODE_STATUS_ORDER: readonly EpisodeStatusKey[] = EPISODE_STATUS_
 
 // Text-only variants of the badge palette for big stat-card numbers.
 export const EPISODE_STATUS_TEXT_COLORS: Record<EpisodeStatusKey, string> = {
-  discovered: 'text-blue-600 dark:text-blue-400',
+  discovered: 'text-c-blue',
   pending: 'text-muted-foreground',
-  processing: 'text-yellow-600 dark:text-yellow-400',
+  processing: 'text-warning',
   completed: 'text-success',
   failed: 'text-destructive',
   permanently_failed: 'text-destructive',
-  deferred: 'text-purple-600 dark:text-purple-400',
+  deferred: 'text-c-purple',
 };
 
 // Compact labels for the dashboard per-feed summary pills.

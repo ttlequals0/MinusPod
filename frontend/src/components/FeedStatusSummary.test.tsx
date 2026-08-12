@@ -43,6 +43,6 @@ describe('FeedStatusSummary', () => {
   it('uses the shared badge color classes', () => {
     render(<FeedStatusSummary counts={makeCounts({ completed: 1 })} />);
     const pill = screen.getByText('1 Comp');
-    expect(pill.className).toContain('bg-green-500/20');
+    expect(pill.className).toContain('bg-success/20');
   });
 });
