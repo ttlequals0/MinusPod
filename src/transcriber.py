@@ -15,7 +15,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
 
 from utils.audio import get_audio_duration
-from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionError
+from utils.errors import (
+    ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
+    AudioExtractionTimeout,
+)
 from utils.time import format_vtt_timestamp
 from utils.gpu import (clear_gpu_memory, get_available_memory_gb,
                        get_gpu_device_name, get_gpu_memory_info)
@@ -231,12 +234,11 @@ def extract_audio_chunk(
 
         # With filtering folded in, allow the same budget the standalone
         # preprocess pass had (FFMPEG_LONG_TIMEOUT floor) instead of the
-        # tighter extract-only timeout.
-        result = tracked_run(
-            cmd,
-            capture_output=True,
-            timeout=FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT
-        )
+        # tighter extract-only timeout. Scale by chunk length the way every
+        # other ffmpeg call site does (#644): chunk size follows available GPU
+        # memory, so a flat budget silently fails once chunks grow past it.
+        timeout = (FFMPEG_LONG_TIMEOUT if preprocess else FFMPEG_CHUNK_TIMEOUT) + int(duration / 12)
+        result = tracked_run(cmd, capture_output=True, timeout=timeout)
 
         if result.returncode == 0 and os.path.exists(output_path):
             logger.debug(f"Extracted chunk {start_time:.1f}s-{end_time:.1f}s to {output_path}")
@@ -250,8 +252,14 @@ def extract_audio_chunk(
         return None
 
     except subprocess.TimeoutExpired:
-        logger.warning(f"Chunk extraction timed out for {start_time:.1f}s-{end_time:.1f}s")
-        return None
+        logger.warning(
+            f"Chunk extraction timed out after {timeout}s for "
+            f"{start_time:.1f}s-{end_time:.1f}s ({duration / 60:.1f} min chunk)"
+        )
+        raise AudioExtractionTimeout(
+            f'Audio chunk extraction timed out (ffmpeg exceeded {timeout}s '
+            f'preparing a {duration / 60:.1f} min chunk)'
+        ) from None
     except Exception as e:
         logger.warning(f"Chunk extraction error: {e}")
         return None
@@ -1862,6 +1870,9 @@ class Transcriber:
         # extraction as the cause instead of the generic transcription
         # failure that sent #556's reporter debugging a healthy provider.
         extraction_failures: List[int] = []
+        # Subset of the above that ran out of clock rather than failing to
+        # decode, so the abort message does not blame the source file (#644).
+        extraction_timeouts: List[int] = []
 
         # One ffmpeg pass per chunk: extraction applies the preprocess filter
         # chain, and (unless the operator opted out of FLAC compression)
@@ -1869,10 +1880,16 @@ class Transcriber:
         extract_as_flac = not bool(whisper_settings.get('skip_flac_compression', False))
 
         def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
-            chunk_path = extract_audio_chunk(
-                audio_path, c_start, c_end,
-                preprocess=True, flac=extract_as_flac,
-            )
+            try:
+                chunk_path = extract_audio_chunk(
+                    audio_path, c_start, c_end,
+                    preprocess=True, flac=extract_as_flac,
+                )
+            except AudioExtractionTimeout as e:
+                logger.error(f"Chunk {chunk_idx + 1}: {e}")
+                extraction_failures.append(chunk_idx)
+                extraction_timeouts.append(chunk_idx)
+                return chunk_idx, None
             if not chunk_path:
                 logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
                 extraction_failures.append(chunk_idx)
@@ -1946,6 +1963,11 @@ class Transcriber:
                     # (#556): "Failed to transcribe audio" points users at a
                     # healthy transcription provider.
                     if len(extraction_failures) * 2 > failed:
+                        if len(extraction_timeouts) * 2 > len(extraction_failures):
+                            raise AudioExtractionTimeout(
+                                'Audio chunk extraction timed out (ffmpeg ran '
+                                'out of time preparing chunks); the '
+                                'transcription API was not the problem')
                         raise AudioExtractionError(
                             'Audio chunk extraction failed (ffmpeg could not '
                             'decode the source file); the transcription API '
@@ -2085,6 +2107,8 @@ class Transcriber:
         chunk_num = 0
         oom_retry_count = 0
         max_oom_retries = 3
+        extract_timeout_retries = 0
+        max_extract_timeout_retries = 1
         failed_chunks: list[tuple[float, float]] = []
         # Tolerate a minority of failed chunks (e.g. flaky remote Whisper API)
         # rather than aborting the whole episode. Cap at ~20% of expected chunks.
@@ -2112,9 +2136,22 @@ class Transcriber:
 
             # Extract chunk using ffmpeg, applying the preprocess filter
             # chain in the same pass so transcribe() can skip its own
-            chunk_path = extract_audio_chunk(
-                audio_path, chunk_start, chunk_end_with_overlap, preprocess=True
-            )
+            try:
+                chunk_path = extract_audio_chunk(
+                    audio_path, chunk_start, chunk_end_with_overlap, preprocess=True
+                )
+            except AudioExtractionTimeout:
+                # Re-running the same call would time out again, so shrink the
+                # chunk once before giving up, mirroring the OOM path (#644).
+                if extract_timeout_retries >= max_extract_timeout_retries:
+                    raise
+                extract_timeout_retries += 1
+                chunk_duration = max(CHUNK_MIN_DURATION_SECONDS, chunk_duration // 2)
+                logger.warning(
+                    f"Chunk {chunk_num + 1} extraction timed out; retrying with "
+                    f"chunk_size={chunk_duration/60:.0f}min"
+                )
+                continue
             if not chunk_path:
                 logger.error(f"Failed to extract chunk {chunk_num + 1}")
                 # Name local extraction as the cause (#556): the generic

@@ -57,6 +57,12 @@ release notes.
 
 ### Fixed
 
+- Chunk extraction no longer times out on long chunks and then blames the
+  source file for it (#644). The ffmpeg budget scales with chunk length the
+  way every other ffmpeg call site already did, a timeout reports itself as
+  a timeout with the budget and chunk length instead of asserting a decode
+  failure, and the first timeout halves the chunk and retries once rather
+  than repeating the same doomed call through the whole retry ladder.
 - Status and stage colors now respond to all 20 themes. 341 hardcoded
   Tailwind color classes across roughly 40 files moved onto design tokens,
   along with the remaining hardcoded hex values in the charts, the

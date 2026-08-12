@@ -1,5 +1,6 @@
 """Tests for the OpenAI-compatible whisper API transcription backend."""
 import os
+import subprocess
 import tempfile
 from unittest.mock import patch, MagicMock
 
@@ -14,12 +15,15 @@ from transcriber import (
     _ffmpeg_error_tail,
     PREPROCESS_AUDIO_FILTERS,
 )
-from utils.errors import ServiceUnavailableError, AudioExtractionError
+from utils.errors import (
+    ServiceUnavailableError, AudioExtractionError, AudioExtractionTimeout,
+)
 from config import (
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
     FFMPEG_CHUNK_TIMEOUT,
     FFMPEG_LONG_TIMEOUT,
+    CHUNK_OVERLAP_SECONDS,
     HTTP_TIMEOUT_WHISPER,
     WHISPER_API_TIMEOUT_MIN,
     WHISPER_API_TIMEOUT_MAX,
@@ -735,7 +739,7 @@ class TestExtractAudioChunkSinglePass:
     """extract_audio_chunk folds the preprocess filter chain (and optional
     FLAC encode) into the single extraction ffmpeg pass."""
 
-    def _run_extract(self, **kwargs):
+    def _run_extract(self, start=10.0, end=40.0, **kwargs):
         captured = {}
 
         def fake_run(cmd, **run_kwargs):
@@ -746,7 +750,7 @@ class TestExtractAudioChunkSinglePass:
             return result
 
         with patch('transcriber.tracked_run', side_effect=fake_run):
-            path = extract_audio_chunk('/tmp/in.mp3', 10.0, 40.0, **kwargs)
+            path = extract_audio_chunk('/tmp/in.mp3', start, end, **kwargs)
         if path:
             os.unlink(path)
         return path, captured
@@ -757,7 +761,7 @@ class TestExtractAudioChunkSinglePass:
         assert '-af' not in cmd
         assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
         assert path.endswith('.wav')
-        assert captured['timeout'] == FFMPEG_CHUNK_TIMEOUT
+        assert captured['timeout'] == FFMPEG_CHUNK_TIMEOUT + 30 // 12
 
     def test_preprocess_folds_filter_chain(self):
         path, captured = self._run_extract(preprocess=True)
@@ -766,7 +770,33 @@ class TestExtractAudioChunkSinglePass:
         assert cmd[cmd.index('-c:a') + 1] == 'pcm_s16le'
         assert path.endswith('.wav')
         # Filtering gets the standalone preprocess pass's larger budget
-        assert captured['timeout'] == FFMPEG_LONG_TIMEOUT
+        assert captured['timeout'] == FFMPEG_LONG_TIMEOUT + 30 // 12
+
+    def test_timeout_scales_with_chunk_duration(self):
+        # A 60.5 min chunk must not get the same budget as a 30s one (#644).
+        _, captured = self._run_extract(start=0.0, end=3630.0, preprocess=True)
+        assert captured['timeout'] == FFMPEG_LONG_TIMEOUT + 3630 // 12
+
+    def test_timeout_raises_rather_than_reporting_a_decode_failure(self):
+        def fake_run(cmd, **run_kwargs):
+            raise subprocess.TimeoutExpired(cmd, run_kwargs.get('timeout'))
+
+        with patch('transcriber.tracked_run', side_effect=fake_run):
+            with pytest.raises(AudioExtractionTimeout) as exc:
+                extract_audio_chunk('/tmp/in.mp3', 0.0, 3630.0, preprocess=True)
+        assert 'timed out' in str(exc.value)
+        assert 'decode' not in str(exc.value)
+        assert '60.5 min' in str(exc.value)
+
+    def test_decode_failure_still_returns_none(self):
+        def fake_run(cmd, **run_kwargs):
+            result = MagicMock()
+            result.returncode = 1
+            result.stderr = b'moov atom not found'
+            return result
+
+        with patch('transcriber.tracked_run', side_effect=fake_run):
+            assert extract_audio_chunk('/tmp/in.mp3', 0.0, 30.0) is None
 
     def test_flac_output_for_api_upload(self):
         path, captured = self._run_extract(preprocess=True, flac=True)
@@ -1013,3 +1043,60 @@ class TestConnectionTestFollowsTheRequestTimeout:
     def test_a_hung_backend_cannot_hold_the_settings_page_for_the_full_hour(self):
         from transcriber import _connection_test_timeout
         assert _connection_test_timeout({'api_timeout': 3600}) == 120.0
+
+
+class TestChunkExtractionTimeoutFallback:
+    """A chunk-extraction timeout halves the chunk once instead of repeating
+    the same doomed ffmpeg call four times through the retry ladder (#644)."""
+
+    def _transcriber(self):
+        from transcriber import Transcriber
+        t = Transcriber.__new__(Transcriber)
+        t.get_audio_duration = MagicMock(return_value=3600.0)
+        t.transcribe = MagicMock(return_value=[{'start': 0.0, 'end': 1.0, 'text': 'hi'}])
+        t.filter_hallucinations = lambda segs: segs
+        return t
+
+    def _patches(self, extract):
+        # chunk_duration below duration so the single-chunk short circuit
+        # does not bypass the chunked loop under test.
+        return (
+            patch('transcriber.calculate_optimal_chunk_duration',
+                  return_value=(1800.0, 'test')),
+            patch('transcriber.extract_audio_chunk', side_effect=extract),
+            patch('transcriber._get_whisper_settings', return_value={'backend': 'local'}),
+            patch('transcriber.clear_gpu_memory'),
+        )
+
+    def test_timeout_halves_the_chunk_and_retries(self):
+        seen = []
+
+        def extract(path, start, end, **kwargs):
+            seen.append(end - start)
+            if len(seen) == 1:
+                raise AudioExtractionTimeout('timed out')
+            tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            tmp.close()
+            return tmp.name
+
+        t = self._transcriber()
+        p1, p2, p3, p4 = self._patches(extract)
+        with p1, p2, p3, p4:
+            t.transcribe_chunked('/tmp/in.mp3')
+
+        # First attempt used the full chunk; the retry used half of it
+        # (both spans carry the same chunk overlap on top).
+        assert seen[1] == pytest.approx(1800 / 2 + CHUNK_OVERLAP_SECONDS)
+        assert seen[0] == pytest.approx(1800 + CHUNK_OVERLAP_SECONDS)
+
+    def test_second_timeout_surfaces_the_timeout_error(self):
+        def extract(path, start, end, **kwargs):
+            raise AudioExtractionTimeout('ffmpeg exceeded 300s')
+
+        t = self._transcriber()
+        p1, p2, p3, p4 = self._patches(extract)
+        with p1, p2, p3, p4:
+            with pytest.raises(AudioExtractionTimeout) as exc:
+                t.transcribe_chunked('/tmp/in.mp3')
+        # The message must not claim the source file failed to decode.
+        assert 'decode' not in str(exc.value)

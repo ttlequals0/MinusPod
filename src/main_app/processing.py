@@ -98,7 +98,7 @@ from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.episode_paths import episode_relative_path
-from utils.errors import ServiceUnavailableError, AudioTooLargeError
+from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.language import get_feed_language_override
 from utils.text import (
@@ -344,7 +344,13 @@ def _retranscribe_tail_no_vad(slug, episode_id, audio_path, segments,
     audio_logger.info(
         f"[{slug}:{episode_id}] Untranscribed tail {gap:.1f}s "
         f"({last_end:.1f}s-{duration:.1f}s); re-transcribing without VAD")
-    chunk_path = extract_audio_chunk(audio_path, last_end, duration)
+    # Best-effort pass: an extraction timeout must not fail the episode.
+    try:
+        chunk_path = extract_audio_chunk(audio_path, last_end, duration)
+    except AudioExtractionTimeout as e:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Tail chunk extraction timed out; skipping: {e}")
+        return segments, False
     if not chunk_path:
         audio_logger.warning(
             f"[{slug}:{episode_id}] Tail chunk extraction failed; skipping")

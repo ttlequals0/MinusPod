@@ -32,6 +32,14 @@ class AudioExtractionError(Exception):
     """
 
 
+class AudioExtractionTimeout(AudioExtractionError):
+    """ffmpeg ran out of clock on a chunk rather than failing to decode it.
+
+    Separate from the decode case (#644) so the stored error stops asserting a
+    corrupt source file when the file is fine and the budget was simply short.
+    """
+
+
 class AudioTooLargeError(Exception):
     """An episode enclosure exceeds the configured download size cap.
 
