@@ -8,6 +8,8 @@ import type { EmailNotificationSettings, EmailNotificationSettingsPayload } from
 import { useTransientState } from '../../hooks/useTransientState';
 import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import Checkbox from '../../components/Checkbox';
+import DraftNumberInput from '../../components/DraftNumberInput';
 
 interface EmailDraft {
   enabled: boolean;
@@ -148,13 +150,15 @@ function EmailSettingsForm() {
           <label htmlFor="email-smtp-port" className="block text-sm font-medium text-foreground mb-1">
             Port
           </label>
-          <input
+          <DraftNumberInput
             id="email-smtp-port"
-            type="number"
             min={1}
             max={65535}
-            value={draft.smtpPort}
-            onChange={(e) => set('smtpPort', e.target.value)}
+            step={1}
+            value={draft.smtpPort === '' ? null : Number(draft.smtpPort)}
+            fallback={null}
+            parse={(raw) => (raw === '' ? null : Number(raw))}
+            onChange={(v) => set('smtpPort', v === null ? '' : String(v))}
             className={emailInputClass}
           />
         </div>
@@ -250,28 +254,23 @@ function EmailSettingsForm() {
         <span className="block text-sm font-medium text-foreground mb-1">Events</span>
         <div className="space-y-1.5">
           {EVENT_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={draft.events.includes(opt.value)}
-                onChange={() => toggleEvent(opt.value)}
-                className="rounded border-input"
-              />
-              <span className="text-sm text-foreground">{opt.label}</span>
-            </label>
+            <Checkbox
+              key={opt.value}
+              checked={draft.events.includes(opt.value)}
+              onChange={() => toggleEvent(opt.value)}
+              label={opt.label}
+              className="flex"
+            />
           ))}
         </div>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={(e) => set('enabled', e.target.checked)}
-          className="rounded border-input"
-        />
-        <span className="text-sm text-foreground">Enabled</span>
-      </label>
+      <Checkbox
+        checked={draft.enabled}
+        onChange={(v) => set('enabled', v)}
+        label="Enabled"
+        className="flex"
+      />
 
       {saveMutation.isError && (
         <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">

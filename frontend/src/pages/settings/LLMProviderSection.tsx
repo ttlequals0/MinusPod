@@ -5,6 +5,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
+import DraftNumberInput from '../../components/DraftNumberInput';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -193,16 +194,16 @@ function OllamaNumCtxField({
       <label htmlFor="ollamaNumCtx" className="block text-sm font-medium text-foreground mb-2">
         Context window (num_ctx)
       </label>
-      <input
-        ref={inputRef}
-        type="number"
+      <DraftNumberInput
         id="ollamaNumCtx"
         min={512}
         max={131072}
         step={512}
         placeholder="Blank = model default"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        value={draft === '' ? null : Number(draft)}
+        fallback={null}
+        parse={(raw) => (raw === '' ? null : Number(raw))}
+        onChange={(v) => setDraft(v === null ? '' : String(v))}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();

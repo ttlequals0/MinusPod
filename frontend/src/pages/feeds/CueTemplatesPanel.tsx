@@ -35,6 +35,8 @@ import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { formatDate } from '../../utils/format';
+import Checkbox from '../../components/Checkbox';
+import DraftNumberInput from '../../components/DraftNumberInput';
 
 const PICKER_PAGE_SIZE = 50;
 
@@ -378,13 +380,12 @@ function CueTemplatesPanel({ slug }: Props) {
               <li key={t.id} className="px-3 py-2 text-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={t.enabled}
                     onChange={() => handleToggle(t)}
                     disabled={t.owned === false}
                     title={t.owned === false ? 'Managed on the feed that created it' : undefined}
-                    aria-label={`Enable cue ${t.label}`}
+                    ariaLabel={`Enable cue ${t.label}`}
                   />
                   <div className="flex-1 min-w-0">
                   {editingId === t.id ? (
@@ -483,14 +484,16 @@ function CueTemplatesPanel({ slug }: Props) {
                           Change type
                         </button>
                         {editingThresholdId === t.id ? (
-                          <input
-                            type="number"
+                          <DraftNumberInput
                             autoFocus
                             min={0.30}
                             max={0.99}
                             step={0.01}
-                            value={editThresholdValue}
-                            onChange={(e) => setEditThresholdValue(e.target.value)}
+                            ariaLabel={`Match threshold for ${t.label}`}
+                            value={editThresholdValue === '' ? null : Number(editThresholdValue)}
+                            fallback={null}
+                            parse={(raw) => (raw === '' ? null : Number(raw))}
+                            onChange={(v) => setEditThresholdValue(v === null ? '' : String(v))}
                             onBlur={() => commitThreshold(t)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') e.currentTarget.blur();
@@ -913,15 +916,16 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
             <label className="block text-xs text-muted-foreground" htmlFor="score-override">
               Score threshold (optional)
             </label>
-            <input
+            <DraftNumberInput
               id="score-override"
-              type="number"
               min={0}
               max={CUE_SCORE_MAX}
               step={0.05}
               placeholder="default"
-              value={scoreOverride}
-              onChange={(e) => setScoreOverride(e.target.value)}
+              value={scoreOverride === '' ? null : Number(scoreOverride)}
+              fallback={null}
+              parse={(raw) => (raw === '' ? null : Number(raw))}
+              onChange={(v) => setScoreOverride(v === null ? '' : String(v))}
               className={`w-28 px-3 py-1.5 ${fieldCls} text-sm font-mono`}
             />
           </div>

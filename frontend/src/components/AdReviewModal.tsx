@@ -25,6 +25,7 @@ import {
   savePlayWhileDragging,
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnPrimary } from './buttonStyles';
+import Checkbox from './Checkbox';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -913,18 +914,13 @@ function AdReviewModal({
             Window: {formatTime(windowStart)} – {formatTime(windowEnd)}
           </span>
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={playWhileDrag}
-                onChange={(e) => {
-                  setPlayWhileDrag(e.target.checked);
-                  savePlayWhileDragging(e.target.checked);
-                }}
-                className="accent-primary"
-              />
-              <span>Play audio while dragging pin</span>
-            </label>
+            <Checkbox
+              className="select-none"
+              checked={playWhileDrag}
+              onChange={(v) => { setPlayWhileDrag(v); savePlayWhileDragging(v); }}
+              label="Play audio while dragging pin"
+              labelClassName=""
+            />
             <button type="button" onClick={resetView}
               className={`px-2 py-1 rounded ${ghostBtn}`}
               title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
@@ -1315,11 +1311,12 @@ function AdReviewModal({
                 className="w-full px-3 py-1.5 rounded border border-border bg-background text-foreground text-sm"
               />
             </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={scopeInput === 'global'}
-                onChange={(e) => setScopeInput(e.target.checked ? 'global' : 'podcast')} />
-              <span>Apply across all podcasts (global pattern)</span>
-            </label>
+            <Checkbox
+              checked={scopeInput === 'global'}
+              onChange={(v) => setScopeInput(v ? 'global' : 'podcast')}
+              label="Apply across all podcasts (global pattern)"
+              labelClassName="text-sm"
+            />
           </div>
         ) : showSponsorPrompt ? (
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30">

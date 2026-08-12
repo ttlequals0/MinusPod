@@ -7,6 +7,7 @@ import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
+import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../components/DraftNumberInput';
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -376,15 +377,17 @@ function AddFeed() {
               <label htmlFor="maxEpisodes" className="block text-sm font-medium text-foreground mb-2">
                 Max Episodes in Feed
               </label>
-              <input
-                type="number"
+              <DraftNumberInput
                 id="maxEpisodes"
-                value={maxEpisodes}
-                onChange={(e) => setMaxEpisodes(e.target.value)}
+                value={maxEpisodes === '' ? null : Number(maxEpisodes)}
+                fallback={null}
+                parse={(raw) => (raw === '' ? null : Number(raw))}
+                onChange={(v) => setMaxEpisodes(v === null ? '' : String(v))}
                 placeholder="300 (default)"
                 min={10}
                 max={500}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                step={1}
+                className={`w-full px-4 py-2 ${DRAFT_NUMBER_INPUT_CLASS}`}
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Limits how many episodes are served to podcast clients. Max: 500.

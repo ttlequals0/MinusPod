@@ -11,6 +11,7 @@ import {
 import { formatStorage } from './settingsUtils';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
+import NumberInput from '../../components/NumberInput';
 
 interface Draft {
   enabled?: boolean;
@@ -166,18 +167,17 @@ function DatabaseBackupSection() {
               >
                 Copies to keep:
               </label>
-              <input
+              <NumberInput
                 id="db-backup-keep"
-                type="number"
                 min={1}
                 max={365}
                 step={1}
+                fallback={1}
                 value={keepCount}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
+                onCommit={(n) => {
                   setDraft((d) => ({
                     ...d,
-                    keepCount: Number.isNaN(n) ? 1 : Math.min(365, Math.max(1, n)),
+                    keepCount: n,
                   }));
                 }}
                 className="w-20 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"

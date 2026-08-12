@@ -25,6 +25,7 @@ import {
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
 import { btnOutline } from '../components/buttonStyles';
+import Checkbox from '../components/Checkbox';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -404,18 +405,12 @@ function PatternsPage() {
           </div>
 
           {/* Show inactive toggle */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => {
-                setShowInactive(e.target.checked);
-                setPage(1);
-              }}
-              className="rounded"
-            />
-            <span className="text-sm text-muted-foreground">Show inactive</span>
-          </label>
+          <Checkbox
+            checked={showInactive}
+            onChange={(v) => { setShowInactive(v); setPage(1); }}
+            label="Show inactive"
+            labelClassName="text-sm text-muted-foreground"
+          />
         </div>
       </div>
 

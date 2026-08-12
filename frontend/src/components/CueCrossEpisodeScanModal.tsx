@@ -14,6 +14,7 @@ import { episodeOriginalUrl, getEpisode, getEpisodes } from '../api/feeds';
 import type { Episode } from '../api/types';
 import { formatDate, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
+import Checkbox from './Checkbox';
 
 const PICKER_PAGE_SIZE = 50;
 // Maximum episodes a user may select for the cross-episode scan (server cap).
@@ -198,15 +199,16 @@ export default function CueCrossEpisodeScanModal({
                   return (
                     <li key={ep.id}>
                       <label
+                        htmlFor={`cue-scan-ep-${ep.id}`}
                         className={`flex items-start gap-3 px-3 py-2 cursor-pointer select-none ${atMax ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted/50'}`}
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          id={`cue-scan-ep-${ep.id}`}
                           checked={checked}
                           disabled={atMax}
                           onChange={() => toggleEpisode(ep)}
                           className="mt-0.5 shrink-0"
-                          aria-label={`Select episode ${ep.title}`}
+                          ariaLabel={`Select episode ${ep.title}`}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">

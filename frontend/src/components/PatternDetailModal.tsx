@@ -7,6 +7,7 @@ import { ScopeBadge } from './ScopeBadge';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
+import Checkbox from './Checkbox';
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -195,15 +196,11 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             </div>
 
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={editedPattern.is_active}
-                  onChange={(e) => setEditedPattern(prev => ({ ...prev, is_active: e.target.checked }))}
-                  className="rounded"
-                />
-                <span className="text-sm text-foreground">Active</span>
-              </label>
+              <Checkbox
+                checked={editedPattern.is_active}
+                onChange={(v) => setEditedPattern(prev => ({ ...prev, is_active: v }))}
+                label="Active"
+              />
             </div>
 
             {!editedPattern.is_active && (

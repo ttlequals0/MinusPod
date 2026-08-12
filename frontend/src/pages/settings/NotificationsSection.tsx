@@ -10,6 +10,7 @@ import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import Checkbox from '../../components/Checkbox';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -295,15 +296,13 @@ function WebhooksBlock() {
             <span className="block text-sm font-medium text-foreground mb-1">Events</span>
             <div className="space-y-1.5">
               {EVENT_OPTIONS.map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.events.includes(opt.value)}
-                    onChange={() => handleEventToggle(opt.value)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm text-foreground">{opt.label}</span>
-                </label>
+                <Checkbox
+                  key={opt.value}
+                  checked={form.events.includes(opt.value)}
+                  onChange={() => handleEventToggle(opt.value)}
+                  label={opt.label}
+                  className="flex"
+                />
               ))}
             </div>
           </div>
@@ -390,15 +389,12 @@ function WebhooksBlock() {
           </div>
 
           {/* Enabled */}
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-              className="rounded border-input"
-            />
-            <span className="text-sm text-foreground">Enabled</span>
-          </label>
+          <Checkbox
+            checked={form.enabled}
+            onChange={(v) => setForm((prev) => ({ ...prev, enabled: v }))}
+            label="Enabled"
+            className="flex"
+          />
 
           {/* Error messages */}
           {(createMutation.isError || updateMutation.isError) && (

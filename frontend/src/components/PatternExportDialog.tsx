@@ -8,6 +8,7 @@ import {
 import { PatternExportEditRow } from './PatternExportEditRow';
 import { getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
+import Checkbox from './Checkbox';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -225,15 +226,12 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
       {(destination === 'download' || stage === 'pick') && (
         <>
           <div className="px-6 py-2 border-b border-border flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleAll}
-                className="rounded"
-              />
-              <span>{allSelected ? 'Deselect all' : 'Select all'}</span>
-            </label>
+            <Checkbox
+              checked={allSelected}
+              onChange={toggleAll}
+              label={allSelected ? 'Deselect all' : 'Select all'}
+              labelClassName=""
+            />
             <span className="text-xs text-muted-foreground">
               {effectiveSelection.size} of {totalEligible} selected
             </span>
@@ -250,12 +248,13 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
             <ul className="space-y-1">
               {visiblePatterns.map((p) => (
                 <li key={p.id}>
-                  <label className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-accent/50 cursor-pointer">
-                    <input
-                      type="checkbox"
+                  <label htmlFor={`pattern-export-${p.id}`} className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-accent/50 cursor-pointer">
+                    <Checkbox
+                      id={`pattern-export-${p.id}`}
                       checked={effectiveSelection.has(p.id)}
                       onChange={() => toggleOne(p.id)}
-                      className="mt-0.5 rounded"
+                      className="mt-0.5"
+                      ariaLabel={`Select pattern ${p.id}`}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 text-sm">
@@ -320,24 +319,18 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
           <div className="p-6 pt-3 border-t border-border space-y-3">
             {destination === 'download' && (
               <div className="flex items-center gap-4 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeDisabled}
-                    onChange={(e) => setIncludeDisabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span>Include disabled patterns</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={includeCorrections}
-                    onChange={(e) => setIncludeCorrections(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span>Include correction history</span>
-                </label>
+                <Checkbox
+                  checked={includeDisabled}
+                  onChange={setIncludeDisabled}
+                  label="Include disabled patterns"
+                  labelClassName=""
+                />
+                <Checkbox
+                  checked={includeCorrections}
+                  onChange={setIncludeCorrections}
+                  label="Include correction history"
+                  labelClassName=""
+                />
               </div>
             )}
 

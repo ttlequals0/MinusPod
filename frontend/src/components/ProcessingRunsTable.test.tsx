@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ProcessingRunsTable from './ProcessingRunsTable';
 import type { EpisodeProcessingRun } from '../api/types';
@@ -85,45 +85,52 @@ const cueOnlyRun: EpisodeProcessingRun = {
   },
 };
 
+// Every run renders twice: the desktop table and the mobile card stack.
+// Scope assertions to the table so a match is unambiguous.
+function renderTable(runs: EpisodeProcessingRun[], rssDuration?: number) {
+  const { container } = render(<ProcessingRunsTable runs={runs} rssDuration={rssDuration} />);
+  return within(container.querySelector('table') as HTMLTableElement);
+}
+
 describe('ProcessingRunsTable', () => {
   it('renders full stats for a run with a blob', () => {
-    render(<ProcessingRunsTable runs={[statsRun]} />);
-    expect(screen.getByText(/#2/)).toBeTruthy();
-    expect(screen.getByText('(reprocess)')).toBeTruthy();
-    expect(screen.getByText('7/7')).toBeTruthy();
-    expect(screen.getByText('0 fingerprint / 3 text / 11 cross-fetch / 11 LLM')).toBeTruthy();
-    expect(screen.getByText('6 cut / 4 held / 5 kept')).toBeTruthy();
-    expect(screen.getByText('clean')).toBeTruthy();
+    const table = renderTable([statsRun]);
+    expect(table.getByText(/#2/)).toBeTruthy();
+    expect(table.getByText('(reprocess)')).toBeTruthy();
+    expect(table.getByText('7/7')).toBeTruthy();
+    expect(table.getByText('0 fingerprint / 3 text / 11 cross-fetch / 11 LLM')).toBeTruthy();
+    expect(table.getByText('6 cut / 4 held / 5 kept')).toBeTruthy();
+    expect(table.getByText('clean')).toBeTruthy();
   });
 
   it('falls back to basic columns for runs without a blob', () => {
-    render(<ProcessingRunsTable runs={[legacyRun]} />);
-    expect(screen.getByText('#1')).toBeTruthy();
-    expect(screen.getByText('1 cut')).toBeTruthy();
+    const table = renderTable([legacyRun]);
+    expect(table.getByText('#1')).toBeTruthy();
+    expect(table.getByText('1 cut')).toBeTruthy();
     // Downloaded, Windows, Stage hits, Removed, Second scan all dash out.
-    expect(screen.getAllByText('-')).toHaveLength(5);
+    expect(table.getAllByText('-')).toHaveLength(5);
   });
 
   it('marks a skip-detection run instead of showing zero stage hits', () => {
-    render(<ProcessingRunsTable runs={[skipDetectionRun]} />);
-    expect(screen.getByText('(no ad detection)')).toBeTruthy();
-    expect(screen.getByText('0 cut / 0 held / 0 kept')).toBeTruthy();
+    const table = renderTable([skipDetectionRun]);
+    expect(table.getByText('(no ad detection)')).toBeTruthy();
+    expect(table.getByText('0 cut / 0 held / 0 kept')).toBeTruthy();
     // Windows, Stage hits, Second scan dash out: those stages never ran.
-    expect(screen.queryByText(/fingerprint/)).toBeNull();
-    expect(screen.queryByText('clean')).toBeNull();
+    expect(table.queryByText(/fingerprint/)).toBeNull();
+    expect(table.queryByText('clean')).toBeNull();
   });
 
   it('marks a skip-verification run instead of showing a clean second scan', () => {
-    render(<ProcessingRunsTable runs={[skipVerificationRun]} />);
-    expect(screen.getByText('(no verification)')).toBeTruthy();
-    expect(screen.getByText('3 cut / 0 held / 1 kept')).toBeTruthy();
-    expect(screen.queryByText('clean')).toBeNull();
+    const table = renderTable([skipVerificationRun]);
+    expect(table.getByText('(no verification)')).toBeTruthy();
+    expect(table.getByText('3 cut / 0 held / 1 kept')).toBeTruthy();
+    expect(table.queryByText('clean')).toBeNull();
   });
 
   it('marks a cue-only run with no transcript', () => {
-    render(<ProcessingRunsTable runs={[cueOnlyRun]} />);
-    expect(screen.getByText('(cue-only)')).toBeTruthy();
-    expect(screen.getByText('(no transcript)')).toBeTruthy();
+    const table = renderTable([cueOnlyRun]);
+    expect(table.getByText('(cue-only)')).toBeTruthy();
+    expect(table.getByText('(no transcript)')).toBeTruthy();
   });
 
   it('notes a large gap between downloaded and declared duration', () => {

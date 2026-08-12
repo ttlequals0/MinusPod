@@ -33,6 +33,7 @@ import {
 import { episodeOriginalUrl } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
 import { btnPrimary } from './buttonStyles';
+import Checkbox from './Checkbox';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -830,7 +831,7 @@ function CueMarkModal({
         {/* Cue-specific controls: snap to onset + set edge at playhead. */}
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <input type="checkbox" className="accent-primary" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
+            <Checkbox checked={snapEnabled} onChange={setSnapEnabled} ariaLabel="Snap to detected boundaries" />
             Snap to onset
           </label>
           <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-success whitespace-nowrap`} onClick={setStartAtPlayhead}>
@@ -886,12 +887,13 @@ function CueMarkModal({
               ))}
             </select>
             {isNonAd && (
-              <label className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
+              <label htmlFor="cue-non-ad-ack" className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+                <Checkbox
+                  id="cue-non-ad-ack"
                   className="mt-0.5"
                   checked={nonAdAck}
-                  onChange={(e) => setNonAdAckKey(e.target.checked ? cueKey : null)}
+                  onChange={(v) => setNonAdAckKey(v ? cueKey : null)}
+                  ariaLabel="Acknowledge non-ad cue"
                 />
                 <span>
                   {cueType === 'content_transition'

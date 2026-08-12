@@ -2,6 +2,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
+import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -62,16 +63,18 @@ function StorageRetentionSection({
             <label htmlFor="retentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
               Retain processed files for:
             </label>
-            <input
-              type="number"
+            <DraftNumberInput
               id="retentionDays"
-              value={retentionEnabled ? retentionDays : ''}
-              onChange={(e) => onRetentionDaysChange(parseInt(e.target.value, 10) || 0)}
+              value={retentionEnabled ? retentionDays : null}
+              fallback={null}
+              onChange={(v) => onRetentionDaysChange(v ?? 0)}
+              parse={(raw) => (raw === '' ? null : parseInt(raw, 10) || 0)}
               disabled={!retentionEnabled}
               min={1}
               max={3650}
+              step={1}
               placeholder="30"
-              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+              className={`w-24 ${DRAFT_NUMBER_INPUT_CLASS}`}
             />
             <span className="text-sm text-muted-foreground">days</span>
           </div>
@@ -100,18 +103,20 @@ function StorageRetentionSection({
             <label htmlFor="originalRetentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
               Retain original audio for:
             </label>
-            <input
-              type="number"
+            <DraftNumberInput
               id="originalRetentionDays"
-              value={originalControlsActive ? originalRetentionDays : ''}
-              onChange={(e) => onOriginalRetentionDaysChange(parseInt(e.target.value, 10) || 0)}
+              value={originalControlsActive ? originalRetentionDays : null}
+              fallback={null}
+              onChange={(v) => onOriginalRetentionDaysChange(v ?? 0)}
+              parse={(raw) => (raw === '' ? null : parseInt(raw, 10) || 0)}
               onBlur={handleOriginalBlur}
               disabled={!originalControlsActive}
               min={1}
+              step={1}
               max={retentionEnabled ? retentionDays : 3650}
               placeholder={String(retentionDays)}
-              aria-invalid={originalExceedsProcessed}
-              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+              ariaInvalid={originalExceedsProcessed}
+              className={`w-24 ${DRAFT_NUMBER_INPUT_CLASS}`}
             />
             <span className="text-sm text-muted-foreground">days</span>
           </div>

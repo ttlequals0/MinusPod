@@ -1,15 +1,32 @@
+import { ReactNode } from 'react';
+
 interface CheckboxProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   className?: string;
   ariaLabel?: string;
+  title?: string;
+  /** Text beside the box. Checkbox then renders its own <label>. */
+  label?: ReactNode;
+  labelClassName?: string;
+  /** For rows whose whole body is the click target: the caller keeps its
+   *  <label htmlFor={id}> and Checkbox renders a <span>, so labels never nest. */
+  id?: string;
 }
 
-function Checkbox({ checked, onChange, disabled, className = '', ariaLabel }: CheckboxProps) {
+function Checkbox({
+  checked, onChange, disabled, className = '', ariaLabel, title, label,
+  labelClassName = 'text-sm text-foreground', id,
+}: CheckboxProps) {
+  const Wrapper = label ? 'label' : 'span';
   return (
-    <label className={`relative inline-flex items-center ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}>
+    <Wrapper
+      className={`relative inline-flex items-center ${label ? 'gap-2' : ''} ${disabled ? 'cursor-default opacity-50' : 'cursor-pointer'} ${className}`}
+      title={title}
+    >
       <input
+        id={id}
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
@@ -17,7 +34,7 @@ function Checkbox({ checked, onChange, disabled, className = '', ariaLabel }: Ch
         aria-label={ariaLabel}
         className="sr-only peer"
       />
-      <div className={`h-4 w-4 rounded-sm border-2 transition-colors flex items-center justify-center ${
+      <span className={`h-4 w-4 shrink-0 rounded-sm border-2 transition-colors flex items-center justify-center ${
         checked
           ? 'bg-primary border-primary'
           : 'border-muted-foreground/40 bg-transparent hover:border-primary/60'
@@ -27,8 +44,9 @@ function Checkbox({ checked, onChange, disabled, className = '', ariaLabel }: Ch
             <path d="M2.5 6L5 8.5L9.5 3.5" />
           </svg>
         )}
-      </div>
-    </label>
+      </span>
+      {label && <span className={labelClassName}>{label}</span>}
+    </Wrapper>
   );
 }
 

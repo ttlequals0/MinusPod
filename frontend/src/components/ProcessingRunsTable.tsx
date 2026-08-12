@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { EpisodeProcessingRun } from '../api/types';
 import { formatDateTime } from '../utils/format';
 import { formatDuration, formatTokenCount } from '../pages/settings/settingsUtils';
@@ -28,110 +29,156 @@ function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null)
 
 const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
+interface Column {
+  label: string;
+  title?: string;
+  render: (run: EpisodeProcessingRun) => ReactNode;
+}
+
+// One definition drives both the desktop table and the mobile cards, so the
+// two can never drift apart.
+const COLUMNS: Column[] = [
+  {
+    label: 'Run',
+    render: (run) => {
+      const s = run.stats;
+      const notes = [
+        s?.mode && s.mode !== 'auto' ? s.mode : null,
+        s?.detectionSkipped ? 'no ad detection' : null,
+        s?.verificationSkipped ? 'no verification' : null,
+        s?.cueOnly ? 'cue-only' : null,
+        s?.transcriptionSkipped ? 'no transcript' : null,
+      ].filter(Boolean);
+      return (
+        <>
+          #{run.runNumber}
+          {notes.map((n) => <span key={n} className="text-muted-foreground"> ({n})</span>)}
+        </>
+      );
+    },
+  },
+  { label: 'When', render: (run) => formatDateTime(run.processedAt) },
+  {
+    label: 'Result',
+    render: (run) => (run.status === 'failed'
+      ? <span className="text-destructive cursor-help" title={run.errorMessage ?? undefined}>failed</span>
+      : 'completed'),
+  },
+  {
+    label: 'Downloaded',
+    title: 'Length of the downloaded copy this run processed',
+    render: (run) => (run.stats?.downloadedDuration ? formatDuration(run.stats.downloadedDuration) : '-'),
+  },
+  {
+    label: 'Windows',
+    title: 'Detection windows the LLM answered',
+    render: (run) => {
+      const w = run.stats?.windows;
+      if (!w?.total) return '-';
+      return w.failed ? `${w.total - w.failed}/${w.total} answered` : `${w.total}/${w.total}`;
+    },
+  },
+  {
+    label: 'Stage hits',
+    title: 'Detections per stage, before validation',
+    render: (run) => {
+      const h = run.stats?.stageHits;
+      return h
+        ? `${h.fingerprint} fingerprint / ${h.textPattern} text / ${h.differential} cross-fetch / ${h.llm} LLM`
+        : '-';
+    },
+  },
+  {
+    label: 'Ads',
+    render: (run) => {
+      const m = run.stats?.markers;
+      return m ? `${m.cut} cut / ${m.held} held / ${m.notCut} kept` : `${run.adsDetected} cut`;
+    },
+  },
+  {
+    label: 'Removed',
+    title: 'Ad time cut from the audio',
+    render: (run) => (run.stats?.secondsRemoved != null ? formatDuration(run.stats.secondsRemoved) : '-'),
+  },
+  {
+    label: 'Second scan',
+    title: 'Second scan of the output audio',
+    render: (run) => {
+      const v = run.stats?.verificationAdsCut;
+      if (v == null) return '-';
+      return v === 0 ? 'clean' : `${v} more cut`;
+    },
+  },
+  {
+    label: 'Tokens',
+    render: (run) => `${formatTokenCount(run.inputTokens)} in / ${formatTokenCount(run.outputTokens)} out`,
+  },
+  { label: 'Cost', render: (run) => `$${run.llmCost.toFixed(2)}` },
+];
+
+function runKey(run: EpisodeProcessingRun): string {
+  return `${run.runNumber}-${run.processedAt}`;
+}
+
 function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
   const note = rssDeltaNote(runs, rssDuration);
 
   return (
     <div>
       {note && <p className="text-sm text-muted-foreground mb-3">{note}</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border">
-              <th className={HEADER_CLASS}>Run</th>
-              <th className={HEADER_CLASS}>When</th>
-              <th className={HEADER_CLASS}>Result</th>
-              <th className={HEADER_CLASS} title="Length of the downloaded copy this run processed">
-                Downloaded
+
+      <table className="hidden sm:table w-full text-sm">
+        <thead>
+          <tr className="border-b border-border">
+            {COLUMNS.map((col, i) => (
+              <th
+                key={col.label}
+                title={col.title}
+                className={i === COLUMNS.length - 1 ? `${HEADER_CLASS} pr-0` : HEADER_CLASS}
+              >
+                {col.label}
               </th>
-              <th className={HEADER_CLASS} title="Detection windows the LLM answered">Windows</th>
-              <th className={HEADER_CLASS} title="Detections per stage, before validation">
-                Stage hits
-              </th>
-              <th className={HEADER_CLASS}>Ads</th>
-              <th className={HEADER_CLASS} title="Ad time cut from the audio">Removed</th>
-              <th className={HEADER_CLASS} title="Second scan of the output audio">Second scan</th>
-              <th className={HEADER_CLASS}>Tokens</th>
-              <th className={`${HEADER_CLASS} pr-0`}>Cost</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run) => (
+            <tr key={runKey(run)} className="border-b border-border/50 last:border-b-0">
+              {COLUMNS.map((col, i) => (
+                <td
+                  key={col.label}
+                  title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
+                    ? `${run.stats.transcriptSegments} transcript segments`
+                    : undefined}
+                  className={i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}
+                >
+                  {col.render(run)}
+                </td>
+              ))}
             </tr>
-          </thead>
-          <tbody>
-            {runs.map((run) => {
-              const s = run.stats;
-              return (
-                <tr key={`${run.runNumber}-${run.processedAt}`}
-                    className="border-b border-border/50 last:border-b-0">
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    #{run.runNumber}
-                    {s?.mode && s.mode !== 'auto' && (
-                      <span className="text-muted-foreground"> ({s.mode})</span>
-                    )}
-                    {s?.detectionSkipped && (
-                      <span className="text-muted-foreground"> (no ad detection)</span>
-                    )}
-                    {s?.verificationSkipped && (
-                      <span className="text-muted-foreground"> (no verification)</span>
-                    )}
-                    {s?.cueOnly && (
-                      <span className="text-muted-foreground"> (cue-only)</span>
-                    )}
-                    {s?.transcriptionSkipped && (
-                      <span className="text-muted-foreground"> (no transcript)</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatDateTime(run.processedAt)}</td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {run.status === 'failed' ? (
-                      <span className="text-destructive cursor-help"
-                            title={run.errorMessage ?? undefined}>
-                        failed
-                      </span>
-                    ) : 'completed'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap"
-                      title={s?.transcriptSegments != null
-                        ? `${s.transcriptSegments} transcript segments`
-                        : undefined}>
-                    {s?.downloadedDuration ? formatDuration(s.downloadedDuration) : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {s?.windows?.total
-                      ? s.windows.failed
-                        ? `${s.windows.total - s.windows.failed}/${s.windows.total} answered`
-                        : `${s.windows.total}/${s.windows.total}`
-                      : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {s?.stageHits
-                      ? `${s.stageHits.fingerprint} fingerprint / ${s.stageHits.textPattern} text / ` +
-                        `${s.stageHits.differential} cross-fetch / ${s.stageHits.llm} LLM`
-                      : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {s?.markers
-                      ? `${s.markers.cut} cut / ${s.markers.held} held / ${s.markers.notCut} kept`
-                      : `${run.adsDetected} cut`}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {s?.secondsRemoved != null ? formatDuration(s.secondsRemoved) : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {s?.verificationAdsCut != null
-                      ? s.verificationAdsCut === 0
-                        ? 'clean'
-                        : `${s.verificationAdsCut} more cut`
-                      : '-'}
-                  </td>
-                  <td className="py-2 pr-4 whitespace-nowrap">
-                    {formatTokenCount(run.inputTokens)} in / {formatTokenCount(run.outputTokens)} out
-                  </td>
-                  <td className="py-2 whitespace-nowrap">${run.llmCost.toFixed(2)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="sm:hidden space-y-3">
+        {runs.map((run) => (
+          <div key={runKey(run)} className="bg-card border border-border rounded-lg p-4 text-sm">
+            <div className="flex items-center justify-between gap-2 mb-2 font-medium">
+              <span>{COLUMNS[0].render(run)}</span>
+              <span>{COLUMNS[2].render(run)}</span>
+            </div>
+            <dl className="space-y-1">
+              {COLUMNS.slice(1).filter((c) => c.label !== 'Result').map((col) => (
+                <div key={col.label} className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground shrink-0">{col.label}</dt>
+                  <dd className="text-right">{col.render(run)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ))}
       </div>
+
       <p className="text-xs text-muted-foreground mt-3">
         Older runs and recuts only carry the basic columns.
       </p>

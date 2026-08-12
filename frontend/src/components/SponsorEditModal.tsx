@@ -6,6 +6,7 @@ import { Sponsor } from '../api/types';
 import { getErrorMessage } from '../api/client';
 import { btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
+import Checkbox from './Checkbox';
 
 interface Props {
   // null = create a new sponsor
@@ -136,18 +137,16 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </div>
 
         {!isNew && (
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2">
+            <Checkbox
               checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-              className="rounded"
+              onChange={setIsActive}
+              label="Active"
             />
-            <span className="text-sm text-foreground">Active</span>
             <span className="text-xs text-muted-foreground">
               (inactive sponsors are excluded from detection)
             </span>
-          </label>
+          </div>
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}

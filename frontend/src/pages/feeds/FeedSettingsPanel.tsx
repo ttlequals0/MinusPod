@@ -21,6 +21,7 @@ import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguage
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
+import DraftNumberInput from '../../components/DraftNumberInput';
 
 interface Props {
   feed: Feed;
@@ -86,12 +87,16 @@ function CueOverrideRow({
 }: CueOverrideRowProps) {
   const inputRow = (
     <div className="flex items-center gap-2 flex-wrap">
-      <input
-        type="number" min={min} max={max} step={step}
-        value={value} placeholder={placeholder}
-        onChange={(e) => setValue(e.target.value)}
+      <DraftNumberInput
+        min={min} max={max} step={step}
+        value={value === '' ? null : Number(value)}
+        fallback={null}
+        parse={(raw) => (raw === '' ? null : Number(raw))}
+        onChange={(v) => setValue(v === null ? '' : String(v))}
+        placeholder={placeholder}
         onBlur={onBlur}
         disabled={disabled}
+        ariaLabel={label}
         className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
       />
       <span className="text-xs text-muted-foreground">{hint}</span>
@@ -468,13 +473,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-muted-foreground w-16 shrink-0">Feed cap:</label>
-                <input
-                  type="number"
-                  value={editMaxEpisodes}
-                  onChange={(e) => setEditMaxEpisodes(e.target.value)}
+                <DraftNumberInput
+                  value={editMaxEpisodes === '' ? null : Number(editMaxEpisodes)}
+                  fallback={null}
+                  parse={(raw) => (raw === '' ? null : Number(raw))}
+                  onChange={(v) => setEditMaxEpisodes(v === null ? '' : String(v))}
                   placeholder="300"
                   min={10}
                   max={500}
+                  step={1}
+                  ariaLabel="Feed cap"
                   className="w-20 px-2 py-1 bg-secondary border border-border rounded"
                 />
               </div>

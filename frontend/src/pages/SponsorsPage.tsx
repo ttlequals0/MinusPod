@@ -15,6 +15,7 @@ import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
 import { btnOutline, btnPrimary } from '../components/buttonStyles';
+import Checkbox from '../components/Checkbox';
 
 type Tab = 'sponsors' | 'normalizations';
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
@@ -156,15 +157,12 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
               className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
             />
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => { setShowInactive(e.target.checked); setPage(1); }}
-              className="rounded"
-            />
-            <span className="text-sm text-muted-foreground">Show inactive</span>
-          </label>
+          <Checkbox
+            checked={showInactive}
+            onChange={(v) => { setShowInactive(v); setPage(1); }}
+            label="Show inactive"
+            labelClassName="text-sm text-muted-foreground"
+          />
           <button
             type="button"
             onClick={() => setEditing(null)}
