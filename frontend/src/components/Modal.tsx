@@ -124,14 +124,14 @@ export function ConfirmModal({
       <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
         <button
           onClick={onCancel}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
         >
           Cancel
         </button>
         <button
           onClick={onConfirm}
           disabled={pending}
-          className={`px-3 py-1.5 text-sm rounded ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50 transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {pending ? busyLabel : confirmLabel}
         </button>

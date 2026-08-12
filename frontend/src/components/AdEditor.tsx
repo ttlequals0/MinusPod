@@ -3,6 +3,7 @@ import { useParams } from 'react-router';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 import type { PatternScope } from '../api/patterns';
 import { btnGhost, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 export interface DetectedAd {
   start: number;
@@ -139,7 +140,7 @@ export function AdEditor({
         <p className="text-muted-foreground mb-4">No ads detected on this episode.</p>
         <button
           type="button"
-          className={ADD_BUTTON_BTN}
+          className={`${ADD_BUTTON_BTN} ${focusRing}`}
           onClick={() => setInternalCreateMode(true)}
         >
           + Add new ad
@@ -148,7 +149,7 @@ export function AdEditor({
           <button
             type="button"
             onClick={onClose}
-            className={`ml-2 px-3 py-1.5 rounded-lg ${GHOST_BTN} text-sm`}
+            className={`ml-2 px-3 py-1.5 rounded-lg ${GHOST_BTN} text-sm ${focusRing}`}
           >
             Close
           </button>

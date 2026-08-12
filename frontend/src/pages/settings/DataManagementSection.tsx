@@ -10,6 +10,7 @@ import { useTransientState } from '../../hooks/useTransientState';
 import { copyText } from '../../utils/clipboard';
 import { BYTES_PER_MB, formatStorage } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -177,7 +178,7 @@ function DataManagementSection({
           <button
             onClick={handleDownloadBackup}
             disabled={backupStatus === 'loading'}
-            className={`mt-auto w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
+            className={`mt-auto w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
           >
             {backupStatus === 'loading' ? 'Preparing...' : 'Download Backup'}
           </button>

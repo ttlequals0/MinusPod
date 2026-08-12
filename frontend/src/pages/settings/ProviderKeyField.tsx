@@ -3,6 +3,8 @@ import type { ProviderName, ProviderStatus } from '../../api/providers';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { useTransientState } from '../../hooks/useTransientState';
+import { focusRing } from '../../components/fieldStyles';
+import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 
 interface ProviderKeyFieldProps {
   provider: ProviderName;
@@ -120,7 +122,7 @@ function ProviderKeyField({
             type="button"
             disabled={!draft || busy !== null}
             onClick={handleSave}
-            className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            className={`px-3 py-1.5 rounded-md ${btnPrimary} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
           >
             {busy === 'save' ? 'Saving...' : 'Save'}
           </button>
@@ -129,7 +131,7 @@ function ProviderKeyField({
             disabled={busy !== null || testBlocked}
             onClick={handleTest}
             title={testBlocked ? 'Click Save first -- Test reads the saved key, not the unsaved draft.' : undefined}
-            className="px-3 py-1.5 rounded-md border border-border text-sm font-medium hover:bg-secondary disabled:opacity-50"
+            className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
           >
             {busy === 'test' ? 'Testing...' : 'Test'}
           </button>
@@ -138,7 +140,7 @@ function ProviderKeyField({
               type="button"
               disabled={busy !== null}
               onClick={() => setConfirmClear(true)}
-              className="px-3 py-1.5 rounded-md border border-border text-sm font-medium text-destructive hover:bg-secondary disabled:opacity-50"
+              className={`px-3 py-1.5 rounded-md ${btnOutline} text-destructive text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
             >
               Clear
             </button>

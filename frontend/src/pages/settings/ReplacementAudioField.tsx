@@ -7,6 +7,7 @@ import {
   uploadReplacementAudio,
 } from '../../api/settings';
 import { btnSecondary } from '../../components/buttonStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -195,7 +196,7 @@ function ReplacementAudioField() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={busy}
-          className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50`}
+          className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50 ${focusRing}`}
         >
           {upload.isPending ? 'Uploading...' : 'Upload a file'}
         </button>
@@ -204,7 +205,7 @@ function ReplacementAudioField() {
             type="button"
             onClick={() => revert.mutate()}
             disabled={busy}
-            className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50`}
+            className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50 ${focusRing}`}
           >
             {revert.isPending ? 'Restoring...' : 'Use the default'}
           </button>

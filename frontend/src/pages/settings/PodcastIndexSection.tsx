@@ -1,6 +1,8 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import type { ConnectionTestResult } from '../../api/providers';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface PodcastIndexSectionProps {
   searchProvider: string;
@@ -57,7 +59,7 @@ function PodcastIndexSection({
             id="podcastSearchProvider"
             value={searchProvider}
             onChange={(e) => onSearchProviderChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            className={`w-full ${selectBase}`}
           >
             <option value="itunes">iTunes (no setup needed)</option>
             <option value="podcastindex">PodcastIndex.org (API key required)</option>
@@ -73,7 +75,7 @@ function PodcastIndexSection({
           <>
             <p className="text-sm text-muted-foreground">
               Get free API credentials at{' '}
-              <a href="https://api.podcastindex.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              <a href="https://api.podcastindex.org" target="_blank" rel="noopener noreferrer" className={`text-primary hover:underline ${focusRing}`}>
                 api.podcastindex.org
               </a>
             </p>

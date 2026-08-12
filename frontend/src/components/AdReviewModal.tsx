@@ -26,6 +26,7 @@ import {
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -843,7 +844,7 @@ function AdReviewModal({
                       audioMode === 'processed'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background text-muted-foreground hover:bg-secondary'
-                    }`}
+                    } ${focusRing}`}
                     title="Play the post-cut audio"
                   >
                     Processed
@@ -856,7 +857,7 @@ function AdReviewModal({
                       audioMode === 'original' && hasOriginal
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-background text-muted-foreground hover:bg-secondary'
-                    } ${!hasOriginal ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    } ${!hasOriginal ? 'opacity-40 cursor-not-allowed' : ''} ${focusRing}`}
                     title={hasOriginal
                       ? 'Play the pre-cut audio at the ads original timestamps'
                       : 'Original audio not retained for this episode'}
@@ -872,7 +873,7 @@ function AdReviewModal({
                   onClick={onAddNew}
                   aria-label="Add new ad"
                   title="Add new ad"
-                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${btnPrimary} transition-colors`}
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${btnPrimary} transition-colors ${focusRing}`}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -882,7 +883,7 @@ function AdReviewModal({
               )}
               <button
                 onClick={onClose}
-                className={`p-1 rounded ${btnGhost} transition-colors`}
+                className={`p-1 rounded ${btnGhost} transition-colors ${focusRing}`}
                 aria-label="Close"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -922,7 +923,7 @@ function AdReviewModal({
               labelClassName=""
             />
             <button type="button" onClick={resetView}
-              className={`px-2 py-1 rounded ${ghostBtn}`}
+              className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`}
               title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
           </div>
         </div>
@@ -975,7 +976,7 @@ function AdReviewModal({
                   inputMode === 'audio'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-background text-muted-foreground hover:bg-secondary'
-                }`}
+                } ${focusRing}`}
                 title="Mark the ad on the waveform"
               >
                 By audio
@@ -987,7 +988,7 @@ function AdReviewModal({
                   inputMode === 'text'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-background text-muted-foreground hover:bg-secondary'
-                }`}
+                } ${focusRing}`}
                 title="Mark the ad by selecting transcript text"
               >
                 By text
@@ -1337,7 +1338,7 @@ function AdReviewModal({
           <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground">
             Sponsor: <span className="text-foreground">{item.sponsor}</span>{' '}
             <button type="button" onClick={() => setShowSponsorPrompt(true)}
-              className="ml-2 underline transition-colors hover:text-foreground">edit</button>
+              className={`ml-2 underline transition-colors hover:text-foreground ${focusRing}`}>edit</button>
           </div>
         )}
 
@@ -1350,7 +1351,7 @@ function AdReviewModal({
               </div>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={onClose}
-                  className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}>
+                  className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm ${focusRing}`}>
                   Cancel
                 </button>
                 <button
@@ -1372,7 +1373,7 @@ function AdReviewModal({
                       reason: reasonInput,
                     });
                   }}
-                  className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}>
+                  className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm ${focusRing}`}>
                   Save
                 </button>
               </div>
@@ -1383,7 +1384,7 @@ function AdReviewModal({
                 <button
                   type="button"
                   onClick={() => setShowSplit(true)}
-                  className={`h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm whitespace-nowrap`}
+                  className={`h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm whitespace-nowrap ${focusRing}`}
                   title="Split this ad block into separate ads"
                 >
                   Split
@@ -1401,20 +1402,20 @@ function AdReviewModal({
                   "& Next" labels on sm: where there's room. */}
               <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button type="button" onClick={onSkip}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
                   title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
                   <span className="sm:hidden">Skip</span>
                   <span className="hidden sm:inline">{hasNext ? 'Skip & Next' : 'Skip'}</span>
                 </button>
                 <button type="button" onClick={handleReject}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
                   title="Mark as not an ad (R)">
                   <span className="sm:hidden">Not an ad</span>
                   <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
                 </button>
                 <button type="button" onClick={handleConfirm}
                   disabled={boundaryError !== null || confirmInert}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap ${focusRing}`}
                   title={boundaryError
                     ?? (confirmInert
                       ? 'Already cut. Move a boundary to save an adjustment.'

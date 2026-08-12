@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { btnDestructive } from '../../components/buttonStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
 
@@ -49,7 +50,7 @@ function ProcessingQueueSection({
               <button
                 onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
                 disabled={cancelIsPending}
-                className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ml-4 shrink-0`}
+                className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ml-4 shrink-0 ${focusRing}`}
               >
                 {cancelIsPending ? 'Canceling...' : 'Cancel'}
               </button>

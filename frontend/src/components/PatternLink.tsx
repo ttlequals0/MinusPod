@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router';
+import { focusRing } from './fieldStyles';
 
 interface PatternLinkProps {
   reason: string;
@@ -26,7 +27,7 @@ export default function PatternLink({ reason, className = '' }: PatternLinkProps
       <Link
         key={match.index}
         to={`/patterns?id=${patternId}`}
-        className="text-primary hover:underline"
+        className={`text-primary hover:underline ${focusRing}`}
         onClick={(e) => e.stopPropagation()}
       >
         {label}

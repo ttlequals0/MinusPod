@@ -1,3 +1,4 @@
+import { focusRing } from './fieldStyles';
 import { btnOutline, btnPrimary } from './buttonStyles';
 
 // The modal backdrop/panel recipes and the Escape hook now live in the
@@ -12,4 +13,4 @@ export { modalBackdrop, modalPanel, useEscape } from './Modal';
 // which was nearly invisible in dark mode (#534); it now renders as btnOutline.
 export const ghostBtn = `${btnOutline} transition-colors`;
 export const primaryBtn = `${btnPrimary} transition-colors`;
-export const fieldCls = 'rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
+export const fieldCls = `rounded-lg border border-input bg-background text-foreground ${focusRing}`;

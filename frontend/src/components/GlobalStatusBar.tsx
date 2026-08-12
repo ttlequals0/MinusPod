@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { storeLoginRedirect } from '../utils/loginRedirect';
+import { focusRing } from './fieldStyles';
 
 interface ProcessingJob {
   slug: string;
@@ -237,7 +238,7 @@ function GlobalStatusBar() {
       {/* Collapsed View */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/50 transition-colors"
+        className={`w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/50 transition-colors ${focusRing}`}
         aria-expanded={isExpanded}
         aria-label={isExpanded ? 'Collapse status bar' : 'Expand status bar'}
       >

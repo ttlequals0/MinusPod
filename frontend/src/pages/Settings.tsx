@@ -54,6 +54,7 @@ import { SettingsSearchContext, useSettingsSearch } from '../context/SettingsSea
 import { SettingsBulkCollapseProvider, type SettingsBulkCollapseSignal } from '../context/SettingsBulkCollapseContext';
 import { formatModelLabel } from './settings/settingsUtils';
 import { btnPrimary } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
 
 function SettingsGroupHeader({ title }: { title: string }) {
   // During an active settings search the group labels are noise (sections are
@@ -764,7 +765,7 @@ function Settings() {
             href="https://github.com/ttlequals0/MinusPod/blob/main/docs/README.md"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap"
+            className={`text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap ${focusRing}`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.247m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.247" />
@@ -775,7 +776,7 @@ function Settings() {
             href="/api/v1/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap"
+            className={`text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap ${focusRing}`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -813,7 +814,7 @@ function Settings() {
             type="button"
             onClick={() => runSettingsSearch('')}
             aria-label="Clear settings search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground touch-manipulation"
+            className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground touch-manipulation ${focusRing}`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -825,7 +826,7 @@ function Settings() {
           type="button"
           onClick={() => triggerBulkCollapse(true)}
           disabled={settingsMatchKeys !== null}
-          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''}`}
+          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''} ${focusRing}`}
         >
           Expand all
         </button>
@@ -833,7 +834,7 @@ function Settings() {
           type="button"
           onClick={() => triggerBulkCollapse(false)}
           disabled={settingsMatchKeys !== null}
-          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''}`}
+          className={`text-sm text-primary hover:underline ${settingsMatchKeys !== null ? 'opacity-50 pointer-events-none' : ''} ${focusRing}`}
         >
           Collapse all
         </button>
@@ -1176,7 +1177,7 @@ function Settings() {
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
-              className={`px-6 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm font-medium`}
+              className={`px-6 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
             >
               {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
             </button>

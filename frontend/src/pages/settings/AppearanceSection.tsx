@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_GROUPS, GROUPED_THEMES } from '../../themes';
+import { focusRing } from '../../components/fieldStyles';
 
 function AppearanceSection() {
   const { themeId, setThemeId } = useTheme();
@@ -29,7 +30,7 @@ function AppearanceSection() {
                         isActive
                           ? 'border-primary bg-primary/10 text-foreground'
                           : 'border-border bg-background text-foreground hover:bg-accent'
-                      }`}
+                      } ${focusRing}`}
                     >
                       <span
                         className="w-3 h-3 rounded-full shrink-0"

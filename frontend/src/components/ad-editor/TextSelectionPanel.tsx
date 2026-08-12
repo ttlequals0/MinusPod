@@ -7,6 +7,8 @@ import {
 } from '../../api/feeds';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { btnGhost } from '../buttonStyles';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface Props {
   slug: string;
@@ -297,7 +299,7 @@ function TextSelectionPanel({
               onClick={() =>
                 setCurrentMatch((m) => (m - 1 + matchIndices.length) % matchIndices.length)
               }
-              className={`p-1 rounded ${btnGhost}`}
+              className={`p-1 rounded ${btnGhost} ${focusRing}`}
               aria-label="Previous match"
             >
               <ChevronUp className="w-4 h-4" />
@@ -305,7 +307,7 @@ function TextSelectionPanel({
             <button
               type="button"
               onClick={() => setCurrentMatch((m) => (m + 1) % matchIndices.length)}
-              className={`p-1 rounded ${btnGhost}`}
+              className={`p-1 rounded ${btnGhost} ${focusRing}`}
               aria-label="Next match"
             >
               <ChevronDown className="w-4 h-4" />
@@ -375,7 +377,7 @@ function TextSelectionPanel({
           type="button"
           onClick={() => snapTo(adStart)}
           disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
           aria-label="Snap to selection start"
           title="Snap to selection start"
         >
@@ -385,7 +387,7 @@ function TextSelectionPanel({
           type="button"
           onClick={togglePlay}
           disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
           aria-label={isPlaying ? 'Pause' : 'Play selection'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -394,7 +396,7 @@ function TextSelectionPanel({
           type="button"
           onClick={() => snapTo(adEnd)}
           disabled={!hasSelection}
-          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed`}
+          className={`p-1.5 rounded ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing}`}
           aria-label="Snap to selection end"
           title="Snap to selection end"
         >
@@ -403,7 +405,7 @@ function TextSelectionPanel({
         <select
           value={playbackRate}
           onChange={(e) => setPlaybackRate(Number(e.target.value))}
-          className="appearance-none px-2 py-1 rounded border border-input bg-background text-foreground text-xs focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`appearance-none ${selectBase}`}
           aria-label="Playback speed"
         >
           {PLAYBACK_RATES.map((r) => (

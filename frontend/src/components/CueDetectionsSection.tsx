@@ -97,7 +97,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     aria-label={playingKey === String(d.id) ? 'Pause match' : 'Play this match'}
                     title={playingKey === String(d.id) ? 'Pause' : 'Play this match'}
-                    className={`p-1.5 rounded ${btnPrimary} transition-colors shrink-0 touch-manipulation`}
+                    className={`p-1.5 rounded ${btnPrimary} transition-colors shrink-0 touch-manipulation ${focusRing}`}
                   >
                     {playingKey === String(d.id) ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </button>
@@ -146,7 +146,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
                         disabled={pending}
-                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnDestructive} active:bg-destructive/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0`}
+                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnDestructive} active:bg-destructive/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
                       >
                         Reject
                       </button>
@@ -165,7 +165,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
                         disabled={pending}
-                        className="px-3 py-2 sm:py-1 text-sm sm:text-xs rounded border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0"
+                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
                       >
                         Reset
                       </button>

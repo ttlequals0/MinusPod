@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getUpdateCheckSettings, getUpdateStatus } from '../api/updates';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
+import { focusRing } from './fieldStyles';
 
 export default function UpdateBanner() {
   const [dismissed, setDismissed] = useLocalStorageState<string>('update-banner-dismissed', '');
@@ -28,7 +29,7 @@ export default function UpdateBanner() {
         {target.url ? (
           <>
             {' ('}
-            <a href={target.url} target="_blank" rel="noopener noreferrer" className="underline">
+            <a href={target.url} target="_blank" rel="noopener noreferrer" className={`underline ${focusRing}`}>
               release notes
             </a>
             {')'}
@@ -39,7 +40,7 @@ export default function UpdateBanner() {
       <button
         type="button"
         aria-label="Dismiss"
-        className="shrink-0 rounded px-2 py-1 hover:bg-warning/20"
+        className={`shrink-0 rounded px-2 py-1 hover:bg-warning/20 ${focusRing}`}
         onClick={() => setDismissed(target.version)}
       >
         Dismiss

@@ -10,6 +10,7 @@ import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
 import DraftNumberInput from '../../components/DraftNumberInput';
+import { focusRing } from '../../components/fieldStyles';
 
 interface EmailDraft {
   enabled: boolean;
@@ -37,9 +38,7 @@ function draftFromSettings(s: EmailNotificationSettings): EmailDraft {
   };
 }
 
-const emailInputClass =
-  'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground '
-  + 'placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm';
+const emailInputClass = `w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm ${focusRing}`;
 
 function EmailSettingsForm() {
   const queryClient = useQueryClient();
@@ -212,7 +211,7 @@ function EmailSettingsForm() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className={`absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
             >
               {showPassword ? 'Hide' : 'Show'}
             </button>
@@ -282,7 +281,7 @@ function EmailSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save'}
         </button>
@@ -290,7 +289,7 @@ function EmailSettingsForm() {
           type="button"
           onClick={() => testMutation.mutate()}
           disabled={testMutation.isPending || !savedSendReady || dirty}
-          className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm`}
+          className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {testMutation.isPending ? 'Sending...' : 'Send test email'}
         </button>

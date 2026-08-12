@@ -9,6 +9,8 @@ import {
 import { TagChips } from './TagChips';
 import LoadingSpinner from './LoadingSpinner';
 import { btnOutline } from './buttonStyles';
+import { selectBase } from './fieldStyles';
+import { focusRing } from './fieldStyles';
 
 interface Props {
   slug: string;
@@ -99,7 +101,7 @@ export function FeedTagsEditor({ slug }: Props) {
                             type="button"
                             onClick={() => removeTag(t)}
                             disabled={save.isPending}
-                            className="text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50"
+                            className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
                             aria-label={`Remove ${t}`}
                           >
                             ×
@@ -118,7 +120,7 @@ export function FeedTagsEditor({ slug }: Props) {
                   type="button"
                   onClick={() => setAdding(true)}
                   disabled={save.isPending || remainingVocab.length === 0}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
+                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
                 >
                   + Add tag
                 </button>
@@ -128,7 +130,7 @@ export function FeedTagsEditor({ slug }: Props) {
                     autoFocus
                     defaultValue=""
                     onChange={(e) => e.target.value && addTag(e.target.value)}
-                    className="px-2 py-1 text-xs bg-secondary border border-border rounded"
+                    className={`${selectBase}`}
                   >
                     <option value="" disabled>Pick a tag…</option>
                     {vocab?.podcast_genres && (
@@ -153,7 +155,7 @@ export function FeedTagsEditor({ slug }: Props) {
                   <button
                     type="button"
                     onClick={() => setAdding(false)}
-                    className={`px-2 py-1 text-xs rounded ${btnOutline}`}
+                    className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
                   >
                     Cancel
                   </button>

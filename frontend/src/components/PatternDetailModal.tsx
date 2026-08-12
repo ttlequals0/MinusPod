@@ -8,6 +8,7 @@ import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -112,7 +113,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-muted-foreground hover:text-foreground"
+          className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -165,7 +166,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                     type="button"
                     onClick={handleAddSponsor}
                     disabled={addSponsorMutation.isPending}
-                    className={`px-3 py-2 text-xs ${btnPrimary} rounded disabled:opacity-50 whitespace-nowrap`}
+                    className={`px-3 py-2 text-xs ${btnPrimary} rounded disabled:opacity-50 whitespace-nowrap ${focusRing}`}
                   >
                     {addSponsorMutation.isPending ? 'Adding...' : 'Add New'}
                   </button>
@@ -191,7 +192,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 ref={textTemplateRef}
                 value={editedPattern.text_template}
                 onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
-                className="w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto"
+                className={`w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto ${focusRing}`}
               />
             </div>
 
@@ -295,7 +296,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <span className="text-muted-foreground">Podcast:</span>
                 <a
                   href={`/feeds/${pattern.podcast_slug}/episodes`}
-                  className="ml-2 text-primary hover:underline"
+                  className={`ml-2 text-primary hover:underline ${focusRing}`}
                 >
                   {pattern.podcast_slug}
                 </a>
@@ -318,7 +319,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <button
               onClick={() => splitMutation.mutate()}
               disabled={splitMutation.isPending}
-              className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50`}
+              className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
             >
               {splitMutation.isPending ? 'Splitting...' : 'Split'}
             </button>
@@ -329,13 +330,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                className={`px-3 py-1.5 text-sm ${btnDestructive} rounded disabled:opacity-50`}
+                className={`px-3 py-1.5 text-sm ${btnDestructive} rounded disabled:opacity-50 ${focusRing}`}
               >
                 {deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-1.5 text-sm bg-muted text-muted-foreground rounded hover:bg-accent"
+                className={`px-3 py-1.5 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
               >
                 Cancel
               </button>
@@ -343,7 +344,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           ) : (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded"
+              className={`px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded ${focusRing}`}
             >
               Delete
             </button>
@@ -354,14 +355,14 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <>
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent"
+                className={`px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className={`px-4 py-2 text-sm ${btnPrimary} rounded disabled:opacity-50`}
+                className={`px-4 py-2 text-sm ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
               >
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
@@ -370,13 +371,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <>
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent"
+                className={`px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
               >
                 Close
               </button>
               <button
                 onClick={() => setIsEditing(true)}
-                className={`px-4 py-2 text-sm ${btnPrimary} rounded`}
+                className={`px-4 py-2 text-sm ${btnPrimary} rounded ${focusRing}`}
               >
                 Edit
               </button>

@@ -9,6 +9,7 @@ import { regenerateAllFeeds } from '../../api/feeds';
 import { btnSecondary } from '../../components/buttonStyles';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
+import { focusRing } from '../../components/fieldStyles';
 
 function AuthenticatedFeedsSection() {
   const queryClient = useQueryClient();
@@ -93,7 +94,7 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={handleRegenerateKey}
                 disabled={regenerateKeyMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
+                className={`px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
               >
                 {regenerateKeyMutation.isPending ? 'Regenerating key...' : 'Regenerate key'}
               </button>
@@ -112,7 +113,7 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={() => regenerateFeedsMutation.mutate()}
                 disabled={regenerateFeedsMutation.isPending}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
               >
                 <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
                 {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}

@@ -10,6 +10,7 @@ import {
   type CueTemplate,
   type CueWindowOptimizeResponse,
 } from '../api/cueTemplates';
+import { focusRing } from './fieldStyles';
 
 interface CueWindowOptimizePanelProps {
   slug: string;
@@ -82,10 +83,10 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
       {!scanning && scanError && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-destructive">{scanError}</p>
-          <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={rescan}>
+          <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={rescan}>
             Rescan
           </button>
-          <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={onClose}>
+          <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={onClose}>
             Close
           </button>
         </div>
@@ -143,16 +144,16 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={rescan}>
+            <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={rescan}>
               Rescan
             </button>
-            <button type="button" className={`px-2 py-1 rounded ${ghostBtn}`} onClick={onClose}>
+            <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={onClose}>
               Discard
             </button>
             {!alreadyOptimal && (
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${primaryBtn} disabled:opacity-50`}
+                className={`px-2 py-1 rounded ${primaryBtn} disabled:opacity-50 ${focusRing}`}
                 onClick={() => {
                   setApplyError(null);
                   applyMutation.mutate({ startS: proposedStartS, endS: proposedEndS });

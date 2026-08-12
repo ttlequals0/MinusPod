@@ -4,6 +4,8 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatModelLabel } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface AIModelsSectionProps {
   models: ClaudeModel[] | undefined;
@@ -62,7 +64,7 @@ function AIModelsSection({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`w-full ${selectBase}`}
         >
           {notConfigured && <option value="">Not configured</option>}
           {renderOrphan(value)}
@@ -88,7 +90,7 @@ function AIModelsSection({
         <button
           onClick={onRefresh}
           disabled={refreshIsPending}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
           title="Refresh model list from provider"
         >
           {refreshIsPending ? (

@@ -19,6 +19,7 @@ import {
   commitTimeInput, formatTime, timeInputKeyDown,
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnOutline, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
 // ad the validator would accept, so the server rejects it too.
@@ -280,14 +281,14 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               <button
                 type="button"
                 onClick={() => refetch()}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline}`}
+                className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing}`}
               >
                 Retry
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-3 py-1.5 text-sm rounded ${btnGhost}`}
+                className={`px-3 py-1.5 text-sm rounded ${btnGhost} ${focusRing}`}
               >
                 Cancel
               </button>
@@ -405,7 +406,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     <button
                       type="button"
                       onClick={() => removeDivider(i - 1)}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline}`}
+                      className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
                     >
                       Remove divider
                     </button>
@@ -429,7 +430,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               <button
                 type="button"
                 onClick={addDivider}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline}`}
+                className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing}`}
               >
                 Add divider
               </button>
@@ -437,14 +438,14 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                 type="button"
                 onClick={submit}
                 disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-                className={`ml-auto px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50`}
+                className={`ml-auto px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}
               >
                 Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-3 py-1.5 text-sm rounded ${btnGhost}`}
+                className={`px-3 py-1.5 text-sm rounded ${btnGhost} ${focusRing}`}
               >
                 Cancel
               </button>

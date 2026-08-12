@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
+import { focusRing } from './fieldStyles';
 
 // One prev/next pill, shared by the episode and feed detail headers. `side`
 // fixes the chevron position (prev = left, next = right); `label` is the visible
@@ -32,7 +33,7 @@ export default function PrevNextLink({ to, side, label, title }: {
   return (
     <Link
       to={to}
-      className={`${base} border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground hover:border-foreground/30`}
+      className={`${base} border-border bg-card text-foreground hover:bg-accent hover:text-accent-foreground hover:border-foreground/30 ${focusRing}`}
       title={title}
       aria-label={title}
     >

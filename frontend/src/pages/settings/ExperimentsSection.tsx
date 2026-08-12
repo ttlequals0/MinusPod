@@ -3,6 +3,7 @@ import ConfirmResetButton from './ConfirmResetButton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
+import { selectBase } from '../../components/fieldStyles';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -80,7 +81,7 @@ function ExperimentsSection({
               id="reviewModel"
               value={reviewer.model}
               onChange={(e) => update('model', e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`w-full ${selectBase}`}
             >
               <option value="same_as_pass">Same as pass model</option>
               {modelOptions.map((m) => (

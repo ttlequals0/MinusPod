@@ -7,6 +7,7 @@ import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
 // validation rejects and human "Not an ad" decisions once a recut restores
@@ -137,7 +138,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onApprove?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnPrimary} disabled:opacity-50`}
+          className={`${btn} ${growCls}${btnPrimary} disabled:opacity-50 ${focusRing}`}
         >
           Confirm ad
         </button>
@@ -147,7 +148,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onDismiss?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${growCls}${btnDestructive} disabled:opacity-50`}
+          className={`${btn} ${growCls}${btnDestructive} disabled:opacity-50 ${focusRing}`}
         >
           Not an ad
         </button>
@@ -159,7 +160,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
           type="button"
           onClick={() => actions.onSplit?.(d)}
           disabled={actions.busy}
-          className={`${btn} ${btnOutline} disabled:opacity-50`}
+          className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
         >
           Split
         </button>
@@ -168,7 +169,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
         type="button"
         onClick={() => actions.onEdit(d)}
         disabled={actions.busy}
-        className={`${btn} ${isCard ? 'ml-auto ' : ''}${btnOutline} disabled:opacity-50`}
+        className={`${btn} ${isCard ? 'ml-auto ' : ''}${btnOutline} disabled:opacity-50 ${focusRing}`}
       >
         Edit
       </button>
@@ -211,7 +212,7 @@ export function DetectionRows({
                 <Link
                   to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
                   title={d.episodeTitle}
-                  className="flex-1 min-w-40 truncate text-sm font-medium text-primary hover:underline"
+                  className={`flex-1 min-w-40 truncate text-sm font-medium text-primary hover:underline ${focusRing}`}
                 >
                   {d.episodeTitle}
                 </Link>
@@ -246,7 +247,7 @@ export function DetectionRows({
               </div>
               <Link
                 to={`/feeds/${d.feedSlug}/episodes/${d.episodeId}`}
-                className="block text-sm font-medium text-primary hover:underline"
+                className={`block text-sm font-medium text-primary hover:underline ${focusRing}`}
               >
                 {d.episodeTitle}
               </Link>

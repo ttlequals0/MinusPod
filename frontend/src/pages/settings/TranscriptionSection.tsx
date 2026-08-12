@@ -8,6 +8,8 @@ import ProviderKeyField from './ProviderKeyField';
 import SavedBadge from './SavedBadge';
 import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse, ConnectionTestResult } from '../../api/providers';
 import { btnPrimary } from '../../components/buttonStyles';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -101,7 +103,7 @@ function TranscriptionSection({
             id="whisperBackend"
             value={whisperBackend}
             onChange={(e) => onWhisperBackendChange(e.target.value as WhisperBackend)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            className={`w-full ${selectBase}`}
           >
             <option value={WHISPER_BACKENDS.LOCAL}>Local (faster-whisper)</option>
             <option value={WHISPER_BACKENDS.OPENAI_API}>Remote API (OpenAI-compatible)</option>
@@ -117,7 +119,7 @@ function TranscriptionSection({
               id="whisperModel"
               value={whisperModel}
               onChange={(e) => onWhisperModelChange(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`w-full ${selectBase}`}
             >
               {whisperModels?.map((model) => (
                 <option key={model.id} value={model.id}>
@@ -294,7 +296,7 @@ function TranscriptionSection({
           />
           <p className="mt-1 text-sm text-muted-foreground">
             Pinning a language keeps Whisper from misdetecting on music intros. Pick Auto-detect for multilingual podcasts. See
-            {' '}<a href="https://whisper-api.com/docs/languages/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">supported languages</a>.
+            {' '}<a href="https://whisper-api.com/docs/languages/" target="_blank" rel="noreferrer" className={`underline hover:text-foreground ${focusRing}`}>supported languages</a>.
           </p>
         </div>
 
@@ -307,7 +309,7 @@ function TranscriptionSection({
               id="whisperComputeType"
               value={whisperComputeType || 'auto'}
               onChange={(e) => onWhisperComputeTypeChange(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`w-full ${selectBase}`}
             >
               <option value="auto">Auto (float16 on CUDA, int8 on CPU)</option>
               <option value="float16">float16 (Volta and newer: V100, RTX 20xx+, A100, H100)</option>
@@ -356,7 +358,7 @@ function TranscriptionSection({
             <button
               onClick={onTimeoutsSave}
               disabled={timeoutsSaveIsPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
             >
               {timeoutsSaveIsPending ? 'Saving...' : 'Save Timeouts'}
             </button>

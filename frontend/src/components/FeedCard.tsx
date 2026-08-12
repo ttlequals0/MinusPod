@@ -10,6 +10,7 @@ import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface FeedCardProps {
   feed: Feed;
@@ -34,7 +35,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
         <div className="flex-1 p-4 min-w-0">
           <Link
             to={`/feeds/${feed.slug}`}
-            className="text-lg font-semibold text-foreground hover:text-primary truncate block"
+            className={`text-lg font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
           >
             {feedDisplayTitle(feed)}
           </Link>
@@ -86,7 +87,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           />
           <button
             onClick={() => onDelete(feed.slug)}
-            className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} transition-colors`}
+            className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} transition-colors ${focusRing}`}
             title="Delete feed"
             aria-label="Delete feed"
           >

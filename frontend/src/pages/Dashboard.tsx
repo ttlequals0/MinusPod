@@ -10,6 +10,7 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import { formatDateTime } from '../utils/format';
 import { btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
 
 function Dashboard() {
   const queryClient = useQueryClient();
@@ -106,7 +107,7 @@ function Dashboard() {
                   viewMode === 'grid'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
-                }`}
+                } ${focusRing}`}
                 aria-label="Grid view"
                 title="Grid view"
               >
@@ -120,7 +121,7 @@ function Dashboard() {
                   viewMode === 'list'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
-                }`}
+                } ${focusRing}`}
                 aria-label="List view"
                 title="List view"
               >
@@ -136,7 +137,7 @@ function Dashboard() {
                   sortBy === 'recent'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
-                }`}
+                } ${focusRing}`}
                 aria-label="Sort by recent"
                 title="Sort by most recent episode"
               >
@@ -150,7 +151,7 @@ function Dashboard() {
                   sortBy === 'title'
                     ? 'bg-primary text-primary-foreground'
                     : btnSecondary
-                }`}
+                } ${focusRing}`}
                 aria-label="Sort by title"
                 title="Sort alphabetically"
               >
@@ -187,7 +188,7 @@ function Dashboard() {
           />
           <Link
             to="/add"
-            className={`p-2 sm:px-4 sm:py-2 rounded ${btnPrimary} transition-colors`}
+            className={`p-2 sm:px-4 sm:py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
             title="Add Feed"
           >
             <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,7 +204,7 @@ function Dashboard() {
           <p className="text-muted-foreground mb-4">No feeds added yet</p>
           <Link
             to="/add"
-            className={`inline-block px-4 py-2 rounded ${btnPrimary} transition-colors`}
+            className={`inline-block px-4 py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
           >
             Add Your First Feed
           </Link>
@@ -213,7 +214,7 @@ function Dashboard() {
               href="https://podcastindex.org/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              className={`text-primary hover:underline ${focusRing}`}
             >
               podcastindex.org
             </a>
@@ -253,7 +254,7 @@ function Dashboard() {
               <button
                 onClick={() => setActionError(null)}
                 aria-label="Dismiss error"
-                className="shrink-0 text-destructive/70 hover:text-destructive"
+                className={`shrink-0 text-destructive/70 hover:text-destructive ${focusRing}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

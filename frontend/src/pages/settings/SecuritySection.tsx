@@ -5,6 +5,7 @@ import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getErrorMessage } from '../../api/client';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
+import { focusRing } from '../../components/fieldStyles';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -119,7 +120,7 @@ function SecuritySection({
         {isPasswordSet && (
           <button
             onClick={handleLogout}
-            className={`px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors`}
+            className={`px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors ${focusRing}`}
           >
             Logout
           </button>
@@ -198,7 +199,7 @@ function SecuritySection({
         <button
           type="submit"
           disabled={isChangingPassword || (!isPasswordSet && !newPassword)}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors`}
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {isChangingPassword
             ? 'Saving...'
@@ -288,7 +289,7 @@ function SecuritySection({
             <button
               type="submit"
               disabled={isRotating}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              className={`px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 ${focusRing}`}
             >
               {isRotating ? 'Rotating...' : 'Rotate Master Passphrase'}
             </button>

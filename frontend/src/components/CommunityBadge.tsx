@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { focusRing } from './fieldStyles';
 
 interface Props {
   communityId: string;
@@ -16,7 +17,7 @@ export function CommunityBadge({ communityId, version, protected: isProtected }:
         e.stopPropagation();
         setExpanded((v) => !v);
       }}
-      className="px-2 py-0.5 text-xs rounded bg-c-teal/15 text-c-teal hover:bg-c-teal/25 transition-colors"
+      className={`px-2 py-0.5 text-xs rounded bg-c-teal/15 text-c-teal hover:bg-c-teal/25 transition-colors ${focusRing}`}
       title="Community pattern"
     >
       community{version ? ` v${version}` : ''} · {expanded ? communityId : short}

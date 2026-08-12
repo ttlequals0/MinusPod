@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { btnSecondary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface TriStateToggleOption<T extends string> {
   value: T;
@@ -72,7 +73,7 @@ function TriStateToggle<T extends string>({ value, options, onChange, ariaLabel,
             onKeyDown={(e) => handleKeyDown(e, i)}
             className={`px-3 py-1.5 text-sm transition-colors disabled:opacity-50 ${i > 0 ? 'border-l border-border' : ''} ${
               selected ? 'bg-primary/10 text-primary font-medium' : btnSecondary
-            }`}
+            } ${focusRing}`}
           >
             {option.label}
           </button>

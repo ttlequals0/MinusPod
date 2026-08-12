@@ -13,6 +13,7 @@ import { getSettings } from '../api/settings';
 import { formatTimestamp } from '../utils/format';
 import { useScanQuery } from '../hooks/useScanQuery';
 import { btnPrimary, btnSecondary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface CueCandidatesSectionProps {
   slug: string;
@@ -184,7 +185,7 @@ function CueCandidatesSection({
           onClick={() => setScanned(true)}
           disabled={!hasOriginalAudio}
           title={hasOriginalAudio ? '' : 'Original audio not retained for this episode'}
-          className={makeBtn}
+          className={`${makeBtn} ${focusRing}`}
         >
           Find audio cues
         </button>
@@ -198,7 +199,7 @@ function CueCandidatesSection({
       {!scanning && scanError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-destructive">{scanError}</p>
-          <button onClick={() => rescan()} className={makeBtn}>Try again</button>
+          <button onClick={() => rescan()} className={`${makeBtn} ${focusRing}`}>Try again</button>
         </div>
       )}
       {noneFound && (
@@ -221,7 +222,7 @@ function CueCandidatesSection({
                       title={hasOriginalAudio
                         ? (isPlaying ? 'Stop' : 'Play this sound')
                         : 'Original audio not retained for this episode'}
-                      className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation"
+                      className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation ${focusRing}`}
                     >
                       {isPlaying ? (
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -258,7 +259,7 @@ function CueCandidatesSection({
                       disabled={!hasOriginalAudio}
                       title={hasOriginalAudio ? 'Open the capture tool to make a template'
                         : 'Original audio not retained for this episode'}
-                      className={`${makeBtn} flex-1 sm:flex-none`}
+                      className={`${makeBtn} flex-1 sm:flex-none ${focusRing}`}
                     >
                       Make template
                     </button>
@@ -266,7 +267,7 @@ function CueCandidatesSection({
                       onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
                       disabled={dismissMutation.isPending}
                       title="Not a cue: hide this sound in every episode of this feed"
-                      className={`${secondaryBtn} flex-1 sm:flex-none`}
+                      className={`${secondaryBtn} flex-1 sm:flex-none ${focusRing}`}
                     >
                       Dismiss
                     </button>
@@ -278,7 +279,7 @@ function CueCandidatesSection({
           <div className="pt-1">
             <button
               onClick={() => rescan()}
-              className={secondaryBtn}
+              className={`${secondaryBtn} ${focusRing}`}
             >
               Rescan
             </button>
@@ -287,7 +288,7 @@ function CueCandidatesSection({
             <div className="pt-1">
               <button
                 onClick={() => setShowDismissed((v) => !v)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className={`text-sm text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
               >
                 {showDismissed ? 'Hide dismissed' : `Dismissed (${dismissals.length})`}
               </button>
@@ -305,7 +306,7 @@ function CueCandidatesSection({
                       <button
                         onClick={() => undoMutation.mutate(d.id)}
                         disabled={undoMutation.isPending}
-                        className={`shrink-0 px-2 py-1 text-xs rounded font-medium ${btnSecondary} disabled:opacity-50`}
+                        className={`shrink-0 px-2 py-1 text-xs rounded font-medium ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                       >
                         Undo
                       </button>

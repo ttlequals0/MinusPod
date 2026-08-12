@@ -15,6 +15,7 @@ import type { Episode } from '../api/types';
 import { formatDate, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 const PICKER_PAGE_SIZE = 50;
 // Maximum episodes a user may select for the cross-episode scan (server cap).
@@ -179,7 +180,7 @@ export default function CueCrossEpisodeScanModal({
                 Select {CROSS_EPISODE_MIN}-{CROSS_EPISODE_MAX} episodes. Results are shown in the first selected episode's time.
               </p>
             </div>
-            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
+            <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -237,7 +238,7 @@ export default function CueCrossEpisodeScanModal({
             <div className="flex items-center justify-between mt-3 text-sm">
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50`}
+                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
                 onClick={() => setPickerPage((p) => Math.max(0, p - 1))}
                 disabled={pickerPage === 0}
               >
@@ -248,7 +249,7 @@ export default function CueCrossEpisodeScanModal({
               </span>
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50`}
+                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
                 onClick={() => setPickerPage((p) => Math.min(pickerTotalPages - 1, p + 1))}
                 disabled={pickerPage + 1 >= pickerTotalPages}
               >
@@ -272,7 +273,7 @@ export default function CueCrossEpisodeScanModal({
             </div>
             <button
               type="button"
-              className={`px-3 py-1.5 rounded ${primaryBtn} text-sm disabled:opacity-50`}
+              className={`px-3 py-1.5 rounded ${primaryBtn} text-sm disabled:opacity-50 ${focusRing}`}
               disabled={selected.length < CROSS_EPISODE_MIN}
               onClick={() => setPhase('results')}
             >
@@ -304,7 +305,7 @@ export default function CueCrossEpisodeScanModal({
                 </p>
               )}
             </div>
-            <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
+            <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -312,7 +313,7 @@ export default function CueCrossEpisodeScanModal({
           <div className="flex flex-wrap gap-2 mb-3">
             <button
               type="button"
-              className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
+              className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
               onClick={() => {
                 stopPlayback();
                 setPhase('picker');
@@ -323,7 +324,7 @@ export default function CueCrossEpisodeScanModal({
             {!scanning && (
               <button
                 type="button"
-                className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
+                className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
                 onClick={() => {
                   stopPlayback();
                   setExpandedKey(null);
@@ -366,7 +367,7 @@ export default function CueCrossEpisodeScanModal({
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <button
                         type="button"
-                        className={`shrink-0 p-1.5 rounded ${ghostBtn}`}
+                        className={`shrink-0 p-1.5 rounded ${ghostBtn} ${focusRing}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
                         disabled={!targetEpId}
                         title={playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
@@ -391,7 +392,7 @@ export default function CueCrossEpisodeScanModal({
                       {c.episodes && (
                         <button
                           type="button"
-                          className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground"
+                          className={`shrink-0 p-1 rounded text-muted-foreground hover:text-foreground ${focusRing}`}
                           onClick={() => setExpandedKey(expanded ? null : rowKey)}
                           aria-label={expanded ? 'Hide per-episode matches' : 'Show per-episode matches'}
                           aria-expanded={expanded}
@@ -401,7 +402,7 @@ export default function CueCrossEpisodeScanModal({
                       )}
                       <button
                         type="button"
-                        className={`shrink-0 px-3 py-1.5 rounded ${primaryBtn} text-xs`}
+                        className={`shrink-0 px-3 py-1.5 rounded ${primaryBtn} text-xs ${focusRing}`}
                         onClick={() => setSeed(c)}
                       >
                         Make template
@@ -427,7 +428,7 @@ export default function CueCrossEpisodeScanModal({
                                     <button
                                       key={mKey}
                                       type="button"
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50"
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50 ${focusRing}`}
                                       onClick={() => playWindow(epm.episodeId, m.start, m.end)}
                                       aria-label={playingKey === mKey
                                         ? `Stop match at ${formatTimestamp(m.start)}`

@@ -16,6 +16,8 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
 import { btnOutline, btnPrimary } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
+import { selectBase } from '../components/fieldStyles';
+import { focusRing } from '../components/fieldStyles';
 
 type Tab = 'sponsors' | 'normalizations';
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
@@ -53,7 +55,7 @@ function SponsorsPage() {
               tab === 'sponsors'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-card text-muted-foreground hover:bg-accent'
-            }`}
+            } ${focusRing}`}
           >
             Sponsors
           </button>
@@ -64,7 +66,7 @@ function SponsorsPage() {
               tab === 'normalizations'
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-card text-muted-foreground hover:bg-accent'
-            }`}
+            } ${focusRing}`}
           >
             Normalizations
           </button>
@@ -142,7 +144,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
             <select
               value={tagFilter}
               onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
-              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${selectBase}`}
             >
               <option value="all">All</option>
               {(vocab?.all_tags ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
@@ -166,7 +168,7 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
           <button
             type="button"
             onClick={() => setEditing(null)}
-            className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors`}
+            className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
           >
             + Add Sponsor
           </button>
@@ -192,8 +194,8 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
               <span>matched {formatDate(s.last_matched_at)}</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(s)} className={`px-2 py-1 text-xs rounded ${btnOutline}`}>Edit</button>
-              <button onClick={() => setDeleteTarget(s)} className="px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
+              <button onClick={() => setEditing(s)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
+              <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
             </div>
           </div>
         ))}
@@ -247,8 +249,8 @@ function SponsorsSection({ queryClient }: { queryClient: ReturnType<typeof useQu
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.last_matched_at)}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
-                      <button onClick={() => setEditing(s)} className={`px-2 py-1 rounded ${btnOutline}`}>Edit</button>
-                      <button onClick={() => setDeleteTarget(s)} className="px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
+                      <button onClick={() => setEditing(s)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
+                      <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -322,7 +324,7 @@ function NormalizationsSection() {
         <button
           type="button"
           onClick={() => setEditing(null)}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
         >
           + Add Normalization
         </button>
@@ -340,8 +342,8 @@ function NormalizationsSection() {
               <span className="text-muted-foreground">→ </span>{n.canonical}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline}`}>Edit</button>
-              <button onClick={() => setDeleteId(n.id)} className="px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
+              <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
+              <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
             </div>
           </div>
         ))}
@@ -378,8 +380,8 @@ function NormalizationsSection() {
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
-                      <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline}`}>Edit</button>
-                      <button onClick={() => setDeleteId(n.id)} className="px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
+                      <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
+                      <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
                     </div>
                   </td>
                 </tr>

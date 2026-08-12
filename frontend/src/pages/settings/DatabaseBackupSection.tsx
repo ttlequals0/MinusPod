@@ -12,6 +12,7 @@ import { formatStorage } from './settingsUtils';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import NumberInput from '../../components/NumberInput';
+import { focusRing } from '../../components/fieldStyles';
 
 interface Draft {
   enabled?: boolean;
@@ -84,7 +85,7 @@ function DatabaseBackupSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className={`px-4 py-2 rounded-lg ${btnSecondary} text-sm`}
+            className={`px-4 py-2 rounded-lg ${btnSecondary} text-sm ${focusRing}`}
           >
             Retry
           </button>
@@ -198,7 +199,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm ${focusRing}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -206,7 +207,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => runNow.mutate()}
               disabled={runNow.isPending}
-              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
             >
               {runNow.isPending ? 'Backing up...' : 'Back up now'}
             </button>

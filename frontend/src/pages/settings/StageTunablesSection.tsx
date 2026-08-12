@@ -12,6 +12,7 @@ import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface StageTunablesSectionProps {
   tunables: StageTunables;
@@ -192,7 +193,7 @@ export function ResetButton({
       onClick={onClick}
       disabled={disabled}
       title="Reset to default"
-      className="ml-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+      className={`ml-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed ${focusRing}`}
     >
       Reset
     </button>
@@ -597,7 +598,7 @@ function StageTunablesSection({
             type="button"
             onClick={() => onSave(buildPayload())}
             disabled={!dirty || saveIsPending || !!crossFieldError}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
           >
             {saveIsPending ? 'Saving...' : 'Save LLM Tunables'}
           </button>

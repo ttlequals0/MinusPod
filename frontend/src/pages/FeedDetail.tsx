@@ -25,6 +25,8 @@ import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { Modal } from '../components/Modal';
+import { selectBase } from '../components/fieldStyles';
+import { focusRing } from '../components/fieldStyles';
 
 function reprocessModeLabel(mode: string): string {
   if (mode === 'full') return 'AI Only';
@@ -253,7 +255,7 @@ function FeedDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-destructive">Failed to load feed</p>
-        <Link to="/" className="text-primary hover:underline mt-2 inline-block">
+        <Link to="/" className={`text-primary hover:underline mt-2 inline-block ${focusRing}`}>
           Back to Dashboard
         </Link>
       </div>
@@ -273,7 +275,7 @@ function FeedDetail() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link to="/" className="text-primary hover:underline inline-block">
+        <Link to="/" className={`text-primary hover:underline inline-block ${focusRing}`}>
           Back to Dashboard
         </Link>
         {feeds && feeds.length > 1 && (
@@ -303,7 +305,7 @@ function FeedDetail() {
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Open the ${feed.title} website`}
-                className="block w-full h-full rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                className={`block w-full h-full rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${focusRing}`}
               >
                 {feedArtwork}
               </a>
@@ -329,13 +331,13 @@ function FeedDetail() {
                   <button
                     onClick={saveTitleEdit}
                     disabled={updateMutation.isPending}
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50`}
+                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={() => setIsEditingTitle(false)}
-                    className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                    className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
                   >
                     Cancel
                   </button>
@@ -359,7 +361,7 @@ function FeedDetail() {
                   onClick={startEditingTitle}
                   aria-label="Edit feed title"
                   title="Edit feed title"
-                  className={`mt-1.5 shrink-0 p-1 rounded ${btnGhost} transition-colors`}
+                  className={`mt-1.5 shrink-0 p-1 rounded ${btnGhost} transition-colors ${focusRing}`}
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -468,7 +470,7 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors`}
+              className={`inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
               title="Delete feed"
               aria-label="Delete feed"
             >
@@ -496,7 +498,7 @@ function FeedDetail() {
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
-            className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
+            className={`${selectBase}`}
           >
             <option value="all">All statuses</option>
             <option value="discovered">Discovered</option>
@@ -516,7 +518,7 @@ function FeedDetail() {
               setPage(1);
               setSelectedIds(new Set());
             }}
-            className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
+            className={`${selectBase}`}
           >
             <option value="published_at:desc">Newest First</option>
             <option value="published_at:asc">Oldest First</option>
@@ -535,7 +537,7 @@ function FeedDetail() {
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
                 disabled={bulkMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center`}
+                className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process (${discoveredCount})`}
               </button>
@@ -545,21 +547,21 @@ function FeedDetail() {
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center`}
+                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
                 >
                   Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center`}
+                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
                 >
                   Full Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center`}
+                  className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
                   title="Re-detect ads using existing transcripts (skips re-transcription)"
                 >
                   Re-detect Ads ({processedCount})
@@ -567,7 +569,7 @@ function FeedDetail() {
                 <button
                   onClick={() => setShowBulkDeleteConfirm(true)}
                   disabled={bulkMutation.isPending}
-                  className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center`}
+                  className={`px-3 py-1.5 text-sm rounded ${btnDestructive} disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center ${focusRing}`}
                 >
                   Delete ({processedCount})
                 </button>
@@ -578,7 +580,7 @@ function FeedDetail() {
             )}
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+              className={`px-2 py-1 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
             >
               Clear
             </button>
@@ -612,7 +614,7 @@ function FeedDetail() {
                 pageSize === size
                   ? 'bg-primary text-primary-foreground'
                   : btnSecondary
-              }`}
+              } ${focusRing}`}
             >
               {size}
             </button>
@@ -646,14 +648,14 @@ function FeedDetail() {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowReprocessConfirm(false)}
-                className={`px-4 py-2 rounded ${btnSecondary}`}
+                className={`px-4 py-2 rounded ${btnSecondary} ${focusRing}`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => reprocessAllMutation.mutate(selectedReprocessMode)}
                 disabled={reprocessAllMutation.isPending}
-                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50`}
+                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
               >
                 {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
               </button>
@@ -678,7 +680,7 @@ function FeedDetail() {
             )}
             <button
               onClick={closeReprocessModal}
-              className={`w-full px-4 py-2 rounded ${btnPrimary}`}
+              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
             >
               Done
             </button>
@@ -696,7 +698,7 @@ function FeedDetail() {
             </p>
             <button
               onClick={closeReprocessModal}
-              className={`w-full px-4 py-2 rounded ${btnPrimary}`}
+              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
             >
               Close
             </button>
@@ -717,14 +719,14 @@ function FeedDetail() {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowBulkDeleteConfirm(false)}
-                className={`px-4 py-2 rounded ${btnSecondary}`}
+                className={`px-4 py-2 rounded ${btnSecondary} ${focusRing}`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => bulkMutation.mutate({ action: 'delete' })}
                 disabled={bulkMutation.isPending}
-                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50`}
+                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
               >
                 {bulkMutation.isPending ? 'Deleting...' : 'Delete'}
               </button>
@@ -751,7 +753,7 @@ function FeedDetail() {
             )}
             <button
               onClick={() => setBulkResult(null)}
-              className={`w-full px-4 py-2 rounded ${btnPrimary}`}
+              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
             >
               Done
             </button>
@@ -767,7 +769,7 @@ function FeedDetail() {
               <button
                 onClick={() => setActionError(null)}
                 aria-label="Dismiss error"
-                className="shrink-0 text-destructive/70 hover:text-destructive"
+                className={`shrink-0 text-destructive/70 hover:text-destructive ${focusRing}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

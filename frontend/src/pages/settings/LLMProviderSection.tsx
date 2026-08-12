@@ -6,6 +6,7 @@ import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 import DraftNumberInput from '../../components/DraftNumberInput';
+import { selectBase } from '../../components/fieldStyles';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -71,7 +72,7 @@ function LLMProviderSection({
             id="llmProvider"
             value={llmProvider}
             onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            className={`w-full ${selectBase}`}
           >
             <option value={LLM_PROVIDERS.ANTHROPIC}>Anthropic</option>
             <option value={LLM_PROVIDERS.OPENROUTER}>OpenRouter</option>
@@ -146,7 +147,7 @@ function LLMProviderSection({
             id="pricingSourceMode"
             value={pricingSourceMode}
             onChange={(e) => onPricingSourceModeChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            className={`w-full ${selectBase}`}
           >
             <option value="auto">Auto (recommended)</option>
             <option value="litellm">LiteLLM catalog</option>

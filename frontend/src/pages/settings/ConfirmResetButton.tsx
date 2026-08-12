@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { focusRing } from '../../components/fieldStyles';
 
 interface ConfirmResetButtonProps {
   label: string;
@@ -52,7 +53,7 @@ function ConfirmResetButton({
         armed
           ? 'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/80'
           : 'border-destructive/40 text-destructive hover:bg-destructive/10'
-      }`}
+      } ${focusRing}`}
     >
       {isPending ? 'Resetting...' : armed ? 'Click again to confirm' : label}
     </button>

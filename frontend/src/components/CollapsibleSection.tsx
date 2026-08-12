@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
+import { focusRing } from './fieldStyles';
 
 // Mirror of a CollapsibleSection's persisted open state, for hosts that need
 // to know whether their section is open (e.g. to gate a query on visibility)
@@ -138,7 +139,7 @@ function CollapsibleSection({
             the row's single toggle handler above. */}
         <button
           type="button"
-          className="flex-1 min-w-0 text-left"
+          className={`flex-1 min-w-0 text-left ${focusRing}`}
         >
           <h2 className="text-lg font-semibold text-foreground">{title}</h2>
           {subtitle && expanded && (

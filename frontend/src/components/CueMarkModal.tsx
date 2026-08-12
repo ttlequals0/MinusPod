@@ -34,6 +34,7 @@ import { episodeOriginalUrl } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
 import { btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -574,9 +575,7 @@ function CueMarkModal({
     }
   };
 
-  const fieldCls =
-    'rounded-lg border border-input bg-background text-foreground ' +
-    'focus:outline-hidden focus:ring-2 focus:ring-ring';
+  const fieldCls = `rounded-lg border border-input bg-background text-foreground ${focusRing}`;
   const inCue = playheadTime >= cueStart && playheadTime <= cueEnd;
 
   return (
@@ -603,7 +602,7 @@ function CueMarkModal({
           </div>
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground"
+            className={`text-muted-foreground hover:text-foreground ${focusRing}`}
             onClick={onClose}
             aria-label="Close"
           >
@@ -677,7 +676,7 @@ function CueMarkModal({
                       isXep
                         ? 'bg-warning text-warning-foreground hover:bg-warning/90'
                         : `${btnPrimary} text-primary-foreground`
-                    }`}
+                    } ${focusRing}`}
                   >
                     {cueCandidateLabel(c)}
                   </button>
@@ -761,7 +760,7 @@ function CueMarkModal({
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <button
             type="button"
-            className={ctrlBtn}
+            className={`${ctrlBtn} ${focusRing}`}
             onClick={() => findCandidates(!!candidatesError)}
             disabled={candidatesLoading}
           >
@@ -834,11 +833,11 @@ function CueMarkModal({
             <Checkbox checked={snapEnabled} onChange={setSnapEnabled} ariaLabel="Snap to detected boundaries" />
             Snap to onset
           </label>
-          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-success whitespace-nowrap`} onClick={setStartAtPlayhead}>
+          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-success whitespace-nowrap ${focusRing}`} onClick={setStartAtPlayhead}>
             <span className="sm:hidden">Set START</span>
             <span className="hidden sm:inline">Set START at playhead</span>
           </button>
-          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-destructive whitespace-nowrap`} onClick={setEndAtPlayhead}>
+          <button type="button" className={`flex-1 sm:flex-none ${ctrlBtn} text-destructive whitespace-nowrap ${focusRing}`} onClick={setEndAtPlayhead}>
             <span className="sm:hidden">Set END</span>
             <span className="hidden sm:inline">Set END at playhead</span>
           </button>
@@ -945,7 +944,7 @@ function CueMarkModal({
         <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-4">
           <button
             type="button"
-            className={ctrlBtn}
+            className={`${ctrlBtn} ${focusRing}`}
             onClick={onClose}
             disabled={saving || previewing}
           >
@@ -953,7 +952,7 @@ function CueMarkModal({
           </button>
           <button
             type="button"
-            className={ctrlBtn}
+            className={`${ctrlBtn} ${focusRing}`}
             onClick={handlePreview}
             disabled={!canSave || previewing}
           >
@@ -961,7 +960,7 @@ function CueMarkModal({
           </button>
           <button
             type="button"
-            className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}
+            className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm ${focusRing}`}
             onClick={handleSave}
             disabled={!canSave}
           >

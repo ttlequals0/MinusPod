@@ -3,6 +3,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
+import { focusRing } from '../../components/fieldStyles';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -134,7 +135,7 @@ function StorageRetentionSection({
           <button
             onClick={onSave}
             disabled={saveIsPending || originalExceedsProcessed}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
           >
             {saveIsPending ? 'Saving...' : 'Save Retention Settings'}
           </button>

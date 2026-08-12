@@ -105,7 +105,6 @@ function DropdownMenu({
             const isLast = i === items.length - 1;
             const cls = [
               'w-full px-4 py-2 text-left hover:bg-accent transition-colors',
-              focusRing,
               isFirst ? 'rounded-t-lg' : '',
               isLast ? 'rounded-b-lg' : '',
               isFirst ? '' : 'border-t border-border',
@@ -120,7 +119,7 @@ function DropdownMenu({
                   item.onClick();
                 }}
                 onKeyDown={(e) => onItemKeyDown(e, i)}
-                className={cls}
+                className={`${cls} ${focusRing}`}
               >
                 <span className="block text-sm font-medium text-foreground">{item.title}</span>
                 {item.subtitle && (

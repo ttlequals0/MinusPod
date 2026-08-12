@@ -166,7 +166,7 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm ${focusRing}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -174,7 +174,7 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => syncNow.mutate()}
               disabled={syncNow.isPending || !data?.enabled}
-              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
             >
               {syncNow.isPending ? 'Syncing...' : 'Sync now'}
             </button>
@@ -233,7 +233,7 @@ function CommunityPatternsSection() {
                   type="button"
                   onClick={() => setConfirmPurge(false)}
                   disabled={purge.isPending}
-                  className={`px-3 py-1.5 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm`}
+                  className={`px-3 py-1.5 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
                 >
                   Cancel
                 </button>
@@ -242,7 +242,7 @@ function CommunityPatternsSection() {
               <button
                 type="button"
                 onClick={() => { setPurgeResult(null); setConfirmPurge(true); }}
-                className="px-3 py-1.5 rounded-lg border border-destructive text-destructive hover:bg-destructive dark:hover:bg-destructive/20 text-sm"
+                className={`px-3 py-1.5 rounded-lg border border-destructive text-destructive hover:bg-destructive dark:hover:bg-destructive/20 text-sm ${focusRing}`}
               >
                 Remove all community patterns
               </button>

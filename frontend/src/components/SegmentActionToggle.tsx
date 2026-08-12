@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { SEGMENT_ACTIONS, SEGMENT_ACTION_LABELS, type SegmentAction } from '../utils/segmentCategory';
 import { btnSecondary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface SegmentActionToggleProps {
   value: SegmentAction;
@@ -77,7 +78,7 @@ function SegmentActionToggle({ value, onChange, ariaLabel, disabled, muted }: Se
                   ? 'bg-muted text-muted-foreground font-medium'
                   : 'bg-primary/10 text-primary font-medium'
                 : btnSecondary
-            }`}
+            } ${focusRing}`}
           >
             {SEGMENT_ACTION_LABELS[action]}
           </button>

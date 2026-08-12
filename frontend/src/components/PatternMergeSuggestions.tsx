@@ -8,6 +8,7 @@ import {
 import { btnPrimary } from './buttonStyles';
 import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 // Same-sponsor near-duplicate clusters the backend precomputes (#399). The
 // frontend only renders them and triggers the fold; it never computes
@@ -71,7 +72,7 @@ function SuggestionCard({
         <button
           onClick={doMerge}
           disabled={busy || mergeIds.length === 0}
-          className={`px-3 py-1.5 text-sm rounded-lg font-medium ${btnPrimary} disabled:opacity-50`}
+          className={`px-3 py-1.5 text-sm rounded-lg font-medium ${btnPrimary} disabled:opacity-50 ${focusRing}`}
         >
           {busy
             ? 'Merging...'

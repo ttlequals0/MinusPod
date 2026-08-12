@@ -30,6 +30,7 @@ import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -85,7 +86,7 @@ function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: st
       aria-label="Open in editor"
       title="Open in editor"
       data-testid={testId}
-      className={`p-1.5 rounded ${btnSecondary} transition-colors shrink-0 touch-manipulation`}
+      className={`p-1.5 rounded ${btnSecondary} transition-colors shrink-0 touch-manipulation ${focusRing}`}
     >
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -343,7 +344,7 @@ function EpisodeDetail() {
     return (
       <div className="text-center py-12">
         <p className="text-destructive">Failed to load episode</p>
-        <Link to={`/feeds/${slug}`} className="text-primary hover:underline mt-2 inline-block">
+        <Link to={`/feeds/${slug}`} className={`text-primary hover:underline mt-2 inline-block ${focusRing}`}>
           Back to Feed
         </Link>
       </div>
@@ -379,7 +380,7 @@ function EpisodeDetail() {
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link to={`/feeds/${slug}`} className="text-primary hover:underline inline-block">
+        <Link to={`/feeds/${slug}`} className={`text-primary hover:underline inline-block ${focusRing}`}>
           Back to Feed
         </Link>
         {episode.navigation && (
@@ -407,7 +408,7 @@ function EpisodeDetail() {
             type="button"
             onClick={() => setCorrectionError(null)}
             aria-label="Dismiss"
-            className="shrink-0 text-destructive hover:opacity-70"
+            className={`shrink-0 text-destructive hover:opacity-70 ${focusRing}`}
           >
             &times;
           </button>
@@ -502,7 +503,7 @@ function EpisodeDetail() {
                 <button
                   onClick={() => setShowReprocessMenu(!showReprocessMenu)}
                   disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                  className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                  className={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ${focusRing}`}
                 >
                   {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -513,7 +514,7 @@ function EpisodeDetail() {
                   <div className="absolute top-full right-0 mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-10 overflow-hidden">
                     <button
                       onClick={() => reprocessMutation.mutate('reprocess')}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent ${focusRing}`}
                       title="Use learned patterns + AI analysis"
                     >
                       <div className="font-medium">Reprocess</div>
@@ -521,7 +522,7 @@ function EpisodeDetail() {
                     </button>
                     <button
                       onClick={() => reprocessMutation.mutate('full')}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border"
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
                       title="Skip pattern DB, AI analyzes everything fresh"
                     >
                       <div className="font-medium">Full Analysis</div>
@@ -530,7 +531,7 @@ function EpisodeDetail() {
                     {episode.hasOriginalAudio && (
                       <button
                         onClick={() => reprocessMutation.mutate('recut')}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border"
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${focusRing}`}
                         title="Re-cut the original audio from your current ad edits (no transcription or AI)"
                       >
                         <div className="font-medium">Recut Audio</div>
@@ -541,7 +542,7 @@ function EpisodeDetail() {
                       <button
                         onClick={() => reprocessMutation.mutate('llm')}
                         disabled={REDETECT_DISABLED_MODES.has(feed?.processingMode)}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${focusRing}`}
                         title={feed?.processingMode && REDETECT_DISABLED_MODES.has(feed.processingMode)
                           ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
                           : 'Re-run ad detection and re-cut using the existing transcript (skips re-transcription)'}
@@ -557,7 +558,7 @@ function EpisodeDetail() {
                           setShowReprocessMenu(false);
                         }}
                         disabled={regenerateChaptersMutation.isPending}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50"
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border disabled:opacity-50 ${focusRing}`}
                         title="Regenerate chapters from existing transcript"
                       >
                         <div className="font-medium">Regenerate Chapters</div>
@@ -612,7 +613,7 @@ function EpisodeDetail() {
                 type="button"
                 onClick={() => reprocessMutation.mutate('llm')}
                 disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`}
               >
                 Re-run detection
               </button>
@@ -633,7 +634,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.transcriptVttUrl}
                     download
-                    className="px-3 py-1 text-sm bg-c-blue/20 text-c-blue rounded hover:bg-c-blue/30 transition-colors"
+                    className={`px-3 py-1 text-sm bg-c-blue/20 text-c-blue rounded hover:bg-c-blue/30 transition-colors ${focusRing}`}
                   >
                     Download VTT
                   </a>
@@ -642,7 +643,7 @@ function EpisodeDetail() {
                   <a
                     href={episode.chaptersUrl}
                     download
-                    className="px-3 py-1 text-sm bg-c-purple/20 text-c-purple rounded hover:bg-c-purple/30 transition-colors"
+                    className={`px-3 py-1 text-sm bg-c-purple/20 text-c-purple rounded hover:bg-c-purple/30 transition-colors ${focusRing}`}
                   >
                     Download Chapters
                   </a>
@@ -689,7 +690,7 @@ function EpisodeDetail() {
                 onClick={() => openEditorFresh(true)}
                 aria-label="Add new ad"
                 title="Add new ad"
-                className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${btnPrimary} transition-colors whitespace-nowrap`}
+                className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${btnPrimary} transition-colors whitespace-nowrap ${focusRing}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -715,7 +716,7 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnSecondary} rounded-md transition-colors whitespace-nowrap`}
+                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnSecondary} rounded-md transition-colors whitespace-nowrap ${focusRing}`}
                   >
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -727,7 +728,7 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(true)}
                     aria-label="Add new ad"
                     title="Add new ad"
-                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnPrimary} rounded-md transition-colors whitespace-nowrap`}
+                    className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm ${btnPrimary} rounded-md transition-colors whitespace-nowrap ${focusRing}`}
                   >
                     <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -878,7 +879,7 @@ function EpisodeDetail() {
                   {episode.transcript && (
                     <button
                       onClick={() => handleJumpToAd(index)}
-                      className="px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 active:bg-primary/30 transition-colors touch-manipulation min-h-[36px] sm:min-h-0"
+                      className={`px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 active:bg-primary/30 transition-colors touch-manipulation min-h-[36px] sm:min-h-0 ${focusRing}`}
                       title="Jump to this ad in editor"
                     >
                       Jump
@@ -1141,7 +1142,7 @@ function EpisodeDetail() {
                         }}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)}`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
                       >
                         {btnLabel(rowStatus, oneTapRecut ? 'Confirm & Recut' : 'Confirm ad')}
                       </button>
@@ -1161,7 +1162,7 @@ function EpisodeDetail() {
                           disabled={correctionMutation.isPending || reprocessMutation.isPending}
                           data-testid={`approve-trimmed-${index}`}
                           title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
-                          className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnSecondary)}`}
+                          className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnSecondary)} ${focusRing}`}
                         >
                           {btnLabel(rowStatus,
                             `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
@@ -1176,7 +1177,7 @@ function EpisodeDetail() {
                         onClick={() => handleCorrection({ type: 'reject', originalAd })}
                         disabled={correctionMutation.isPending || reprocessMutation.isPending}
                         data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)}`}
+                        className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >
                         {btnLabel(rowStatus, 'Not an ad')}
                       </button>
@@ -1193,7 +1194,7 @@ function EpisodeDetail() {
                 disabled={correctionMutation.isPending || reprocessMutation.isPending
                   || episode.status === 'processing'}
                 data-testid="apply-approved-recut"
-                className={`w-full sm:w-auto px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded ${btnPrimary} disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0`}
+                className={`w-full sm:w-auto px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded ${btnPrimary} disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
               >
                 {`Apply ${approvedHeldCount} confirmed & recut`}
               </button>
@@ -1333,14 +1334,14 @@ function EpisodeDetail() {
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)}`}
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, btnPrimary)} ${focusRing}`}
                           >
                             {btnLabel(rowStatus, 'Confirm ad')}
                           </button>
                           <button
                             onClick={() => handleCorrection({ type: 'reject', originalAd })}
                             disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)}`}
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${btnClass(rowStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                           >
                             {btnLabel(rowStatus, 'Not an ad')}
                           </button>

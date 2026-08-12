@@ -11,6 +11,7 @@ import {
   readEnvOverride,
   useServerDraft,
 } from './StageTunablesSection';
+import { focusRing } from '../../components/fieldStyles';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -116,7 +117,7 @@ function ChapterGeometryBlock({
           type="button"
           onClick={() => onSave(buildPayload())}
           disabled={!dirty || saveIsPending || !!crossFieldError}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
         >
           {saveIsPending ? 'Saving...' : 'Save Chapter Density'}
         </button>

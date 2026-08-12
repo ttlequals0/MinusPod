@@ -12,6 +12,7 @@ import { formatTokenCount } from './settings/settingsUtils';
 import { formatCost, formatStatsDuration as formatDuration } from '../utils/format';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useThemeColors } from '../hooks/useThemeColors';
+import { selectBase } from '../components/fieldStyles';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
@@ -188,7 +189,7 @@ export default function StatsPage() {
         <select
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
-          className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
+          className={`w-full sm:w-auto ${selectBase}`}
         >
           <option value="">All Podcasts</option>
           {feeds?.map((feed) => (

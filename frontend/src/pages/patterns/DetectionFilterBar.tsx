@@ -1,6 +1,9 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { DetectionSort, DetectionStatusFilter } from '../../api/detections';
 import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
+import { btnSecondary } from '../../components/buttonStyles';
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
@@ -8,8 +11,7 @@ const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['podcast', 'Podcast'],
 ];
 
-const SELECT_CLASS =
-  'flex-1 sm:flex-none min-w-0 px-3 py-1.5 text-sm bg-secondary border border-border rounded';
+const SELECT_CLASS = `flex-1 sm:flex-none min-w-0 ${selectBase}`;
 
 interface FeedOption {
   slug: string;
@@ -71,7 +73,7 @@ export function DetectionFilterBar({
           id={`${idPrefix}-feed`}
           value={feed}
           onChange={(e) => onFeedChange(e.target.value)}
-          className="flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+          className={`flex-1 sm:flex-none min-w-0 max-w-full sm:max-w-72 ${selectBase}`}
         >
           <option value="">All podcasts</option>
           {feeds?.map((f) => (
@@ -121,7 +123,7 @@ export function DetectionFilterBar({
           type="button"
           onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
           aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
-          className="px-3 py-1.5 bg-secondary border border-border rounded text-muted-foreground"
+          className={`px-3 py-1.5 rounded ${btnSecondary} transition-colors ${focusRing}`}
         >
           {order === 'desc'
             ? <ChevronDown className="w-4 h-4" aria-hidden />

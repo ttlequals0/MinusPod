@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 
 import { stripHtml } from '../utils/stripHtml';
+import { focusRing } from './fieldStyles';
 
 /**
  * Renders a feed or episode description with its links intact: real anchors
@@ -43,7 +44,7 @@ function Anchor({ href, children }: { href: string; children: ReactNode }) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-primary hover:underline wrap-break-word"
+      className={`text-primary hover:underline wrap-break-word ${focusRing}`}
     >
       {children}
     </a>

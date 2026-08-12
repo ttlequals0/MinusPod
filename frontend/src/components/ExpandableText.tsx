@@ -1,4 +1,5 @@
 import { ReactNode, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { focusRing } from './fieldStyles';
 
 // Literal class names so Tailwind's scanner emits them; a template string
 // built from clampLines would not be generated.
@@ -63,7 +64,7 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text' }:
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-controls={bodyId}
-          className="mt-1 text-xs text-primary hover:underline"
+          className={`mt-1 text-xs text-primary hover:underline ${focusRing}`}
         >
           {expanded ? `Show less ${label}` : `Show full ${label}`}
         </button>

@@ -5,6 +5,8 @@ import { SponsorNormalization, NormalizationCategory } from '../api/types';
 import { getErrorMessage } from '../api/client';
 import { btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
+import { selectBase } from './fieldStyles';
+import { focusRing } from './fieldStyles';
 
 const CATEGORIES: NormalizationCategory[] = ['sponsor', 'url', 'number', 'phrase'];
 
@@ -51,7 +53,7 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
         <h2 className="text-lg font-semibold text-foreground">
           {isNew ? 'Add Normalization' : 'Edit Normalization'}
         </h2>
-        <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+        <button onClick={onClose} className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -88,7 +90,7 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as NormalizationCategory)}
-            className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
+            className={`w-full ${selectBase}`}
           >
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>{c}</option>
@@ -102,14 +104,14 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
       <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
         <button
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
         >
           Cancel
         </button>
         <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
         </button>

@@ -6,6 +6,7 @@ import { formatDate } from '../utils/format';
 import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
 
 interface EpisodeListProps {
   episodes: Episode[];
@@ -92,14 +93,14 @@ function EpisodeRow({
           aria-label={selected ? 'Deselect episode' : 'Select episode'}
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id); }}
           onTouchEnd={(e) => { e.stopPropagation(); }}
-          className="absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center"
+          className={`absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center ${focusRing}`}
         >
           <Checkbox checked={selected} onChange={() => {}} />
         </button>
       )}
       <Link
         to={`/feeds/${feedSlug}/episodes/${episode.id}`}
-        className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''}`}
+        className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''} ${focusRing}`}
       >
         <Artwork
           src={episodeArtworkSrc(feedSlug, episode.id, episode.artworkUrl, feedArtworkUrl)}

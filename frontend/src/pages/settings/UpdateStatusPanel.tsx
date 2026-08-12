@@ -5,6 +5,8 @@ import { getErrorMessage } from '../../api/client';
 import type { UpdateCheckSettings } from '../../api/types';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnSecondary } from '../../components/buttonStyles';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 export default function UpdateStatusPanel() {
   const queryClient = useQueryClient();
@@ -68,7 +70,7 @@ export default function UpdateStatusPanel() {
             Channel
             <select
               aria-label="Channel"
-              className="rounded border border-input bg-background px-2 py-1 text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`${selectBase}`}
               value={settings.channel}
               onChange={(e) => settingsMutation.mutate({ channel: e.target.value as 'stable' | 'edge' })}
             >
@@ -86,7 +88,7 @@ export default function UpdateStatusPanel() {
           </label>
           <button
             type="button"
-            className={`px-3 py-1 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+            className={`px-3 py-1 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
             onClick={checkNow}
             disabled={checking}
           >
@@ -96,7 +98,7 @@ export default function UpdateStatusPanel() {
             href="https://github.com/ttlequals0/MinusPod/releases"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline"
+            className={`text-sm text-primary hover:underline ${focusRing}`}
           >
             Changelog
           </a>

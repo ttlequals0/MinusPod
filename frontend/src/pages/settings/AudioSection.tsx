@@ -2,6 +2,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ReplacementAudioField from './ReplacementAudioField';
+import { selectBase } from '../../components/fieldStyles';
 
 interface AudioSectionProps {
   audioBitrate: string;
@@ -35,7 +36,7 @@ function AudioSection({
             id="audioBitrate"
             value={audioBitrate}
             onChange={(e) => onAudioBitrateChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            className={`w-full ${selectBase}`}
           >
             <option value="64k">64 kbps - Smallest file size</option>
             <option value="96k">96 kbps - Good for speech</option>
@@ -73,7 +74,7 @@ function AudioSection({
               id="audioNormalizeIntensity"
               value={audioNormalizeIntensity}
               onChange={(e) => onAudioNormalizeIntensityChange(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`w-full ${selectBase}`}
             >
               <option value="gentle">Gentle - Light leveling, preserves dynamics</option>
               <option value="normal">Normal - Balanced leveling (recommended)</option>

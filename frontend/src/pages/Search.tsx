@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats, SearchResult } from '../api/search';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { btnSecondary } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'pattern' | 'sponsor';
 
@@ -132,7 +133,7 @@ function Search() {
         <button
           onClick={() => rebuildMutation.mutate()}
           disabled={rebuildMutation.isPending}
-          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild Index'}
         </button>
@@ -173,7 +174,7 @@ function Search() {
               filterType === type
                 ? 'bg-primary text-primary-foreground'
                 : btnSecondary
-            }`}
+            } ${focusRing}`}
           >
             {type === 'all' ? 'All' : typeLabels[type]}
             {stats?.stats && type !== 'all' && stats.stats[type] !== undefined && (
@@ -220,7 +221,7 @@ function Search() {
                     {items.length > 5 && (
                       <button
                         onClick={() => setFilterType(type as FilterType)}
-                        className="text-sm text-primary hover:underline"
+                        className={`text-sm text-primary hover:underline ${focusRing}`}
                       >
                         View all {items.length} {typeLabels[type].toLowerCase()}
                       </button>
@@ -264,7 +265,7 @@ function SearchResultCard({ result, link }: { result: SearchResult; link: string
   return (
     <Link
       to={link}
-      className="block p-4 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors"
+      className={`block p-4 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors ${focusRing}`}
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0 mt-1 text-muted-foreground">

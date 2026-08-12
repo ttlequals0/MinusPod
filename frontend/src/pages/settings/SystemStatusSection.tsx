@@ -3,6 +3,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { formatUptime, formatDuration, formatTokenCount, formatCost, formatStorage } from './settingsUtils';
 import UpdateStatusPanel from './UpdateStatusPanel';
+import { focusRing } from '../../components/fieldStyles';
 
 interface SystemStatusSectionProps {
   status: SystemStatus | undefined;
@@ -25,7 +26,7 @@ function SystemStatusSection({
               href="https://github.com/ttlequals0/minuspod"
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-primary hover:underline"
+              className={`font-medium text-primary hover:underline ${focusRing}`}
             >
               {status.version}
             </a>

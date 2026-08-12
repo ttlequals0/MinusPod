@@ -9,6 +9,8 @@ import { PatternExportEditRow } from './PatternExportEditRow';
 import { getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
+import { focusRing } from './fieldStyles';
+import { btnOutline, btnPrimary } from './buttonStyles';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -277,7 +279,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                     {destination === 'community' && (
                       <button
                         type="button"
-                        className="shrink-0 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                        className={`shrink-0 text-xs px-2 py-0.5 rounded ${btnOutline} transition-colors ${focusRing}`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -343,7 +345,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                 type="button"
                 onClick={handleClose}
                 disabled={busy}
-                className="px-3 py-1.5 text-sm rounded border border-border disabled:opacity-50"
+                className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
               >
                 Cancel
               </button>
@@ -352,7 +354,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={downloadSelected}
                   disabled={effectiveSelection.size === 0}
-                  className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
+                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
                 >
                   Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                 </button>
@@ -361,7 +363,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={runPreview}
                   disabled={effectiveSelection.size === 0 || busy}
-                  className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
+                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
                 >
                   {busy ? 'Checking...' : 'Continue'}
                 </button>
@@ -422,7 +424,7 @@ function CommunityPreview({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className="px-3 py-1.5 text-sm rounded border border-border disabled:opacity-50"
+          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
         >
           Back
         </button>
@@ -430,7 +432,7 @@ function CommunityPreview({
           type="button"
           onClick={onDownload}
           disabled={ready_count === 0 || busy}
-          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
         >
           {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
         </button>
@@ -465,7 +467,7 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground"
+          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
         >
           Done
         </button>

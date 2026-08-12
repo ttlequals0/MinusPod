@@ -5,6 +5,8 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import { BYTES_PER_MB } from './settingsUtils';
 import { btnSecondary } from '../../components/buttonStyles';
 import type { BadgePosition } from '../../api/types';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 
 interface CoverArtSectionProps {
@@ -57,7 +59,7 @@ function CoverArtSection({
             value={artworkBadgePosition}
             disabled={!artworkWatermarkEnabled}
             onChange={(e) => onArtworkBadgePositionChange(e.target.value as BadgePosition)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className={`w-full disabled:opacity-50 ${selectBase}`}
           >
             <option value="bottom-right">Bottom right</option>
             <option value="bottom-left">Bottom left</option>
@@ -100,7 +102,7 @@ function CoverArtSection({
             type="button"
             onClick={onRefreshArtwork}
             disabled={refreshArtworkPending}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
           >
             <RefreshCw className={`w-4 h-4 ${refreshArtworkPending ? 'animate-spin' : ''}`} />
             {refreshArtworkPending ? 'Refreshing artwork...' : 'Refresh all artwork'}

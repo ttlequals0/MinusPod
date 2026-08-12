@@ -11,6 +11,7 @@ import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import PodpingBadge from './PodpingBadge';
 import { btnDestructive, btnPrimary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 
 interface FeedListItemProps {
   feed: Feed;
@@ -34,7 +35,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
       <div className="flex-1 min-w-0">
         <Link
           to={`/feeds/${feed.slug}`}
-          className="text-sm font-semibold text-foreground hover:text-primary truncate block"
+          className={`text-sm font-semibold text-foreground hover:text-primary truncate block ${focusRing}`}
         >
           {feedDisplayTitle(feed)}
         </Link>
@@ -67,7 +68,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         <button
           onClick={() => onRefresh(feed.slug)}
           disabled={isRefreshing}
-          className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
+          className={`sm:hidden inline-flex items-center justify-center h-8 w-8 rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
           title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
           aria-label={isRefreshing ? 'Refreshing' : 'Refresh feed'}
         >
@@ -101,7 +102,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         </div>
         <button
           onClick={() => onDelete(feed.slug)}
-          className={`inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded ${btnDestructive} transition-colors`}
+          className={`inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded ${btnDestructive} transition-colors ${focusRing}`}
           title="Delete feed"
           aria-label="Delete feed"
         >

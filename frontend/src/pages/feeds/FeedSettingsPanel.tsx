@@ -22,6 +22,8 @@ import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import DraftNumberInput from '../../components/DraftNumberInput';
+import { selectBase } from '../../components/fieldStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 interface Props {
   feed: Feed;
@@ -429,7 +431,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       setEditNetworkOverride(v);
                     }
                   }}
-                  className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                  className={`flex-1 min-w-0 ${selectBase}`}
                 >
                   <option value="">Auto-detect</option>
                   {networks?.map((network) => (
@@ -490,13 +492,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <button
                   onClick={saveNetworkEdit}
                   disabled={updateMutation.isPending}
-                  className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50`}
+                  className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
                 >
                   {updateMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   onClick={() => setIsEditingNetwork(false)}
-                  className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                  className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
                 >
                   Cancel
                 </button>
@@ -523,7 +525,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </span>
               <button
                 onClick={startEditingNetwork}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
               >
                 {feed.networkIdOverride || feed.networkId || feed.daiPlatform ? 'Edit' : '+ Add network'}
               </button>
@@ -554,14 +556,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <button
                     onClick={saveSourceUrl}
                     disabled={sourceUrlMutation.isPending}
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50`}
+                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
                   >
                     {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
                   </button>
                   <button
                     onClick={() => setIsEditingSourceUrl(false)}
                     disabled={sourceUrlMutation.isPending}
-                    className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50"
+                    className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50 ${focusRing}`}
                   >
                     Cancel
                   </button>
@@ -579,7 +581,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <CopyButton text={feed.sourceUrl} label="Copy source URL" labelClassName="sr-only" />
                   <button
                     onClick={startEditingSourceUrl}
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
                   >
                     Edit
                   </button>
@@ -631,7 +633,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         type="button"
                         onClick={() => removeTitleSkipPattern(p)}
                         disabled={updateMutation.isPending}
-                        className="text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50"
+                        className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
                         aria-label={`Remove ${p}`}
                       >
                         ×
@@ -646,7 +648,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     type="button"
                     onClick={() => setAddingTitleSkipPattern(true)}
                     disabled={updateMutation.isPending}
-                    className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
+                    className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
                   >
                     + Add pattern
                   </button>
@@ -672,7 +674,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       type="button"
                       onClick={addTitleSkipPattern}
                       disabled={updateMutation.isPending || !titleSkipPatternInput.trim()}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50`}
+                      className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
                     >
                       Add
                     </button>
@@ -683,7 +685,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         setTitleSkipPatternInput('');
                         setTitleSkipPatternError(null);
                       }}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline}`}
+                      className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
                     >
                       Cancel
                     </button>
@@ -710,7 +712,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 titleSkipAction: e.target.value as UpdateFeedPayload['titleSkipAction'],
               })}
               disabled={updateMutation.isPending}
-              className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+              className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
               aria-label="Skipped episodes"
             >
               <option value="serve_original">Keep in feed with original audio</option>
@@ -732,7 +734,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   processingMode: e.target.value as UpdateFeedPayload['processingMode'],
                 })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
               >
                 <option value="standard">Standard (detect and cut ads)</option>
                 <option value="keep_content">Keep content only (experimental)</option>
@@ -764,7 +766,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         cueOnlySafety: e.target.value as NonNullable<UpdateFeedPayload['cueOnlySafety']>,
                       })}
                       disabled={updateMutation.isPending}
-                      className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 disabled:opacity-50"
+                      className={`self-start min-w-0 disabled:opacity-50 ${selectBase}`}
                     >
                       <option value="hold_new">Hold new templates for review</option>
                       <option value="auto_cut">Auto-cut at high confidence</option>
@@ -804,7 +806,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 value={feed.chaptersMode || 'auto'}
                 onChange={(e) => updateMutation.mutate({ chaptersMode: e.target.value as 'auto' | 'generate' | 'off' })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                 aria-label="Chapters"
               >
                 <option value="auto">Auto</option>
@@ -829,7 +831,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   queuePriority: e.target.value as 'high' | 'normal' | 'low',
                 })}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded self-start min-w-0 max-w-full disabled:opacity-50"
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                 aria-label="Queue priority"
               >
                 <option value="high">High</option>
@@ -854,7 +856,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   updateMutation.mutate({ languageOverride: v === '' ? null : v });
                 }}
                 disabled={updateMutation.isPending}
-                className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                className={`flex-1 sm:flex-none min-w-0 disabled:opacity-50 ${selectBase}`}
               >
                 <option value="">Global default</option>
                 <option value="auto">Auto-detect (multilingual)</option>
@@ -963,7 +965,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                             type="button"
                             onClick={() => clearSegmentActionOverride(category)}
                             disabled={updateMutation.isPending}
-                            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                            className={`text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 ${focusRing}`}
                           >
                             Clear
                           </button>
@@ -1014,7 +1016,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   type="button"
                   onClick={handleRerenderClick}
                   disabled={rerenderMutation.isPending}
-                  className={`self-start whitespace-nowrap px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+                  className={`self-start whitespace-nowrap px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
                 >
                   {rerenderMutation.isPending ? 'Re-rendering...' : 'Re-render episodes'}
                 </button>
@@ -1255,7 +1257,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         });
                       }}
                       disabled={updateMutation.isPending}
-                      className="px-2 py-1.5 text-sm bg-secondary border border-border rounded min-w-0 disabled:opacity-50"
+                      className={`min-w-0 disabled:opacity-50 ${selectBase}`}
                       aria-label="Fetch each episode twice to find inserted ads"
                     >
                       <option value="">Auto (on for dynamic-ad feeds)</option>

@@ -1,4 +1,5 @@
 import { btnSecondary } from './buttonStyles';
+import { focusRing } from './fieldStyles';
 export function Pagination({
   page, totalPages, total, onPage,
 }: {
@@ -25,7 +26,7 @@ export function Pagination({
         <button
           onClick={() => onPage(Math.max(1, page - 1))}
           disabled={page === 1}
-          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           Previous
         </button>
@@ -40,7 +41,7 @@ export function Pagination({
                 p === page
                   ? 'bg-primary text-primary-foreground'
                   : btnSecondary
-              }`}
+              } ${focusRing}`}
             >
               {p}
             </button>
@@ -49,7 +50,7 @@ export function Pagination({
         <button
           onClick={() => onPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
         >
           Next
         </button>

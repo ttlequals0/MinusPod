@@ -11,6 +11,7 @@ import EmailSettingsForm from './EmailSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
 import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
+import { focusRing } from '../../components/fieldStyles';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -230,20 +231,20 @@ function WebhooksBlock() {
                 <button
                   onClick={() => testMutation.mutate(wh.id)}
                   disabled={testMutation.isPending}
-                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
                 >
                   Test
                 </button>
                 <button
                   onClick={() => startEdit(wh)}
-                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors`}
+                  className={`px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors ${focusRing}`}
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => handleDeleteClick(wh.id)}
                   disabled={deleteMutation.isPending}
-                  className="px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors"
+                  className={`px-2.5 py-1 text-xs rounded bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-colors ${focusRing}`}
                 >
                   {deleteConfirmId === wh.id ? 'Confirm?' : 'Delete'}
                 </button>
@@ -262,7 +263,7 @@ function WebhooksBlock() {
             setShowForm(true);
             setTemplatePreview(null);
           }}
-          className={`px-4 py-2 rounded ${btnPrimary} transition-colors text-sm`}
+          className={`px-4 py-2 rounded ${btnPrimary} transition-colors text-sm ${focusRing}`}
         >
           Add Webhook
         </button>
@@ -331,7 +332,7 @@ function WebhooksBlock() {
                 type="button"
                 onClick={handleValidateTemplate}
                 disabled={validating || !form.payloadTemplate.trim()}
-                className={`px-3 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+                className={`px-3 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
               >
                 {validating ? 'Validating...' : 'Validate & Preview'}
               </button>
@@ -381,7 +382,7 @@ function WebhooksBlock() {
               <button
                 type="button"
                 onClick={() => setShowSecret((prev) => !prev)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className={`absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
               >
                 {showSecret ? 'Hide' : 'Show'}
               </button>
@@ -408,14 +409,14 @@ function WebhooksBlock() {
             <button
               type="submit"
               disabled={isSaving || form.events.length === 0}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
             >
               {isSaving ? 'Saving...' : editingId ? 'Update Webhook' : 'Create Webhook'}
             </button>
             <button
               type="button"
               onClick={resetForm}
-              className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors text-sm`}
+              className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors text-sm ${focusRing}`}
             >
               Cancel
             </button>

@@ -26,6 +26,8 @@ import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
 import { btnOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
+import { selectBase } from '../components/fieldStyles';
+import { focusRing } from '../components/fieldStyles';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -198,7 +200,7 @@ function PatternsPage() {
               <button
                 type="button"
                 onClick={handleSyncNow}
-                className={`px-2 py-1 rounded text-xs ${btnOutline} transition-colors`}
+                className={`px-2 py-1 rounded text-xs ${btnOutline} transition-colors ${focusRing}`}
                 title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
               >
                 ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
@@ -207,14 +209,14 @@ function PatternsPage() {
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors`}
+              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors ${focusRing}`}
             >
               Import
             </button>
             <button
               type="button"
               onClick={() => setExportOpen(true)}
-              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors`}
+              className={`px-3 py-1.5 rounded ${btnOutline} transition-colors ${focusRing}`}
             >
               Export
             </button>
@@ -248,7 +250,7 @@ function PatternsPage() {
                 activeTab === key
                   ? 'border-primary text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
+              } ${focusRing}`}
             >
               {label}
             </button>
@@ -326,7 +328,7 @@ function PatternsPage() {
                 setScopeFilter(e.target.value as ScopeFilter);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${selectBase}`}
             >
               <option value="all">All</option>
               <option value="global">Global</option>
@@ -345,7 +347,7 @@ function PatternsPage() {
                 setOriginFilter(e.target.value as OriginFilter);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${selectBase}`}
             >
               <option value="all">All</option>
               <option value="auto">Auto</option>
@@ -363,7 +365,7 @@ function PatternsPage() {
                 setSourceFilter(e.target.value as SourceFilter);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${selectBase}`}
             >
               <option value="all">All</option>
               <option value="local">Local</option>
@@ -382,7 +384,7 @@ function PatternsPage() {
                 setCategoryFilter(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+              className={`${selectBase}`}
             >
               {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
                 <option key={value || 'all'} value={value}>{label}</option>
@@ -447,7 +449,7 @@ function PatternsPage() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline}`}
+                  className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
                 >
                   {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
                 </button>
@@ -579,7 +581,7 @@ function PatternsPage() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                        className={`px-2 py-1 rounded ${btnOutline} whitespace-nowrap`}
+                        className={`px-2 py-1 rounded ${btnOutline} whitespace-nowrap ${focusRing}`}
                       >
                         {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
                       </button>

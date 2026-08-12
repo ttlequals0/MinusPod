@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Rewind, FastForward, Square, ChevronDown } from 'lucide-react';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { PLAYBACK_RATES, ghostBtn, primaryBtn, selectionBtn } from './controlStyles';
+import { focusRing } from '../../components/fieldStyles';
 
 // Shared playback transport bar for the audio-editor modals (AdReviewModal and
 // CueMarkModal). Purely presentational: the host owns the <audio> element, the
@@ -75,20 +76,20 @@ function TransportBar({
           grouped beside it at any width. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center sm:gap-4">
         <div className="flex flex-wrap items-center justify-center gap-0.5">
-          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to START pin">
+          <button type="button" onClick={onSeekToStart} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to START pin">
             <SkipBack className="w-4 h-4" />
           </button>
-          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn}`} title="Back 10s">
+          <button type="button" onClick={() => onSeekRelative(-10)} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Back 10s">
             <Rewind className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn}`} title="Play / pause (Space)">
+          <button type="button" onClick={onTogglePlay} className={`p-1.5 rounded ${primaryBtn} ${focusRing}`} title="Play / pause (Space)">
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>
           {onPlaySelection && (
             <button
               type="button"
               onClick={onPlaySelection}
-              className={selectionBtn}
+              className={`${selectionBtn} ${focusRing}`}
               title="Play the selection only"
               aria-label="Play selection"
             >
@@ -97,13 +98,13 @@ function TransportBar({
               <span aria-hidden="true" className="text-xs font-bold leading-none">]</span>
             </button>
           )}
-          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn}`} title="Forward 10s">
+          <button type="button" onClick={() => onSeekRelative(10)} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Forward 10s">
             <FastForward className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn}`} title="Jump to END pin">
+          <button type="button" onClick={onSeekToEnd} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Jump to END pin">
             <SkipForward className="w-4 h-4" />
           </button>
-          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn}`} title="Stop (pause + return to START)">
+          <button type="button" onClick={onStop} className={`p-1.5 rounded ${ghostBtn} ${focusRing}`} title="Stop (pause + return to START)">
             <Square className="w-4 h-4" />
           </button>
           <div className="relative ml-1" ref={speedRef}>
@@ -126,7 +127,7 @@ function TransportBar({
                       type="button"
                       aria-current={r === playbackRate}
                       onClick={() => { onPlaybackRateChange(r); setSpeedOpen(false); }}
-                      className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}
+                      className={`block w-full px-3 py-1 text-right text-xs tabular-nums hover:bg-accent ${r === playbackRate ? 'text-foreground font-semibold' : 'text-muted-foreground'} ${focusRing}`}
                     >
                       {r}&times;
                     </button>

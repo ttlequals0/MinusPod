@@ -16,6 +16,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { btnSecondary } from '../components/buttonStyles';
+import { selectBase } from '../components/fieldStyles';
+import { focusRing } from '../components/fieldStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
@@ -115,14 +117,14 @@ function HistoryPage() {
           <button
             onClick={() => handleExport('csv')}
             disabled={exporting !== null}
-            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
           >
             {exporting === 'csv' ? 'Exporting...' : 'Export CSV'}
           </button>
           <button
             onClick={() => handleExport('json')}
             disabled={exporting !== null}
-            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors`}
+            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
           >
             {exporting === 'json' ? 'Exporting...' : 'Export JSON'}
           </button>
@@ -141,7 +143,7 @@ function HistoryPage() {
             onClick={() => { setStatusFilter((f) => (f === 'completed' ? 'all' : 'completed')); setPage(1); }}
             aria-pressed={statusFilter === 'completed'}
             title="Filter the list below by completed runs"
-            className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+            className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
           >
             <div className="text-2xl font-bold text-success">{stats.completedCount}</div>
             <div className="text-sm text-muted-foreground">Completed</div>
@@ -151,7 +153,7 @@ function HistoryPage() {
             onClick={() => { setStatusFilter((f) => (f === 'failed' ? 'all' : 'failed')); setPage(1); }}
             aria-pressed={statusFilter === 'failed'}
             title="Filter the list below by failed runs"
-            className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}
+            className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
           >
             <div className="text-2xl font-bold text-destructive">{stats.failedCount}</div>
             <div className="text-sm text-muted-foreground">Failed</div>
@@ -178,7 +180,7 @@ function HistoryPage() {
               setStatusFilter(e.target.value as StatusFilter);
               setPage(1);
             }}
-            className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
+            className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
@@ -190,7 +192,7 @@ function HistoryPage() {
               setPodcastFilter(e.target.value);
               setPage(1);
             }}
-            className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
+            className={`w-full sm:w-auto ${selectBase}`}
           >
             <option value="">All Podcasts</option>
             {[...(feeds ?? [])]
@@ -221,7 +223,7 @@ function HistoryPage() {
               <div className="flex items-center justify-between mb-2">
                 <Link
                   to={`/feeds/${entry.podcastSlug}`}
-                  className="text-primary hover:underline text-sm font-medium truncate max-w-[200px]"
+                  className={`text-primary hover:underline text-sm font-medium truncate max-w-[200px] ${focusRing}`}
                   title={entry.podcastTitle}
                 >
                   {entry.podcastTitle}
@@ -241,7 +243,7 @@ function HistoryPage() {
               </div>
               <Link
                 to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                className="text-primary hover:underline text-sm block truncate mb-3"
+                className={`text-primary hover:underline text-sm block truncate mb-3 ${focusRing}`}
                 title={entry.episodeTitle}
               >
                 {entry.episodeTitle}
@@ -305,7 +307,7 @@ function HistoryPage() {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}`}
-                        className="text-primary hover:underline text-sm truncate max-w-[150px] block"
+                        className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`}
                         title={entry.podcastTitle}
                       >
                         {entry.podcastTitle}
@@ -314,7 +316,7 @@ function HistoryPage() {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                        className="text-primary hover:underline text-sm truncate max-w-[200px] block"
+                        className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`}
                         title={entry.episodeTitle}
                       >
                         {entry.episodeTitle}
