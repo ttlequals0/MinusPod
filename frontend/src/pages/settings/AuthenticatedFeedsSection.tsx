@@ -166,7 +166,7 @@ function AuthenticatedFeedsSection() {
                   placeholder="^atc/"
                   aria-label="New blocked agent pattern"
                   maxLength={200}
-                  className="px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0"
+                  className={`px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0 ${focusRing}`}
                 />
                 <button
                   type="button"
