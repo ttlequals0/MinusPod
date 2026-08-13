@@ -9,6 +9,43 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Tooling (benchmark; not in runtime image)
+
+- Six models added to the sweep roster: `bytedance-seed/seed-2-1-turbo`,
+  `deepseek/deepseek-v4-pro-0813`, `qwen/qwen3.8-2.4t-a95b`, `x-ai/grok-4.6`,
+  `nvidia/nemotron-3.5-lightning`, and `meta/muse-glimmer-30b`. Slugs verified
+  against the live OpenRouter catalog.
+- `prompts/2026-08.txt`: the 2026-08 campaign's system prompt, frozen. The
+  `cross_promo` wording change in 2.86.2 altered `DEFAULT_SYSTEM_PROMPT`, and
+  since `prompt_hash` is part of the work-unit key, every one of the campaign's
+  64,125 rows would otherwise be treated as incomplete. Pinning the run to this
+  file adds new models to an existing campaign without re-running the old ones.
+- Fresh pricing snapshot covering the added models.
+- Regenerated report and charts: 81 active models, 69,255 work units, 69,125
+  scored. `x-ai/grok-4.6` joins the top statistical tier at F0.5 0.760; the
+  other five land between 0.052 and 0.650 and none displaces an existing
+  recommendation. `docs/llm-providers.md` refreshed to match.
+
+### Changed
+
+- The report's "Errors resolved by retry" section is gone. Every row in it had
+  already succeeded, so none affected a score, and its contents were either
+  duplicated elsewhere or noise: the largest entry restated what the JSON mode
+  column already says, and thirteen of fifteen rows covered under 1% of a
+  model's work units. Unresolved failures keep their own tables, which is where
+  a provider refusal or a rate-limit ceiling actually belongs.
+- Provider-policy blocks no longer classify as `Unknown model (404)`. OpenRouter
+  answers 404 when an account blocks a provider, so a correct slug read as a
+  wrong one; these now bucket as `Account gating (provider policy)`.
+
+### Fixed
+
+- `benchmark run --dry-run` ignored `--retry-errors`, reporting errored units as
+  skipped and under-counting the real queue. The preview now takes the same
+  errored-key set the run does.
+
 ## [2.87.0] - 2026-08-12
 
 ### Added

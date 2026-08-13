@@ -93,7 +93,6 @@ def render(
 
     extras_active = extras.without(deprecated_ids)
     calls_active = calls if not deprecated_ids else [r for r in calls if r["model"] not in deprecated_ids]
-    raw_active = raw_calls if not deprecated_ids else [r for r in raw_calls if r["model"] not in deprecated_ids]
 
     stale = sum(1 for r in calls_active if r.get("windows_stale"))
     if stale:
@@ -107,7 +106,7 @@ def render(
         _render_how_to_read(episodes),
         _render_tldr(active, episodes),
         _render_charts_section(active),
-        _render_failures(calls_active, raw_active),
+        _render_failures(calls_active),
         _render_accuracy_breakdown(active),
         _render_boundary_accuracy(active),
         _render_calibration_table(extras_active.calibration),

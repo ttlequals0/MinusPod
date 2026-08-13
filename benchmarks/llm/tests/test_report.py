@@ -4,7 +4,7 @@ from __future__ import annotations
 from benchmark import report
 from benchmark.report import charts
 from benchmark.report.aggregate import ModelStats
-from benchmark.report.sections import _error_bucket, _render_fp_windows, _render_resolved_by_retry
+from benchmark.report.sections import _error_bucket, _render_fp_windows
 from benchmark.storage import append_jsonl
 
 
@@ -243,27 +243,20 @@ def test_error_bucket_classifies_moderation_and_account_errors():
     assert _error_bucket("Expecting value: line 1 column 1") == "Other"
 
 
-def test_resolved_by_retry_reads_raw_rows_not_dedup():
-    """A unit that errored then succeeded is invisible after dedup; the retry
-    subsection must recover it from the append-only rows and skip units that
-    never recovered (those belong to the failure tables)."""
-    def row(model, w, error=None):
-        return {"model": model, "episode_id": "ep", "trial": 0,
-                "window_index": w, "error": error}
-
-    auth = {"message": "Error code: 401 - authentication_error"}
-    raw = [
-        row("m1", 0, error=auth), row("m1", 0),          # errored then succeeded
-        row("m1", 1),                                    # clean first try
-        row("m2", 0, error=auth), row("m2", 0, error=auth),  # never recovered
-    ]
-    lines = _render_resolved_by_retry(raw)
-    text = "\n".join(lines)
-    assert "### Errors resolved by retry" in text
-    assert "| `m1` | 1 | 1 | Auth failure (100%) |" in text
-    assert "`m2`" not in text
-
-    assert _render_resolved_by_retry([row("m1", 0), row("m2", 0)]) == []
+def test_provider_policy_block_is_not_an_unknown_model():
+    """OpenRouter returns 404 when the operator's account blocks a provider.
+    Bucketing that as a bad slug sends readers to check a correct model id."""
+    assert _error_bucket(
+        "Error code: 404 - No endpoints available matching your guardrail restrictions and data policy"
+    ) == "Account gating (provider policy)"
+    assert _error_bucket(
+        "Error code: 404 - No allowed providers are available for this model"
+    ) == "Account gating (provider policy)"
+    assert _error_bucket("Error code: 404 - No such model") == "Unknown model (404)"
+    # A model with no provider at all is unavailable, not gated by the account.
+    assert _error_bucket(
+        "Error code: 404 - No endpoints found for acme/some-model"
+    ) == "Unknown model (404)"
 
 
 def test_fp_windows_table_lists_only_truthless_windows(make_episode):

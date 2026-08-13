@@ -18,7 +18,6 @@ from .aggregate import (
     _avg_f1,
     _ci_half_width,
     _error_message,
-    _group_by_unit,
     _is_moderation_block,
     _per_model_alignment,
 )
@@ -38,6 +37,11 @@ def _error_bucket(msg: str) -> str:
     if _is_moderation_block(m): return "Provider content moderation rejection"
     if "rate" in m and "limit" in m: return "Rate-limited"
     if "timeout" in m: return "Timeout"
+    # Policy blocks arrive as 404, so they must precede the generic 404 rule or
+    # a correct slug reads as a wrong one. Match the policy wording, not a bare
+    # "no endpoints", which also covers models that have no provider at all.
+    if "data policy" in m or "no allowed providers" in m:
+        return "Account gating (provider policy)"
     if "404" in m: return "Unknown model (404)"
     if "temperature" in m and "deprecated" in m: return "Deprecated parameter (`temperature`)"
     if "401" in m or "unauthor" in m: return "Auth failure"
@@ -45,41 +49,6 @@ def _error_bucket(msg: str) -> str:
     if "age confirmation" in m: return "Account gating (age confirmation)"
     if _SERVER_5XX_RE.search(m): return "Server-side 5xx"
     return "Other"
-
-
-def _render_resolved_by_retry(raw_calls: list[dict]) -> list[str]:
-    """Errors that a later attempt cleared. Invisible in the final-failure
-    tables because dedup keeps the successful row."""
-    units_by_model: dict[str, int] = defaultdict(int)
-    cats_by_model: dict[str, Counter] = defaultdict(Counter)
-    for rows in _group_by_unit(raw_calls).values():
-        errored = [r for r in rows[:-1] if r.get("error")]
-        if errored and not rows[-1].get("error"):
-            model = rows[0]["model"]
-            units_by_model[model] += 1
-            for r in errored:
-                cats_by_model[model][_error_bucket(_error_message(r.get("error")))] += 1
-    if not units_by_model:
-        return []
-    total_units = sum(units_by_model.values())
-    total_attempts = sum(c.total() for c in cats_by_model.values())
-    lines = [
-        "### Errors resolved by retry",
-        "",
-        f"**{total_units} work unit(s) errored at least once before succeeding ({total_attempts} errored attempts).** "
-        "These never reach the failure tables above because the retry's successful row is what gets scored, "
-        "but they are operationally real: a deployment without retry logic would have lost every one of them. "
-        "Counts at or near a model's full work-unit total usually mean a setup problem (auth, account gating, "
-        "credit limits) that failed the whole first pass, not per-call flakiness.",
-        "",
-        "| Model | Work units | Errored attempts | Dominant cause |",
-        "|---|---:|---:|---|",
-    ]
-    for m in sorted(units_by_model, key=lambda k: -units_by_model[k]):
-        cat, cat_n = cats_by_model[m].most_common(1)[0]
-        attempts = cats_by_model[m].total()
-        lines.append(f"| `{m}` | {units_by_model[m]} | {attempts} | {cat} ({cat_n * 100.0 / attempts:.0f}%) |")
-    return lines
 
 
 def _moderation_pct(s: ModelStats) -> float:
@@ -242,25 +211,20 @@ def _render_how_to_read(episodes: list[Episode]) -> str:
     )
 
 
-def _render_failures(calls: list[dict], raw_calls: list[dict]) -> str:
+def _render_failures(calls: list[dict]) -> str:
     """Surface every error row, classified, since failures often signal real
     production-relevant gotchas (provider content moderation, deprecated params,
     rate-limit ceilings) that don't show up in the aggregated F1 / cost tables.
 
-    `calls` is deduped (one row per work unit, last write wins) and drives the
-    final-failure tables. `raw_calls` is the append-only file, used to surface
-    errors that a retry later resolved.
+    `calls` is deduped (one row per work unit, last write wins).
     """
     errors = [r for r in calls if r.get("error")]
-    retry_block = _render_resolved_by_retry(raw_calls)
     if not errors:
         head = [
             "## Failures and provider issues",
             "",
             "No unresolved call errors across this run. Every (model, episode, trial, window) tuple ended with a parseable response.",
         ]
-        if retry_block:
-            head += [""] + retry_block
         return "\n".join(head) + "\n"
 
     by_bucket: dict[str, list[dict]] = defaultdict(list)
@@ -319,9 +283,6 @@ def _render_failures(calls: list[dict], raw_calls: list[dict]) -> str:
         if len(recs) > 3:
             lines.append(f"- ... and {len(recs) - 3} more")
         lines.append("")
-
-    if retry_block:
-        lines += retry_block + [""]
 
     lines += [
         "### Why this section exists",

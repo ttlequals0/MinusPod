@@ -187,7 +187,7 @@ def run(
             paths.calls_jsonl.unlink()
 
     if dry_run:
-        units, skipped = _preview(cfg, episodes, paths=paths, system_prompt=system_prompt)
+        units, skipped = _preview(cfg, episodes, paths=paths, system_prompt=system_prompt, include_errored=retry_errors)
         typer.echo(f"dry-run: {len(units)} calls would execute, {skipped} skipped (already done)")
         raise typer.Exit(0)
 
@@ -395,10 +395,13 @@ def rotate_raw_cmd(
     typer.echo(f"rotated {size_mb:.0f} MB to {dst}" + (" (original kept)" if keep else ""))
 
 
-def _preview(cfg, episodes, *, paths, system_prompt):
+def _preview(cfg, episodes, *, paths, system_prompt, include_errored=False):
     hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
-    completed, _ = scan_calls(paths.calls_jsonl)
-    units, skipped = build_work_list(cfg, episodes, completed=completed, prompt_hashes=hashes)
+    completed, err_keys = scan_calls(paths.calls_jsonl)
+    units, skipped = build_work_list(
+        cfg, episodes, completed=completed, prompt_hashes=hashes,
+        include_errored=include_errored, error_keys=err_keys,
+    )
     return units, skipped
 
 

@@ -100,13 +100,14 @@ The report ranks by F0.5, which weights precision twice as heavily as recall. Th
 
 | Use case | Model | F0.5 | F1 | Cost / episode | Why |
 |---|---|---:|---:|---:|---|
-| Best accuracy overall | `claude-haiku-4-5` (Anthropic direct) | 0.819 | 0.842 | $1.08 | Tops the table with perfect JSON compliance and a clean pass on both no-ad controls. p50 latency is 24.2s, which is fine for MinusPod's offline pipeline but rules out interactive use. The top tier also holds `claude-sonnet-4-6`, `google/gemini-3.6-flash`, and `x-ai/grok-4.5`; they trade wins across episodes, so pick among them on speed and cost. |
+| Best accuracy overall | `claude-haiku-4-5` (Anthropic direct) | 0.819 | 0.842 | $1.08 | Tops the table with perfect JSON compliance and a clean pass on both no-ad controls. p50 latency is 24.2s, which is fine for MinusPod's offline pipeline but rules out interactive use. The top tier also holds `claude-sonnet-4-6`, `google/gemini-3.6-flash`, `x-ai/grok-4.5`, and `x-ai/grok-4.6`; they trade wins across episodes, so pick among them on speed and cost. |
 | Fast and reliable | `google/gemini-3.5-flash-lite` (via OpenRouter) | 0.774 | 0.776 | $0.36 | p50 0.7s, perfect JSON compliance, clean on both no-ad controls, and statistically tied with the top tier at a tenth of the frontier price. The production pick when you want speed and low cost without giving up accuracy. |
 | Best Anthropic-direct at low latency | `claude-sonnet-4-6` | 0.791 | 0.799 | $3.24 | Second overall, p50 4.1s versus Haiku's 24.2s, perfect JSON compliance, clean on both no-ad controls. For Anthropic-key users who want faster turnaround than Haiku 4.5; both Opus 4.8 ($5.37/episode) and Opus 5 ($5.38/episode) score lower. |
 | Cheapest viable | `qwen/qwen3.7-flash` (via OpenRouter) | 0.701 | 0.706 | $0.07 | Best F0.5 per dollar (9.66) among models with no reliability flags. JSON compliance 0.96 and clean on both no-ad controls. p50 10.1s. A few cheaper models rank higher on raw F0.5/$, but all of them either false-positive on the no-ad controls or return brittle JSON. |
 
 Caveats:
-- Numbers come from the 2026-08 sweep: a 14-episode corpus (12 ad-bearing, 2 no-ad controls), 75 models, 5 trials each, 64,125 work units (63,986 scored; 139 ended in provider errors). They will refine as the corpus grows.
+- Numbers come from the 2026-08 sweep: a 14-episode corpus (12 ad-bearing, 2 no-ad controls), 81 models, 5 trials each, 69,255 work units (69,125 scored; 130 ended in provider errors). They will refine as the corpus grows.
+- The sweep ran against a frozen system prompt, `benchmarks/llm/prompts/2026-08.txt` (sha256 prefix `1030b29e`), not the live one. The detection prompt changed mid-campaign, and pinning it lets later models join the same run instead of forcing a re-sweep. Reproducing these numbers needs that file, via `benchmark run --snapshot`.
 - The report groups models into tiers by a paired test across episodes. Models in the same tier are statistically tied on this corpus, so order within a tier is not meaningful. It also flags models for low JSON compliance or a no-ad control failure without changing their rank.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
 - F0.5 and F1 both use IoU >= 0.5 against human-verified ad spans. F0.5 rewards not over-cutting; F1 weights precision and recall equally. Higher is closer to the truth.
@@ -160,7 +161,7 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 
 ### Cloud vs. Local: What Changes
 
-Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.82 (`claude-haiku-4-5`, F1 0.84) across 75 models on a 14-episode corpus. Scores run the full range down to zero, and the top statistical tier holds 17 models from six vendors, so there is real choice at the top. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
+Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.82 (`claude-haiku-4-5`, F1 0.84) across 81 models on a 14-episode corpus. Scores run the full range down to zero, and the top statistical tier holds 18 models from six vendors, so there is real choice at the top. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
