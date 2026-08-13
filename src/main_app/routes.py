@@ -21,7 +21,9 @@ from config import (
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
+    resolve_jit_blocked_user_agents,
     title_matches_skip_patterns,
+    user_agent_is_jit_blocked,
 )
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
@@ -479,6 +481,15 @@ def register_routes(app):
         title_skip_patterns = db.get_podcast_title_skip_patterns(slug)
         if title_matches_skip_patterns(episode_title, title_skip_patterns):
             feed_logger.info(f"[{slug}:{episode_id}] Title-blacklisted, serving original: {episode_title}")
+            return redirect(original_url, code=302)
+
+        # A crawler gets the origin audio rather than a processing run it will
+        # never collect. Placed after the title blacklist so that rule wins.
+        blocked_agents = resolve_jit_blocked_user_agents(
+            db.get_setting('jit_blocked_user_agents'))
+        if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
+            feed_logger.info(
+                f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
             return redirect(original_url, code=302)
 
         # Start background processing (non-blocking)
