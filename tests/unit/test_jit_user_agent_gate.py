@@ -1,3 +1,4 @@
+from api.settings import validate_jit_blocked_user_agents
 from config import resolve_jit_blocked_user_agents, user_agent_is_jit_blocked
 
 
@@ -26,3 +27,22 @@ def test_empty_list_and_missing_agent_never_block():
     assert not user_agent_is_jit_blocked('anything', [])
     assert not user_agent_is_jit_blocked(None, ['anything'])
     assert not user_agent_is_jit_blocked('', ['anything'])
+
+
+def test_validator_accepts_a_clean_list():
+    value, err = validate_jit_blocked_user_agents(['WordPress.com - Audio', '^atc/'])
+    assert err is None
+    assert value == ['WordPress.com - Audio', '^atc/']
+
+
+def test_validator_rejects_non_list_and_bad_entries():
+    assert validate_jit_blocked_user_agents('nope')[1] is not None
+    assert validate_jit_blocked_user_agents([1])[1] is not None
+    assert validate_jit_blocked_user_agents([''])[1] is not None
+    assert validate_jit_blocked_user_agents(['x' * 201])[1] is not None
+
+
+def test_validator_trims_and_drops_blanks():
+    value, err = validate_jit_blocked_user_agents(['  Bot  ', '   '])
+    assert err is None
+    assert value == ['Bot']

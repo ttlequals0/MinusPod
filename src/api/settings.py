@@ -38,6 +38,7 @@ from config import (
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
+    resolve_jit_blocked_user_agents,
 )
 # Safe despite api/__init__ importing settings before podcast_search:
 # podcast_search only pulls names api/__init__ defines before its submodule
@@ -254,6 +255,10 @@ def get_settings():
     community_sync_categories = resolve_community_sync_categories(
         _setting_value(settings, 'community_sync_categories',
                        registry_default('community_sync_categories')))
+
+    jit_blocked_user_agents = resolve_jit_blocked_user_agents(
+        _setting_value(settings, 'jit_blocked_user_agents',
+                       registry_default('jit_blocked_user_agents')))
 
     # Get min cut confidence (ad detection aggressiveness)
     try:
@@ -504,6 +509,7 @@ def get_settings():
             'segment_category_actions', segment_category_actions),
         'communitySyncCategories': _sv(
             'community_sync_categories', community_sync_categories),
+        'jitBlockedUserAgents': jit_blocked_user_agents,
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'detectShowSegments': _sv(
@@ -649,6 +655,7 @@ def update_ad_detection_settings():
         _apply_detection_tuning_fields,
         _apply_segment_category_actions,
         _apply_community_sync_categories,
+        _apply_jit_blocked_user_agents,
     )
     for phase in phases:
         err = phase(db, data)
@@ -930,6 +937,42 @@ def _apply_community_sync_categories(db, data):
             return error_response(err, 400)
         db.set_setting('community_sync_categories', json.dumps(categories), is_default=False)
         logger.info(f"Updated community sync categories: {categories}")
+    return None
+
+
+JIT_AGENT_MAX_LEN = 200
+
+
+def validate_jit_blocked_user_agents(value):
+    """Return (patterns, error).
+
+    Entries are trimmed; whitespace-only entries are dropped, but a literal
+    empty string is rejected outright as malformed input.
+    """
+    if not isinstance(value, list):
+        return None, 'jitBlockedUserAgents must be a list'
+    cleaned = []
+    for entry in value:
+        if not isinstance(entry, str):
+            return None, 'jitBlockedUserAgents entries must be strings'
+        if entry == '':
+            return None, 'jitBlockedUserAgents entries must not be empty'
+        trimmed = entry.strip()
+        if not trimmed:
+            continue
+        if len(trimmed) > JIT_AGENT_MAX_LEN:
+            return None, f'jitBlockedUserAgents entries must be 1-{JIT_AGENT_MAX_LEN} characters'
+        cleaned.append(trimmed)
+    return cleaned, None
+
+
+def _apply_jit_blocked_user_agents(db, data):
+    """Persist the agents barred from triggering just-in-time processing."""
+    if 'jitBlockedUserAgents' in data:
+        patterns, err = validate_jit_blocked_user_agents(data['jitBlockedUserAgents'])
+        if err is not None:
+            return error_response(err, 400)
+        db.set_setting('jit_blocked_user_agents', json.dumps(patterns))
     return None
 
 
