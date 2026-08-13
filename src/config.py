@@ -96,6 +96,36 @@ def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
     return [c for c in parsed if c in SEGMENT_CATEGORIES]
 
 
+def resolve_jit_blocked_user_agents(raw_json: Optional[str]) -> List[str]:
+    """Parse jit_blocked_user_agents JSON into patterns, empty on bad input."""
+    if not raw_json:
+        return []
+    try:
+        parsed = json.loads(raw_json)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [p.strip() for p in parsed if isinstance(p, str) and p.strip()]
+
+
+def user_agent_is_jit_blocked(user_agent: Optional[str], patterns: List[str]) -> bool:
+    """True when the agent matches a pattern. A leading '^' anchors to the
+    start, which short agents like 'atc/' need so they cannot match mid-string.
+    """
+    if not user_agent or not patterns:
+        return False
+    low = user_agent.lower()
+    for p in patterns:
+        pat = p.lower()
+        if pat.startswith('^'):
+            if low.startswith(pat[1:]):
+                return True
+        elif pat in low:
+            return True
+    return False
+
+
 def resolve_segment_category_actions_map(
         raw_json: Optional[str],
         baseline: Optional[Dict[str, str]] = None) -> Dict[str, str]:

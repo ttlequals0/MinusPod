@@ -54,6 +54,7 @@ SEED_SNAPSHOT = {
     'chapters_enabled': 'true',
     'community_sync_categories': DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     'detect_show_segments': '0',
+    'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
     'differential_hold_min_seconds': '10',
     'differential_measured_corr_max': '0.60',
@@ -407,11 +408,12 @@ class TestGetDefaults:
         # artworkBadgePosition added after that (82 -> 83).
         # detectShowSegments added after that (83 -> 84).
         # processNewEpisodesFirst added after that (84 -> 85).
+        # jitBlockedUserAgents added after that (85 -> 86).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 85
+        assert len(payload_keys) == 86
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

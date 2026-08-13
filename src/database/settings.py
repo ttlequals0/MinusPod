@@ -30,6 +30,7 @@ from config import (
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
+    resolve_jit_blocked_user_agents,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -124,6 +125,10 @@ def _payload_segment_category_actions() -> Dict[str, str]:
 def _payload_community_sync_categories() -> List[str]:
     return resolve_community_sync_categories(
         registry_default('community_sync_categories'))
+
+
+def _payload_jit_blocked_user_agents() -> List[str]:
+    return resolve_jit_blocked_user_agents(registry_default('jit_blocked_user_agents'))
 
 
 @dataclass(frozen=True)
@@ -259,6 +264,12 @@ SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
         default=DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON, seeded=True,
         resettable=False, payload_key='communitySyncCategories',
         payload_factory=_payload_community_sync_categories),
+    # Agents that must never trigger just-in-time processing. Empty by
+    # default so an upgrade changes nothing until an operator opts in.
+    'jit_blocked_user_agents': SettingSpec(
+        default='[]', seeded=True, resettable=False,
+        payload_key='jitBlockedUserAgents',
+        payload_factory=_payload_jit_blocked_user_agents),
     'rss_refresh_interval_minutes': SettingSpec(
         default='15', seeded=True, resettable=False,
         payload_key='rssRefreshIntervalMinutes', payload_kind='int'),
