@@ -252,7 +252,7 @@ function AuthenticatedFeedsSection() {
             <p className="mt-2 text-sm text-destructive">{agentError}</p>
           )}
           <p className="mt-2 text-sm text-muted-foreground">
-            Agents listed here are served the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
+            Agents listed here get the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
           </p>
         </div>
       </div>
