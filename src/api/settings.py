@@ -941,6 +941,7 @@ def _apply_community_sync_categories(db, data):
 
 
 JIT_AGENT_MAX_LEN = 200
+JIT_AGENT_MAX_COUNT = 50
 
 
 def validate_jit_blocked_user_agents(value):
@@ -957,6 +958,8 @@ def validate_jit_blocked_user_agents(value):
         if len(trimmed) > JIT_AGENT_MAX_LEN:
             return None, f'jitBlockedUserAgents entries must be 1-{JIT_AGENT_MAX_LEN} characters'
         cleaned.append(trimmed)
+    if len(cleaned) > JIT_AGENT_MAX_COUNT:
+        return None, f'jitBlockedUserAgents must have at most {JIT_AGENT_MAX_COUNT} patterns'
     return cleaned, None
 
 

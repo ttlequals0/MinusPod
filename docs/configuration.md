@@ -196,7 +196,7 @@ Settings > Authenticated Feeds has an **Agents that skip processing** list, empt
 
 Matching is case-insensitive, and a bare pattern matches anywhere in the agent string. Start a pattern with `^` to anchor it to the beginning, which short strings like `atc/` need so they cannot match in the middle of an unrelated agent. Each entry is limited to 200 characters; blank or whitespace-only entries are dropped when saved. The [opawg/user-agents](https://github.com/opawg/user-agents) registry lists the real strings crawlers and podcast apps send, useful when picking a pattern.
 
-API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings`.
+API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detection`.
 
 ## Experiments
 

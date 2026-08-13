@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.88.0] - 2026-08-13
+
 ### Added
 
 - A Settings list of user agents that must never trigger just-in-time

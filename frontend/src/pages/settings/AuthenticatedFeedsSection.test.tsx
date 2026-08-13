@@ -1,13 +1,4 @@
-/**
- * Component tests for the JIT-blocked user agent list in
- * AuthenticatedFeedsSection.tsx.
- *
- * Covers:
- *   - Existing patterns render as chips.
- *   - Adding one calls updateSettings with the appended array.
- *   - Removing one calls updateSettings with the filtered array.
- *   - A server error surfaces and keeps the editor open with its value.
- */
+/** Component tests for the JIT-blocked user agent list in AuthenticatedFeedsSection.tsx. */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

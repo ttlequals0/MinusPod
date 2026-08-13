@@ -48,3 +48,9 @@ def test_validator_trims_and_drops_every_blank_form():
     assert err is None
     assert value == ['Bot']
     assert validate_jit_blocked_user_agents(['', '  ']) == ([], None)
+
+
+def test_validator_rejects_over_cap_list():
+    value, err = validate_jit_blocked_user_agents([f'agent{i}' for i in range(51)])
+    assert value is None
+    assert err is not None
