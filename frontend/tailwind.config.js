@@ -33,6 +33,7 @@ export default {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         'c-blue': 'hsl(var(--c-blue))',
+        'c-blue-on-tint': 'hsl(var(--c-blue-on-tint))',
         'c-purple': 'hsl(var(--c-purple))',
         'c-teal': 'hsl(var(--c-teal))',
       },

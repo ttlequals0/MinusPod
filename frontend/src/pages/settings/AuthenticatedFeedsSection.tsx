@@ -182,7 +182,7 @@ function AuthenticatedFeedsSection() {
               {blockedAgents.map((agent) => (
                 <span
                   key={agent}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/15 text-c-blue"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/20 text-c-blue-on-tint"
                 >
                   {agent}
                   <button

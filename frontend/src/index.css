@@ -31,6 +31,9 @@
     /* Accent hues from the design guide's fixed palette. Mode-driven only,
        never per theme, so a stage or scope badge reads the same everywhere. */
     --c-blue: 221.2 83.2% 53.3%;
+    /* Blue text on a c-blue tinted chip. The tint lifts the background
+       toward the text, so the plain hue lands under 4.5:1. */
+    --c-blue-on-tint: 221.2 83.2% 45%;
     --c-purple: 271.5 81.3% 55.9%;
     --c-teal: 175.3 77.4% 26.1%;
     /* Search highlight. Deliberately identical in light and dark: a
@@ -65,6 +68,7 @@
     --input: 210 8% 22%;
     --ring: 194 66% 61%;
     --c-blue: 213.1 93.9% 67.8%;
+    --c-blue-on-tint: 213.1 93.9% 81%;
     --c-purple: 270 95.2% 75.3%;
     --c-teal: 172.5 66% 50.4%;
   }
