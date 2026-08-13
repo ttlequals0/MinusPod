@@ -27,6 +27,18 @@ release notes.
 
 - huggingface-hub 1.26.1 to 1.27.0, which pulls in hf-xet 1.5.1 to 1.6.0.
 
+### Fixed
+
+- A verification finding that contradicts a kept pass-1 span is now held for
+  review instead of being discarded. The keep still stands, so pass 2 never
+  cuts through an operator's segment-action choice, but the disagreement is
+  visible and one approval away from a cut. Previously it was dropped with
+  only a debug line to show for it, so an ad the second pass had caught at
+  high confidence vanished silently.
+- The "re-cutting pass 1 output" log fired before the filters that decide
+  whether anything gets re-cut, so it announced work that often never
+  happened. It now reports the actual count, after the gate.
+
 ## [2.87.1] - 2026-08-13
 
 ### Tooling (benchmark; not in runtime image)

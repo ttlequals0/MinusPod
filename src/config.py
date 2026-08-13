@@ -51,6 +51,7 @@ HOLD_REASON_DIFFERENTIAL_UNCORROBORATED = 'differential_uncorroborated'
 # confidence to auto-cut, too high to silently discard (see
 # _gate_verification_ads_by_confidence's fall-through in processing.py).
 HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
+HOLD_REASON_VERIFICATION_KEPT_CONFLICT = 'verification_kept_conflict'
 HOLD_REASON_CUE_TEMPLATE_UNPROVEN = 'cue_template_unproven'
 HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
 

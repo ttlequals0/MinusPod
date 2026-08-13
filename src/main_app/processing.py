@@ -41,6 +41,7 @@ from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_NO_CUE,
     HOLD_REASON_REVIEWER_CONTRADICTION,
+    HOLD_REASON_VERIFICATION_KEPT_CONFLICT,
     HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
     PASS2_AUTOAPPROVE_PROPOSED_IOU,
@@ -2011,8 +2012,13 @@ def _corroborated_span(hold, orig_ad):
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
                                            pass1_kept_markers, pass1_cuts):
-    """Drop pass-2 findings that overlap a kept pass-1 span, before anything
-    routes them to a cut, a hold, or a dropped-miss log line.
+    """Divert pass-2 findings that overlap a kept pass-1 span into review
+    rather than cutting them.
+
+    A kept span reflects the operator's segment-action map, so pass 2 must
+    not cut through it. Silently discarding the finding hid a real
+    disagreement, so each one is stamped held_for_review and returned
+    separately for the pending-review queue.
 
     Runs before _gate_verification_ads_by_confidence so none of its
     autocut/hold/log branches ever see a finding inside a kept span.
@@ -2020,10 +2026,11 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     timeline via adjust_timestamp with pass1_cuts, matching the coordinate
     space of verification_ads_processed.
 
-    Returns the inputs unchanged when there are no kept markers.
+    Returns (surviving_processed, surviving_original, conflicts) with an
+    empty conflicts list when there are no kept markers.
     """
     if not pass1_kept_markers:
-        return verification_ads_processed, verification_ads_original
+        return verification_ads_processed, verification_ads_original, []
     replacement_duration = get_replacement_duration()
     kept_spans_processed = [
         (adjust_timestamp(m['start'], pass1_cuts, replacement_duration),
@@ -2032,21 +2039,26 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     ]
     surviving_processed = []
     surviving_original = []
+    conflicts = []
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
         overlap = next(
             (span for span in kept_spans_processed
              if ranges_overlap(ad['start'], ad['end'], span[0], span[1])),
             None)
         if overlap is not None:
-            audio_logger.debug(
-                f"Dropping pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
-                f"(processed): overlaps kept span {overlap[0]:.1f}s-"
-                f"{overlap[1]:.1f}s"
+            audio_logger.info(
+                f"Pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
+                f"(processed) contradicts kept span {overlap[0]:.1f}s-"
+                f"{overlap[1]:.1f}s: holding for review instead of cutting"
             )
+            orig_ad['held_for_review'] = True
+            orig_ad['was_cut'] = False
+            orig_ad['hold_reason'] = HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+            conflicts.append(orig_ad)
             continue
         surviving_processed.append(ad)
         surviving_original.append(orig_ad)
-    return surviving_processed, surviving_original
+    return surviving_processed, surviving_original, conflicts
 
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
@@ -2466,7 +2478,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         )
 
         if verification_ads_processed:
-            audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads - re-cutting pass 1 output")
+            audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
 
             # Real duration of the pass-1 output, probed once: validation
             # clamps and extends trailing ads against it (Whisper's last
@@ -2489,11 +2501,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
             # Kept-span exclusion: must run before any finding is routed to
             # a cut, a hold, or a dropped-miss log line.
-            verification_ads_processed, verification_ads_original = _exclude_kept_spans_from_verification(
+            verification_ads_processed, verification_ads_original, kept_conflicts = _exclude_kept_spans_from_verification(
                 verification_ads_processed, verification_ads_original,
                 pass1_kept_markers, pass1_cuts,
             )
-
             if verification_ads_processed:
                 # Confidence gate and re-cut
                 v_ads_to_cut, v_ads_for_ui, v_ads_held, v_corroborated_count = _gate_verification_ads_by_confidence(
@@ -2518,6 +2529,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
 
                 if v_ads_to_cut:
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Re-cutting pass 1 output for "
+                        f"{len(v_ads_to_cut)} verification ad(s)")
                     # Probed above, before the recut deletes the pre-recut
                     # file: the coverage check needs the bounds the recut
                     # clamped to.
@@ -2537,6 +2551,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             recut_applied, pass1_cuts)
                     else:
                         v_ads_for_ui = []
+
+            # Added after the gate assigns v_ads_held, so the reassignment
+            # above cannot discard them.
+            v_ads_held.extend(kept_conflicts)
+            v_ads_for_ui.extend(kept_conflicts)
         else:
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 

@@ -23,7 +23,7 @@ from unittest.mock import patch
 
 import main_app.processing as processing
 from api.patterns import _matches_held_marker
-from config import count_pending_review
+from config import count_pending_review, HOLD_REASON_VERIFICATION_KEPT_CONFLICT
 
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
@@ -521,19 +521,24 @@ class TestExcludeKeptSpansFromVerification:
 
         with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
                 caplog.at_level(logging.DEBUG, logger='podcast.audio'):
-            out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
                 [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS)
 
         assert out_proc == []
         assert out_orig == []
-        assert any('Dropping pass-2 finding' in r.message for r in caplog.records)
+        assert any('contradicts kept span' in r.message for r in caplog.records)
 
-        # Nothing left to route: no cut, no hold, no dropped-miss log line.
+        # The keep still stands, but the disagreement surfaces for review
+        # instead of vanishing.
+        assert conflicts == [orig_overlap]
+        assert orig_overlap['held_for_review'] is True
+        assert orig_overlap['was_cut'] is False
+        assert orig_overlap['hold_reason'] == HOLD_REASON_VERIFICATION_KEPT_CONFLICT
+
+        # Nothing routes to a cut: the kept span is never cut through.
         v_ads_to_cut, v_ads_for_ui, v_ads_held, n = processing._gate_verification_ads_by_confidence(
             out_proc, out_orig, min_cut_confidence=0.5)
         assert v_ads_to_cut == []
-        assert v_ads_for_ui == []
-        assert v_ads_held == []
         assert n == 0
 
     def test_non_overlapping_finding_routes_per_existing_rules(self):
@@ -543,11 +548,12 @@ class TestExcludeKeptSpansFromVerification:
                      'sponsor': 'Acme'}
 
         with patch.object(processing, 'get_replacement_duration', return_value=1.0):
-            out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
                 [proc_clear], [orig_clear], [self.KEPT_MARKER], self.PASS1_CUTS)
 
         assert out_proc == [proc_clear]
         assert out_orig == [orig_clear]
+        assert conflicts == []
 
         # Confidence 0.95 >= min_cut_confidence 0.5: confirmed-cut path,
         # unaffected since this finding never overlapped a kept span.
@@ -561,11 +567,12 @@ class TestExcludeKeptSpansFromVerification:
         proc = [{'start': 1.0, 'end': 2.0}]
         orig = [{'start': 1.0, 'end': 2.0}]
 
-        out_proc, out_orig = processing._exclude_kept_spans_from_verification(
+        out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
             proc, orig, [], self.PASS1_CUTS)
 
         assert out_proc is proc
         assert out_orig is orig
+        assert conflicts == []
 
 
 class TestStampPass2MarkerCategories:
