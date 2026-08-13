@@ -429,6 +429,10 @@ export interface Settings {
   artworkBadgePosition: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
+  // Agents that are served the original audio instead of triggering
+  // just-in-time processing. Case-insensitive substring match on the
+  // request's User-Agent; entries are trimmed and blanks dropped server-side.
+  jitBlockedUserAgents: { value: string[]; isDefault: boolean };
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
@@ -612,6 +616,7 @@ export interface UpdateSettingsPayload {
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
   feedAuthEnabled?: boolean;
+  jitBlockedUserAgents?: string[];
   audioBitrate?: string;
   audioNormalizeEnabled?: boolean;
   audioNormalizeIntensity?: string;
