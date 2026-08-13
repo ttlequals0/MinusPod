@@ -11,6 +11,22 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- A Settings list of user agents that must never trigger just-in-time
+  processing. A matching request gets a 302 to the origin audio instead of
+  a queued transcription and detection run. Matching is case-insensitive
+  and looks for the pattern anywhere in the agent string; start a pattern
+  with `^` to anchor it to the beginning, which short strings need so they
+  cannot match mid-agent. The list is empty by default, so upgrading
+  changes nothing until an operator adds a pattern. Closes #645.
+
+### Changed
+
+- huggingface-hub 1.26.1 to 1.27.0, which pulls in hf-xet 1.5.1 to 1.6.0.
+
+## [2.87.1] - 2026-08-13
+
 ### Tooling (benchmark; not in runtime image)
 
 - Six models added to the sweep roster: `bytedance-seed/seed-2-1-turbo`,

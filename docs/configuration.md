@@ -190,6 +190,14 @@ A per-feed **Skipped episodes** choice decides how a skipped episode is served: 
 
 API: `titleSkipPatterns` (array of strings, max 50 patterns, 200 characters each) and `titleSkipAction` (`serve_original` or `hide`) on `PATCH /api/v1/feeds/{slug}`.
 
+### Blocked user agents for just-in-time processing
+
+Settings > Authenticated Feeds has an **Agents that skip processing** list, empty by default. When a request for an episode MinusPod has not processed yet comes from a User-Agent on this list, MinusPod responds with a 302 to the original audio URL instead of queueing a transcription and ad-detection run. Episodes it has already processed are unaffected: those keep serving the cut version to every client, including a listed one.
+
+Matching is case-insensitive, and a bare pattern matches anywhere in the agent string. Start a pattern with `^` to anchor it to the beginning, which short strings like `atc/` need so they cannot match in the middle of an unrelated agent. Each entry is limited to 200 characters; blank or whitespace-only entries are dropped when saved. The [opawg/user-agents](https://github.com/opawg/user-agents) registry lists the real strings crawlers and podcast apps send, useful when picking a pattern.
+
+API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings`.
+
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
