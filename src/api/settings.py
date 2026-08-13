@@ -509,7 +509,7 @@ def get_settings():
             'segment_category_actions', segment_category_actions),
         'communitySyncCategories': _sv(
             'community_sync_categories', community_sync_categories),
-        'jitBlockedUserAgents': jit_blocked_user_agents,
+        'jitBlockedUserAgents': _sv('jit_blocked_user_agents', jit_blocked_user_agents),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'detectShowSegments': _sv(
@@ -944,19 +944,13 @@ JIT_AGENT_MAX_LEN = 200
 
 
 def validate_jit_blocked_user_agents(value):
-    """Return (patterns, error).
-
-    Entries are trimmed; whitespace-only entries are dropped, but a literal
-    empty string is rejected outright as malformed input.
-    """
+    """Return (patterns, error). Entries are trimmed; blanks are dropped."""
     if not isinstance(value, list):
         return None, 'jitBlockedUserAgents must be a list'
     cleaned = []
     for entry in value:
         if not isinstance(entry, str):
             return None, 'jitBlockedUserAgents entries must be strings'
-        if entry == '':
-            return None, 'jitBlockedUserAgents entries must not be empty'
         trimmed = entry.strip()
         if not trimmed:
             continue
@@ -972,7 +966,8 @@ def _apply_jit_blocked_user_agents(db, data):
         patterns, err = validate_jit_blocked_user_agents(data['jitBlockedUserAgents'])
         if err is not None:
             return error_response(err, 400)
-        db.set_setting('jit_blocked_user_agents', json.dumps(patterns))
+        db.set_setting('jit_blocked_user_agents', json.dumps(patterns), is_default=False)
+        logger.info(f"Updated JIT-blocked user agents: {patterns}")
     return None
 
 

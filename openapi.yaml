@@ -9201,6 +9201,19 @@ components:
                 enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
             isDefault:
               type: boolean
+        jitBlockedUserAgents:
+          type: object
+          description: >-
+            User-agent patterns barred from triggering just-in-time episode
+            processing. Case-insensitive substring match; a leading caret
+            anchors to the start of the agent.
+          properties:
+            value:
+              type: array
+              items:
+                type: string
+            isDefault:
+              type: boolean
         artworkWatermarkEnabled:
           type: object
           properties:

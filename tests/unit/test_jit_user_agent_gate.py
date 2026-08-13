@@ -38,11 +38,13 @@ def test_validator_accepts_a_clean_list():
 def test_validator_rejects_non_list_and_bad_entries():
     assert validate_jit_blocked_user_agents('nope')[1] is not None
     assert validate_jit_blocked_user_agents([1])[1] is not None
-    assert validate_jit_blocked_user_agents([''])[1] is not None
     assert validate_jit_blocked_user_agents(['x' * 201])[1] is not None
 
 
-def test_validator_trims_and_drops_blanks():
-    value, err = validate_jit_blocked_user_agents(['  Bot  ', '   '])
+def test_validator_trims_and_drops_every_blank_form():
+    """An empty entry is not a pattern. Drop it uniformly rather than
+    erroring on '' but not on whitespace."""
+    value, err = validate_jit_blocked_user_agents(['  Bot  ', '   ', ''])
     assert err is None
     assert value == ['Bot']
+    assert validate_jit_blocked_user_agents(['', '  ']) == ([], None)
