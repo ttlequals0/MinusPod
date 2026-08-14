@@ -1278,6 +1278,11 @@ class AdReviewer:
         if core_start is not None:
             start = min(start, core_start)
             end = max(end, core_end)
+        # Protected merge members or measured DAI evidence can widen the
+        # recovered proposal back to the full marker. That is no longer a
+        # trim, so neither review path should surface it as one.
+        if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
+            return None
         return start, end
 
     @staticmethod

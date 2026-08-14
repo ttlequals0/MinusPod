@@ -7,7 +7,12 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.boundaries import deduplicate_window_ads
-from utils.markers import clip_dai_core_spans, merge_dai_core_spans, note_merged_members
+from utils.markers import (
+    clip_dai_core_spans,
+    dai_core_bounds,
+    merge_dai_core_spans,
+    note_merged_members,
+)
 
 
 def _ad(start, end, stage):
@@ -127,3 +132,15 @@ def test_dai_cores_merge_and_clip_to_split_piece():
         {'start': 140.0, 'end': 150.0},
         {'start': 150.0, 'end': 180.0},
     ]
+
+
+def test_non_finite_dai_core_values_are_ignored():
+    marker = _ad(100.0, 220.0, 'dai_differential')
+    marker['dai_core_spans'] = [
+        {'start': 100.0, 'end': float('inf')},
+        {'start': float('-inf'), 'end': 150.0},
+        {'start': float('nan'), 'end': 160.0},
+        {'start': 120.0, 'end': 180.0},
+    ]
+
+    assert dai_core_bounds(marker) == (120.0, 180.0)
