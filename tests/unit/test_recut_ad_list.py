@@ -48,7 +48,12 @@ def test_best_overlap_ad_excludes_ids():
 
 
 def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
-    ads = [{'start': 100.0, 'end': 160.0, 'confidence': 0.9}]
+    ads = [{
+        'start': 100.0,
+        'end': 160.0,
+        'confidence': 0.9,
+        'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+    }]
     corrections = [{
         'correction_type': 'boundary_adjustment',
         'original_bounds': {'start': 100.0, 'end': 160.0},
@@ -58,6 +63,7 @@ def test_apply_boundary_adjustments_overrides_bounds(monkeypatch):
     processing._apply_boundary_adjustments('slug', 'ep', ads)
     assert ads[0]['start'] == 105.0
     assert ads[0]['end'] == 150.0
+    assert ads[0]['dai_core_spans'] == [{'start': 105.0, 'end': 150.0}]
 
 
 def test_apply_boundary_adjustments_skips_unmatched(monkeypatch):

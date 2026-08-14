@@ -30,6 +30,7 @@ from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
+from utils.markers import clip_dai_core_spans
 from utils.time import (
     adjust_timestamp, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -3341,6 +3342,10 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
             )
             continue
         match['start'], match['end'] = n_start, n_end
+        # Boundary adjustments are explicit user edits. Keep measured DAI
+        # evidence inside the approved range so validation cannot restore a
+        # stale automatic boundary over audio the user chose to preserve.
+        clip_dai_core_spans(match, n_start, n_end)
         adjusted.add(id(match))
         applied += 1
     if applied:
