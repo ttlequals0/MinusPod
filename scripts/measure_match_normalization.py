@@ -111,9 +111,9 @@ def measure_artifacts(patterns: list) -> int:
 
 def measure_hyphen_hypothesis():
     """Test the reported failure mode: an operator's stored pattern has a
-    spaced hyphen ('go -to') that the transcript reads without ('go-to')."""
-    stored = "the go -to business news podcast"
-    transcript = "the go-to business news podcast"
+    spaced hyphen ('best -in-class') the transcript reads without."""
+    stored = "the best -in-class widget review show"
+    transcript = "the best-in-class widget review show"
 
     score_lower = fuzz.partial_ratio(stored.lower(), transcript.lower())
     score_norm = fuzz.partial_ratio(
@@ -157,7 +157,7 @@ def main():
         print(f"  pattern {pid_a} vs {pid_b}: lower={lo:.2f} norm={norm:.2f} threshold={thr:.2f}")
 
     print()
-    print("Hyphen-spacing hypothesis ('go -to' vs 'go-to'):")
+    print("Hyphen-spacing hypothesis (spaced vs unspaced hyphen):")
     h = measure_hyphen_hypothesis()
     print(f"  stored:     {h['stored']!r}")
     print(f"  transcript: {h['transcript']!r}")
