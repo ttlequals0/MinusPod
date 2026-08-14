@@ -71,7 +71,7 @@ def test_kept_tail_blocks_end_of_episode_extension(processor):
     beep = processor.get_beep_duration()
     cuts = processor.compute_applied_cuts(
         [{'start': 100.0, 'end': 140.0}], 170.0,
-        end_extension_barriers=[{'start': 145.0, 'end': 165.0}],
+        cut_barriers=[{'start': 145.0, 'end': 165.0}],
     )
 
     assert cuts == [
@@ -83,11 +83,25 @@ def test_earlier_keep_does_not_block_trailing_extension(processor):
     beep = processor.get_beep_duration()
     cuts = processor.compute_applied_cuts(
         [{'start': 130.0, 'end': 165.0}], 170.0,
-        end_extension_barriers=[{'start': 100.0, 'end': 120.0}],
+        cut_barriers=[{'start': 100.0, 'end': 120.0}],
     )
 
     assert cuts == [
         {'start': 130.0, 'end': 170.0, 'replacement_duration': beep},
+    ]
+
+
+def test_keep_barrier_prevents_cut_fragments_from_remerging(processor):
+    beep = processor.get_beep_duration()
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 112.0},
+         {'start': 112.5, 'end': 125.0}], 600.0,
+        cut_barriers=[{'start': 112.0, 'end': 112.5}],
+    )
+
+    assert cuts == [
+        {'start': 100.0, 'end': 112.0, 'replacement_duration': beep},
+        {'start': 112.5, 'end': 125.0, 'replacement_duration': beep},
     ]
 
 

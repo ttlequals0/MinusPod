@@ -164,7 +164,7 @@ def test_recut_carries_kept_tail_to_applied_cut_computation():
 
     path, applied, ok = _recut_processed_audio(
         'show', 'ep1', '/tmp/nonexistent-pass2.mp3', cuts, processor,
-        end_extension_barriers=barriers,
+        cut_barriers=barriers,
     )
 
     assert path == '/tmp/nonexistent-pass2.mp3'
@@ -174,7 +174,7 @@ def test_recut_carries_kept_tail_to_applied_cut_computation():
         '/tmp/nonexistent-pass2.mp3',
         [{'start': 100.0, 'end': 140.0, 'action_applied': 'remove',
           'beep': False}],
-        end_extension_barriers=barriers,
+        cut_barriers=barriers,
     )
 
 

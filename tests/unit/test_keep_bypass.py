@@ -692,6 +692,35 @@ class TestPartitionPass2CategoryActions:
         assert processed['action_applied'] == 'remove'
         assert original['action_applied'] == 'remove'
 
+    def test_overlapping_candidate_splits_around_kept_audio(self):
+        processed = {'start': 100.0, 'end': 180.0, 'reason': 'heuristic roll'}
+        original = {'start': 119.0, 'end': 199.0, 'reason': 'heuristic roll'}
+        kept = {'start': 130.0, 'end': 150.0, 'category': 'self_promo'}
+        pass1_cuts = [
+            {'start': 50.0, 'end': 70.0, 'replacement_duration': 1.0},
+        ]
+
+        out_p, out_o = processing._exclude_category_kept_spans(
+            [processed], [original], [kept], pass1_cuts)
+
+        assert [(ad['start'], ad['end']) for ad in out_p] == [
+            (100.0, 130.0), (150.0, 180.0),
+        ]
+        assert [(ad['start'], ad['end']) for ad in out_o] == [
+            (119.0, 149.0), (169.0, 199.0),
+        ]
+        assert all(ad['reason'] == 'heuristic roll' for ad in out_p + out_o)
+
+    def test_kept_audio_covering_candidate_drops_it(self):
+        processed, original = self._pair(None)
+        kept = {'start': 5.0, 'end': 25.0, 'category': 'self_promo'}
+
+        out_p, out_o = processing._exclude_category_kept_spans(
+            [processed], [original], [kept], [])
+
+        assert out_p == []
+        assert out_o == []
+
     def test_run_verification_persists_keep_without_recut(self):
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,

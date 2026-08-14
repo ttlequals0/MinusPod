@@ -1361,6 +1361,68 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             kept_processed, kept_original)
 
 
+def _exclude_category_kept_spans(processed_ads, original_ads,
+                                  kept_processed, pass1_cuts):
+    """Subtract category-kept pass-2 spans from the remaining candidates.
+
+    Heuristic roll detection can overlap an LLM marker whose category action
+    is keep. Split the candidate on the processed timeline, then remap each
+    surviving fragment to original coordinates so validation, recutting, and
+    the UI retain paired markers without cutting through the kept audio.
+    """
+    if not kept_processed:
+        return processed_ads, original_ads
+    if len(processed_ads) != len(original_ads):
+        raise ValueError(
+            'Pass-2 processed/original marker lists must stay paired')
+
+    barriers = sorted(
+        ((marker['start'], marker['end']) for marker in kept_processed),
+        key=lambda span: span[0],
+    )
+    timestamp_map = _build_timestamp_map(pass1_cuts)
+    replacement_duration = get_replacement_duration()
+    surviving_processed = []
+    surviving_original = []
+
+    for processed, original in zip(processed_ads, original_ads):
+        fragments = [(processed['start'], processed['end'])]
+        for barrier_start, barrier_end in barriers:
+            next_fragments = []
+            for start, end in fragments:
+                if barrier_end <= start or barrier_start >= end:
+                    next_fragments.append((start, end))
+                    continue
+                if start < barrier_start:
+                    next_fragments.append((start, barrier_start))
+                if barrier_end < end:
+                    next_fragments.append((barrier_end, end))
+            fragments = next_fragments
+
+        if fragments == [(processed['start'], processed['end'])]:
+            surviving_processed.append(processed)
+            surviving_original.append(original)
+            continue
+
+        audio_logger.info(
+            f"Pass-2 candidate {processed['start']:.1f}s-"
+            f"{processed['end']:.1f}s split around category-kept audio into "
+            f"{len(fragments)} removable fragment(s)")
+        for start, end in fragments:
+            fragment_processed = dict(processed, start=start, end=end)
+            fragment_original = dict(
+                original,
+                start=_map_to_original(
+                    start, timestamp_map, replacement_duration),
+                end=_map_to_original(
+                    end, timestamp_map, replacement_duration),
+            )
+            surviving_processed.append(fragment_processed)
+            surviving_original.append(fragment_original)
+
+    return surviving_processed, surviving_original
+
+
 def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
     """Stamp remove/beep only after pass-2 candidates become actual cuts.
 
@@ -2156,7 +2218,7 @@ def _pass2_cuts_in_original(recut_applied, pass1_cuts):
 
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                             local_audio_processor,
-                            end_extension_barriers=None):
+                            cut_barriers=None):
     """Re-cut the pass-1 processed audio with verification ads.
 
     Returns (processed_path, recut_applied, recut_ok) where recut_applied is
@@ -2170,7 +2232,7 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
                       for ad in v_ads_to_cut]
     recut_result = local_audio_processor.process_episode(
         processed_path, audio_segments,
-        end_extension_barriers=end_extension_barriers)
+        cut_barriers=cut_barriers)
     if recut_result:
         recut_path, recut_applied = recut_result
         if os.path.exists(processed_path):
@@ -2318,6 +2380,14 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 f"{len(category_kept)} segment(s) by category action"
             )
 
+        (verification_ads_processed,
+         verification_ads_original) = _exclude_category_kept_spans(
+            verification_ads_processed,
+            verification_ads_original,
+            category_kept_processed,
+            pass1_cuts,
+        )
+
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
@@ -2382,7 +2452,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     processed_path, recut_applied, recut_ok = _recut_processed_audio(
                         slug, episode_id, processed_path, v_ads_to_cut,
                         local_audio_processor,
-                        end_extension_barriers=category_kept_processed,
+                        cut_barriers=category_kept_processed,
                     )
                     if recut_ok:
                         _drop_uncovered_pass2_ads(
