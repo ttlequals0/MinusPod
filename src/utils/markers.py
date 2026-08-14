@@ -21,7 +21,7 @@ def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
         try:
             start = float(raw['start'])
             end = float(raw['end'])
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, OverflowError, TypeError, ValueError):
             continue
         if math.isfinite(start) and math.isfinite(end) and end > start:
             spans.append({'start': start, 'end': end})
