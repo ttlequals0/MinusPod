@@ -11,6 +11,21 @@ release notes.
 
 ## [Unreleased]
 
+## [2.88.1] - 2026-08-13
+
+### Changed
+
+- The blocked-agent list moved from the Authenticated Feeds card to Security.
+  The gate runs whether or not feed auth is enabled, so the old placement
+  implied a dependency that does not exist.
+
+### Fixed
+
+- `deduplicate_patterns` picked the surviving row by confirmation count alone,
+  so an auto-learned pattern could beat and delete one an operator created by
+  hand. Tier now outranks confirmation count, and merged stats still carry the
+  group total.
+
 ## [2.88.0] - 2026-08-13
 
 ### Added
