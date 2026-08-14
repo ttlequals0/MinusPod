@@ -1135,7 +1135,11 @@ def split_conflicting_action_span(last: dict, current: dict,
         return fragment
 
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
-    if ((last_action is None or current_action is None)
+    last_pattern = bool(last.get('pattern_defined'))
+    current_pattern = bool(current.get('pattern_defined'))
+    pattern_decides = last_pattern != current_pattern
+    if (not pattern_decides
+            and (last_action is None or current_action is None)
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial
         # overlap. Action-aware callers use explicit precedence below.
@@ -1146,11 +1150,17 @@ def split_conflicting_action_span(last: dict, current: dict,
         clamped['start'] = last['end']
         mark_trusted_fragment(clamped, current)
         return last, [clamped]
-    current_wins = (
-        last_action is None
-        or current_action is None
-        or priority.get(current_action, 0) >= priority.get(last_action, 0)
-    )
+    if pattern_decides:
+        # A defined pattern is standing operator evidence and deliberately
+        # overrides category actions downstream. Preserve that same policy
+        # while assigning contested audio at the earlier merge seam.
+        current_wins = current_pattern
+    else:
+        current_wins = (
+            last_action is None
+            or current_action is None
+            or priority.get(current_action, 0) >= priority.get(last_action, 0)
+        )
     if not current_wins:
         if current['end'] <= last['end']:
             return last, []

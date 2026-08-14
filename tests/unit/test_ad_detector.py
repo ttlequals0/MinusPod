@@ -662,6 +662,37 @@ class TestSplitConflictingActionSpan:
         assert new_last['_trusted_split_fragment'] is True
         assert entries[1]['_trusted_split_fragment'] is True
 
+    def test_defined_pattern_owns_overlap_with_later_keep(self):
+        last = {
+            'start': 100.0, 'end': 150.0, 'category': 'sponsor',
+            'pattern_defined': True,
+        }
+        current = {
+            'start': 130.0, 'end': 170.0, 'category': 'self_promo',
+        }
+
+        new_last, entries = split_conflicting_action_span(
+            last, current, 'remove', 'keep')
+
+        assert new_last == last
+        assert entries[0]['start'] == 150.0
+        assert entries[0]['end'] == 170.0
+
+    def test_later_defined_pattern_owns_overlap_with_keep(self):
+        last = {
+            'start': 100.0, 'end': 150.0, 'category': 'self_promo',
+        }
+        current = {
+            'start': 130.0, 'end': 170.0, 'category': 'sponsor',
+            'pattern_defined': True,
+        }
+
+        new_last, entries = split_conflicting_action_span(
+            last, current, 'keep', 'remove')
+
+        assert new_last['end'] == 130.0
+        assert entries == [current]
+
     def test_current_nested_inside_last_splits_last_around_it(self):
         """The DTNS 5317 shape: a longer remove-resolving pattern match
         fully containing a shorter keep-resolving LLM span (e.g. an intro
