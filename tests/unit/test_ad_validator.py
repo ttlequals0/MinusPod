@@ -720,7 +720,7 @@ class TestAdValidatorVadGapVerification:
         validator = AdValidator(episode_duration=8000.0, segments=[])
         marker = {
             'start': 2000.0,
-            'end': 2120.0,
+            'end': 2400.0,
             'confidence': 0.95,
             'reason': 'Large VAD gap adjacent to detected ad',
             'detection_stage': 'vad_gap',
@@ -732,6 +732,38 @@ class TestAdValidatorVadGapVerification:
         assert ad['validation']['decision'] == Decision.REVIEW.value
         assert ad['held_for_review'] is True
         assert ad['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
+
+    def test_large_gap_hold_does_not_merge_into_adjacent_ad(self):
+        from config import HOLD_REASON_LARGE_VAD_GAP
+
+        validator = AdValidator(episode_duration=500.0, segments=[])
+        adjacent_ad = {
+            'start': 40.0,
+            'end': 50.0,
+            'confidence': 0.95,
+            'reason': 'Sponsor read',
+            'detection_stage': 'claude',
+        }
+        gap = {
+            'start': 50.0,
+            'end': 170.0,
+            'confidence': 0.75,
+            'reason': 'VAD gap exceeds adjacency-only extension limit',
+            'detection_stage': 'vad_gap',
+            'vad_gap_requires_review': True,
+            'held_for_review': True,
+            'was_cut': False,
+            'hold_reason': HOLD_REASON_LARGE_VAD_GAP,
+        }
+
+        result = validator.validate([adjacent_ad, gap])
+
+        assert len(result.ads) == 2
+        held = result.ads[1]
+        assert held['start'] == 50.0
+        assert held['end'] == 170.0
+        assert held['held_for_review'] is True
+        assert held['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
 
 
 class TestPositionalPriorBoost:

@@ -22,7 +22,7 @@ from roll_detector import (
     _region_covered,
 )
 from utils.text import get_transcript_text_for_range
-from config import VAD_GAP_CONFIDENCE
+from config import HOLD_REASON_LARGE_VAD_GAP, VAD_GAP_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
@@ -211,26 +211,45 @@ def detect_vad_gaps(
                 _ends_with_signoff(before_text)
                 and _starts_with_resume(after_text)
             )
-            if (gap_duration > adjacent_auto_extend_max_seconds
+            old_start = adjacent.get('start', 0.0)
+            old_end = adjacent.get('end', 0.0)
+            proposed_start = min(old_start, gap_start)
+            proposed_end = max(old_end, gap_end)
+            added_extension = (
+                max(0.0, old_start - proposed_start)
+                + max(0.0, proposed_end - old_end)
+            )
+            prior_auto_extension = adjacent.get(
+                'vad_gap_adjacency_extension_seconds', 0.0)
+            if not isinstance(prior_auto_extension, (int, float)):
+                prior_auto_extension = 0.0
+            cumulative_auto_extension = prior_auto_extension + added_extension
+            if (cumulative_auto_extension > adjacent_auto_extend_max_seconds
                     and not has_break_context):
                 marker = _new_marker(
                     gap_start,
                     gap_end,
-                    f'Large VAD gap adjacent to detected ad '
-                    f'({gap_duration:.1f}s untranscribed)',
+                    f'VAD gap exceeds adjacency-only extension limit '
+                    f'({gap_duration:.1f}s gap, '
+                    f'{cumulative_auto_extension:.1f}s cumulative)',
                 )
                 marker['vad_gap_requires_review'] = True
+                marker['held_for_review'] = True
+                marker['was_cut'] = False
+                marker['hold_reason'] = HOLD_REASON_LARGE_VAD_GAP
                 new_markers.append(marker)
                 logger.warning(
                     f"VAD mid gap {gap_start:.1f}-{gap_end:.1f}s is too "
-                    f"large for adjacency-only extension; holding separately"
+                    f"large for cumulative adjacency-only extension; "
+                    f"holding separately"
                 )
                 continue
-            old_start = adjacent.get('start', 0.0)
-            old_end = adjacent.get('end', 0.0)
-            adjacent['start'] = min(old_start, gap_start)
-            adjacent['end'] = max(old_end, gap_end)
+            adjacent['start'] = proposed_start
+            adjacent['end'] = proposed_end
             adjacent['vad_gap_extended'] = True
+            if not has_break_context:
+                adjacent['vad_gap_adjacency_extension_seconds'] = (
+                    cumulative_auto_extension)
             logger.info(
                 f"VAD mid gap merged into adjacent ad: "
                 f"{old_start:.1f}-{old_end:.1f}s -> "

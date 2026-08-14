@@ -1,6 +1,7 @@
 """Tests for src/vad_gap_detector.py."""
 import pytest
 
+from config import HOLD_REASON_LARGE_VAD_GAP
 from vad_gap_detector import detect_vad_gaps
 
 
@@ -118,6 +119,29 @@ class TestMidGap:
         assert gaps[0]['start'] == pytest.approx(50.0)
         assert gaps[0]['end'] == pytest.approx(170.0)
         assert gaps[0]['vad_gap_requires_review'] is True
+        assert gaps[0]['held_for_review'] is True
+        assert gaps[0]['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
+
+    def test_fragmented_gaps_cannot_bypass_cumulative_extension_limit(self):
+        segments = [
+            _seg(0.0, 50.0, 'The hosts continue their discussion.'),
+            _seg(105.0, 106.0, 'A brief show interjection.'),
+            _seg(161.0, 200.0, 'They move on to the next topic.'),
+        ]
+        existing = [{'start': 40.0, 'end': 50.0, 'reason': 'Sponsor'}]
+
+        gaps = detect_vad_gaps(
+            segments, existing_ads=existing, episode_duration=200.0,
+            mid_min_seconds=10.0,
+        )
+
+        assert existing[0]['end'] == pytest.approx(105.0)
+        assert existing[0]['vad_gap_adjacency_extension_seconds'] == pytest.approx(55.0)
+        assert len(gaps) == 1
+        assert gaps[0]['start'] == pytest.approx(106.0)
+        assert gaps[0]['end'] == pytest.approx(161.0)
+        assert gaps[0]['held_for_review'] is True
+        assert gaps[0]['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
 
     def test_large_adjacent_gap_with_break_context_can_extend(self):
         segments = [

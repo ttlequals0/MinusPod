@@ -828,6 +828,15 @@ class AdValidator:
         A held ad gets decision=REVIEW with held_for_review=True so the gate
         keeps it in the audio. Returns the (possibly updated) decision.
         """
+        # Adjacency is boundary evidence, not authority to classify an
+        # arbitrarily large untranscribed span. This safety marker is stamped
+        # before validation so it cannot merge into the neighboring ad, then
+        # re-derived here before generic duration holds choose another reason.
+        if (ad.get('detection_stage') == 'vad_gap'
+                and ad.get('vad_gap_requires_review')):
+            self._mark_held(ad, flags, HOLD_REASON_LARGE_VAD_GAP)
+            return Decision.REVIEW
+
         # Rule 1a: per-feed cap holds an ad that would otherwise be cut.
         if (self.max_ad_duration_override is not None
                 and duration > self.max_ad_duration_override
@@ -852,16 +861,6 @@ class AdValidator:
                 and ad.get('detection_stage') == 'dai_differential'
                 and ad.get('differential_uncorroborated')):
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
-            return Decision.REVIEW
-
-        # Adjacency is boundary evidence, not authority to classify an
-        # arbitrarily long untranscribed span. The detector leaves large,
-        # unsupported gaps separate and stamps this flag so validation can
-        # preserve them for a human decision.
-        if (decision != Decision.REJECT
-                and ad.get('detection_stage') == 'vad_gap'
-                and ad.get('vad_gap_requires_review')):
-            self._mark_held(ad, flags, HOLD_REASON_LARGE_VAD_GAP)
             return Decision.REVIEW
 
         # Rule 2: cue-gated approval. Only applies to ACCEPT after rule 1.

@@ -216,8 +216,8 @@ describe('Held for Review section: rendering', () => {
     await waitFor(() => {
       expect(screen.getByTestId('held-for-review-section')).toBeDefined();
     });
-    const chip = screen.getByTitle('Large untranscribed gap lacked enough evidence for automatic ad-boundary extension');
-    expect(chip.textContent).toBe('Large VAD gap');
+    const chip = screen.getByTitle('Untranscribed audio exceeded the safe adjacency-only extension limit');
+    expect(chip.textContent).toBe('VAD extension limit');
   });
 });
 
