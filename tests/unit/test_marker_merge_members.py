@@ -144,3 +144,12 @@ def test_non_finite_dai_core_values_are_ignored():
     ]
 
     assert dai_core_bounds(marker) == (120.0, 180.0)
+
+
+def test_non_list_dai_core_value_is_ignored():
+    marker = _ad(100.0, 220.0, 'dai_differential')
+    marker['dai_core_spans'] = 1
+
+    assert dai_core_bounds(marker) == (None, None)
+    clip_dai_core_spans(marker, 100.0, 220.0)
+    assert 'dai_core_spans' not in marker

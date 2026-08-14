@@ -25,7 +25,7 @@ from config import (
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
-from utils.markers import clip_dai_core_spans, mark_distinct_merge
+from utils.markers import clip_dai_core_spans, dai_core_bounds, mark_distinct_merge
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -952,6 +952,24 @@ class AdValidator:
             Ads with clamped boundaries
         """
         for ad in ads:
+            # Cue/silence snaps are advisory and may move inward before this
+            # validator runs. Measured DAI evidence is not advisory: restore
+            # any core portion an automatic snap crossed before applying the
+            # real file-range clamp. A later human-confirmed trim remains
+            # authoritative and clips the core in _validate_ad.
+            core_start, core_end = dai_core_bounds(ad)
+            if core_start is not None:
+                if core_start < ad['start']:
+                    result.corrections.append(
+                        f"Restored start {ad['start']:.1f}s to measured DAI "
+                        f"core {core_start:.1f}s")
+                    ad['start'] = core_start
+                if core_end > ad['end']:
+                    result.corrections.append(
+                        f"Restored end {ad['end']:.1f}s to measured DAI "
+                        f"core {core_end:.1f}s")
+                    ad['end'] = core_end
+
             if ad['start'] < 0:
                 original = ad['start']
                 ad['start'] = 0
@@ -972,6 +990,7 @@ class AdValidator:
                     and ad.get('merged_protected_end') is not None
                     and ad['merged_protected_end'] > self.episode_duration):
                 ad['merged_protected_end'] = self.episode_duration
+            # Only the physical episode bounds may truncate measured evidence.
             clip_dai_core_spans(ad, ad['start'], ad['end'])
         return ads
 

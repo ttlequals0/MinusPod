@@ -11,8 +11,11 @@ def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
     Invalid persisted values are ignored. Keeping this parser defensive lets
     old markers and hand-edited JSON pass through unchanged.
     """
+    raw_spans = marker.get(DAI_CORE_SPANS)
+    if not isinstance(raw_spans, list):
+        return []
     spans = []
-    for raw in marker.get(DAI_CORE_SPANS) or []:
+    for raw in raw_spans:
         if not isinstance(raw, dict):
             continue
         try:

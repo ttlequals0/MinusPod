@@ -1243,28 +1243,6 @@ class AdReviewer:
         end = min(end, o_end)
         if end <= start:
             return None
-        # Must be a strict sub-span: a result that shrinks the span by less
-        # than the confirmed-boundary tolerance is indistinguishable from
-        # the full span and offers no trim worth surfacing.
-        if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
-            return None
-        # Sanity floor: a recovered ad portion shorter than the minimum we would
-        # ever remove from audio is more likely a hallucinated sub-span than a
-        # real trim of a span the model itself flagged as an ad. Fall back to
-        # holding without bounds (today's behavior) rather than pre-fill the
-        # review UI with a bad one-tap trim.
-        if end - start < MIN_AD_DURATION_FOR_REMOVAL:
-            logger.info(
-                f"[{slug}:{episode_id}] {call_label} recovered trim "
-                f"{start:.1f}-{end:.1f}s is {end - start:.1f}s, under the "
-                f"{MIN_AD_DURATION_FOR_REMOVAL:.0f}s floor for span "
-                f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
-            )
-            return None
-        logger.info(
-            f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
-            f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
-        )
         # Widen back out to the protected union so a tracked merged ad's
         # recovered trim cannot sever a transcript-anchored member.
         if ad.get('merged_distinct_ads'):
@@ -1283,6 +1261,21 @@ class AdReviewer:
         # trim, so neither review path should surface it as one.
         if (start - o_start) + (o_end - end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S:
             return None
+        # Evaluate the render floor after protected bounds expand the model's
+        # raw proposal. A tiny proposal inside a substantial measured core is
+        # still a valid core-sized trim.
+        if end - start < MIN_AD_DURATION_FOR_REMOVAL:
+            logger.info(
+                f"[{slug}:{episode_id}] {call_label} recovered trim "
+                f"{start:.1f}-{end:.1f}s is {end - start:.1f}s, under the "
+                f"{MIN_AD_DURATION_FOR_REMOVAL:.0f}s floor for span "
+                f"{o_start:.1f}-{o_end:.1f}s. Holding without bounds."
+            )
+            return None
+        logger.info(
+            f"[{slug}:{episode_id}] {call_label} recovered proposed trim "
+            f"{start:.1f}-{end:.1f}s from span {o_start:.1f}-{o_end:.1f}s"
+        )
         return start, end
 
     @staticmethod

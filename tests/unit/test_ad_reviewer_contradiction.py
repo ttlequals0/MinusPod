@@ -718,3 +718,19 @@ def test_dai_core_that_erases_recovered_trim_accepts_unchanged():
     accepted = result.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (100.0, 200.0)
     assert result.verdicts[0].verdict == 'confirmed'
+
+
+def test_dai_core_widens_tiny_recovered_span_before_duration_floor():
+    ad = {
+        'start': 100.0, 'end': 200.0, 'confidence': 0.95,
+        'detection_stage': 'dai_differential',
+        'dai_core_spans': [{'start': 120.0, 'end': 150.0}],
+    }
+
+    result, llm = _run_affirmed_confirm(
+        _resp('{"ad_start": 130.0, "ad_end": 135.0}'), ad=ad)
+
+    assert llm.messages_create.call_count == 2
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (120.0, 150.0)
+    assert result.verdicts[0].verdict == 'adjust'
