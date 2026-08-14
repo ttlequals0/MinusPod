@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 
 # Timeouts are resolved at read time from settings via processing_timeouts.
 from processing_timeouts import get_soft_timeout, get_hard_timeout
+from utils.atomic_json import write_json_atomic
 
 logger = logging.getLogger('podcast.processing_queue')
 
@@ -85,19 +86,14 @@ class ProcessingQueue:
         return {'current_episode': None, 'acquired_at': None}
 
     def _write_state(self, slug: Optional[str], episode_id: Optional[str], acquired_at: Optional[float]):
-        """Write processing state to shared file atomically.
-
-        Writes to a temp file first, then renames to prevent corrupt state
-        if the process crashes or OOMs mid-write.
-        """
+        """Write processing state to the shared file atomically."""
         try:
             state = {
                 'current_episode': [slug, episode_id] if slug and episode_id else None,
                 'acquired_at': acquired_at
             }
-            tmp_path = self._state_file_path.with_suffix('.tmp')
-            tmp_path.write_text(json.dumps(state))
-            tmp_path.rename(self._state_file_path)
+            if not write_json_atomic(self._state_file_path, state):
+                logger.warning("Could not write state file")
         except OSError as e:
             logger.warning(f"Could not write state file: {e}")
 

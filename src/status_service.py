@@ -14,8 +14,11 @@ import logging
 import os
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Optional, Dict, List
+
+from utils.atomic_json import write_json_atomic
 
 # Status file location - shared across all workers
 STATUS_FILE = os.path.join(
@@ -82,10 +85,38 @@ class StatusService:
 
     def _init(self):
         """Initialize instance state."""
-        self._status_lock = threading.Lock()
+        self._file_lock = threading.Lock()
+        self._subscribers_lock = threading.Lock()
         self._subscribers: List[callable] = []
+        self._lock_warned = False
         # Ensure status file directory exists
         os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
+
+    @contextmanager
+    def _status_transaction(self):
+        """Serialize a read-modify-write across threads and gunicorn workers.
+
+        threading.Lock covers only this process, so without the flock two
+        workers interleave and one update is silently lost.
+        """
+        # Lock path derives from STATUS_FILE so a relocated status file, as in
+        # tests, cannot end up guarded by a lock somewhere else.
+        with self._file_lock:
+            try:
+                fd = os.open(STATUS_FILE + '.lock', os.O_CREAT | os.O_RDWR, 0o644)
+            except OSError as e:
+                if not self._lock_warned:
+                    self._lock_warned = True
+                    logger.warning(
+                        f"Status lock unavailable ({e}); concurrent worker "
+                        f"updates may be lost")
+                yield
+                return
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                yield
+            finally:
+                os.close(fd)  # releases the flock
 
     def _read_status_file(self) -> dict:
         """Read status from shared file with locking.
@@ -99,15 +130,12 @@ class StatusService:
             if not os.path.exists(STATUS_FILE):
                 return self._empty_status()
 
+            # No flock here: every caller already holds the sidecar lock.
             with open(STATUS_FILE, 'r') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
-                try:
-                    content = f.read()
-                    if not content:
-                        return self._empty_status()
-                    status = json.loads(content)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                content = f.read()
+            if not content:
+                return self._empty_status()
+            status = json.loads(content)
 
             # Staleness cleanup
             needs_write = False
@@ -157,19 +185,8 @@ class StatusService:
             return self._empty_status()
 
     def _write_status_file(self, status: dict):
-        """Write status to shared file with locking."""
-        try:
-            # Write to temp file then rename for atomicity
-            temp_file = STATUS_FILE + '.tmp'
-            with open(temp_file, 'w') as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                try:
-                    json.dump(status, f)
-                finally:
-                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-            os.rename(temp_file, STATUS_FILE)
-        except OSError:
-            pass  # Best effort - don't crash on write failures
+        """Write status to the shared file. Best effort, never raises."""
+        write_json_atomic(STATUS_FILE, status)
 
     def set_server_start_time(self, start_time: float):
         """Store server start time in shared status file.
@@ -179,7 +196,7 @@ class StatusService:
         the server did restart). Workers starting at slightly different
         times will overwrite each other, but the difference is negligible.
         """
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             status['server_start_time'] = start_time
             self._write_status_file(status)
@@ -195,7 +212,7 @@ class StatusService:
 
     def start_job(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Mark an episode as starting processing."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             status['current_job'] = {
                 'slug': slug,
@@ -217,7 +234,7 @@ class StatusService:
 
     def update_job_stage(self, stage: str, progress: float = None):
         """Update the current job's stage and optional progress."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             if status.get('current_job'):
                 status['current_job']['stage'] = stage
@@ -229,7 +246,7 @@ class StatusService:
 
     def _clear_current_job(self):
         """Clear the current job from status tracking."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             status['current_job'] = None
             status['last_updated'] = time.time()
@@ -250,7 +267,7 @@ class StatusService:
         Used by ProcessingQueue orphan recovery so the UI does not show a
         killed job as still transcribing for up to MAX_JOB_DURATION.
         """
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             job = status.get('current_job')
             if not job or job.get('slug') != slug or job.get('episode_id') != episode_id:
@@ -263,7 +280,7 @@ class StatusService:
 
     def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Add an episode to the queue."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             queued = status.get('queued_episodes', [])
             # Don't add duplicates
@@ -284,7 +301,7 @@ class StatusService:
 
     def remove_queued_episode(self, slug: str, episode_id: str) -> bool:
         """Drop an episode from the display queue. Returns True if it was present."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             queued = status.get('queued_episodes', [])
             remaining = [
@@ -301,7 +318,7 @@ class StatusService:
 
     def remove_feed_from_queue(self, slug: str) -> int:
         """Drop all queued episodes for a feed. Returns count removed."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             queued = status.get('queued_episodes', [])
             remaining = [e for e in queued if e['slug'] != slug]
@@ -316,7 +333,7 @@ class StatusService:
 
     def get_queue_position(self, slug: str, episode_id: str) -> int:
         """Get queue position for an episode (1-based, 0 if not queued)."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             queued = status.get('queued_episodes', [])
             for i, e in enumerate(queued):
@@ -326,7 +343,7 @@ class StatusService:
 
     def start_feed_refresh(self, slug: str, podcast_name: str):
         """Mark a feed refresh as starting."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             refreshes = status.get('feed_refreshes', {})
             refreshes[slug] = {
@@ -342,7 +359,7 @@ class StatusService:
 
     def complete_feed_refresh(self, slug: str, new_episodes: int = 0):
         """Mark a feed refresh as complete."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             refreshes = status.get('feed_refreshes', {})
             if slug in refreshes:
@@ -358,7 +375,7 @@ class StatusService:
 
     def remove_feed_refresh(self, slug: str):
         """Remove a feed refresh status."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
             refreshes = status.get('feed_refreshes', {})
             if slug in refreshes:
@@ -370,7 +387,7 @@ class StatusService:
 
     def get_status(self) -> SystemStatus:
         """Get current system status snapshot."""
-        with self._status_lock:
+        with self._status_transaction():
             status = self._read_status_file()
 
             current_job = None
@@ -409,11 +426,11 @@ class StatusService:
         # thread; guard mutation/iteration with the status lock so a concurrent
         # subscribe/unsubscribe can't corrupt the list mid-notify
         # (concurrency-sweep-3).
-        with self._status_lock:
+        with self._subscribers_lock:
             self._subscribers.append(callback)
 
         def _unsubscribe():
-            with self._status_lock:
+            with self._subscribers_lock:
                 try:
                     self._subscribers.remove(callback)
                 except ValueError:
@@ -426,7 +443,7 @@ class StatusService:
         status = self.get_status()
         # Snapshot under the lock, then call callbacks outside it so a slow or
         # re-entrant callback can't hold the lock or hit a mutated list.
-        with self._status_lock:
+        with self._subscribers_lock:
             subscribers = list(self._subscribers)
         warned = getattr(self, '_warned_subscribers', None)
         if warned is None:
@@ -495,7 +512,7 @@ def reconcile_startup_state(db) -> None:
     db - Database instance (provides get_connection())
     """
     ss = StatusService()
-    with ss._status_lock:
+    with ss._status_transaction():
         status = ss._read_status_file()
         job = status.get('current_job')
         changed = False

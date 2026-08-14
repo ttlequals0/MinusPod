@@ -15,6 +15,19 @@ release notes.
 
 ### Fixed
 
+- The shared processing status file corrupted under concurrent writes, roughly
+  1.7 times a day on a two-worker instance. Every writer used one temp filename
+  and opened it with `w`, which truncates before the lock is taken, so one
+  worker could wipe another's partial write and both renamed the result into
+  place. The next reader hit a JSON error and the file was reset, dropping the
+  current job, the queue display, and the recorded server start time. Each
+  writer now gets its own temp file and an atomic replace, through a shared
+  helper that also fixes the identical pattern in the processing queue's own
+  state file.
+- Status updates were also lost outright between workers, since the only guard
+  around read-modify-write was a `threading.Lock` that does not reach past its
+  own process. With four concurrent writers, 7 of 40 queue additions survived.
+  A file lock now spans workers, and all 40 survive.
 - Pattern deduplication deleted the audio fingerprints of every duplicate it
   merged away, so a survivor could end up with no fingerprint even though a
   duplicate had one. Duplicates share a text template, so that fingerprint

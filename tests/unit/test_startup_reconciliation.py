@@ -83,7 +83,7 @@ class TestReconcileStartupState:
     def test_no_episode_in_db_does_not_crash(self, reconcile_env):
         """current_job referencing an unknown episode must not raise."""
         ss, db, status_file = reconcile_env
-        with ss._status_lock:
+        with ss._status_transaction():
             raw = ss._read_status_file()
             raw['current_job'] = {
                 'slug': 'ghost', 'episode_id': 'ep-x',
@@ -119,7 +119,7 @@ class TestReconcileStartupState:
         """UPDATE WHERE status='processing' must be a no-op for a processed episode."""
         ss, db, status_file = reconcile_env
         _seed(db, 'pod', 'ep1', status='processed')
-        with ss._status_lock:
+        with ss._status_transaction():
             raw = ss._read_status_file()
             raw['current_job'] = {
                 'slug': 'pod', 'episode_id': 'ep1',
