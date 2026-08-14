@@ -37,6 +37,7 @@ from utils.time import (
 from verification_pass import _build_timestamp_map, _map_correction_to_processed, _map_to_original
 from config import (
     MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
+    MIN_AD_DURATION_FOR_REMOVAL,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     CORRECTION_MATCH_MIN_COVERAGE,
@@ -1406,6 +1407,13 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             f"{len(fragments)} removable fragment(s)")
         for start, end in fragments:
             fragment_processed = dict(processed, start=start, end=end)
+            if (processed.get('_trusted_split_fragment')
+                    or processed['end'] - processed['start']
+                    >= MIN_AD_DURATION_FOR_REMOVAL):
+                # The parent cleared the renderer's duration floor before a
+                # protected keep/beep span carved it into smaller pieces.
+                # Validation still decides whether each piece is a cut.
+                fragment_processed['_trusted_split_fragment'] = True
             fragment_original = dict(
                 original,
                 start=_map_to_original(

@@ -237,7 +237,7 @@ class TestMergeGatedOnResolvedAction:
         assert out[0]['start'] == 0.0
         assert out[0]['end'] == 30.0
 
-    def test_true_overlap_with_different_actions_clamps_instead_of_merging(self):
+    def test_true_overlap_gives_keep_action_the_contested_audio(self):
         det = self._det()
         action_map = dict(_all_remove_map(), interaction='keep')
         sponsor_ad = _ad(0.0, 25.0, 'text_pattern', category='sponsor')
@@ -249,10 +249,10 @@ class TestMergeGatedOnResolvedAction:
         assert len(out) == 2
         by_cat = {m['category']: m for m in out}
         assert by_cat['sponsor']['start'] == 0.0
-        assert by_cat['sponsor']['end'] == 25.0
-        # Clamped past the sponsor marker's end so the two spans no longer
-        # double-cut the same 20.0-25.0s audio.
-        assert by_cat['interaction']['start'] == 25.0
+        assert by_cat['sponsor']['end'] == 20.0
+        # Keep wins the contested 20.0-25.0s audio; otherwise the later keep
+        # partition cannot protect the portion already assigned to remove.
+        assert by_cat['interaction']['start'] == 20.0
         assert by_cat['interaction']['end'] == 30.0
 
 

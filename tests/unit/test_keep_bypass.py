@@ -706,6 +706,7 @@ class TestPartitionPass2CategoryActions:
         assert [(ad['start'], ad['end']) for ad in out_p] == [
             (100.0, 130.0), (150.0, 180.0),
         ]
+        assert all(ad['_trusted_split_fragment'] is True for ad in out_p)
         assert [(ad['start'], ad['end']) for ad in out_o] == [
             (119.0, 149.0), (169.0, 199.0),
         ]

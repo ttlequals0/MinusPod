@@ -2348,17 +2348,19 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
+                last_action = (resolve_category_action(
+                    last.get('category'), action_map) if action_map else None)
+                current_action = (resolve_category_action(
+                    current.get('category'), action_map) if action_map else None)
                 same_action = (
-                    action_map is None
-                    or resolve_category_action(last.get('category'), action_map)
-                       == resolve_category_action(current.get('category'), action_map)
-                )
+                    action_map is None or last_action == current_action)
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker
                     # into a remove-resolving one, and never let a shorter
                     # span nested inside the other collapse to nothing (e.g.
                     # an intro/outro inside a remove-resolving match).
-                    new_last, new_entries = split_conflicting_action_span(last, current)
+                    new_last, new_entries = split_conflicting_action_span(
+                        last, current, last_action, current_action)
                     if new_last is None:
                         merged.pop()
                     else:

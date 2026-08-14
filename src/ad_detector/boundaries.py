@@ -1107,7 +1107,9 @@ def resolve_category_action(category, action_map: dict[str, str]) -> str:
     return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
 
-def split_conflicting_action_span(last: dict, current: dict) -> tuple:
+def split_conflicting_action_span(last: dict, current: dict,
+                                  last_action: str | None = None,
+                                  current_action: str | None = None) -> tuple:
     """Resolve two adjacent-or-overlapping ads whose resolved actions differ:
     never merge a keep-resolving detection into a remove-resolving one, and
     never let a span fully nested inside the other collapse to nothing.
@@ -1117,13 +1119,38 @@ def split_conflicting_action_span(last: dict, current: dict) -> tuple:
     consumed) replaces ``last``.
 
     - No true overlap: both survive untouched.
-    - ``current`` fully nested in ``last``: split ``last`` around it so both
-      pieces and the nested span survive.
-    - ``current`` extends past ``last``'s end: clamp its start forward past
-      ``last``'s end so the two spans never double-cut the same audio.
+    When actions are supplied, precedence is keep > beep > remove. The
+    higher-priority action owns contested audio; without actions, preserve
+    the historical behavior where ``current`` owns it.
     """
     if current['start'] >= last['end']:
         return last, [current.copy()]
+
+    priority = {'remove': 0, 'beep': 1, 'keep': 2}
+    if ((last_action is None or current_action is None)
+            and current['end'] > last['end']):
+        # Legacy no-action behavior: the earlier marker owns a partial
+        # overlap. Action-aware callers use explicit precedence below.
+        clamped = current.copy()
+        for key in ('merged_distinct_ads', 'merged_protected_start',
+                    'merged_protected_end'):
+            clamped.pop(key, None)
+        clamped['start'] = last['end']
+        return last, [clamped]
+    current_wins = (
+        last_action is None
+        or current_action is None
+        or priority.get(current_action, 0) >= priority.get(last_action, 0)
+    )
+    if not current_wins:
+        if current['end'] <= last['end']:
+            return last, []
+        after = current.copy()
+        for key in ('merged_distinct_ads', 'merged_protected_start',
+                    'merged_protected_end'):
+            after.pop(key, None)
+        after['start'] = last['end']
+        return last, [after]
 
     if current['end'] <= last['end']:
         # Splitting last invalidates any merged_distinct_ads/
@@ -1145,9 +1172,14 @@ def split_conflicting_action_span(last: dict, current: dict) -> tuple:
             entries.append(after)
         return new_last, entries
 
-    clamped = current.copy()
-    clamped['start'] = last['end']
-    return last, [clamped]
+    shortened_last = last.copy()
+    for key in ('merged_distinct_ads', 'merged_protected_start',
+                'merged_protected_end'):
+        shortened_last.pop(key, None)
+    shortened_last['end'] = current['start']
+    if shortened_last['end'] <= shortened_last['start']:
+        shortened_last = None
+    return shortened_last, [current.copy()]
 
 
 def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
@@ -1184,13 +1216,15 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
 
         # Check for overlap (ads within threshold seconds are considered overlapping)
         if current['start'] <= last['end'] + merge_threshold:
+            last_action = (resolve_category_action(
+                last.get('category'), action_map) if action_map else None)
+            current_action = (resolve_category_action(
+                current.get('category'), action_map) if action_map else None)
             same_action = (
-                action_map is None
-                or resolve_category_action(last.get('category'), action_map)
-                   == resolve_category_action(current.get('category'), action_map)
-            )
+                action_map is None or last_action == current_action)
             if not same_action:
-                new_last, new_entries = split_conflicting_action_span(last, current)
+                new_last, new_entries = split_conflicting_action_span(
+                    last, current, last_action, current_action)
                 if new_last is None:
                     merged.pop()
                 else:

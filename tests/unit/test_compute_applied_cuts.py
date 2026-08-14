@@ -169,6 +169,19 @@ def test_short_cut_without_trust_fields_dropped(processor):
     assert cuts == []
 
 
+def test_short_fragment_split_from_valid_cut_is_kept(processor):
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 108.0, 'confidence': 0.85,
+          '_trusted_split_fragment': True}],
+        600.0,
+    )
+
+    assert len(cuts) == 1
+    assert cuts[0]['start'] == 100.0
+    assert cuts[0]['end'] == 108.0
+    assert '_trusted_split_fragment' not in cuts[0]
+
+
 def test_merge_carries_strongest_trust_signal(processor):
     # Two sub-10s spans merge into one >10s span; survives the floor anyway,
     # but the merged dict must carry the max confidence and fingerprint stage
