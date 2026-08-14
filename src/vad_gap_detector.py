@@ -27,6 +27,10 @@ from config import VAD_GAP_CONFIDENCE
 logger = logging.getLogger(__name__)
 
 _GAP_ADJACENCY_BUFFER = 1.0  # seconds; how close a gap must be to an ad to count as adjacent
+# Adjacency is useful boundary evidence, but it is not enough to classify an
+# arbitrarily long untranscribed span. A minute already covers a conventional
+# spot; longer gaps need transcript context or a human decision.
+MAX_ADJACENT_AUTO_EXTENSION_SECONDS = 60.0
 
 # DAI seam check: dynamic insertion can duplicate a few seconds of show
 # audio around the splice, so extending an ad across the gap swallows real
@@ -145,6 +149,7 @@ def detect_vad_gaps(
     start_min_seconds: float = 3.0,
     mid_min_seconds: float = 8.0,
     tail_min_seconds: float = 3.0,
+    adjacent_auto_extend_max_seconds: float = MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
 ) -> list[dict]:
     """Return ad markers for suspicious untranscribed audio spans.
 
@@ -160,6 +165,9 @@ def detect_vad_gaps(
         start_min_seconds: Minimum head-gap duration to emit.
         mid_min_seconds: Minimum mid-gap duration to emit (still needs both signoff-before AND resume-after context).
         tail_min_seconds: Minimum tail-gap duration to emit.
+        adjacent_auto_extend_max_seconds: Largest adjacent gap that can extend
+            an existing ad on adjacency evidence alone. Larger gaps require
+            signoff/resume context or are emitted as held review candidates.
 
     Returns:
         List of new ad markers. May be empty.
@@ -195,6 +203,27 @@ def detect_vad_gaps(
                     f"VAD mid gap {gap_start:.1f}-{gap_end:.1f}s: DAI seam "
                     f"duplicate beyond boundary; not extending ad "
                     f"{adjacent.get('start', 0.0):.1f}-{adjacent.get('end', 0.0):.1f}s"
+                )
+                continue
+            before_text = segments[i].get('text', '')
+            after_text = segments[i + 1].get('text', '')
+            has_break_context = (
+                _ends_with_signoff(before_text)
+                and _starts_with_resume(after_text)
+            )
+            if (gap_duration > adjacent_auto_extend_max_seconds
+                    and not has_break_context):
+                marker = _new_marker(
+                    gap_start,
+                    gap_end,
+                    f'Large VAD gap adjacent to detected ad '
+                    f'({gap_duration:.1f}s untranscribed)',
+                )
+                marker['vad_gap_requires_review'] = True
+                new_markers.append(marker)
+                logger.warning(
+                    f"VAD mid gap {gap_start:.1f}-{gap_end:.1f}s is too "
+                    f"large for adjacency-only extension; holding separately"
                 )
                 continue
             old_start = adjacent.get('start', 0.0)

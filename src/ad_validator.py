@@ -21,6 +21,7 @@ from config import (
     CUE_ONLY_SAFETY_HOLD_NEW, CUE_ONLY_SAFETY_AUTO_CUT,
     CUE_ONLY_AUTOCUT_CONFIDENCE,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
+    HOLD_REASON_LARGE_VAD_GAP,
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
 from utils.markers import mark_distinct_merge
@@ -851,6 +852,16 @@ class AdValidator:
                 and ad.get('detection_stage') == 'dai_differential'
                 and ad.get('differential_uncorroborated')):
             self._mark_held(ad, flags, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED)
+            return Decision.REVIEW
+
+        # Adjacency is boundary evidence, not authority to classify an
+        # arbitrarily long untranscribed span. The detector leaves large,
+        # unsupported gaps separate and stamps this flag so validation can
+        # preserve them for a human decision.
+        if (decision != Decision.REJECT
+                and ad.get('detection_stage') == 'vad_gap'
+                and ad.get('vad_gap_requires_review')):
+            self._mark_held(ad, flags, HOLD_REASON_LARGE_VAD_GAP)
             return Decision.REVIEW
 
         # Rule 2: cue-gated approval. Only applies to ACCEPT after rule 1.

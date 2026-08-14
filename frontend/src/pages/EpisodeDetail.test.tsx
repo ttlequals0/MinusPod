@@ -210,6 +210,15 @@ describe('Held for Review section: rendering', () => {
     const chip = screen.getByTitle('Audio differs across fetches with no corroborating signal');
     expect(chip.textContent).toBe('Differential hold');
   });
+
+  it('labels a large VAD gap hold with its safety reason', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [{ ...heldMarker, hold_reason: 'large_vad_gap_extension' }] }));
+    await waitFor(() => {
+      expect(screen.getByTestId('held-for-review-section')).toBeDefined();
+    });
+    const chip = screen.getByTitle('Large untranscribed gap lacked enough evidence for automatic ad-boundary extension');
+    expect(chip.textContent).toBe('Large VAD gap');
+  });
 });
 
 describe('Held for Review: Approve & Recut (hasOriginalAudio=true)', () => {

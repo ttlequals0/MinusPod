@@ -714,6 +714,25 @@ class TestAdValidatorVadGapVerification:
         # stays at or above 0.85 (modulo position adjustments).
         assert result.ads[0]['validation']['adjusted_confidence'] > 0.79
 
+    def test_large_adjacency_only_gap_is_held(self):
+        from config import HOLD_REASON_LARGE_VAD_GAP
+
+        validator = AdValidator(episode_duration=8000.0, segments=[])
+        marker = {
+            'start': 2000.0,
+            'end': 2120.0,
+            'confidence': 0.95,
+            'reason': 'Large VAD gap adjacent to detected ad',
+            'detection_stage': 'vad_gap',
+            'vad_gap_requires_review': True,
+        }
+
+        ad = validator.validate([marker]).ads[0]
+
+        assert ad['validation']['decision'] == Decision.REVIEW.value
+        assert ad['held_for_review'] is True
+        assert ad['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
+
 
 class TestPositionalPriorBoost:
     """Tests for learned positional prior boosts (issue #360)."""

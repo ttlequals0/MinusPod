@@ -1041,6 +1041,8 @@ function EpisodeDetail() {
                 ? 'A standalone catch from the verification pass, held for a second opinion'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Audio differs across fetches with no corroborating signal'
+                : segment.hold_reason === 'large_vad_gap_extension'
+                ? 'Large untranscribed gap lacked enough evidence for automatic ad-boundary extension'
                 : segment.hold_reason === 'cue_template_unproven'
                 ? "This cue template hasn't cut a confirmed ad yet"
                 : segment.hold_reason === 'cue_low_confidence'
@@ -1050,6 +1052,8 @@ function EpisodeDetail() {
                 ? 'Verification catch'
                 : segment.hold_reason === 'differential_uncorroborated'
                 ? 'Differential hold'
+                : segment.hold_reason === 'large_vad_gap_extension'
+                ? 'Large VAD gap'
                 : segment.hold_reason === 'cue_template_unproven'
                 ? 'Unproven cue'
                 : segment.hold_reason === 'cue_low_confidence'

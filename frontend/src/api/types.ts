@@ -366,6 +366,7 @@ export interface AdSegment {
     | 'no_splice_evidence'
     | 'verification_miss'
     | 'differential_uncorroborated'
+    | 'large_vad_gap_extension'
     | 'cue_template_unproven'
     | 'cue_low_confidence';
   // Set when a confirm correction matched this held marker (issue #509);

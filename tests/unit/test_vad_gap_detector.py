@@ -100,6 +100,41 @@ class TestMidGap:
                                mid_min_seconds=10.0)
         assert not any(g['start'] == 60.0 and g['end'] == 75.0 for g in gaps)
 
+    def test_large_adjacent_gap_is_held_separately(self):
+        segments = [
+            _seg(0.0, 50.0, 'The hosts continue their discussion.'),
+            _seg(170.0, 200.0, 'They move on to the next topic.'),
+        ]
+        existing = [{'start': 40.0, 'end': 50.0, 'reason': 'Sponsor'}]
+
+        gaps = detect_vad_gaps(
+            segments, existing_ads=existing, episode_duration=200.0,
+            mid_min_seconds=10.0,
+        )
+
+        assert existing[0]['end'] == pytest.approx(50.0)
+        assert 'vad_gap_extended' not in existing[0]
+        assert len(gaps) == 1
+        assert gaps[0]['start'] == pytest.approx(50.0)
+        assert gaps[0]['end'] == pytest.approx(170.0)
+        assert gaps[0]['vad_gap_requires_review'] is True
+
+    def test_large_adjacent_gap_with_break_context_can_extend(self):
+        segments = [
+            _seg(0.0, 50.0, 'Visit example.com slash show for a free trial.'),
+            _seg(170.0, 200.0, 'Welcome back everyone, let us continue.'),
+        ]
+        existing = [{'start': 40.0, 'end': 50.0, 'reason': 'Sponsor'}]
+
+        gaps = detect_vad_gaps(
+            segments, existing_ads=existing, episode_duration=200.0,
+            mid_min_seconds=10.0,
+        )
+
+        assert gaps == []
+        assert existing[0]['end'] == pytest.approx(170.0)
+        assert existing[0]['vad_gap_extended'] is True
+
 
 class TestTailGap:
     def test_tail_gap_above_threshold_emits_marker(self):

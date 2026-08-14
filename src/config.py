@@ -55,6 +55,7 @@ HOLD_REASON_VERIFICATION_MISS = 'verification_miss'
 HOLD_REASON_VERIFICATION_KEPT_CONFLICT = 'verification_kept_conflict'
 HOLD_REASON_CUE_TEMPLATE_UNPROVEN = 'cue_template_unproven'
 HOLD_REASON_CUE_LOW_CONFIDENCE = 'cue_low_confidence'
+HOLD_REASON_LARGE_VAD_GAP = 'large_vad_gap_extension'
 
 # Segment categories (issue #565): what kind of content a marker spans. A
 # marker may carry none: unset means no stage classified it, and only action
