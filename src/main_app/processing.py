@@ -2553,9 +2553,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                         v_ads_for_ui = []
 
             # Added after the gate assigns v_ads_held, so the reassignment
-            # above cannot discard them.
+            # above cannot discard them. Held ads must never also enter
+            # v_ads_for_ui or the marker is saved twice.
             v_ads_held.extend(kept_conflicts)
-            v_ads_for_ui.extend(kept_conflicts)
         else:
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
