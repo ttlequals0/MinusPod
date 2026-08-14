@@ -225,14 +225,18 @@ class MaintenanceMixin:
         for dup in duplicates:
             all_ids = [int(x) for x in dup['all_ids'].split(',')]
 
-            # Find the pattern with most confirmations to keep
+            # Find the pattern to keep: tier outranks confirmation count, so a
+            # user/community pattern is never deleted in favour of an auto one.
             patterns_cursor = conn.execute(
                 f'''SELECT ap.id, ap.sponsor_id, ks.name AS sponsor,
                           ap.confirmation_count, ap.false_positive_count
                     FROM ad_patterns ap
                     LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
                     WHERE ap.id IN ({','.join('?' * len(all_ids))})
-                    ORDER BY ap.confirmation_count DESC, ap.id ASC''',
+                    ORDER BY (CASE WHEN ap.created_by = 'user' OR ap.source = 'community'
+                                   THEN 0 ELSE 1 END),
+                             ap.confirmation_count DESC,
+                             ap.id ASC''',
                 all_ids
             )
             patterns = patterns_cursor.fetchall()
@@ -240,7 +244,7 @@ class MaintenanceMixin:
             if len(patterns) < 2:
                 continue
 
-            # Keep the pattern with most confirmations (first one after sort)
+            # Keep the pattern the query ranked first (highest tier, then confirmations)
             keep_pattern = patterns[0]
             keep_id = keep_pattern['id']
             remove_ids = [p['id'] for p in patterns[1:]]
