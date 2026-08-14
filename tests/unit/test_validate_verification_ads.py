@@ -41,11 +41,13 @@ def _segments(duration=600.0):
     return [_seg(t, t + 30.0) for t in range(0, int(duration), 30)]
 
 
-def _run(processed, original, duration=600.0):
+def _run(processed, original, duration=600.0, keep_barriers_processed=None):
     return _validate_verification_ads(
         'show', 'ep1', processed, original, _segments(duration),
         ads_to_remove=[], episode_description=None,
         min_cut_confidence=0.8, db=_db(),
+        processed_duration=duration,
+        keep_barriers_processed=keep_barriers_processed,
     )
 
 
@@ -123,6 +125,30 @@ def test_pairing_key_never_leaks_into_outputs():
 
     for ad in kept_proc + kept_orig + processed + original:
         assert '_orig_twin' not in ad
+
+
+def test_kept_tail_blocks_trailing_ad_extension():
+    processed = [
+        {'start': 100.0, 'end': 140.0, 'confidence': 0.9,
+         'category': 'sponsor'},
+    ]
+    original = [
+        {'start': 1100.0, 'end': 1140.0, 'marker': 'removable'},
+    ]
+    kept_tail = [
+        {'start': 145.0, 'end': 165.0, 'confidence': 0.9,
+         'category': 'self_promo', 'action_applied': 'keep'},
+    ]
+
+    kept_proc, kept_orig = _run(
+        processed, original, duration=170.0,
+        keep_barriers_processed=kept_tail,
+    )
+
+    assert len(kept_proc) == len(kept_orig) == 1
+    assert kept_proc[0]['end'] == 140.0
+    assert kept_orig[0]['marker'] == 'removable'
+    assert '_pass2_keep_barrier' not in kept_tail[0]
 
 
 def test_explicit_duration_is_validator_clamp_target():

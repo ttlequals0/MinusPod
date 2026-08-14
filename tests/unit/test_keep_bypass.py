@@ -621,12 +621,13 @@ class TestPartitionPass2CategoryActions:
         processed, original = self._pair(
             'self_promo', held_for_review=True, hold_reason='max_duration')
 
-        out_p, out_o, kept = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == []
         assert out_o == []
-        assert kept == [original]
+        assert kept_p == [processed]
+        assert kept_o == [original]
         for marker in (processed, original):
             assert marker['action_applied'] == 'keep'
             assert marker['was_cut'] is False
@@ -640,12 +641,13 @@ class TestPartitionPass2CategoryActions:
             self, category, expected):
         processed, original = self._pair(category)
 
-        out_p, out_o, kept = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
         assert out_o == [original]
-        assert kept == []
+        assert kept_p == []
+        assert kept_o == []
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 
@@ -657,12 +659,13 @@ class TestPartitionPass2CategoryActions:
     def test_defined_pattern_overrides_keep(self):
         processed, original = self._pair('self_promo', pattern_defined=True)
 
-        out_p, out_o, kept = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
         assert out_o == [original]
-        assert kept == []
+        assert kept_p == []
+        assert kept_o == []
         for marker in (processed, original):
             assert 'action_applied' not in marker
             assert marker['keep_overridden_by_pattern'] is True
@@ -675,12 +678,13 @@ class TestPartitionPass2CategoryActions:
         processed = {'start': 10.0, 'end': 20.0}
         original = {'start': 110.0, 'end': 120.0}
 
-        out_p, out_o, kept = processing._partition_pass2_category_actions(
+        out_p, out_o, kept_p, kept_o = processing._partition_pass2_category_actions(
             [processed], [original], self.ACTIONS)
 
         assert out_p == [processed]
         assert out_o == [original]
-        assert kept == []
+        assert kept_p == []
+        assert kept_o == []
         assert 'action_applied' not in processed
         assert 'action_applied' not in original
 

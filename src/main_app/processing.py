@@ -1318,14 +1318,17 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
     Pass 2 has parallel processed/original coordinate lists, so its keep
     partition cannot reuse the single-list pass-1 helper. Kept candidates are
     removed from both detection lists before validation and reviewer routing;
-    their original-coordinate marker is returned for persistence. Remaining
-    candidates remain unstamped until confidence gating and review decide
-    which ones the recut will actually render.
+    both coordinate copies are returned so the processed marker can protect a
+    kept tail from the validator's end-of-episode extension while the original
+    marker is persisted. Remaining candidates remain unstamped until confidence
+    gating and review decide which ones the recut will actually render.
 
-    Returns ``(remaining_processed, remaining_original, kept_original)``.
+    Returns ``(remaining_processed, remaining_original, kept_processed,
+    kept_original)``.
     """
     remaining_processed = []
     remaining_original = []
+    kept_processed = []
     kept_original = []
     if len(processed_ads) != len(original_ads):
         raise ValueError(
@@ -1344,6 +1347,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
                     marker['hold_cleared_reason'] = marker.get('hold_reason')
                     marker['held_for_review'] = False
                     marker.pop('hold_reason', None)
+            kept_processed.append(processed)
             kept_original.append(original)
             continue
 
@@ -1353,7 +1357,8 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
         remaining_processed.append(processed)
         remaining_original.append(original)
 
-    return remaining_processed, remaining_original, kept_original
+    return (remaining_processed, remaining_original,
+            kept_processed, kept_original)
 
 
 def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
@@ -1936,7 +1941,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 processed_duration=None,
                                 max_ad_duration_override=None,
                                 cue_gate_enabled=False, podcast_id=None,
-                                segment_actions=None):
+                                segment_actions=None,
+                                keep_barriers_processed=None):
     """Validate pass-2 ad candidates against processed-coordinate validator.
 
     Maps pass-1 user FP corrections from original to processed coordinates,
@@ -1950,6 +1956,11 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     verification ads can never carry cue evidence (snap is pass-1 only), so on
     a cue-gated feed every pass-2 proposal will be held -- intended conservative
     behavior.
+
+    ``keep_barriers_processed`` contains category-kept pass-2 markers removed
+    from the cut candidates. Validator-only copies stay in the ordered span
+    list so a removable candidate before a kept tail cannot be extended through
+    that tail to the end of the episode.
 
     Returns (verification_ads_processed, verification_ads_original).
     """
@@ -1999,8 +2010,16 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     for proc, orig in zip(verification_ads_processed, verification_ads_original, strict=True):
         proc['_orig_twin'] = orig
 
+    validation_input = list(verification_ads_processed)
+    for marker in keep_barriers_processed or []:
+        barrier = marker.copy()
+        barrier['_pass2_keep_barrier'] = True
+        # Also prevent a merge when validation is called without an action map.
+        barrier['held_for_review'] = True
+        validation_input.append(barrier)
+
     v_validation = v_validator.validate(
-        verification_ads_processed, actions_map=segment_actions)
+        validation_input, actions_map=segment_actions)
 
     # validate() worked on copies; strip the key from the input dicts too so
     # no later consumer of the raw verification result can serialize it.
@@ -2009,6 +2028,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
     kept_processed, kept_original = [], []
     for ad in v_validation.ads:
+        if ad.pop('_pass2_keep_barrier', False):
+            continue
         # Strip the pairing key from every validator output (rejected ones
         # included) so it can never leak into serialized payloads.
         orig = ad.pop('_orig_twin', None)
@@ -2281,6 +2302,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
 
         (verification_ads_processed,
          verification_ads_original,
+         category_kept_processed,
          category_kept) = _partition_pass2_category_actions(
             verification_ads_processed,
             verification_ads_original,
@@ -2315,6 +2337,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     cue_gate_enabled=cue_gate_enabled,
                     podcast_id=ctx.podcast_id,
                     segment_actions=segment_actions,
+                    keep_barriers_processed=category_kept_processed,
                 )
 
             if verification_ads_processed:
