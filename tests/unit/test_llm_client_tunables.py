@@ -311,7 +311,8 @@ class TestOpenAIFallback:
             )
 
         kwargs = mock_sdk.chat.completions.create.call_args.kwargs
-        assert kwargs["extra_body"] == {"options": {"think": False}}
+        assert kwargs["reasoning_effort"] == "none"
+        assert "extra_body" not in kwargs
 
 
 class TestAnthropicTemperatureOmission:

@@ -102,12 +102,10 @@ def translate_reasoning_effort(
     if normalized not in ("none", "low", "medium", "high"):
         return {}
 
-    if provider == PROVIDER_OPENAI_COMPATIBLE:
+    if provider in (PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA):
         return {"reasoning_effort": normalized}
     if provider == PROVIDER_OPENROUTER:
         return {"extra_body": {"reasoning": {"effort": normalized}}}
-    if provider == PROVIDER_OLLAMA:
-        return {"extra_body": {"options": {"think": normalized != "none"}}}
     return {}
 
 

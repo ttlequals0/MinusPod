@@ -109,13 +109,13 @@ class TestTranslateReasoningEffort:
 
     def test_ollama_none_string_disables_thinking(self):
         assert translate_reasoning_effort("ollama", "none") == {
-            "extra_body": {"options": {"think": False}}
+            "reasoning_effort": "none"
         }
 
     @pytest.mark.parametrize("level", ["low", "medium", "high"])
-    def test_ollama_levels_enable_thinking(self, level):
+    def test_ollama_preserves_reasoning_level(self, level):
         assert translate_reasoning_effort("ollama", level) == {
-            "extra_body": {"options": {"think": True}}
+            "reasoning_effort": level
         }
 
     def test_unknown_level_drops(self):
