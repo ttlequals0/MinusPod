@@ -598,6 +598,25 @@ class TestStampPass2MarkerCategories:
         assert 'category' not in markers[1]
 
 
+def test_dedupe_pass2_markers_collapses_repeats():
+    """The merge concatenates the UI and held lists, so a marker reaching both
+    would persist twice. The guard collapses it regardless of how it got there."""
+    a = {'start': 1076.22, 'end': 1231.18, 'hold_reason': 'verification_kept_conflict'}
+    dup = {'start': 1076.22, 'end': 1231.18, 'hold_reason': 'verification_kept_conflict'}
+    other = {'start': 2032.18, 'end': 2131.08, 'hold_reason': 'verification_kept_conflict'}
+    different_reason = {'start': 1076.22, 'end': 1231.18, 'hold_reason': 'verification_miss'}
+
+    out = processing._dedupe_pass2_markers([a, dup, other, different_reason])
+
+    assert out == [a, other, different_reason]
+    assert len(out) == 3
+
+
+def test_dedupe_pass2_markers_leaves_distinct_spans_alone():
+    markers = [{'start': 1.0, 'end': 2.0}, {'start': 3.0, 'end': 4.0}]
+    assert processing._dedupe_pass2_markers(markers) == markers
+
+
 def test_kept_conflicts_are_disjoint_from_survivors():
     """A conflict routes to the held list, so it must not also remain in the
     surviving list. Overlap there saved the marker twice and rendered

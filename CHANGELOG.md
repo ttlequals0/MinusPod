@@ -24,7 +24,9 @@ release notes.
 - Held verification conflicts appeared twice in the review queue. 2.88.0 added
   each one to both the held list and the UI list, so the marker saved twice and
   rendered as duplicate cards that shared playback state. They now go to the
-  held list only, which is what the function has always documented.
+  held list only, which is what the function has always documented, and the
+  merge that concatenates those two lists drops repeated spans so no future
+  path can persist the same pass-2 marker twice.
 - `deduplicate_patterns` picked the surviving row by confirmation count alone,
   so an auto-learned pattern could beat and delete one an operator created by
   hand. Tier now outranks confirmation count, and merged stats still carry the

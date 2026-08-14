@@ -1245,6 +1245,29 @@ def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
     return patterns_learned
 
 
+def _dedupe_pass2_markers(markers):
+    """Drop repeats of the same pass-2 span so a marker cannot persist twice.
+
+    v_ads_for_ui and v_ads_held are merged by concatenation, so a marker that
+    reaches both lists would be saved twice and render as duplicate review
+    cards. Identity is the rounded span plus hold reason; the first wins.
+    """
+    seen = set()
+    unique = []
+    for m in markers:
+        key = (round(m.get('start', 0.0), 2), round(m.get('end', 0.0), 2),
+               m.get('hold_reason'))
+        if key in seen:
+            audio_logger.warning(
+                f"Dropping duplicate pass-2 marker {key[0]:.1f}s-{key[1]:.1f}s "
+                f"(hold_reason={key[2]})"
+            )
+            continue
+        seen.add(key)
+        unique.append(m)
+    return unique
+
+
 def _stamp_pass2_marker_categories(markers):
     """Validate the category on pass-2 markers at save time.
 
@@ -4272,7 +4295,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # survive into persisted markers with was_cut=False; they are kept
             # separate from v_ads_for_ui so the reviewer pool and asset mapping
             # are never contaminated with held ads.
-            merge_v = _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held)
+            merge_v = _dedupe_pass2_markers(
+                _stamp_pass2_marker_categories(v_ads_for_ui + v_ads_held))
             # Corroboration stamps mutated markers already in
             # all_ads_with_validation, so they need a re-save too.
             if merge_v or v_corroborated_count:
