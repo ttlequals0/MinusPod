@@ -499,6 +499,11 @@ class AdValidator:
                     flags.append("INFO: Clamped to user-approved span")
                     ad['start'] = new_start
                     ad['end'] = new_end
+                    # Human trims are authoritative. A measured DAI core may
+                    # have been clipped to the wider detected bounds earlier;
+                    # keep it inside the approved span so the reviewer cannot
+                    # later widen the marker back into user-kept content.
+                    clip_dai_core_spans(ad, new_start, new_end)
             if auto_accept:
                 flags.append("INFO: User confirmed as ad")
                 logger.info(
