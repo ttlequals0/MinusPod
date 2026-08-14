@@ -7,7 +7,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.boundaries import deduplicate_window_ads
-from utils.markers import note_merged_members
+from utils.markers import clip_dai_core_spans, merge_dai_core_spans, note_merged_members
 
 
 def _ad(start, end, stage):
@@ -102,3 +102,28 @@ def test_overlap_extension_widens_protected_union():
     assert m['merged_distinct_ads'] is True
     assert m['merged_protected_start'] == 100.0
     assert m['merged_protected_end'] == 220.0
+
+
+def test_dai_core_survives_merge_with_coarser_candidate():
+    base = _ad(80.0, 170.0, 'claude')
+    differential = _ad(100.0, 160.0, 'dai_differential')
+    differential['dai_core_spans'] = [{'start': 100.0, 'end': 160.0}]
+
+    merge_dai_core_spans(base, differential)
+
+    assert base['dai_core_spans'] == [{'start': 100.0, 'end': 160.0}]
+
+
+def test_dai_cores_merge_and_clip_to_split_piece():
+    marker = _ad(100.0, 220.0, 'dai_differential')
+    marker['dai_core_spans'] = [
+        {'start': 100.0, 'end': 150.0},
+        {'start': 150.0, 'end': 220.0},
+    ]
+
+    clip_dai_core_spans(marker, 140.0, 180.0)
+
+    assert marker['dai_core_spans'] == [
+        {'start': 140.0, 'end': 150.0},
+        {'start': 150.0, 'end': 180.0},
+    ]

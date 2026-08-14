@@ -807,3 +807,19 @@ def test_clamp_legacy_merged_marker_stays_expand_only():
     s, e = r._clamp_proposed_bounds(ad, 110.0, 190.0, 100.0, 200.0,
                                     60.0, 'slug', 'ep')
     assert (s, e) == (100.0, 200.0)
+
+
+def test_clamp_preserves_dai_core_but_trims_outer_candidate():
+    r = _build_reviewer()
+    ad = {
+        'start': 80.0,
+        'end': 180.0,
+        'detection_stage': 'dai_differential',
+        'confidence': 0.95,
+        'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+    }
+
+    s, e = r._clamp_proposed_bounds(
+        ad, 120.0, 140.0, 80.0, 180.0, 60.0, 'slug', 'ep')
+
+    assert (s, e) == (100.0, 160.0)

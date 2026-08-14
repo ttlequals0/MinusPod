@@ -24,7 +24,12 @@ from llm_client import (
 from run_log import run_in_worker_thread
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window
-from utils.markers import mark_distinct_merge, note_merged_members
+from utils.markers import (
+    DAI_CORE_SPANS,
+    mark_distinct_merge,
+    merge_dai_core_spans,
+    note_merged_members,
+)
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import truncate
 from utils.time import overlap_ratio, ranges_overlap
@@ -404,6 +409,11 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
             'detection_stage': 'dai_differential',
             # A dynamically inserted block is a paid ad by definition.
             'category': 'sponsor',
+            # Preserve the measured cross-fetch region independently from
+            # the candidate's mutable outer bounds. Later merges may widen
+            # start/end with coarse LLM spans, but the reviewer must not trim
+            # away audio that cross-fetch measured as inserted.
+            DAI_CORE_SPANS: [{'start': start, 'end': end}],
         }
         if stage_overlap:
             ad['reason'] = ('Dynamically inserted: audio differs across '
@@ -2395,6 +2405,7 @@ class AdDetector:
                         and current['start'] >= last['end']):
                     merged.append(_with_category_span(current.copy()))
                     continue
+                merge_dai_core_spans(last, current)
                 # Non-overlapping spans (touching or gapped) are distinct ads,
                 # not the same ad overlapping across stages. Touch counts too
                 # (LLM breaks are often exactly contiguous). Keep these
@@ -2599,6 +2610,7 @@ class AdDetector:
                                or sanitize_sponsor_label(other.get('sponsor')))
 
                     combined = a.copy()
+                    merge_dai_core_spans(combined, b)
                     combined['start'] = min(a['start'], b['start'])
                     combined['end'] = max(a['end'], b['end'])
                     combined['confidence'] = max(a_conf, b_conf)

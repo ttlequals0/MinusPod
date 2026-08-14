@@ -7,7 +7,12 @@ unchanged from the pre-split module.
 import logging
 import re
 
-from utils.markers import mark_distinct_merge, note_merged_members
+from utils.markers import (
+    clip_dai_core_spans,
+    mark_distinct_merge,
+    merge_dai_core_spans,
+    note_merged_members,
+)
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
 from sponsor_service import SponsorService
@@ -1151,6 +1156,7 @@ def split_conflicting_action_span(last: dict, current: dict,
                     'merged_protected_end'):
             clamped.pop(key, None)
         clamped['start'] = last['end']
+        clip_dai_core_spans(clamped, clamped['start'], clamped['end'])
         mark_trusted_fragment(clamped, current)
         return last, [clamped]
     current_wins = (
@@ -1177,17 +1183,22 @@ def split_conflicting_action_span(last: dict, current: dict,
         # narrower piece. Strip them so ad_reviewer's expand-only protection
         # can't float a boundary back out to a stale bound and re-absorb
         # audio this split just carved away.
-        before = {k: v for k, v in last.items()
-                  if k not in ('merged_distinct_ads', 'merged_protected_start',
-                               'merged_protected_end')}
+        base = {k: v for k, v in last.items()
+                if k not in ('merged_distinct_ads', 'merged_protected_start',
+                             'merged_protected_end')}
+        before = dict(base)
         before['end'] = current['start']
-        after = dict(before)
+        clip_dai_core_spans(before, before['start'], before['end'])
+        after = dict(base)
         after['start'] = current['end']
         after['end'] = last['end']
+        clip_dai_core_spans(after, after['start'], after['end'])
         mark_trusted_fragment(before, last)
         mark_trusted_fragment(after, last)
+        current_copy = current.copy()
+        clip_dai_core_spans(current_copy, current_copy['start'], current_copy['end'])
         new_last = before if before['start'] < before['end'] else None
-        entries = [current.copy()]
+        entries = [current_copy]
         if after['start'] < after['end']:
             entries.append(after)
         return new_last, entries
@@ -1197,6 +1208,8 @@ def split_conflicting_action_span(last: dict, current: dict,
                 'merged_protected_end'):
         shortened_last.pop(key, None)
     shortened_last['end'] = current['start']
+    clip_dai_core_spans(shortened_last, shortened_last['start'],
+                        shortened_last['end'])
     mark_trusted_fragment(shortened_last, last)
     if shortened_last['end'] <= shortened_last['start']:
         shortened_last = None
@@ -1257,6 +1270,7 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
                     f"actions) at window-dedup"
                 )
                 continue
+            merge_dai_core_spans(last, current)
             # Non-overlapping spans (touching or gapped) are distinct ads
             # chained together, not the same ad re-detected across an
             # overlapping window. LLM ad breaks are often exactly contiguous

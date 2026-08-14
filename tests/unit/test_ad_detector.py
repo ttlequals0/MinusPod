@@ -794,6 +794,24 @@ class TestSplitConflictingActionSpan:
             assert 'merged_protected_start' not in piece
             assert 'merged_protected_end' not in piece
 
+    def test_nested_split_clips_dai_cores_to_each_remainder(self):
+        last = {
+            'start': 0.0,
+            'end': 100.0,
+            'category': 'sponsor',
+            'dai_core_spans': [
+                {'start': 10.0, 'end': 30.0},
+                {'start': 70.0, 'end': 90.0},
+            ],
+        }
+        current = {'start': 40.0, 'end': 60.0, 'category': 'interaction'}
+
+        new_last, entries = split_conflicting_action_span(last, current)
+
+        assert new_last['dai_core_spans'] == [{'start': 10.0, 'end': 30.0}]
+        assert 'dai_core_spans' not in entries[0]
+        assert entries[1]['dai_core_spans'] == [{'start': 70.0, 'end': 90.0}]
+
 
 class TestDeduplicateWindowAdsActionGate:
     """DTNS 5317: daily-tech-news-show episode 3c0b827ef2c5, reprocessed

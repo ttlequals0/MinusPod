@@ -25,7 +25,7 @@ from config import (
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
-from utils.markers import mark_distinct_merge
+from utils.markers import clip_dai_core_spans, mark_distinct_merge
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -967,6 +967,7 @@ class AdValidator:
                     and ad.get('merged_protected_end') is not None
                     and ad['merged_protected_end'] > self.episode_duration):
                 ad['merged_protected_end'] = self.episode_duration
+            clip_dai_core_spans(ad, ad['start'], ad['end'])
         return ads
 
     def _extend_trailing_ad(self, ads: list[dict],

@@ -31,6 +31,7 @@ from llm_client import (
 )
 from utils.llm_call import call_llm, call_llm_for_window
 from utils.llm_response import extract_json_ads_array, extract_json_object
+from utils.markers import dai_core_bounds
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
@@ -1123,6 +1124,23 @@ class AdReviewer:
                 )
             clamped_start, clamped_end = floor_start, floor_end
 
+        # Cross-fetch evidence remains authoritative inside a merged
+        # candidate. The reviewer may trim coarse LLM/VAD extensions outside
+        # these measured regions, but cannot leave part of an inserted block
+        # in the published episode.
+        core_start, core_end = dai_core_bounds(ad)
+        if core_start is not None:
+            floor_start = min(clamped_start, core_start)
+            floor_end = max(clamped_end, core_end)
+            if floor_start != clamped_start or floor_end != clamped_end:
+                logger.info(
+                    f"[{slug}:{episode_id}] Reviewer inward shrink clamped "
+                    f"to DAI core @ {core_start:.1f}-{core_end:.1f}s: "
+                    f"{clamped_start:.1f}-{clamped_end:.1f} -> "
+                    f"{floor_start:.1f}-{floor_end:.1f}"
+                )
+            clamped_start, clamped_end = floor_start, floor_end
+
         if clamped_end <= clamped_start:
             clamped_start, clamped_end = original_start, original_end
         return clamped_start, clamped_end
@@ -1256,6 +1274,10 @@ class AdReviewer:
                 start = min(start, p_start)
             if p_end is not None:
                 end = max(end, p_end)
+        core_start, core_end = dai_core_bounds(ad)
+        if core_start is not None:
+            start = min(start, core_start)
+            end = max(end, core_end)
         return start, end
 
     @staticmethod

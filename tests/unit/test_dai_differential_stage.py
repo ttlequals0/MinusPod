@@ -26,6 +26,7 @@ def test_differential_with_stage_overlap_becomes_cut():
     assert ad.get('held_for_review') is not True
     assert 'differential_uncorroborated' not in ad
     assert 'corroborated by overlapping ad marker' in ad['reason']
+    assert ad['dai_core_spans'] == [{'start': 100.0, 'end': 160.0}]
 
 
 def test_uncorroborated_differential_is_held_not_cut_not_dropped():
@@ -84,6 +85,42 @@ def test_merge_prefers_differential_stage_and_confidence():
     assert merged[0]['detection_stage'] == 'dai_differential'
     assert merged[0]['confidence'] == 0.95
     assert merged[0]['end'] == 160.0
+
+
+def test_merge_preserves_measured_dai_core_inside_coarse_llm_span():
+    detector = AdDetector(api_key='test-key')
+    differential = dai_differential_ads(
+        _DIFF, [], corroborating_spans=[(105.0, 155.0)])[0]
+
+    merged = detector._merge_detection_results([
+        {'start': 80.0, 'end': 180.0, 'confidence': 0.80,
+         'reason': 'Coarse sponsor block', 'detection_stage': 'claude'},
+        differential,
+    ])
+
+    assert len(merged) == 1
+    assert merged[0]['start'] == 80.0
+    assert merged[0]['end'] == 180.0
+    assert merged[0]['dai_core_spans'] == [
+        {'start': 100.0, 'end': 160.0},
+    ]
+
+
+def test_unmerged_adjacent_differential_keeps_core_on_its_own_marker():
+    detector = AdDetector(api_key='test-key')
+    differential = dai_differential_ads(_DIFF, [])[0]
+
+    merged = detector._merge_detection_results([
+        {'start': 80.0, 'end': 99.0, 'confidence': 0.80,
+         'reason': 'Nearby sponsor block', 'detection_stage': 'claude'},
+        differential,
+    ])
+
+    assert len(merged) == 2
+    assert 'dai_core_spans' not in merged[0]
+    assert merged[1]['dai_core_spans'] == [
+        {'start': 100.0, 'end': 160.0},
+    ]
 
 
 def test_merge_clears_held_state_when_claude_verifies_transcribed_span():
