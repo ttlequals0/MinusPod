@@ -6,7 +6,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import CopyButton from '../../components/CopyButton';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
 import { regenerateAllFeeds } from '../../api/feeds';
-import { btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { btnSecondary } from '../../components/buttonStyles';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
@@ -52,43 +52,6 @@ function AuthenticatedFeedsSection() {
   function handleRegenerateKey() {
     setConfirmRegenerate(true);
   }
-
-  const blockedAgents = settings?.jitBlockedUserAgents?.value ?? [];
-  const [addingAgent, setAddingAgent] = useState(false);
-  const [agentInput, setAgentInput] = useState('');
-  const [agentError, setAgentError] = useState<string | null>(null);
-
-  const agentsMutation = useMutation({
-    mutationFn: (agents: string[]) => updateSettings({ jitBlockedUserAgents: agents }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings'] });
-    },
-  });
-
-  const addBlockedAgent = () => {
-    const pattern = agentInput.trim();
-    if (!pattern) return;
-    if (blockedAgents.includes(pattern)) {
-      setAgentInput('');
-      setAddingAgent(false);
-      return;
-    }
-    setAgentError(null);
-    agentsMutation.mutate([...blockedAgents, pattern], {
-      onSuccess: () => {
-        setAgentInput('');
-        setAddingAgent(false);
-      },
-      onError: (e) => setAgentError(getErrorMessage(e, 'Failed to add agent')),
-    });
-  };
-
-  const removeBlockedAgent = (agent: string) => {
-    setAgentError(null);
-    agentsMutation.mutate(blockedAgents.filter((a) => a !== agent), {
-      onError: (e) => setAgentError(getErrorMessage(e, 'Failed to remove agent')),
-    });
-  };
 
   return (
     <CollapsibleSection title="Authenticated Feeds" subtitle="Require a key in feed URLs">
@@ -172,89 +135,6 @@ function AuthenticatedFeedsSection() {
             </p>
           </div>
         )}
-
-        <div className="pt-4 border-t border-border">
-          <span className="block text-sm font-medium text-foreground mb-2">
-            Agents that skip processing
-          </span>
-          {blockedAgents.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
-              {blockedAgents.map((agent) => (
-                <span
-                  key={agent}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/20 text-c-blue-on-tint"
-                >
-                  {agent}
-                  <button
-                    type="button"
-                    onClick={() => removeBlockedAgent(agent)}
-                    disabled={agentsMutation.isPending}
-                    className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
-                    aria-label={`Remove ${agent}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            {!addingAgent ? (
-              <button
-                type="button"
-                onClick={() => setAddingAgent(true)}
-                disabled={agentsMutation.isPending}
-                className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-              >
-                + Add agent
-              </button>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  autoFocus
-                  value={agentInput}
-                  onChange={(e) => setAgentInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addBlockedAgent();
-                    }
-                  }}
-                  placeholder="^atc/"
-                  aria-label="New blocked agent pattern"
-                  maxLength={200}
-                  className={`px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0 ${focusRing}`}
-                />
-                <button
-                  type="button"
-                  onClick={addBlockedAgent}
-                  disabled={agentsMutation.isPending || !agentInput.trim()}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingAgent(false);
-                    setAgentInput('');
-                    setAgentError(null);
-                  }}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
-                >
-                  Cancel
-                </button>
-              </>
-            )}
-          </div>
-          {agentError && (
-            <p className="mt-2 text-sm text-destructive">{agentError}</p>
-          )}
-          <p className="mt-2 text-sm text-muted-foreground">
-            Agents listed here get the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
-          </p>
-        </div>
       </div>
       {confirmRegenerate && (
         <ConfirmModal

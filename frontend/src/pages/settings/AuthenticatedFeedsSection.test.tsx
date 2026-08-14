@@ -1,6 +1,6 @@
-/** Component tests for the JIT-blocked user agent list in AuthenticatedFeedsSection.tsx. */
+/** Component tests for the key toggle and regenerate controls in AuthenticatedFeedsSection.tsx. */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AuthenticatedFeedsSection from './AuthenticatedFeedsSection';
@@ -45,73 +45,50 @@ function renderSection() {
   );
 }
 
-const ADD_BUTTON_NAME = '+ Add agent';
-
 beforeEach(() => {
   vi.clearAllMocks();
   mockUpdateSettings.mockResolvedValue({ message: 'ok' });
+  mockRegenerateFeedKey.mockResolvedValue({ feedAuthKey: 'new-key' });
+  mockRegenerateAllFeeds.mockResolvedValue({ message: 'ok', feedCount: 3 });
 });
 
-describe('AuthenticatedFeedsSection blocked user agents', () => {
-  it('renders existing patterns as chips', async () => {
-    mockGetSettings.mockResolvedValue(makeSettings({
-      jitBlockedUserAgents: { value: ['PocketCasts', '^atc/'], isDefault: false },
-    }));
-    renderSection();
-
-    expect(await screen.findByText('PocketCasts')).toBeDefined();
-    expect(screen.getByText('^atc/')).toBeDefined();
-  });
-
-  it('adding one calls updateSettings with the appended array', async () => {
-    mockGetSettings.mockResolvedValue(makeSettings({
-      jitBlockedUserAgents: { value: ['PocketCasts'], isDefault: false },
-    }));
-    renderSection();
-
-    await screen.findByText('PocketCasts');
-    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
-    await userEvent.type(screen.getByLabelText('New blocked agent pattern'), '^atc/');
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
-
-    expect(mockUpdateSettings).toHaveBeenCalledWith({
-      jitBlockedUserAgents: ['PocketCasts', '^atc/'],
-    });
-  });
-
-  it('removing one calls updateSettings with the filtered array', async () => {
-    mockGetSettings.mockResolvedValue(makeSettings({
-      jitBlockedUserAgents: { value: ['PocketCasts', '^atc/'], isDefault: false },
-    }));
-    renderSection();
-
-    await screen.findByText('PocketCasts');
-    await userEvent.click(screen.getByRole('button', { name: 'Remove PocketCasts' }));
-
-    expect(mockUpdateSettings).toHaveBeenCalledWith({
-      jitBlockedUserAgents: ['^atc/'],
-    });
-  });
-
-  it('a failed add keeps the editor open with its value and shows the error', async () => {
-    mockGetSettings.mockResolvedValue(makeSettings());
-    mockUpdateSettings.mockRejectedValueOnce(new Error('jitBlockedUserAgents entries must be 1-200 characters'));
-    renderSection();
-
-    await screen.findByRole('button', { name: ADD_BUTTON_NAME });
-    await userEvent.click(screen.getByRole('button', { name: ADD_BUTTON_NAME }));
-    const input = screen.getByLabelText('New blocked agent pattern');
-    await userEvent.type(input, '^atc/');
-    await userEvent.click(screen.getByRole('button', { name: 'Add' }));
-
-    expect(await screen.findByText('jitBlockedUserAgents entries must be 1-200 characters')).toBeDefined();
-    expect((screen.getByLabelText('New blocked agent pattern') as HTMLInputElement).value).toBe('^atc/');
-  });
-
-  it('shows helper text explaining the matching rule', async () => {
+describe('AuthenticatedFeedsSection key toggle', () => {
+  it('toggling the switch calls updateSettings with feedAuthEnabled', async () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     renderSection();
 
-    expect(await screen.findByText(/case-insensitive, matches anywhere in the agent string/i)).toBeDefined();
+    const toggle = await screen.findByLabelText('Require key in feed URLs');
+    await userEvent.click(toggle);
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ feedAuthEnabled: true });
+  });
+});
+
+describe('AuthenticatedFeedsSection regenerate controls', () => {
+  it('shows regenerate controls once auth is enabled, and confirming regenerate key calls the API', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      feedAuthEnabled: { value: true, isDefault: false },
+      feedAuthKey: 'existing-key',
+    }));
+    renderSection();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Regenerate key' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Regenerate key' }));
+
+    expect(mockRegenerateFeedKey).toHaveBeenCalled();
+  });
+
+  it('regenerate feeds button calls regenerateAllFeeds', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      feedAuthEnabled: { value: true, isDefault: false },
+      feedAuthKey: 'existing-key',
+    }));
+    renderSection();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Regenerate feeds' }));
+
+    expect(mockRegenerateAllFeeds).toHaveBeenCalled();
+    expect(await screen.findByText('Regenerated 3 feeds')).toBeDefined();
   });
 });

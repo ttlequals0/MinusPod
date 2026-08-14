@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rotateMasterPassphrase } from '../../api/providers';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
+import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
 
@@ -24,6 +26,50 @@ function SecuritySection({
   cryptoReady = false,
   plaintextSecretsCount = 0,
 }: SecuritySectionProps) {
+  const queryClient = useQueryClient();
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+
+  const blockedAgents = settings?.jitBlockedUserAgents?.value ?? [];
+  const [addingAgent, setAddingAgent] = useState(false);
+  const [agentInput, setAgentInput] = useState('');
+  const [agentError, setAgentError] = useState<string | null>(null);
+
+  const agentsMutation = useMutation({
+    mutationFn: (agents: string[]) => updateSettings({ jitBlockedUserAgents: agents }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
+  const addBlockedAgent = () => {
+    const pattern = agentInput.trim();
+    if (!pattern) return;
+    if (blockedAgents.includes(pattern)) {
+      setAgentInput('');
+      setAddingAgent(false);
+      return;
+    }
+    setAgentError(null);
+    agentsMutation.mutate([...blockedAgents, pattern], {
+      onSuccess: () => {
+        setAgentInput('');
+        setAddingAgent(false);
+      },
+      onError: (e) => setAgentError(getErrorMessage(e, 'Failed to add agent')),
+    });
+  };
+
+  const removeBlockedAgent = (agent: string) => {
+    setAgentError(null);
+    agentsMutation.mutate(blockedAgents.filter((a) => a !== agent), {
+      onError: (e) => setAgentError(getErrorMessage(e, 'Failed to remove agent')),
+    });
+  };
+
   const [oldPassphrase, setOldPassphrase] = useState('');
   const [newPassphrase, setNewPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
@@ -294,6 +340,87 @@ function SecuritySection({
               {isRotating ? 'Rotating...' : 'Rotate Master Passphrase'}
             </button>
           </form>
+        )}
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-border">
+        <h3 className="text-base font-semibold text-foreground mb-1">Agents that skip processing</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Agents listed here get the original audio instead of triggering processing. Case-insensitive, matches anywhere in the agent string. Start a pattern with ^ to match only the beginning, for example ^atc/.
+        </p>
+        {blockedAgents.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {blockedAgents.map((agent) => (
+              <span
+                key={agent}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded bg-c-blue/20 text-c-blue-on-tint"
+              >
+                {agent}
+                <button
+                  type="button"
+                  onClick={() => removeBlockedAgent(agent)}
+                  disabled={agentsMutation.isPending}
+                  className={`text-c-blue/60 dark:text-c-blue/60 hover:text-destructive dark:hover:text-destructive disabled:opacity-50 ${focusRing}`}
+                  aria-label={`Remove ${agent}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          {!addingAgent ? (
+            <button
+              type="button"
+              onClick={() => setAddingAgent(true)}
+              disabled={agentsMutation.isPending}
+              className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+            >
+              + Add agent
+            </button>
+          ) : (
+            <>
+              <input
+                type="text"
+                autoFocus
+                value={agentInput}
+                onChange={(e) => setAgentInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addBlockedAgent();
+                  }
+                }}
+                placeholder="^atc/"
+                aria-label="New blocked agent pattern"
+                maxLength={200}
+                className={`px-2 py-1 text-xs bg-secondary border border-border rounded flex-1 min-w-0 ${focusRing}`}
+              />
+              <button
+                type="button"
+                onClick={addBlockedAgent}
+                disabled={agentsMutation.isPending || !agentInput.trim()}
+                className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAddingAgent(false);
+                  setAgentInput('');
+                  setAgentError(null);
+                }}
+                className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {agentError && (
+          <p className="mt-2 text-sm text-destructive">{agentError}</p>
         )}
       </div>
       {confirmRotate && (
