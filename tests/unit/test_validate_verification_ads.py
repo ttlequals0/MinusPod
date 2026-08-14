@@ -19,6 +19,7 @@ _test_data_dir = bootstrap('validate_vads_test_')
 from main_app.processing import (
     _drop_uncovered_pass2_ads,
     _gate_verification_ads_by_confidence,
+    _recut_processed_audio,
     _validate_verification_ads,
 )
 import main_app.processing as processing_mod
@@ -149,6 +150,32 @@ def test_kept_tail_blocks_trailing_ad_extension():
     assert kept_proc[0]['end'] == 140.0
     assert kept_orig[0]['marker'] == 'removable'
     assert '_pass2_keep_barrier' not in kept_tail[0]
+
+
+def test_recut_carries_kept_tail_to_applied_cut_computation():
+    processor = MagicMock()
+    processor.process_episode.return_value = None
+    cuts = [
+        {'start': 100.0, 'end': 140.0, 'action_applied': 'remove'},
+    ]
+    barriers = [
+        {'start': 145.0, 'end': 165.0, 'action_applied': 'keep'},
+    ]
+
+    path, applied, ok = _recut_processed_audio(
+        'show', 'ep1', '/tmp/nonexistent-pass2.mp3', cuts, processor,
+        end_extension_barriers=barriers,
+    )
+
+    assert path == '/tmp/nonexistent-pass2.mp3'
+    assert applied is None
+    assert ok is False
+    processor.process_episode.assert_called_once_with(
+        '/tmp/nonexistent-pass2.mp3',
+        [{'start': 100.0, 'end': 140.0, 'action_applied': 'remove',
+          'beep': False}],
+        end_extension_barriers=barriers,
+    )
 
 
 def test_explicit_duration_is_validator_clamp_target():

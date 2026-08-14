@@ -240,13 +240,17 @@ class AudioProcessor:
                     pass
 
     def compute_applied_cuts(self, ad_segments: list[dict],
-                             total_duration: float) -> list[dict]:
+                             total_duration: float,
+                             end_extension_barriers: list[dict] | None = None
+                             ) -> list[dict]:
         """Compute the cuts remove_ads actually applies to the audio.
 
         Requested segments diverge from applied cuts: near-adjacent segments
         merge, short ones drop, and an end-of-episode cut extends to the end
-        of the file. Asset generation and verification timestamp mapping need
-        the applied list, not the requested one -- remove_ads returns it.
+        of the file. ``end_extension_barriers`` identifies content after the
+        final cut that must prevent that extension. Asset generation and
+        verification timestamp mapping need the applied list, not the
+        requested one -- remove_ads returns it.
         """
         if not ad_segments or not total_duration:
             return []
@@ -326,7 +330,17 @@ class AudioProcessor:
         # cut, the episode ends at the beep, so the cut runs to the end.
         if ads:
             remaining = total_duration - ads[-1]['end']
-            if remaining < POST_ROLL_TRIM_THRESHOLD and ads[-1]['end'] != total_duration:
+            extension_blocked = any(
+                barrier['start'] < total_duration
+                and barrier['end'] > ads[-1]['end']
+                for barrier in end_extension_barriers or []
+            )
+            if extension_blocked:
+                logger.info(
+                    f"End-of-episode cut: preserving content after "
+                    f"{ads[-1]['end']:.1f}s because a keep barrier follows")
+            elif (remaining < POST_ROLL_TRIM_THRESHOLD
+                  and ads[-1]['end'] != total_duration):
                 logger.info(f"End-of-episode cut: extending {ads[-1]['end']:.1f}s -> "
                             f"{total_duration:.1f}s ({remaining:.1f}s would remain)")
                 ads[-1]['end'] = total_duration
@@ -351,7 +365,9 @@ class AudioProcessor:
         return ads
 
     def remove_ads(self, input_path: str, ad_segments: list[dict],
-                   output_path: str) -> list[dict] | None:
+                   output_path: str,
+                   end_extension_barriers: list[dict] | None = None
+                   ) -> list[dict] | None:
         """Remove ad segments from audio file.
 
         Returns the applied cut list (see compute_applied_cuts) on success --
@@ -378,7 +394,9 @@ class AudioProcessor:
 
             logger.info(f"Processing audio: {total_duration:.1f}s total, {len(ad_segments)} ad segments")
 
-            ads = self.compute_applied_cuts(ad_segments, total_duration)
+            ads = self.compute_applied_cuts(
+                ad_segments, total_duration,
+                end_extension_barriers=end_extension_barriers)
             logger.info(f"After merging and filtering: {len(ads)} ad segments")
             if not ads:
                 # Every requested cut merged/filtered away: nothing to cut,
@@ -566,8 +584,9 @@ class AudioProcessor:
             if chapters_meta_path and os.path.exists(chapters_meta_path):
                 os.unlink(chapters_meta_path)
 
-    def process_episode(self, input_path: str,
-                        ad_segments: list[dict]) -> tuple[str, list[dict]] | None:
+    def process_episode(self, input_path: str, ad_segments: list[dict],
+                        end_extension_barriers: list[dict] | None = None
+                        ) -> tuple[str, list[dict]] | None:
         """Process episode audio to remove ads.
 
         Returns (output_path, applied_cuts) on success, None on failure.
@@ -578,7 +597,9 @@ class AudioProcessor:
             temp_output = tmp.name
 
         try:
-            applied_cuts = self.remove_ads(input_path, ad_segments, temp_output)
+            applied_cuts = self.remove_ads(
+                input_path, ad_segments, temp_output,
+                end_extension_barriers=end_extension_barriers)
             if applied_cuts is not None:
                 return temp_output, applied_cuts
             # Clean up on failure

@@ -2155,7 +2155,8 @@ def _pass2_cuts_in_original(recut_applied, pass1_cuts):
 
 
 def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
-                            local_audio_processor):
+                            local_audio_processor,
+                            end_extension_barriers=None):
     """Re-cut the pass-1 processed audio with verification ads.
 
     Returns (processed_path, recut_applied, recut_ok) where recut_applied is
@@ -2167,7 +2168,9 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     # instead of silently falling back to a full remove.
     audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
                       for ad in v_ads_to_cut]
-    recut_result = local_audio_processor.process_episode(processed_path, audio_segments)
+    recut_result = local_audio_processor.process_episode(
+        processed_path, audio_segments,
+        end_extension_barriers=end_extension_barriers)
     if recut_result:
         recut_path, recut_applied = recut_result
         if os.path.exists(processed_path):
@@ -2379,6 +2382,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     processed_path, recut_applied, recut_ok = _recut_processed_audio(
                         slug, episode_id, processed_path, v_ads_to_cut,
                         local_audio_processor,
+                        end_extension_barriers=category_kept_processed,
                     )
                     if recut_ok:
                         _drop_uncovered_pass2_ads(
