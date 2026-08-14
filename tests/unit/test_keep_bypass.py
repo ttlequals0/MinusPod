@@ -721,6 +721,22 @@ class TestPartitionPass2CategoryActions:
         assert out_p == []
         assert out_o == []
 
+    def test_pass1_and_pass2_keeps_share_processed_barrier_list(self):
+        pass1_keep = {'start': 100.0, 'end': 120.0, 'action_applied': 'keep'}
+        pass2_keep = {'start': 200.0, 'end': 220.0, 'action_applied': 'keep'}
+        pass1_cuts = [
+            {'start': 20.0, 'end': 40.0, 'replacement_duration': 1.0},
+        ]
+
+        barriers = processing._pass2_keep_barriers_processed(
+            [pass1_keep], pass1_cuts, [pass2_keep])
+
+        assert [(marker['start'], marker['end']) for marker in barriers] == [
+            (81.0, 101.0), (200.0, 220.0),
+        ]
+        assert barriers[1] is pass2_keep
+        assert (pass1_keep['start'], pass1_keep['end']) == (100.0, 120.0)
+
     def test_run_verification_persists_keep_without_recut(self):
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,

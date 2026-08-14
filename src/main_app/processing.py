@@ -128,6 +128,7 @@ from main_app.verification_reconciliation import (
     _drop_uncovered_pass2_ads,
     _exclude_kept_spans_from_verification,
     _gate_verification_ads_by_confidence,
+    _pass2_keep_barriers_processed,
     _proposed_span_agrees,  # noqa: F401 re-exported for processing.<name> test patch targets
 )
 # Singletons created in main_app/__init__.py before this submodule is
@@ -2387,6 +2388,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             category_kept_processed,
             pass1_cuts,
         )
+        keep_barriers_processed = _pass2_keep_barriers_processed(
+            pass1_kept_markers,
+            pass1_cuts,
+            category_kept_processed,
+        )
 
         had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
@@ -2410,7 +2416,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     cue_gate_enabled=cue_gate_enabled,
                     podcast_id=ctx.podcast_id,
                     segment_actions=segment_actions,
-                    keep_barriers_processed=category_kept_processed,
+                    keep_barriers_processed=keep_barriers_processed,
                 )
 
             if verification_ads_processed:
@@ -2452,7 +2458,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     processed_path, recut_applied, recut_ok = _recut_processed_audio(
                         slug, episode_id, processed_path, v_ads_to_cut,
                         local_audio_processor,
-                        cut_barriers=category_kept_processed,
+                        cut_barriers=keep_barriers_processed,
                     )
                     if recut_ok:
                         _drop_uncovered_pass2_ads(
