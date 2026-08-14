@@ -328,7 +328,10 @@ class TestProcessEpisodeCallSiteUniformity:
 
     def test_every_call_site_passes_audio_segments(self):
         source = inspect.getsource(processing)
-        calls = re.findall(r'\.process_episode\(\s*[^,]+,\s*(\w+)\)', source)
+        calls = re.findall(
+            r'\.process_episode\(\s*[^,]+,\s*(\w+)(?:,\s*[^)]*)?\)',
+            source,
+        )
         assert len(calls) >= 3, (
             f"expected at least the pass-1, pass-2-recut, and recut-mode "
             f"call sites, found {calls}")
