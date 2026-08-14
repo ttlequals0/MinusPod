@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock
 
 from ad_detector import AdDetector, WindowResult
 from config import SEGMENT_CATEGORIES, DEFAULT_SEGMENT_ACTION, normalize_segment_category
+from database import DEFAULT_VERIFICATION_PROMPT
 from utils.constants import DEFAULT_SYSTEM_PROMPT, SHOW_SEGMENTS_PROMPT_SECTION
 from ad_detector.prompts import (
     parse_ads_from_response, parse_category_repair_response,
@@ -78,6 +79,14 @@ class TestDefaultPromptCategoryInstructions:
         assert 0 < required_idx - schema_idx < 400
         assert 'is invalid' in DEFAULT_SYSTEM_PROMPT
 
+    def test_verification_prompt_requires_category(self):
+        schema_idx = DEFAULT_VERIFICATION_PROMPT.index('Each ad segment:')
+        required_idx = DEFAULT_VERIFICATION_PROMPT.index(
+            '"category" is REQUIRED on every object')
+        assert 0 < required_idx - schema_idx < 500
+        for category in SEGMENT_CATEGORIES:
+            assert category in DEFAULT_VERIFICATION_PROMPT
+
     def test_non_sponsor_worked_example_present(self):
         # Both worked examples used to be "sponsor"; the model needs to see
         # a non-sponsor category filled in at least once.
@@ -86,6 +95,27 @@ class TestDefaultPromptCategoryInstructions:
         non_sponsor_cats = ('cross_promo', 'self_promo', 'interaction')
         assert any(f'"category": "{cat}"' in examples_section
                    for cat in non_sponsor_cats)
+
+
+def test_verification_wires_category_actions_into_repair_and_dedup():
+    action_map = dict(_all_remove_map(), self_promo='keep', outro='beep')
+    detector = AdDetector(api_key='test-key')
+    detector.db = _FakeDb(segment_actions=action_map)
+    run_pass = MagicMock(return_value=([], [], 0, None, 0, 0, 0))
+
+    with patch.object(detector, 'initialize_client'), \
+         patch.object(detector, 'get_verification_prompt', return_value='verification'), \
+         patch.object(detector, 'get_verification_model', return_value='model'), \
+         patch.object(detector, '_build_known_pattern_hint', return_value=''), \
+         patch.object(detector, '_run_detection_pass', run_pass):
+        result = detector.run_verification_detection(
+            _WARNING_SEGMENTS, podcast_name='Test', episode_title='Ep',
+            slug='daily-tech-news-show', episode_id='ep1')
+
+    assert result['status'] == 'success'
+    kwargs = run_pass.call_args.kwargs
+    assert kwargs['action_map'] == action_map
+    assert kwargs['category_repair_enabled'] is True
 
 
 class TestShowSegmentsSection:

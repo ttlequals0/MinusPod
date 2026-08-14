@@ -1319,8 +1319,8 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
     partition cannot reuse the single-list pass-1 helper. Kept candidates are
     removed from both detection lists before validation and reviewer routing;
     their original-coordinate marker is returned for persistence. Remaining
-    candidates are stamped remove/beep in both coordinate spaces so the recut
-    renders the configured action.
+    candidates remain unstamped until confidence gating and review decide
+    which ones the recut will actually render.
 
     Returns ``(remaining_processed, remaining_original, kept_original)``.
     """
@@ -1348,17 +1348,27 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
             continue
 
         if action == 'keep':
-            action = DEFAULT_SEGMENT_ACTION
             processed['keep_overridden_by_pattern'] = True
             original['keep_overridden_by_pattern'] = True
-        if action not in ('remove', 'beep'):
-            action = DEFAULT_SEGMENT_ACTION
-        processed['action_applied'] = action
-        original['action_applied'] = action
         remaining_processed.append(processed)
         remaining_original.append(original)
 
     return remaining_processed, remaining_original, kept_original
+
+
+def _stamp_pass2_cut_actions(processed_cuts, original_cuts, actions_map):
+    """Stamp remove/beep only after pass-2 candidates become actual cuts.
+
+    Validation and review may still divert a candidate into a hold or reject
+    it. Delaying the stamp keeps those uncut markers from advertising a cut
+    seam or replacement range to downstream chapter generation.
+    """
+    for marker in [*processed_cuts, *original_cuts]:
+        category = normalize_segment_category(marker.get('category'))
+        action = actions_map.get(category, DEFAULT_SEGMENT_ACTION)
+        if action not in ('remove', 'beep'):
+            action = DEFAULT_SEGMENT_ACTION
+        marker['action_applied'] = action
 
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
@@ -2257,6 +2267,18 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             pass1_cuts, podcast_name, skip_patterns,
         )
 
+        # A pass-1 keep is operator intent. Divert overlaps before category
+        # partitioning so a same-category keep does not become a duplicate
+        # pass-2 marker and no conflicting finding can reach validation.
+        (verification_ads_processed,
+         verification_ads_original,
+         kept_conflicts) = _exclude_kept_spans_from_verification(
+            verification_ads_processed,
+            verification_ads_original,
+            pass1_kept_markers,
+            pass1_cuts,
+        )
+
         (verification_ads_processed,
          verification_ads_original,
          category_kept) = _partition_pass2_category_actions(
@@ -2271,6 +2293,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 f"{len(category_kept)} segment(s) by category action"
             )
 
+        had_verification_candidates = bool(verification_ads_processed)
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
 
@@ -2294,12 +2317,6 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     segment_actions=segment_actions,
                 )
 
-            # Kept-span exclusion: must run before any finding is routed to
-            # a cut, a hold, or a dropped-miss log line.
-            verification_ads_processed, verification_ads_original, kept_conflicts = _exclude_kept_spans_from_verification(
-                verification_ads_processed, verification_ads_original,
-                pass1_kept_markers, pass1_cuts,
-            )
             if verification_ads_processed:
                 # Confidence gate and re-cut
                 (v_ads_to_cut, v_ads_for_ui, gated_held,
@@ -2325,6 +2342,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     cue_gate_enabled=cue_gate_enabled,
                 )
 
+                _stamp_pass2_cut_actions(
+                    v_ads_to_cut, v_ads_for_ui, segment_actions)
+
                 if v_ads_to_cut:
                     audio_logger.info(
                         f"[{slug}:{episode_id}] Re-cutting pass 1 output for "
@@ -2349,10 +2369,12 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     else:
                         v_ads_for_ui = []
 
-            # Kept conflicts are disjoint from the gate output. Uncut markers
-            # must never also enter v_ads_for_ui or they would be saved twice.
-            v_ads_held.extend(kept_conflicts)
-        elif not category_kept:
+        # Kept conflicts are disjoint from the category and confidence output.
+        # They remain uncut and must never also enter v_ads_for_ui.
+        v_ads_held.extend(kept_conflicts)
+        if (not had_verification_candidates
+                and not category_kept
+                and not kept_conflicts):
             audio_logger.info(f"[{slug}:{episode_id}] Verification: clean")
 
         verification_ok = True
