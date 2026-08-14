@@ -737,6 +737,42 @@ class TestPartitionPass2CategoryActions:
         assert barriers[1] is pass2_keep
         assert (pass1_keep['start'], pass1_keep['end']) == (100.0, 120.0)
 
+    def test_remove_candidate_splits_around_beep_candidate(self):
+        remove_processed = {
+            'start': 100.0, 'end': 180.0, 'action_applied': 'remove',
+        }
+        remove_original = {
+            'start': 119.0, 'end': 199.0, 'action_applied': 'remove',
+        }
+        beep_processed = {
+            'start': 130.0, 'end': 150.0, 'action_applied': 'beep',
+        }
+        beep_original = {
+            'start': 149.0, 'end': 169.0, 'action_applied': 'beep',
+        }
+        pass1_cuts = [
+            {'start': 50.0, 'end': 70.0, 'replacement_duration': 1.0},
+        ]
+
+        out_p, out_o = processing._reconcile_pass2_cut_actions(
+            [remove_processed, beep_processed],
+            [remove_original, beep_original],
+            pass1_cuts,
+        )
+
+        assert [(ad['start'], ad['end'], ad['action_applied'])
+                for ad in out_p] == [
+            (100.0, 130.0, 'remove'),
+            (130.0, 150.0, 'beep'),
+            (150.0, 180.0, 'remove'),
+        ]
+        assert [(ad['start'], ad['end'], ad['action_applied'])
+                for ad in out_o] == [
+            (119.0, 149.0, 'remove'),
+            (149.0, 169.0, 'beep'),
+            (169.0, 199.0, 'remove'),
+        ]
+
     def test_run_verification_persists_keep_without_recut(self):
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,

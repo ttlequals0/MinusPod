@@ -894,6 +894,26 @@ def test_drop_uncovered_handles_twinless_cut():
     assert filtered['was_cut'] is False
 
 
+def test_drop_uncovered_removes_split_cut_ui_twin():
+    covered = {'start': 100.0, 'end': 130.0}
+    filtered = {'start': 150.0, 'end': 155.0}
+    covered_ui = {'start': 1100.0, 'end': 1130.0}
+    filtered_ui = {'start': 1150.0, 'end': 1155.0}
+    v_ads_to_cut = [covered, filtered]
+    v_ads_for_ui = [covered_ui, filtered_ui]
+
+    _drop_uncovered_pass2_ads(
+        's', 'e', v_ads_to_cut, v_ads_for_ui,
+        [{'start': 100.0, 'end': 130.0}], [], [],
+        total_duration=600.0,
+    )
+
+    assert v_ads_to_cut == [covered]
+    assert v_ads_for_ui == [covered_ui]
+    assert filtered['was_cut'] is False
+    assert filtered_ui['was_cut'] is False
+
+
 def test_filing_respects_human_reject(monkeypatch):
     """A span the user explicitly rejected must never be auto-filed."""
     db = MagicMock()
