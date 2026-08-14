@@ -62,7 +62,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## H
 
-**Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, or a reviewer contradiction) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
+**Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
 ## K
 
@@ -136,6 +136,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## V
 
 **Validation** - The rule-based gate every detection passes before cutting: duration limits, confidence, overlap with your corrections, cue evidence, splice checks. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
+
+**Verification conflict** - A second-pass finding that lands on a span the first pass deliberately kept. Your segment-action map wins, so the audio is left alone, but the finding holds for review under hold reason `verification_kept_conflict` rather than being discarded. [How It Works > Verification Pass](how-it-works.md#verification-pass)
 
 **Verification miss** - A standalone pass-2 detection (an ad the verification pass found but the first pass missed) that overlaps no pass-1 marker. Above a confidence floor it holds for review, or cuts automatically when autocut is enabled; below the floor it is dropped and logged rather than surfacing silently. [Configuration > Detection Tuning](configuration.md#detection-tuning)
 

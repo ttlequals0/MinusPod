@@ -50,6 +50,8 @@ A pass-2 detection that overlaps an already-accepted ad is folded into the recut
 - Otherwise, once it clears the hold floor (default 0.60): holds for review with hold reason `verification_miss`, shown as a "Verification catch" chip in [Held for Review](#held-for-review).
 - Below the hold floor: dropped, with a log line naming what was dropped and why. Never silent.
 
+A third case is a pass-2 finding that lands on a span pass 1 deliberately kept. The keep reflects your segment-action map, so pass 2 never cuts through it, but the finding is not discarded: it holds for review with hold reason `verification_kept_conflict`.
+
 See [Configuration > Detection Tuning](configuration.md#detection-tuning) for both floors.
 
 ### Sliding Window Processing
