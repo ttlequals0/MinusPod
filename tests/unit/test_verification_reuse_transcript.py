@@ -81,3 +81,27 @@ def test_no_cuts_reuses_transcript_directly_regardless_of_flag():
     v.transcriber.transcribe_chunked.assert_not_called()
     passed = v.ad_detector.run_verification_detection.call_args[0][0]
     assert [s['text'] for s in passed] == ['intro']
+
+
+def test_category_kept_detection_is_not_learned_as_a_miss():
+    v = _verifier()
+    v.pattern_service = MagicMock()
+    v.ad_detector.run_verification_detection.return_value = {
+        'ads': [
+            {'start': 10.0, 'end': 30.0, 'category': 'self_promo',
+             'sponsor': 'Own show'},
+            {'start': 40.0, 'end': 70.0, 'category': 'sponsor',
+             'sponsor': 'Acme'},
+        ],
+        'segment_actions': {
+            'self_promo': 'keep',
+            'sponsor': 'remove',
+        },
+    }
+    original = [_seg(0.0, 90.0, 'intro own show acme sponsor')]
+
+    v.verify(**_kwargs(pass1_cuts=[], original_segments=original))
+
+    learned = v.pattern_service.record_verification_misses.call_args.args[2]
+    assert len(learned) == 1
+    assert learned[0]['category'] == 'sponsor'

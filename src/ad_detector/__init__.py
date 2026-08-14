@@ -2755,7 +2755,8 @@ class AdDetector:
                 "status": "success",
                 "raw_response": "\n\n".join(all_raw_responses),
                 "prompt": f"Verification: Processed {len(windows)} windows",
-                "model": model
+                "model": model,
+                "segment_actions": action_map,
             }
 
         except Exception as e:

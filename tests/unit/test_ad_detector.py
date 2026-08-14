@@ -645,6 +645,23 @@ class TestSplitConflictingActionSpan:
         assert entries[0]['start'] == 150.0
         assert entries[0]['end'] == 170.0
 
+    def test_nested_keep_split_marks_short_remove_fragments_trusted(self):
+        last = {
+            'start': 100.0, 'end': 126.0, 'category': 'sponsor',
+            'confidence': 0.85,
+        }
+        current = {
+            'start': 108.0, 'end': 118.0, 'category': 'self_promo',
+        }
+
+        new_last, entries = split_conflicting_action_span(
+            last, current, 'remove', 'keep')
+
+        assert (new_last['start'], new_last['end']) == (100.0, 108.0)
+        assert (entries[1]['start'], entries[1]['end']) == (118.0, 126.0)
+        assert new_last['_trusted_split_fragment'] is True
+        assert entries[1]['_trusted_split_fragment'] is True
+
     def test_current_nested_inside_last_splits_last_around_it(self):
         """The DTNS 5317 shape: a longer remove-resolving pattern match
         fully containing a shorter keep-resolving LLM span (e.g. an intro
