@@ -1438,6 +1438,25 @@ def test_merge_never_crosses_held_boundary():
     assert merged[0]['end'] == 160.0
 
 
+def test_distinct_held_markers_never_merge_with_each_other():
+    validator = AdValidator(episode_duration=300.0)
+    result = ValidationResult(ads=[])
+    ads = [
+        {'start': 100.0, 'end': 150.0, 'confidence': 0.75,
+         'held_for_review': True, 'hold_reason': 'large_vad_gap_extension',
+         'vad_gap_requires_review': True},
+        {'start': 152.0, 'end': 200.0, 'confidence': 0.75,
+         'held_for_review': True, 'hold_reason': 'large_vad_gap_extension',
+         'vad_gap_requires_review': True},
+    ]
+
+    merged = validator._merge_close_ads(ads, result)
+
+    assert len(merged) == 2
+    assert merged[0]['end'] == 150.0
+    assert merged[1]['start'] == 152.0
+
+
 class TestRegistryConfirmsLongAds:
     """A real multi-sponsor break was rejected on length alone.
 

@@ -1039,15 +1039,13 @@ class AdValidator:
             last = merged[-1]
             gap = current['start'] - last['end']
 
-            # #541, generalized: never merge across a held/not-held boundary
-            # (any hold reason) -- the fold would hold the real ad or cut
-            # the held span, and on an auto-approve recut it would grow the
-            # marker past its trimmed confirm so the confirmed_span clamp
-            # never fires and trimmed-out audio gets cut.
-            if (bool(last.get('differential_uncorroborated'))
-                    != bool(current.get('differential_uncorroborated'))
-                    or bool(last.get('held_for_review'))
-                    != bool(current.get('held_for_review'))):
+            # Pending-review markers represent individual human decisions.
+            # Never merge one with a cut marker or another hold: either fold
+            # can absorb content that was not part of the reviewed span.
+            if (last.get('held_for_review')
+                    or current.get('held_for_review')
+                    or bool(last.get('differential_uncorroborated'))
+                    != bool(current.get('differential_uncorroborated'))):
                 merged.append(current.copy())
                 continue
 
