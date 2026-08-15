@@ -726,7 +726,10 @@ class AdReviewer:
         for verdict, updated_ad in accepted_results:
             # Human corrections are the highest-confidence signal. They are
             # deliberately omitted from the reviewer call and retain their
-            # validated bounds and cut decision unchanged.
+            # validated bounds and cut decision unchanged. Do not synthesize
+            # a ReviewVerdict here: ad_reviewer_log and its totalReviews stat
+            # count actual LLM calls. The persisted validation.user_confirmed
+            # field is the audit record for this human-authorized bypass.
             if verdict is None:
                 result.accepted_after_review.append(updated_ad)
                 continue
