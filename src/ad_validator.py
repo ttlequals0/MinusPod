@@ -1047,6 +1047,17 @@ class AdValidator:
         sorted_ads = sorted(ads, key=lambda x: x['start'])
         merged = [sorted_ads[0].copy()]
 
+        def merge_original_twins(last: Dict, current: Dict) -> None:
+            """Keep a pass-two marker's persisted twin aligned with its merge."""
+            original = last.get('_orig_twin')
+            current_original = current.get('_orig_twin')
+            if original is None or current_original is None:
+                return
+            original['start'] = min(original['start'], current_original['start'])
+            original['end'] = max(original['end'], current_original['end'])
+            if current.get('_trusted_split_fragment'):
+                original['_trusted_split_fragment'] = True
+
         for current in sorted_ads[1:]:
             last = merged[-1]
             gap = current['start'] - last['end']
@@ -1095,6 +1106,7 @@ class AdValidator:
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)
                 mark_distinct_merge(last, current)
+                merge_original_twins(last, current)
                 last['end'] = max(last['end'], current['end'])
                 if adjacency_extension:
                     last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
@@ -1110,6 +1122,7 @@ class AdValidator:
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
                 mark_distinct_merge(last, current)
+                merge_original_twins(last, current)
                 last['end'] = max(last['end'], current['end'])
                 if adjacency_extension:
                     last['vad_gap_adjacency_extension_seconds'] = adjacency_extension

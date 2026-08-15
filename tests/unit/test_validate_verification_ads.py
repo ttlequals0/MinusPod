@@ -88,9 +88,14 @@ def test_merge_preserves_later_trusted_split_fragment():
         {'start': 1106.0, 'end': 1108.0},
     ]
 
-    kept_proc, _ = _run(processed, original)
+    kept_proc, kept_orig = _run(processed, original)
 
     assert kept_proc[0]['_trusted_split_fragment'] is True
+    assert kept_orig[0] == {
+        'start': 1100.0,
+        'end': 1108.0,
+        '_trusted_split_fragment': True,
+    }
     applied = AudioProcessor().compute_applied_cuts(kept_proc, 600.0)
     assert [(cut['start'], cut['end']) for cut in applied] == [(100.0, 108.0)]
 
