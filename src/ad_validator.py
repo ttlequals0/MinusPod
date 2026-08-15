@@ -567,7 +567,7 @@ class AdValidator:
                     f"Auto-accepting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
                     f"overlaps with user-confirmed correction"
                 )
-                ad['validation'] = {
+                validation = {
                     'decision': Decision.ACCEPT.value,
                     'adjusted_confidence': 1.0,
                     'original_confidence': ad.get('confidence', 1.0),
@@ -577,6 +577,16 @@ class AdValidator:
                     'flags': flags,
                     'corrections': corrections
                 }
+                if span:
+                    # Carry the exact approved bounds through late reviewer
+                    # and tail mutations. Re-matching against a marker after
+                    # it has grown can fall below the correction overlap
+                    # threshold and lose the user's trim.
+                    validation['confirmed_span'] = {
+                        'start': approved_start,
+                        'end': approved_end,
+                    }
+                ad['validation'] = validation
                 return ad
             duration = ad['end'] - ad['start']
             position = (

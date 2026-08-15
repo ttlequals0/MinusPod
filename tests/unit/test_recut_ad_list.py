@@ -160,6 +160,51 @@ def test_final_confirmed_bounds_ignores_untrusted_marker(monkeypatch):
     assert marker['end'] == 1406.753
 
 
+def test_final_confirmed_bounds_uses_carried_span_after_large_extension(monkeypatch):
+    marker = {
+        'start': 101.0,
+        'end': 141.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 101.0, 'end': 111.0},
+            'flags': [],
+        },
+    }
+    corrections = [{
+        'start': 100.0,
+        'end': 112.0,
+        'confirmed_span': {'start': 101.0, 'end': 111.0},
+    }]
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], corrections)
+
+    assert marker['start'] == 101.0
+    assert marker['end'] == 111.0
+
+
+def test_final_confirmed_bounds_clamps_carried_span_to_episode(monkeypatch):
+    marker = {
+        'start': 101.0,
+        'end': 111.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 101.0, 'end': 111.0},
+            'flags': [],
+        },
+    }
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], [], episode_duration=105.0)
+
+    assert marker['start'] == 101.0
+    assert marker['end'] == 105.0
+
+
 def test_build_recut_ad_list_drops_rejected(monkeypatch):
     ads = [
         {'start': 30.0, 'end': 90.0, 'confidence': 0.98, 'sponsor': 'A', 'reason': 'sponsor read for A'},

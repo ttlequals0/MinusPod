@@ -702,8 +702,33 @@ class TestConfirmedCorrections:
         assert out['end'] == 180.0
         assert out['dai_core_spans'] == [{'start': 120.0, 'end': 170.0}]
         assert out['validation']['user_confirmed'] is True
+        assert out['validation']['confirmed_span'] == {
+            'start': 120.0, 'end': 180.0}
         assert 'INFO: Clamped to user-approved span' in (
             out['validation']['flags'])
+
+    def test_confirmed_span_metadata_is_clamped_to_episode_duration(self):
+        validator = AdValidator(
+            episode_duration=175.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0,
+                'end': 200.0,
+                'confirmed_span': {'start': 120.0, 'end': 180.0},
+            }],
+        )
+        ad = {
+            'start': 100.0,
+            'end': 175.0,
+            'confidence': 0.95,
+            'reason': 'Re-detected ad from a shorter fetch',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['end'] == 175.0
+        assert out['validation']['confirmed_span'] == {
+            'start': 120.0, 'end': 175.0}
 
     def test_trimmed_confirm_clips_dai_core_to_user_approved_span(self):
         confirmed = [

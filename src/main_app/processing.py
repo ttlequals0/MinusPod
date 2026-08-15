@@ -2137,7 +2137,7 @@ def _snap_completed_cut_tails_to_splice(
 
 def _finalize_user_confirmed_bounds(
         slug, episode_id, ads_to_remove, all_ads_with_validation,
-        confirmed_corrections=None):
+        confirmed_corrections=None, episode_duration=None):
     """Make a human-approved trim the final authority before audio cutting.
 
     Validation normally applies ``confirmed_span`` already, but later pipeline
@@ -2153,8 +2153,6 @@ def _finalize_user_confirmed_bounds(
         corr for corr in corrections or []
         if isinstance(corr.get('confirmed_span'), dict)
     ]
-    if not trimmed:
-        return ads_to_remove
 
     def matching_correction(marker):
         matches = []
@@ -2165,9 +2163,21 @@ def _finalize_user_confirmed_bounds(
                 matches.append((ratio, corr))
         return max(matches, key=lambda item: item[0])[1] if matches else None
 
+    def approved_span(marker):
+        validation = marker.get('validation') or {}
+        if not validation.get('user_confirmed'):
+            return None
+        carried = validation.get('confirmed_span')
+        if isinstance(carried, dict):
+            return carried
+        correction = matching_correction(marker)
+        return correction['confirmed_span'] if correction is not None else None
+
     def apply_span(marker, approved):
         target_start = max(0.0, float(approved['start']))
         target_end = float(approved['end'])
+        if episode_duration is not None and episode_duration > 0:
+            target_end = min(target_end, float(episode_duration))
         if target_end <= target_start:
             return False
         old_start, old_end = marker['start'], marker['end']
@@ -2185,20 +2195,16 @@ def _finalize_user_confirmed_bounds(
 
     changed = False
     for ad in ads_to_remove:
-        if not (ad.get('validation') or {}).get('user_confirmed'):
+        approved = approved_span(ad)
+        if approved is None:
             continue
-        correction = matching_correction(ad)
-        if correction is None:
-            continue
-        approved = correction['confirmed_span']
         # Resolve the master before changing the cut-list key. A separate copy
-        # may already have drifted, so fall back to the same trusted correction.
+        # may already have drifted, so fall back to the same carried approval.
         master = _find_master(all_ads_with_validation, ad)
         if master is None:
             master = next((
                 candidate for candidate in all_ads_with_validation
-                if (candidate.get('validation') or {}).get('user_confirmed')
-                and matching_correction(candidate) is correction
+                if approved_span(candidate) == approved
             ), None)
         changed = apply_span(ad, approved) or changed
         if master is not None and master is not ad:
@@ -4438,7 +4444,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Run after every automated reviewer and tail mutation so neither
             # the audio cut nor its persisted marker can drift from approval.
             ads_to_remove = _finalize_user_confirmed_bounds(
-                slug, episode_id, ads_to_remove, all_ads_with_validation)
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                episode_duration=episode_duration)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.
