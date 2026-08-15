@@ -489,7 +489,6 @@ class AdValidator:
             '_matches_false_positive_correction', False)
         pre_restore_confirmed = ad.pop(
             '_pre_dai_restore_confirmed_correction', None)
-        matched_before_dai_restore = pre_restore_confirmed is not None
         if (matched_false_positive
                 or self._overlaps_false_positive(ad['start'], ad['end'])):
             flags.append("INFO: User marked as false positive")
@@ -511,57 +510,36 @@ class AdValidator:
         confirmed = (pre_restore_confirmed
                      or self._matching_confirmed(ad['start'], ad['end']))
         if confirmed is not None:
-            # A trimmed approval confirmed only a sub-span as ad. Pull a
-            # boundary inward only when it falls in a trimmed-out zone (inside
-            # the reviewed original bounds but outside the approved span) so
-            # the content the user explicitly kept is never re-cut; parts of
-            # the detection beyond the reviewed bounds are new territory and
-            # are left alone.
+            # A trimmed approval confirms exactly one sub-span as ad. A later
+            # detection can be wider, but that must neither authorize the new
+            # territory nor prevent the known-positive span from being cut.
             span = confirmed.get('confirmed_span')
             auto_accept = True
             if span:
-                new_start, new_end = ad['start'], ad['end']
                 approved_start = max(0.0, span['start'])
                 approved_end = span['end']
                 if self.episode_duration > 0:
                     approved_end = min(approved_end, self.episode_duration)
                 overlaps_approved = (
-                    new_start < approved_end and new_end > approved_start)
-                if matched_before_dai_restore:
-                    # This correction matched the narrower span before a
-                    # persisted DAI core widened it. The confirmed span is
-                    # therefore authoritative over every restored edge.
-                    new_start = max(new_start, approved_start)
-                    new_end = min(new_end, approved_end)
-                else:
-                    if confirmed['start'] <= new_start < approved_start:
-                        new_start = approved_start
-                    if approved_end < new_end <= confirmed['end']:
-                        new_end = approved_end
-                    if overlaps_approved:
-                        # Every part of confirmed_span was explicitly approved
-                        # as ad audio. A later narrower detection must not
-                        # leave part of that known-positive span behind.
-                        new_start = min(new_start, approved_start)
-                        new_end = max(new_end, approved_end)
-                if new_end <= new_start:
+                    ad['start'] < approved_end and ad['end'] > approved_start)
+                if not overlaps_approved or approved_end <= approved_start:
                     # The detection lies entirely inside user-kept content;
                     # do not auto-accept -- let normal validation judge it.
                     auto_accept = False
-                elif (new_start, new_end) != (ad['start'], ad['end']):
+                elif (approved_start, approved_end) != (ad['start'], ad['end']):
                     logger.info(
                         f"Clamping confirmed segment {ad['start']:.1f}s-{ad['end']:.1f}s "
-                        f"to user-approved span {new_start:.1f}s-{new_end:.1f}s"
+                        f"to user-approved span {approved_start:.1f}s-{approved_end:.1f}s"
                     )
                     flags.append("INFO: Clamped to user-approved span")
-                    invalidate_tail_provenance(ad, new_end)
-                    ad['start'] = new_start
-                    ad['end'] = new_end
+                    invalidate_tail_provenance(ad, approved_end)
+                    ad['start'] = approved_start
+                    ad['end'] = approved_end
                     # Human trims are authoritative. A measured DAI core may
                     # have been clipped to the wider detected bounds earlier;
                     # keep it inside the approved span so the reviewer cannot
                     # later widen the marker back into user-kept content.
-                    clip_dai_core_spans(ad, new_start, new_end)
+                    clip_dai_core_spans(ad, approved_start, approved_end)
             if auto_accept:
                 approved = span or confirmed
                 tolerance = 0.01

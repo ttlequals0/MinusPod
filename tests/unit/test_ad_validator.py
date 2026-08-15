@@ -842,9 +842,8 @@ class TestConfirmedCorrections:
         assert 'INFO: Clamped to user-approved span' not in out['validation']['flags']
         assert out['start'] == 100.0 and out['end'] == 128.0  # bounds untouched
 
-    def test_clamp_keeps_extension_beyond_reviewed_bounds(self):
-        """A merged detection extending past the reviewed original bounds keeps
-        the extension (new ad territory); only the trimmed-out zone is pulled."""
+    def test_trimmed_confirm_clamps_extension_beyond_reviewed_bounds(self):
+        """Known ad audio is still cut when a new detection grows around it."""
         confirmed = [
             {'start': 100.0, 'end': 200.0,
              'confirmed_span': {'start': 130.0, 'end': 200.0}}
@@ -864,11 +863,38 @@ class TestConfirmedCorrections:
         result = validator.validate([ad])
         out = result.ads[0]
         assert out['start'] == 130.0
-        assert out['end'] == 240.0
+        assert out['end'] == 200.0
         assert out['validation']['decision'] == Decision.ACCEPT.value
-        assert 'user_confirmed' not in out['validation']
-        assert 'INFO: User confirmation covers only part of segment' in (
-            out['validation']['flags'])
+        assert out['validation']['user_confirmed'] is True
+        assert 'INFO: User confirmed as ad' in out['validation']['flags']
+
+    def test_df_wider_redetection_keeps_english_and_cuts_approved_ad(self):
+        validator = AdValidator(
+            episode_duration=5485.17,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 1361.654,
+                'end': 1409.104,
+                'confirmed_span': {'start': 1361.5, 'end': 1408.93},
+            }],
+        )
+        ad = {
+            'start': 1355.9,
+            'end': 1408.93,
+            'confidence': 0.95,
+            'reason': 'Wider DAI re-detection after English show speech',
+            'detection_stage': 'dai_differential',
+            'dai_core_spans': [{'start': 1361.5, 'end': 1406.4}],
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['start'] == 1361.5
+        assert out['end'] == 1408.93
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert out['validation']['user_confirmed'] is True
+        assert out['validation']['confirmed_span'] == {
+            'start': 1361.5, 'end': 1408.93}
 
     def test_partial_confirm_does_not_authorize_adjacent_merged_ad(self):
         validator = AdValidator(
