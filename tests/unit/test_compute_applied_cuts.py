@@ -41,6 +41,16 @@ def test_contained_cut_merges_to_outer_end(processor):
     assert cuts == [{'start': 100.0, 'end': 160.0, 'replacement_duration': beep}]
 
 
+def test_overlapping_cuts_merge_despite_surrounding_barrier(processor):
+    beep = processor.get_beep_duration()
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 160.0}, {'start': 110.0, 'end': 120.0}],
+        600.0,
+        cut_barriers=[{'start': 90.0, 'end': 170.0}],
+    )
+    assert cuts == [{'start': 100.0, 'end': 160.0, 'replacement_duration': beep}]
+
+
 def test_short_cut_dropped(processor):
     beep = processor.get_beep_duration()
     cuts = processor.compute_applied_cuts(
@@ -70,8 +80,8 @@ def test_end_of_episode_cut_extends_to_total_duration(processor):
 def test_kept_tail_blocks_end_of_episode_extension(processor):
     beep = processor.get_beep_duration()
     cuts = processor.compute_applied_cuts(
-        [{'start': 100.0, 'end': 140.0}], 170.0,
-        cut_barriers=[{'start': 145.0, 'end': 165.0}],
+        [{'start': 100.0, 'end': 140.0}], 165.0,
+        cut_barriers=[{'start': 145.0, 'end': 160.0}],
     )
 
     assert cuts == [

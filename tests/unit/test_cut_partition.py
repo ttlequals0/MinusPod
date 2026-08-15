@@ -20,9 +20,9 @@ Under test:
 - call-site uniformity: every AudioProcessor.process_episode call in
   processing.py derives 'beep' from action_applied
 """
+import ast
 import filecmp
 import inspect
-import re
 import shutil
 import subprocess
 import time
@@ -328,14 +328,21 @@ class TestProcessEpisodeCallSiteUniformity:
 
     def test_every_call_site_passes_audio_segments(self):
         source = inspect.getsource(processing)
-        calls = re.findall(
-            r'\.process_episode\(\s*[^,]+,\s*(\w+)(?:,\s*[^)]*)?\)',
-            source,
-        )
+        calls = [
+            node for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == 'process_episode'
+        ]
         assert len(calls) >= 3, (
             f"expected at least the pass-1, pass-2-recut, and recut-mode "
             f"call sites, found {calls}")
-        assert all(name == 'audio_segments' for name in calls), calls
+        assert all(
+            len(call.args) >= 2
+            and isinstance(call.args[1], ast.Name)
+            and call.args[1].id == 'audio_segments'
+            for call in calls
+        ), calls
 
 
 def _beep_marker(start=10.0, end=25.0):
