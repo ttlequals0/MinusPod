@@ -416,6 +416,42 @@ class TestAdValidatorFalsePositives:
         assert result.ads[0]['validation']['decision'] == Decision.REJECT.value
         assert result.ads[1]['validation']['decision'] == Decision.ACCEPT.value
 
+    def test_dedup_keeps_fragment_that_does_not_restore_into_false_positive(
+            self, sample_transcript):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=sample_transcript,
+            false_positive_corrections=[{'start': 100.0, 'end': 180.0}],
+            confirmed_corrections=[{
+                'start': 190.0,
+                'end': 200.0,
+                'confirmed_span': {'start': 190.0, 'end': 200.0},
+            }],
+        )
+        fragments = [
+            {
+                'start': 190.0,
+                'end': 200.0,
+                'confidence': 0.95,
+                'reason': 'DAI fragment expanded into user-kept content',
+                'dai_core_spans': [{'start': 100.0, 'end': 200.0}],
+            },
+            {
+                'start': 190.0,
+                'end': 200.0,
+                'confidence': 0.95,
+                'reason': 'DAI fragment within approved bounds',
+            },
+        ]
+
+        result = validator.validate(fragments)
+
+        assert len(result.ads) == 2
+        assert result.accepted == 1
+        assert result.rejected == 1
+        assert result.ads[1]['start'] == 190.0
+        assert result.ads[1]['end'] == 200.0
+
 
 class TestAdValidatorReasonQuality:
     """Tests for reason quality checks."""

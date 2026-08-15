@@ -429,9 +429,12 @@ class AdValidator:
         # A single approved span can overlap several fragments from one DAI
         # re-detection. Each would later restore to that exact same span, so
         # retain only the first eligible overlapping fragment before merge
-        # protection keeps them separate. Fragments in user-kept content or
-        # rejected as false positives still need normal validation and must
-        # not consume the approved-span match.
+        # protection keeps them separate. Judge false-positive overlap against
+        # the prospective restored DAI bounds: otherwise a retained fragment
+        # can expand into user-kept content and be rejected after consuming
+        # the approved span. Fragments in user-kept content or rejected as
+        # false positives still need normal validation and must not consume
+        # the approved-span match.
         restored_corrections = set()
         deduplicated_ads = []
         for ad in ads:
@@ -440,10 +443,20 @@ class AdValidator:
             overlaps_approved = (span is not None
                                  and ad['start'] < span['end']
                                  and ad['end'] > span['start'])
+            core_start, core_end = dai_core_bounds(ad)
+            restored_start = (
+                min(ad['start'], core_start)
+                if core_start is not None else ad['start'])
+            restored_end = (
+                max(ad['end'], core_end)
+                if core_end is not None else ad['end'])
+            restored_start = max(0.0, restored_start)
+            if self.episode_duration > 0:
+                restored_end = min(restored_end, self.episode_duration)
             correction_id = id(confirmed)
             can_restore_approved_span = (
                 overlaps_approved
-                and not ad.get('_matches_false_positive_correction'))
+                and not self._overlaps_false_positive(restored_start, restored_end))
             if (can_restore_approved_span
                     and correction_id in restored_corrections):
                 continue
