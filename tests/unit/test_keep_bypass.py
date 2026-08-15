@@ -711,6 +711,7 @@ class TestPartitionPass2CategoryActions:
         assert [(ad['start'], ad['end']) for ad in out_o] == [
             (119.0, 149.0), (169.0, 199.0),
         ]
+        assert all(ad['_trusted_split_fragment'] is True for ad in out_o)
         assert all(ad['reason'] == 'heuristic roll' for ad in out_p + out_o)
 
     def test_kept_audio_covering_candidate_drops_it(self):

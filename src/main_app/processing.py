@@ -1405,11 +1405,14 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
             f"Pass-2 candidate {processed['start']:.1f}s-"
             f"{processed['end']:.1f}s split around {barrier_label} into "
             f"{len(fragments)} removable fragment(s)")
+        trusted_fragment = (
+            processed.get('_trusted_split_fragment')
+            or processed['end'] - processed['start']
+            >= MIN_AD_DURATION_FOR_REMOVAL
+        )
         for start, end in fragments:
             fragment_processed = dict(processed, start=start, end=end)
-            if (processed.get('_trusted_split_fragment')
-                    or processed['end'] - processed['start']
-                    >= MIN_AD_DURATION_FOR_REMOVAL):
+            if trusted_fragment:
                 # The parent cleared the renderer's duration floor before a
                 # protected keep/beep span carved it into smaller pieces.
                 # Validation still decides whether each piece is a cut.
@@ -1421,6 +1424,8 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
                 end=_map_to_original(
                     end, timestamp_map, replacement_duration),
             )
+            if trusted_fragment:
+                fragment_original['_trusted_split_fragment'] = True
             surviving_processed.append(fragment_processed)
             surviving_original.append(fragment_original)
 
