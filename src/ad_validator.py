@@ -537,6 +537,9 @@ class AdValidator:
                     'decision': Decision.ACCEPT.value,
                     'adjusted_confidence': 1.0,
                     'original_confidence': ad.get('confidence', 1.0),
+                    # Nested under the validator-owned result so an arbitrary
+                    # detector/model field cannot forge this trust signal.
+                    'user_confirmed': True,
                     'flags': flags,
                     'corrections': corrections
                 }

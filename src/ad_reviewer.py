@@ -96,6 +96,10 @@ REVIEWER_AFFIRMATION_PATTERNS = (
     r'dynamically\s+inserted\s+)?ad(?:vertisement)?(?!-)\b',
     r'\bare\s+(?:all\s+)?(?:genuine\s+|real\s+)?ads(?!-)\b',
     r'\bis\s+(?:genuine\s+|real\s+|paid\s+)?advertising\b',
+    # Elliptical reviewer prose often begins with the classification rather
+    # than a verb: "Multiple Norwegian ads ... adjusted start to exclude ...".
+    # This is still an explicit affirmation when paired with trim language.
+    r'^(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b',
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
@@ -697,6 +701,12 @@ class AdReviewer:
             max_workers=parallel_ads,
         )
         for verdict, updated_ad in accepted_results:
+            # Human corrections are the highest-confidence signal. They are
+            # deliberately omitted from the reviewer call and retain their
+            # validated bounds and cut decision unchanged.
+            if verdict is None:
+                result.accepted_after_review.append(updated_ad)
+                continue
             result.verdicts.append(verdict)
             log_contradiction_event(
                 verdict, model=verdict.model_used,
@@ -845,6 +855,9 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
+            if (pool == "accepted"
+                    and (ads[idx].get("validation") or {}).get("user_confirmed")):
+                return None, ads[idx]
             return self._review_single(
                 ad=ads[idx],
                 pool=pool,

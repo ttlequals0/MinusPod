@@ -607,6 +607,62 @@ def test_gerund_affirmation_with_trim_note_is_not_contradiction():
     assert not reasoning_contradicts_cut(reason)
 
 
+def test_elliptical_plural_affirmation_with_trim_is_not_contradiction():
+    reason = (
+        'Multiple Norwegian ads with clear calls to action and URLs. '
+        'Adjusted start to exclude the host sign-off, which is not an ad.'
+    )
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
+
+def test_user_confirmed_ad_bypasses_automated_reviewer():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+    })
+    ad = {
+        'start': 120.0,
+        'end': 180.0,
+        'confidence': 0.95,
+        'reason': 'Human-confirmed DAI block',
+        'validation': {'decision': 'ACCEPT', 'user_confirmed': True},
+    }
+
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+
+    assert result.accepted_after_review == [ad]
+    assert result.verdicts == []
+    reviewer._llm_client.messages_create.assert_not_called()
+
+
+def test_untrusted_top_level_confirm_flag_does_not_bypass_reviewer():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp('[]')
+    ad = {
+        'start': 120.0,
+        'end': 180.0,
+        'confidence': 0.95,
+        'reason': 'Model-produced marker',
+        'user_confirmed': True,
+    }
+
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+
+    assert result.accepted_after_review == []
+    assert result.verdicts[0].verdict == 'reject'
+    reviewer._llm_client.messages_create.assert_called_once()
+
+
 @pytest.mark.parametrize("reason", NEGATED_PHRASE_REASONS)
 def test_negated_phrases_are_not_affirmations(reason):
     assert not reasoning_affirms_ad(reason)

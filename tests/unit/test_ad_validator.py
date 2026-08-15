@@ -577,6 +577,7 @@ class TestConfirmedCorrections:
         assert result.accepted == 1
         assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
+        assert result.ads[0]['validation']['user_confirmed'] is True
 
     def test_confirm_match_survives_dai_core_restoration(self):
         validator = AdValidator(
