@@ -91,6 +91,21 @@ def test_tail_snap_does_not_cross_next_marker():
     assert result[0]['end'] == 2410.9
 
 
+def test_overlapping_marker_blocks_tail_extension_immediately():
+    marker, segments = _fixture()
+    overlapping_marker = {
+        'start': 2409.0,
+        'end': 2414.0,
+        'reason': 'separate overlapping marker',
+    }
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(2412.0)], window_s=10.0,
+        coverage_ads=[marker, overlapping_marker])
+
+    assert result[0]['end'] == 2410.9
+
+
 def test_non_silence_and_far_events_are_ignored():
     marker, segments = _fixture()
     events = [

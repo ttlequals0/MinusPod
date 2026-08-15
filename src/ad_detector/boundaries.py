@@ -1403,13 +1403,20 @@ def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
             continue
 
         original_end = ad_copy['end']
-        next_starts = [
-            marker['start'] for marker in coverage
-            if marker is not ad
-            and marker.get('start') is not None
-            and marker['start'] >= original_end
-        ]
-        end_cap = min([original_end + window_s] + next_starts)
+        barriers = []
+        for marker in coverage:
+            same_marker = marker is ad or (
+                marker.get('start') == ad_copy.get('start')
+                and marker.get('end') == original_end
+            )
+            if same_marker or marker.get('start') is None:
+                continue
+            if marker.get('end') is None or marker['end'] <= original_end:
+                continue
+            # An overlapping marker blocks immediately; a later marker caps
+            # the scan at its start.
+            barriers.append(max(original_end, marker['start']))
+        end_cap = min([original_end + window_s] + barriers)
         candidates = [
             event for event in splice_events
             if event.get('type') in ('digital_silence', 'deep_silence')
