@@ -2135,6 +2135,80 @@ def _snap_completed_cut_tails_to_splice(
     return snapped
 
 
+def _finalize_user_confirmed_bounds(
+        slug, episode_id, ads_to_remove, all_ads_with_validation,
+        confirmed_corrections=None):
+    """Make a human-approved trim the final authority before audio cutting.
+
+    Validation normally applies ``confirmed_span`` already, but later pipeline
+    stages rebuild marker dicts and mutate boundaries. Re-assert the approved
+    span after every reviewer/tail operation and synchronize the master marker
+    so the rendered cut and UI audit trail cannot diverge.
+    """
+    if not ads_to_remove:
+        return ads_to_remove
+    corrections = (confirmed_corrections if confirmed_corrections is not None
+                   else db.get_confirmed_corrections(episode_id))
+    trimmed = [
+        corr for corr in corrections or []
+        if isinstance(corr.get('confirmed_span'), dict)
+    ]
+    if not trimmed:
+        return ads_to_remove
+
+    def matching_correction(marker):
+        matches = []
+        for corr in trimmed:
+            ratio = overlap_ratio(
+                corr['start'], corr['end'], marker['start'], marker['end'])
+            if ratio >= CORRECTION_MATCH_MIN_COVERAGE:
+                matches.append((ratio, corr))
+        return max(matches, key=lambda item: item[0])[1] if matches else None
+
+    def apply_span(marker, approved):
+        target_start = max(0.0, float(approved['start']))
+        target_end = float(approved['end'])
+        if target_end <= target_start:
+            return False
+        old_start, old_end = marker['start'], marker['end']
+        if old_end != target_end:
+            marker.pop('end_extended_by_content', None)
+            marker.pop('tail_splice_snap', None)
+        marker['start'], marker['end'] = target_start, target_end
+        clip_dai_core_spans(marker, target_start, target_end)
+        flags = (marker.get('validation') or {}).get('flags')
+        if isinstance(flags, list):
+            note = 'INFO: Finalized to user-approved span'
+            if note not in flags:
+                flags.append(note)
+        return (old_start, old_end) != (target_start, target_end)
+
+    changed = False
+    for ad in ads_to_remove:
+        if not (ad.get('validation') or {}).get('user_confirmed'):
+            continue
+        correction = matching_correction(ad)
+        if correction is None:
+            continue
+        approved = correction['confirmed_span']
+        # Resolve the master before changing the cut-list key. A separate copy
+        # may already have drifted, so fall back to the same trusted correction.
+        master = _find_master(all_ads_with_validation, ad)
+        if master is None:
+            master = next((
+                candidate for candidate in all_ads_with_validation
+                if (candidate.get('validation') or {}).get('user_confirmed')
+                and matching_correction(candidate) is correction
+            ), None)
+        changed = apply_span(ad, approved) or changed
+        if master is not None and master is not ad:
+            changed = apply_span(master, approved) or changed
+
+    if changed:
+        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+    return ads_to_remove
+
+
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
@@ -4359,6 +4433,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segments, audio_analysis_result, podcast_name=podcast_name
             )
+
+            # Human-approved trim bounds are the final boundary authority.
+            # Run after every automated reviewer and tail mutation so neither
+            # the audio cut nor its persisted marker can drift from approval.
+            ads_to_remove = _finalize_user_confirmed_bounds(
+                slug, episode_id, ads_to_remove, all_ads_with_validation)
 
             # Backstop: the late keep partition above should already have
             # caught everything, so this normally finds nothing.

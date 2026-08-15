@@ -96,6 +96,70 @@ def test_apply_boundary_adjustments_newest_wins(monkeypatch):
     assert ads[0]['end'] == 150.0
 
 
+def test_final_confirmed_bounds_sync_cut_and_master(monkeypatch):
+    cut = {
+        'start': 1361.5,
+        'end': 1406.753,
+        'confidence': 0.95,
+        'dai_core_spans': [{'start': 1361.5, 'end': 1406.4}],
+        'end_extended_by_content': True,
+        'tail_splice_snap': {'event_time': 1407.5},
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'flags': ['INFO: User confirmed as ad'],
+        },
+    }
+    master = dict(cut)
+    master['validation'] = dict(cut['validation'])
+    master['validation']['flags'] = list(cut['validation']['flags'])
+    corrections = [{
+        'start': 1361.654,
+        'end': 1409.104,
+        'confirmed_span': {'start': 1361.5, 'end': 1408.93},
+    }]
+    saves = []
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: saves.append(args))
+
+    result = processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [cut], [master], corrections)
+
+    assert result[0]['start'] == 1361.5
+    assert result[0]['end'] == 1408.93
+    assert master['start'] == 1361.5
+    assert master['end'] == 1408.93
+    assert result[0]['dai_core_spans'] == [
+        {'start': 1361.5, 'end': 1406.4}]
+    assert 'end_extended_by_content' not in result[0]
+    assert 'tail_splice_snap' not in result[0]
+    assert 'INFO: Finalized to user-approved span' in (
+        master['validation']['flags'])
+    assert len(saves) == 1
+
+
+def test_final_confirmed_bounds_ignores_untrusted_marker(monkeypatch):
+    marker = {
+        'start': 1361.5,
+        'end': 1406.753,
+        'validation': {'decision': 'ACCEPT', 'flags': []},
+    }
+    corrections = [{
+        'start': 1361.654,
+        'end': 1409.104,
+        'confirmed_span': {'start': 1361.5, 'end': 1408.93},
+    }]
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: pytest.fail('unchanged markers must not be persisted'))
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], corrections)
+
+    assert marker['end'] == 1406.753
+
+
 def test_build_recut_ad_list_drops_rejected(monkeypatch):
     ads = [
         {'start': 30.0, 'end': 90.0, 'confidence': 0.98, 'sponsor': 'A', 'reason': 'sponsor read for A'},
