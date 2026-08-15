@@ -799,6 +799,43 @@ class TestConfirmedCorrections:
         assert result.ads[1]['end'] == 180.0
         assert result.ads[1]['validation']['user_confirmed'] is True
 
+    def test_confirmed_span_dedup_ignores_false_positive_fragment(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            false_positive_corrections=[{'start': 115.0, 'end': 125.0}],
+            confirmed_corrections=[{
+                'start': 100.0,
+                'end': 180.0,
+                'confirmed_span': {'start': 120.0, 'end': 180.0},
+            }],
+        )
+
+        result = validator.validate([
+            {
+                'start': 115.0,
+                'end': 125.0,
+                'confidence': 0.4,
+                'reason': 'False-positive fragment',
+                'detection_stage': 'dai_differential',
+            },
+            {
+                'start': 125.0,
+                'end': 180.0,
+                'confidence': 0.4,
+                'reason': 'Approved ad fragment',
+                'detection_stage': 'dai_differential',
+            },
+        ])
+
+        assert result.rejected == 1
+        assert result.accepted == 1
+        approved_ad = next(
+            ad for ad in result.ads
+            if ad['validation']['decision'] == Decision.ACCEPT.value)
+        assert approved_ad['start'] == 120.0
+        assert approved_ad['end'] == 180.0
+
     def test_newer_exact_correction_wins_over_older_trimmed_confirm(self):
         validator = AdValidator(
             episode_duration=600.0,

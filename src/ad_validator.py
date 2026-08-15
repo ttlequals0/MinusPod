@@ -428,9 +428,10 @@ class AdValidator:
 
         # A single approved span can overlap several fragments from one DAI
         # re-detection. Each would later restore to that exact same span, so
-        # retain only the first overlapping fragment before merge protection
-        # keeps them separate. Fragments in user-kept content still need
-        # normal validation and must not consume the approved-span match.
+        # retain only the first eligible overlapping fragment before merge
+        # protection keeps them separate. Fragments in user-kept content or
+        # rejected as false positives still need normal validation and must
+        # not consume the approved-span match.
         restored_corrections = set()
         deduplicated_ads = []
         for ad in ads:
@@ -440,10 +441,13 @@ class AdValidator:
                                  and ad['start'] < span['end']
                                  and ad['end'] > span['start'])
             correction_id = id(confirmed)
-            if (overlaps_approved
+            can_restore_approved_span = (
+                overlaps_approved
+                and not ad.get('_matches_false_positive_correction'))
+            if (can_restore_approved_span
                     and correction_id in restored_corrections):
                 continue
-            if overlaps_approved:
+            if can_restore_approved_span:
                 restored_corrections.add(correction_id)
             deduplicated_ads.append(ad)
         ads = deduplicated_ads
