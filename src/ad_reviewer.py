@@ -99,7 +99,7 @@ REVIEWER_AFFIRMATION_PATTERNS = (
     # Elliptical reviewer prose often begins with the classification rather
     # than a verb: "Multiple Norwegian ads ... adjusted start to exclude ...".
     # This is still an explicit affirmation when paired with trim language.
-    r'^(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b',
+    r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b',
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)

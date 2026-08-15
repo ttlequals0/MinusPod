@@ -609,7 +609,7 @@ def test_gerund_affirmation_with_trim_note_is_not_contradiction():
 
 def test_elliptical_plural_affirmation_with_trim_is_not_contradiction():
     reason = (
-        'Multiple Norwegian ads with clear calls to action and URLs. '
+        '  Multiple Norwegian ads with clear calls to action and URLs. '
         'Adjusted start to exclude the host sign-off, which is not an ad.'
     )
     assert reasoning_affirms_ad(reason)
