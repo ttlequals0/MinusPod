@@ -25,7 +25,12 @@ from config import (
     MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
-from utils.markers import clip_dai_core_spans, dai_core_bounds, mark_distinct_merge
+from utils.markers import (
+    clip_dai_core_spans,
+    dai_core_bounds,
+    invalidate_tail_provenance,
+    mark_distinct_merge,
+)
 from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
@@ -536,12 +541,7 @@ class AdValidator:
                         f"to user-approved span {new_start:.1f}s-{new_end:.1f}s"
                     )
                     flags.append("INFO: Clamped to user-approved span")
-                    if new_end != ad['end']:
-                        # The old tail provenance belongs to the superseded
-                        # edge. Retaining it would let the final splice sweep
-                        # grow past a human-approved end.
-                        ad.pop('end_extended_by_content', None)
-                        ad.pop('tail_splice_snap', None)
+                    invalidate_tail_provenance(ad, new_end)
                     ad['start'] = new_start
                     ad['end'] = new_end
                     # Human trims are authoritative. A measured DAI core may

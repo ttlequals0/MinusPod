@@ -34,7 +34,7 @@ from audio_processor import get_replacement_duration, AudioProcessor
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from differential_fetcher import fetch_and_diff, is_likely_dai_feed
 from utils.audio import get_audio_codec, get_audio_duration
-from utils.markers import clip_dai_core_spans
+from utils.markers import clip_dai_core_spans, invalidate_tail_provenance
 from utils.time import (
     adjust_timestamp, merge_cut_spans, overlap_ratio,
     ranges_overlap, span_inside_any_cut, utc_now_iso,
@@ -1869,9 +1869,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
     if v.verdict == 'adjust':
         ad['reviewer_original_start'] = v.original_start
         ad['reviewer_original_end'] = v.original_end
-        if v.adjusted_end != ad.get('end'):
-            ad.pop('end_extended_by_content', None)
-            ad.pop('tail_splice_snap', None)
+        invalidate_tail_provenance(ad, v.adjusted_end)
         ad['start'] = v.adjusted_start
         ad['end'] = v.adjusted_end
     elif v.verdict == 'reject':
@@ -2183,9 +2181,7 @@ def _finalize_user_confirmed_bounds(
         if target_end <= target_start:
             return False
         old_start, old_end = marker['start'], marker['end']
-        if old_end != target_end:
-            marker.pop('end_extended_by_content', None)
-            marker.pop('tail_splice_snap', None)
+        invalidate_tail_provenance(marker, target_end)
         marker['start'], marker['end'] = target_start, target_end
         clip_dai_core_spans(marker, target_start, target_end)
         flags = (marker.get('validation') or {}).get('flags')
@@ -2207,6 +2203,9 @@ def _finalize_user_confirmed_bounds(
             master = next((
                 candidate for candidate in all_ads_with_validation
                 if approved_span(candidate) == approved
+                and ranges_overlap(
+                    candidate['start'], candidate['end'],
+                    ad['start'], ad['end'])
             ), None)
         changed = apply_span(ad, approved) or changed
         if master is not None and master is not ad:

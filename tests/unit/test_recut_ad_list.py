@@ -235,6 +235,56 @@ def test_final_confirmed_bounds_clamps_carried_span_to_episode(monkeypatch):
     assert marker['end'] == 105.0
 
 
+def test_final_confirmed_bounds_ignores_collapsed_duration_clamp(monkeypatch):
+    marker = {
+        'start': 101.0,
+        'end': 111.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 101.0, 'end': 111.0},
+            'flags': [],
+        },
+    }
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: pytest.fail('a collapsed clamp must not be persisted'))
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], [], episode_duration=100.0)
+
+    assert marker['start'] == 101.0
+    assert marker['end'] == 111.0
+
+
+def test_final_confirmed_bounds_master_fallback_requires_overlap(monkeypatch):
+    approved = {'start': 101.0, 'end': 111.0}
+
+    def marker(start, end):
+        return {
+            'start': start,
+            'end': end,
+            'validation': {
+                'decision': 'ACCEPT',
+                'user_confirmed': True,
+                'confirmed_span': approved,
+                'flags': [],
+            },
+        }
+
+    cut = marker(101.0, 141.0)
+    unrelated = marker(500.0, 510.0)
+    related_master = marker(100.0, 140.0)
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [cut], [unrelated, related_master], [])
+
+    assert cut['end'] == 111.0
+    assert (related_master['start'], related_master['end']) == (101.0, 111.0)
+    assert (unrelated['start'], unrelated['end']) == (500.0, 510.0)
+
+
 def test_build_recut_ad_list_drops_rejected(monkeypatch):
     ads = [
         {'start': 30.0, 'end': 90.0, 'confidence': 0.98, 'sponsor': 'A', 'reason': 'sponsor read for A'},

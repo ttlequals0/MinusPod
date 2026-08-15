@@ -228,7 +228,10 @@ def test_processing_allows_tail_snap_after_calibration(monkeypatch):
     monkeypatch.setattr(
         processing, 'snap_extended_ad_tails_to_splice',
         lambda *args, **kwargs: [snapped])
-    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+    saves = []
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: saves.append(args))
     analysis = SimpleNamespace(splice_evidence={
         'events': [_event(2415.85)],
         'calibration': {'status': 'calibrated'},
@@ -239,3 +242,5 @@ def test_processing_allows_tail_snap_after_calibration(monkeypatch):
 
     assert result[0]['end'] == 2415.85
     assert marker['end'] == 2415.85
+    assert marker['tail_splice_snap']['event_time'] == 2415.85
+    assert len(saves) == 1

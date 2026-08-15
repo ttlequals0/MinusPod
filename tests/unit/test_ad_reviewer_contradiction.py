@@ -674,6 +674,40 @@ def test_user_confirmed_ad_bypasses_automated_reviewer():
     reviewer._llm_client.messages_create.assert_not_called()
 
 
+def test_user_confirmed_bypass_preserves_mixed_concurrent_order():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 240.0, "end": 300.0, "confidence": 0.95, '
+        '"reason": "This is a paid ad"}]')
+    confirmed = {
+        'start': 120.0,
+        'end': 180.0,
+        'confidence': 0.95,
+        'reason': 'Human-confirmed DAI block',
+        'validation': {'decision': 'ACCEPT', 'user_confirmed': True},
+    }
+    normal = {
+        'start': 240.0,
+        'end': 300.0,
+        'confidence': 0.95,
+        'reason': 'Paid sponsor read',
+    }
+
+    with patch('ad_reviewer._resolve_reviewer_parallel_ads', return_value=2):
+        result = reviewer.review(
+            accepted_ads=[confirmed, normal], resurrection_eligible=[],
+            segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+            pass_num=1, pass_model='claude-test',
+        )
+
+    assert result.accepted_after_review == [confirmed, normal]
+    assert len(result.verdicts) == 1
+    assert result.verdicts[0].original_start == 240.0
+    reviewer._llm_client.messages_create.assert_called_once()
+
+
 def test_untrusted_top_level_confirm_flag_does_not_bypass_reviewer():
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',

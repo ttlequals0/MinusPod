@@ -31,7 +31,7 @@ from llm_client import (
 )
 from utils.llm_call import call_llm, call_llm_for_window
 from utils.llm_response import extract_json_ads_array, extract_json_object
-from utils.markers import dai_core_bounds
+from utils.markers import dai_core_bounds, invalidate_tail_provenance
 from utils.prompt import format_sponsor_block, render_prompt, apply_override
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
@@ -65,6 +65,13 @@ def _review_failure_reason(error: Exception) -> str:
 # as "confirmed" -- hold those for review, never auto-reject. Patterns are
 # assertion-shaped regexes ("is not advertising"), not bare nouns: an
 # affirming reasoning ("not a false positive") must not trigger a hold.
+_PLURAL_NEGATION_PATTERN = (
+    r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
+    r'(?:an?\s+)?ads?\b'
+    r'|\b(?:they|these|those)\s+are\s+not\s+'
+    r'(?:an?\s+)?(?:ads?|advertis\w*)\b'
+)
+
 REVIEWER_CONTRADICTION_PATTERNS = (
     r'\bcontains?\s+no\s+advertis',            # "contain(s) no advertising content"
     r'\bis\s+not\s+(?:an?\s+)?(?:paid\s+)?advertis',  # "is not advertising"
@@ -75,9 +82,7 @@ REVIEWER_CONTRADICTION_PATTERNS = (
     r'\bcontains?\s+only\s+the\s+(?:phrase|fragment|words?)\b',
     r'\btranscription\s+artifact\b',
     r'\b(?:is\s+|entirely\s+)organic\s+conversation\b',
-    r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
-    r'(?:an?\s+)?ads?\b',
-    r'\b(?:they|these|those)\s+are\s+not\s+(?:an?\s+)?ads?\b',
+    _PLURAL_NEGATION_PATTERN,
 )
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
@@ -93,6 +98,9 @@ _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERN
 # growing free-text heuristic (each pattern traces to a production episode).
 # The durable fix is a structured verdict field (e.g. is_ad plus trim bounds)
 # in the review prompt contract, so intent stops hiding in prose.
+_ELLIPTICAL_AFFIRMATION_PATTERN = (
+    r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b')
+
 REVIEWER_AFFIRMATION_PATTERNS = (
     r'\bis\s+an?\s+ad\s+break\b',
     r'\bis\s+an?\s+(?:genuine\s+|real\s+|actual\s+|paid\s+|'
@@ -102,11 +110,16 @@ REVIEWER_AFFIRMATION_PATTERNS = (
     # Elliptical reviewer prose often begins with the classification rather
     # than a verb: "Multiple Norwegian ads ... adjusted start to exclude ...".
     # This is still an explicit affirmation when paired with trim language.
-    r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b',
+    _ELLIPTICAL_AFFIRMATION_PATTERN,
 )
 
-_AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
-_ELLIPTICAL_AFFIRMATION_RE = _AFFIRMATION_RES[-1]
+_AFFIRMATION_RES_BY_PATTERN = {
+    pattern: re.compile(pattern) for pattern in REVIEWER_AFFIRMATION_PATTERNS
+}
+_AFFIRMATION_RES = tuple(
+    _AFFIRMATION_RES_BY_PATTERN[p] for p in REVIEWER_AFFIRMATION_PATTERNS)
+_ELLIPTICAL_AFFIRMATION_RE = _AFFIRMATION_RES_BY_PATTERN[
+    _ELLIPTICAL_AFFIRMATION_PATTERN]
 
 # Trim-language precheck: only spend the recovery LLM call when the
 # reasoning describes a sub-span trim; plain "not an ad" skips it.
@@ -136,10 +149,8 @@ _EXPLICIT_BOUNDARY_TRIM_RE = re.compile(
 )
 
 _WHOLE_CANDIDATE_NEGATION_RE = re.compile(
-    r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
-    r'(?:an?\s+)?ads?\b'
-    r'|\b(?:they|these|those)\s+are\s+not\s+(?:ads?|advertis\w*)\b'
-    r'|\b(?:this|it|the\s+)?(?:entire\s+|whole\s+|full\s+)?'
+    _PLURAL_NEGATION_PATTERN
+    + r'|\b(?:this|it|the\s+)?(?:entire\s+|whole\s+|full\s+)?'
     r'(?:candidate|span|segment|block)\s+(?:is|contains?)\s+'
     r'(?:not\s+(?:an?\s+ad|advertis\w*)|no\s+(?:ad|advertis\w*))\b'
     r'|\b(?:this|it)\s+is\s+not\s+(?:an?\s+ad|advertis\w*)\b',
@@ -222,14 +233,9 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
     cannot drift on which fields they write."""
     updated = dict(ad)
+    invalidate_tail_provenance(updated, end)
     updated["start"] = start
     updated["end"] = end
-    if end != ad.get("end"):
-        # Content-tail provenance describes how the old edge was reached.
-        # A reviewer-selected end must earn any later sonic-tail extension
-        # from fresh content evidence instead of reusing stale eligibility.
-        updated.pop("end_extended_by_content", None)
-        updated.pop("tail_splice_snap", None)
     updated["reviewer_verdict"] = "adjust"
     updated["reviewer_original_start"] = original_start
     updated["reviewer_original_end"] = original_end
