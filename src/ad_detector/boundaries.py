@@ -1411,6 +1411,11 @@ def transition_pair_silence_events(signals: list,
     precise boundary. Return splice-shaped events so the terminal content
     guard can apply its existing transcript safety checks.
     """
+    def is_finite_number(value):
+        return (isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value))
+
     events = []
     for signal in signals or []:
         signal_type = (signal.get('signal_type') if isinstance(signal, dict)
@@ -1420,22 +1425,24 @@ def transition_pair_silence_events(signals: list,
         transition_start = (signal.get('start') if isinstance(signal, dict)
                             else getattr(signal, 'start', None))
         if (signal_type != 'dai_transition_pair'
+                or not is_finite_number(confidence)
                 or confidence < min_confidence
-                or transition_start is None):
+                or not is_finite_number(transition_start)):
             continue
 
         candidates = []
         for span in silence_spans or []:
+            if not isinstance(span, dict):
+                continue
             start = span.get('start')
             end = span.get('end')
-            if start is None or end is None or end <= start:
+            if (not is_finite_number(start) or not is_finite_number(end)
+                    or end <= start):
                 continue
             raw_duration = span.get('duration')
             duration = (
                 raw_duration
-                if (isinstance(raw_duration, (int, float))
-                    and not isinstance(raw_duration, bool)
-                    and math.isfinite(raw_duration))
+                if is_finite_number(raw_duration)
                 else end - start
             )
             midpoint = (start + end) / 2.0

@@ -1250,7 +1250,9 @@ class AdValidator:
             # trimmed confirm so the confirmed_span clamp never fires and
             # trimmed-out audio gets cut. A false-positive-correction match
             # on only one side likewise blocks the fold: the match must keep
-            # describing exactly the span the human rejected.
+            # describing exactly the span the human rejected. A confirmed
+            # correction on either marker also blocks the merge: even a
+            # shared correction must not authorize the adjacent audio.
             if (last.get('held_for_review')
                     or current.get('held_for_review')
                     or last.get('vad_gap_requires_review')

@@ -8,6 +8,8 @@ the deeper-but-wrong candidate.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector.boundaries import (
@@ -130,7 +132,7 @@ def test_transition_pair_silence_recovers_untranscribed_ad_intro():
 
     assert len(events) == 1
     assert events[0]['type'] == 'dai_transition_silence'
-    assert events[0]['time'] == 5393.668
+    assert events[0]['time'] == pytest.approx(5393.668)
 
     marker = {
         'start': 5400.0,
@@ -148,7 +150,7 @@ def test_transition_pair_silence_recovers_untranscribed_ad_intro():
     out = snap_terminal_ad_to_splice(
         [marker], segments, events, 5485.17, _WINDOW)
 
-    assert out[0]['start'] == 5393.668
+    assert out[0]['start'] == pytest.approx(5393.668)
     assert out[0]['terminal_snap']['event_type'] == (
         'dai_transition_silence')
 
@@ -191,3 +193,28 @@ def test_transition_pair_silence_measures_null_persisted_duration():
 
     assert len(events) == 1
     assert events[0]['duration_s'] == 5394.024 - 5393.312
+
+
+def test_transition_pair_silence_skips_malformed_analysis_values():
+    signals = [
+        {'start': 5395.0, 'signal_type': 'dai_transition_pair',
+         'confidence': '0.95'},
+        {'start': 5395.0, 'signal_type': 'dai_transition_pair',
+         'confidence': float('inf')},
+        {'start': float('nan'), 'signal_type': 'dai_transition_pair',
+         'confidence': 0.95},
+        {'start': 5395.0, 'signal_type': 'dai_transition_pair',
+         'confidence': 0.95},
+    ]
+    silence = [
+        None,
+        {'start': '5393.312', 'end': 5394.024},
+        {'start': 5393.312, 'end': float('inf')},
+        {'start': 5393.312, 'end': 5394.024, 'duration': float('nan')},
+    ]
+
+    events = transition_pair_silence_events(
+        signals, silence, max_distance_s=2.0, min_silence_s=0.3)
+
+    assert len(events) == 1
+    assert events[0]['time'] == pytest.approx(5393.668)
