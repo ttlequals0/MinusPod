@@ -1142,13 +1142,7 @@ def split_conflicting_action_span(last: dict, current: dict,
     effective_current_action = (
         'remove' if current_pattern and current_action == 'keep'
         else current_action)
-    pattern_overrides_keep = (
-        last_pattern != current_pattern
-        and ((last_action == 'keep' and not last_pattern)
-             or (current_action == 'keep' and not current_pattern))
-    )
-    if (not pattern_overrides_keep
-            and (last_action is None or current_action is None)
+    if ((last_action is None or current_action is None)
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial
         # overlap. Action-aware callers use explicit precedence below.
@@ -1159,19 +1153,12 @@ def split_conflicting_action_span(last: dict, current: dict,
         clamped['start'] = last['end']
         mark_trusted_fragment(clamped, current)
         return last, [clamped]
-    if pattern_overrides_keep:
-        # A defined pattern is standing operator evidence and deliberately
-        # overrides a keep action downstream. Preserve that same policy while
-        # assigning contested audio at the earlier merge seam; beep retains
-        # its normal precedence over remove.
-        current_wins = current_pattern
-    else:
-        current_wins = (
-            effective_last_action is None
-            or effective_current_action is None
-            or (priority.get(effective_current_action, 0)
-                >= priority.get(effective_last_action, 0))
-        )
+    current_wins = (
+        effective_last_action is None
+        or effective_current_action is None
+        or (priority.get(effective_current_action, 0)
+            >= priority.get(effective_last_action, 0))
+    )
     if not current_wins:
         if current['end'] <= last['end']:
             return last, []

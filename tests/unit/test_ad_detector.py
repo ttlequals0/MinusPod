@@ -662,7 +662,7 @@ class TestSplitConflictingActionSpan:
         assert new_last['_trusted_split_fragment'] is True
         assert entries[1]['_trusted_split_fragment'] is True
 
-    def test_defined_pattern_owns_overlap_with_later_keep(self):
+    def test_later_keep_owns_overlap_with_defined_remove_pattern(self):
         last = {
             'start': 100.0, 'end': 150.0, 'category': 'sponsor',
             'pattern_defined': True,
@@ -674,11 +674,10 @@ class TestSplitConflictingActionSpan:
         new_last, entries = split_conflicting_action_span(
             last, current, 'remove', 'keep')
 
-        assert new_last == last
-        assert entries[0]['start'] == 150.0
-        assert entries[0]['end'] == 170.0
+        assert new_last['end'] == 130.0
+        assert entries == [current]
 
-    def test_later_defined_pattern_owns_overlap_with_keep(self):
+    def test_keep_owns_overlap_with_later_defined_remove_pattern(self):
         last = {
             'start': 100.0, 'end': 150.0, 'category': 'self_promo',
         }
@@ -690,8 +689,25 @@ class TestSplitConflictingActionSpan:
         new_last, entries = split_conflicting_action_span(
             last, current, 'keep', 'remove')
 
-        assert new_last['end'] == 130.0
-        assert entries == [current]
+        assert new_last == last
+        assert entries[0]['start'] == 150.0
+        assert entries[0]['end'] == 170.0
+
+    def test_keep_owns_overlap_with_later_defined_beep_pattern(self):
+        last = {
+            'start': 100.0, 'end': 150.0, 'category': 'self_promo',
+        }
+        current = {
+            'start': 130.0, 'end': 170.0, 'category': 'outro',
+            'pattern_defined': True,
+        }
+
+        new_last, entries = split_conflicting_action_span(
+            last, current, 'keep', 'beep')
+
+        assert new_last == last
+        assert entries[0]['start'] == 150.0
+        assert entries[0]['end'] == 170.0
 
     def test_defined_pattern_yields_overlap_to_beep(self):
         last = {

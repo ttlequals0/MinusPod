@@ -3441,16 +3441,24 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
 
     # Force previously-cut markers back to ACCEPT so the gate cuts them again,
-    # overriding any hold/review outcome from re-validation. FP/confirm rejects
-    # (early-returns in the validator) clear the stamp is not involved -- a
-    # user's later FP rejection is a REJECT, not a resurrection, and the stamp
-    # only fires for ads the validator did not early-reject. Guard: never
-    # override a fresh REJECT so a new FP correction still wins.
+    # overriding any hold/review outcome from re-validation. A trusted fragment
+    # split from a validated cut also survives the validator's short-duration
+    # rejection. Other fresh REJECTs, including later FP corrections, still win.
     for ad in validation_result.ads:
         if ad.pop('_saved_was_cut', False):
             decision = ad.get('validation', {}).get('decision')
             if decision == Decision.REJECT.value:
-                continue
+                error_flags = [
+                    flag for flag in ad.get('validation', {}).get('flags', [])
+                    if flag.startswith('ERROR:')
+                ]
+                trusted_duration_reject = (
+                    ad.get('_trusted_split_fragment')
+                    and error_flags
+                    and all('Very short' in flag for flag in error_flags)
+                )
+                if not trusted_duration_reject:
+                    continue
             ad.pop('held_for_review', None)
             ad.pop('hold_reason', None)
             ad.setdefault('validation', {})['decision'] = Decision.ACCEPT.value

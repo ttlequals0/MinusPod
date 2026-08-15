@@ -324,6 +324,40 @@ def test_build_recut_previously_cut_stays_cut_after_boundary_clamp(monkeypatch):
     )
 
 
+def test_build_recut_preserves_trusted_short_cut(monkeypatch):
+    ads = [{
+        'start': 100.0, 'end': 106.0, 'confidence': 0.85,
+        'reason': 'fragment split around beep audio', 'was_cut': True,
+        '_trusted_split_fragment': True,
+    }]
+    _stub_recut_db(monkeypatch, ads)
+
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+
+    assert ads_to_remove == all_ads
+    assert all_ads[0]['validation']['decision'] == 'ACCEPT'
+    assert all_ads[0]['was_cut'] is True
+
+
+def test_build_recut_trusted_short_cut_still_honors_fp(monkeypatch):
+    ads = [{
+        'start': 100.0, 'end': 106.0, 'confidence': 0.85,
+        'reason': 'fragment split around beep audio', 'was_cut': True,
+        '_trusted_split_fragment': True,
+    }]
+    _stub_recut_db(monkeypatch, ads, fp=[{'start': 100.0, 'end': 106.0}])
+
+    ads_to_remove, all_ads = processing._build_recut_ad_list(
+        'slug', 'ep', [], 3600.0, '', 0.80
+    )
+
+    assert ads_to_remove == []
+    assert all_ads[0]['validation']['decision'] == 'REJECT'
+    assert all_ads[0]['was_cut'] is False
+
+
 def test_build_recut_no_merge_across_saved_cut_status_keeps_both_outcomes(monkeypatch):
     # Must NOT merge: folding would let the previously-cut stamp force-accept
     # the whole span. Each keeps its own outcome.
