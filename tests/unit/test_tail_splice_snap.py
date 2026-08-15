@@ -1,0 +1,104 @@
+"""Post-review tail recovery through untranscribed sonic logos."""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+from ad_detector.boundaries import snap_extended_ad_tails_to_splice
+
+
+def _event(time, depth=-120.0, event_type='digital_silence'):
+    return {
+        'time': time,
+        'end_time': time + 0.6,
+        'type': event_type,
+        'depth_dbfs': depth,
+        'duration_s': 0.6,
+    }
+
+
+def _fixture():
+    marker = {
+        'start': 2360.85,
+        'end': 2410.9,
+        'confidence': 0.97,
+        'reason': "McDonald's dynamically inserted ad",
+        'end_extended_by_content': True,
+    }
+    segments = [
+        {
+            'start': 2400.0,
+            'end': 2410.9,
+            'text': "McDonald's is proud to be run and owned locally.",
+        },
+        {
+            'start': 2423.29,
+            'end': 2450.27,
+            'text': 'Can you give me your quintessential PlayStation 3 experiences?',
+        },
+    ]
+    return marker, segments
+
+
+def test_content_extended_tail_reaches_forward_splice():
+    marker, segments = _fixture()
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(2415.85)], window_s=10.0)
+
+    assert result[0]['end'] == 2415.85
+    assert result[0]['tail_splice_snap'] == {
+        'original_end': 2410.9,
+        'event_time': 2415.85,
+        'event_type': 'digital_silence',
+        'depth_dbfs': -120.0,
+    }
+
+
+def test_plain_content_between_tail_and_splice_blocks_extension():
+    marker, segments = _fixture()
+    segments.insert(1, {
+        'start': 2412.0,
+        'end': 2414.0,
+        'text': 'Back to the show and our next question.',
+    })
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(2415.85)], window_s=10.0)
+
+    assert result[0]['end'] == 2410.9
+    assert 'tail_splice_snap' not in result[0]
+
+
+def test_marker_without_content_extension_is_not_eligible():
+    marker, segments = _fixture()
+    marker.pop('end_extended_by_content')
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(2415.85)], window_s=10.0)
+
+    assert result[0]['end'] == 2410.9
+
+
+def test_tail_snap_does_not_cross_next_marker():
+    marker, segments = _fixture()
+    next_marker = {'start': 2414.0, 'end': 2420.0, 'reason': 'separate marker'}
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(2415.85)], window_s=10.0,
+        coverage_ads=[marker, next_marker])
+
+    assert result[0]['end'] == 2410.9
+
+
+def test_non_silence_and_far_events_are_ignored():
+    marker, segments = _fixture()
+    events = [
+        _event(2415.85, event_type='loudness_step'),
+        _event(2421.0),
+    ]
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, events, window_s=10.0)
+
+    assert result[0]['end'] == 2410.9

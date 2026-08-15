@@ -1376,6 +1376,80 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
     return out
 
 
+def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
+                                     splice_events: list[dict],
+                                     window_s: float = BOUNDARY_EXTENSION_WINDOW,
+                                     coverage_ads: list[dict] | None = None,
+                                     podcast_name: str | None = None) -> list[dict]:
+    """Finish a content-extended ad at a nearby forward splice boundary.
+
+    The post-review tail sweep can recover a spoken CTA from transcript text,
+    but a short untranscribed sonic logo may follow it. Only markers that the
+    tail sweep already extended are eligible. From their new end, scan forward
+    for strong silence splice evidence without crossing another marker or any
+    transcribed content. This keeps the recovery narrow while preventing the
+    final few seconds of a DAI spot from leaking into the processed episode.
+    """
+    if not ads or not splice_events or window_s <= 0:
+        return ads
+
+    coverage = coverage_ads if coverage_ads is not None else ads
+    own_site = SponsorService.own_site_tokens(podcast_name)
+    out = []
+    for ad in ads:
+        ad_copy = ad.copy()
+        if not ad_copy.get('end_extended_by_content'):
+            out.append(ad_copy)
+            continue
+
+        original_end = ad_copy['end']
+        next_starts = [
+            marker['start'] for marker in coverage
+            if marker is not ad
+            and marker.get('start') is not None
+            and marker['start'] >= original_end
+        ]
+        end_cap = min([original_end + window_s] + next_starts)
+        candidates = [
+            event for event in splice_events
+            if event.get('type') in ('digital_silence', 'deep_silence')
+            and event.get('time') is not None
+            and original_end < event['time'] <= end_cap
+        ]
+        # The nearest strong splice is the conservative boundary. A later one
+        # could be a pause inside untranscribed show music; depth only breaks a
+        # same-time tie.
+        candidates.sort(key=lambda event: (
+            event['time'],
+            event['depth_dbfs'] if event.get('depth_dbfs') is not None else 0.0,
+        ))
+
+        ad_text = get_transcript_text_for_range(
+            segments, ad_copy['start'], original_end).lower()
+        ad_sponsors = extract_sponsor_names(
+            ad_text, ad_copy.get('reason'), exclude=own_site)
+        for event in candidates:
+            if _span_blocked_by_content(
+                    segments, coverage, ad_sponsors,
+                    original_end, event['time']):
+                continue
+            ad_copy['end'] = event['time']
+            ad_copy['tail_splice_snap'] = {
+                'original_end': original_end,
+                'event_time': event['time'],
+                'event_type': event['type'],
+                'depth_dbfs': event.get('depth_dbfs'),
+            }
+            logger.info(
+                f"Tail splice snap: ad end {original_end:.1f}s -> "
+                f"{event['time']:.1f}s ({event['type']}, "
+                f"depth {event.get('depth_dbfs')} dBFS)"
+            )
+            break
+        out.append(ad_copy)
+    return out
+
+
 def _span_blocked_by_content(segments: list[dict], ads: list[dict],
                              ad_sponsors: set,
                              span_start: float, span_end: float) -> bool:

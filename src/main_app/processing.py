@@ -19,7 +19,10 @@ from ad_detector import (
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
-from ad_detector.boundaries import snap_terminal_ad_to_splice
+from ad_detector.boundaries import (
+    snap_extended_ad_tails_to_splice,
+    snap_terminal_ad_to_splice,
+)
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_yield import low_ad_yield
 from ad_reviewer import (
@@ -2019,7 +2022,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
 
 def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation,
                         segments, podcast_name=None):
-    """Re-run content-based end extension as the last step before cutting.
+    """Re-run content-based end extension late in the pre-cut pipeline.
 
     This sweep exists to undo reviewer end-pullbacks: the reviewer can pull a
     cut's end back to the detector boundary, and the pre-reviewer extension
@@ -2069,6 +2072,50 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
 
     storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
     return extended
+
+
+def _snap_completed_cut_tails_to_splice(
+        slug, episode_id, ads_to_remove, all_ads_with_validation,
+        segments, audio_analysis_result, podcast_name=None):
+    """Extend a recovered spoken tail through a nearby untranscribed logo."""
+    if not ads_to_remove:
+        return ads_to_remove
+    splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
+    if not isinstance(splice, dict):
+        return ads_to_remove
+    events = splice.get('events') or []
+    if not isinstance(events, list) or not events:
+        return ads_to_remove
+
+    snapped = snap_extended_ad_tails_to_splice(
+        ads_to_remove, segments, events,
+        coverage_ads=all_ads_with_validation,
+        podcast_name=podcast_name,
+    )
+    changed = False
+    for old, new in zip(ads_to_remove, snapped):
+        if new['end'] <= old['end']:
+            continue
+        changed = True
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Tail splice snap: cut end "
+            f"{old['end']:.1f}s -> {new['end']:.1f}s "
+            f"(+{new['end'] - old['end']:.1f}s)"
+        )
+        master = _find_master(all_ads_with_validation, old)
+        if master is not None:
+            master['end'] = new['end']
+            master['tail_splice_snap'] = new['tail_splice_snap']
+        else:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Tail splice snap: no master ad matched "
+                f"{old['start']:.1f}s-{old['end']:.1f}s; UI list will not show "
+                f"the extension"
+            )
+
+    if changed:
+        storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+    return snapped
 
 
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
@@ -4286,6 +4333,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = _complete_cut_tails(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segments, podcast_name=podcast_name
+            )
+
+            # A transcript-guided tail extension can stop before an
+            # untranscribed sonic logo. Strong forward splice evidence closes
+            # that final gap without crossing speech or another marker.
+            ads_to_remove = _snap_completed_cut_tails_to_splice(
+                slug, episode_id, ads_to_remove, all_ads_with_validation,
+                segments, audio_analysis_result, podcast_name=podcast_name
             )
 
             # Backstop: the late keep partition above should already have
