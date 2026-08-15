@@ -162,6 +162,7 @@ def test_merge_clears_stale_content_extension_from_earlier_fragment():
             'confidence': 0.9,
             'reason': 'Sponsor ad part one',
             'end_extended_by_content': True,
+            'tail_splice_snap': {'event_time': 130.0},
         },
         {
             'start': 132.0,
@@ -176,9 +177,11 @@ def test_merge_clears_stale_content_extension_from_earlier_fragment():
 
     assert merged['end'] == 160.0
     assert 'end_extended_by_content' not in merged
+    assert 'tail_splice_snap' not in merged
 
 
 def test_merge_preserves_content_extension_on_later_fragment():
+    later_snap = {'event_time': 160.0, 'original_end': 158.0}
     ads = [
         {
             'start': 100.0,
@@ -192,6 +195,7 @@ def test_merge_preserves_content_extension_on_later_fragment():
             'confidence': 0.9,
             'reason': 'Sponsor ad part two',
             'end_extended_by_content': True,
+            'tail_splice_snap': later_snap,
         },
     ]
 
@@ -199,6 +203,8 @@ def test_merge_preserves_content_extension_on_later_fragment():
     _merge_ad_pair(merged, ads[1])
 
     assert merged['end_extended_by_content'] is True
+    assert merged['tail_splice_snap'] == later_snap
+    assert merged['tail_splice_snap'] is not later_snap
 
 
 @pytest.mark.parametrize('gap', [2.0, 8.0])

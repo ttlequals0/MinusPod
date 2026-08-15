@@ -5,10 +5,12 @@ Split out of ``ad_detector/__init__.py`` for readability; behavior is
 unchanged from the pre-split module.
 """
 import logging
+import math
 import re
 
 from utils.markers import (
     clip_dai_core_spans,
+    invalidate_tail_provenance,
     mark_distinct_merge,
     merge_dai_core_spans,
     note_merged_members,
@@ -828,14 +830,18 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     ``gap_desc`` is appended to the merged reason when set (filler-gap pass).
     """
     mark_distinct_merge(current_ad, next_ad)
+    invalidate_tail_provenance(current_ad, next_ad['end'])
     current_ad['end'] = next_ad['end']
     # The tail-sweep marker describes how the *current end* was reached. Once
     # this merge replaces that edge, only the later fragment's flag remains
     # meaningful; retaining the earlier fragment's flag could snap past an
     # otherwise final, non-content-derived boundary.
-    current_ad.pop('end_extended_by_content', None)
     if next_ad.get('end_extended_by_content'):
         current_ad['end_extended_by_content'] = True
+    if next_ad.get('tail_splice_snap') is not None:
+        snap = next_ad['tail_splice_snap']
+        current_ad['tail_splice_snap'] = (
+            dict(snap) if isinstance(snap, dict) else snap)
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
                                    next_ad.get('confidence', 0.0))
 
@@ -1424,7 +1430,14 @@ def transition_pair_silence_events(signals: list,
             end = span.get('end')
             if start is None or end is None or end <= start:
                 continue
-            duration = span.get('duration', end - start)
+            raw_duration = span.get('duration')
+            duration = (
+                raw_duration
+                if (isinstance(raw_duration, (int, float))
+                    and not isinstance(raw_duration, bool)
+                    and math.isfinite(raw_duration))
+                else end - start
+            )
             midpoint = (start + end) / 2.0
             distance = abs(midpoint - transition_start)
             if duration >= min_silence_s and distance <= max_distance_s:
@@ -1532,6 +1545,11 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
                              span_start: float, span_end: float) -> bool:
     """True when the span holds transcribed speech that is neither covered
     by a detected marker nor ad-like content."""
+    sorted_markers = sorted(
+        (marker for marker in ads
+         if marker.get('start') is not None
+         and marker.get('end') is not None),
+        key=lambda marker: marker['start'])
     for seg in segments:
         seg_start = seg.get('start', 0.0)
         seg_end = seg.get('end', 0.0)
@@ -1546,10 +1564,7 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
         relevant_start = max(seg_start, span_start)
         relevant_end = min(seg_end, span_end)
         covered_until = relevant_start
-        for marker in sorted(
-                (m for m in ads
-                 if m.get('start') is not None and m.get('end') is not None),
-                key=lambda m: m['start']):
+        for marker in sorted_markers:
             marker_start = max(marker['start'], relevant_start)
             marker_end = min(marker['end'], relevant_end)
             if marker_end <= covered_until:

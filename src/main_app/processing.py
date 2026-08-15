@@ -2008,8 +2008,13 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
     # cross. Rejected, held, and kept markers are explicit barriers, including
     # when their audio is untranscribed.
     coverage_ads = list(ads_to_remove)
+    cut_marker_ids = {id(marker) for marker in coverage_ads}
+    for marker in coverage_ads:
+        master = _find_master(all_ads_with_validation, marker)
+        if master is not None:
+            cut_marker_ids.add(id(master))
     blocking_ads = [m for m in all_ads_with_validation
-                    if m.get('was_cut') is False]
+                    if id(m) not in cut_marker_ids and not m.get('was_cut')]
     snapped = snap_terminal_ad_to_splice(
         ads_to_remove, segments, events, episode_duration, window_s,
         coverage_ads=coverage_ads, blocking_ads=blocking_ads,
@@ -2181,15 +2186,36 @@ def _finalize_user_confirmed_bounds(
         if target_end <= target_start:
             return False
         old_start, old_end = marker['start'], marker['end']
-        invalidate_tail_provenance(marker, target_end)
+        missing = object()
+        old_metadata = (
+            marker.get('end_extended_by_content', missing),
+            marker.get('tail_splice_snap', missing),
+            marker.get('dai_core_spans', missing),
+        )
+        # Final human authority supersedes how an automatic tail happened to
+        # reach even the same edge; do not let that stale provenance enable a
+        # later expansion on reload.
+        marker.pop('end_extended_by_content', None)
+        marker.pop('tail_splice_snap', None)
         marker['start'], marker['end'] = target_start, target_end
         clip_dai_core_spans(marker, target_start, target_end)
         flags = (marker.get('validation') or {}).get('flags')
+        note_added = False
         if isinstance(flags, list):
             note = 'INFO: Finalized to user-approved span'
             if note not in flags:
                 flags.append(note)
-        return (old_start, old_end) != (target_start, target_end)
+                note_added = True
+        new_metadata = (
+            marker.get('end_extended_by_content', missing),
+            marker.get('tail_splice_snap', missing),
+            marker.get('dai_core_spans', missing),
+        )
+        return (
+            (old_start, old_end) != (target_start, target_end)
+            or old_metadata != new_metadata
+            or note_added
+        )
 
     changed = False
     for ad in ads_to_remove:

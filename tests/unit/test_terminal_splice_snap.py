@@ -172,3 +172,22 @@ def test_transition_pair_silence_requires_strong_nearby_pair():
         weak, silence, max_distance_s=2.0, min_silence_s=0.3) == []
     assert transition_pair_silence_events(
         far, silence, max_distance_s=2.0, min_silence_s=0.3) == []
+
+
+def test_transition_pair_silence_measures_null_persisted_duration():
+    signals = [{
+        'start': 5395.0,
+        'signal_type': 'dai_transition_pair',
+        'confidence': 0.95,
+    }]
+    silence = [{
+        'start': 5393.312,
+        'end': 5394.024,
+        'duration': None,
+    }]
+
+    events = transition_pair_silence_events(
+        signals, silence, max_distance_s=2.0, min_silence_s=0.3)
+
+    assert len(events) == 1
+    assert events[0]['duration_s'] == 5394.024 - 5393.312

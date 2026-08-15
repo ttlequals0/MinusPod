@@ -413,12 +413,18 @@ class AdValidator:
         for ad in ads:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
+            confirmed = self._matching_confirmed(ad['start'], ad['end'])
             core_start, core_end = dai_core_bounds(ad)
-            if ((core_start is not None and core_start < ad['start'])
-                    or (core_end is not None and core_end > ad['end'])):
-                confirmed = self._matching_confirmed(ad['start'], ad['end'])
-                if confirmed is not None:
-                    ad['_pre_dai_restore_confirmed_correction'] = confirmed
+            dai_will_expand = (
+                (core_start is not None and core_start < ad['start'])
+                or (core_end is not None and core_end > ad['end']))
+            # Exact human-approved spans survive every automatic expansion,
+            # including tiny-gap merges and trailing extension. A plain
+            # confirmation is carried only across measured DAI restoration;
+            # allowing it across unrelated growth would authorize new audio.
+            if (confirmed is not None
+                    and (confirmed.get('confirmed_span') or dai_will_expand)):
+                ad['_pre_dai_restore_confirmed_correction'] = confirmed
 
         # Step 1: Auto-correct boundaries
         ads = self._clamp_boundaries(ads, result)

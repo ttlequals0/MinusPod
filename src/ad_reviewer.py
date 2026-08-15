@@ -180,30 +180,28 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
     lowered = reasoning.lower()
     whole_negations = list(_WHOLE_CANDIDATE_NEGATION_RE.finditer(lowered))
     for regex in _AFFIRMATION_RES:
-        match = regex.search(lowered)
-        if not match:
-            continue
-        # A broad positive phrase such as "are ads" can be a substring of
-        # the explicit denial "none are ads". Never count text inside the
-        # denial itself as a separate affirmation.
-        if any(neg.start() <= match.start() and match.end() <= neg.end()
-               for neg in whole_negations):
-            continue
-        if regex is _ELLIPTICAL_AFFIRMATION_RE:
-            tail = lowered[match.end():]
-            if any(neg.start() >= match.end() for neg in whole_negations):
+        for match in regex.finditer(lowered):
+            # A broad positive phrase such as "are ads" can be a substring
+            # of the explicit denial "none are ads". Ignore that occurrence,
+            # but keep scanning in case a later assertion is affirmative.
+            if any(neg.start() <= match.start() and match.end() <= neg.end()
+                   for neg in whole_negations):
                 continue
-            contradiction_positions = [
-                found.start()
-                for contradiction in _CONTRADICTION_RES
-                if (found := contradiction.search(tail)) is not None
-            ]
-            if contradiction_positions:
-                boundary_trim = _EXPLICIT_BOUNDARY_TRIM_RE.search(tail)
-                if (boundary_trim is None
-                        or min(contradiction_positions) < boundary_trim.start()):
+            if regex is _ELLIPTICAL_AFFIRMATION_RE:
+                tail = lowered[match.end():]
+                if any(neg.start() >= match.end() for neg in whole_negations):
                     continue
-        return True
+                contradiction_positions = [
+                    found.start()
+                    for contradiction in _CONTRADICTION_RES
+                    if (found := contradiction.search(tail)) is not None
+                ]
+                if contradiction_positions:
+                    boundary_trim = _EXPLICIT_BOUNDARY_TRIM_RE.search(tail)
+                    if (boundary_trim is None
+                            or min(contradiction_positions) < boundary_trim.start()):
+                        continue
+            return True
     return False
 
 

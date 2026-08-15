@@ -572,6 +572,15 @@ def test_affirms_ad_requires_assertion_shape():
     assert not reasoning_affirms_ad("")
 
 
+def test_affirmation_scans_past_an_earlier_negated_match():
+    reason = (
+        'None are ads in the host introduction, but the two inserted spots '
+        'are ads and should be removed.'
+    )
+
+    assert reasoning_affirms_ad(reason)
+
+
 NEGATED_PHRASE_REASONS = [
     'This is not a genuine ad break; it contains no ad content and is a '
     'false positive from the pattern matcher.',

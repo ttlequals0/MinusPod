@@ -235,6 +235,34 @@ def test_final_confirmed_bounds_clamps_carried_span_to_episode(monkeypatch):
     assert marker['end'] == 105.0
 
 
+def test_final_confirmed_bounds_persists_metadata_only_cleanup(monkeypatch):
+    marker = {
+        'start': 101.0,
+        'end': 111.0,
+        'end_extended_by_content': True,
+        'tail_splice_snap': {'event_time': 111.0},
+        'dai_core_spans': [{'start': 100.0, 'end': 112.0}],
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'confirmed_span': {'start': 101.0, 'end': 111.0},
+            'flags': [],
+        },
+    }
+    saves = []
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: saves.append(args))
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], [])
+
+    assert 'end_extended_by_content' not in marker
+    assert 'tail_splice_snap' not in marker
+    assert marker['dai_core_spans'] == [{'start': 101.0, 'end': 111.0}]
+    assert len(saves) == 1
+
+
 def test_final_confirmed_bounds_ignores_collapsed_duration_clamp(monkeypatch):
     marker = {
         'start': 101.0,
