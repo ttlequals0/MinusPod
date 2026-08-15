@@ -763,6 +763,42 @@ class TestConfirmedCorrections:
         assert result.ads[0]['start'] == 120.0
         assert result.ads[0]['end'] == 180.0
 
+    def test_confirmed_span_dedup_ignores_kept_content_fragment(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0,
+                'end': 180.0,
+                'confirmed_span': {'start': 120.0, 'end': 180.0},
+            }],
+        )
+
+        result = validator.validate([
+            {
+                'start': 100.0,
+                'end': 118.0,
+                'confidence': 0.4,
+                'reason': 'Fragment in user-kept content',
+                'detection_stage': 'dai_differential',
+            },
+            {
+                'start': 120.0,
+                'end': 150.0,
+                'confidence': 0.4,
+                'reason': 'Fragment in approved ad',
+                'detection_stage': 'dai_differential',
+            },
+        ])
+
+        assert len(result.ads) == 2
+        assert result.ads[0]['start'] == 100.0
+        assert result.ads[0]['end'] == 118.0
+        assert 'user_confirmed' not in result.ads[0]['validation']
+        assert result.ads[1]['start'] == 120.0
+        assert result.ads[1]['end'] == 180.0
+        assert result.ads[1]['validation']['user_confirmed'] is True
+
     def test_newer_exact_correction_wins_over_older_trimmed_confirm(self):
         validator = AdValidator(
             episode_duration=600.0,
