@@ -75,6 +75,9 @@ REVIEWER_CONTRADICTION_PATTERNS = (
     r'\bcontains?\s+only\s+the\s+(?:phrase|fragment|words?)\b',
     r'\btranscription\s+artifact\b',
     r'\b(?:is\s+|entirely\s+)organic\s+conversation\b',
+    r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
+    r'(?:an?\s+)?ads?\b',
+    r'\b(?:they|these|those)\s+are\s+not\s+(?:an?\s+)?ads?\b',
 )
 
 _CONTRADICTION_RES = tuple(re.compile(p) for p in REVIEWER_CONTRADICTION_PATTERNS)
@@ -132,6 +135,17 @@ _EXPLICIT_BOUNDARY_TRIM_RE = re.compile(
     re.IGNORECASE,
 )
 
+_WHOLE_CANDIDATE_NEGATION_RE = re.compile(
+    r'\bnone\s+(?:of\s+(?:them|these|those)\s+)?(?:are|is)\s+'
+    r'(?:an?\s+)?ads?\b'
+    r'|\b(?:they|these|those)\s+are\s+not\s+(?:ads?|advertis\w*)\b'
+    r'|\b(?:this|it|the\s+)?(?:entire\s+|whole\s+|full\s+)?'
+    r'(?:candidate|span|segment|block)\s+(?:is|contains?)\s+'
+    r'(?:not\s+(?:an?\s+ad|advertis\w*)|no\s+(?:ad|advertis\w*))\b'
+    r'|\b(?:this|it)\s+is\s+not\s+(?:an?\s+ad|advertis\w*)\b',
+    re.IGNORECASE,
+)
+
 # In-range slack for recovered trim bounds. A recovered edge may sit up to
 # this far outside the original span (float noise from the model re-reading
 # timestamps) and is clamped back in; anything further out is rejected.
@@ -153,12 +167,21 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
     if not reasoning:
         return False
     lowered = reasoning.lower()
+    whole_negations = list(_WHOLE_CANDIDATE_NEGATION_RE.finditer(lowered))
     for regex in _AFFIRMATION_RES:
         match = regex.search(lowered)
         if not match:
             continue
+        # A broad positive phrase such as "are ads" can be a substring of
+        # the explicit denial "none are ads". Never count text inside the
+        # denial itself as a separate affirmation.
+        if any(neg.start() <= match.start() and match.end() <= neg.end()
+               for neg in whole_negations):
+            continue
         if regex is _ELLIPTICAL_AFFIRMATION_RE:
             tail = lowered[match.end():]
+            if any(neg.start() >= match.end() for neg in whole_negations):
+                continue
             contradiction_positions = [
                 found.start()
                 for contradiction in _CONTRADICTION_RES

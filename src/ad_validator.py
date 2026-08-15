@@ -536,6 +536,12 @@ class AdValidator:
                         f"to user-approved span {new_start:.1f}s-{new_end:.1f}s"
                     )
                     flags.append("INFO: Clamped to user-approved span")
+                    if new_end != ad['end']:
+                        # The old tail provenance belongs to the superseded
+                        # edge. Retaining it would let the final splice sweep
+                        # grow past a human-approved end.
+                        ad.pop('end_extended_by_content', None)
+                        ad.pop('tail_splice_snap', None)
                     ad['start'] = new_start
                     ad['end'] = new_end
                     # Human trims are authoritative. A measured DAI core may

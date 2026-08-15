@@ -641,6 +641,16 @@ def test_trailing_negation_without_boundary_adjustment_is_a_contradiction(reason
     assert reasoning_contradicts_cut(reason)
 
 
+@pytest.mark.parametrize('reason', [
+    'Several potential ads adjusted the end, but none are ads; the entire '
+    'span is not advertising.',
+    'Multiple ads moved the start, but they are not ads and should be kept.',
+])
+def test_boundary_wording_does_not_mask_whole_span_negation(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
 def test_user_confirmed_ad_bypasses_automated_reviewer():
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',

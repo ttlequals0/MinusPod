@@ -773,6 +773,8 @@ class TestConfirmedCorrections:
             'reason': 'Dynamically inserted ad',
             'detection_stage': 'dai_differential',
             'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+            'end_extended_by_content': True,
+            'tail_splice_snap': {'original_end': 150.0, 'event_time': 160.0},
         }
 
         out = validator.validate([ad]).ads[0]
@@ -780,6 +782,8 @@ class TestConfirmedCorrections:
         assert out['start'] == 120.0
         assert out['end'] == 140.0
         assert out['dai_core_spans'] == [{'start': 120.0, 'end': 140.0}]
+        assert 'end_extended_by_content' not in out
+        assert 'tail_splice_snap' not in out
 
     def test_plain_confirm_does_not_clamp(self):
         """A confirm without confirmed_span accepts the ad at its own bounds."""

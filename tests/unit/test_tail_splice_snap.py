@@ -1,6 +1,7 @@
 """Post-review tail recovery through untranscribed sonic logos."""
 import os
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -8,6 +9,7 @@ from ad_detector.boundaries import (
     _merge_ad_pair,
     snap_extended_ad_tails_to_splice,
 )
+from main_app import processing
 
 
 def _event(time, depth=-120.0, event_type='digital_silence'):
@@ -194,3 +196,46 @@ def test_merge_preserves_content_extension_on_later_fragment():
     _merge_ad_pair(merged, ads[1])
 
     assert merged['end_extended_by_content'] is True
+
+
+def test_processing_skips_destructive_tail_snap_during_cold_start(monkeypatch):
+    marker, segments = _fixture()
+
+    def unexpected_snap(*args, **kwargs):
+        raise AssertionError('cold-start events must not drive a cut extension')
+
+    monkeypatch.setattr(
+        processing, 'snap_extended_ad_tails_to_splice', unexpected_snap)
+    analysis = SimpleNamespace(splice_evidence={
+        'events': [_event(2415.85)],
+        'calibration': {'status': 'cold_start'},
+    })
+
+    result = processing._snap_completed_cut_tails_to_splice(
+        'feed', 'episode', [marker], [marker], segments, analysis)
+
+    assert result == [marker]
+
+
+def test_processing_allows_tail_snap_after_calibration(monkeypatch):
+    marker, segments = _fixture()
+    snapped = dict(marker, end=2415.85, tail_splice_snap={
+        'original_end': 2410.9,
+        'event_time': 2415.85,
+        'event_type': 'digital_silence',
+        'depth_dbfs': -120.0,
+    })
+    monkeypatch.setattr(
+        processing, 'snap_extended_ad_tails_to_splice',
+        lambda *args, **kwargs: [snapped])
+    monkeypatch.setattr(processing.storage, 'save_combined_ads', lambda *args: None)
+    analysis = SimpleNamespace(splice_evidence={
+        'events': [_event(2415.85)],
+        'calibration': {'status': 'calibrated'},
+    })
+
+    result = processing._snap_completed_cut_tails_to_splice(
+        'feed', 'episode', [marker], [marker], segments, analysis)
+
+    assert result[0]['end'] == 2415.85
+    assert marker['end'] == 2415.85

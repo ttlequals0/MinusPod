@@ -2100,6 +2100,12 @@ def _snap_completed_cut_tails_to_splice(
     splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
     if not isinstance(splice, dict):
         return ads_to_remove
+    calibration = splice.get('calibration') or {}
+    if (not isinstance(calibration, dict)
+            or calibration.get('status') != 'calibrated'):
+        # Cold-start splice events may corroborate another detector, but they
+        # are not calibrated well enough to extend a destructive cut.
+        return ads_to_remove
     events = splice.get('events') or []
     if not isinstance(events, list) or not events:
         return ads_to_remove
