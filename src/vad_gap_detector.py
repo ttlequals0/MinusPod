@@ -22,15 +22,14 @@ from roll_detector import (
     _region_covered,
 )
 from utils.text import get_transcript_text_for_range
-from config import HOLD_REASON_LARGE_VAD_GAP, VAD_GAP_CONFIDENCE
+from config import (
+    HOLD_REASON_LARGE_VAD_GAP, MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
+    VAD_GAP_CONFIDENCE,
+)
 
 logger = logging.getLogger(__name__)
 
 _GAP_ADJACENCY_BUFFER = 1.0  # seconds; how close a gap must be to an ad to count as adjacent
-# Adjacency is useful boundary evidence, but it is not enough to classify an
-# arbitrarily long untranscribed span. A minute already covers a conventional
-# spot; longer gaps need transcript context or a human decision.
-MAX_ADJACENT_AUTO_EXTENSION_SECONDS = 60.0
 
 # DAI seam check: dynamic insertion can duplicate a few seconds of show
 # audio around the splice, so extending an ad across the gap swallows real

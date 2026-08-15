@@ -1270,6 +1270,9 @@ def resolve_whisper_device():
 # disclaimers, distorted ad tails) that the transcript-based ad detectors
 # never see. A "gap" is a span with no Whisper segment.
 VAD_GAP_CONFIDENCE = 0.75                # emitted marker confidence
+# Adjacency alone is insufficient evidence to classify an arbitrarily long
+# untranscribed span as ad audio.
+MAX_ADJACENT_AUTO_EXTENSION_SECONDS = 60.0
 
 # Default base URL for OpenAI-compatible providers (single source of truth;
 # the OPENAI_BASE_URL env var overrides). Used by get_effective_base_url, the

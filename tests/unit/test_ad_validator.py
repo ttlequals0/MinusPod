@@ -1483,6 +1483,43 @@ def test_distinct_held_markers_never_merge_with_each_other():
     assert merged[1]['start'] == 152.0
 
 
+def test_recut_keeps_approved_vad_hold_distinct():
+    """A recut clears the hold but retains the VAD safety provenance."""
+    validator = AdValidator(episode_duration=300.0, segments=[])
+    result = ValidationResult(ads=[])
+    ads = [
+        {'start': 100.0, 'end': 150.0, 'confidence': 0.95,
+         'vad_gap_requires_review': True, '_saved_was_cut': True},
+        {'start': 152.0, 'end': 200.0, 'confidence': 0.95,
+         '_saved_was_cut': True},
+    ]
+
+    merged = validator._merge_close_ads(ads, result)
+
+    assert len(merged) == 2
+    assert merged[0]['end'] == 150.0
+
+
+def test_merge_preserves_vad_adjacency_extension_limit():
+    validator = AdValidator(episode_duration=400.0, segments=[])
+    result = ValidationResult(ads=[])
+    ads = [
+        {'start': 100.0, 'end': 150.0, 'confidence': 0.95,
+         'vad_gap_adjacency_extension_seconds': 20.0},
+        {'start': 152.0, 'end': 200.0, 'confidence': 0.95,
+         'vad_gap_adjacency_extension_seconds': 20.0},
+        {'start': 202.0, 'end': 250.0, 'confidence': 0.95,
+         'vad_gap_adjacency_extension_seconds': 25.0},
+    ]
+
+    merged = validator._merge_close_ads(ads, result)
+
+    assert len(merged) == 2
+    assert merged[0]['end'] == 200.0
+    assert merged[0]['vad_gap_adjacency_extension_seconds'] == 40.0
+    assert merged[1]['start'] == 202.0
+
+
 class TestRegistryConfirmsLongAds:
     """A real multi-sponsor break was rejected on length alone.
 

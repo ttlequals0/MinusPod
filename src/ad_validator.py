@@ -22,6 +22,7 @@ from config import (
     CUE_ONLY_AUTOCUT_CONFIDENCE,
     HOLD_REASON_CUE_TEMPLATE_UNPROVEN, HOLD_REASON_CUE_LOW_CONFIDENCE,
     HOLD_REASON_LARGE_VAD_GAP,
+    MAX_ADJACENT_AUTO_EXTENSION_SECONDS,
     normalize_segment_category, DEFAULT_SEGMENT_ACTION,
 )
 from utils.markers import mark_distinct_merge
@@ -29,6 +30,12 @@ from utils.text import extract_text_from_segments
 from utils.time import overlap_ratio
 
 logger = logging.getLogger(__name__)
+
+
+def _vad_gap_adjacency_extension_seconds(ad: dict) -> float:
+    """Return an ad's accumulated adjacency-only VAD extension."""
+    value = ad.get('vad_gap_adjacency_extension_seconds', 0.0)
+    return float(value) if isinstance(value, (int, float)) else 0.0
 
 
 class Decision(Enum):
@@ -1049,6 +1056,8 @@ class AdValidator:
             # can absorb content that was not part of the reviewed span.
             if (last.get('held_for_review')
                     or current.get('held_for_review')
+                    or last.get('vad_gap_requires_review')
+                    or current.get('vad_gap_requires_review')
                     or bool(last.get('differential_uncorroborated'))
                     != bool(current.get('differential_uncorroborated'))):
                 merged.append(current.copy())
@@ -1073,10 +1082,22 @@ class AdValidator:
                 merged.append(current.copy())
                 continue
 
+            adjacency_extension = (
+                _vad_gap_adjacency_extension_seconds(last)
+                + _vad_gap_adjacency_extension_seconds(current)
+            )
+            # Each marker can satisfy the adjacency-only safety limit on its
+            # own. Keep them distinct when their union would evade that cap.
+            if adjacency_extension > MAX_ADJACENT_AUTO_EXTENSION_SECONDS:
+                merged.append(current.copy())
+                continue
+
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)
                 mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
+                if adjacency_extension:
+                    last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
@@ -1088,6 +1109,8 @@ class AdValidator:
                 # Merge larger gaps if no speech in between
                 mark_distinct_merge(last, current)
                 last['end'] = max(last['end'], current['end'])
+                if adjacency_extension:
+                    last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
