@@ -765,6 +765,32 @@ class TestAdValidatorVadGapVerification:
         assert held['held_for_review'] is True
         assert held['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
 
+    def test_held_tail_gap_does_not_extend_into_transcript(self):
+        from config import HOLD_REASON_LARGE_VAD_GAP
+
+        validator = AdValidator(
+            episode_duration=1000.0,
+            segments=[{'start': 990.0, 'end': 1000.0,
+                       'text': 'Thanks for listening to the show.'}],
+        )
+        marker = {
+            'start': 870.0,
+            'end': 990.0,
+            'confidence': 0.75,
+            'reason': 'Large VAD gap at episode tail',
+            'detection_stage': 'vad_gap',
+            'vad_gap_requires_review': True,
+            'held_for_review': True,
+            'was_cut': False,
+            'hold_reason': HOLD_REASON_LARGE_VAD_GAP,
+        }
+
+        ad = validator.validate([marker]).ads[0]
+
+        assert ad['end'] == 990.0
+        assert ad['held_for_review'] is True
+        assert ad['hold_reason'] == HOLD_REASON_LARGE_VAD_GAP
+
 
 class TestPositionalPriorBoost:
     """Tests for learned positional prior boosts (issue #360)."""

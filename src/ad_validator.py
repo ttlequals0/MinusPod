@@ -985,6 +985,11 @@ class AdValidator:
         sorted_ads = sorted(ads, key=lambda x: x['start'])
         last_ad = sorted_ads[-1]
 
+        # A held marker has not been approved for cutting. Extending it could
+        # absorb post-gap speech that was not part of the reviewed span.
+        if last_ad.get('held_for_review') or last_ad.get('vad_gap_requires_review'):
+            return ads
+
         gap_to_end = self.episode_duration - last_ad['end']
 
         # Only extend if gap is positive and within threshold
