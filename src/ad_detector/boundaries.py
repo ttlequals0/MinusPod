@@ -1540,11 +1540,26 @@ def _span_blocked_by_content(segments: list[dict], ads: list[dict],
         text = (seg.get('text') or '').strip()
         if not text:
             continue
-        covered = any(
-            ranges_overlap(seg_start, seg_end, m['start'], m['end'])
-            for m in ads
-            if m.get('start') is not None and m.get('end') is not None
-        )
+        # Only coverage inside the proposed extension matters. A long
+        # transcript segment may continue into a later marker after the
+        # candidate splice; that must not hide show speech before the splice.
+        relevant_start = max(seg_start, span_start)
+        relevant_end = min(seg_end, span_end)
+        covered_until = relevant_start
+        for marker in sorted(
+                (m for m in ads
+                 if m.get('start') is not None and m.get('end') is not None),
+                key=lambda m: m['start']):
+            marker_start = max(marker['start'], relevant_start)
+            marker_end = min(marker['end'], relevant_end)
+            if marker_end <= covered_until:
+                continue
+            if marker_start > covered_until:
+                break
+            covered_until = marker_end
+            if covered_until >= relevant_end:
+                break
+        covered = covered_until >= relevant_end
         if covered or _text_has_ad_content(text.lower(), ad_sponsors):
             continue
         return True

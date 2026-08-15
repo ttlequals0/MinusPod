@@ -578,6 +578,29 @@ class TestConfirmedCorrections:
         assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
 
+    def test_confirm_match_survives_dai_core_restoration(self):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=[],
+            confirmed_corrections=[{'start': 120.0, 'end': 140.0}],
+        )
+        narrowed_ad = {
+            'start': 120.0,
+            'end': 140.0,
+            'confidence': 0.4,
+            'reason': 'Automatically narrowed DAI candidate',
+            'detection_stage': 'dai_differential',
+            'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+        }
+
+        result = validator.validate([narrowed_ad])
+
+        assert result.accepted == 1
+        assert result.ads[0]['start'] == 100.0
+        assert result.ads[0]['end'] == 160.0
+        assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
+        assert '_pre_restore_confirmed_correction' not in result.ads[0]
+
     def test_trimmed_confirm_clamps_wider_redetection(self):
         """A trimmed approval (confirmed_span) clamps a re-detected wider span
         so the trimmed-out content is never cut by a later reprocess."""

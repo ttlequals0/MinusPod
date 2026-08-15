@@ -109,6 +109,33 @@ def test_overlapping_marker_blocks_tail_extension_immediately():
     assert result[0]['end'] == 2410.9
 
 
+def test_later_marker_does_not_hide_content_before_proposed_splice():
+    marker = {
+        'start': 70.0,
+        'end': 100.0,
+        'confidence': 0.97,
+        'reason': 'Sponsor ad',
+        'end_extended_by_content': True,
+    }
+    next_marker = {
+        'start': 110.0,
+        'end': 130.0,
+        'reason': 'Separate ad marker',
+    }
+    segments = [{
+        'start': 105.0,
+        'end': 115.0,
+        'text': 'Now we return to the game analysis.',
+    }]
+
+    result = snap_extended_ad_tails_to_splice(
+        [marker], segments, [_event(108.0)], window_s=10.0,
+        coverage_ads=[marker, next_marker])
+
+    assert result[0]['end'] == 100.0
+    assert 'tail_splice_snap' not in result[0]
+
+
 def test_non_silence_and_far_events_are_ignored():
     marker, segments = _fixture()
     events = [
