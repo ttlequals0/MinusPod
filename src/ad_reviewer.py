@@ -189,7 +189,12 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
                 continue
             if regex is _ELLIPTICAL_AFFIRMATION_RE:
                 tail = lowered[match.end():]
-                if any(neg.start() >= match.end() for neg in whole_negations):
+                boundary_trim = _EXPLICIT_BOUNDARY_TRIM_RE.search(tail)
+                scoped_trim = (
+                    boundary_trim is not None
+                    and _TRIM_LANGUAGE_RE.search(tail) is not None)
+                if (any(neg.start() >= match.end() for neg in whole_negations)
+                        and not scoped_trim):
                     continue
                 contradiction_positions = [
                     found.start()
@@ -197,8 +202,7 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
                     if (found := contradiction.search(tail)) is not None
                 ]
                 if contradiction_positions:
-                    boundary_trim = _EXPLICIT_BOUNDARY_TRIM_RE.search(tail)
-                    if (boundary_trim is None
+                    if (not scoped_trim
                             or min(contradiction_positions) < boundary_trim.start()):
                         continue
             return True

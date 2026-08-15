@@ -730,6 +730,39 @@ class TestConfirmedCorrections:
         assert 'INFO: Clamped to user-approved span' in (
             out['validation']['flags'])
 
+    def test_confirmed_span_deduplicates_fragmented_redetection(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0,
+                'end': 200.0,
+                'confirmed_span': {'start': 120.0, 'end': 180.0},
+            }],
+        )
+
+        result = validator.validate([
+            {
+                'start': 120.0,
+                'end': 150.0,
+                'confidence': 0.4,
+                'reason': 'First DAI fragment',
+                'detection_stage': 'dai_differential',
+            },
+            {
+                'start': 150.0,
+                'end': 180.0,
+                'confidence': 0.4,
+                'reason': 'Second DAI fragment',
+                'detection_stage': 'dai_differential',
+            },
+        ])
+
+        assert result.accepted == 1
+        assert len(result.ads) == 1
+        assert result.ads[0]['start'] == 120.0
+        assert result.ads[0]['end'] == 180.0
+
     def test_newer_exact_correction_wins_over_older_trimmed_confirm(self):
         validator = AdValidator(
             episode_duration=600.0,

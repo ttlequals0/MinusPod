@@ -426,6 +426,23 @@ class AdValidator:
                     and (confirmed.get('confirmed_span') or dai_will_expand)):
                 ad['_pre_dai_restore_confirmed_correction'] = confirmed
 
+        # A single approved span can overlap several fragments from one DAI
+        # re-detection. Each would later restore to that exact same span, so
+        # retain only the first before merge protection keeps them separate.
+        restored_corrections = set()
+        deduplicated_ads = []
+        for ad in ads:
+            confirmed = ad.get('_pre_dai_restore_confirmed_correction')
+            correction_id = id(confirmed)
+            if (confirmed is not None
+                    and confirmed.get('confirmed_span')
+                    and correction_id in restored_corrections):
+                continue
+            if confirmed is not None and confirmed.get('confirmed_span'):
+                restored_corrections.add(correction_id)
+            deduplicated_ads.append(ad)
+        ads = deduplicated_ads
+
         # Step 1: Auto-correct boundaries
         ads = self._clamp_boundaries(ads, result)
 

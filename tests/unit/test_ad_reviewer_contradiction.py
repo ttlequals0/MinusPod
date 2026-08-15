@@ -625,6 +625,16 @@ def test_elliptical_plural_affirmation_with_trim_is_not_contradiction():
     assert not reasoning_contradicts_cut(reason)
 
 
+def test_elliptical_plural_affirmation_scopes_plural_negation_to_trimmed_context():
+    reason = (
+        'Multiple sponsor ads were found. Adjusted the start to exclude the '
+        'host segments; these are not ads.'
+    )
+
+    assert reasoning_affirms_ad(reason)
+    assert not reasoning_contradicts_cut(reason)
+
+
 def test_negated_elliptical_plural_is_a_contradiction():
     reason = (
         '  Several potential ads are not an ad and should be excluded from '
