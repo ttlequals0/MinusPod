@@ -103,10 +103,7 @@ REVIEWER_AFFIRMATION_PATTERNS = (
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
-_NEGATED_ELLIPTICAL_AFFIRMATION_RE = re.compile(
-    r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b\s+'
-    r'(?:(?:are|were)\s+not|(?:aren|weren)[\'’]t)\b'
-)
+_ELLIPTICAL_AFFIRMATION_RE = _AFFIRMATION_RES[-1]
 
 # Trim-language precheck: only spend the recovery LLM call when the
 # reasoning describes a sub-span trim; plain "not an ad" skips it.
@@ -144,9 +141,23 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
     if not reasoning:
         return False
     lowered = reasoning.lower()
-    if _NEGATED_ELLIPTICAL_AFFIRMATION_RE.search(lowered):
-        return False
-    return any(r.search(lowered) for r in _AFFIRMATION_RES)
+    for regex in _AFFIRMATION_RES:
+        match = regex.search(lowered)
+        if not match:
+            continue
+        if regex is _ELLIPTICAL_AFFIRMATION_RE:
+            tail = lowered[match.end():]
+            contradiction_positions = [
+                found.start()
+                for contradiction in _CONTRADICTION_RES
+                if (found := contradiction.search(tail)) is not None
+            ]
+            if contradiction_positions:
+                trim = _TRIM_LANGUAGE_RE.search(tail)
+                if trim is None or min(contradiction_positions) < trim.start():
+                    continue
+        return True
+    return False
 
 
 def reasoning_contradicts_cut(reasoning: str | None) -> bool:

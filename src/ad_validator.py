@@ -547,7 +547,7 @@ class AdValidator:
                     # keep it inside the approved span so the reviewer cannot
                     # later widen the marker back into user-kept content.
                     clip_dai_core_spans(ad, new_start, new_end)
-            if auto_accept and ad.get('merged_distinct_ads'):
+            if auto_accept:
                 approved = span or confirmed
                 tolerance = 0.01
                 fully_authorized = (
@@ -555,12 +555,12 @@ class AdValidator:
                     and ad['end'] <= approved['end'] + tolerance
                 )
                 if not fully_authorized:
-                    # A nearby detection may have merged with the confirmed
-                    # ad. Judge that wider marker normally and let the
-                    # reviewer inspect it; the human approved only a subset.
+                    # A new detection may extend beyond the confirmed ad even
+                    # without merge bookkeeping. Judge that wider marker
+                    # normally; the human approved only a subset.
                     auto_accept = False
                     flags.append(
-                        "INFO: User confirmation covers only part of merged segment")
+                        "INFO: User confirmation covers only part of segment")
             if auto_accept:
                 flags.append("INFO: User confirmed as ad")
                 logger.info(

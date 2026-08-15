@@ -579,7 +579,7 @@ class TestConfirmedCorrections:
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
         assert result.ads[0]['validation']['user_confirmed'] is True
 
-    def test_confirm_match_survives_dai_core_restoration(self):
+    def test_plain_confirm_does_not_authorize_restored_dai_edges(self):
         validator = AdValidator(
             episode_duration=300.0,
             segments=[],
@@ -596,10 +596,11 @@ class TestConfirmedCorrections:
 
         result = validator.validate([narrowed_ad])
 
-        assert result.accepted == 1
         assert result.ads[0]['start'] == 100.0
         assert result.ads[0]['end'] == 160.0
-        assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
+        assert 'user_confirmed' not in result.ads[0]['validation']
+        assert 'INFO: User confirmation covers only part of segment' in (
+            result.ads[0]['validation']['flags'])
         assert '_pre_dai_restore_confirmed_correction' not in result.ads[0]
 
     def test_trimmed_confirm_remains_authoritative_after_dai_core_restoration(self):
@@ -791,7 +792,7 @@ class TestConfirmedCorrections:
         assert out['end'] == 240.0
         assert out['validation']['decision'] == Decision.ACCEPT.value
         assert 'user_confirmed' not in out['validation']
-        assert 'INFO: User confirmation covers only part of merged segment' in (
+        assert 'INFO: User confirmation covers only part of segment' in (
             out['validation']['flags'])
 
     def test_partial_confirm_does_not_authorize_adjacent_merged_ad(self):
@@ -814,6 +815,26 @@ class TestConfirmedCorrections:
         assert out['merged_distinct_ads'] is True
         assert out['validation']['decision'] == Decision.ACCEPT.value
         assert 'user_confirmed' not in out['validation']
+
+    def test_partial_confirm_does_not_authorize_wider_unmerged_detection(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 130.0}],
+        )
+        ad = {
+            'start': 100.0,
+            'end': 160.0,
+            'confidence': 0.95,
+            'reason': 'Wider re-detection without merge metadata',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert 'user_confirmed' not in out['validation']
+        assert 'INFO: User confirmation covers only part of segment' in (
+            out['validation']['flags'])
 
     def test_trimmed_confirm_preferred_over_plain(self):
         """A trimmed approval is not shadowed by a plain confirm row that

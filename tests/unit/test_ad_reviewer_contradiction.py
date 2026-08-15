@@ -624,6 +624,14 @@ def test_negated_elliptical_plural_is_a_contradiction():
     assert reasoning_contradicts_cut(reason)
 
 
+def test_indirectly_negated_elliptical_plural_is_a_contradiction():
+    reason = (
+        'Several potential ads appear to be not an ad and should be '
+        'excluded from the cut.')
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
 def test_user_confirmed_ad_bypasses_automated_reviewer():
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
