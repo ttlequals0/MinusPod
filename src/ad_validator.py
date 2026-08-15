@@ -507,17 +507,29 @@ class AdValidator:
             auto_accept = True
             if span:
                 new_start, new_end = ad['start'], ad['end']
+                approved_start = max(0.0, span['start'])
+                approved_end = span['end']
+                if self.episode_duration > 0:
+                    approved_end = min(approved_end, self.episode_duration)
+                overlaps_approved = (
+                    new_start < approved_end and new_end > approved_start)
                 if matched_before_dai_restore:
                     # This correction matched the narrower span before a
                     # persisted DAI core widened it. The confirmed span is
                     # therefore authoritative over every restored edge.
-                    new_start = max(new_start, span['start'])
-                    new_end = min(new_end, span['end'])
+                    new_start = max(new_start, approved_start)
+                    new_end = min(new_end, approved_end)
                 else:
-                    if confirmed['start'] <= new_start < span['start']:
-                        new_start = span['start']
-                    if span['end'] < new_end <= confirmed['end']:
-                        new_end = span['end']
+                    if confirmed['start'] <= new_start < approved_start:
+                        new_start = approved_start
+                    if approved_end < new_end <= confirmed['end']:
+                        new_end = approved_end
+                    if overlaps_approved:
+                        # Every part of confirmed_span was explicitly approved
+                        # as ad audio. A later narrower detection must not
+                        # leave part of that known-positive span behind.
+                        new_start = min(new_start, approved_start)
+                        new_end = max(new_end, approved_end)
                 if new_end <= new_start:
                     # The detection lies entirely inside user-kept content;
                     # do not auto-accept -- let normal validation judge it.
@@ -566,6 +578,10 @@ class AdValidator:
                     'corrections': corrections
                 }
                 return ad
+            duration = ad['end'] - ad['start']
+            position = (
+                ad['start'] / self.episode_duration
+                if self.episode_duration > 0 else 0)
 
         # Duration checks
         if duration < MIN_AD_DURATION:
