@@ -103,6 +103,10 @@ REVIEWER_AFFIRMATION_PATTERNS = (
 )
 
 _AFFIRMATION_RES = tuple(re.compile(p) for p in REVIEWER_AFFIRMATION_PATTERNS)
+_NEGATED_ELLIPTICAL_AFFIRMATION_RE = re.compile(
+    r'^\s*(?:multiple|several)\s+(?:[\w-]+\s+){0,2}ads?(?!-)\b\s+'
+    r'(?:(?:are|were)\s+not|(?:aren|weren)[\'’]t)\b'
+)
 
 # Trim-language precheck: only spend the recovery LLM call when the
 # reasoning describes a sub-span trim; plain "not an ad" skips it.
@@ -140,6 +144,8 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
     if not reasoning:
         return False
     lowered = reasoning.lower()
+    if _NEGATED_ELLIPTICAL_AFFIRMATION_RE.search(lowered):
+        return False
     return any(r.search(lowered) for r in _AFFIRMATION_RES)
 
 
@@ -171,6 +177,12 @@ def _adjusted_ad_copy(ad: dict, start: float, end: float,
     updated = dict(ad)
     updated["start"] = start
     updated["end"] = end
+    if end != ad.get("end"):
+        # Content-tail provenance describes how the old edge was reached.
+        # A reviewer-selected end must earn any later sonic-tail extension
+        # from fresh content evidence instead of reusing stale eligibility.
+        updated.pop("end_extended_by_content", None)
+        updated.pop("tail_splice_snap", None)
     updated["reviewer_verdict"] = "adjust"
     updated["reviewer_original_start"] = original_start
     updated["reviewer_original_end"] = original_end

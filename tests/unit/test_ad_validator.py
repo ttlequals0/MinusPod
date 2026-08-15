@@ -749,12 +749,42 @@ class TestConfirmedCorrections:
             confirmed_corrections=confirmed
         )
         # Merged with an adjacent new ad reaching 240s.
-        ad = {'start': 100.0, 'end': 240.0, 'confidence': 0.95, 'reason': 'ad'}
+        ad = {
+            'start': 100.0,
+            'end': 240.0,
+            'confidence': 0.95,
+            'reason': 'ad',
+            'merged_distinct_ads': True,
+        }
         result = validator.validate([ad])
         out = result.ads[0]
         assert out['start'] == 130.0
         assert out['end'] == 240.0
         assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert 'user_confirmed' not in out['validation']
+        assert 'INFO: User confirmation covers only part of merged segment' in (
+            out['validation']['flags'])
+
+    def test_partial_confirm_does_not_authorize_adjacent_merged_ad(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 130.0}],
+        )
+        ads = [
+            {'start': 100.0, 'end': 130.0, 'confidence': 0.95,
+             'reason': 'Confirmed sponsor ad'},
+            {'start': 132.0, 'end': 160.0, 'confidence': 0.95,
+             'reason': 'New adjacent candidate'},
+        ]
+
+        out = validator.validate(ads).ads[0]
+
+        assert out['start'] == 100.0
+        assert out['end'] == 160.0
+        assert out['merged_distinct_ads'] is True
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert 'user_confirmed' not in out['validation']
 
     def test_trimmed_confirm_preferred_over_plain(self):
         """A trimmed approval is not shadowed by a plain confirm row that

@@ -1869,6 +1869,9 @@ def _apply_reviewer_verdict_to_ad(ad, v):
     if v.verdict == 'adjust':
         ad['reviewer_original_start'] = v.original_start
         ad['reviewer_original_end'] = v.original_end
+        if v.adjusted_end != ad.get('end'):
+            ad.pop('end_extended_by_content', None)
+            ad.pop('tail_splice_snap', None)
         ad['start'] = v.adjusted_start
         ad['end'] = v.adjusted_end
     elif v.verdict == 'reject':

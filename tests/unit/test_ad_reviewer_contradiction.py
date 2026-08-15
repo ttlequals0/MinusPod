@@ -616,6 +616,14 @@ def test_elliptical_plural_affirmation_with_trim_is_not_contradiction():
     assert not reasoning_contradicts_cut(reason)
 
 
+def test_negated_elliptical_plural_is_a_contradiction():
+    reason = (
+        '  Several potential ads are not an ad and should be excluded from '
+        'the cut.')
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
 def test_user_confirmed_ad_bypasses_automated_reviewer():
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
@@ -721,6 +729,27 @@ def test_affirmed_confirm_with_trim_language_applies_recovered_trim():
     assert verdict.verdict == 'adjust'
     assert verdict.adjusted_start == 837.2
     assert verdict.adjusted_end == pytest.approx(1040.9)
+
+
+def test_reviewer_end_adjustment_clears_stale_tail_eligibility():
+    ad = {
+        'start': 837.2,
+        'end': 1068.5,
+        'confidence': 0.95,
+        'end_extended_by_content': True,
+        'tail_splice_snap': {'event_time': 1068.5},
+    }
+    result, _ = _run_affirmed_confirm(
+        _resp('{"ad_start": 837.2, "ad_end": 1040.9}'), ad=ad)
+
+    accepted = result.accepted_after_review[0]
+    assert 'end_extended_by_content' not in accepted
+    assert 'tail_splice_snap' not in accepted
+
+    processing._apply_reviewer_verdict_to_ad(ad, result.verdicts[0])
+    assert ad['end'] == pytest.approx(1040.9)
+    assert 'end_extended_by_content' not in ad
+    assert 'tail_splice_snap' not in ad
 
 
 def test_affirmed_confirm_with_move_phrasing_applies_recovered_trim():
