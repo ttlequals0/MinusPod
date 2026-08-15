@@ -632,6 +632,15 @@ def test_indirectly_negated_elliptical_plural_is_a_contradiction():
     assert reasoning_contradicts_cut(reason)
 
 
+@pytest.mark.parametrize('reason', [
+    'Several potential ads should be excluded because this is not advertising.',
+    'Multiple ads are excluded from the cut since the span is not an ad.',
+])
+def test_trailing_negation_without_boundary_adjustment_is_a_contradiction(reason):
+    assert not reasoning_affirms_ad(reason)
+    assert reasoning_contradicts_cut(reason)
+
+
 def test_user_confirmed_ad_bypasses_automated_reviewer():
     reviewer = _build_reviewer({
         'review_prompt': 'review', 'resurrect_prompt': 'resurrect',

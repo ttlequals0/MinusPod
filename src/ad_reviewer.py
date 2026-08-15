@@ -120,6 +120,18 @@ _TRIM_LANGUAGE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Elliptical openings ("Multiple ads ...") need stronger scoping than a
+# generic word such as "excluded".  When their prose also contains a
+# negation, only an explicit edge adjustment establishes that the negation
+# describes preserved context rather than the whole candidate.
+_EXPLICIT_BOUNDARY_TRIM_RE = re.compile(
+    r'\b(?:adjust(?:ed|ing)?|move[sd]?|shift(?:ed|ing)?|trim(?:med|ming)?)\s+'
+    r'(?:the\s+)?(?:start|end|boundar(?:y|ies))\b'
+    r'|\b(?:start|end|boundar(?:y|ies))\s+(?:was\s+)?'
+    r'(?:adjusted|moved|shifted|trimmed)\b',
+    re.IGNORECASE,
+)
+
 # In-range slack for recovered trim bounds. A recovered edge may sit up to
 # this far outside the original span (float noise from the model re-reading
 # timestamps) and is clamped back in; anything further out is rejected.
@@ -153,8 +165,9 @@ def reasoning_affirms_ad(reasoning: str | None) -> bool:
                 if (found := contradiction.search(tail)) is not None
             ]
             if contradiction_positions:
-                trim = _TRIM_LANGUAGE_RE.search(tail)
-                if trim is None or min(contradiction_positions) < trim.start():
+                boundary_trim = _EXPLICIT_BOUNDARY_TRIM_RE.search(tail)
+                if (boundary_trim is None
+                        or min(contradiction_positions) < boundary_trim.start()):
                     continue
         return True
     return False
