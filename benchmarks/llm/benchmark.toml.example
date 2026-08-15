@@ -139,6 +139,10 @@ id = "qwen/qwen3.8-max"
 provider = "openrouter"
 
 [[models]]
+id = "qwen/qwen3.8-27b"
+provider = "openrouter"
+
+[[models]]
 id = "qwen/qwen3.8-2.4t-a95b"
 provider = "openrouter"
 
@@ -260,6 +264,10 @@ provider = "openrouter"
 # Google Gemini frontier
 [[models]]
 id = "google/gemini-3.1-pro-preview"
+provider = "openrouter"
+
+[[models]]
+id = "google/gemini-3.7-flash"
 provider = "openrouter"
 
 [[models]]

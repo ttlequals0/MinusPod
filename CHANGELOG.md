@@ -11,6 +11,18 @@ release notes.
 
 ## [Unreleased]
 
+### Tooling (benchmark; not in runtime image)
+
+- Two models added to the sweep roster: `qwen/qwen3.8-27b` and
+  `google/gemini-3.7-flash`. Both joined the existing 2026-08 campaign against
+  the frozen prompt, so no earlier model was re-run.
+- `google/gemini-3.7-flash` lands in the top statistical tier at $0.64 per
+  episode against `google/gemini-3.6-flash`'s $1.44 for a tied score, so 3.6 has
+  no remaining case. `qwen/qwen3.8-27b` scores in the middle of the table with
+  brittle JSON and is not a candidate.
+- Fresh pricing snapshot, and the previous report archived to
+  `results/archive/2026-08-15/`.
+
 ## [2.88.3] - 2026-08-14
 
 ### Fixed
