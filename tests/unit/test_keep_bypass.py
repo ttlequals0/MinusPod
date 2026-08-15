@@ -231,6 +231,50 @@ class TestKeepMarkersBlockTerminalSnap:
         assert kept_marker['start'] == 70.0
         assert kept_marker['action_applied'] == 'keep'
 
+    def test_terminal_snap_uses_transition_paired_silence(self):
+        cut = {
+            'start': 5400.0,
+            'end': 5485.17,
+            'confidence': 0.95,
+            'reason': 'Norwegian post-roll ad block',
+        }
+        master = dict(cut)
+        analysis = types.SimpleNamespace(
+            splice_evidence={'events': []},
+            signals=[types.SimpleNamespace(
+                start=5395.0,
+                end=5480.0,
+                signal_type='dai_transition_pair',
+                confidence=0.95,
+            )],
+            silence_spans=[{
+                'start': 5393.312,
+                'end': 5394.024,
+                'duration': 0.712,
+            }],
+            silence_tunables={
+                'max_distance_seconds': 2.0,
+                'min_duration_seconds': 0.3,
+            },
+        )
+        segments = [
+            {'start': 5373.03, 'end': 5388.61,
+             'text': 'thanks for watching and supporting Digital Foundry'},
+            {'start': 5400.88, 'end': 5421.48,
+             'text': 'Norwegian Derby at Ovrevold, tickets available now'},
+        ]
+
+        with patch.object(processing, 'db') as db, \
+                patch.object(processing, 'storage') as storage:
+            db.get_setting_float.return_value = 30.0
+            out = processing._snap_terminal_starts(
+                'feed', 'episode', [cut], [master], segments, analysis,
+                5485.17)
+
+        assert out[0]['start'] == 5393.668
+        assert master['start'] == 5393.668
+        storage.save_combined_ads.assert_called_once()
+
     def test_tail_completion_clamp_still_stops_at_kept_marker(self):
         # _complete_cut_tails' next_start clamp treats every marker in
         # all_ads_with_validation as a hard stop, kept or not. Promo-phrase

@@ -22,6 +22,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
     snap_terminal_ad_to_splice,
+    transition_pair_silence_events,
 )
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_yield import low_ad_yield
@@ -1987,7 +1988,17 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
     if not ads_to_remove or not episode_duration:
         return ads_to_remove
     splice = getattr(audio_analysis_result, 'splice_evidence', None) or {}
-    events = splice.get('events') or []
+    events = list(splice.get('events') or [])
+    silence_tunables = getattr(
+        audio_analysis_result, 'silence_tunables', None)
+    if silence_tunables is None:
+        silence_tunables = resolve_silence_snap_tunables(db)
+    events.extend(transition_pair_silence_events(
+        getattr(audio_analysis_result, 'signals', None) or [],
+        getattr(audio_analysis_result, 'silence_spans', None) or [],
+        max_distance_s=silence_tunables['max_distance_seconds'],
+        min_silence_s=silence_tunables['min_duration_seconds'],
+    ))
     if not events:
         return ads_to_remove
     window_s = db.get_setting_float('terminal_snap_window_seconds',

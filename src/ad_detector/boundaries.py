@@ -1343,7 +1343,9 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
         if episode_duration - ad_copy['end'] <= eof_tolerance_s:
             candidates = [
                 e for e in splice_events
-                if e.get('type') in ('digital_silence', 'deep_silence')
+                if e.get('type') in (
+                    'digital_silence', 'deep_silence',
+                    'dai_transition_silence')
                 and e.get('time') is not None
                 and ad_copy['start'] - window_s <= e['time'] < ad_copy['start']
             ]
@@ -1374,6 +1376,59 @@ def snap_terminal_ad_to_splice(ads: list[dict], segments: list[dict],
                 break
         out.append(ad_copy)
     return out
+
+
+def transition_pair_silence_events(signals: list,
+                                   silence_spans: list[dict],
+                                   max_distance_s: float,
+                                   min_silence_s: float,
+                                   min_confidence: float = 0.9) -> list[dict]:
+    """Derive precise terminal-boundary evidence from a coarse DAI pair.
+
+    Transition pairs use five-second loudness frames, so their edge alone is
+    too coarse for a destructive snap. A nearby measured silence gives the
+    precise boundary. Return splice-shaped events so the terminal content
+    guard can apply its existing transcript safety checks.
+    """
+    events = []
+    for signal in signals or []:
+        signal_type = (signal.get('signal_type') if isinstance(signal, dict)
+                       else getattr(signal, 'signal_type', None))
+        confidence = (signal.get('confidence', 0.0) if isinstance(signal, dict)
+                      else getattr(signal, 'confidence', 0.0))
+        transition_start = (signal.get('start') if isinstance(signal, dict)
+                            else getattr(signal, 'start', None))
+        if (signal_type != 'dai_transition_pair'
+                or confidence < min_confidence
+                or transition_start is None):
+            continue
+
+        candidates = []
+        for span in silence_spans or []:
+            start = span.get('start')
+            end = span.get('end')
+            if start is None or end is None or end <= start:
+                continue
+            duration = span.get('duration', end - start)
+            midpoint = (start + end) / 2.0
+            distance = abs(midpoint - transition_start)
+            if duration >= min_silence_s and distance <= max_distance_s:
+                candidates.append((distance, midpoint, start, end, duration))
+        if not candidates:
+            continue
+
+        _, midpoint, start, end, duration = min(candidates)
+        events.append({
+            'time': midpoint,
+            'end_time': end,
+            'type': 'dai_transition_silence',
+            'depth_dbfs': None,
+            'duration_s': duration,
+            'transition_time': transition_start,
+            'silence_start': start,
+            'silence_end': end,
+        })
+    return events
 
 
 def snap_extended_ad_tails_to_splice(ads: list[dict], segments: list[dict],
