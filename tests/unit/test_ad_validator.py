@@ -599,7 +599,27 @@ class TestConfirmedCorrections:
         assert result.ads[0]['start'] == 100.0
         assert result.ads[0]['end'] == 160.0
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
-        assert '_pre_restore_confirmed_correction' not in result.ads[0]
+        assert '_pre_dai_restore_confirmed_correction' not in result.ads[0]
+
+    def test_confirm_is_not_preserved_across_unrelated_tail_extension(self):
+        validator = AdValidator(
+            episode_duration=200.0,
+            segments=[],
+            confirmed_corrections=[{'start': 160.0, 'end': 170.0}],
+        )
+        ad = {
+            'start': 160.0,
+            'end': 170.0,
+            'confidence': 0.4,
+            'reason': 'Low-confidence tail candidate',
+        }
+
+        result = validator.validate([ad])
+
+        assert result.accepted == 0
+        assert result.ads[0]['end'] == 200.0
+        assert 'INFO: User confirmed as ad' not in (
+            result.ads[0]['validation']['flags'])
 
     def test_trimmed_confirm_clamps_wider_redetection(self):
         """A trimmed approval (confirmed_span) clamps a re-detected wider span
