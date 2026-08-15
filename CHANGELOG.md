@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.88.2] - 2026-08-13
+## [2.88.3] - 2026-08-14
 
 ### Fixed
 
@@ -24,6 +24,11 @@ release notes.
   writer now gets its own temp file and an atomic replace, through a shared
   helper that also fixes the identical pattern in the processing queue's own
   state file.
+- Status updates were also lost outright between workers, since the only guard
+  around read-modify-write was a `threading.Lock` that does not reach past its
+  own process. With four concurrent writers, 7 of 40 queue additions survived.
+  A file lock now spans workers, and all 40 survive.
+
 - Reading the status file rewrote it whenever it expired a stale job, so a
   status poll could write and the timeout warning fired from whichever SSE
   thread happened to read first. Expiry is now separate: read-only callers
@@ -39,10 +44,11 @@ release notes.
   and the connection with foreign keys disabled if a step failed, letting a
   later migration commit a half-finished rebuild. It now rolls back, the same
   fix applied to the fingerprint migration.
-- Status updates were also lost outright between workers, since the only guard
-  around read-modify-write was a `threading.Lock` that does not reach past its
-  own process. With four concurrent writers, 7 of 40 queue additions survived.
-  A file lock now spans workers, and all 40 survive.
+
+## [2.88.2] - 2026-08-13
+
+### Fixed
+
 - Pattern deduplication deleted the audio fingerprints of every duplicate it
   merged away, so a survivor could end up with no fingerprint even though a
   duplicate had one. Duplicates share a text template, so that fingerprint
