@@ -43,6 +43,19 @@ def _vad_gap_adjacency_extension_seconds(ad: dict) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
+def _adopt_later_marker_end(target: dict, source: dict) -> None:
+    """Extend a merged marker and carry provenance only from its new edge."""
+    if source['end'] <= target['end']:
+        return
+    invalidate_tail_provenance(target, source['end'])
+    target['end'] = source['end']
+    if source.get('end_extended_by_content'):
+        target['end_extended_by_content'] = True
+    if source.get('tail_splice_snap') is not None:
+        snap = source['tail_splice_snap']
+        target['tail_splice_snap'] = dict(snap) if isinstance(snap, dict) else snap
+
+
 class Decision(Enum):
     ACCEPT = "ACCEPT"
     REVIEW = "REVIEW"
@@ -1217,7 +1230,7 @@ class AdValidator:
                 # Always merge small gaps (< 5s)
                 mark_distinct_merge(last, current)
                 merge_original_twins(last, current)
-                last['end'] = max(last['end'], current['end'])
+                _adopt_later_marker_end(last, current)
                 if adjacency_extension:
                     last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
                 if current.get('reason') and current['reason'] != last.get('reason'):
@@ -1233,7 +1246,7 @@ class AdValidator:
                 # Merge larger gaps if no speech in between
                 mark_distinct_merge(last, current)
                 merge_original_twins(last, current)
-                last['end'] = max(last['end'], current['end'])
+                _adopt_later_marker_end(last, current)
                 if adjacency_extension:
                     last['vad_gap_adjacency_extension_seconds'] = adjacency_extension
                 if current.get('reason') and current['reason'] != last.get('reason'):
