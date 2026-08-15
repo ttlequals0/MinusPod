@@ -602,6 +602,34 @@ class TestConfirmedCorrections:
         assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
         assert '_pre_dai_restore_confirmed_correction' not in result.ads[0]
 
+    def test_trimmed_confirm_remains_authoritative_after_dai_core_restoration(self):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 120.0,
+                'end': 140.0,
+                'confirmed_span': {'start': 120.0, 'end': 140.0},
+            }],
+        )
+        narrowed_ad = {
+            'start': 120.0,
+            'end': 140.0,
+            'confidence': 0.4,
+            'reason': 'Automatically narrowed DAI candidate',
+            'detection_stage': 'dai_differential',
+            'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+        }
+
+        result = validator.validate([narrowed_ad])
+
+        assert result.accepted == 1
+        assert result.ads[0]['start'] == 120.0
+        assert result.ads[0]['end'] == 140.0
+        assert result.ads[0]['dai_core_spans'] == [
+            {'start': 120.0, 'end': 140.0}]
+        assert result.ads[0]['validation']['user_confirmed'] is True
+
     def test_confirm_is_not_preserved_across_unrelated_tail_extension(self):
         validator = AdValidator(
             episode_duration=200.0,

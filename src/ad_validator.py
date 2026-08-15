@@ -475,6 +475,7 @@ class AdValidator:
             '_matches_false_positive_correction', False)
         pre_restore_confirmed = ad.pop(
             '_pre_dai_restore_confirmed_correction', None)
+        matched_before_dai_restore = pre_restore_confirmed is not None
         if (matched_false_positive
                 or self._overlaps_false_positive(ad['start'], ad['end'])):
             flags.append("INFO: User marked as false positive")
@@ -506,10 +507,17 @@ class AdValidator:
             auto_accept = True
             if span:
                 new_start, new_end = ad['start'], ad['end']
-                if confirmed['start'] <= new_start < span['start']:
-                    new_start = span['start']
-                if span['end'] < new_end <= confirmed['end']:
-                    new_end = span['end']
+                if matched_before_dai_restore:
+                    # This correction matched the narrower span before a
+                    # persisted DAI core widened it. The confirmed span is
+                    # therefore authoritative over every restored edge.
+                    new_start = max(new_start, span['start'])
+                    new_end = min(new_end, span['end'])
+                else:
+                    if confirmed['start'] <= new_start < span['start']:
+                        new_start = span['start']
+                    if span['end'] < new_end <= confirmed['end']:
+                        new_end = span['end']
                 if new_end <= new_start:
                     # The detection lies entirely inside user-kept content;
                     # do not auto-accept -- let normal validation judge it.
