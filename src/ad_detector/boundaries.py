@@ -1137,8 +1137,11 @@ def split_conflicting_action_span(last: dict, current: dict,
     priority = {'remove': 0, 'beep': 1, 'keep': 2}
     last_pattern = bool(last.get('pattern_defined'))
     current_pattern = bool(current.get('pattern_defined'))
-    pattern_decides = last_pattern != current_pattern
-    if (not pattern_decides
+    pattern_overrides_keep = (
+        last_pattern != current_pattern
+        and 'keep' in (last_action, current_action)
+    )
+    if (not pattern_overrides_keep
             and (last_action is None or current_action is None)
             and current['end'] > last['end']):
         # Legacy no-action behavior: the earlier marker owns a partial
@@ -1150,10 +1153,11 @@ def split_conflicting_action_span(last: dict, current: dict,
         clamped['start'] = last['end']
         mark_trusted_fragment(clamped, current)
         return last, [clamped]
-    if pattern_decides:
+    if pattern_overrides_keep:
         # A defined pattern is standing operator evidence and deliberately
-        # overrides category actions downstream. Preserve that same policy
-        # while assigning contested audio at the earlier merge seam.
+        # overrides a keep action downstream. Preserve that same policy while
+        # assigning contested audio at the earlier merge seam; beep retains
+        # its normal precedence over remove.
         current_wins = current_pattern
     else:
         current_wins = (

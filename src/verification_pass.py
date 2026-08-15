@@ -13,7 +13,6 @@ coordinates for cutting.
 import logging
 
 from audio_processor import get_replacement_duration
-from config import DEFAULT_SEGMENT_ACTION, normalize_segment_category
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
@@ -199,29 +198,12 @@ class VerificationPass:
                 f"confidence={ad.get('confidence', 'N/A')}"
             )
 
-        # Feed only action-eligible missed ads back to pattern learning. A
-        # category configured as keep is intentional content, not a false
-        # negative; learning it can create a pattern_defined marker that later
-        # overrides the keep action and cuts the same content.
-        action_map = verification_result.get('segment_actions')
-        learning_ads = original_ads
-        if action_map is not None:
-            learning_ads = [
-                ad for ad in original_ads
-                if action_map.get(
-                    normalize_segment_category(ad.get('category')),
-                    DEFAULT_SEGMENT_ACTION,
-                ) != 'keep'
-            ]
-            skipped = len(original_ads) - len(learning_ads)
-            if skipped:
-                logger.info(
-                    f"[{slug}:{episode_id}] Verification: excluded {skipped} "
-                    f"category-kept detection(s) from miss learning")
-        if self.pattern_service and learning_ads:
+        # Match first-pass learning: a kept marker still represents a real ad
+        # read and remains eligible for pattern learning.
+        if self.pattern_service and original_ads:
             try:
                 self.pattern_service.record_verification_misses(
-                    slug, episode_id, learning_ads, segments=original_segments
+                    slug, episode_id, original_ads, segments=original_segments
                 )
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Failed to record verification misses: {e}")

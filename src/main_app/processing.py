@@ -1484,6 +1484,16 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts):
         [pair[0] for pair in remove_pairs],
         [pair[1] for pair in remove_pairs],
     )
+    for beep_processed, beep_original in beep_pairs:
+        if any(
+            beep_processed['start'] < remove_processed_ad['end']
+            and beep_processed['end'] > remove_processed_ad['start']
+            for remove_processed_ad in remove_processed
+        ):
+            # This beep is the boundary that preserves its contested audio,
+            # so it must survive the renderer's short-cut confidence floor.
+            beep_processed['_trusted_split_fragment'] = True
+            beep_original['_trusted_split_fragment'] = True
     remove_processed, remove_original = _split_pass2_candidates_around_spans(
         remove_processed,
         remove_original,
