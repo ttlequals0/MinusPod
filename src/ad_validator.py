@@ -371,7 +371,18 @@ class AdValidator:
         if segment_duration < 0.001:
             return None
         for corr in self.confirmed_corrections:
-            if overlap_ratio(corr['start'], corr['end'], start, end) >= overlap_threshold:
+            confirmed_span = corr.get('confirmed_span')
+            matches_original = (
+                overlap_ratio(corr['start'], corr['end'], start, end)
+                >= overlap_threshold
+            )
+            matches_approved = (
+                confirmed_span
+                and overlap_ratio(
+                    confirmed_span['start'], confirmed_span['end'], start, end)
+                >= overlap_threshold
+            )
+            if matches_original or matches_approved:
                 return corr
         return None
 
