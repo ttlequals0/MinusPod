@@ -24,6 +24,21 @@ release notes.
   writer now gets its own temp file and an atomic replace, through a shared
   helper that also fixes the identical pattern in the processing queue's own
   state file.
+- Reading the status file rewrote it whenever it expired a stale job, so a
+  status poll could write and the timeout warning fired from whichever SSE
+  thread happened to read first. Expiry is now separate: read-only callers
+  apply it in memory, and only the paths that were already writing persist it.
+  Recovering a corrupt file still rewrites, since that is one-shot.
+- Startup reconciliation held the cross-process status lock across a SQLite
+  write, which can block for the 30 second busy timeout with every status
+  request queued behind it. The database reset now runs outside the lock.
+- An SSE subscriber was handed a status snapshot and then discarded it to
+  fetch the same data again, costing one extra lock acquisition per open
+  stream per update. `to_dict` now accepts the snapshot.
+- `_migrate_sponsor_fk` could leave its table rebuild in an open transaction
+  and the connection with foreign keys disabled if a step failed, letting a
+  later migration commit a half-finished rebuild. It now rolls back, the same
+  fix applied to the fingerprint migration.
 - Status updates were also lost outright between workers, since the only guard
   around read-modify-write was a `threading.Lock` that does not reach past its
   own process. With four concurrent writers, 7 of 40 queue additions survived.

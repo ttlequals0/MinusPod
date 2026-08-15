@@ -58,7 +58,7 @@ def status_stream():
 
         def on_update(status):
             try:
-                update_queue.put_nowait(status_service.to_dict())
+                update_queue.put_nowait(status_service.to_dict(status))
             except queue.Full:
                 pass  # Drop update if queue is full
 

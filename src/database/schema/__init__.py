@@ -3297,7 +3297,13 @@ class SchemaMixin:
                 f"Sponsor FK migration: completed (migrated {snapshot_n} rows; "
                 f"dropped ad_patterns.sponsor; extended pattern_corrections CHECK)"
             )
+        except Exception:
+            # Without this the rebuild stays open with the old tables already
+            # dropped, and the next migration's commit() finalises it.
+            conn.rollback()
+            raise
         finally:
+            # Only lands outside a transaction, which every path above leaves.
             conn.execute("PRAGMA foreign_keys = ON")
 
     def _cleanup_contaminated_patterns(self):

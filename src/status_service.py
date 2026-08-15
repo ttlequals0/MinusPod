@@ -124,12 +124,11 @@ class StatusService:
                     os.close(fd)  # releases the flock
 
     def _read_status_file(self) -> dict:
-        """Read status from shared file with locking.
+        """Parse the status file. Writes only to heal a corrupt one.
 
-        Also performs staleness cleanup: auto-clears jobs running longer
-        than MAX_JOB_DURATION and removes queue entries older than
-        MAX_QUEUE_ENTRY_AGE. This handles cases where workers are
-        SIGKILL'd and never call complete_job()/fail_job().
+        Staleness expiry moved to _expire_stale so a plain read stops
+        rewriting the file on every poll. Corruption recovery stays here: it
+        is one-shot, and without it every later read logs the same warning.
         """
         try:
             if not os.path.exists(STATUS_FILE):
@@ -140,54 +139,68 @@ class StatusService:
                 content = f.read()
             if not content:
                 return self._empty_status()
-            status = json.loads(content)
-
-            # Staleness cleanup
-            needs_write = False
-            now = time.time()
-
-            soft_limit = _get_soft_timeout()
-
-            # Auto-clear stuck current_job
-            job = status.get('current_job')
-            if job and job.get('started_at'):
-                elapsed = now - job['started_at']
-                if elapsed > soft_limit:
-                    logger.warning(
-                        f"Auto-clearing stale job: {job.get('title', 'unknown')} "
-                        f"(running {elapsed/60:.0f} min, soft timeout {soft_limit/60:.0f} min). "
-                        f"Raise 'processing_soft_timeout_seconds' in settings if this was premature."
-                    )
-                    status['current_job'] = None
-                    needs_write = True
-
-            # Remove stale queue entries (same threshold as soft timeout)
-            queued = status.get('queued_episodes', [])
-            if queued:
-                fresh = [
-                    e for e in queued
-                    if now - e.get('queued_at', now) <= soft_limit
-                ]
-                if len(fresh) < len(queued):
-                    logger.warning(
-                        f"Removed {len(queued) - len(fresh)} stale queue entries "
-                        f"(older than {soft_limit/60:.0f} min)"
-                    )
-                    status['queued_episodes'] = fresh
-                    needs_write = True
-
-            if needs_write:
-                status['last_updated'] = now
-                self._write_status_file(status)
-
-            return status
+            return json.loads(content)
         except json.JSONDecodeError:
-            logger.warning("processing_status.json is corrupt; treating as empty and rewriting clean")
+            logger.warning("processing_status.json is corrupt; treating as empty "
+                           "and rewriting clean")
             empty = self._empty_status()
             self._write_status_file(empty)
             return empty
         except OSError:
             return self._empty_status()
+
+    def _expire_stale(self, status: dict, announce: bool) -> bool:
+        """Drop a timed-out job and stale queue entries. True if it changed.
+
+        Workers that are SIGKILL'd never call complete_job(), so nothing else
+        clears them. `announce` is off for read-only callers, which expire in
+        memory only and would otherwise log the same job on every poll.
+        """
+        changed = False
+        now = time.time()
+        soft_limit = _get_soft_timeout()
+
+        job = status.get('current_job')
+        if job and job.get('started_at'):
+            elapsed = now - job['started_at']
+            if elapsed > soft_limit:
+                if announce:
+                    logger.warning(
+                        f"Auto-clearing stale job: {job.get('title', 'unknown')} "
+                        f"(running {elapsed/60:.0f} min, soft timeout {soft_limit/60:.0f} min). "
+                        f"Raise 'processing_soft_timeout_seconds' in settings if this was premature."
+                    )
+                status['current_job'] = None
+                changed = True
+
+        queued = status.get('queued_episodes', [])
+        if queued:
+            fresh = [e for e in queued if now - e.get('queued_at', now) <= soft_limit]
+            if len(fresh) < len(queued):
+                if announce:
+                    logger.warning(
+                        f"Removed {len(queued) - len(fresh)} stale queue entries "
+                        f"(older than {soft_limit/60:.0f} min)"
+                    )
+                status['queued_episodes'] = fresh
+                changed = True
+
+        if changed:
+            status['last_updated'] = now
+        return changed
+
+    def _load(self) -> dict:
+        """Read and expire, persisting the expiry. Callers must hold the lock."""
+        status = self._read_status_file()
+        if self._expire_stale(status, announce=True):
+            self._write_status_file(status)
+        return status
+
+    def _peek(self) -> dict:
+        """Read-only view with staleness applied in memory but not written."""
+        status = self._read_status_file()
+        self._expire_stale(status, announce=False)
+        return status
 
     def _write_status_file(self, status: dict):
         """Write status to the shared file. Best effort, never raises."""
@@ -202,7 +215,7 @@ class StatusService:
         times will overwrite each other, but the difference is negligible.
         """
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             status['server_start_time'] = start_time
             self._write_status_file(status)
 
@@ -218,7 +231,7 @@ class StatusService:
     def start_job(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Mark an episode as starting processing."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             status['current_job'] = {
                 'slug': slug,
                 'episode_id': episode_id,
@@ -240,7 +253,7 @@ class StatusService:
     def update_job_stage(self, stage: str, progress: float = None):
         """Update the current job's stage and optional progress."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             if status.get('current_job'):
                 status['current_job']['stage'] = stage
                 if progress is not None:
@@ -252,7 +265,7 @@ class StatusService:
     def _clear_current_job(self):
         """Clear the current job from status tracking."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             status['current_job'] = None
             status['last_updated'] = time.time()
             self._write_status_file(status)
@@ -273,7 +286,7 @@ class StatusService:
         killed job as still transcribing for up to MAX_JOB_DURATION.
         """
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             job = status.get('current_job')
             if not job or job.get('slug') != slug or job.get('episode_id') != episode_id:
                 return False
@@ -286,7 +299,7 @@ class StatusService:
     def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Add an episode to the queue."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             queued = status.get('queued_episodes', [])
             # Don't add duplicates
             for e in queued:
@@ -307,7 +320,7 @@ class StatusService:
     def remove_queued_episode(self, slug: str, episode_id: str) -> bool:
         """Drop an episode from the display queue. Returns True if it was present."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             queued = status.get('queued_episodes', [])
             remaining = [
                 e for e in queued
@@ -324,7 +337,7 @@ class StatusService:
     def remove_feed_from_queue(self, slug: str) -> int:
         """Drop all queued episodes for a feed. Returns count removed."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             queued = status.get('queued_episodes', [])
             remaining = [e for e in queued if e['slug'] != slug]
             removed = len(queued) - len(remaining)
@@ -339,7 +352,7 @@ class StatusService:
     def get_queue_position(self, slug: str, episode_id: str) -> int:
         """Get queue position for an episode (1-based, 0 if not queued)."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._peek()
             queued = status.get('queued_episodes', [])
             for i, e in enumerate(queued):
                 if e['slug'] == slug and e['episode_id'] == episode_id:
@@ -349,7 +362,7 @@ class StatusService:
     def start_feed_refresh(self, slug: str, podcast_name: str):
         """Mark a feed refresh as starting."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             refreshes = status.get('feed_refreshes', {})
             refreshes[slug] = {
                 'slug': slug,
@@ -365,7 +378,7 @@ class StatusService:
     def complete_feed_refresh(self, slug: str, new_episodes: int = 0):
         """Mark a feed refresh as complete."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             refreshes = status.get('feed_refreshes', {})
             if slug in refreshes:
                 if new_episodes > 0:
@@ -381,7 +394,7 @@ class StatusService:
     def remove_feed_refresh(self, slug: str):
         """Remove a feed refresh status."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._load()
             refreshes = status.get('feed_refreshes', {})
             if slug in refreshes:
                 del refreshes[slug]
@@ -393,7 +406,7 @@ class StatusService:
     def get_status(self) -> SystemStatus:
         """Get current system status snapshot."""
         with self._status_transaction():
-            status = self._read_status_file()
+            status = self._peek()
 
             current_job = None
             if status.get('current_job'):
@@ -468,9 +481,13 @@ class StatusService:
                     warned.add(callback)
                     logger.warning(f"Status subscriber callback failed: {e}")
 
-    def to_dict(self) -> dict:
-        """Convert current status to JSON-serializable dict."""
-        status = self.get_status()
+    def to_dict(self, status: Optional[SystemStatus] = None) -> dict:
+        """Convert status to a JSON-serializable dict.
+
+        Subscribers are handed a snapshot; passing it back avoids a second
+        cross-process lock acquisition per open SSE stream, per update.
+        """
+        status = status if status is not None else self.get_status()
         return {
             'currentJob': {
                 'slug': status.current_job.slug,
@@ -518,39 +535,43 @@ def reconcile_startup_state(db) -> None:
     """
     ss = StatusService()
     with ss._status_transaction():
+        # Raw read, not _load(): expiring the job here would hide it from the
+        # DB reset below and leave the row stuck on 'processing' (#2522).
         status = ss._read_status_file()
         job = status.get('current_job')
+        queued = status.get('queued_episodes', [])
         changed = False
 
         if job:
-            slug = job.get('slug', '')
-            episode_id = job.get('episode_id', '')
-            logger.warning(
-                f"Startup: clearing stale job from previous run: {slug}:{episode_id}"
-            )
-            # Mirror reset_stuck_processing_episodes: reset to pending, no retry penalty.
-            conn = db.get_connection()
-            conn.execute(
-                """UPDATE episodes SET
-                   status = 'pending',
-                   error_message = 'Reset after container restart (no retry penalty)'
-                   WHERE episode_id = ?
-                     AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
-                     AND status = 'processing'""",
-                (episode_id, slug),
-            )
-            conn.commit()
             status['current_job'] = None
             changed = True
-
-        queued = status.get('queued_episodes', [])
         if queued:
-            logger.warning(
-                f"Startup: dropping {len(queued)} stale queue display entries"
-            )
             status['queued_episodes'] = []
             changed = True
 
         if changed:
             status['last_updated'] = time.time()
             ss._write_status_file(status)
+
+    # Outside the status lock: SQLite can block for busy_timeout (30s) and
+    # every get_status() in both workers would queue behind it.
+    if queued:
+        logger.warning(f"Startup: dropping {len(queued)} stale queue display entries")
+    if job:
+        slug = job.get('slug', '')
+        episode_id = job.get('episode_id', '')
+        logger.warning(
+            f"Startup: clearing stale job from previous run: {slug}:{episode_id}"
+        )
+        # Mirror reset_stuck_processing_episodes: reset to pending, no retry penalty.
+        conn = db.get_connection()
+        conn.execute(
+            """UPDATE episodes SET
+               status = 'pending',
+               error_message = 'Reset after container restart (no retry penalty)'
+               WHERE episode_id = ?
+                 AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
+                 AND status = 'processing'""",
+            (episode_id, slug),
+        )
+        conn.commit()
