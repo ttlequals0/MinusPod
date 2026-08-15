@@ -19,9 +19,19 @@ def _valid_dai_core_spans(marker: dict) -> list[dict[str, float]]:
         if not isinstance(raw, dict):
             continue
         try:
-            start = float(raw['start'])
-            end = float(raw['end'])
+            raw_start = raw['start']
+            raw_end = raw['end']
         except (KeyError, OverflowError, TypeError, ValueError):
+            continue
+        # bool is a subclass of int, and float(True) silently becomes 1.0.
+        # Optional evidence with boolean endpoints is malformed, not a
+        # measured one-second span at the beginning of the episode.
+        if isinstance(raw_start, bool) or isinstance(raw_end, bool):
+            continue
+        try:
+            start = float(raw_start)
+            end = float(raw_end)
+        except (OverflowError, TypeError, ValueError):
             continue
         if math.isfinite(start) and math.isfinite(end) and end > start:
             spans.append({'start': start, 'end': end})

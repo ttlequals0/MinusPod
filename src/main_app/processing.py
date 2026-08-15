@@ -2003,13 +2003,16 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
         return ads_to_remove
     window_s = db.get_setting_float('terminal_snap_window_seconds',
                                     TERMINAL_SNAP_WINDOW_SECONDS)
-    # A kept marker must read as blocking, not as coverage, or the sweep
-    # could pull a terminal cut's start back into kept audio.
-    coverage_ads = [m for m in all_ads_with_validation
-                    if m.get('action_applied') != 'keep']
+    # Only markers that will actually be removed may make speech safe to
+    # cross. Rejected, held, and kept markers are explicit barriers, including
+    # when their audio is untranscribed.
+    coverage_ads = list(ads_to_remove)
+    blocking_ads = [m for m in all_ads_with_validation
+                    if m.get('was_cut') is False]
     snapped = snap_terminal_ad_to_splice(
         ads_to_remove, segments, events, episode_duration, window_s,
-        coverage_ads=coverage_ads, podcast_name=podcast_name,
+        coverage_ads=coverage_ads, blocking_ads=blocking_ads,
+        podcast_name=podcast_name,
     )
     changed = False
     for old, new in zip(ads_to_remove, snapped, strict=True):
