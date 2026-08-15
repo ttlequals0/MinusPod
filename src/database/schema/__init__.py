@@ -3039,7 +3039,13 @@ class SchemaMixin:
                 f"Fingerprint cascade migration: completed ({expected} rows kept, "
                 f"{len(orphans)} orphans archived to _orphaned_audio_fingerprints)"
             )
+        except Exception:
+            # Without this the rebuild stays open with the old table already
+            # dropped, and the next migration's commit() finalises it.
+            conn.rollback()
+            raise
         finally:
+            # Only lands outside a transaction, which every path above leaves.
             conn.execute("PRAGMA foreign_keys = ON")
 
     def _migrate_sponsor_fk(self, conn):

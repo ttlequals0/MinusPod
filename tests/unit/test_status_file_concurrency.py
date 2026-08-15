@@ -33,7 +33,7 @@ def test_the_lock_file_lands_beside_the_patched_status_file(status_service, temp
 
 
 def _queue_in_child(status_path, index):
-    """Runs in a forked process, so it gets its own singleton and lock."""
+    """Runs in a separate process, so it gets its own singleton and lock."""
     import status_service as status_service_mod
     status_service_mod._get_soft_timeout = lambda: 3600
     status_service_mod.STATUS_FILE = status_path
@@ -45,7 +45,9 @@ def _queue_in_child(status_path, index):
 
 def test_concurrent_workers_neither_corrupt_nor_lose_updates(temp_dir):
     status_path = os.path.join(temp_dir, 'processing_status.json')
-    ctx = multiprocessing.get_context('fork')
+    # spawn, not fork: forked children would inherit this session's open
+    # SQLite descriptors, which is exactly what gunicorn.conf.py warns about.
+    ctx = multiprocessing.get_context('spawn')
 
     procs = [ctx.Process(target=_queue_in_child, args=(status_path, i)) for i in range(4)]
     for p in procs:

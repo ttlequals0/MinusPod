@@ -366,8 +366,8 @@ class PatternMixin:
         reconciliation, not an explicit operator purge.
 
         Also deletes audio_fingerprints rows that point at the doomed
-        patterns; the schema does not declare an ON DELETE CASCADE on
-        `pattern_id`, so we clean them up explicitly.
+        patterns. The FK cascades, but only on a connection with
+        foreign_keys on, so the delete stays explicit.
         """
         conn = self.get_connection()
         conn.execute(

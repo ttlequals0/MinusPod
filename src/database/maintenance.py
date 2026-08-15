@@ -205,10 +205,11 @@ class MaintenanceMixin:
         """Remove duplicate patterns, merging stats into the highest-tier survivor.
 
         Duplicates are patterns with the same text_template and podcast_id,
-        regardless of sponsor (sponsor variations are merged together). A
-        user or community pattern outranks an auto-learned one; confirmation
-        count only breaks ties within a tier. A duplicate's audio fingerprint
-        moves to the survivor when the survivor has none of its own.
+        regardless of sponsor (sponsor variations are merged together).
+        Precedence: active over disabled first, so a switched-off row cannot
+        delete the live one; then user or community over auto-learned; then
+        confirmation count. A duplicate's audio fingerprint moves to the
+        survivor when the survivor has none of its own.
 
         Returns count of duplicates removed."""
         conn = self.get_connection()

@@ -102,21 +102,26 @@ class StatusService:
         # Lock path derives from STATUS_FILE so a relocated status file, as in
         # tests, cannot end up guarded by a lock somewhere else.
         with self._file_lock:
+            fd = None
             try:
                 fd = os.open(STATUS_FILE + '.lock', os.O_CREAT | os.O_RDWR, 0o644)
+                fcntl.flock(fd, fcntl.LOCK_EX)
             except OSError as e:
+                # Some network mounts refuse flock. Degrade rather than kill a
+                # job over a status update, but say so once.
+                if fd is not None:
+                    os.close(fd)
+                    fd = None
                 if not self._lock_warned:
                     self._lock_warned = True
                     logger.warning(
                         f"Status lock unavailable ({e}); concurrent worker "
                         f"updates may be lost")
-                yield
-                return
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX)
                 yield
             finally:
-                os.close(fd)  # releases the flock
+                if fd is not None:
+                    os.close(fd)  # releases the flock
 
     def _read_status_file(self) -> dict:
         """Read status from shared file with locking.

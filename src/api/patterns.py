@@ -479,8 +479,8 @@ def merge_patterns():
                 [keep_id] + merge_id_list
             )
             # A folded row's fingerprint is the audio hash of ITS read, not the
-            # kept row's; pattern_id is UNIQUE with no cascade, so delete it here
-            # rather than orphan it or attach audio the kept row does not describe.
+            # kept row's, so drop it rather than attach audio the kept row does
+            # not describe. Explicit: the FK cascade is per-connection.
             conn.execute(
                 f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
                 merge_id_list
