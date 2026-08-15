@@ -16,6 +16,7 @@ import pytest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('validate_vads_test_')
+from audio_processor import AudioProcessor
 from main_app.processing import (
     _drop_uncovered_pass2_ads,
     _gate_verification_ads_by_confidence,
@@ -74,6 +75,24 @@ def test_merge_keeps_correct_twin_for_later_ad():
     # The far ad pairs with its own original, not B's.
     assert kept_proc[1]['start'] == 400.0
     assert kept_orig[1]['marker'] == 'C'
+
+
+def test_merge_preserves_later_trusted_split_fragment():
+    processed = [
+        {'start': 100.0, 'end': 102.0, 'confidence': 0.85},
+        {'start': 106.0, 'end': 108.0, 'confidence': 0.85,
+         '_trusted_split_fragment': True},
+    ]
+    original = [
+        {'start': 1100.0, 'end': 1102.0},
+        {'start': 1106.0, 'end': 1108.0},
+    ]
+
+    kept_proc, _ = _run(processed, original)
+
+    assert kept_proc[0]['_trusted_split_fragment'] is True
+    applied = AudioProcessor().compute_applied_cuts(kept_proc, 600.0)
+    assert [(cut['start'], cut['end']) for cut in applied] == [(100.0, 108.0)]
 
 
 def test_unsorted_input_pairs_by_identity_not_position():

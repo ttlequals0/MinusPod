@@ -1104,6 +1104,8 @@ class AdValidator:
                     last['confidence'] = current['confidence']
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
+                if current.get('_trusted_split_fragment'):
+                    last['_trusted_split_fragment'] = True
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
@@ -1117,6 +1119,8 @@ class AdValidator:
                     last['confidence'] = current['confidence']
                 if current.get('pattern_defined'):
                     last['pattern_defined'] = True
+                if current.get('_trusted_split_fragment'):
+                    last['_trusted_split_fragment'] = True
                 result.corrections.append(f"Merged ads across {gap:.1f}s silent gap")
             else:
                 merged.append(current.copy())
