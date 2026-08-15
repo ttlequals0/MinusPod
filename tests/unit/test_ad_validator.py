@@ -772,6 +772,26 @@ class TestConfirmedCorrections:
         assert result.ads[0]['start'] == 98.0
         assert result.ads[0]['end'] == 202.0
 
+    def test_plain_confirm_partly_covering_low_confidence_ad_requires_review(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 130.0}],
+        )
+        ad = {
+            'start': 100.0,
+            'end': 160.0,
+            'confidence': 0.4,
+            'reason': 'Wider low-confidence re-detection',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['validation']['decision'] == Decision.REVIEW.value
+        assert 'user_confirmed' not in out['validation']
+        assert 'INFO: User confirmation covers only part of segment' in (
+            out['validation']['flags'])
+
     def test_no_intersection_with_confirmed_span_is_not_auto_accepted(self):
         """A re-detection entirely inside user-kept content must not be
         auto-accepted at confidence 1.0; it falls through to normal validation."""
