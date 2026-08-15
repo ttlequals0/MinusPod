@@ -410,10 +410,28 @@ class AdValidator:
         # restore portions removed by an automatic snap. Keep matching and
         # non-matching markers separate so a nearby real ad is not rejected
         # as collateral damage during the tiny-gap merge below.
+        confirmed_candidates = {}
         for ad in ads:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
             confirmed = self._matching_confirmed(ad['start'], ad['end'])
+            if confirmed is not None:
+                # A re-detection can split one user-approved span into
+                # multiple markers. Give the correction to the earliest
+                # matching marker and suppress the others below so action
+                # partitioning cannot render overlapping replacements.
+                ad['_has_confirmed_correction_candidate'] = True
+                existing = confirmed_candidates.get(id(confirmed))
+                if (existing is None
+                        or (ad['start'], ad['end']) < (
+                            existing[1]['start'], existing[1]['end'])):
+                    confirmed_candidates[id(confirmed)] = (confirmed, ad)
+
+        for confirmed, ad in confirmed_candidates.values():
+            ad['_confirmed_correction'] = confirmed
+
+        for ad in ads:
+            confirmed = ad.get('_confirmed_correction')
             core_start, core_end = dai_core_bounds(ad)
             dai_will_expand = (
                 (core_start is not None and core_start < ad['start'])
@@ -534,6 +552,9 @@ class AdValidator:
             '_matches_false_positive_correction', False)
         pre_restore_confirmed = ad.pop(
             '_pre_dai_restore_confirmed_correction', None)
+        confirmed = ad.pop('_confirmed_correction', None)
+        duplicate_confirmed = ad.pop(
+            '_has_confirmed_correction_candidate', False) and confirmed is None
         if (matched_false_positive
                 or self._overlaps_false_positive(ad['start'], ad['end'])):
             flags.append("INFO: User marked as false positive")
@@ -551,8 +572,19 @@ class AdValidator:
             }
             return ad
 
+        if duplicate_confirmed:
+            flags.append("INFO: Duplicate of user-confirmed span")
+            ad['validation'] = {
+                'decision': Decision.REJECT.value,
+                'adjusted_confidence': 0.0,
+                'original_confidence': ad.get('confidence', 1.0),
+                'flags': flags,
+                'corrections': corrections,
+            }
+            return ad
+
         # Check for user-confirmed corrections (second priority)
-        confirmed = (pre_restore_confirmed
+        confirmed = (pre_restore_confirmed or confirmed
                      or self._matching_confirmed(ad['start'], ad['end']))
         if confirmed is not None:
             # A trimmed approval confirms exactly one sub-span as ad. A later
@@ -1080,6 +1112,7 @@ class AdValidator:
                     result.corrections.append(
                         f"Restored end {ad['end']:.1f}s to measured DAI "
                         f"core {core_end:.1f}s")
+                    invalidate_tail_provenance(ad, core_end)
                     ad['end'] = core_end
 
             if ad['start'] < 0:

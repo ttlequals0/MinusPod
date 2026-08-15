@@ -1368,6 +1368,13 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             original_ad, label='adjusted',
         )
 
+    deleted = db.delete_conflicting_corrections(
+        episode_id, 'boundary_adjustment', original_start, original_end)
+    if deleted:
+        logger.info(
+            f"Deleted {deleted} conflicting false_positive correction(s) "
+            f"for {slug}/{episode_id}")
+
     db.create_pattern_correction(
         correction_type='boundary_adjustment',
         pattern_id=pattern_id,

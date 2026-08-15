@@ -421,6 +421,21 @@ class TestDeleteConflictingCorrections:
         corrections = temp_db.get_episode_corrections(episode_id)
         assert len(corrections) == 0
 
+    def test_boundary_adjustment_deletes_false_positive(self, temp_db):
+        """A newer boundary edit supersedes an earlier rejection."""
+        episode_id = 'ep-conflict-adjustment'
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0},
+        )
+
+        deleted = temp_db.delete_conflicting_corrections(
+            episode_id, 'boundary_adjustment', 100.0, 200.0)
+
+        assert deleted == 1
+        assert temp_db.get_episode_corrections(episode_id) == []
+
     def test_no_conflict_with_non_overlapping_bounds(self, temp_db):
         """Non-overlapping corrections should not be deleted."""
         episode_id = 'ep-conflict-003'

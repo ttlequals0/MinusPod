@@ -92,6 +92,20 @@ def test_adjust_correction_stores_slug_not_numeric_id(client):
     assert _slug_passed_to_create_ad_pattern(db) == SLUG
 
 
+def test_adjust_correction_supersedes_false_positive(client):
+    db = _mock_db()
+    with patch('api.patterns.get_database', return_value=db):
+        resp = client.post(
+            f'/api/v1/episodes/{SLUG}/{EPISODE_ID}/corrections',
+            data=json.dumps(_correction_payload('adjust', with_adjusted=True)),
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200, resp.data
+    db.delete_conflicting_corrections.assert_called_once_with(
+        EPISODE_ID, 'boundary_adjustment', 0.0, 60.0)
+
+
 def test_confirm_correction_dedup_lookup_uses_slug(client):
     """The deduplication query (find_pattern_by_text) is also a podcast_id
     consumer; it has to use the slug too or it'll fail to find existing

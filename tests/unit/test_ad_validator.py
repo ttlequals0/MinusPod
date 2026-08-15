@@ -710,6 +710,74 @@ class TestConfirmedCorrections:
         assert out['end'] == 170.0
         assert out['validation']['user_confirmed'] is True
 
+    def test_expanded_boundary_adjustment_survives_trailing_extension(self):
+        validator = AdValidator(
+            episode_duration=200.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 160.0,
+                'end': 170.0,
+                'confirmed_span': {'start': 140.0, 'end': 180.0},
+            }],
+        )
+        ad = {
+            'start': 140.0,
+            'end': 180.0,
+            'confidence': 0.4,
+            'reason': 'Human-expanded tail ad',
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['start'] == 140.0
+        assert out['end'] == 180.0
+        assert out['validation']['user_confirmed'] is True
+
+    def test_expanded_boundary_adjustment_claims_only_one_split_marker(self):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 160.0,
+                'end': 170.0,
+                'confirmed_span': {'start': 140.0, 'end': 180.0},
+            }],
+        )
+
+        result = validator.validate([
+            {'start': 140.0, 'end': 160.0, 'confidence': 0.95,
+             'reason': 'First half', 'category': 'sponsor'},
+            {'start': 160.0, 'end': 180.0, 'confidence': 0.95,
+             'reason': 'Second half', 'category': 'promotion'},
+        ], actions_map={'sponsor': 'remove', 'promotion': 'beep'})
+
+        accepted = [ad for ad in result.ads
+                    if ad['validation']['decision'] == Decision.ACCEPT.value]
+        rejected = [ad for ad in result.ads
+                    if ad['validation']['decision'] == Decision.REJECT.value]
+        assert [(ad['start'], ad['end']) for ad in accepted] == [(140.0, 180.0)]
+        assert len(rejected) == 1
+        assert 'INFO: Duplicate of user-confirmed span' in (
+            rejected[0]['validation']['flags'])
+
+    def test_dai_core_restoration_clears_tail_expansion_provenance(self):
+        validator = AdValidator(episode_duration=300.0, segments=[])
+        ad = {
+            'start': 100.0,
+            'end': 150.0,
+            'confidence': 0.95,
+            'reason': 'DAI candidate narrowed by a snap',
+            'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+            'end_extended_by_content': True,
+            'tail_splice_snap': {'original_end': 145.0, 'event_time': 150.0},
+        }
+
+        out = validator.validate([ad]).ads[0]
+
+        assert out['end'] == 160.0
+        assert 'end_extended_by_content' not in out
+        assert 'tail_splice_snap' not in out
+
     def test_trimmed_confirm_clamps_wider_redetection(self):
         """A trimmed approval (confirmed_span) clamps a re-detected wider span
         so the trimmed-out content is never cut by a later reprocess."""

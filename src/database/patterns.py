@@ -414,18 +414,19 @@ class PatternMixin:
                                         bounds_start: float, bounds_end: float) -> int:
         """Delete corrections that conflict with a new correction being submitted.
 
-        When user confirms an ad, delete false_positive corrections for same bounds.
+        When user confirms or adjusts an ad, delete false_positive corrections
+        for the same bounds.
         When user rejects an ad, delete confirm corrections for same bounds.
 
         Returns number of deleted rows.
         """
         # Determine the conflicting type
-        if correction_type == 'confirm':
+        if correction_type in ('confirm', 'boundary_adjustment'):
             conflicting_type = 'false_positive'
         elif correction_type == 'false_positive':
             conflicting_type = 'confirm'
         else:
-            return 0  # adjust doesn't conflict with either
+            return 0
 
         conn = self.get_connection()
         cursor = conn.execute(
