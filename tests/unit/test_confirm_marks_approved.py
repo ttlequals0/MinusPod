@@ -127,6 +127,35 @@ def test_confirm_trimmed_moves_marker_bounds_and_approves(temp_db):
     assert corrections[0]['confirmed_span'] == {'start': 130.0, 'end': 200.0}
 
 
+def test_newer_boundary_adjustment_overrides_older_trimmed_confirm(temp_db):
+    episode_id = 'correction-order-test'
+    temp_db.create_pattern_correction(
+        correction_type='confirm', episode_id=episode_id,
+        original_bounds={'start': 100.0, 'end': 200.0},
+        corrected_bounds={'start': 120.0, 'end': 180.0},
+    )
+    temp_db.create_pattern_correction(
+        correction_type='boundary_adjustment', episode_id=episode_id,
+        original_bounds={'start': 120.0, 'end': 180.0},
+        corrected_bounds={'start': 125.0, 'end': 175.0},
+    )
+
+    corrections = temp_db.get_confirmed_corrections(episode_id)
+
+    assert corrections == [
+        {
+            'start': 120.0,
+            'end': 180.0,
+            'confirmed_span': {'start': 125.0, 'end': 175.0},
+        },
+        {
+            'start': 100.0,
+            'end': 200.0,
+            'confirmed_span': {'start': 120.0, 'end': 180.0},
+        },
+    ]
+
+
 def test_confirm_without_trim_keeps_marker_bounds(temp_db):
     markers = [_held(100.0, 200.0)]
     slug, eid = _seed(temp_db, markers)

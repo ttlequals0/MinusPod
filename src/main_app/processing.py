@@ -2149,19 +2149,13 @@ def _finalize_user_confirmed_bounds(
         return ads_to_remove
     corrections = (confirmed_corrections if confirmed_corrections is not None
                    else db.get_confirmed_corrections(episode_id))
-    trimmed = [
-        corr for corr in corrections or []
-        if isinstance(corr.get('confirmed_span'), dict)
-    ]
-
     def matching_correction(marker):
-        matches = []
-        for corr in trimmed:
+        for corr in corrections or []:
             ratio = overlap_ratio(
                 corr['start'], corr['end'], marker['start'], marker['end'])
             if ratio >= CORRECTION_MATCH_MIN_COVERAGE:
-                matches.append((ratio, corr))
-        return max(matches, key=lambda item: item[0])[1] if matches else None
+                return corr
+        return None
 
     def approved_span(marker):
         validation = marker.get('validation') or {}
@@ -2171,7 +2165,9 @@ def _finalize_user_confirmed_bounds(
         if isinstance(carried, dict):
             return carried
         correction = matching_correction(marker)
-        return correction['confirmed_span'] if correction is not None else None
+        if correction is None:
+            return None
+        return correction.get('confirmed_span')
 
     def apply_span(marker, approved):
         target_start = max(0.0, float(approved['start']))
@@ -3469,7 +3465,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
     corrections = db.get_episode_corrections(episode_id) or []
     adjusted = set()
     applied = 0
-    for c in corrections:  # newest first (ORDER BY created_at DESC)
+    for c in corrections:  # newest first (ORDER BY id DESC)
         if c.get('correction_type') != 'boundary_adjustment':
             continue
         orig = c.get('original_bounds') or {}

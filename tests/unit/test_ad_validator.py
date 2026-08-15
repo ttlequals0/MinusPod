@@ -707,6 +707,32 @@ class TestConfirmedCorrections:
         assert 'INFO: Clamped to user-approved span' in (
             out['validation']['flags'])
 
+    def test_newer_exact_correction_wins_over_older_trimmed_confirm(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[
+                {
+                    'start': 120.0,
+                    'end': 180.0,
+                    'confirmed_span': {'start': 125.0, 'end': 175.0},
+                },
+                {
+                    'start': 100.0,
+                    'end': 200.0,
+                    'confirmed_span': {'start': 120.0, 'end': 180.0},
+                },
+            ],
+        )
+
+        out = validator.validate([
+            {'start': 125.0, 'end': 175.0, 'confidence': 0.4, 'reason': 'ad'}
+        ]).ads[0]
+
+        assert out['start'] == 125.0
+        assert out['end'] == 175.0
+        assert out['validation']['user_confirmed'] is True
+
     def test_confirmed_span_metadata_is_clamped_to_episode_duration(self):
         validator = AdValidator(
             episode_duration=175.0,
@@ -881,13 +907,12 @@ class TestConfirmedCorrections:
         assert 'INFO: User confirmation covers only part of segment' in (
             out['validation']['flags'])
 
-    def test_trimmed_confirm_preferred_over_plain(self):
-        """A trimmed approval is not shadowed by a plain confirm row that
-        covers the same range."""
+    def test_newer_trimmed_confirm_preferred_over_older_plain(self):
+        """The newest correction is authoritative for the same range."""
         confirmed = [
-            {'start': 100.0, 'end': 200.0},  # plain (older row, first)
             {'start': 100.0, 'end': 200.0,
              'confirmed_span': {'start': 130.0, 'end': 200.0}},
+            {'start': 100.0, 'end': 200.0},
         ]
         validator = AdValidator(
             episode_duration=600.0, segments=[],

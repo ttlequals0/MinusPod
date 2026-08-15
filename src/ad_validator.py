@@ -346,20 +346,16 @@ class AdValidator:
                             overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> dict | None:
         """Return a user-confirmed correction covering >= threshold of the
         range, or None. Mirrors _overlaps_confirmed but yields the match so
-        the caller can honor a trimmed approval's confirmed_span. A trimmed
-        approval wins over a plain confirm covering the same range -- it is
-        the more specific user intent and must not be shadowed."""
+        the caller can honor an exact ``confirmed_span``. Corrections arrive
+        newest first, so the latest overlapping user decision is authoritative.
+        """
         segment_duration = end - start
         if segment_duration < 0.001:
             return None
-        plain = None
         for corr in self.confirmed_corrections:
             if overlap_ratio(corr['start'], corr['end'], start, end) >= overlap_threshold:
-                if corr.get('confirmed_span'):
-                    return corr
-                if plain is None:
-                    plain = corr
-        return plain
+                return corr
+        return None
 
     def validate(self, ads: list[dict],
                  audio_analysis: dict | None = None,

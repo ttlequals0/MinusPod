@@ -185,6 +185,36 @@ def test_final_confirmed_bounds_uses_carried_span_after_large_extension(monkeypa
     assert marker['end'] == 111.0
 
 
+def test_final_confirmed_bounds_does_not_restore_older_trim_after_new_plain_confirm(
+        monkeypatch):
+    marker = {
+        'start': 100.0,
+        'end': 200.0,
+        'validation': {
+            'decision': 'ACCEPT',
+            'user_confirmed': True,
+            'flags': [],
+        },
+    }
+    corrections = [
+        {'start': 100.0, 'end': 200.0},
+        {
+            'start': 100.0,
+            'end': 200.0,
+            'confirmed_span': {'start': 120.0, 'end': 180.0},
+        },
+    ]
+    monkeypatch.setattr(
+        processing.storage, 'save_combined_ads',
+        lambda *args: pytest.fail('newest plain confirm must keep its bounds'))
+
+    processing._finalize_user_confirmed_bounds(
+        'feed', 'episode', [marker], [marker], corrections)
+
+    assert marker['start'] == 100.0
+    assert marker['end'] == 200.0
+
+
 def test_final_confirmed_bounds_clamps_carried_span_to_episode(monkeypatch):
     marker = {
         'start': 101.0,
