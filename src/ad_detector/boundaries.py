@@ -829,6 +829,13 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     """
     mark_distinct_merge(current_ad, next_ad)
     current_ad['end'] = next_ad['end']
+    # The tail-sweep marker describes how the *current end* was reached. Once
+    # this merge replaces that edge, only the later fragment's flag remains
+    # meaningful; retaining the earlier fragment's flag could snap past an
+    # otherwise final, non-content-derived boundary.
+    current_ad.pop('end_extended_by_content', None)
+    if next_ad.get('end_extended_by_content'):
+        current_ad['end_extended_by_content'] = True
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
                                    next_ad.get('confidence', 0.0))
 

@@ -365,6 +365,57 @@ class TestAdValidatorFalsePositives:
         assert result.rejected == 1
         assert 'false positive' in result.ads[0]['validation']['flags'][0].lower()
 
+    def test_false_positive_match_survives_dai_core_restoration(
+            self, sample_transcript):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=sample_transcript,
+            false_positive_corrections=[{'start': 120.0, 'end': 140.0}],
+        )
+        narrowed_ad = {
+            'start': 120.0,
+            'end': 140.0,
+            'confidence': 0.95,
+            'reason': 'Automatically narrowed DAI candidate',
+            'detection_stage': 'dai_differential',
+            'dai_core_spans': [{'start': 100.0, 'end': 160.0}],
+        }
+
+        result = validator.validate([narrowed_ad])
+
+        assert result.rejected == 1
+        assert result.ads[0]['start'] == 100.0
+        assert result.ads[0]['end'] == 160.0
+        assert '_matches_false_positive_correction' not in result.ads[0]
+
+    def test_false_positive_does_not_merge_with_nearby_real_ad(
+            self, sample_transcript):
+        validator = AdValidator(
+            episode_duration=300.0,
+            segments=sample_transcript,
+            false_positive_corrections=[{'start': 120.0, 'end': 140.0}],
+        )
+        ads = [
+            {
+                'start': 120.0,
+                'end': 140.0,
+                'confidence': 0.95,
+                'reason': 'Rejected detection',
+            },
+            {
+                'start': 142.0,
+                'end': 170.0,
+                'confidence': 0.95,
+                'reason': 'Nearby real sponsor ad',
+            },
+        ]
+
+        result = validator.validate(ads)
+
+        assert len(result.ads) == 2
+        assert result.ads[0]['validation']['decision'] == Decision.REJECT.value
+        assert result.ads[1]['validation']['decision'] == Decision.ACCEPT.value
+
 
 class TestAdValidatorReasonQuality:
     """Tests for reason quality checks."""
