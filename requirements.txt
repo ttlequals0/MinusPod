@@ -18,6 +18,7 @@ anyio==4.13.0 \
     # via
     #   anthropic
     #   httpx
+    #   httpx2
     #   openai
 audioread==3.1.0 \
     --hash=sha256:1c4ab2f2972764c896a8ac61ac53e261c8d29f0c6ccd652f84e18f08a4cab190 \
@@ -763,7 +764,9 @@ gunicorn==26.0.0 \
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
     --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
-    # via httpcore
+    # via
+    #   httpcore
+    #   httpcore2
 hf-xet==1.6.0 \
     --hash=sha256:0e6e21fa3cdfcdcd76748564bf593870a5e013f47d97cf10aed63aa222cff5b7 \
     --hash=sha256:0e6e21fa3cdfcdcd76748564bf593870a5e013f47d97cf10aed63aa222cff5b7 \
@@ -804,13 +807,24 @@ httpcore==1.0.9 \
     --hash=sha256:2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55 \
     --hash=sha256:6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8
     # via httpx
+httpcore2==2.10.0 \
+    --hash=sha256:13c0cc3d1919d4f28457f60cd2c2abe04113a8af184ccf1142811beba936f9dc \
+    --hash=sha256:13c0cc3d1919d4f28457f60cd2c2abe04113a8af184ccf1142811beba936f9dc \
+    --hash=sha256:7df06cfb34070cae4f7c89be69dc1095eca138e9704ceffb98d25c1912ab6f01 \
+    --hash=sha256:7df06cfb34070cae4f7c89be69dc1095eca138e9704ceffb98d25c1912ab6f01
+    # via httpx2
 httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
     # via
     #   anthropic
     #   huggingface-hub
-    #   openai
+httpx2==2.10.0 \
+    --hash=sha256:5e3194a432701e1cc6f69a8b1b2fa199ef907013fede8d9a09a2c5b7b8141a18 \
+    --hash=sha256:5e3194a432701e1cc6f69a8b1b2fa199ef907013fede8d9a09a2c5b7b8141a18 \
+    --hash=sha256:8741d7329fe2c7885fc9ceb61c8217acfb87a85f75723714b89ebf7ad7196338 \
+    --hash=sha256:8741d7329fe2c7885fc9ceb61c8217acfb87a85f75723714b89ebf7ad7196338
+    # via openai
 huggingface-hub==1.27.0 \
     --hash=sha256:7df6827c2f956c60fbaa64646e979e566db76f619dd0a9729dfb8c5a3eb4f68d \
     --hash=sha256:c1fed40ea82a6b41b477f5243546549b792ae0a93abcea608cff66089bf8f8df
@@ -825,6 +839,7 @@ idna==3.18 \
     #   -r requirements.in
     #   anyio
     #   httpx
+    #   httpx2
     #   requests
 iniconfig==2.3.0 \
     --hash=sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730 \
@@ -1163,9 +1178,9 @@ onnxruntime==1.24.4 \
     --hash=sha256:e99a48078baaefa2b50fe5836c319499f71f13f76ed32d0211f39109147a49e0 \
     --hash=sha256:fbff2a248940e3398ae78374c5a839e49a2f39079b488bc64439fa0ec327a3e4
     # via faster-whisper
-openai==2.53.0 \
-    --hash=sha256:baf5802ad08980e1d9d561e1b996e800c8bcd14af5847c6d0e7a5cc59e4d4116 \
-    --hash=sha256:c694ffc747a3c4d1663ef2b07b811315a476164ee5efa3a993967349ebca7618
+openai==3.0.0 \
+    --hash=sha256:8d32ac3a6647a66910d6cb8a64f0fa5a6c823604b6e82db83d9d055c6709bd51 \
+    --hash=sha256:ffd00ef1678d70957e1f1ed98d5bfcf1d661f41ea4482f22e7d0144a66435a49
     # via -r requirements.in
 ordered-set==4.1.0 \
     --hash=sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562 \
@@ -1763,6 +1778,14 @@ tqdm==4.67.3 \
     #   faster-whisper
     #   huggingface-hub
     #   openai
+truststore==0.10.4 \
+    --hash=sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301 \
+    --hash=sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301 \
+    --hash=sha256:adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981 \
+    --hash=sha256:adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.15.0 \
     --hash=sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466 \
     --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
@@ -1771,6 +1794,7 @@ typing-extensions==4.15.0 \
     #   anyio
     #   beautifulsoup4
     #   flask-limiter
+    #   httpx2
     #   huggingface-hub
     #   limits
     #   openai
