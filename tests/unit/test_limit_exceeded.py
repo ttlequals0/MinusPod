@@ -147,7 +147,7 @@ class TestAllWindowsFailedResponse:
 
     def test_limit_error_keeps_actionable_text(self):
         err = FakeProviderError(OPENROUTER_KEY_LIMIT_403, status_code=403)
-        resp = ad_detector._all_windows_failed_response("detection", 5, err, "m")
+        resp = ad_detector._windows_failed_response("detection", 5, 5, err, "m")
         assert "Key limit exceeded" in resp["error"]
         assert "provider rate limit reached" not in resp["error"]
         assert resp["limit_exceeded"] is True
@@ -160,7 +160,7 @@ class TestAllWindowsFailedResponse:
             response=httpx.Response(429, request=request),
             body=INSUFFICIENT_QUOTA_BODY,
         )
-        resp = ad_detector._all_windows_failed_response("detection", 5, err, "m")
+        resp = ad_detector._windows_failed_response("detection", 5, 5, err, "m")
         assert "insufficient_quota" in resp["error"]
         assert "provider rate limit reached" not in resp["error"]
         assert resp["limit_exceeded"] is True
@@ -173,7 +173,7 @@ class TestAllWindowsFailedResponse:
             response=httpx.Response(429, request=request),
             body={"error": {"message": "Rate limit reached", "code": "rate_limit_exceeded"}},
         )
-        resp = ad_detector._all_windows_failed_response("detection", 5, err, "m")
+        resp = ad_detector._windows_failed_response("detection", 5, 5, err, "m")
         assert "provider rate limit reached" in resp["error"]
         assert resp["limit_exceeded"] is False
         assert resp["retryable"] is True

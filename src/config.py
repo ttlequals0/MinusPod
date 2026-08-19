@@ -1701,6 +1701,12 @@ AD_DETECTION_PARALLEL_WINDOWS_MIN = 1
 AD_DETECTION_PARALLEL_WINDOWS_MAX = 32
 
 
+# Above this failed-window ratio the whole detection pass fails (episode
+# retried later) instead of publishing with blind spots. 1.0 disables.
+AD_DETECTION_MAX_FAILED_WINDOW_RATIO = float(
+    os.environ.get('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', '0.25'))
+
+
 # Ad-reviewer parallelism. Tracks the same shape as the detector knob but
 # is tuned separately because each reviewer call is one ad (not one
 # transcript window), so the cost / latency profile is different.

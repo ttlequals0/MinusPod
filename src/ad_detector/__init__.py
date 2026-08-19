@@ -47,6 +47,7 @@ from config import (
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
+    AD_DETECTION_MAX_FAILED_WINDOW_RATIO,
     resolve_stage_tunables,
     get_stage_tunable,
     resolve_env_backed_default,
@@ -221,8 +222,10 @@ def _model_not_found_hint(last_error, model) -> str:
     )
 
 
-def _all_windows_failed_response(stage: str, num_windows: int, last_error, model) -> dict:
-    """Build the failure response when every window in a pass fails.
+def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
+                              last_error, model) -> dict:
+    """Build the failure response for a pass whose failed-window count hit
+    the fail threshold (all windows, or too high a share).
 
     Surfaces the last error so callers can tell rate-limit from generic failure
     (#238). A model-not-found error gets an actionable hint and is marked
@@ -231,7 +234,11 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
     last_err_type = type(last_error).__name__ if last_error else 'Unknown'
     last_err_status = getattr(last_error, 'status_code', None)
     limit_exceeded = is_limit_exceeded_error(last_error) if last_error else False
-    parts = [f"All {num_windows} {stage} windows failed (last error: {last_err_type}"]
+    if failed_windows >= num_windows:
+        lead = f"All {num_windows} {stage} windows failed"
+    else:
+        lead = f"{failed_windows}/{num_windows} {stage} windows failed"
+    parts = [f"{lead} (last error: {last_err_type}"]
     if last_err_status:
         parts.append(f", status={last_err_status}")
     if last_error:
@@ -269,7 +276,7 @@ def _all_windows_failed_response(stage: str, num_windows: int, last_error, model
         "last_error_status": last_err_status,
         # Per-run stats (#519): "0/N answered" is the failure signal.
         "windows_total": num_windows,
-        "windows_failed": num_windows,
+        "windows_failed": failed_windows,
     }
 
 
@@ -1134,9 +1141,12 @@ class AdDetector:
                 f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
                 f"failed during {pass_label.lower()}"
             )
-        if failed_windows >= len(windows):
-            failure = _all_windows_failed_response(
-                pass_label.lower(), len(windows), last_error, model)
+        failure_ratio = failed_windows / len(windows) if windows else 0.0
+        if failed_windows >= len(windows) or (
+                failure_ratio > AD_DETECTION_MAX_FAILED_WINDOW_RATIO):
+            failure = _windows_failed_response(
+                pass_label.lower(), failed_windows, len(windows),
+                last_error, model)
             return [], all_raw_responses, failed_windows, failure, 0, 0, 0
 
         # Raw LLM markers with no "category": the merge seam leaves these
