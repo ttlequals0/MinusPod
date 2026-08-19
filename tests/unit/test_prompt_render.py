@@ -180,7 +180,8 @@ def test_default_flagged_prompts_are_owned_by_the_refresh(tmp_path):
     )
     db_path = tmp_path / "podcast.db"
     conn = sqlite3.connect(str(db_path))
-    conn.executescript(f"""
+    # fixture_value is a hardcoded literal above, not external input.
+    script = f"""
         CREATE TABLE settings (
             key TEXT PRIMARY KEY,
             value TEXT,
@@ -191,7 +192,8 @@ def test_default_flagged_prompts_are_owned_by_the_refresh(tmp_path):
         INSERT INTO podcasts(slug) VALUES ('seed-pod');
         INSERT INTO settings (key, value, is_default)
             VALUES ('system_prompt', '{fixture_value}', 1);
-    """)
+    """  # noqa: S608
+    conn.executescript(script)
     conn.commit()
     conn.close()
 

@@ -478,19 +478,19 @@ def merge_patterns():
             conn.execute(
                 f'''UPDATE pattern_corrections
                     SET pattern_id = ?
-                    WHERE pattern_id IN ({placeholders})''',
+                    WHERE pattern_id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound
                 [keep_id] + merge_id_list
             )
             # A folded row's fingerprint is the audio hash of ITS read, not the
             # kept row's, so drop it rather than attach audio the kept row does
             # not describe. Explicit: the FK cascade is per-connection.
             conn.execute(
-                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
+                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
                 merge_id_list
             )
             # Delete merged patterns
             conn.execute(
-                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound
                 merge_id_list
             )
 
