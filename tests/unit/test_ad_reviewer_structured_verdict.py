@@ -55,8 +55,14 @@ def _mock_episode_meta():
     }
 
 
+_DB_SETTINGS = {
+    'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
+    'review_max_boundary_shift': '60',
+}
+
+
 def _build_reviewer(db_settings=None):
-    db_settings = db_settings or {}
+    db_settings = db_settings or _DB_SETTINGS
     db = MagicMock()
     db.get_setting.side_effect = lambda key: db_settings.get(key)
     db.get_connection.return_value = MagicMock()
@@ -75,10 +81,7 @@ def _resp(body: str) -> _LLMResp:
 
 
 def test_structured_false_rejects_regardless_of_bounds():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": false, "start": 120.0, "end": 180.0, '
         '"reason": "editorial mention"}]'
@@ -97,10 +100,7 @@ def test_structured_false_rejects_regardless_of_bounds():
 
 
 def test_structured_true_suppresses_pool_split_hold():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": true, "start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -119,10 +119,7 @@ def test_structured_true_suppresses_pool_split_hold():
 
 
 def test_missing_is_ad_field_is_legacy_byte_identical():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 120.0, "end": 180.0, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]'
@@ -144,10 +141,7 @@ def test_missing_is_ad_field_is_legacy_byte_identical():
 def test_is_ad_as_string_is_treated_as_absent():
     # A non-bool is_ad (e.g. the model emits the string "false" instead of
     # the JSON literal) must fall through to the legacy path, not reject.
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": "false", "start": 120.0, "end": 180.0, "confidence": 0.95, '
         '"reason": "Confirmed sponsor read"}]'
@@ -165,10 +159,7 @@ def test_is_ad_as_string_is_treated_as_absent():
 
 
 def test_contradiction_guard_fired_logs_once_with_context(caplog):
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -189,10 +180,7 @@ def test_contradiction_guard_fired_logs_once_with_context(caplog):
 
 
 def test_structured_true_suppression_logs_once_with_context(caplog):
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": true, "start": 120.0, "end": 180.0, "confidence": 0.9, '
         f'"reason": "{CONTRA}"}}]'
@@ -212,10 +200,7 @@ def test_structured_true_suppression_logs_once_with_context(caplog):
 
 
 def test_structured_false_in_resurrection_pool_rejects_not_resurrects():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review', 'resurrect_prompt': 'resurrect',
-        'review_max_boundary_shift': '60',
-    })
+    reviewer = _build_reviewer()
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"is_ad": false, "start": 120.0, "end": 180.0, '
         '"reason": "not a real ad"}]'

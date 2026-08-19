@@ -11,7 +11,8 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
-
+from utils import safe_http
+from utils.pinned_transport import PinnedHTTPAdapter
 from utils.safe_http import URLTrust, safe_get
 from utils.url import SSRFError
 
@@ -99,15 +100,11 @@ def test_ip_literal_url_still_validated(monkeypatch):
 
 def test_kill_switch_reverts_to_stock_adapter(monkeypatch):
     monkeypatch.setenv("SSRF_IP_PINNING", "false")
-    from utils import safe_http
-    from utils.pinned_transport import PinnedHTTPAdapter
     s = safe_http._RevalidatingSession(URLTrust.FEED_CONTENT, 3)
     assert not isinstance(s.get_adapter("https://x"), PinnedHTTPAdapter)
 
 
 def test_pinning_mounted_by_default():
-    from utils import safe_http
-    from utils.pinned_transport import PinnedHTTPAdapter
     s = safe_http._RevalidatingSession(URLTrust.FEED_CONTENT, 3)
     assert isinstance(s.get_adapter("https://x"), PinnedHTTPAdapter)
 
@@ -143,7 +140,6 @@ def _pool_for(adapter, url, monkeypatch):
 
 
 def test_ipv6_resolution_is_pinned_on_the_pool(monkeypatch):
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     real = socket.getaddrinfo
 
@@ -161,7 +157,6 @@ def test_ipv6_resolution_is_pinned_on_the_pool(monkeypatch):
 
 
 def test_https_pool_carries_server_hostname_of_the_original_host(monkeypatch):
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     real = socket.getaddrinfo
 
@@ -179,7 +174,6 @@ def test_https_pool_carries_server_hostname_of_the_original_host(monkeypatch):
 
 
 def test_proxy_configured_skips_pinning(monkeypatch):
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     adapter = PinnedHTTPAdapter(allow_private=False)
     resolved = []
@@ -208,7 +202,6 @@ def test_proxy_configured_skips_pinning(monkeypatch):
 
 
 def test_stale_host_header_dropped_when_a_later_hop_is_not_pinned(monkeypatch):
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     adapter = PinnedHTTPAdapter(allow_private=True)
     real = socket.getaddrinfo
@@ -310,7 +303,6 @@ def _https_server(cert_pem, key_pem, sni_seen):
 
 def _record_pool_hosts(monkeypatch):
     """Record (pool host, server_hostname) for every connection the pin builds."""
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     seen = []
     original = PinnedHTTPAdapter.build_connection_pool_key_attributes
@@ -466,7 +458,6 @@ def test_unresolvable_feed_host_still_blocked_by_the_pre_check(monkeypatch):
 
 
 def test_empty_resolution_is_a_connection_error(monkeypatch):
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     real = socket.getaddrinfo
 
@@ -505,7 +496,6 @@ def test_adapter_validates_every_address_the_second_lookup_returns(monkeypatch):
 
 
 def test_pin_that_does_not_match_the_request_host_raises():
-    from utils.pinned_transport import PinnedHTTPAdapter
 
     adapter = PinnedHTTPAdapter(allow_private=True)
     adapter._pin = ("stale.example", "127.0.0.1")
@@ -517,7 +507,5 @@ def test_pin_that_does_not_match_the_request_host_raises():
 @pytest.mark.parametrize("value", ["false", "FALSE", " off ", "0", "no"])
 def test_kill_switch_accepts_the_usual_falsey_spellings(monkeypatch, value):
     monkeypatch.setenv("SSRF_IP_PINNING", value)
-    from utils import safe_http
-    from utils.pinned_transport import PinnedHTTPAdapter
     s = safe_http._RevalidatingSession(URLTrust.FEED_CONTENT, 3)
     assert not isinstance(s.get_adapter("https://x"), PinnedHTTPAdapter)

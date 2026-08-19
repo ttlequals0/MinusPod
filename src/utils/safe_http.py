@@ -147,6 +147,8 @@ class _RevalidatingSession(requests.Session):
         super().__init__()
         self._trust = trust
         self.max_redirects = max_redirects
+        # Explicit falsey list, not coerce_bool_setting: unknown values must
+        # keep the security control ON (fail secure), not fall back to False.
         pinning = os.environ.get('SSRF_IP_PINNING', 'true').strip().lower()
         if pinning not in ('0', 'false', 'no', 'off'):
             adapter = PinnedHTTPAdapter(
