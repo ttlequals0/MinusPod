@@ -110,13 +110,13 @@ audio_logger = logging.getLogger('podcast.audio')
 from main_app.episode_context import EpisodeContext
 from main_app.verification_reconciliation import (
     _apply_pass2_heuristic_rolls,
-    _corroborated_span,  # noqa: F401 -- re-exported for processing.<name> test patch targets
-    _corroborates_hold,  # noqa: F401 -- re-exported for processing.<name> test patch targets
+    _corroborated_span,  # noqa: F401 re-exported for processing.<name> test patch targets
+    _corroborates_hold,  # noqa: F401 re-exported for processing.<name> test patch targets
     _covered_by_cuts,
     _drop_uncovered_pass2_ads,
     _exclude_kept_spans_from_verification,
     _gate_verification_ads_by_confidence,
-    _proposed_span_agrees,  # noqa: F401 -- re-exported for processing.<name> test patch targets
+    _proposed_span_agrees,  # noqa: F401 re-exported for processing.<name> test patch targets
 )
 # Singletons created in main_app/__init__.py before this submodule is
 # loaded by the explicit `from main_app.processing import ...` near the

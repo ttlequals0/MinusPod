@@ -36,8 +36,8 @@ def _build_db():
 
 # Canned responses, one per CALIBRATION_CORPUS case in order. Case 8
 # (topic_transition, expected "drop") comes back adjusted instead of
-# rejected -- the deliberate disagreement -> 7/8 agreement = 0.875.
-# is_ad appears on cases 1, 3, 6, 7 -> structured_fraction = 4/8 = 0.5.
+# rejected: the deliberate disagreement, 7/8 agreement = 0.875.
+# is_ad appears on cases 1, 3, 6, 7: structured_fraction = 4/8 = 0.5.
 _CANNED_RESPONSES = [
     '[{"start": 50.0, "end": 80.0, "confidence": 0.95, "is_ad": true, '
     '"reason": "Clear paid sponsor read for Acme Mattress"}]',

@@ -48,11 +48,9 @@ def _segments(*lines: tuple) -> list[dict]:
     return [{'start': s, 'end': e, 'text': t} for s, e, t in lines]
 
 
-# 4 fictional-sponsor ad reads + 4 non-ads, each ~130s of segments with the
-# 30s candidate span centered in the middle so the reviewer's +/-60s context
-# window builder pulls in the full before/after transcript. Fictional
-# sponsors only: Acme Mattress, Brightleaf Coffee, Nimbus VPN, Harborline
-# Insurance. Nothing here is sourced from any real feed or episode.
+# 4 fictional-sponsor ads + 4 non-ads, ~130s segments each; candidate centered so
+# the reviewer's +/-60s window pulls the full transcript. Sponsors (Acme Mattress,
+# Brightleaf Coffee, Nimbus VPN, Harborline Insurance) are fictional, not from a real feed.
 CALIBRATION_CORPUS = [
     {
         'id': 'acme_mattress_ad',
@@ -312,9 +310,8 @@ def _resolve_calibration_model(db) -> str:
 def run_calibration(llm_client=None, model: str | None = None) -> dict:
     """Run CALIBRATION_CORPUS through the production AdReviewer stack.
 
-    Returns a dict with per-case verdicts plus aggregate agreement and
-    structured_fraction. Raises on a missing model or a broken LLM client;
-    callers that must never fail (the settings auto-run hook) catch this.
+    Returns per-case verdicts, aggregate agreement, and structured_fraction.
+    Raises on a missing model or broken client; the auto-run hook catches this.
     """
     from ad_reviewer import AdReviewer
     from database import Database
@@ -371,9 +368,8 @@ def maybe_trigger_reviewer_calibration(db, old_value: str | None,
     """Fire run_calibration() in a daemon thread when the reviewer model
     setting actually changed and reviewer_calibration_on_change is enabled.
 
-    Returns the started Thread (callers join it for deterministic tests) or
-    None when not triggered. Never raises and never blocks the caller: a
-    calibration failure is logged and the settings write proceeds either way.
+    Returns the started Thread, or None when not triggered. Never raises or
+    blocks: a calibration failure is logged and the settings write proceeds.
     """
     if old_value == new_value:
         return None

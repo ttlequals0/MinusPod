@@ -11,6 +11,56 @@ release notes.
 
 ## [Unreleased]
 
+## [2.89.0] - 2026-08-19
+
+### Security
+
+- Closed a DNS-rebinding TOCTOU in the SSRF guard. Outbound fetches validated
+  a hostname's resolved addresses, then let the HTTP client resolve the same
+  hostname again to connect, so a record that flipped between the two lookups
+  could pass validation on a public address and connect to a private one. A
+  new transport now resolves each request and redirect hop once, validates
+  every returned address, and connects to the first one that passes; the URL,
+  `Host` header, SNI, and certificate verification stay on the original
+  hostname. There is no multi-address connect fallback, so if the first
+  validated address is unreachable the request fails rather than trying the
+  next one. `SSRF_IP_PINNING=false` is the kill switch back to the previous
+  per-request resolution, for isolating a fetch failure the pin might cause.
+
+### Added
+
+- Reviewer verdicts carry a structured `is_ad` boolean alongside the existing
+  prose, with the prose form kept as a fallback when a model omits the field.
+  Contradiction holds, where a verification finding disagrees with a kept
+  pass-1 span, key off the structured field when present, and the telemetry
+  for a hold now emits once per episode instead of once per contradicting
+  window.
+- `AD_DETECTION_MAX_FAILED_WINDOW_RATIO` (default `0.25`). When this fraction
+  of a detection or verification pass's windows fail on an LLM error or
+  timeout, the whole pass is now treated as failed and the episode retried,
+  instead of publishing with the failed windows unexamined. Set to `1.0` to
+  restore the previous behavior.
+- Community patterns carry a staleness-based trust tier: active (confirmed
+  locally), unproven (never confirmed locally), or stale (community-sourced
+  and unconfirmed both locally for over 90 days and by the community for over
+  a year). A new `community_last_confirmed_at` column and optional
+  `last_confirmed_at` corpus field track community confirmation, and the
+  Patterns page shows an Unproven or Stale badge; an active pattern gets no
+  badge.
+- A reviewer calibration self-test (`python -m tools.reviewer_calibration`)
+  runs a labeled corpus of ad and non-ad transcripts through the production
+  reviewer stack and reports verdict agreement plus how often responses carry
+  the structured `is_ad` field. It also runs automatically in a background
+  thread whenever the reviewer model setting changes, storing its result
+  under the `reviewer_calibration_last` setting; a failed or slow run never
+  blocks the settings save. Disable the auto-run with
+  `reviewer_calibration_on_change` (or `REVIEWER_CALIBRATION_ON_CHANGE`).
+- Gunicorn warns at startup when `GUNICORN_WORKERS` is greater than 1 and the
+  rate-limit storage is still the default `memory://`, since limiter counters
+  are per process and the effective limit multiplies by worker count. Login
+  lockout is database-backed and unaffected.
+- Unit tests for the heuristic pre-roll and post-roll detector.
+
 ### Tooling (benchmark; not in runtime image)
 
 - Two models added to the sweep roster: `qwen/qwen3.8-27b` and
@@ -22,6 +72,30 @@ release notes.
 - `qwen/qwen3.8-27b` scores mid-table with brittle JSON and is not a candidate.
 - Fresh pricing snapshot, and the previous report archived to
   `results/archive/2026-08-15/`.
+
+### Changed
+
+- openai 2.53.0 to 3.3.0, which migrates the client onto `httpx2`/`httpcore2`;
+  anthropic 0.120.2 to 0.124.0; wheel to 0.48.0.
+- Frontend: lucide-react to 1.31.0, swagger-ui-dist to 5.32.13, eslint to
+  10.8.1, `@testing-library/user-event` to 14.6.4, `@types/react-dom` to
+  19.2.4.
+- Pass-2 verification reconciliation extracted out of `processing.py` into
+  its own module.
+- Type hints modernized to PEP 585/604 (`list[str]` over `List[str]`, `X |
+  None` over `Optional[X]`), and the ruff lint gate widened from `F` alone to
+  also cover `B904`, `B905`, `S608`, `UP006`, `UP045`, and `UP035`. The
+  database layer's dynamic SQL is audited and exempted from `S608`: the
+  interpolated identifiers are hardcoded or allowlist-validated, and values
+  are always bound parameters.
+- `zip()` calls pairing same-length lists now pass `strict=True`, catching a
+  length mismatch instead of silently truncating. One of the sites this
+  caught was a latent bug: chapter span end times could carry one more entry
+  than an empty start-time list, which the strict check now prevents from
+  recurring.
+- Exception re-raises now chain explicitly (`raise ... from err` or `from
+  None`), so a traceback shows the real cause instead of only the immediate
+  wrapper.
 
 ## [2.88.3] - 2026-08-14
 
