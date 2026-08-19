@@ -96,6 +96,27 @@ def test_pass2_contradiction_confirmed_is_held_not_cut(monkeypatch):
     assert p1['was_cut'] is False
 
 
+def test_pass2_contradiction_guard_logs_once_with_context(monkeypatch, caplog):
+    # The pass-2 gate and _apply_reviewer_verdict_to_ad both evaluate the
+    # same verdict object; the guard-fired line must appear exactly once
+    # and carry slug/episode_id/model/boundaries for Loki counting.
+    o1, p1 = _pair(100.0, 160.0, 50.0, 110.0)
+    v_ads_to_cut = [p1]
+    v_ads_for_ui = [o1]
+    v_ads_held = []
+    verdicts = [_verdict('confirmed', 100.0, 160.0, CONTRADICTING)]
+    with caplog.at_level('INFO', logger='ad_reviewer'):
+        _run_pass2(monkeypatch, verdicts, v_ads_to_cut, v_ads_for_ui,
+                   v_ads_held, [p1], [o1])
+    fired = [line for line in caplog.text.splitlines()
+             if 'reviewer_contradiction_guard_fired' in line]
+    assert len(fired) == 1, f"expected exactly one guard-fired log, got {fired}"
+    assert 'model=test-model' in fired[0]
+    assert 'slug=s' in fired[0]
+    assert 'episode_id=e' in fired[0]
+    assert 'start=100.0' in fired[0] and 'end=160.0' in fired[0]
+
+
 def test_pass2_contradiction_adjust_is_held_not_coerced_to_cut(monkeypatch):
     # An adjust verdict whose reasoning denies the ad must hold, never reach
     # the adjust->confirmed coercion (which would keep the full span cut).

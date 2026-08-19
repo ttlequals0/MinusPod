@@ -21,7 +21,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_reviewer import (
-    AdReviewer, ReviewVerdict, is_contradiction_hold,
+    AdReviewer, ReviewVerdict, is_contradiction_hold, log_contradiction_event,
     split_resurrection_pool,
 )
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
@@ -1508,13 +1508,15 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
+        log_contradiction_event(v, model=v.model_used, slug=slug,
+                                episode_id=episode_id)
 
         # Contradiction hold (same criterion the reviewer used to populate
         # result.held_by_contradiction): the ad must NOT cut. Checked before
         # the adjust->confirmed coercion so a held adjust is not coerced into
         # a full-span cut.
         if v.pool == 'accepted' and is_contradiction_hold(
-                v.verdict, v.reasoning, v.structured_is_ad, model=v.model_used):
+                v.verdict, v.reasoning, v.structured_is_ad):
             if proc_ad is not None:
                 if proc_ad in v_ads_to_cut:
                     v_ads_to_cut.remove(proc_ad)
@@ -1529,7 +1531,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 )
                 continue
             # Same shape as a pass-1 contradiction hold, in original coords.
-            _apply_reviewer_verdict_to_ad(held_ad, v)
+            _apply_reviewer_verdict_to_ad(held_ad, v, slug=slug, episode_id=episode_id)
             if held_ad in v_ads_for_ui:
                 v_ads_for_ui.remove(held_ad)
             v_ads_held.append(held_ad)
@@ -1552,7 +1554,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 original_start=v.original_start, original_end=v.original_end,
                 reasoning=v.reasoning, confidence=v.confidence,
                 model_used=v.model_used, latency_ms=v.latency_ms,
-                success=v.success,
+                success=v.success, structured_is_ad=v.structured_is_ad,
             )
             if proc_ad is not None:
                 _stamp_reviewer_fields(proc_ad, coerced)
@@ -1614,11 +1616,11 @@ def _ad_review_enabled(db) -> bool:
     return str(value or '').strip().lower() == 'true'
 
 
-def _apply_reviewer_verdict_to_ad(ad, v):
+def _apply_reviewer_verdict_to_ad(ad, v, *, slug=None, episode_id=None):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
-    if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad,
-                              model=v.model_used):
+    log_contradiction_event(v, model=v.model_used, slug=slug, episode_id=episode_id)
+    if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning
         # denies the ad exists is not a boundary correction to trust.
@@ -1650,7 +1652,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['source'] = 'reviewer'
 
 
-def _merge_reviewer_result(result, all_ads_with_validation):
+def _merge_reviewer_result(result, all_ads_with_validation, *, slug=None, episode_id=None):
     """Apply reviewer verdicts to the master ad list and append any newly
     resurrected ads. Mutates ``all_ads_with_validation`` in place.
     """
@@ -1660,7 +1662,7 @@ def _merge_reviewer_result(result, all_ads_with_validation):
         ad = master_by_key.get((v.original_start, v.original_end))
         if ad is None:
             continue
-        _apply_reviewer_verdict_to_ad(ad, v)
+        _apply_reviewer_verdict_to_ad(ad, v, slug=slug, episode_id=episode_id)
 
     for ad in result.resurrected:
         key = (ad.get('start'), ad.get('end'))
@@ -1725,7 +1727,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     # Merge reviewer fields into the master list (in-place), and pull in any
     # resurrected ads that weren't there before. Index by (start, end) so the
     # verdict loop is O(V), not O(V*N).
-    _merge_reviewer_result(result, all_ads_with_validation)
+    _merge_reviewer_result(result, all_ads_with_validation, slug=slug, episode_id=episode_id)
 
     _log_reviewer_verdicts(slug, episode_id, pass_num, result.verdicts)
 

@@ -173,23 +173,37 @@ def _adjusted_ad_copy(ad: Dict, start: float, end: float,
     return updated
 
 
-def is_contradiction_hold(verdict, reasoning, structured_is_ad=None, model=None):
+def is_contradiction_hold(verdict: str, reasoning: Optional[str],
+                          structured_is_ad: Optional[bool] = None) -> bool:
     """Single hold criterion shared by the reviewer pool split and both
-    pass-1/pass-2 apply paths. A structured is_ad=true verdict overrides
-    the prose heuristics (TODO(structural) resolved for emitting models)."""
+    pass-1/pass-2 apply paths. Pure: no side effects. Structured is_ad=true
+    overrides the prose heuristics; trim-bounds recovery remains open."""
     if verdict not in ('confirmed', 'adjust'):
         return False
-    heuristic_hit = reasoning_contradicts_cut(reasoning)
     if structured_is_ad is True:
-        if heuristic_hit:
-            logger.info(
-                "reviewer_contradiction_suppressed_by_structured model=%s",
-                model or "unknown")
         return False
-    if heuristic_hit:
-        logger.info("reviewer_contradiction_guard_fired model=%s",
-                    model or "unknown")
-    return heuristic_hit
+    return reasoning_contradicts_cut(reasoning)
+
+
+def log_contradiction_event(verdict: "ReviewVerdict", *, model: Optional[str],
+                            slug: Optional[str], episode_id: Optional[str]) -> None:
+    """Emit the contradiction-guard telemetry line for ``verdict`` exactly
+    once; a dedup flag on the instance no-ops repeat calls from the 2-3
+    downstream sites that share the same verdict object."""
+    if verdict.contradiction_logged:
+        return
+    if verdict.verdict not in ('confirmed', 'adjust'):
+        return
+    if not reasoning_contradicts_cut(verdict.reasoning):
+        return
+    verdict.contradiction_logged = True
+    event = ("reviewer_contradiction_suppressed_by_structured"
+             if verdict.structured_is_ad is True
+             else "reviewer_contradiction_guard_fired")
+    logger.info(
+        "%s model=%s slug=%s episode_id=%s start=%.1f end=%.1f",
+        event, model or "unknown", slug, episode_id,
+        verdict.original_start, verdict.original_end)
 
 
 def _resolve_reviewer_parallel_ads() -> int:
@@ -316,6 +330,8 @@ class ReviewVerdict:
     latency_ms: int = 0
     success: bool = True
     structured_is_ad: Optional[bool] = None
+    # Dedup guard for log_contradiction_event; not part of the verdict itself.
+    contradiction_logged: bool = field(default=False, compare=False, repr=False)
 
 
 @dataclass
@@ -684,6 +700,10 @@ class AdReviewer:
         )
         for verdict, updated_ad in accepted_results:
             result.verdicts.append(verdict)
+            log_contradiction_event(
+                verdict, model=verdict.model_used,
+                slug=episode_meta.get('slug'),
+                episode_id=episode_meta.get('episode_id'))
             if verdict.verdict == "reject":
                 marked = dict(updated_ad)
                 marked["was_cut"] = False
@@ -695,7 +715,7 @@ class AdReviewer:
                 result.rejected_by_reviewer.append(marked)
             elif is_contradiction_hold(
                     verdict.verdict, verdict.reasoning,
-                    verdict.structured_is_ad, model=verdict.model_used):
+                    verdict.structured_is_ad):
                 held = dict(updated_ad)
                 held["was_cut"] = False
                 held["held_for_review"] = True
