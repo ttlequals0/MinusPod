@@ -1513,7 +1513,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         # result.held_by_contradiction): the ad must NOT cut. Checked before
         # the adjust->confirmed coercion so a held adjust is not coerced into
         # a full-span cut.
-        if v.pool == 'accepted' and is_contradiction_hold(v.verdict, v.reasoning):
+        if v.pool == 'accepted' and is_contradiction_hold(
+                v.verdict, v.reasoning, v.structured_is_ad, model=v.model_used):
             if proc_ad is not None:
                 if proc_ad in v_ads_to_cut:
                     v_ads_to_cut.remove(proc_ad)
@@ -1616,7 +1617,8 @@ def _ad_review_enabled(db) -> bool:
 def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
-    if is_contradiction_hold(v.verdict, v.reasoning):
+    if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad,
+                              model=v.model_used):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning
         # denies the ad exists is not a boundary correction to trust.

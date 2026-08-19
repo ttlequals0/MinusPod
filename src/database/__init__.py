@@ -163,6 +163,7 @@ DROP THE AD (return empty array): The candidate is not a real-world advertisemen
 - A comedic bit or fictional sponsor read that is part of the show's creative content (no real product behind it)
 - Silence, pauses, or audio production artifacts with no promotional transcript content
 - Topic transitions or content gaps without promotional language
+You may also return [{{"is_ad": false, "reason": "why"}}] instead of an empty array to reject explicitly.
 
 DO NOT REJECT (these ARE real ads, keep them):
 - Host-read sponsor segments, including ones without promo codes
@@ -181,7 +182,7 @@ WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unles
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each kept ad: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each kept ad: {{"is_ad": true, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
@@ -193,7 +194,7 @@ Original detection: 1245.0s - 1320.5s, sponsor: BetterHelp
 [1318.0s] That's betterhelp.com slash podcast.
 [1322.0s] Anyway, back to what we were talking about.
 
-Output: [{{"start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}}]
+Output: [{{"is_ad": true, "start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}}]
 
 EXAMPLE - ADJUST BOUNDARIES (start was late, end was early):
 Original detection: 100.0s - 130.0s, sponsor: AG1
@@ -204,7 +205,7 @@ Original detection: 100.0s - 130.0s, sponsor: AG1
 [130.5s] That's athleticgreens.com slash podcast.
 [133.0s] Now, back to our conversation.
 
-Output: [{{"start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Adjusted start back to capture transition; extended end past final URL repetition"}}]
+Output: [{{"is_ad": true, "start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Adjusted start back to capture transition; extended end past final URL repetition"}}]
 
 EXAMPLE - DROP (host mentioning a brand editorially, not an ad):
 Original detection: 50.0s - 70.0s, sponsor: Apple
@@ -231,6 +232,7 @@ KEEP REJECTED (return empty array): Agree with the validator. The segment is not
 - Brand names mentioned in passing as part of editorial topic discussion
 - Comedic bits or fictional sponsor reads in the show's creative content
 - Silence, pauses, or topic transitions with no promotional transcript content
+You may also return [{{"is_ad": false, "reason": "why"}}] instead of an empty array to reject explicitly.
 
 AUDIO CUE SIGNALS: if a labelled audio cue brackets or sits next to the rejected segment, treat it as strong evidence a break happened there; a cue-bracketed segment with even a single sponsor mention is usually a real ad the validator was too cautious about -- resurrect it.
 
@@ -239,7 +241,7 @@ WHEN IN DOUBT: Agree with the validator and return empty. Only resurrect when th
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each resurrected ad: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each resurrected ad: {{"is_ad": true, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
@@ -249,7 +251,7 @@ Validator-rejected segment: 666.7s - 674.3s (validator confidence 0.71)
 [666.7s] Hosted on Acast. See acast dot com slash privacy for more information.
 [674.5s] Welcome back, today we're talking about the Switch 2 launch.
 
-Output: [{{"start": 666.7, "end": 674.3, "confidence": 0.92, "reason": "Acast hosting platform post-roll, clearly promotional and not editorial"}}]
+Output: [{{"is_ad": true, "start": 666.7, "end": 674.3, "confidence": 0.92, "reason": "Acast hosting platform post-roll, clearly promotional and not editorial"}}]
 
 EXAMPLE - KEEP REJECTED (validator was right):
 Validator-rejected segment: 200.0s - 215.0s (validator confidence 0.65)

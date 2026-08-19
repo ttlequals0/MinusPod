@@ -173,10 +173,23 @@ def _adjusted_ad_copy(ad: Dict, start: float, end: float,
     return updated
 
 
-def is_contradiction_hold(verdict: str, reasoning: Optional[str]) -> bool:
+def is_contradiction_hold(verdict, reasoning, structured_is_ad=None, model=None):
     """Single hold criterion shared by the reviewer pool split and both
-    pass-1/pass-2 apply paths."""
-    return verdict in ('confirmed', 'adjust') and reasoning_contradicts_cut(reasoning)
+    pass-1/pass-2 apply paths. A structured is_ad=true verdict overrides
+    the prose heuristics (TODO(structural) resolved for emitting models)."""
+    if verdict not in ('confirmed', 'adjust'):
+        return False
+    heuristic_hit = reasoning_contradicts_cut(reasoning)
+    if structured_is_ad is True:
+        if heuristic_hit:
+            logger.info(
+                "reviewer_contradiction_suppressed_by_structured model=%s",
+                model or "unknown")
+        return False
+    if heuristic_hit:
+        logger.info("reviewer_contradiction_guard_fired model=%s",
+                    model or "unknown")
+    return heuristic_hit
 
 
 def _resolve_reviewer_parallel_ads() -> int:
@@ -302,6 +315,7 @@ class ReviewVerdict:
     model_used: str = ""
     latency_ms: int = 0
     success: bool = True
+    structured_is_ad: Optional[bool] = None
 
 
 @dataclass
@@ -679,7 +693,9 @@ class AdReviewer:
                 marked["reviewer_model"] = verdict.model_used
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
-            elif is_contradiction_hold(verdict.verdict, verdict.reasoning):
+            elif is_contradiction_hold(
+                    verdict.verdict, verdict.reasoning,
+                    verdict.structured_is_ad, model=verdict.model_used):
                 held = dict(updated_ad)
                 held["was_cut"] = False
                 held["held_for_review"] = True
@@ -952,6 +968,21 @@ class AdReviewer:
                 ad,
             )
 
+        raw_is_ad = kept.get("is_ad")
+        structured_is_ad = raw_is_ad if isinstance(raw_is_ad, bool) else None
+        if structured_is_ad is False:
+            # Structured whole-span rejection wins over any returned bounds.
+            return (
+                ReviewVerdict(
+                    pool=pool, pass_num=pass_num, verdict="reject",
+                    original_start=original_start, original_end=original_end,
+                    reasoning=kept.get("reason"), confidence=None,
+                    model_used=model, latency_ms=latency_ms, success=True,
+                    structured_is_ad=False,
+                ),
+                ad,
+            )
+
         # Schema asks for start/end; fall back to corrected_/adjusted_ only when
         # the model omits them (some responses carry the correction there).
         new_start = _first_num(
@@ -1007,6 +1038,7 @@ class AdReviewer:
                     adjusted_start=clamped_start, adjusted_end=clamped_end,
                     reasoning=reason, confidence=confidence,
                     model_used=model, latency_ms=latency_ms, success=True,
+                    structured_is_ad=structured_is_ad,
                 ),
                 updated,
             )
@@ -1017,6 +1049,7 @@ class AdReviewer:
                 original_start=original_start, original_end=original_end,
                 reasoning=reason, confidence=confidence,
                 model_used=model, latency_ms=latency_ms, success=True,
+                structured_is_ad=structured_is_ad,
             ),
             ad,
         )
