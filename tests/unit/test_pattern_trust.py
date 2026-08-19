@@ -1,7 +1,7 @@
 """Tests for pattern_service.compute_pattern_trust (staleness-based trust tiers)."""
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -62,4 +62,22 @@ def test_community_stale_by_updated_at_when_confirmed_at_absent():
 
 def test_old_local_match_outside_active_window_is_unproven():
     row = {'source': 'local', 'last_matched_at': '2025-01-01T00:00:00Z'}
+    assert compute_pattern_trust(row, NOW) == 'unproven'
+
+
+def test_match_exactly_90_days_ago_is_active_boundary_inclusive():
+    row = {
+        'source': 'local',
+        'last_matched_at': (NOW - timedelta(days=90)).isoformat(),
+    }
+    assert compute_pattern_trust(row, NOW) == 'active'
+
+
+def test_confirmation_exactly_365_days_ago_is_unproven_boundary_exclusive():
+    row = {
+        'source': 'community',
+        'last_matched_at': None,
+        'community_last_confirmed_at': (NOW - timedelta(days=365)).isoformat(),
+        'created_at': (NOW - timedelta(days=365)).isoformat(),
+    }
     assert compute_pattern_trust(row, NOW) == 'unproven'

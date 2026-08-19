@@ -1,7 +1,7 @@
 import type { PatternTrust } from '../api/patterns';
 
 // Staleness-based trust tier for community patterns. 'active' renders
-// nothing -- absence of a badge is the default, unflagged state.
+// nothing; absence of a badge is the default, unflagged state.
 export function PatternTrustBadge({ trust }: { trust?: PatternTrust }) {
   if (!trust || trust === 'active') return null;
   if (trust === 'stale') {

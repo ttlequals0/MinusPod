@@ -474,7 +474,7 @@ class SchemaMixin:
 
         # community_last_confirmed_at (staleness trust tiers): ISO timestamp
         # the community submitter last re-verified the pattern still airs.
-        # Nullable; feeds compute_pattern_trust alongside updated_at/created_at.
+        # Nullable; feeds compute_pattern_trust alongside created_at.
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'community_last_confirmed_at', 'TEXT', ap_cols)
 
