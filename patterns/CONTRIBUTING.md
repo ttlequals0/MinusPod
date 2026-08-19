@@ -38,6 +38,8 @@ Each entry in `patterns[]` includes:
 
 The bundle does not include any data identifying you, your podcasts, or your listening habits. The PR-side validator handles bundle files natively (one validation per entry), and the manifest builder flattens them into per-pattern entries in `patterns/community/index.json`, so the maintainer does not have to split them on merge.
 
+Each entry also supports an optional `last_confirmed_at` field (ISO 8601 UTC string). It has nothing to do with the initial `submitted_at` timestamp: set it when you re-verify that a pattern you already contributed still airs, for example while updating a PR after the sponsor read changed slightly. MinusPod installs use it, alongside how recently the pattern has matched locally, to badge a pattern as stale in the Patterns UI once it goes a long time unmatched and unconfirmed.
+
 -----
 
 ## What gets stripped before submission

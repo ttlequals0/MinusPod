@@ -9629,6 +9629,16 @@ components:
             Community-shared patterns carry their category through sync; a
             per-install community_sync_categories setting controls which
             categories are accepted from community sync.
+        trust:
+          type: string
+          enum: [active, unproven, stale]
+          description: |
+            Computed staleness-based trust tier (not stored). active: matched
+            locally within the last 90 days. stale: a community pattern that
+            has not matched locally and whose newest of last-confirmed/updated/
+            created timestamp is older than 365 days. unproven: everything
+            else, including all local (non-community) patterns, which are
+            never 'stale'.
 
     Network:
       type: object

@@ -75,6 +75,42 @@ describe('PatternsPage tabs', () => {
     expect(await screen.findAllByText('Cross-promo')).not.toHaveLength(0);
   });
 
+  it('shows a Stale badge on a stale community pattern', async () => {
+    mockGetPatterns.mockResolvedValueOnce([
+      {
+        id: 2, scope: 'global', network_id: null, podcast_id: null,
+        dai_platform: null, text_template: 'x'.repeat(60),
+        intro_variants: '[]', outro_variants: '[]', sponsor: 'Acme',
+        confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+        created_at: '2020-01-01T00:00:00Z', created_from_episode_id: null,
+        is_active: true, disabled_at: null, disabled_reason: null,
+        source: 'community', community_id: 'abc12345', version: 1,
+        trust: 'stale',
+      },
+    ]);
+    renderPage();
+    expect(await screen.findAllByText('Stale')).not.toHaveLength(0);
+  });
+
+  it('does not show a trust badge on an active local pattern', async () => {
+    mockGetPatterns.mockResolvedValueOnce([
+      {
+        id: 3, scope: 'global', network_id: null, podcast_id: null,
+        dai_platform: null, text_template: 'x'.repeat(60),
+        intro_variants: '[]', outro_variants: '[]', sponsor: 'Acme',
+        confirmation_count: 0, false_positive_count: 0,
+        last_matched_at: '2026-08-01T00:00:00Z',
+        created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+        is_active: true, disabled_at: null, disabled_reason: null,
+        source: 'local', trust: 'active',
+      },
+    ]);
+    renderPage();
+    await screen.findAllByText('Acme');
+    expect(screen.queryByText('Stale')).toBeNull();
+    expect(screen.queryByText('Unproven')).toBeNull();
+  });
+
   it('switches to the ad review tab on click', async () => {
     renderPage();
     const user = userEvent.setup();

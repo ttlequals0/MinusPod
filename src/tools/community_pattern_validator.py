@@ -28,6 +28,7 @@ if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
 from community_export import find_foreign_sponsors  # noqa: E402
+from utils.time import parse_iso_utc  # noqa: E402
 from utils.community_tags import (  # noqa: E402
     BUNDLE_FORMAT,
     BUNDLE_NAME_PREFIX,
@@ -109,6 +110,11 @@ def _schema_errors(doc: Dict[str, Any]) -> List[str]:
         errs.append('outro_variants must be a list')
     if doc.get('sponsor_tags') is not None and not isinstance(doc['sponsor_tags'], list):
         errs.append('sponsor_tags must be a list')
+    # last_confirmed_at (optional, trust tiers): re-verification timestamp for
+    # a still-airing pattern. Absent is fine; present-but-unparseable is not.
+    if doc.get('last_confirmed_at') is not None:
+        if not isinstance(doc['last_confirmed_at'], str) or parse_iso_utc(doc['last_confirmed_at']) is None:
+            errs.append('last_confirmed_at must be an ISO 8601 UTC string')
     return errs
 
 

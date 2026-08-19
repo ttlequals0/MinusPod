@@ -21,6 +21,10 @@ export type PatternSource = typeof PATTERN_SOURCES[number];
 // patterns are only produced server-side.
 export type PatternScope = 'podcast' | 'network' | 'global';
 
+// Mirrors pattern_service.compute_pattern_trust's return values. Computed
+// server-side, not stored; local (non-community) patterns are never 'stale'.
+export type PatternTrust = 'active' | 'unproven' | 'stale';
+
 export interface AdPattern {
   id: number;
   scope: PatternScope;
@@ -50,6 +54,8 @@ export interface AdPattern {
   // What kind of content this pattern matches (issue #565); a NULL/legacy
   // row normalizes to 'sponsor' server-side, so this is always present.
   category?: SegmentCategory;
+  // Computed staleness-based trust tier; always present in list responses.
+  trust?: PatternTrust;
 }
 
 export interface PatternCorrection {

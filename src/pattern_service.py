@@ -10,6 +10,7 @@ Handles:
 import logging
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Tuple
 
 from config import (
@@ -28,6 +29,7 @@ from utils.constants import (
     LEARNING_LONG_DURATION_THRESHOLD,
 )
 from utils.text import extract_text_from_segments
+from utils.time import parse_iso_utc
 from sponsor_normalize import get_or_create_known_sponsor
 from community_export import (
     find_foreign_sponsors,
@@ -43,6 +45,35 @@ VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
 VERIFICATION_LONG_DURATION_THRESHOLD = LEARNING_LONG_DURATION_THRESHOLD
 
 logger = logging.getLogger('podcast.patterns')
+
+TRUST_ACTIVE_WINDOW_DAYS = 90
+TRUST_STALE_WINDOW_DAYS = 365
+
+
+def compute_pattern_trust(row: Dict, now: datetime) -> str:
+    """Trust tier for a pattern row: 'active' | 'unproven' | 'stale'.
+
+    'stale' requires source == 'community' and every relevant timestamp
+    older than TRUST_STALE_WINDOW_DAYS; local patterns are never 'stale'.
+    """
+    last_matched = parse_iso_utc(row.get('last_matched_at'))
+    if last_matched is not None and now - last_matched <= timedelta(days=TRUST_ACTIVE_WINDOW_DAYS):
+        return 'active'
+
+    if row.get('source') != 'community':
+        return 'unproven'
+
+    candidates = [
+        parse_iso_utc(row.get('community_last_confirmed_at')),
+        parse_iso_utc(row.get('updated_at')),
+        parse_iso_utc(row.get('created_at')),
+    ]
+    parsed = [d for d in candidates if d is not None]
+    if not parsed:
+        return 'unproven'
+    if now - max(parsed) > timedelta(days=TRUST_STALE_WINDOW_DAYS):
+        return 'stale'
+    return 'unproven'
 
 
 def _splice_prefix(text: str, prefix: str) -> Tuple[str, bool]:
@@ -1094,10 +1125,12 @@ class PatternService:
                 source_language=data.get('source_language'),
                 content_hash=content_hash,
             )
-            # Overwrite category only when the payload carries the key: an
-            # old-format payload (no 'category' key) must not null out a stored category.
+            # Overwrite category/last_confirmed_at only when the payload carries the
+            # key: an old-format payload lacking it must not null out a stored value.
             if 'category' in data:
                 update_kwargs['category'] = data.get('category')
+            if 'last_confirmed_at' in data:
+                update_kwargs['community_last_confirmed_at'] = data.get('last_confirmed_at')
             self.db.update_ad_pattern(existing['id'], **update_kwargs)
             return existing['id']
 
@@ -1124,5 +1157,6 @@ class PatternService:
             source_language=data.get('source_language'),
             content_hash=content_hash,
             category=data.get('category'),
+            community_last_confirmed_at=data.get('last_confirmed_at'),
         )
         return pattern_id

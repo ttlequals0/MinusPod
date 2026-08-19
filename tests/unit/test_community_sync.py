@@ -20,7 +20,7 @@ def db(tmp_path):
 
 
 def _pattern_entry(cid, version=1, sponsor='Squarespace', text='community version ',
-                    category=None):
+                    category=None, last_confirmed_at=None):
     data = {
         'community_id': cid,
         'version': version,
@@ -32,6 +32,8 @@ def _pattern_entry(cid, version=1, sponsor='Squarespace', text='community versio
     }
     if category is not None:
         data['category'] = category
+    if last_confirmed_at is not None:
+        data['last_confirmed_at'] = last_confirmed_at
     return {
         'community_id': cid,
         'version': version,
@@ -73,6 +75,27 @@ def test_apply_manifest_insert_update_delete(db):
     c1 = next(r for r in rows if r['community_id'] == 'c-1')
     assert c1['version'] == 2
     assert 'version two' in c1['text_template']
+
+
+def test_apply_manifest_carries_last_confirmed_at_into_community_column(db):
+    apply_manifest(db, {
+        'manifest_version': 1,
+        'patterns': [_pattern_entry('c-conf', last_confirmed_at='2026-01-01T00:00:00Z')],
+    })
+    rows = db.get_patterns_by_source('community', active_only=False)
+    row = next(r for r in rows if r['community_id'] == 'c-conf')
+    assert row['community_last_confirmed_at'] == '2026-01-01T00:00:00Z'
+
+    # Update: a newer version bumping the confirmation date overwrites it.
+    apply_manifest(db, {
+        'manifest_version': 2,
+        'patterns': [_pattern_entry(
+            'c-conf', version=2, last_confirmed_at='2026-06-01T00:00:00Z',
+        )],
+    })
+    rows = db.get_patterns_by_source('community', active_only=False)
+    row = next(r for r in rows if r['community_id'] == 'c-conf')
+    assert row['community_last_confirmed_at'] == '2026-06-01T00:00:00Z'
 
 
 def test_apply_manifest_respects_protected_flag(db):

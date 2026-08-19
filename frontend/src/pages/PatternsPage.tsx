@@ -15,6 +15,7 @@ import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
+import { PatternTrustBadge } from '../components/PatternTrustBadge';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
@@ -441,6 +442,9 @@ function PatternsPage() {
                     protected={!!pattern.protected_from_sync}
                   />
                 )}
+                {pattern.source === PATTERN_SOURCE_COMMUNITY && (
+                  <PatternTrustBadge trust={pattern.trust} />
+                )}
                 {getStatusBadge(pattern.is_active)}
               </div>
             </div>
@@ -540,6 +544,9 @@ function PatternsPage() {
                           version={pattern.version}
                           protected={!!pattern.protected_from_sync}
                         />
+                      )}
+                      {pattern.source === PATTERN_SOURCE_COMMUNITY && (
+                        <PatternTrustBadge trust={pattern.trust} />
                       )}
                     </div>
                   </td>

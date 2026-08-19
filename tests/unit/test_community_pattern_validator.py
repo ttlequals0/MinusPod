@@ -116,6 +116,37 @@ def test_validate_doc_rejects_missing_required():
     assert any('required field' in e for e in result.errors)
 
 
+def test_validate_doc_accepts_valid_last_confirmed_at():
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'Squarespace',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'last_confirmed_at': '2026-01-01T00:00:00Z',
+        'text_template': 'Squarespace dot com slash show for ten percent off your website today launch confidently!',
+        'sponsor_tags': [],
+    }
+    result = validate_doc('squarespace-abc.json', doc, seed, [])
+    assert result.status != 'reject'
+
+
+def test_validate_doc_rejects_malformed_last_confirmed_at():
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'Squarespace',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'last_confirmed_at': 'not-a-date',
+        'text_template': 'Squarespace dot com slash show for ten percent off your website today launch confidently!',
+        'sponsor_tags': [],
+    }
+    result = validate_doc('squarespace-abc.json', doc, seed, [])
+    assert result.status == 'reject'
+    assert any('last_confirmed_at' in e for e in result.errors)
+
+
 def test_validate_doc_rejects_multi_sponsor_block():
     """A pattern whose text mentions another seed sponsor by name is a
     multi-ad stitch and must be rejected."""

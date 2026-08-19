@@ -178,6 +178,32 @@ class TestPatternsEndpoint:
 
         assert response.status_code == 404
 
+    def test_list_patterns_includes_computed_trust_tier(self, app_client):
+        """GET /api/v1/patterns items carry a computed 'trust' tier."""
+        from database import Database
+        db = Database()
+        pattern_id = db.create_ad_pattern(
+            scope='global', text_template='x' * 60,
+            source='community', community_id='trust-tier-stale-test',
+            community_last_confirmed_at='2020-01-01T00:00:00Z',
+        )
+        # created_at defaults to "now" on insert and isn't an update_ad_pattern
+        # field; backdate it directly so the row also reads as old, matching
+        # a pattern synced long ago rather than one just created by this test.
+        conn = db.get_connection()
+        conn.execute(
+            "UPDATE ad_patterns SET created_at = ? WHERE id = ?",
+            ('2020-01-01T00:00:00Z', pattern_id),
+        )
+        conn.commit()
+
+        response = app_client.get('/api/v1/patterns')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        row = next(p for p in data['patterns'] if p['community_id'] == 'trust-tier-stale-test')
+        assert row['trust'] == 'stale'
+
 
 class TestSystemEndpoints:
     """Tests for system status endpoints."""
