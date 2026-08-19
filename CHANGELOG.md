@@ -33,8 +33,8 @@ release notes.
   prose, with the prose form kept as a fallback when a model omits the field.
   Contradiction holds, where a verification finding disagrees with a kept
   pass-1 span, key off the structured field when present, and the telemetry
-  for a hold now emits once per episode instead of once per contradicting
-  window. On a model that emits `is_ad` true for a disputed span, the guard no
+  for a hold now emits once per held span instead of two or three times
+  through the different code paths that inspect the same verdict. On a model that emits `is_ad` true for a disputed span, the guard no
   longer holds it, so spans that used to land in Held for Review are now cut.
   Installs running the shipped reviewer prompt unedited pick this up on
   upgrade, since that prompt is re-seeded on startup.
