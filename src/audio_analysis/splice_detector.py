@@ -67,7 +67,7 @@ def _runs_below(values: np.ndarray, threshold: float) -> List:
     """(start, end) index pairs of maximal runs strictly below threshold."""
     below = np.concatenate(([False], values < threshold, [False]))
     edges = np.flatnonzero(np.diff(below.astype(np.int8)))
-    return list(zip(edges[0::2], edges[1::2]))
+    return list(zip(edges[0::2], edges[1::2], strict=True))
 
 
 class SpliceDetector:

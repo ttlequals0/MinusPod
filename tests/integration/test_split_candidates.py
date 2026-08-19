@@ -75,7 +75,7 @@ def test_pieces_partition_the_span_at_the_candidates(app_client, episode_with_tr
     pieces = body['pieces']
     assert pieces[0]['start'] == 100.0
     assert pieces[-1]['end'] == 190.0
-    for a, b in zip(pieces, pieces[1:]):
+    for a, b in zip(pieces, pieces[1:], strict=False):  # pairwise adjacent walk
         assert a['end'] == b['start']
 
 

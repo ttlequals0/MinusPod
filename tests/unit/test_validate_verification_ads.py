@@ -88,7 +88,7 @@ def test_unsorted_input_pairs_by_identity_not_position():
 
     assert len(kept_proc) == len(kept_orig) == 2
     by_start = dict(zip([p['start'] for p in kept_proc],
-                        [o['marker'] for o in kept_orig]))
+                        [o['marker'] for o in kept_orig], strict=True))
     assert by_start[100.0] == 'early'
     assert by_start[400.0] == 'late'
 

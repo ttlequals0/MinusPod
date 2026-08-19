@@ -403,7 +403,7 @@ def test_near_duplicate_matches_at_shifted_offsets_do_not_overlap():
     # The planted region collapses to one candidate; nothing overlaps.
     assert len(result) == 1
     spans = sorted((r['start'], r['end']) for r in result)
-    for (a_start, a_end), (b_start, b_end) in zip(spans, spans[1:]):
+    for (a_start, a_end), (b_start, b_end) in zip(spans, spans[1:], strict=False):  # pairwise adjacent walk
         assert b_start >= a_end, f"overlapping candidates: {spans}"
     # Candidate lands on the planted region (frames 130..186 -> 16.25s..23.25s).
     assert 15.0 <= result[0]['start'] <= 18.0

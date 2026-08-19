@@ -97,7 +97,7 @@ def test_windows_do_not_overlap_or_leave_gaps():
     _clear_geometry()
     detector = ScriptedBoundaries()
     _windowed(_generator(detector))
-    for a, b in zip(detector.calls, detector.calls[1:]):
+    for a, b in zip(detector.calls, detector.calls[1:], strict=False):  # pairwise adjacent walk
         assert a['end'] == b['start']
     assert detector.calls[-1]['end'] == 10000
 

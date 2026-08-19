@@ -262,7 +262,8 @@ def _anchor_offset(anchor_pairs: list, t: float) -> float:
         return anchors[0][1] - anchors[0][0]
     if t >= anchors[-1][0]:
         return anchors[-1][1] - anchors[-1][0]
-    for (p0, r0), (p1, r1) in zip(anchors, anchors[1:]):
+    # Pairwise adjacent-anchor walk: anchors[1:] is always one shorter.
+    for (p0, r0), (p1, r1) in zip(anchors, anchors[1:], strict=False):
         if p0 <= t <= p1:
             d0, d1 = r0 - p0, r1 - p1
             if p1 - p0 <= 0:

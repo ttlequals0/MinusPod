@@ -464,7 +464,7 @@ class ChaptersGenerator:
                 chapter_requests, podcast_name, episode_title
             )
 
-            for req, title in zip(chapter_requests, titles):
+            for req, title in zip(chapter_requests, titles, strict=True):
                 chapters[req['index']]['title'] = title
                 chapters[req['index']]['needs_title'] = False
 

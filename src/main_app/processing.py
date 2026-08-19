@@ -1504,7 +1504,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
     # Index by (start, end) so verdict application is O(V), not O(V*N).
     original_to_processed = {
         (orig.get('start'), orig.get('end')): proc
-        for orig, proc in zip(verification_ads_original, verification_ads_processed)
+        for orig, proc in zip(verification_ads_original, verification_ads_processed, strict=True)
     }
     ui_by_key = {(a.get('start'), a.get('end')): a for a in v_ads_for_ui}
     original_by_key = {(a.get('start'), a.get('end')): a for a in verification_ads_original}
@@ -1780,7 +1780,7 @@ def _snap_terminal_starts(slug, episode_id, ads_to_remove, all_ads_with_validati
         coverage_ads=coverage_ads, podcast_name=podcast_name,
     )
     changed = False
-    for old, new in zip(ads_to_remove, snapped):
+    for old, new in zip(ads_to_remove, snapped, strict=True):
         if new['start'] >= old['start']:
             continue
         changed = True
@@ -1826,7 +1826,7 @@ def _complete_cut_tails(slug, episode_id, ads_to_remove, all_ads_with_validation
     )
 
     changed = False
-    for old, new in zip(ads_to_remove, extended):
+    for old, new in zip(ads_to_remove, extended, strict=True):
         if new['end'] <= old['end']:
             continue
         changed = True
@@ -1919,7 +1919,7 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
     # ad.copy() inside validate() carries the reference through; a merge
     # keeps the surviving ad's twin and drops the absorbed one, so the
     # original list mirrors the processed list 1:1.
-    for proc, orig in zip(verification_ads_processed, verification_ads_original):
+    for proc, orig in zip(verification_ads_processed, verification_ads_original, strict=True):
         proc['_orig_twin'] = orig
 
     v_validation = v_validator.validate(verification_ads_processed)

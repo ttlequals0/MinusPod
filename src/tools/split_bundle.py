@@ -83,7 +83,7 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
             tmp.write_text(json.dumps(p, indent=2, ensure_ascii=False) + '\n',
                            encoding='utf-8')
             temps.append(tmp)
-        for (target, _p), tmp in zip(targets, temps):
+        for (target, _p), tmp in zip(targets, temps, strict=True):
             os.replace(tmp, target)
             written.append(target)
     except Exception:

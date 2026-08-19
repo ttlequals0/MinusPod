@@ -1919,7 +1919,7 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
                 if baseline_cand else None),
             'perEpisode': [
                 {'episodeId': ep_id, 'peakScore': score}
-                for ep_id, score in zip(episode_ids, best['peak_scores'])
+                for ep_id, score in zip(episode_ids, best['peak_scores'], strict=True)
             ],
             'baselineWindow': {
                 'startS': round(base_start, 4),

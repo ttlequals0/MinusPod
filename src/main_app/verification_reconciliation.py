@@ -144,7 +144,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
     surviving_processed = []
     surviving_original = []
     conflicts = []
-    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
+    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         overlap = next(
             (span for span in kept_spans_processed
              if ranges_overlap(ad['start'], ad['end'], span[0], span[1])),
@@ -218,7 +218,7 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     v_ads_for_ui = []
     v_ads_held = []
     corroborated_count = 0
-    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original):
+    for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
         # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
         if ad.get('held_for_review'):
             orig_ad['was_cut'] = False
@@ -326,7 +326,7 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
     merged span covers its members.
     """
     twin = {id(p): o for p, o in zip(verification_ads_processed,
-                                     verification_ads_original)}
+                                     verification_ads_original, strict=True)}
     for ad in [a for a in v_ads_to_cut
                if not _covered_by_cuts(a, recut_applied, total_duration)]:
         v_ads_to_cut.remove(ad)

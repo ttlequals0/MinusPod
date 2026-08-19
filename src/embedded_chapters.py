@@ -117,10 +117,13 @@ def chapters_to_spans(chapters: List[Dict], duration: float) -> List[Dict]:
         for ch in chapters
     )
     starts = [(s, t) for s, t in starts if s < duration]
-    ends = [s for s, _ in starts[1:]] + [duration]
+    # starts[1:] is empty both when starts has 0 and when it has 1 element,
+    # so the +[duration] tail must be skipped for the empty case or ends
+    # ends up with a dangling entry starts doesn't have.
+    ends = ([s for s, _ in starts[1:]] + [duration]) if starts else []
     return [
         {'start': s, 'end': e, 'title': t}
-        for (s, t), e in zip(starts, ends)
+        for (s, t), e in zip(starts, ends, strict=True)
     ]
 
 

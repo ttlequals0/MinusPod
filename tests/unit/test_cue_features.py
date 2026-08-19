@@ -98,7 +98,7 @@ def test_formant_weights_only_touch_the_band():
                               FORMANT_LO_HZ, FORMANT_HI_HZ, atten_db=12.0)
     centers = _mel_centers()
     expected = 10 ** (-12.0 / 20.0)
-    for c, wi in zip(centers, w):
+    for c, wi in zip(centers, w, strict=True):
         if FORMANT_LO_HZ <= c <= FORMANT_HI_HZ:
             assert wi == pytest.approx(expected, rel=1e-5)   # attenuated in-band
         elif c < FORMANT_LO_HZ / np.sqrt(2) or c > FORMANT_HI_HZ * np.sqrt(2):

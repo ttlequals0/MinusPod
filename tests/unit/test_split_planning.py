@@ -90,7 +90,7 @@ class TestCandidates:
         )
         times = [c['time'] for c in build_split_candidates(_spans(vtt, 0.0, 120.0), 0.0, 120.0)]
         assert len(times) == len(set(times))
-        for a, b in zip(times, times[1:]):
+        for a, b in zip(times, times[1:], strict=False):  # pairwise adjacent walk
             assert b - a >= MIN_AD_DURATION
 
 
