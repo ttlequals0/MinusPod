@@ -5,7 +5,6 @@ used across the ad detection, transcription, and chapters pipeline.
 """
 
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
 
 ISO_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
@@ -20,7 +19,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def parse_iso_utc(value: Optional[str]) -> Optional[datetime]:
+def parse_iso_utc(value: str | None) -> datetime | None:
     """Parse an ISO 8601 string to a UTC-aware datetime, or None on failure.
 
     Returns None for empty/None input or an unparseable value. A naive result
@@ -132,7 +131,7 @@ def format_vtt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
 
 
-def merge_cut_spans(cuts: List[Dict], default_replacement: float = 0.0) -> List[List[float]]:
+def merge_cut_spans(cuts: list[dict], default_replacement: float = 0.0) -> list[list[float]]:
     """Merge overlapping/touching cut spans into [start, end, n_spans,
     total_replacement] groups.
 
@@ -144,7 +143,7 @@ def merge_cut_spans(cuts: List[Dict], default_replacement: float = 0.0) -> List[
     passes merge in original coordinates.
     """
     sorted_cuts = sorted(cuts, key=lambda x: x.get('start', 0))
-    merged: List[List[float]] = []
+    merged: list[list[float]] = []
     for cut in sorted_cuts:
         start = cut.get('start', 0)
         end = cut.get('end', 0)
@@ -162,7 +161,7 @@ def merge_cut_spans(cuts: List[Dict], default_replacement: float = 0.0) -> List[
     return merged
 
 
-def span_inside_any_cut(start: float, end: float, cuts: List[Dict]) -> bool:
+def span_inside_any_cut(start: float, end: float, cuts: list[dict]) -> bool:
     """True when [start, end] sits entirely inside the removed spans' union.
 
     The counterpart of adjust_timestamp's snap-inside-cut behavior: a span
@@ -173,7 +172,7 @@ def span_inside_any_cut(start: float, end: float, cuts: List[Dict]) -> bool:
     return any(s <= start and end <= e for s, e, _, _ in merge_cut_spans(cuts))
 
 
-def adjust_timestamp(original_time: float, ads_removed: List[Dict],
+def adjust_timestamp(original_time: float, ads_removed: list[dict],
                      replacement_duration: float = 0.0) -> float:
     """Adjust a timestamp to account for removed ad segments.
 

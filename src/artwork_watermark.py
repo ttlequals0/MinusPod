@@ -13,7 +13,6 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -59,7 +58,7 @@ HALO_BLUR_FRAC = 0.05               # halo blur radius
 HALO_ALPHA = 255
 
 
-def badge_path() -> Optional[Path]:
+def badge_path() -> Path | None:
     """First existing badge file: env override, the built static asset (runtime),
     then the frontend source (dev/tests). None if none exist."""
     for candidate in (
@@ -74,7 +73,7 @@ def badge_path() -> Optional[Path]:
     return None
 
 
-_BADGE_FINGERPRINT: Optional[str] = None
+_BADGE_FINGERPRINT: str | None = None
 
 
 def badge_fingerprint() -> str:
@@ -95,12 +94,12 @@ def badge_fingerprint() -> str:
     return _BADGE_FINGERPRINT
 
 
-def normalize_badge_position(position: Optional[str]) -> str:
+def normalize_badge_position(position: str | None) -> str:
     """Configured corner, falling back to the default on an unknown value."""
     return position if position in BADGE_POSITIONS else DEFAULT_BADGE_POSITION
 
 
-def cover_badge_salt(position: Optional[str] = DEFAULT_BADGE_POSITION) -> str:
+def cover_badge_salt(position: str | None = DEFAULT_BADGE_POSITION) -> str:
     """Badge-identity salt folded into the cover-art cache-bust token. Changes
     when the badge asset (badge_fingerprint), the rendering revision, or the
     configured corner changes."""
@@ -112,7 +111,7 @@ def cover_badge_salt(position: Optional[str] = DEFAULT_BADGE_POSITION) -> str:
 SUPERSAMPLE = 4
 
 
-def _build_badge(chip_side: int, waveform: Image.Image) -> Tuple[Image.Image, int]:
+def _build_badge(chip_side: int, waveform: Image.Image) -> tuple[Image.Image, int]:
     """Render the badge: a soft green halo, a near-black rounded chip with a
     hairline green ring, and the waveform mark centered on it. Returns the RGBA
     layer and the margin between the layer edge and the visible chip (so the
@@ -150,7 +149,7 @@ def _build_badge(chip_side: int, waveform: Image.Image) -> Tuple[Image.Image, in
 
 
 def composite_watermark(base_bytes: bytes,
-                        position: Optional[str] = DEFAULT_BADGE_POSITION) -> Optional[bytes]:
+                        position: str | None = DEFAULT_BADGE_POSITION) -> bytes | None:
     """Overlay the badge on one corner of the cover. Returns JPEG bytes, or None
     if the badge is unavailable or compositing fails (callers fall back to the
     unmodified cover). An unknown position renders bottom-right."""

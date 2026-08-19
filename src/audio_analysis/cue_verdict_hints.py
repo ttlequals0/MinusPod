@@ -7,7 +7,6 @@ Rejections at or below the current threshold are ignored: they no longer match
 today, so stale labels recorded under an older, lower threshold cannot keep a
 hint alive. Pure -- no Flask/DB imports -- mirroring cue_threshold_suggest.
 """
-from typing import List, Optional
 
 from config import AUDIO_CUE_HINT_MIN_REJECTIONS, AUDIO_CUE_HINT_NEAR_BAND
 
@@ -16,10 +15,10 @@ HINT_RECAPTURE = 'recapture'
 
 
 def template_verdict_hint(
-    rejected_scores: List[Optional[float]],
-    confirmed_scores: List[Optional[float]],
+    rejected_scores: list[float | None],
+    confirmed_scores: list[float | None],
     current_threshold: float,
-) -> Optional[str]:
+) -> str | None:
     """Classify one template's rejection pattern; None below the count gate."""
     rejected = [s for s in (rejected_scores or [])
                 if s is not None and s > current_threshold]

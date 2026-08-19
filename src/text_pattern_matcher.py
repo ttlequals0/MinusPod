@@ -8,7 +8,6 @@ for host-read ads that follow similar scripts but aren't identical.
 import logging
 import re
 from dataclasses import dataclass, field, replace
-from typing import List, Optional, Dict, Tuple
 import json
 
 from config import (
@@ -163,7 +162,7 @@ def _extract_outro_phrase(text: str, min_words: int = 15, max_words: int = 40) -
     return " ".join(result_sentences).strip()
 
 
-def _guess_sponsor_from_segment(segment: str) -> Optional[str]:
+def _guess_sponsor_from_segment(segment: str) -> str | None:
     """Guess a sponsor name from the first word following a matched ad
     transition phrase in `segment`. Returns None if no phrase matches or the
     following word is filler (an article, "today", etc)."""
@@ -187,7 +186,7 @@ def _guess_sponsor_from_segment(segment: str) -> Optional[str]:
     return None
 
 
-def find_transition_offsets(text: str) -> List[int]:
+def find_transition_offsets(text: str) -> list[int]:
     """Character offsets of AD_TRANSITION_PHRASES matches in `text`.
 
     Overlapping and nested matches (e.g. "brought to you by" inside "this
@@ -212,7 +211,7 @@ def find_transition_offsets(text: str) -> List[int]:
     # absorb any nested/overlapping hits that follow.
     hits.sort(key=lambda h: (h[0], -h[1]))
 
-    clusters: List[Tuple[int, int]] = []
+    clusters: list[tuple[int, int]] = []
     for offset, length in hits:
         if clusters and offset < clusters[-1][1]:
             start, end = clusters[-1]
@@ -223,7 +222,7 @@ def find_transition_offsets(text: str) -> List[int]:
     return [start for start, _ in clusters]
 
 
-def split_template_text(text: str) -> List[Dict]:
+def split_template_text(text: str) -> list[dict]:
     """Segment ad template text at AD_TRANSITION_PHRASES boundaries.
 
     Returns a list of {'text': str, 'sponsor': Optional[str]} segments, one
@@ -270,14 +269,14 @@ class TextMatch:
     start: float
     end: float
     confidence: float
-    sponsor: Optional[str] = None
+    sponsor: str | None = None
     match_type: str = "content"  # "content", "intro", "outro", "both"
     # Transcript text the phrase aligned to, quoted in the marker reason.
-    matched_text: Optional[str] = None
+    matched_text: str | None = None
     # Segment category (#565) inherited from the matched pattern, so a
     # re-match of a pattern learned from e.g. a cross_promo marker carries
     # that category into the detection instead of falling back to 'sponsor'.
-    category: Optional[str] = None
+    category: str | None = None
     # Tier-1 trust (user-created or community pattern); see is_defined_pattern.
     defined: bool = False
     # pattern_ids of matches merged into this one, for match-credit recording.
@@ -287,8 +286,8 @@ class TextMatch:
     span_estimated: bool = False
     # Real matched-text time bounds, for capping label reach when
     # span_estimated is True. None when not applicable.
-    text_start: Optional[float] = None
-    text_end: Optional[float] = None
+    text_start: float | None = None
+    text_end: float | None = None
 
 
 @dataclass
@@ -296,18 +295,18 @@ class AdPattern:
     """Represents a learned ad pattern."""
     id: int
     text_template: str
-    intro_variants: List[str]
-    outro_variants: List[str]
-    sponsor: Optional[str]
+    intro_variants: list[str]
+    outro_variants: list[str]
+    sponsor: str | None
     scope: str  # "global", "network", "podcast"
-    podcast_id: Optional[str] = None
-    network_id: Optional[str] = None
-    avg_duration: Optional[float] = None
-    sponsor_id: Optional[int] = None
+    podcast_id: str | None = None
+    network_id: str | None = None
+    avg_duration: float | None = None
+    sponsor_id: int | None = None
     source: str = 'local'  # "local", "community", "imported"
-    source_language: Optional[str] = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
-    category: Optional[str] = None  # Segment category (#565); None on a legacy/unmigrated row
-    created_by: Optional[str] = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
+    source_language: str | None = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
+    category: str | None = None  # Segment category (#565); None on a legacy/unmigrated row
+    created_by: str | None = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
 
     @property
     def is_defined(self) -> bool:
@@ -339,11 +338,11 @@ class TextPatternMatcher:
         # id -> row index in _pattern_vectors, so any pattern subset can reuse
         # the load-time vectors without re-running the vectorizer.
         self._pattern_row_index = {}
-        self._patterns: List[AdPattern] = []
+        self._patterns: list[AdPattern] = []
         self._pattern_buckets = {}
         self._initialized = False
         # sponsor_id -> set of tags; populated alongside _load_patterns.
-        self._sponsor_tags: Dict[int, set] = {}
+        self._sponsor_tags: dict[int, set] = {}
 
     def _ensure_initialized(self):
         """Lazy initialization of TF-IDF vectorizer."""
@@ -467,12 +466,12 @@ class TextPatternMatcher:
 
     def find_matches(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         podcast_id: str = None,
         network_id: str = None,
-        podcast_tags: Optional[set] = None,
-        language: Optional[str] = None,
-    ) -> List[TextMatch]:
+        podcast_tags: set | None = None,
+        language: str | None = None,
+    ) -> list[TextMatch]:
         """
         Search transcript segments for known ad patterns.
 
@@ -556,8 +555,8 @@ class TextPatternMatcher:
         self,
         podcast_id: str = None,
         network_id: str = None,
-        podcast_tags: Optional[set] = None,
-    ) -> List[AdPattern]:
+        podcast_tags: set | None = None,
+    ) -> list[AdPattern]:
         """Filter patterns by scope hierarchy and (for community) tag eligibility.
 
         Scope rules:
@@ -571,7 +570,7 @@ class TextPatternMatcher:
         - Either side empty -> match (fallback).
         Local and imported patterns bypass the tag check entirely.
         """
-        applicable: List[AdPattern] = []
+        applicable: list[AdPattern] = []
         podcast_tag_set = set(podcast_tags) if podcast_tags else set()
 
         for pattern in self._patterns:
@@ -609,10 +608,10 @@ class TextPatternMatcher:
     def _find_content_matches(
         self,
         full_text: str,
-        segments: List[Dict],
-        segment_map: List[Tuple],
-        patterns: List[AdPattern]
-    ) -> List[TextMatch]:
+        segments: list[dict],
+        segment_map: list[tuple],
+        patterns: list[AdPattern]
+    ) -> list[TextMatch]:
         """Find matches using TF-IDF content similarity."""
         matches = []
 
@@ -766,10 +765,10 @@ class TextPatternMatcher:
     def _find_phrase_matches(
         self,
         full_text: str,
-        segments: List[Dict],
-        segment_map: List[Tuple],
-        patterns: List[AdPattern]
-    ) -> List[TextMatch]:
+        segments: list[dict],
+        segment_map: list[tuple],
+        patterns: list[AdPattern]
+    ) -> list[TextMatch]:
         """Find matches using fuzzy intro/outro phrase detection."""
         matches = []
 
@@ -869,7 +868,7 @@ class TextPatternMatcher:
 
         return matches
 
-    def _fuzzy_find(self, text: str, pattern: str) -> Tuple[int, float, str]:
+    def _fuzzy_find(self, text: str, pattern: str) -> tuple[int, float, str]:
         """
         Find best fuzzy match position for pattern in text.
 
@@ -974,9 +973,9 @@ class TextPatternMatcher:
         self,
         start_char: int,
         end_char: int,
-        segment_map: List[Tuple],
-        segments: List[Dict]
-    ) -> Tuple[float, float]:
+        segment_map: list[tuple],
+        segments: list[dict]
+    ) -> tuple[float, float]:
         """Convert character positions to timestamps.
 
         Maps character positions in concatenated text back to segment timestamps.
@@ -1002,7 +1001,7 @@ class TextPatternMatcher:
 
         return start_time, end_time
 
-    def _merge_matches(self, matches: List[TextMatch]) -> List[TextMatch]:
+    def _merge_matches(self, matches: list[TextMatch]) -> list[TextMatch]:
         """Merge overlapping matches."""
         if not matches:
             return []
@@ -1157,10 +1156,10 @@ class TextPatternMatcher:
 
     def _refine_boundaries(
         self,
-        matches: List[TextMatch],
-        segments: List[Dict],
-        patterns: List[AdPattern]
-    ) -> List[TextMatch]:
+        matches: list[TextMatch],
+        segments: list[dict],
+        patterns: list[AdPattern]
+    ) -> list[TextMatch]:
         """Refine match boundaries using intro/outro phrases."""
         refined = []
 
@@ -1229,7 +1228,7 @@ class TextPatternMatcher:
 
     def _get_text_around_time(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         start: float,
         end: float
     ) -> str:
@@ -1244,7 +1243,7 @@ class TextPatternMatcher:
 
     def create_pattern_from_ad(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         start: float,
         end: float,
         sponsor: str = None,
@@ -1253,7 +1252,7 @@ class TextPatternMatcher:
         network_id: str = None,
         episode_id: str = None,
         category: str = None
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Create a new ad pattern from a detected ad segment.
 
@@ -1424,7 +1423,7 @@ class TextPatternMatcher:
             logger.error(f"Failed to create pattern: {e}")
             return None
 
-    def split_pattern(self, pattern_id: int) -> List[int]:
+    def split_pattern(self, pattern_id: int) -> list[int]:
         """Split a multi-sponsor pattern into separate patterns.
 
         Detects ad transition phrases in the pattern text and splits at each
@@ -1512,9 +1511,9 @@ class TextPatternMatcher:
     def matches_false_positive(
         self,
         text: str,
-        false_positive_texts: List[str],
+        false_positive_texts: list[str],
         threshold: float = 0.75
-    ) -> Tuple[bool, float]:
+    ) -> tuple[bool, float]:
         """Check if text is similar to any false positive.
 
         Uses TF-IDF cosine similarity to compare candidate text against

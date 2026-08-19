@@ -15,7 +15,7 @@ import logging
 import re
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Union
 
 from config import (
     PROVIDER_ANTHROPIC,
@@ -32,19 +32,19 @@ PASS_AD_DETECTION_2 = "ad_detection_pass_2"
 PASS_REVIEWER_2 = "reviewer_pass_2"
 PASS_CHAPTER_GENERATION = "chapter_generation"
 
-PassKey = Tuple[str, str]
+PassKey = tuple[str, str]
 
 
 @dataclass(frozen=True)
 class PassDefaults:
     temperature: float
     max_tokens: int
-    reasoning_effort: Optional[Union[int, str]] = None
+    reasoning_effort: Union[int, str] | None = None
 
 
 # Fallback targets. These match the values used before per-stage tunables existed,
 # so a rejection-induced retry restores prior behavior. Do not "improve" these.
-_DEFAULTS: Dict[str, PassDefaults] = {
+_DEFAULTS: dict[str, PassDefaults] = {
     PASS_AD_DETECTION_1: PassDefaults(temperature=0.0, max_tokens=4096),
     PASS_AD_DETECTION_2: PassDefaults(temperature=0.0, max_tokens=4096),
     PASS_REVIEWER_1: PassDefaults(temperature=0.0, max_tokens=4096),
@@ -52,7 +52,7 @@ _DEFAULTS: Dict[str, PassDefaults] = {
     PASS_CHAPTER_GENERATION: PassDefaults(temperature=0.1, max_tokens=300),
 }
 
-_fallback_state: Dict[PassKey, bool] = {}
+_fallback_state: dict[PassKey, bool] = {}
 _fallback_lock = threading.Lock()
 
 
@@ -80,8 +80,8 @@ def get_pass_defaults(pass_name: str) -> PassDefaults:
 
 def translate_reasoning_effort(
     provider: str,
-    value: Optional[Union[int, str]],
-) -> Dict[str, Any]:
+    value: Union[int, str] | None,
+) -> dict[str, Any]:
     """Map a per-stage reasoning value to provider-native request kwargs.
 
     Returns {} when the value should be omitted from the request.
@@ -144,7 +144,7 @@ def mark_model_omits_temperature(model: str) -> None:
 
 
 def model_omits_temperature(
-    model: Optional[str],
+    model: str | None,
     operator_override: bool = False,
 ) -> bool:
     """True when temperature must be omitted from the request for ``model``.

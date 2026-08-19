@@ -1,6 +1,5 @@
 """Full-text search mixin for MinusPod database."""
 import logging
-from typing import Optional, Dict, List
 
 import nh3
 
@@ -127,7 +126,7 @@ class SearchMixin:
             return snippet
         return nh3.clean(snippet, tags={"mark"}, attributes={})
 
-    def search(self, query: str, content_type: Optional[str] = None, limit: int = 50) -> List[Dict]:
+    def search(self, query: str, content_type: str | None = None, limit: int = 50) -> list[dict]:
         """Full-text search across indexed content.
 
         Args:
@@ -196,7 +195,7 @@ class SearchMixin:
             logger.error(f"Search error for query '{query}': {e}")
             return []
 
-    def get_search_index_stats(self) -> Dict[str, int]:
+    def get_search_index_stats(self) -> dict[str, int]:
         """Get statistics about the search index."""
         conn = self.get_connection()
 

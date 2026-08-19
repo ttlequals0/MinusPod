@@ -10,7 +10,6 @@ at window boundaries, especially on repeated runs.
 """
 import re
 import logging
-from typing import List, Dict, Optional
 
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds
@@ -65,7 +64,7 @@ MAX_PREROLL_DURATION = 120.0   # seconds
 MAX_POSTROLL_DURATION = 120.0  # seconds
 
 
-def _region_covered(start: float, end: float, ads: List[Dict],
+def _region_covered(start: float, end: float, ads: list[dict],
                     overlap_threshold: float = 0.5) -> bool:
     """True if >overlap_threshold of region already covered by existing ads."""
     region_duration = end - start
@@ -91,11 +90,11 @@ def _count_ad_patterns(text: str) -> int:
 
 
 def detect_preroll(
-    segments: List[Dict],
-    existing_ads: List[Dict],
+    segments: list[dict],
+    existing_ads: list[dict],
     podcast_name: str = '',
     skip_patterns: bool = False,
-) -> Optional[Dict]:
+) -> dict | None:
     """Detect pre-roll ad before the show intro.
 
     Searches forward from the start for the first show-start pattern.
@@ -163,11 +162,11 @@ def detect_preroll(
 
 
 def detect_postroll(
-    segments: List[Dict],
-    existing_ads: List[Dict],
+    segments: list[dict],
+    existing_ads: list[dict],
     episode_duration: float = 0,
     skip_patterns: bool = False,
-) -> Optional[Dict]:
+) -> dict | None:
     """Detect post-roll ad after the show sign-off.
 
     Searches backward from the end for the last sign-off pattern.

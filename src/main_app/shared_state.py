@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import threading
 from collections import OrderedDict
-from typing import Hashable
+from collections.abc import Hashable
 
 
 class _BoundedSet:

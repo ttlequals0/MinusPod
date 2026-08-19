@@ -11,7 +11,6 @@ consumers may corroborate with splice events but must never veto.
 """
 import json
 import logging
-from typing import Dict, Optional
 
 from config import (
     SPLICE_CALIBRATION_MIN_EPISODES, SPLICE_CALIBRATION_RECENT_EPISODES,
@@ -28,7 +27,7 @@ _DEFAULT_MIN_S = {
 }
 
 
-def cold_start_calibration(episodes_considered: int = 0) -> Dict:
+def cold_start_calibration(episodes_considered: int = 0) -> dict:
     """Conservative defaults used before a feed has enough history.
 
     episodes_considered carries the count of valid payloads found so a
@@ -43,7 +42,7 @@ def cold_start_calibration(episodes_considered: int = 0) -> Dict:
     }
 
 
-def build_calibration(rows) -> Dict:
+def build_calibration(rows) -> dict:
     """Build the calibration dict from stored history rows.
 
     rows: dicts with original_duration and audio_analysis_json (newest-first,
@@ -106,7 +105,7 @@ def build_calibration(rows) -> Dict:
 
 
 def compute_splice_calibration(db, slug: str,
-                               exclude_episode_id: Optional[str] = None) -> Dict:
+                               exclude_episode_id: str | None = None) -> dict:
     """Load the feed's recent splice history and build its calibration.
 
     Never raises: calibration failure must not fail the pipeline.

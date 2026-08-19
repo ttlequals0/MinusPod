@@ -23,7 +23,7 @@ import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from secrets_crypto import count_plaintext_secrets, count_stored_secrets
 from utils.cron import is_due
@@ -80,7 +80,7 @@ def validate_backup_dest(raw: Any, data_dir: str | Path) -> Path:
     return Path(resolved)
 
 
-def _clamp_keep_count(raw: Optional[str]) -> int:
+def _clamp_keep_count(raw: str | None) -> int:
     try:
         value = int(raw) if raw is not None else 1
     except (TypeError, ValueError):
@@ -113,7 +113,7 @@ def _next_rotated_path(dest: Path, now: datetime) -> Path:
     return dest / _rotated_name(now.strftime('%Y%m%d-%H%M%S'))
 
 
-def _prune_rotated(dest: Path, keep: int, keep_path: Optional[Path] = None) -> int:
+def _prune_rotated(dest: Path, keep: int, keep_path: Path | None = None) -> int:
     """Prune rotated backups down to `keep`, and drop the fixed file in rotate
     mode / all rotated files in overwrite mode. `keep_path` (the file just
     written) is never pruned. Errors are logged, never raised.
@@ -242,7 +242,7 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
         )
 
 
-def backup_now(db) -> Dict[str, Any]:
+def backup_now(db) -> dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 
     Stamps last_run immediately after acquiring the lock (community-sync
@@ -319,7 +319,7 @@ def backup_now(db) -> Dict[str, Any]:
         lock_fd.close()
 
 
-def db_backup_tick(db, force: bool = False) -> Optional[Dict[str, Any]]:
+def db_backup_tick(db, force: bool = False) -> dict[str, Any] | None:
     """Run a backup if due (or forced). Returns the summary dict, or None."""
     enabled = db.get_setting_bool('db_backup_enabled', default=False)
     if not enabled and not force:

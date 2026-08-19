@@ -8,7 +8,6 @@ Kept free of Flask and DB imports so it can be unit tested directly.
 """
 import json
 import math
-from typing import Dict, List, Optional, Tuple
 
 from config import SEGMENT_CATEGORIES, is_pending_review
 
@@ -21,7 +20,7 @@ BOUNDS_TOLERANCE_S = 0.5
 UNSET_CATEGORY = 'none'
 
 
-def marker_status(marker: Dict) -> str:
+def marker_status(marker: dict) -> str:
     """Mirror of the episode endpoint's bucketing (api/episodes.py)."""
     if is_pending_review(marker):
         return 'pending'
@@ -31,7 +30,7 @@ def marker_status(marker: Dict) -> str:
     return 'accepted'
 
 
-def marker_resolution(marker: Dict, episode_corrections: List[Dict]) -> str:
+def marker_resolution(marker: dict, episode_corrections: list[dict]) -> str:
     start = marker.get('start')
     end = marker.get('end')
     if start is None or end is None:
@@ -47,8 +46,8 @@ def marker_resolution(marker: Dict, episode_corrections: List[Dict]) -> str:
     return 'unresolved'
 
 
-def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
-    by_episode: Dict[str, List[Dict]] = {}
+def flatten_detections(rows: list[dict], corrections: list[dict]) -> list[dict]:
+    by_episode: dict[str, list[dict]] = {}
     for c in corrections:
         by_episode.setdefault(c['episode_id'], []).append(c)
 
@@ -95,7 +94,7 @@ def flatten_detections(rows: List[Dict], corrections: List[Dict]) -> List[Dict]:
     return items
 
 
-def summarize_detections(items: List[Dict]) -> Dict:
+def summarize_detections(items: list[dict]) -> dict:
     """Pre-filter overview counts for the review tab's stats card."""
     counts = {
         'total': len(items),
@@ -117,7 +116,7 @@ def summarize_detections(items: List[Dict]) -> Dict:
     return counts
 
 
-def summarize_cut_detections(items: List[Dict]) -> Dict:
+def summarize_cut_detections(items: list[dict]) -> dict:
     """Totals for the Detected Ads header, over detections that were cut.
 
     Callers pass the already-cut subset; this does not filter by status itself.
@@ -147,10 +146,10 @@ def summarize_cut_detections(items: List[Dict]) -> Dict:
     }
 
 
-def filter_detections(items: List[Dict], status: str = 'needs_review',
-                      feed: Optional[str] = None,
-                      q: Optional[str] = None,
-                      category: Optional[str] = None) -> List[Dict]:
+def filter_detections(items: list[dict], status: str = 'needs_review',
+                      feed: str | None = None,
+                      q: str | None = None,
+                      category: str | None = None) -> list[dict]:
     out = items
     if status == 'needs_review':
         out = [i for i in out
@@ -172,8 +171,8 @@ def filter_detections(items: List[Dict], status: str = 'needs_review',
     return out
 
 
-def sort_detections(items: List[Dict], sort: str = 'date',
-                    order: str = 'desc') -> List[Dict]:
+def sort_detections(items: list[dict], sort: str = 'date',
+                    order: str = 'desc') -> list[dict]:
     reverse = order == 'desc'
     if sort == 'confidence':
         # None confidences always sort last regardless of direction, so the
@@ -194,8 +193,8 @@ def sort_detections(items: List[Dict], sort: str = 'date',
     return sorted(items, key=key, reverse=reverse)
 
 
-def paginate(items: List[Dict], page: int,
-             limit: int) -> Tuple[List[Dict], int, int, int]:
+def paginate(items: list[dict], page: int,
+             limit: int) -> tuple[list[dict], int, int, int]:
     total = len(items)
     total_pages = math.ceil(total / limit) if total else 1
     page = min(max(1, page), total_pages)

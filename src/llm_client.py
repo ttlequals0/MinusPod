@@ -28,7 +28,7 @@ import threading
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Any, Union
+from typing import Any, Union
 
 import requests
 
@@ -128,7 +128,7 @@ class LLMResponse:
     """Unified response format from any LLM backend."""
     content: str
     model: str
-    usage: Optional[Dict[str, int]] = None
+    usage: dict[str, int] | None = None
 
 
 @dataclass
@@ -136,7 +136,7 @@ class LLMModel:
     """Model information."""
     id: str
     name: str
-    created: Optional[str] = None
+    created: str | None = None
 
 
 # =========================================================================
@@ -160,7 +160,7 @@ _model_list_cache_lock = threading.Lock()
 _CACHED_NONE = object()
 
 
-def _get_cached_setting(key: str) -> Optional[str]:
+def _get_cached_setting(key: str) -> str | None:
     """Read a setting from DB with a short TTL cache to avoid per-request queries."""
     with _provider_cache_lock:
         cached = _provider_cache.get(key)
@@ -177,7 +177,7 @@ def _get_cached_setting(key: str) -> Optional[str]:
         return None
 
 
-def _get_cached_secret(key: str) -> Optional[str]:
+def _get_cached_secret(key: str) -> str | None:
     """Decrypting variant of _get_cached_setting; shares the same TTL cache."""
     with _provider_cache_lock:
         cached = _provider_cache.get(key)
@@ -199,13 +199,13 @@ def _clear_provider_cache():
     invalidate_provider_cache()
 
 
-def _get_cached_model_list(provider_key: str) -> Optional[List['LLMModel']]:
+def _get_cached_model_list(provider_key: str) -> list['LLMModel'] | None:
     """Return cached model list if still fresh, else None."""
     with _model_list_cache_lock:
         return _model_list_cache.get(provider_key)
 
 
-def _set_cached_model_list(provider_key: str, models: List['LLMModel']):
+def _set_cached_model_list(provider_key: str, models: list['LLMModel']):
     """Store a model list in the cache."""
     with _model_list_cache_lock:
         _model_list_cache.set(provider_key, models)
@@ -261,7 +261,7 @@ def invalidate_provider_cache() -> None:
         _provider_cache.clear()
 
 
-def get_effective_openrouter_api_key() -> Optional[str]:
+def get_effective_openrouter_api_key() -> str | None:
     """Return the OpenRouter API key, checking DB first then env var.
 
     Note: DB reset stores '' (empty string) which is intentionally falsy
@@ -273,7 +273,7 @@ def get_effective_openrouter_api_key() -> Optional[str]:
     return os.environ.get('OPENROUTER_API_KEY')
 
 
-def get_effective_anthropic_api_key() -> Optional[str]:
+def get_effective_anthropic_api_key() -> str | None:
     """Return the Anthropic API key, DB first then env var."""
     db_val = _get_cached_secret('anthropic_api_key')
     if db_val:
@@ -281,7 +281,7 @@ def get_effective_anthropic_api_key() -> Optional[str]:
     return os.environ.get('ANTHROPIC_API_KEY')
 
 
-def get_effective_openai_api_key() -> Optional[str]:
+def get_effective_openai_api_key() -> str | None:
     """Return the OpenAI-compatible API key, DB first then env var.
 
     The legacy ``OPENAI_API_KEY`` -> ``ANTHROPIC_API_KEY`` fallback was
@@ -294,7 +294,7 @@ def get_effective_openai_api_key() -> Optional[str]:
     return os.environ.get('OPENAI_API_KEY', 'not-needed')
 
 
-def get_effective_ollama_api_key() -> Optional[str]:
+def get_effective_ollama_api_key() -> str | None:
     """Return the Ollama API key, DB first then env var. Empty when neither is set
     (local Ollama doesn't require auth; Cloud does)."""
     db_val = _get_cached_secret('ollama_api_key')
@@ -304,11 +304,11 @@ def get_effective_ollama_api_key() -> Optional[str]:
 
 
 def _apply_pass_fallback(
-    episode_id: Optional[str],
-    pass_name: Optional[str],
+    episode_id: str | None,
+    pass_name: str | None,
     max_tokens: int,
     temperature: float,
-    reasoning_effort: Optional[Union[int, str]],
+    reasoning_effort: Union[int, str] | None,
 ):
     """If the pass already tripped its fallback flag, swap in defaults."""
     if pass_name and is_fallback_set(episode_id, pass_name):
@@ -319,8 +319,8 @@ def _apply_pass_fallback(
 
 def _should_fallback_retry(
     error: Exception,
-    episode_id: Optional[str],
-    pass_name: Optional[str],
+    episode_id: str | None,
+    pass_name: str | None,
 ) -> bool:
     """True for a first 4xx (non-429) in a tracked pass -- caller retries once with defaults."""
     if not pass_name:
@@ -332,12 +332,12 @@ def _should_fallback_retry(
 
 def _log_fallback(
     provider_label: str,
-    episode_id: Optional[str],
-    pass_name: Optional[str],
+    episode_id: str | None,
+    pass_name: str | None,
     model: str,
     max_tokens: int,
     temperature: float,
-    reasoning_effort: Optional[Union[int, str]],
+    reasoning_effort: Union[int, str] | None,
     error: Exception,
 ) -> None:
     logger.warning(
@@ -349,8 +349,8 @@ def _log_fallback(
 
 def _log_temperature_omission(
     provider_label: str,
-    episode_id: Optional[str],
-    pass_name: Optional[str],
+    episode_id: str | None,
+    pass_name: str | None,
     model: str,
     error: Exception,
 ) -> None:
@@ -366,7 +366,7 @@ class LLMClient(ABC):
 
     def __init__(self):
         self._usage_callback = None
-        self._circuit_breaker: Optional[CircuitBreaker] = None
+        self._circuit_breaker: CircuitBreaker | None = None
 
     def set_circuit_breaker(self, cb: CircuitBreaker):
         """Attach a circuit breaker for API call protection."""
@@ -381,7 +381,7 @@ class LLMClient(ABC):
         if self._circuit_breaker:
             self._circuit_breaker.check()
 
-    def _record_circuit_breaker(self, success: bool, error: Optional[Exception] = None):
+    def _record_circuit_breaker(self, success: bool, error: Exception | None = None):
         """Record success/failure on the circuit breaker after API call."""
         if self._circuit_breaker:
             if success:
@@ -402,8 +402,8 @@ class LLMClient(ABC):
             except Exception as e:
                 logger.warning(f"Token usage recording failed: {e}")
 
-    def _log_messages(self, provider_label: str, system: str, messages: List[Dict],
-                       model: str, temperature: Optional[float], max_tokens: int):
+    def _log_messages(self, provider_label: str, system: str, messages: list[dict],
+                       model: str, temperature: float | None, max_tokens: int):
         """Log request details for debugging. Shared by all client implementations.
         temperature is None when it is omitted from the request (no-sampling models)."""
         _log_content(f"{provider_label} system prompt", system)
@@ -426,12 +426,12 @@ class LLMClient(ABC):
         model: str,
         eff_max: int,
         eff_temp: float,
-        eff_reasoning: Optional[Union[int, str]],
+        eff_reasoning: Union[int, str] | None,
         user_max: int,
         user_temp: float,
-        user_reasoning: Optional[Union[int, str]],
-        episode_id: Optional[str],
-        pass_name: Optional[str],
+        user_reasoning: Union[int, str] | None,
+        episode_id: str | None,
+        pass_name: str | None,
         send_fn,
     ):
         """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
@@ -484,13 +484,13 @@ class LLMClient(ABC):
         model: str,
         max_tokens: int,
         system: str,
-        messages: List[Dict],
+        messages: list[dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None,
-        reasoning_effort: Optional[Union[int, str]] = None,
-        episode_id: Optional[str] = None,
-        pass_name: Optional[str] = None,
+        response_format: dict[str, str] | None = None,
+        reasoning_effort: Union[int, str] | None = None,
+        episode_id: str | None = None,
+        pass_name: str | None = None,
     ) -> LLMResponse:
         """Send a completion request (synchronous).
 
@@ -519,7 +519,7 @@ class LLMClient(ABC):
         pass
 
     @abstractmethod
-    def list_models(self, bypass_cache: bool = False) -> List[LLMModel]:
+    def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
         """List available models.
 
         Args:
@@ -539,7 +539,7 @@ class LLMClient(ABC):
 class AnthropicClient(LLMClient):
     """Native Anthropic API client."""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         super().__init__()
         self.api_key = api_key or get_effective_anthropic_api_key()
         self._client = None
@@ -558,13 +558,13 @@ class AnthropicClient(LLMClient):
         model: str,
         max_tokens: int,
         system: str,
-        messages: List[Dict],
+        messages: list[dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None,
-        reasoning_effort: Optional[Union[int, str]] = None,
-        episode_id: Optional[str] = None,
-        pass_name: Optional[str] = None,
+        response_format: dict[str, str] | None = None,
+        reasoning_effort: Union[int, str] | None = None,
+        episode_id: str | None = None,
+        pass_name: str | None = None,
     ) -> LLMResponse:
         self._check_circuit_breaker()
         self._ensure_client()
@@ -683,7 +683,7 @@ class AnthropicClient(LLMClient):
         self._notify_usage(llm_response)
         return llm_response
 
-    def list_models(self, bypass_cache: bool = False) -> List[LLMModel]:
+    def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
         cached = None if bypass_cache else _get_cached_model_list(PROVIDER_ANTHROPIC)
         if cached is not None:
             return cached
@@ -721,10 +721,10 @@ class OpenAICompatibleClient(LLMClient):
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
-        default_model: Optional[str] = None,
-        extra_headers: Optional[Dict[str, str]] = None
+        base_url: str | None = None,
+        api_key: str | None = None,
+        default_model: str | None = None,
+        extra_headers: dict[str, str] | None = None
     ):
         super().__init__()
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL)
@@ -734,16 +734,16 @@ class OpenAICompatibleClient(LLMClient):
         self._client = None
         # Cache which token parameter each model accepts: "max_completion_tokens" or "max_tokens"
         # Per-instance to avoid cross-contamination between clients with different base_urls
-        self._token_param_cache: Dict[str, str] = {}
+        self._token_param_cache: dict[str, str] = {}
         # Whether endpoint supports response_format: {"type": "json_object"}.
         # None = not yet probed. Persisted to DB across restarts.
-        self._json_format_supported: Optional[bool] = None
+        self._json_format_supported: bool | None = None
 
     def _ensure_client(self):
         """Lazy initialize the OpenAI client."""
         if self._client is None:
             from openai import OpenAI
-            kwargs: Dict[str, Any] = {
+            kwargs: dict[str, Any] = {
                 'base_url': self.base_url,
                 'api_key': self.api_key,
             }
@@ -773,13 +773,13 @@ class OpenAICompatibleClient(LLMClient):
         model: str,
         max_tokens: int,
         system: str,
-        messages: List[Dict],
+        messages: list[dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None,
-        reasoning_effort: Optional[Union[int, str]] = None,
-        episode_id: Optional[str] = None,
-        pass_name: Optional[str] = None,
+        response_format: dict[str, str] | None = None,
+        reasoning_effort: Union[int, str] | None = None,
+        episode_id: str | None = None,
+        pass_name: str | None = None,
     ) -> LLMResponse:
         self._check_circuit_breaker()
         self._ensure_client()
@@ -915,7 +915,7 @@ class OpenAICompatibleClient(LLMClient):
         self._notify_usage(llm_response)
         return llm_response
 
-    def list_models(self, bypass_cache: bool = False) -> List[LLMModel]:
+    def list_models(self, bypass_cache: bool = False) -> list[LLMModel]:
         """List models from the OpenAI-compatible API.
 
         Returns all models reported by the endpoint without filtering.
@@ -986,7 +986,7 @@ class OpenAICompatibleClient(LLMClient):
             logger.error(f"LLM endpoint verification failed: {safe_url_for_log(self.base_url, keep_path=True)} - {e}")
             return False
 
-    def _get_json_format_supported(self) -> Optional[bool]:
+    def _get_json_format_supported(self) -> bool | None:
         """Check whether this endpoint supports response_format json_object.
 
         Returns True, False, or None (unknown/never probed).
@@ -1001,7 +1001,7 @@ class OpenAICompatibleClient(LLMClient):
             self._json_format_supported = False
         return self._json_format_supported
 
-    def probe_json_format_support(self, model: Optional[str] = None) -> Optional[bool]:
+    def probe_json_format_support(self, model: str | None = None) -> bool | None:
         """Send a minimal completion to test json_object response_format support.
 
         Args:
@@ -1070,7 +1070,7 @@ class OpenAICompatibleClient(LLMClient):
         except Exception as e:
             logger.warning(f"Could not persist json_format probe result: {e}")
 
-    def _try_ollama_native_list(self) -> List[LLMModel]:
+    def _try_ollama_native_list(self) -> list[LLMModel]:
         """Try Ollama's native /api/tags endpoint as a fallback for model listing.
 
         Strips /v1 from self.base_url to derive the Ollama root, then queries
@@ -1138,8 +1138,8 @@ def get_llm_max_retries() -> int:
 # Factory function - this is the main entry point
 # =============================================================================
 
-_cached_client: Optional[LLMClient] = None
-_cached_client_config_key: Optional[str] = None
+_cached_client: LLMClient | None = None
+_cached_client_config_key: str | None = None
 _client_lock = threading.Lock()
 
 
@@ -1217,7 +1217,7 @@ class _EpisodeAccumulator:
         with self._lock:
             return self.active
 
-    def collect_and_reset(self) -> Dict:
+    def collect_and_reset(self) -> dict:
         with self._lock:
             totals = {
                 'input_tokens': self.input_tokens,
@@ -1249,7 +1249,7 @@ def start_episode_token_tracking():
     logger.info(f"Episode token tracking: ACTIVATED (thread={threading.current_thread().name})")
 
 
-def get_episode_token_totals() -> Dict:
+def get_episode_token_totals() -> dict:
     """Return accumulated totals, deactivate, and reset the accumulator."""
     totals = _episode_accumulator.collect_and_reset()
     logger.info(
@@ -1259,7 +1259,7 @@ def get_episode_token_totals() -> Dict:
     return totals
 
 
-def _record_token_usage(model: str, usage: Dict):
+def _record_token_usage(model: str, usage: dict):
     """Module-level callback for recording token usage to the database."""
     input_tokens = usage.get('input_tokens', 0)
     output_tokens = usage.get('output_tokens', 0)
@@ -1348,7 +1348,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
         return _cached_client
 
 
-def _build_client(provider: str) -> Optional[LLMClient]:
+def _build_client(provider: str) -> LLMClient | None:
     """Build an LLM client for a given provider without caching."""
     if provider == PROVIDER_ANTHROPIC:
         return AnthropicClient()
@@ -1375,7 +1375,7 @@ def _build_client(provider: str) -> Optional[LLMClient]:
     return None
 
 
-def create_client_for_provider(provider: str) -> Optional[LLMClient]:
+def create_client_for_provider(provider: str) -> LLMClient | None:
     """Create a non-cached LLM client for a specific provider.
 
     Used for previewing available models before saving provider settings.
@@ -1392,7 +1392,7 @@ def create_client_for_provider(provider: str) -> Optional[LLMClient]:
         return None
 
 
-def get_api_key() -> Optional[str]:
+def get_api_key() -> str | None:
     """Get the API key for the current provider.
 
     Returns:
@@ -1503,7 +1503,7 @@ def _openai_exc():
     })
 
 
-def _provider_status_code(error) -> Optional[int]:
+def _provider_status_code(error) -> int | None:
     return getattr(error, 'status_code', None)
 
 
@@ -1788,7 +1788,7 @@ def extract_error_body(error: Exception) -> Any:
     return None
 
 
-def classify_structural_rate_limit(error: Exception) -> Optional[dict]:
+def classify_structural_rate_limit(error: Exception) -> dict | None:
     """Detect a 429 whose request structurally exceeds the provider's cap.
 
     Returns the parsed ``{limit, used, requested}`` dict when the error is a
@@ -1808,7 +1808,7 @@ def classify_structural_rate_limit(error: Exception) -> Optional[dict]:
     return parsed if requested > limit else None
 
 
-def classify_daily_quota_exhaustion(error: Exception) -> Optional[dict]:
+def classify_daily_quota_exhaustion(error: Exception) -> dict | None:
     """Detect a Google/Gemini free-tier daily-quota 429 (cannot recover this run).
 
     Returns ``{limit, model, quota_id}`` when the error is a rate limit whose body
@@ -1820,7 +1820,7 @@ def classify_daily_quota_exhaustion(error: Exception) -> Optional[dict]:
     return parse_google_daily_quota(extract_error_body(error) or str(error))
 
 
-def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> Optional[float]:
+def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> float | None:
     """Pull a recommended wait (seconds) from a provider rate-limit exception.
 
     Reads the `Retry-After` header off the attached ``httpx.Response`` first; when

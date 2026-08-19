@@ -19,7 +19,6 @@ Nothing here cuts audio on its own.
 import logging
 import os
 import subprocess
-from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -44,13 +43,13 @@ _EPS = 1e-12
 _SILENCE_FLOOR_DB = -120.0       # clamp for log of all-zero frames
 
 
-def _empty_payload() -> Dict:
+def _empty_payload() -> dict:
     return {'version': SPLICE_EVIDENCE_VERSION, 'events': [],
             'calibration': {'status': 'cold_start'}}
 
 
 def _make_event(etype: str, start: float, end: float,
-                depth_dbfs: Optional[float] = None) -> Dict:
+                depth_dbfs: float | None = None) -> dict:
     return {
         'time': round(float(start), 3),
         'end_time': round(float(end), 3),
@@ -63,7 +62,7 @@ def _make_event(etype: str, start: float, end: float,
     }
 
 
-def _runs_below(values: np.ndarray, threshold: float) -> List:
+def _runs_below(values: np.ndarray, threshold: float) -> list:
     """(start, end) index pairs of maximal runs strictly below threshold."""
     below = np.concatenate(([False], values < threshold, [False]))
     edges = np.flatnonzero(np.diff(below.astype(np.int8)))
@@ -73,8 +72,8 @@ def _runs_below(values: np.ndarray, threshold: float) -> List:
 class SpliceDetector:
     """Compute splice-evidence events for one episode."""
 
-    def detect(self, audio_path: str, duration: Optional[float],
-               loudness_frames) -> Dict:
+    def detect(self, audio_path: str, duration: float | None,
+               loudness_frames) -> dict:
         """Return the splice_evidence payload; empty payload on any failure."""
         if not os.path.exists(audio_path):
             logger.warning('Splice detector: file not found: %s', audio_path)
@@ -117,7 +116,7 @@ class SpliceDetector:
                 'calibration': {'status': 'cold_start'}}
 
     def _decode_8k_mono(self, audio_path: str,
-                        duration: float) -> Optional[np.ndarray]:
+                        duration: float) -> np.ndarray | None:
         """Decode to 8kHz mono s16 PCM. Returns int16 array or None."""
         cmd = [
             'ffmpeg', '-v', 'error', '-i', audio_path,
@@ -152,7 +151,7 @@ class SpliceDetector:
             out[i:j] = 20.0 * np.log10(np.maximum(rms, _EPS))
         return np.maximum(out, _SILENCE_FLOOR_DB)
 
-    def _find_silence_events(self, rms_db: np.ndarray) -> List[Dict]:
+    def _find_silence_events(self, rms_db: np.ndarray) -> list[dict]:
         """digital_silence / deep_silence events from the RMS frame series."""
         frame_s = RMS_FRAME_SAMPLES / SAMPLE_RATE_HZ
         events = []
@@ -175,7 +174,7 @@ class SpliceDetector:
         return events
 
     def _loudness_step(self, loudness_frames, event_start: float,
-                       event_end: float) -> Optional[float]:
+                       event_end: float) -> float | None:
         """step = mean(M over [end+1, end+6]) - mean(M over [start-6, start-1])."""
         before = self._side_mean(loudness_frames, event_start - 6.0, event_start - 1.0)
         after = self._side_mean(loudness_frames, event_end + 1.0, event_end + 6.0)
@@ -184,7 +183,7 @@ class SpliceDetector:
         return round(after - before, 1)
 
     @staticmethod
-    def _side_mean(loudness_frames, lo: float, hi: float) -> Optional[float]:
+    def _side_mean(loudness_frames, lo: float, hi: float) -> float | None:
         vals = [f.loudness_lufs for f in loudness_frames
                 if lo <= (f.start + f.end) / 2.0 <= hi
                 and f.loudness_lufs > SPLICE_LOUDNESS_GATE_LUFS]

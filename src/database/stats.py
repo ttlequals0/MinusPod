@@ -2,7 +2,6 @@
 import json
 import logging
 import threading
-from typing import Dict, List, Optional, Tuple
 
 from config import normalize_model_key
 from utils.app_version import APP_VERSION as __version__
@@ -24,7 +23,7 @@ _STORAGE_WALK_LOCK = threading.Lock()
 class StatsMixin:
     """Statistics, token usage, and processing history methods."""
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get database statistics."""
         conn = self.get_connection()
 
@@ -68,7 +67,7 @@ class StatsMixin:
             'storage_mb': total_size / (1024 * 1024)
         }
 
-    def get_feeds_config(self) -> List[Dict]:
+    def get_feeds_config(self) -> list[dict]:
         """Get feed configuration in feeds.json format for compatibility."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -238,7 +237,7 @@ class StatsMixin:
         )
         return cost
 
-    def get_token_usage_summary(self) -> Dict:
+    def get_token_usage_summary(self) -> dict:
         """Get global totals and per-model breakdown of token usage."""
         conn = self.get_connection()
 
@@ -420,7 +419,7 @@ class StatsMixin:
                                 status_filter: str = None,
                                 podcast_slug: str = None,
                                 sort_by: str = 'processed_at',
-                                sort_dir: str = 'desc') -> Tuple[List[Dict], int]:
+                                sort_dir: str = 'desc') -> tuple[list[dict], int]:
         """Get processing history with pagination. Returns (entries, total_count)."""
         conn = self.get_connection()
 
@@ -472,7 +471,7 @@ class StatsMixin:
         entries = [dict(row) for row in cursor.fetchall()]
         return entries, total_count
 
-    def get_processing_history_stats(self) -> Dict:
+    def get_processing_history_stats(self) -> dict:
         """Get aggregate statistics from processing history in a single query."""
         conn = self.get_connection()
 
@@ -540,7 +539,7 @@ class StatsMixin:
         finally:
             cursor.close()
 
-    def get_latest_completed_processing(self) -> Optional[Dict]:
+    def get_latest_completed_processing(self) -> dict | None:
         """Get the most recent completed processing history entry with episode durations.
 
         Returns a dict with keys: episode_id, podcast_slug, episode_title,
@@ -573,7 +572,7 @@ class StatsMixin:
             'podcast_title': row['podcast_title'],
         }
 
-    def get_dashboard_stats(self, podcast_slug: str = None) -> Dict:
+    def get_dashboard_stats(self, podcast_slug: str = None) -> dict:
         """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast."""
         conn = self.get_connection()
         where_clauses = ["h.status = 'completed'"]
@@ -668,7 +667,7 @@ class StatsMixin:
             'totalAudioCuesDetected': row['total_audio_cues'],
         }
 
-    def get_stats_by_day(self, podcast_slug: str = None) -> List[Dict]:
+    def get_stats_by_day(self, podcast_slug: str = None) -> list[dict]:
         """Get episode processing counts by day of week."""
         conn = self.get_connection()
         where_clauses = ["status = 'completed'"]
@@ -703,7 +702,7 @@ class StatsMixin:
             })
         return result
 
-    def get_stats_by_podcast(self) -> List[Dict]:
+    def get_stats_by_podcast(self) -> list[dict]:
         """Get per-podcast aggregate stats, ordered by total ads removed."""
         conn = self.get_connection()
         rows = conn.execute(
@@ -743,15 +742,15 @@ class StatsMixin:
         } for r in rows]
 
     def get_reviewer_stats(self, podcast_slug: str = None,
-                           episode_id: str = None) -> Dict:
+                           episode_id: str = None) -> dict:
         """Aggregate ad reviewer stats from ad_reviewer_log.
 
         Filters: podcast_slug joins to podcasts.slug; episode_id is the raw
         episodes table id. Either, both, or neither may be set.
         """
         conn = self.get_connection()
-        where: List[str] = []
-        params: List = []
+        where: list[str] = []
+        params: list = []
         if episode_id:
             where.append("l.episode_id = ?")
             params.append(episode_id)

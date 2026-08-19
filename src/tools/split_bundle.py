@@ -19,7 +19,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
@@ -28,7 +27,7 @@ if str(_REPO_SRC) not in sys.path:
 from utils.community_tags import BUNDLE_FORMAT, expected_filename, iter_bundle_patterns  # noqa: E402
 
 
-def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
+def split(bundle_path: Path, *, keep_original: bool = False) -> list[Path]:
     """Write each pattern from `bundle_path` as a sibling per-pattern file.
 
     Returns the list of written paths. Raises ValueError if the file is not a
@@ -75,8 +74,8 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
 
     # Two-phase write: stage every file to a temp sibling, then rename into
     # place. A failure mid-loop unlinks the temps and leaves no partial split.
-    written: List[Path] = []
-    temps: List[Path] = []
+    written: list[Path] = []
+    temps: list[Path] = []
     try:
         for idx, (target, p) in enumerate(targets):
             tmp = target.with_name(f'{target.name}.tmp{idx}')
@@ -100,7 +99,7 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
     return written
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description='Split a community-submission bundle into per-pattern files.'
     )

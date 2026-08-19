@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -58,7 +58,7 @@ PATTERN_FILE_MAX_BYTES = 256 * 1024
 DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 
 
-def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
+def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
     """Fetch the manifest. Raises requests.RequestException on failure.
 
     Routed through ``safe_http.safe_get`` with the hardcoded raw.githubusercontent
@@ -85,7 +85,7 @@ def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     return json.loads(body.decode('utf-8'))
 
 
-def _fetch_pattern_file(path: str) -> Dict[str, Any]:
+def _fetch_pattern_file(path: str) -> dict[str, Any]:
     """Fetch one per-pattern file referenced by a thin-index entry's `path`.
 
     `path` is a bare filename from the trusted manifest; reject anything with a
@@ -114,7 +114,7 @@ def _fetch_pattern_file(path: str) -> Dict[str, Any]:
     return json.loads(body.decode('utf-8'))
 
 
-def _validate_manifest(manifest: Dict[str, Any]) -> None:
+def _validate_manifest(manifest: dict[str, Any]) -> None:
     if not isinstance(manifest, dict):
         raise ValueError('manifest is not a JSON object')
     if 'manifest_version' not in manifest:
@@ -123,7 +123,7 @@ def _validate_manifest(manifest: Dict[str, Any]) -> None:
         raise ValueError('patterns array missing')
 
 
-def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
+def apply_manifest(db, manifest: dict[str, Any]) -> dict[str, int]:
     """Apply manifest entries against ad_patterns. Returns summary counts.
 
     Handles both manifest shapes:
@@ -300,7 +300,7 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     }
 
 
-def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
+def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
     """Force a sync regardless of schedule. Returns a summary dict.
 
     On any failure the function raises so the caller can surface the error
@@ -369,7 +369,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     return summary
 
 
-def community_pattern_sync_tick(db, force: bool = False) -> Optional[Dict[str, Any]]:
+def community_pattern_sync_tick(db, force: bool = False) -> dict[str, Any] | None:
     """Run sync if due (or forced). Returns the summary dict, or None if skipped."""
     enabled = db.get_setting_bool('community_sync_enabled', default=False)
     if not enabled and not force:

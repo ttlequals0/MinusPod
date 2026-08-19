@@ -14,7 +14,7 @@ import subprocess
 import threading
 import time
 from contextlib import contextmanager
-from typing import Iterator
+from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ Base data structures for audio analysis.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import Any
 from enum import Enum
 
 
@@ -31,14 +31,14 @@ class AudioSegmentSignal:
     end: float
     signal_type: str
     confidence: float
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
     @property
     def duration(self) -> float:
         """Duration of this signal in seconds."""
         return self.end - self.start
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             'start': self.start,
@@ -79,30 +79,30 @@ class AudioAnalysisResult:
         analysis_time_seconds: How long the analysis took
         errors: List of any errors that occurred during analysis
     """
-    signals: List[AudioSegmentSignal] = field(default_factory=list)
-    loudness_baseline: Optional[float] = None
-    loudness_frames: List[LoudnessFrame] = field(default_factory=list)
+    signals: list[AudioSegmentSignal] = field(default_factory=list)
+    loudness_baseline: float | None = None
+    loudness_frames: list[LoudnessFrame] = field(default_factory=list)
     analysis_time_seconds: float = 0.0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     # Near-miss telemetry (#350). Advisory only -- never signals.
-    cue_near_misses: List[Dict[str, Any]] = field(default_factory=list)
+    cue_near_misses: list[dict[str, Any]] = field(default_factory=list)
     # Silence spans from silencedetect (Phase B). Advisory only -- never signals.
-    silence_spans: List[Dict[str, Any]] = field(default_factory=list)
+    silence_spans: list[dict[str, Any]] = field(default_factory=list)
     # Resolved silence-snap tunables from the analyzer pass; set when silence
     # detection ran so processing.py can reuse them without a second DB read.
-    silence_tunables: Optional[Dict[str, Any]] = None
+    silence_tunables: dict[str, Any] | None = None
     # Cross-fetch differential result (Layer 3). Set by processing after the
     # analyzer pass, never by the analyzer itself.
-    dai_differential: Optional[Dict[str, Any]] = None
+    dai_differential: dict[str, Any] | None = None
     # Splice-evidence payload (spec 2.1): {'version', 'events', 'calibration'}.
     # None when the detector did not run. Evidence only -- never cuts alone.
-    splice_evidence: Optional[Dict[str, Any]] = None
+    splice_evidence: dict[str, Any] | None = None
 
-    def get_signals_by_type(self, signal_type: str) -> List[AudioSegmentSignal]:
+    def get_signals_by_type(self, signal_type: str) -> list[AudioSegmentSignal]:
         """Get all signals of a specific type."""
         return [s for s in self.signals if s.signal_type == signal_type]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         out = {
             'signals': [s.to_dict() for s in self.signals],

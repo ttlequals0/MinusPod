@@ -11,7 +11,7 @@ States:
 import logging
 import threading
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ _CAUSE_MAX_LEN = 200
 class CircuitBreakerOpen(Exception):
     """Raised when the circuit breaker is open and the call is rejected."""
 
-    def __init__(self, name: str, seconds_until_retry: float, cause: Optional[str] = None,
+    def __init__(self, name: str, seconds_until_retry: float, cause: str | None = None,
                  auth_cause: bool = False):
         self.name = name
         self.seconds_until_retry = seconds_until_retry
@@ -61,7 +61,7 @@ class CircuitBreaker:
 
     def __init__(self, name: str, failure_threshold: int = 5,
                  recovery_timeout: int = 60,
-                 cause_classifier: Optional[Callable[[Exception], bool]] = None):
+                 cause_classifier: Callable[[Exception], bool] | None = None):
         """
         Args:
             name: Identifier for this circuit (used in logging)
@@ -81,7 +81,7 @@ class CircuitBreaker:
         self._state = self.CLOSED
         self._failure_count = 0
         self._last_failure_time = 0.0
-        self._cause: Optional[str] = None
+        self._cause: str | None = None
         self._auth_cause = False
         self._lock = threading.Lock()
 
@@ -120,7 +120,7 @@ class CircuitBreaker:
             self._cause = None
             self._auth_cause = False
 
-    def record_failure(self, error: Optional[Exception] = None):
+    def record_failure(self, error: Exception | None = None):
         """Record a failed call. Opens the circuit after threshold failures.
 
         Callers must NOT invoke this for HTTP 429 / rate-limit errors --
@@ -155,7 +155,7 @@ class CircuitBreaker:
                 self._auth_cause = self._classify(error)
 
     @staticmethod
-    def _format_cause(error: Optional[Exception]) -> Optional[str]:
+    def _format_cause(error: Exception | None) -> str | None:
         if error is None:
             return None
         text = str(error)
@@ -163,7 +163,7 @@ class CircuitBreaker:
             text = text[:_CAUSE_MAX_LEN] + '...'
         return text
 
-    def _classify(self, error: Optional[Exception]) -> bool:
+    def _classify(self, error: Exception | None) -> bool:
         """Run cause_classifier on the full, untruncated trigger error."""
         if self._cause_classifier is None or error is None:
             return False

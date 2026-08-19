@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 from urllib.parse import urlparse
 
 import defusedxml.ElementTree as DefusedET
@@ -426,7 +425,7 @@ def _refresh_error_fields(podcast) -> dict:
     }
 
 
-def _slug_from_url_path(source_url: str) -> Optional[str]:
+def _slug_from_url_path(source_url: str) -> str | None:
     # Final-resort slug derivation when neither an upstream OPML title nor
     # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
     # because they would otherwise become part of the slug. Returns None
@@ -1315,7 +1314,7 @@ def regenerate_feeds():
         return error_response('Failed to regenerate feeds', 500)
 
 
-def _extract_artwork_url_from_feed(source_url: str) -> Optional[str]:
+def _extract_artwork_url_from_feed(source_url: str) -> str | None:
     """Extract artwork URL from a podcast's RSS feed."""
     try:
         from rss_parser import RSSParser

@@ -2,7 +2,6 @@
 import json
 import logging
 import re
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ _PREAMBLE_PATTERNS = [
 ]
 
 
-def _strip_preamble(text: str, slug: Optional[str], episode_id: Optional[str]) -> str:
+def _strip_preamble(text: str, slug: str | None, episode_id: str | None) -> str:
     cleaned = text.strip()
     for pattern in _PREAMBLE_PATTERNS:
         match = re.match(pattern, cleaned, re.IGNORECASE)
@@ -85,9 +84,9 @@ def _segment_entries_to_ads(entries):
 
 def extract_json_ads_array(
     response_text: str,
-    slug: Optional[str] = None,
-    episode_id: Optional[str] = None,
-) -> Tuple[Optional[list], Optional[str]]:
+    slug: str | None = None,
+    episode_id: str | None = None,
+) -> tuple[list | None, str | None]:
     """Extract a JSON array of ad dicts from an LLM's response text.
 
     Tries 4 strategies in order:
@@ -107,7 +106,7 @@ def extract_json_ads_array(
         if isinstance(parsed, dict):
             if 'window' in parsed and isinstance(parsed['window'], dict):
                 window = parsed['window']
-                # Include singular "ad" — local models (e.g. qwen2.5 via Ollama)
+                # Include singular "ad": local models (e.g. qwen2.5 via Ollama)
                 # often return {"ad": [...]} instead of {"ads": [...]}.
                 for key in ['ads_detected', 'ads', 'ad', 'advertisement_segments',
                             'ads_and_sponsorships', 'segments']:
@@ -182,7 +181,7 @@ _TRUNC_NUMERIC_RE = re.compile(r'"(\w+)"\s*:\s*(-?\d+(?:\.\d+)?)')
 _TRUNC_STRING_RE = re.compile(r'"(\w+)"\s*:\s*"([^"]{0,500})')
 
 
-def _salvage_truncated_single_ad(response_text: str) -> Optional[dict]:
+def _salvage_truncated_single_ad(response_text: str) -> dict | None:
     """Recover a usable ad dict from a response that started as a single-ad
     JSON object but ran out of token budget mid-response.
 
@@ -223,7 +222,7 @@ def _salvage_truncated_single_ad(response_text: str) -> Optional[dict]:
     return None
 
 
-def find_first_dict_with_key(obj, key: str) -> Optional[dict]:
+def find_first_dict_with_key(obj, key: str) -> dict | None:
     """Walk a parsed JSON value and return the first dict that contains
     ``key`` at its top level. Used to recover from LLMs that wrap their
     verdict object in extra metadata fields or nest it inside an array.
@@ -245,9 +244,9 @@ def find_first_dict_with_key(obj, key: str) -> Optional[dict]:
 
 def extract_json_object(
     response_text: str,
-    slug: Optional[str] = None,
-    episode_id: Optional[str] = None,
-) -> Tuple[Optional[dict], Optional[str]]:
+    slug: str | None = None,
+    episode_id: str | None = None,
+) -> tuple[dict | None, str | None]:
     """Extract a single JSON object from an LLM's response text.
 
     Used by callers (e.g. the ad reviewer) that expect one JSON object per

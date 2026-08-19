@@ -14,7 +14,6 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Optional, Tuple
 
 # Timeouts are resolved at read time from settings via processing_timeouts.
 from processing_timeouts import get_soft_timeout, get_hard_timeout
@@ -85,7 +84,7 @@ class ProcessingQueue:
             logger.debug(f"Could not read state file: {e}")
         return {'current_episode': None, 'acquired_at': None}
 
-    def _write_state(self, slug: Optional[str], episode_id: Optional[str], acquired_at: Optional[float]):
+    def _write_state(self, slug: str | None, episode_id: str | None, acquired_at: float | None):
         """Write processing state to the shared file atomically."""
         try:
             state = {
@@ -284,7 +283,7 @@ class ProcessingQueue:
             logger.warning(f"Could not release processing queue: {e}")
         return False
 
-    def get_current(self) -> Optional[Tuple[str, str]]:
+    def get_current(self) -> tuple[str, str] | None:
         """Get currently processing episode (slug, episode_id) or None.
 
         Reads from shared state file so all workers see the same state.

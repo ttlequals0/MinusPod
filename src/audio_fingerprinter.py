@@ -14,7 +14,6 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 import json
 
 import numpy as np
@@ -386,10 +385,10 @@ class FingerprintMatch:
     start: float
     end: float
     confidence: float
-    sponsor: Optional[str] = None
+    sponsor: str | None = None
     # Segment category (#565) inherited from the matched pattern; see
     # TextMatch.category in text_pattern_matcher.py for the same rationale.
-    category: Optional[str] = None
+    category: str | None = None
 
 
 @dataclass
@@ -397,7 +396,7 @@ class AudioFingerprint:
     """Represents an audio fingerprint."""
     fingerprint: str  # Raw chromaprint fingerprint
     duration: float
-    pattern_id: Optional[int] = None
+    pattern_id: int | None = None
 
 
 class AudioFingerprinter:
@@ -420,7 +419,7 @@ class AudioFingerprinter:
         self.db = db
         self._fpcalc_path = self._find_fpcalc()
 
-    def _find_fpcalc(self) -> Optional[str]:
+    def _find_fpcalc(self) -> str | None:
         """Find the fpcalc binary."""
         # Check common locations
         paths = [
@@ -454,7 +453,7 @@ class AudioFingerprinter:
         audio_path: str,
         start: float = 0,
         duration: float = None
-    ) -> Optional[AudioFingerprint]:
+    ) -> AudioFingerprint | None:
         """
         Generate a fingerprint for an audio segment.
 
@@ -565,8 +564,8 @@ class AudioFingerprinter:
 
     def _calculate_similarity(
         self,
-        fp1: List[int],
-        fp2: List[int],
+        fp1: list[int],
+        fp2: list[int],
         fp1_start: int = 0,
         fp1_end: int = 0
     ) -> float:
@@ -613,7 +612,7 @@ class AudioFingerprinter:
 
     def _generate_full_fingerprint(
         self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL
-    ) -> Optional[Tuple[List[int], float]]:
+    ) -> tuple[list[int], float] | None:
         """Generate raw fingerprint for entire audio file in one fpcalc call.
 
         Args:
@@ -664,7 +663,7 @@ class AudioFingerprinter:
 
     def generate_raw_span_fingerprint(
         self, audio_path: str, start_s: float, end_s: float,
-    ) -> Optional[Tuple[List[int], float]]:
+    ) -> tuple[list[int], float] | None:
         """Raw chromaprint ints for the [start_s, end_s] span of a file.
 
         Extract-then-fingerprint twin of :meth:`generate_fingerprint` that
@@ -920,8 +919,8 @@ class AudioFingerprinter:
 
     def _decode_known_fingerprints(
         self,
-        known_fingerprints: List[Tuple[int, str, float, str, Optional[str]]]
-    ) -> List[Tuple[int, List[int], float, str, Optional[str]]]:
+        known_fingerprints: list[tuple[int, str, float, str, str | None]]
+    ) -> list[tuple[int, list[int], float, str, str | None]]:
         """Decode known fingerprint strings to raw int arrays.
 
         Returns:
@@ -976,13 +975,13 @@ class AudioFingerprinter:
 
     def _find_matches_fast(
         self,
-        raw_ints: List[int],
+        raw_ints: list[int],
         fp_duration: float,
-        decoded_known: List[Tuple[int, List[int], float, str, Optional[str]]],
+        decoded_known: list[tuple[int, list[int], float, str, str | None]],
         total_duration: float,
         timeout: int,
-        cancel_event: Optional[threading.Event]
-    ) -> List[FingerprintMatch]:
+        cancel_event: threading.Event | None
+    ) -> list[FingerprintMatch]:
         """Fast fingerprint matching using pre-computed full-file fingerprint.
 
         Slides through the raw int array comparing slices against decoded
@@ -1128,10 +1127,10 @@ class AudioFingerprinter:
     def find_matches(
         self,
         audio_path: str,
-        known_fingerprints: List[Tuple[int, str, float, str, Optional[str]]] = None,
+        known_fingerprints: list[tuple[int, str, float, str, str | None]] = None,
         timeout: int = 600,
-        cancel_event: Optional[threading.Event] = None
-    ) -> List[FingerprintMatch]:
+        cancel_event: threading.Event | None = None
+    ) -> list[FingerprintMatch]:
         """
         Search for known ad fingerprints in an audio file.
 
@@ -1268,7 +1267,7 @@ class AudioFingerprinter:
 
         return matches
 
-    def _load_fingerprints_from_db(self) -> List[Tuple[int, str, float, str, Optional[str]]]:
+    def _load_fingerprints_from_db(self) -> list[tuple[int, str, float, str, str | None]]:
         """Load known fingerprints from database with sponsors (single JOIN query)."""
         if not self.db:
             return []
@@ -1306,8 +1305,8 @@ class AudioFingerprinter:
 
     def _merge_overlapping_matches(
         self,
-        matches: List[FingerprintMatch]
-    ) -> List[FingerprintMatch]:
+        matches: list[FingerprintMatch]
+    ) -> list[FingerprintMatch]:
         """Merge overlapping fingerprint matches."""
         if not matches:
             return []

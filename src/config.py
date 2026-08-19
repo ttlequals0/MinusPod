@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def normalize_segment_category(value: Any) -> str:
 DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON = json.dumps(list(SEGMENT_CATEGORIES))
 
 
-def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
+def resolve_community_sync_categories(raw_json: str | None) -> list[str]:
     """Parse community_sync_categories JSON into accepted categories, falling
     back to every category on missing, blank, or malformed input. An explicit
     empty list is kept as-is (deliberate 'accept nothing'), not treated as unset.
@@ -97,7 +97,7 @@ def resolve_community_sync_categories(raw_json: Optional[str]) -> List[str]:
     return [c for c in parsed if c in SEGMENT_CATEGORIES]
 
 
-def resolve_jit_blocked_user_agents(raw_json: Optional[str]) -> List[str]:
+def resolve_jit_blocked_user_agents(raw_json: str | None) -> list[str]:
     """Parse jit_blocked_user_agents JSON into patterns, empty on bad input."""
     if not raw_json:
         return []
@@ -110,7 +110,7 @@ def resolve_jit_blocked_user_agents(raw_json: Optional[str]) -> List[str]:
     return [p.strip() for p in parsed if isinstance(p, str) and p.strip()]
 
 
-def user_agent_is_jit_blocked(user_agent: Optional[str], patterns: List[str]) -> bool:
+def user_agent_is_jit_blocked(user_agent: str | None, patterns: list[str]) -> bool:
     """True when the agent matches a pattern. A leading '^' anchors to the
     start, which short agents like 'atc/' need so they cannot match mid-string.
     """
@@ -128,8 +128,8 @@ def user_agent_is_jit_blocked(user_agent: Optional[str], patterns: List[str]) ->
 
 
 def resolve_segment_category_actions_map(
-        raw_json: Optional[str],
-        baseline: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        raw_json: str | None,
+        baseline: dict[str, str] | None = None) -> dict[str, str]:
     """Parse segment_category_actions JSON and merge over `baseline` (default:
     every category at DEFAULT_SEGMENT_ACTION). Invalid JSON, non-dict payloads,
     and unknown category/action pairs are ignored rather than clearing keys.
@@ -886,7 +886,7 @@ def differential_fetch_effective(explicit, dai_platform=None, dai_likely=False):
     return bool(dai_platform or dai_likely)
 
 
-def resolve_max_ad_duration_override(db, podcast_id) -> Optional[float]:
+def resolve_max_ad_duration_override(db, podcast_id) -> float | None:
     """Per-feed max ad duration cap in seconds (Phase C held-for-review).
 
     Returns None when unset or on any error -- None means no cap (the
@@ -1269,7 +1269,7 @@ PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'ollama')
 class ModelNotConfiguredError(ValueError):
     """Raised when a resolver has no configured model to return."""
 
-    def __init__(self, setting_key: str, message: Optional[str] = None):
+    def __init__(self, setting_key: str, message: str | None = None):
         # message: reconstructs this type after it crossed a dict boundary
         # (e.g. ad_detector's failure response) with the original text intact.
         self.setting_key = setting_key
@@ -1494,7 +1494,7 @@ STAGE_TUNABLE_RANGES = {
 STAGE_TUNABLE_REASONING_LEVELS = {"none", "low", "medium", "high"}
 
 
-def _coerce_tunable(key: str, raw: Any, source_label: str) -> Optional[Any]:
+def _coerce_tunable(key: str, raw: Any, source_label: str) -> Any | None:
     """Coerce a stored or env value to int/float/enum. Returns None on bad value
     (caller treats None as 'use default')."""
     if raw is None:
@@ -1536,7 +1536,7 @@ def _coerce_tunable(key: str, raw: Any, source_label: str) -> Optional[Any]:
     return v
 
 
-def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
+def get_stage_tunable(key: str, settings: dict | None = None) -> Any:
     """Resolve DB > env > default for a per-stage tunable.
 
     Same precedence as every other env-backed setting: a value saved in the
@@ -1563,7 +1563,7 @@ def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
     # DB lookup first. Caller-supplied dict takes precedence; otherwise use
     # the shared TTL cache so stage code calling this on every window doesn't
     # hammer SQLite. 5s TTL still propagates Settings UI changes promptly.
-    db_val: Optional[str] = None
+    db_val: str | None = None
     if settings is not None:
         entry = settings.get(key)
         if isinstance(entry, dict):
@@ -1603,7 +1603,7 @@ def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
     return default
 
 
-def stage_tunable_env_override(key: str) -> Optional[str]:
+def stage_tunable_env_override(key: str) -> str | None:
     """Return the env-var name supplying this key's default, or None.
 
     Env no longer beats a UI-saved value (issue #491 consolidation); the
@@ -1654,7 +1654,7 @@ STAGE_TUNABLE_PAYLOAD_KEYS = (
 )
 
 
-def resolve_chapter_geometry(settings: Optional[dict] = None):
+def resolve_chapter_geometry(settings: dict | None = None):
     """Read (target, window, max_boundaries, min_duration) for chapter density.
 
     Clamped so a stored combination that slipped past API validation, or an env
@@ -1670,7 +1670,7 @@ def resolve_chapter_geometry(settings: Optional[dict] = None):
     return target, window, max_boundaries, min_duration
 
 
-def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):
+def resolve_stage_tunables(prefix: str, settings: dict | None = None):
     """Read (max_tokens, temperature, reasoning) for a stage prefix.
 
     Reasoning picks the right key based on the active provider: numeric budget
@@ -1887,7 +1887,7 @@ ENV_BACKED_SETTINGS = (
 )
 
 
-def resolve_env_backed_default(key: str) -> Optional[str]:
+def resolve_env_backed_default(key: str) -> str | None:
     """Return the validated env_var value for a registered key, or its
     fallback default. Returns None if the key is not in ENV_BACKED_SETTINGS.
     """

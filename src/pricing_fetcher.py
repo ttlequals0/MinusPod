@@ -10,7 +10,6 @@ import logging
 import threading
 import time
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
 
 import requests
 # bs4 is lazy-imported inside fetch_pricepertoken_pricing to keep this module's
@@ -70,7 +69,7 @@ _last_fetch: float = 0.0
 _fetch_lock = threading.Lock()
 
 
-def fetch_openrouter_pricing() -> List[Dict]:
+def fetch_openrouter_pricing() -> list[dict]:
     """Fetch pricing from OpenRouter's /api/v1/models endpoint.
 
     Returns list of dicts:
@@ -113,7 +112,7 @@ def fetch_openrouter_pricing() -> List[Dict]:
     return results
 
 
-def _parse_price(text: str) -> Optional[float]:
+def _parse_price(text: str) -> float | None:
     """Parse '$3.000' or '3.000' -> 3.0. Returns None for dashes/empty."""
     text = text.strip().lstrip('$').replace(',', '')
     if not text or text in ('-', '--', 'N/A', 'n/a'):
@@ -126,7 +125,7 @@ def _parse_price(text: str) -> Optional[float]:
         return None
 
 
-def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
+def fetch_pricepertoken_pricing(url: str) -> list[dict]:
     """Scrape model pricing from a pricepertoken.com provider/endpoint page.
 
     Dynamically detects column layout from <th> headers:
@@ -224,7 +223,7 @@ LITELLM_PRICING_URL = (
 )
 
 
-def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
+def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
     """Fetch pricing from the LiteLLM community pricing JSON.
 
     This is a fallback source when the primary provider fetch returns nothing
@@ -249,7 +248,7 @@ def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
     except ValueError as exc:
         raise ConnectionError(f"LiteLLM pricing response was not valid JSON: {exc}") from exc
 
-    results: List[Dict] = []
+    results: list[dict] = []
     for raw_id, spec in raw.items():
         if raw_id == 'sample_spec' or not isinstance(spec, dict):
             continue
@@ -278,7 +277,7 @@ def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
     return results
 
 
-def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> List[Dict]:
+def fetch_pricing(source: dict, provider_for_fallback: str | None = None) -> list[dict]:
     """Fetch pricing for a single resolved source config.
 
     Falls back to the LiteLLM community JSON when the primary source is
@@ -304,8 +303,8 @@ def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> 
     url = source.get('url', '')
     logger.info(f"Fetching pricing from {source_type}: {safe_url_for_log(url)}")
 
-    primary_error: Optional[Exception] = None
-    results: List[Dict] = []
+    primary_error: Exception | None = None
+    results: list[dict] = []
     try:
         if source_type == 'openrouter_api':
             results = fetch_openrouter_pricing()
@@ -326,7 +325,7 @@ def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> 
     return _try_litellm_fallback(provider_for_fallback)
 
 
-def _fetch_single_source(source: dict) -> List[Dict]:
+def _fetch_single_source(source: dict) -> list[dict]:
     """Fetch one source with no cross-source fallback (chain handles that).
 
     A per-source failure logs a WARNING and returns [] so the chain continues.
@@ -348,7 +347,7 @@ def _fetch_single_source(source: dict) -> List[Dict]:
     return []
 
 
-def fetch_pricing_chain(sources: List[dict]) -> List[Dict]:
+def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
     """Fetch an ordered source chain and merge by match_key (first source wins).
 
     Each source is fetched in order; a per-source failure logs WARNING and the
@@ -357,8 +356,8 @@ def fetch_pricing_chain(sources: List[dict]) -> List[Dict]:
     source that actually contributed it. Logs one INFO summarizing per-source
     contribution counts.
     """
-    merged: Dict[str, Dict] = {}
-    summary: List[str] = []
+    merged: dict[str, dict] = {}
+    summary: list[str] = []
     for source in sources:
         source_type = source.get('type', 'unknown')
         rows = _fetch_single_source(source)
@@ -376,7 +375,7 @@ def fetch_pricing_chain(sources: List[dict]) -> List[Dict]:
     return list(merged.values())
 
 
-def _try_litellm_fallback(provider_filter: Optional[str]) -> List[Dict]:
+def _try_litellm_fallback(provider_filter: str | None) -> list[dict]:
     """Attempt LiteLLM fallback and swallow fetch errors."""
     try:
         results = fetch_litellm_pricing(provider_filter=provider_filter)

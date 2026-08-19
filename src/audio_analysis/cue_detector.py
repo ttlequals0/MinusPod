@@ -17,7 +17,6 @@ import os
 import re
 import subprocess
 from statistics import median
-from typing import List, Tuple
 
 from .base import AudioSegmentSignal, SignalType
 from config import (
@@ -77,7 +76,7 @@ class AudioCueDetector:
         # used by precise live detection.
         self.release_db = release_db
 
-    def detect(self, audio_path: str) -> List[AudioSegmentSignal]:
+    def detect(self, audio_path: str) -> list[AudioSegmentSignal]:
         """Return audio_cue signals for ``audio_path`` (empty on any failure)."""
         if not os.path.exists(audio_path):
             logger.warning(f"Audio file not found for cue detection: {audio_path}")
@@ -112,7 +111,7 @@ class AudioCueDetector:
         )
         return signals
 
-    def _measure_band_loudness(self, audio_path: str) -> List[Tuple[float, float]]:
+    def _measure_band_loudness(self, audio_path: str) -> list[tuple[float, float]]:
         """Band-pass then ebur128; return [(timestamp, momentary_lufs), ...]."""
         duration = get_audio_duration(audio_path)
         if duration is None:
@@ -142,7 +141,7 @@ class AudioCueDetector:
 
         stderr_text = decode_stderr(result)
 
-        measurements: List[Tuple[float, float]] = []
+        measurements: list[tuple[float, float]] = []
         for line in stderr_text.split('\n'):
             m = _EBUR128_LINE.search(line)
             if not m:
@@ -154,12 +153,12 @@ class AudioCueDetector:
         return measurements
 
     def _find_bursts(
-        self, measurements: List[Tuple[float, float]], baseline: float
-    ) -> List[AudioSegmentSignal]:
+        self, measurements: list[tuple[float, float]], baseline: float
+    ) -> list[AudioSegmentSignal]:
         """Group consecutive above-threshold frames into candidate cues."""
         if self.release_db is not None:
             return self._find_bursts_hysteresis(measurements, baseline)
-        signals: List[AudioSegmentSignal] = []
+        signals: list[AudioSegmentSignal] = []
         in_burst = False
         burst_start = 0.0
         last_ts = 0.0
@@ -185,8 +184,8 @@ class AudioCueDetector:
         return signals
 
     def _find_bursts_hysteresis(
-        self, measurements: List[Tuple[float, float]], baseline: float
-    ) -> List[AudioSegmentSignal]:
+        self, measurements: list[tuple[float, float]], baseline: float
+    ) -> list[AudioSegmentSignal]:
         """Dual-threshold burst detection for the discovery scan.
 
         A run of frames above the lower ``release_db`` defines a candidate's
@@ -195,7 +194,7 @@ class AudioCueDetector:
         captures a sustained sting's full envelope, where the single-threshold
         path would clip it to just the frames above the detect threshold.
         """
-        signals: List[AudioSegmentSignal] = []
+        signals: list[AudioSegmentSignal] = []
         run_active = False
         run_start = 0.0
         last_above_release = 0.0

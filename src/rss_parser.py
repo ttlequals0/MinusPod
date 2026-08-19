@@ -6,7 +6,6 @@ import os
 import re
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
-from typing import Dict, List, Optional
 import requests
 
 from urllib.parse import urlparse
@@ -100,7 +99,7 @@ logger = logging.getLogger(__name__)
 # Per-host circuit breakers for upstream RSS feed fetching.
 # Keyed by hostname so one failing server doesn't block unrelated feeds.
 # Grows one entry per unique host; acceptable since podcast count is bounded.
-_rss_circuit_breakers: Dict[str, CircuitBreaker] = {}
+_rss_circuit_breakers: dict[str, CircuitBreaker] = {}
 
 
 def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
@@ -238,7 +237,7 @@ _COVER_KEY_RE = re.compile(
     r'/cover-minuspod-(?:[0-9a-f]{8}-)?([0-9a-f]{64})\.jpg')
 
 
-def extract_cached_base_url(cached_rss: str) -> Optional[str]:
+def extract_cached_base_url(cached_rss: str) -> str | None:
     """Return the BASE_URL prefix used to render a cached RSS, or None.
 
     Used by serve_rss to detect a BASE_URL change since the cache was written
@@ -249,7 +248,7 @@ def extract_cached_base_url(cached_rss: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def extract_cached_feed_auth_key(cached_rss: str) -> Optional[str]:
+def extract_cached_feed_auth_key(cached_rss: str) -> str | None:
     """Return the feed auth key embedded in a cached RSS, or None.
 
     Sibling of extract_cached_base_url: serve_rss compares this against the
@@ -282,7 +281,7 @@ class RSSParser:
             return env
         return getattr(self, 'base_url', 'http://localhost:8000')
 
-    def fetch_feed(self, url: str, timeout: int = 30) -> Optional[str]:
+    def fetch_feed(self, url: str, timeout: int = 30) -> str | None:
         """Fetch RSS feed from URL."""
         try:
             _get_rss_circuit_breaker(url).check()
@@ -520,7 +519,7 @@ class RSSParser:
             _get_rss_circuit_breaker(url).record_failure()
             return None, None, None
 
-    def parse_feed(self, feed_content: str, source: str = None) -> Dict:
+    def parse_feed(self, feed_content: str, source: str = None) -> dict:
         """Parse RSS feed content.
 
         XXE defence: ``defusedxml.defuse_stdlib()`` neutralises expat's
@@ -581,7 +580,7 @@ class RSSParser:
             return None
 
     @staticmethod
-    def extract_podping_declaration(feed_content, channel=None) -> Dict:
+    def extract_podping_declaration(feed_content, channel=None) -> dict:
         """Channel-level ``<podcast:podping>`` declaration.
 
         Per the podping tag spec, ``usesPodping="false"`` opts the feed out and
@@ -684,7 +683,7 @@ class RSSParser:
         return ''.join(parts)
 
     @staticmethod
-    def extract_channel_metadata(feed_content, channel=None) -> Optional[dict]:
+    def extract_channel_metadata(feed_content, channel=None) -> dict | None:
         """Channel metadata from the direct <channel> children.
 
         feedparser flattens <podcast:liveItem> into the channel dict and
@@ -754,7 +753,7 @@ class RSSParser:
         }
 
     @staticmethod
-    def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> Optional[str]:
+    def extract_podcast_artwork_url(feed_content_or_parsed, channel=None) -> str | None:
         """Channel-level podcast artwork URL.
 
         feedparser flattens ``<itunes:image>`` across the whole document, so
@@ -819,9 +818,9 @@ class RSSParser:
         return None
 
     @staticmethod
-    def _dedup_category_labels(tags) -> List[str]:
+    def _dedup_category_labels(tags) -> list[str]:
         """Extract term/label strings from a feedparser tags list, order-preserving dedup."""
-        labels: List[str] = []
+        labels: list[str] = []
         for t in tags or []:
             label = None
             if isinstance(t, dict):
@@ -831,7 +830,7 @@ class RSSParser:
             if label and isinstance(label, str):
                 labels.append(label.strip())
         seen = set()
-        out: List[str] = []
+        out: list[str] = []
         for lab in labels:
             if lab not in seen:
                 seen.add(lab)
@@ -839,7 +838,7 @@ class RSSParser:
         return out
 
     @staticmethod
-    def extract_episode_categories(entry) -> List[str]:
+    def extract_episode_categories(entry) -> list[str]:
         """Extract iTunes category strings from a single feedparser entry."""
         if entry is None:
             return []
@@ -873,15 +872,15 @@ class RSSParser:
 
     def modify_feed(self, feed_content: str, slug: str, storage=None,
                     max_episodes: int = 300,
-                    extra_episodes: Optional[List[Dict]] = None,
+                    extra_episodes: list[dict] | None = None,
                     processed_only: bool = False,
-                    processed_episode_ids: Optional[set] = None,
+                    processed_episode_ids: set | None = None,
                     parsed_feed=None,
-                    title_override: Optional[str] = None,
+                    title_override: str | None = None,
                     watermark_artwork: bool = False,
-                    feed_auth_key: Optional[str] = None,
+                    feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
-                    hide_title_patterns: Optional[str] = None) -> str:
+                    hide_title_patterns: str | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1109,7 +1108,7 @@ class RSSParser:
             chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
-    def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage,
+    def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
                                 feed_auth_key=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
@@ -1268,7 +1267,7 @@ class RSSParser:
             return f'<podcast:{local}{attr_str} />'
         return f'<podcast:{local}{attr_str}>{text_xml}{"".join(child_xml)}</podcast:{local}>'
 
-    def _parse_upstream_channel_pc2_tags(self, feed_content: str, channel=None) -> Dict:
+    def _parse_upstream_channel_pc2_tags(self, feed_content: str, channel=None) -> dict:
         # Never raises. Returns ``{"locked": None, "passthrough": []}`` on any
         # parse failure so the feed still builds with our minted guid and
         # ai-content disclosure even when upstream XML is malformed.
@@ -1436,7 +1435,7 @@ class RSSParser:
 
         lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
-    def deduplicate_episodes(self, episodes: List[Dict]) -> List[Dict]:
+    def deduplicate_episodes(self, episodes: list[dict]) -> list[dict]:
         """
         De-duplicate episodes, keeping only the latest version of each.
 
@@ -1457,7 +1456,7 @@ class RSSParser:
             return episodes
 
         # Group episodes by normalized title + publish date
-        groups: Dict[tuple, List[Dict]] = {}
+        groups: dict[tuple, list[dict]] = {}
         for ep in episodes:
             # Normalize title: lowercase, strip whitespace
             title_key = (ep.get('title') or '').lower().strip()
@@ -1510,7 +1509,7 @@ class RSSParser:
         return deduplicated
 
     @staticmethod
-    def _parse_itunes_duration(raw) -> Optional[float]:
+    def _parse_itunes_duration(raw) -> float | None:
         """itunes:duration in seconds (plain seconds, MM:SS, or HH:MM:SS
         via utils.time.parse_timestamp); None for missing, zero, or
         malformed values."""
@@ -1523,7 +1522,7 @@ class RSSParser:
         return seconds if seconds > 0 else None
 
     def extract_episodes(self, feed_content: str, parsed_feed=None,
-                         source: str = None) -> List[Dict]:
+                         source: str = None) -> list[dict]:
         """Extract episode information from feed.
 
         Args:
@@ -1582,7 +1581,7 @@ class RSSParser:
                         upstream_chapters_url = candidate
 
                 # Map per-episode iTunes categories to vocabulary tags.
-                ep_tags: List[str] = []
+                ep_tags: list[str] = []
                 try:
                     from utils.community_tags import map_itunes_category
                     raw_cats = self.extract_episode_categories(entry)

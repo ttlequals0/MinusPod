@@ -17,7 +17,6 @@ import logging
 import os
 import subprocess
 import tempfile
-from typing import Dict, List, Optional
 
 from config import FFMPEG_LONG_TIMEOUT, FFPROBE_TIMEOUT
 from utils.audio import get_audio_duration
@@ -32,7 +31,7 @@ logger = logging.getLogger(__name__)
 MIN_CHAPTER_SECONDS = 1.0
 
 
-def probe_chapters(audio_path: str) -> Optional[List[Dict]]:
+def probe_chapters(audio_path: str) -> list[dict] | None:
     """Read embedded chapters via ffprobe.
 
     Returns [] when the file definitively has no chapters, and None when the
@@ -68,8 +67,8 @@ def probe_chapters(audio_path: str) -> Optional[List[Dict]]:
     return out
 
 
-def remap_chapters(chapters: List[Dict], cuts: List[Dict], *,
-                   replacement_duration: float, new_duration: float) -> List[Dict]:
+def remap_chapters(chapters: list[dict], cuts: list[dict], *,
+                   replacement_duration: float, new_duration: float) -> list[dict]:
     """Project chapters onto the post-cut timeline.
 
     Chapters that sit entirely inside a cut are dropped (their content is
@@ -105,7 +104,7 @@ def _escape(value: str) -> str:
     return value
 
 
-def chapters_to_spans(chapters: List[Dict], duration: float) -> List[Dict]:
+def chapters_to_spans(chapters: list[dict], duration: float) -> list[dict]:
     """Podcasting 2.0 chapter list -> contiguous start/end/title spans.
 
     The chapters JSON only carries start times; CHAP frames need ends, so
@@ -127,8 +126,8 @@ def chapters_to_spans(chapters: List[Dict], duration: float) -> List[Dict]:
     ]
 
 
-def embed_chapters(audio_path: str, chapters: List[Dict],
-                   duration: Optional[float] = None) -> bool:
+def embed_chapters(audio_path: str, chapters: list[dict],
+                   duration: float | None = None) -> bool:
     """Write generated chapters into an MP3 as ID3v2 CHAP/CTOC frames.
 
     Stream-copy remux with an ffmetadata side input (the same mechanism the
@@ -204,7 +203,7 @@ def embed_chapters(audio_path: str, chapters: List[Dict],
                 pass
 
 
-def render_ffmetadata(chapters: List[Dict]) -> str:
+def render_ffmetadata(chapters: list[dict]) -> str:
     lines = [';FFMETADATA1']
     for ch in chapters:
         lines += [

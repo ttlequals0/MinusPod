@@ -20,7 +20,6 @@ from __future__ import annotations
 import bisect
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from config import (
     AUDIO_CUE_PAIR_CONFIDENCE,
@@ -74,8 +73,8 @@ class _Cue:
     start: float
     end: float
     confidence: float
-    label: Optional[str]
-    template_id: Optional[int]
+    label: str | None
+    template_id: int | None
     role: str
     effective_role: str = ''
 
@@ -173,7 +172,7 @@ def _orient_cues(cues, ads, window_s):
 
 
 def synthesize_ads_from_cue_pairs(
-    ads: List[Dict],
+    ads: list[dict],
     audio_analysis_result,
     min_confidence: float = DEFAULT_MIN_PAIR_CONFIDENCE,
     min_break_s: float = DEFAULT_MIN_BREAK_S,
@@ -206,7 +205,7 @@ def synthesize_ads_from_cue_pairs(
         strict_roles: cue_only preset. When True only role 'start' opens and
             only 'end' closes; 'boundary' cues cannot pair.
     """
-    skip_diagnostics: Dict = {}
+    skip_diagnostics: dict = {}
     if not audio_analysis_result:
         return list(ads), skip_diagnostics
     # On a short episode the absolute max_break_s cap can pass a pair that
@@ -256,7 +255,7 @@ def synthesize_ads_from_cue_pairs(
     # Per-cue reasons accumulate for every cue that does not end up in a pair.
     new_ads = list(ads)
     consumed = [False] * len(cues)
-    reasons: List = [None] * len(cues)
+    reasons: list = [None] * len(cues)
     for i in range(len(cues) - 1):
         if consumed[i]:
             continue
@@ -364,7 +363,7 @@ def synthesize_ads_from_cue_pairs(
     return new_ads, skip_diagnostics
 
 
-def _covered_by_existing_ad(ads: List[Dict], start: float, end: float) -> bool:
+def _covered_by_existing_ad(ads: list[dict], start: float, end: float) -> bool:
     """True iff an existing ad overlaps ``[start, end]`` within the tolerance.
 
     ``ads`` is the growing list (input LLM ads plus already-synthesized spans),

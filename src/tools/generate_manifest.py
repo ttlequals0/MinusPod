@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Defensive sys.path bootstrap so `python path/to/script.py` works as well as
 # `python -m src.tools.X` (the workflow-style invocation). When run via -m,
@@ -42,14 +42,14 @@ def _community_dir() -> Path:
     return _REPO_SRC.parent / 'patterns' / 'community'
 
 
-def _flatten_to_patterns(path: Path, data: Any) -> List[Dict[str, Any]]:
+def _flatten_to_patterns(path: Path, data: Any) -> list[dict[str, Any]]:
     """Return per-pattern dicts from a JSON payload. Drops entries missing
     ``community_id`` with a stderr warning so the manifest stays clean."""
     if not isinstance(data, dict):
         print(f'WARN: skipping {path.name}: not a JSON object', file=sys.stderr)
         return []
     is_bundle = data.get('format') == BUNDLE_FORMAT
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for i, p in enumerate(iter_bundle_patterns(data)):
         if not p.get('community_id'):
             label = f'{path.name}#patterns[{i}]' if is_bundle else path.name
@@ -59,7 +59,7 @@ def _flatten_to_patterns(path: Path, data: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
+def _load_pattern_files(directory: Path) -> list[dict[str, Any]]:
     """Read every <sponsor>-<uuid>.json in `directory`, excluding index.json,
     and return one THIN index entry per pattern: community_id, version,
     content_hash, and path (the filename).
@@ -69,7 +69,7 @@ def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
     file. Bundle files contribute one entry per contained pattern, all sharing
     that file's path and hash. Sorted by community_id for a deterministic order.
     """
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     for path in sorted(directory.glob('*.json')):
         if path.name == 'index.json':
             continue
@@ -91,7 +91,7 @@ def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
     return entries
 
 
-def build_manifest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+def build_manifest(entries: list[dict[str, Any]]) -> dict[str, Any]:
     """Wrap the thin index entries in the manifest envelope (#400). Entries
     carry content_hash + path; the full pattern body is no longer inlined, so
     the manifest stays small regardless of catalog size."""
@@ -103,12 +103,12 @@ def build_manifest(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def _render(manifest: Dict[str, Any]) -> str:
+def _render(manifest: dict[str, Any]) -> str:
     """Serialize the manifest exactly as it is written to disk."""
     return json.dumps(manifest, indent=2) + '\n'
 
 
-def reuse_published_at(manifest: Dict[str, Any], existing_text: str | None) -> Dict[str, Any]:
+def reuse_published_at(manifest: dict[str, Any], existing_text: str | None) -> dict[str, Any]:
     """Reuse the prior `published_at` when nothing but the timestamp changed.
 
     `existing_text` is the on-disk index.json verbatim. If re-rendering the new
@@ -132,7 +132,7 @@ def reuse_published_at(manifest: Dict[str, Any], existing_text: str | None) -> D
     return candidate if _render(candidate) == existing_text else manifest
 
 
-def write_manifest(manifest: Dict[str, Any], path: Path) -> None:
+def write_manifest(manifest: dict[str, Any], path: Path) -> None:
     """Write the manifest atomically to `path`, preserving a trailing newline."""
     tmp = path.with_suffix(path.suffix + '.tmp')
     tmp.write_text(_render(manifest), encoding='utf-8')

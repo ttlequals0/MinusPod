@@ -2,7 +2,7 @@
 import logging
 import random
 import time
-from typing import Optional, Tuple, Union
+from typing import Union
 
 from llm_client import (
     is_retryable_error,
@@ -74,14 +74,14 @@ def call_llm(
     llm_timeout: float,
     max_retries: int,
     max_tokens: int,
-    slug: Optional[str],
-    episode_id: Optional[str],
+    slug: str | None,
+    episode_id: str | None,
     call_label: str,
     temperature: float = 0.0,
-    reasoning_effort: Optional[Union[int, str]] = None,
-    pass_name: Optional[str] = None,
-    response_format: Optional[dict] = None,
-) -> Tuple[Optional[object], Optional[Exception]]:
+    reasoning_effort: Union[int, str] | None = None,
+    pass_name: str | None = None,
+    response_format: dict | None = None,
+) -> tuple[object | None, Exception | None]:
     """Call LLM with primary retry + secondary fallback retry.
 
     Generic seam shared by ad detection/review (via ``call_llm_for_window``)
@@ -221,7 +221,7 @@ def call_llm(
 
 def call_llm_for_window(
     *, window_label: str, **kwargs
-) -> Tuple[Optional[object], Optional[Exception]]:
+) -> tuple[object | None, Exception | None]:
     """Detection-window flavor of ``call_llm``: JSON-object response format."""
     return call_llm(
         call_label=window_label,

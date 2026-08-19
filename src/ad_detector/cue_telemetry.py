@@ -12,7 +12,6 @@ list), ``edge_distance_s`` (signed distance from an above-threshold cue to the
 nearest pre-snap LLM ad edge on its eligible side), and ``unused_reason`` (a
 taxonomy for why a surfaced cue did nothing). None of these ever changes a cut.
 """
-from typing import Dict, List, Optional
 
 from config import (
     AUDIO_CUE_SOURCE_TEMPLATE,
@@ -46,14 +45,14 @@ _cue_key = cue_key
 
 
 def build_cue_detection_records(
-    ads: List[Dict],
+    ads: list[dict],
     audio_analysis_result,
-    pre_snap_ads: Optional[List[Dict]] = None,
-    pair_skip_diagnostics: Optional[Dict] = None,
+    pre_snap_ads: list[dict] | None = None,
+    pair_skip_diagnostics: dict | None = None,
     snap_confidence: float = AUDIO_CUE_SNAP_CONFIDENCE,
     snap_lead_s: float = DEFAULT_SNAP_LEAD_SECONDS,
     snap_lag_s: float = DEFAULT_SNAP_LAG_SECONDS,
-) -> List[Dict]:
+) -> list[dict]:
     """Return one telemetry record per template cue in ``audio_analysis_result``.
 
     Args:
@@ -274,7 +273,7 @@ def _ad_spans(ads):
     return spans
 
 
-def _as_float(value) -> Optional[float]:
+def _as_float(value) -> float | None:
     try:
         return round(float(value), 3)
     except (TypeError, ValueError):

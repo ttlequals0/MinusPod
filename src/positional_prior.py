@@ -9,7 +9,6 @@ import json
 import logging
 import statistics
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from config import (
     POSITIONAL_PRIOR_MIN_EPISODES, POSITIONAL_PRIOR_RECENT_EPISODES,
@@ -52,16 +51,16 @@ class AdDistribution:
     episodes_considered: int
     median_duration: float
     bucket_count: int
-    buckets: List[int]       # cut-start counts per normalized-position bin
+    buckets: list[int]       # cut-start counts per normalized-position bin
     total_events: int
-    zones: List[LearnedZone]  # learned prior zones (empty below the gate)
+    zones: list[LearnedZone]  # learned prior zones (empty below the gate)
 
 
 @dataclass
 class PositionalPrior:
     episodes_considered: int
     median_duration: float   # median original_duration of learning episodes
-    zones: List[LearnedZone]
+    zones: list[LearnedZone]
 
     def applies_to(self, episode_duration: float) -> bool:
         """Whether this prior is usable for an episode of the given length.
@@ -77,8 +76,8 @@ class PositionalPrior:
                 <= self.median_duration * ratio)
 
 
-def _episode_event_positions(markers: List[Dict], corrections: List[Dict],
-                             duration: float) -> List[float]:
+def _episode_event_positions(markers: list[dict], corrections: list[dict],
+                             duration: float) -> list[float]:
     """Collect normalized ad-break start positions for one episode."""
     false_positives = [c for c in corrections
                        if c['correction_type'] == 'false_positive']
@@ -123,14 +122,14 @@ def _episode_event_positions(markers: List[Dict], corrections: List[Dict],
     return deduped
 
 
-def _collect_events(episodes: List[Dict],
-                    corrections: Optional[List[Dict]]) -> tuple:
+def _collect_events(episodes: list[dict],
+                    corrections: list[dict] | None) -> tuple:
     """Reduce episode history to (durations, events).
 
     events is a list of (episode_id, normalized_position) for every learnable
     ad-break start; durations is one entry per considered episode.
     """
-    corrections_by_episode: Dict[str, List[Dict]] = {}
+    corrections_by_episode: dict[str, list[dict]] = {}
     for correction in corrections or []:
         corrections_by_episode.setdefault(correction['episode_id'], []).append(correction)
 
@@ -154,7 +153,7 @@ def _collect_events(episodes: List[Dict],
     return durations, events
 
 
-def _build_zones(considered: int, events: List[tuple]) -> List[LearnedZone]:
+def _build_zones(considered: int, events: list[tuple]) -> list[LearnedZone]:
     """Cluster pooled normalized positions into supported zones (empty if none).
 
     The episode-count gate lives here so every consumer (the prior and the
@@ -167,7 +166,7 @@ def _build_zones(considered: int, events: List[tuple]) -> List[LearnedZone]:
     # 1D gap-merge clustering over pooled normalized positions. The span cap
     # keeps slowly drifting break positions from chaining into one giant zone.
     events = sorted(events, key=lambda e: e[1])
-    clusters: List[List[tuple]] = []
+    clusters: list[list[tuple]] = []
     for event in events:
         if (clusters
                 and event[1] - clusters[-1][-1][1] <= POSITIONAL_PRIOR_CLUSTER_GAP
@@ -200,8 +199,8 @@ def _build_zones(considered: int, events: List[tuple]) -> List[LearnedZone]:
     return sorted(zones[:POSITIONAL_PRIOR_MAX_ZONES], key=lambda z: z.center)
 
 
-def build_prior(slug: str, episodes: List[Dict],
-                corrections: Optional[List[Dict]] = None) -> Optional[PositionalPrior]:
+def build_prior(slug: str, episodes: list[dict],
+                corrections: list[dict] | None = None) -> PositionalPrior | None:
     """Build a positional prior from episode cut history.
 
     Args:
@@ -237,8 +236,8 @@ def build_prior(slug: str, episodes: List[Dict],
                            zones=zones)
 
 
-def build_distribution(slug: str, episodes: List[Dict],
-                       corrections: Optional[List[Dict]] = None) -> AdDistribution:
+def build_distribution(slug: str, episodes: list[dict],
+                       corrections: list[dict] | None = None) -> AdDistribution:
     """Build the always-available ad-position distribution from cut history.
 
     Unlike build_prior this never returns None: the histogram is shown even
@@ -266,7 +265,7 @@ def build_distribution(slug: str, episodes: List[Dict],
     )
 
 
-def _load_history(db, slug: str, exclude_episode_id: Optional[str] = None) -> tuple:
+def _load_history(db, slug: str, exclude_episode_id: str | None = None) -> tuple:
     """Load a feed's recent cut history from the database as (episodes, corrections)."""
     rows = db.get_recent_episode_ad_history(
         slug, exclude_episode_id=exclude_episode_id,
@@ -295,8 +294,8 @@ def _load_history(db, slug: str, exclude_episode_id: Optional[str] = None) -> tu
 
 
 def compute_positional_prior(db, slug: str,
-                             exclude_episode_id: Optional[str] = None
-                             ) -> Optional[PositionalPrior]:
+                             exclude_episode_id: str | None = None
+                             ) -> PositionalPrior | None:
     """Load a feed's cut history from the database and build its prior."""
     episodes, corrections = _load_history(db, slug, exclude_episode_id)
     return build_prior(slug, episodes, corrections)
@@ -313,7 +312,7 @@ def compute_ad_distribution(db, slug: str) -> AdDistribution:
 
 
 def load_positional_prior(db, slug: str, episode_id: str,
-                          episode_duration: float) -> Optional[PositionalPrior]:
+                          episode_duration: float) -> PositionalPrior | None:
     """Resolve the prior for one episode run: setting gate, compute, length gate.
 
     Shared by the processing pipeline and the retry-ad-detection endpoint.
@@ -336,7 +335,7 @@ def load_positional_prior(db, slug: str, episode_id: str,
     return prior
 
 
-def format_prior_hint(prior: Optional[PositionalPrior],
+def format_prior_hint(prior: PositionalPrior | None,
                       total_duration_seconds: float) -> str:
     """Render the LLM prompt hint for this episode's duration.
 

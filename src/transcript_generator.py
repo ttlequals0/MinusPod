@@ -1,6 +1,5 @@
 """VTT transcript generator for Podcasting 2.0 support."""
 import logging
-from typing import List, Dict, Optional
 
 from config import SEGMENT_AD_COVERAGE_THRESHOLD
 from utils.time import format_vtt_timestamp, adjust_timestamp
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 class TranscriptGenerator:
     """Generate WebVTT transcripts from Whisper segments with timestamp adjustment."""
 
-    def _ad_coverage(self, segment: Dict, ads_removed: List[Dict]) -> float:
+    def _ad_coverage(self, segment: dict, ads_removed: list[dict]) -> float:
         """Fraction of the segment covered by the union of removed-ad overlaps."""
         if not ads_removed:
             return 0.0
@@ -46,7 +45,7 @@ class TranscriptGenerator:
 
         return covered / segment_duration
 
-    def _trim_ad_words(self, segment: Dict, ads_removed: List[Dict]) -> Optional[Dict]:
+    def _trim_ad_words(self, segment: dict, ads_removed: list[dict]) -> dict | None:
         """Drop the words of a partially-covered segment that sit inside a cut.
 
         A segment under the coverage threshold is kept, but without trimming
@@ -85,10 +84,10 @@ class TranscriptGenerator:
 
     def compute_final_segments(
         self,
-        segments: List[Dict],
-        ads_removed: List[Dict],
+        segments: list[dict],
+        ads_removed: list[dict],
         replacement_duration: float = 0.0,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Apply ad-removal filter + timestamp adjustment, return surviving segments.
 
         Mirrors the filter/adjust pass used by generate_vtt and generate_text,
@@ -118,8 +117,8 @@ class TranscriptGenerator:
 
     def generate_vtt(
         self,
-        segments: List[Dict],
-        ads_removed: List[Dict],
+        segments: list[dict],
+        ads_removed: list[dict],
         replacement_duration: float = 0.0,
     ) -> str:
         """Generate VTT transcript with adjusted timestamps.
@@ -151,8 +150,8 @@ class TranscriptGenerator:
 
     def generate_text(
         self,
-        segments: List[Dict],
-        ads_removed: List[Dict],
+        segments: list[dict],
+        ads_removed: list[dict],
         replacement_duration: float = 0.0,
     ) -> str:
         """Generate plain text transcript with adjusted timestamps.

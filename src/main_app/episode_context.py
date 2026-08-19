@@ -12,7 +12,6 @@ either varies stage to stage or carries side effects.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Set
 
 
 @dataclass(frozen=True)
@@ -23,7 +22,7 @@ class EpisodeContext:
     episode_id: str
     podcast_name: str = "Unknown"
     episode_title: str = "Unknown"
-    podcast_id: Optional[str] = None
-    podcast_description: Optional[str] = None
-    episode_description: Optional[str] = None
-    podcast_tags: Optional[Set[str]] = None
+    podcast_id: str | None = None
+    podcast_description: str | None = None
+    episode_description: str | None = None
+    podcast_tags: set[str] | None = None

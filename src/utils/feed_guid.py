@@ -16,13 +16,12 @@ scheme-and-trailing-slash strip is what the spec example uses; both halves
 are load-bearing for cross-tool agreement on the same GUID.
 """
 import uuid
-from typing import Optional
 
 
 PODCAST_NAMESPACE_GUID = uuid.UUID("ead4c236-bf58-58c6-a2c6-a6b28d128cb6")
 
 
-def compute_feed_guid(feed_url: Optional[str]) -> Optional[str]:
+def compute_feed_guid(feed_url: str | None) -> str | None:
     """Return the deterministic UUIDv5 for a feed URL, or None for invalid input.
 
     Normalization:

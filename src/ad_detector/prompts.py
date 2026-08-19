@@ -7,7 +7,6 @@ for readability; behavior is unchanged from the pre-split module.
 import logging
 import json
 import re
-from typing import List, Dict, Tuple
 
 from sponsor_service import SponsorService
 from utils.prompt import format_sponsor_block, render_prompt
@@ -55,8 +54,8 @@ Episode: {episode_title}
 Transcript:
 {transcript}"""
 
-def create_windows(segments: List[Dict], window_size: float = None,
-                   overlap: float = None) -> List[Dict]:
+def create_windows(segments: list[dict], window_size: float = None,
+                   overlap: float = None) -> list[dict]:
     """Create overlapping windows from transcript segments.
 
     Args:
@@ -127,7 +126,7 @@ def format_window_prompt(
     podcast_name: str,
     episode_title: str,
     description_section: str,
-    transcript_lines: List[str],
+    transcript_lines: list[str],
     window_index: int,
     total_windows: int,
     window_start: float,
@@ -172,7 +171,7 @@ def get_static_system_prompt() -> str:
     )
 
 
-def _flatten_ad_envelopes(ads: List) -> List:
+def _flatten_ad_envelopes(ads: list) -> list:
     """Flatten ad-break envelopes the model intermittently emits.
 
     Instead of a flat list of ad objects, the LLM sometimes wraps each break in
@@ -229,7 +228,7 @@ def _as_text(value) -> str:
 
 def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
-                              sponsor_service=None) -> List[Dict]:
+                              sponsor_service=None) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
 
     Returns:
@@ -557,7 +556,7 @@ CATEGORY_REPAIR_MAX_TOKENS = 1024
 
 
 def format_category_repair_prompt(transcript_excerpt: str,
-                                   missing: List[Tuple[int, Dict]]) -> str:
+                                   missing: list[tuple[int, dict]]) -> str:
     """Build the user prompt for the category repair call.
 
     ``missing`` is an iterable of (index, ad_dict) pairs; index is the ad's
@@ -623,7 +622,7 @@ def _repair_category(value):
     return candidate if candidate in SEGMENT_CATEGORIES else None
 
 
-def resolve_ad_category(ad: Dict):
+def resolve_ad_category(ad: dict):
     """The segment category an ad object carries, wherever it put it.
 
     "category" first, then the other keys a model uses for the same idea. The
@@ -646,7 +645,7 @@ def resolve_ad_category(ad: Dict):
     return None
 
 
-def parse_category_repair_response(response_text: str) -> Dict[int, str]:
+def parse_category_repair_response(response_text: str) -> dict[int, str]:
     """Parse the repair call's response into {index: category}.
 
     Accepts a bare JSON array of {"index", "category"} objects (json_object

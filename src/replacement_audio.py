@@ -10,7 +10,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from audio_processor import (
     get_replace_audio_path,
@@ -62,7 +62,7 @@ def _run(cmd, input_bytes=None, op_desc='ffmpeg') -> bytes:
     return proc.stdout or b''
 
 
-def probe_audio(path: str) -> Dict[str, Any]:
+def probe_audio(path: str) -> dict[str, Any]:
     """Duration, channel count and sample rate of an audio file."""
     out = _run([
         'ffprobe', '-v', 'error', '-select_streams', 'a:0',
@@ -92,12 +92,12 @@ def _source_of(path: str) -> str:
     return SOURCE_DEFAULT
 
 
-def describe(probed: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def describe(probed: dict[str, Any] | None = None) -> dict[str, Any]:
     """Metadata for the replacement audio currently in use. ``probed`` reuses a
     probe the caller already ran rather than spending another ffprobe."""
     path = get_replace_audio_path()
     source = _source_of(path)
-    info: Dict[str, Any] = {
+    info: dict[str, Any] = {
         'source': source,
         'canRevert': source == SOURCE_UPLOADED,
         'exists': os.path.exists(path),
@@ -123,7 +123,7 @@ def describe(probed: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return info
 
 
-def _validate_probe(info: Dict[str, Any]) -> None:
+def _validate_probe(info: dict[str, Any]) -> None:
     duration = info.get('durationSeconds')
     if duration is None:
         raise ReplacementAudioError('That file has no readable duration.')
@@ -136,13 +136,13 @@ def _validate_probe(info: Dict[str, Any]) -> None:
         raise ReplacementAudioError('That file is too short to hear.')
 
 
-def _validate_format(info: Dict[str, Any]) -> None:
+def _validate_format(info: dict[str, Any]) -> None:
     if (info.get('formatName') or '') not in ALLOWED_FORMATS:
         raise ReplacementAudioError(
             'That file is not a supported format (MP3, WAV, M4A, OGG, FLAC).')
 
 
-def save_upload(raw: bytes) -> Dict[str, Any]:
+def save_upload(raw: bytes) -> dict[str, Any]:
     """Validate, transcode to MP3 and install an uploaded replacement.
 
     Returns the new metadata. Raises ReplacementAudioError with an
@@ -207,7 +207,7 @@ def revert() -> bool:
     return True
 
 
-def current_file() -> Tuple[Optional[str], Optional[str]]:
+def current_file() -> tuple[str | None, str | None]:
     """(path, mimetype) for serving a preview, or (None, None) if absent."""
     path = get_replace_audio_path()
     if not os.path.exists(path):

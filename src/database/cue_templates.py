@@ -15,7 +15,6 @@ show that uses the exact same sound, so a global stinger has no meaning.
 import json
 import logging
 from datetime import timedelta
-from typing import Dict, List, Optional
 
 from config import audio_cue_type_label
 from utils.time import ISO_FORMAT, utc_now
@@ -34,16 +33,16 @@ class CueTemplateMixin:
         self,
         podcast_id: int,
         cue_type: str,
-        source_episode_id: Optional[str],
+        source_episode_id: str | None,
         source_offset_s: float,
         duration_s: float,
         sample_rate: int,
         n_coeffs: int,
         mfcc_blob: bytes,
-        pcm_blob: Optional[bytes] = None,
-        pcm_sample_rate: Optional[int] = None,
+        pcm_blob: bytes | None = None,
+        pcm_sample_rate: int | None = None,
         scope: str = 'podcast',
-        network_id: Optional[str] = None,
+        network_id: str | None = None,
         created_by: str = 'user',
     ) -> int:
         """Insert a cue template. Returns the new row id.
@@ -71,7 +70,7 @@ class CueTemplateMixin:
         conn.commit()
         return cursor.lastrowid
 
-    def get_cue_template(self, template_id: int) -> Optional[Dict]:
+    def get_cue_template(self, template_id: int) -> dict | None:
         """Return one template by id, including its blobs."""
         conn = self.get_connection()
         row = conn.execute(
@@ -79,7 +78,7 @@ class CueTemplateMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def get_cue_template_meta(self, template_id: int) -> Optional[Dict]:
+    def get_cue_template_meta(self, template_id: int) -> dict | None:
         """Return one template's metadata WITHOUT its mfcc/pcm blobs.
 
         The optimize-window route polls every 3s; its pre-claim ownership and
@@ -95,7 +94,7 @@ class CueTemplateMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def list_active_cue_templates_for_feed(self, podcast_id: int) -> List[Dict]:
+    def list_active_cue_templates_for_feed(self, podcast_id: int) -> list[dict]:
         """Enabled templates that apply to a feed, most-specific-first.
 
         Resolves both tiers: podcast-scope templates owned by this feed, and
@@ -126,7 +125,7 @@ class CueTemplateMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def list_cue_templates_metadata(self, podcast_id: int) -> List[Dict]:
+    def list_cue_templates_metadata(self, podcast_id: int) -> list[dict]:
         """List a feed's own templates without the blobs, for UI listings."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -140,7 +139,7 @@ class CueTemplateMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def list_cue_templates_for_feed_ui(self, podcast_id: int) -> List[Dict]:
+    def list_cue_templates_for_feed_ui(self, podcast_id: int) -> list[dict]:
         """A feed's own templates plus network templates shared from siblings.
 
         A template promoted to network scope on one feed applies to every feed
@@ -168,7 +167,7 @@ class CueTemplateMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def feeds_sharing_network(self, network_id: str, exclude_podcast_id: int) -> List[Dict]:
+    def feeds_sharing_network(self, network_id: str, exclude_podcast_id: int) -> list[dict]:
         """(id, slug) for every feed whose effective network (override, else
         auto-detected) equals ``network_id``, excluding one podcast id."""
         conn = self.get_connection()
@@ -183,8 +182,8 @@ class CueTemplateMixin:
     def update_cue_template(
         self,
         template_id: int,
-        cue_type: Optional[str] = None,
-        enabled: Optional[bool] = None,
+        cue_type: str | None = None,
+        enabled: bool | None = None,
         score_threshold=_UNSET,
     ) -> bool:
         """Patch cue_type, enabled, and/or score_threshold. Returns True if updated.
@@ -227,7 +226,7 @@ class CueTemplateMixin:
         return cursor.rowcount > 0
 
     def promote_cue_template(
-        self, template_id: int, scope: str, network_id: Optional[str] = None,
+        self, template_id: int, scope: str, network_id: str | None = None,
     ) -> bool:
         """Set a template's scope (podcast or network) and network_id.
 
@@ -262,7 +261,7 @@ class CueTemplateMixin:
     def _get_scan(self, table: str, payload_col: str,
                   podcast_id: int, episode_id: str,
                   key_col: str = 'episode_id',
-                  has_podcast: bool = True) -> Optional[Dict]:
+                  has_podcast: bool = True) -> dict | None:
         """Return the cached scan row for a family's key, or None.
 
         ``podcast_id``/``episode_id`` are the (scope, key) pair for the row;
@@ -342,7 +341,7 @@ class CueTemplateMixin:
     def _get_scan_claim_epoch(
         self, table: str, podcast_id: int, episode_id: str,
         key_col: str = 'episode_id', has_podcast: bool = True,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Current claim_epoch for a family's key, or None when no row exists.
 
         The route reads this right after a 'started' claim to capture the token
@@ -360,7 +359,7 @@ class CueTemplateMixin:
     def _save_scan_result(
         self, table: str, payload_col: str, podcast_id: int, episode_id: str,
         payload, key_col: str = 'episode_id', has_podcast: bool = True,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         """Persist a completed scan's payload and mark it ready.
 
@@ -384,7 +383,7 @@ class CueTemplateMixin:
     def _save_scan_error(
         self, table: str, podcast_id: int, episode_id: str, error: str,
         key_col: str = 'episode_id', has_podcast: bool = True,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         """Mark a scan as failed with a short error message.
 
@@ -405,7 +404,7 @@ class CueTemplateMixin:
 
     # Cached recurring-sound scan (the on-demand "find cue candidates" run).
 
-    def get_cue_candidate_scan(self, podcast_id: int, episode_id: str) -> Optional[Dict]:
+    def get_cue_candidate_scan(self, podcast_id: int, episode_id: str) -> dict | None:
         return self._get_scan('cue_candidate_scans', 'candidates_json', podcast_id, episode_id)
 
     def claim_cue_candidate_scan(
@@ -418,13 +417,13 @@ class CueTemplateMixin:
 
     def get_cue_candidate_scan_claim_epoch(
         self, podcast_id: int, episode_id: str,
-    ) -> Optional[int]:
+    ) -> int | None:
         return self._get_scan_claim_epoch(
             'cue_candidate_scans', podcast_id, episode_id)
 
     def save_cue_candidate_scan_result(
-        self, podcast_id: int, episode_id: str, candidates: List[Dict],
-        claim_epoch: Optional[int] = None,
+        self, podcast_id: int, episode_id: str, candidates: list[dict],
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_result(
             'cue_candidate_scans', 'candidates_json', podcast_id, episode_id,
@@ -432,7 +431,7 @@ class CueTemplateMixin:
 
     def save_cue_candidate_scan_error(
         self, podcast_id: int, episode_id: str, error: str,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_error(
             'cue_candidate_scans', podcast_id, episode_id, error,
@@ -440,7 +439,7 @@ class CueTemplateMixin:
 
     # Cached threshold-suggest scan (#350 follow-up); stores a suggestion dict.
 
-    def get_cue_threshold_scan(self, podcast_id: int, episode_id: str) -> Optional[Dict]:
+    def get_cue_threshold_scan(self, podcast_id: int, episode_id: str) -> dict | None:
         return self._get_scan('cue_threshold_scans', 'result_json', podcast_id, episode_id)
 
     def claim_cue_threshold_scan(
@@ -452,8 +451,8 @@ class CueTemplateMixin:
             stale_seconds, force)
 
     def save_cue_threshold_scan_result(
-        self, podcast_id: int, episode_id: str, result: Dict,
-        claim_epoch: Optional[int] = None,
+        self, podcast_id: int, episode_id: str, result: dict,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_result(
             'cue_threshold_scans', 'result_json', podcast_id, episode_id,
@@ -461,7 +460,7 @@ class CueTemplateMixin:
 
     def save_cue_threshold_scan_error(
         self, podcast_id: int, episode_id: str, error: str,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_error(
             'cue_threshold_scans', podcast_id, episode_id, error,
@@ -472,7 +471,7 @@ class CueTemplateMixin:
 
     def create_cue_candidate_dismissal(self, podcast_id: int, source_episode_id: str,
                                        start_s: float, end_s: float,
-                                       label: Optional[str],
+                                       label: str | None,
                                        fingerprint_json: str) -> int:
         conn = self.get_connection()
         cursor = conn.execute(
@@ -483,7 +482,7 @@ class CueTemplateMixin:
         conn.commit()
         return cursor.lastrowid
 
-    def list_cue_candidate_dismissals(self, podcast_id: int) -> List[Dict]:
+    def list_cue_candidate_dismissals(self, podcast_id: int) -> list[dict]:
         conn = self.get_connection()
         rows = conn.execute(
             """SELECT id, podcast_id, source_episode_id, start_s, end_s, label,
@@ -493,7 +492,7 @@ class CueTemplateMixin:
             (podcast_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def get_cue_candidate_dismissal(self, dismissal_id: int) -> Optional[Dict]:
+    def get_cue_candidate_dismissal(self, dismissal_id: int) -> dict | None:
         conn = self.get_connection()
         row = conn.execute(
             """SELECT id, podcast_id, source_episode_id, start_s, end_s, label,
@@ -518,7 +517,7 @@ class CueTemplateMixin:
             (podcast_id,)).fetchall()
         return {r['id'] for r in rows}
 
-    def list_cue_candidate_dismissals_decoded(self, podcast_id: int) -> List[Dict]:
+    def list_cue_candidate_dismissals_decoded(self, podcast_id: int) -> list[dict]:
         """Dismissals with fingerprint decoded to raw ints, for the scan
         worker. Rows whose fingerprint does not decode to a non-empty list
         are skipped with a warning -- corrupt feedback must never fail a scan."""
@@ -543,7 +542,7 @@ class CueTemplateMixin:
 
     def get_cue_cross_episode_scan(
         self, podcast_id: int, episode_set_hash: str,
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         return self._get_scan(
             'cue_cross_episode_scans', 'result_json', podcast_id,
             episode_set_hash, key_col='episode_set_hash')
@@ -558,14 +557,14 @@ class CueTemplateMixin:
 
     def get_cue_cross_episode_scan_claim_epoch(
         self, podcast_id: int, episode_set_hash: str,
-    ) -> Optional[int]:
+    ) -> int | None:
         return self._get_scan_claim_epoch(
             'cue_cross_episode_scans', podcast_id, episode_set_hash,
             key_col='episode_set_hash')
 
     def save_cue_cross_episode_scan_result(
-        self, podcast_id: int, episode_set_hash: str, payload: Dict,
-        claim_epoch: Optional[int] = None,
+        self, podcast_id: int, episode_set_hash: str, payload: dict,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_result(
             'cue_cross_episode_scans', 'result_json', podcast_id,
@@ -574,7 +573,7 @@ class CueTemplateMixin:
 
     def save_cue_cross_episode_scan_error(
         self, podcast_id: int, episode_set_hash: str, error: str,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_error(
             'cue_cross_episode_scans', podcast_id, episode_set_hash, error,
@@ -584,7 +583,7 @@ class CueTemplateMixin:
     # (the optimizer is per-template, not per-episode-set), so it routes through
     # the generics with has_podcast=False -- there is no podcast_id column.
 
-    def get_cue_window_optimize_scan(self, template_id: int) -> Optional[Dict]:
+    def get_cue_window_optimize_scan(self, template_id: int) -> dict | None:
         return self._get_scan(
             'cue_window_optimize_scans', 'result_json', None, template_id,
             key_col='template_id', has_podcast=False)
@@ -598,14 +597,14 @@ class CueTemplateMixin:
 
     def get_cue_window_optimize_scan_claim_epoch(
         self, template_id: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         return self._get_scan_claim_epoch(
             'cue_window_optimize_scans', None, template_id,
             key_col='template_id', has_podcast=False)
 
     def save_cue_window_optimize_scan_result(
-        self, template_id: int, payload: Dict,
-        claim_epoch: Optional[int] = None,
+        self, template_id: int, payload: dict,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_result(
             'cue_window_optimize_scans', 'result_json', None, template_id,
@@ -614,7 +613,7 @@ class CueTemplateMixin:
 
     def save_cue_window_optimize_scan_error(
         self, template_id: int, error: str,
-        claim_epoch: Optional[int] = None,
+        claim_epoch: int | None = None,
     ) -> None:
         self._save_scan_error(
             'cue_window_optimize_scans', None, template_id, error,

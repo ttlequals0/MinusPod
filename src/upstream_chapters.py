@@ -10,7 +10,6 @@ way it preserves embedded chapters.
 """
 import json
 import logging
-from typing import Dict, List, Optional
 
 from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API
 from utils.http import safe_url_for_log
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 MAX_UPSTREAM_CHAPTERS_BYTES = 1024 * 1024
 
 
-def fetch_upstream_chapters(url: str) -> Optional[List[Dict]]:
+def fetch_upstream_chapters(url: str) -> list[dict] | None:
     """Fetch and parse a podcast:chapters JSON file.
 
     Returns None for ANY failure: network error, size-cap trip, JSON parse

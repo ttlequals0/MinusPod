@@ -16,7 +16,6 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List
 
 from utils.atomic_json import write_json_atomic
 
@@ -59,10 +58,10 @@ class FeedRefresh:
 @dataclass
 class SystemStatus:
     """Current system status snapshot."""
-    current_job: Optional[ProcessingJob] = None
+    current_job: ProcessingJob | None = None
     queue_length: int = 0
-    queued_episodes: List[Dict] = field(default_factory=list)
-    feed_refreshes: List[FeedRefresh] = field(default_factory=list)
+    queued_episodes: list[dict] = field(default_factory=list)
+    feed_refreshes: list[FeedRefresh] = field(default_factory=list)
     last_updated: float = field(default_factory=time.time)
 
 
@@ -87,7 +86,7 @@ class StatusService:
         """Initialize instance state."""
         self._file_lock = threading.Lock()
         self._subscribers_lock = threading.Lock()
-        self._subscribers: List[callable] = []
+        self._subscribers: list[callable] = []
         self._lock_warned = False
         # Ensure status file directory exists
         os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
@@ -481,7 +480,7 @@ class StatusService:
                     warned.add(callback)
                     logger.warning(f"Status subscriber callback failed: {e}")
 
-    def to_dict(self, status: Optional[SystemStatus] = None) -> dict:
+    def to_dict(self, status: SystemStatus | None = None) -> dict:
         """Convert status to a JSON-serializable dict.
 
         Subscribers are handed a snapshot; passing it back avoids a second

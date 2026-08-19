@@ -7,7 +7,6 @@ import json
 import os
 import re
 from functools import lru_cache
-from typing import Dict, FrozenSet, List, Tuple
 
 from utils.app_version import APP_VERSION
 # Re-exported: community_pattern_validator imports DOMAIN_TLDS from here.
@@ -77,13 +76,13 @@ def iter_bundle_patterns(raw):
 PATTERN_SOURCE_LOCAL = 'local'
 PATTERN_SOURCE_COMMUNITY = 'community'
 PATTERN_SOURCE_IMPORTED = 'imported'
-PATTERN_SOURCES: FrozenSet[str] = frozenset({
+PATTERN_SOURCES: frozenset[str] = frozenset({
     PATTERN_SOURCE_LOCAL, PATTERN_SOURCE_COMMUNITY, PATTERN_SOURCE_IMPORTED,
 })
 
 
 @lru_cache(maxsize=1)
-def _vocabulary_tags() -> FrozenSet[str]:
+def _vocabulary_tags() -> frozenset[str]:
     """Tags from src/seed_data/tag_vocabulary.csv (no 'universal' -- see VALID_TAGS)."""
     path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
     tags = set()
@@ -97,20 +96,20 @@ def _vocabulary_tags() -> FrozenSet[str]:
 
 
 @lru_cache(maxsize=1)
-def valid_tags() -> FrozenSet[str]:
+def valid_tags() -> frozenset[str]:
     """All accepted tags: vocabulary CSV plus the special 'universal' opt-in."""
     return frozenset(_vocabulary_tags() | {UNIVERSAL_TAG})
 
 
 @lru_cache(maxsize=1)
-def vocabulary_payload() -> Dict[str, object]:
+def vocabulary_payload() -> dict[str, object]:
     """Categorized vocabulary view used by patterns/vocabulary.json AND the
     /api/v1/tags/vocabulary endpoint. Cached because the source CSV ships
     with the app image and never changes at runtime.
     """
     path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
-    genres: List[Dict[str, str]] = []
-    industries: List[Dict[str, str]] = []
+    genres: list[dict[str, str]] = []
+    industries: list[dict[str, str]] = []
     with open(path, 'r', encoding='utf-8') as fh:
         reader = csv.DictReader(fh)
         for row in reader:
@@ -132,7 +131,7 @@ def vocabulary_payload() -> Dict[str, object]:
 
 
 @lru_cache(maxsize=1)
-def itunes_category_map() -> Dict[str, str]:
+def itunes_category_map() -> dict[str, str]:
     """iTunes category string -> vocabulary tag (case-insensitive lookup via .lower()).
 
     Keys in the file are the canonical iTunes labels (e.g. 'Health & Fitness').
@@ -152,7 +151,7 @@ def map_itunes_category(category: str) -> str | None:
 
 
 @lru_cache(maxsize=1)
-def sponsor_seed() -> List[Dict[str, object]]:
+def sponsor_seed() -> list[dict[str, object]]:
     """List of {name, aliases: List[str], tags: List[str]} read from
     `src/seed_data/validator_known_sponsors.csv`.
 
@@ -168,7 +167,7 @@ def sponsor_seed() -> List[Dict[str, object]]:
     pipe-delimited in the CSV.
     """
     path = os.path.join(_SEED_DIR, 'validator_known_sponsors.csv')
-    rows: List[Dict[str, object]] = []
+    rows: list[dict[str, object]] = []
     with open(path, 'r', encoding='utf-8') as fh:
         reader = csv.DictReader(fh)
         for row in reader:
@@ -184,7 +183,7 @@ def sponsor_seed() -> List[Dict[str, object]]:
 
 
 # Consumer email domains -- strip on export (best-effort, tunable).
-CONSUMER_EMAIL_DOMAINS: FrozenSet[str] = frozenset({
+CONSUMER_EMAIL_DOMAINS: frozenset[str] = frozenset({
     'gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com',
     'icloud.com', 'me.com', 'mac.com', 'protonmail.com', 'proton.me',
     'mail.com', 'gmx.com', 'gmx.net', 'yandex.com', 'yandex.ru',
@@ -194,8 +193,8 @@ CONSUMER_EMAIL_DOMAINS: FrozenSet[str] = frozenset({
 
 # Toll-free prefixes -- phone numbers using these are KEPT in export text.
 # Everything else matched by the phone regex is stripped.
-TOLLFREE_PREFIXES_NANP: Tuple[str, ...] = ('800', '833', '844', '855', '866', '877', '888')
-TOLLFREE_PREFIXES_UK: Tuple[str, ...] = ('0800', '0808')
+TOLLFREE_PREFIXES_NANP: tuple[str, ...] = ('800', '833', '844', '855', '866', '877', '888')
+TOLLFREE_PREFIXES_UK: tuple[str, ...] = ('0800', '0808')
 TOLLFREE_PREFIX_AU: str = '1800'
 TOLLFREE_PREFIX_UIFN: str = '+800'
 
@@ -218,31 +217,31 @@ PHONE_REGEX = re.compile(
 EMAIL_REGEX = re.compile(r'\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b')
 
 # Canonicalization stopwords for dedupe (token-bounded only).
-CANONICAL_STOPWORDS: FrozenSet[str] = frozenset({
+CANONICAL_STOPWORDS: frozenset[str] = frozenset({
     'the', 'a', 'an', 'is', 'are', 'was', 'were', 'to', 'of', 'for', 'by',
     'and', 'or', 'but', 'in', 'on', 'at', 'with', 'from', 'this', 'that',
     'you', 'your', 'we', 'our', 'my', 'me', 'it', 'its', 'as',
 })
 
-TRAILING_TRUNCATION_STOPWORDS: FrozenSet[str] = frozenset({
+TRAILING_TRUNCATION_STOPWORDS: frozenset[str] = frozenset({
     'a', 'an', 'and', 'at', 'com', 'for', 'in', 'of', 'on', 'or',
     'slash', 'the', 'to',
 })
 
 
-CANONICAL_DAYS: FrozenSet[str] = frozenset({
+CANONICAL_DAYS: frozenset[str] = frozenset({
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
 })
 
-CANONICAL_MONTHS: FrozenSet[str] = frozenset({
+CANONICAL_MONTHS: frozenset[str] = frozenset({
     'january', 'february', 'march', 'april', 'may', 'june', 'july',
     'august', 'september', 'october', 'november', 'december',
     'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'sept',
     'oct', 'nov', 'dec',
 })
 
-CANONICAL_RELATIVE_TIME: FrozenSet[str] = frozenset({
+CANONICAL_RELATIVE_TIME: frozenset[str] = frozenset({
     'today', 'tomorrow', 'yesterday', 'tonight', 'weekend', 'weekday',
 })
 

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Optional
 
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
@@ -37,7 +36,7 @@ def _window_start_iso() -> str:
 class AuthLockoutMixin:
     """Per-IP auth-failure tracking for the login endpoint."""
 
-    def check_lockout(self, ip: str) -> Optional[str]:
+    def check_lockout(self, ip: str) -> str | None:
         """Return the ISO 8601 ``locked_until`` timestamp if ``ip`` is currently
         locked out, else None. Callers translate to 429 / Retry-After.
         """
@@ -54,7 +53,7 @@ class AuthLockoutMixin:
             return None
         return row["locked_until"]
 
-    def record_auth_failure(self, ip: str) -> Optional[str]:
+    def record_auth_failure(self, ip: str) -> str | None:
         """Record a failed login for ``ip``. Returns the ``locked_until``
         timestamp when the failure crossed the lockout threshold; returns
         None otherwise.

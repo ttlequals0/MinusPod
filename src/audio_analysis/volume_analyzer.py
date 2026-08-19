@@ -8,7 +8,6 @@ more compression than host content, causing noticeable volume changes.
 import subprocess
 import logging
 import re
-from typing import List, Tuple, Optional
 import os
 
 from .base import AudioSegmentSignal, LoudnessFrame, SignalType
@@ -46,7 +45,7 @@ class VolumeAnalyzer:
         self.anomaly_threshold_db = anomaly_threshold_db
         self.min_anomaly_duration = min_anomaly_duration
 
-    def analyze(self, audio_path: str) -> Tuple[List[AudioSegmentSignal], Optional[float], List]:
+    def analyze(self, audio_path: str) -> tuple[list[AudioSegmentSignal], float | None, list]:
         """
         Analyze audio for volume anomalies using single-pass ebur128.
 
@@ -93,7 +92,7 @@ class VolumeAnalyzer:
         logger.info(f"Found {len(anomalies)} volume anomalies")
         return anomalies, baseline, frames
 
-    def _get_duration(self, audio_path: str) -> Optional[float]:
+    def _get_duration(self, audio_path: str) -> float | None:
         """Get audio duration using ffprobe.
 
         Delegates to utils.audio.get_audio_duration for consistency.
@@ -104,7 +103,7 @@ class VolumeAnalyzer:
         self,
         audio_path: str,
         total_duration: float
-    ) -> List[LoudnessFrame]:
+    ) -> list[LoudnessFrame]:
         """
         Measure loudness using single-pass ebur128 filter.
 
@@ -176,7 +175,7 @@ class VolumeAnalyzer:
             logger.error(f"Single-pass loudness measurement failed: {e}")
             return []
 
-    def _parse_ebur128_output(self, stderr: str) -> List[Tuple[float, float, float]]:
+    def _parse_ebur128_output(self, stderr: str) -> list[tuple[float, float, float]]:
         """
         Parse ebur128 verbose output to extract measurements.
 
@@ -223,9 +222,9 @@ class VolumeAnalyzer:
 
     def _group_into_frames(
         self,
-        measurements: List[Tuple[float, float, float]],
+        measurements: list[tuple[float, float, float]],
         total_duration: float
-    ) -> List[LoudnessFrame]:
+    ) -> list[LoudnessFrame]:
         """
         Group raw measurements into frames of frame_duration seconds.
 
@@ -275,9 +274,9 @@ class VolumeAnalyzer:
         anomaly_start: float,
         anomaly_end: float,
         anomaly_type: str,
-        deviations: List[float],
+        deviations: list[float],
         baseline: float
-    ) -> Optional[AudioSegmentSignal]:
+    ) -> AudioSegmentSignal | None:
         """Build a volume anomaly signal, or None if under min duration."""
         duration = anomaly_end - anomaly_start
         if duration < self.min_anomaly_duration:
@@ -307,9 +306,9 @@ class VolumeAnalyzer:
 
     def _find_anomalies(
         self,
-        frames: List[LoudnessFrame],
+        frames: list[LoudnessFrame],
         baseline: float
-    ) -> List[AudioSegmentSignal]:
+    ) -> list[AudioSegmentSignal]:
         """Find regions where volume deviates significantly from baseline."""
         anomalies = []
         in_anomaly = False

@@ -1,5 +1,4 @@
 """Marker-dict bookkeeping shared by the detector, validator, and reviewer."""
-from typing import Dict, Optional, Tuple
 
 # Stages whose spans carry alignment-derived padding (especially tails)
 # rather than transcript- or splice-anchored bounds. Members from these
@@ -9,7 +8,7 @@ from typing import Dict, Optional, Tuple
 UNPROTECTED_MEMBER_STAGES = frozenset({'dai_differential', 'vad_gap'})
 
 
-def _protected_bounds(marker: Dict) -> Tuple[Optional[float], Optional[float]]:
+def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
     """Protected span one merge member contributes: its own recorded union
     when it was merged before, its span when its stage is anchored, else
     None/None."""
@@ -21,7 +20,7 @@ def _protected_bounds(marker: Dict) -> Tuple[Optional[float], Optional[float]]:
     return None, None
 
 
-def note_merged_members(target: Dict, other: Dict) -> None:
+def note_merged_members(target: dict, other: dict) -> None:
     """Record the protected-member union on a distinct-ad merge.
 
     Call BEFORE the merge mutates target's span or stage. Always writes
@@ -41,7 +40,7 @@ def note_merged_members(target: Dict, other: Dict) -> None:
         target['merged_protected_end'] = o_hi if hi is None else max(hi, o_hi)
 
 
-def mark_distinct_merge(target: Dict, other: Dict) -> None:
+def mark_distinct_merge(target: dict, other: dict) -> None:
     """The one primitive every distinct-ad merge site calls: records the
     protected-member union and sets the merged_distinct_ads flag together,
     so a future merge site cannot set the flag while forgetting the

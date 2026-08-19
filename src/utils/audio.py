@@ -6,7 +6,7 @@ Provides shared audio file operations used across multiple modules.
 import logging
 import os
 import subprocess
-from typing import ClassVar, Dict, Optional, Tuple
+from typing import ClassVar
 
 from config import FFPROBE_TIMEOUT
 from utils.subprocess_registry import tracked_run
@@ -14,7 +14,7 @@ from utils.subprocess_registry import tracked_run
 logger = logging.getLogger(__name__)
 
 
-def get_audio_codec(audio_path: str) -> Optional[str]:
+def get_audio_codec(audio_path: str) -> str | None:
     """Codec name of the first audio stream via ffprobe (e.g. 'mp3',
     'aac'), or None when it cannot be determined."""
     cmd = [
@@ -36,7 +36,7 @@ def get_audio_codec(audio_path: str) -> Optional[str]:
     return None
 
 
-def get_audio_duration(audio_path: str) -> Optional[float]:
+def get_audio_duration(audio_path: str) -> float | None:
     """Get audio duration in seconds using ffprobe.
 
     Args:
@@ -78,10 +78,10 @@ class AudioMetadata:
     """
 
     _MAX_CACHE_SIZE = 500
-    _cache: ClassVar[Dict[str, Tuple[float, float]]] = {}  # path -> (duration, mtime)
+    _cache: ClassVar[dict[str, tuple[float, float]]] = {}  # path -> (duration, mtime)
 
     @classmethod
-    def get_duration(cls, path: str) -> Optional[float]:
+    def get_duration(cls, path: str) -> float | None:
         """Get audio duration with caching based on file modification time.
 
         Args:

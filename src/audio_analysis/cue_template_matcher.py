@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 import numpy as np
 from scipy.signal import fftconvolve
@@ -68,7 +67,7 @@ class _Template:
     n_coeffs: int
     cue_type: str
     role: str
-    score_threshold: Optional[float] = None  # per-template override; None = use instance
+    score_threshold: float | None = None  # per-template override; None = use instance
     eff_threshold: float = 0.0   # precomputed: score_threshold if set, else instance threshold
     pick_floor: float = 0.0      # precomputed: min(eff_threshold, near_miss_floor) or eff_threshold
 
@@ -78,13 +77,13 @@ class AudioCueTemplateMatcher:
 
     def __init__(
         self,
-        templates: List[Dict],
+        templates: list[dict],
         score_threshold: float = DEFAULT_MATCH_SCORE,
         max_matches_per_template: int = MAX_MATCHES_PER_TEMPLATE,
         formant_atten_db: float = 0.0,
         formant_lo_hz: float = FORMANT_LO_HZ,
         formant_hi_hz: float = FORMANT_HI_HZ,
-        near_miss_floor: Optional[float] = None,
+        near_miss_floor: float | None = None,
         ignore_per_template_thresholds: bool = False,
     ):
         self.score_threshold = score_threshold
@@ -95,7 +94,7 @@ class AudioCueTemplateMatcher:
         self._formant_atten_db = float(formant_atten_db)
         self._formant_lo_hz = float(formant_lo_hz)
         self._formant_hi_hz = float(formant_hi_hz)
-        self._templates: List[_Template] = []
+        self._templates: list[_Template] = []
         for row in templates:
             try:
                 n_coeffs = int(row['n_coeffs'])
@@ -152,7 +151,7 @@ class AudioCueTemplateMatcher:
     def is_usable(self) -> bool:
         return bool(self._templates)
 
-    def detect(self, audio_path: str) -> List[AudioSegmentSignal]:
+    def detect(self, audio_path: str) -> list[AudioSegmentSignal]:
         """Run all templates against the episode at ``audio_path``.
 
         Production callers want just the signals; debug callers can use
@@ -186,19 +185,19 @@ class AudioCueTemplateMatcher:
             return [], {'templates': [], 'threshold': self.score_threshold,
                         'elapsed_s': 0.0, 'near_misses': []}
 
-        signals: List[AudioSegmentSignal] = []
-        per_template_matches: Dict[int, List[AudioSegmentSignal]] = {
+        signals: list[AudioSegmentSignal] = []
+        per_template_matches: dict[int, list[AudioSegmentSignal]] = {
             t.template_id: [] for t in self._templates
         }
         # Track the highest correlation score per template across all chunks,
         # even when it does not clear the threshold, so tuning the cue score
         # is observable from the logs.
-        per_template_peak_score: Dict[int, float] = {
+        per_template_peak_score: dict[int, float] = {
             t.template_id: 0.0 for t in self._templates
         }
         # Sub-threshold peaks in [near_miss_floor, threshold) per template
         # (#350 Phase 6). Stays empty when near_miss_floor is None.
-        per_template_near_misses: Dict[int, List[Dict]] = {
+        per_template_near_misses: dict[int, list[dict]] = {
             t.template_id: [] for t in self._templates
         }
 
@@ -227,7 +226,7 @@ class AudioCueTemplateMatcher:
                 break
             chunk_start = chunk_end - CHUNK_OVERLAP_SECONDS
 
-        kept_signals_by_template: Dict[int, List[AudioSegmentSignal]] = {}
+        kept_signals_by_template: dict[int, list[AudioSegmentSignal]] = {}
         for tid, matches in per_template_matches.items():
             if not matches:
                 continue
@@ -240,7 +239,7 @@ class AudioCueTemplateMatcher:
             signals.extend(kept)
 
         # Dedupe and cap near-misses per template.
-        near_misses: List[Dict] = []
+        near_misses: list[dict] = []
         for tid, misses in per_template_near_misses.items():
             if not misses:
                 continue
@@ -251,7 +250,7 @@ class AudioCueTemplateMatcher:
         elapsed = time.time() - start_wall
         # Count matches per template in one pass, reused for both the tuning
         # log and the debug payload.
-        match_counts: Dict[int, int] = {t.template_id: 0 for t in self._templates}
+        match_counts: dict[int, int] = {t.template_id: 0 for t in self._templates}
         for s in signals:
             tid = (s.details or {}).get('template_id')
             if tid in match_counts:
@@ -296,9 +295,9 @@ class AudioCueTemplateMatcher:
         self,
         chunk_mfcc: np.ndarray,
         chunk_offset_s: float,
-        per_template_matches: Dict[int, List[AudioSegmentSignal]],
-        per_template_peak_score: Dict[int, float],
-        per_template_near_misses: Dict[int, List[Dict]],
+        per_template_matches: dict[int, list[AudioSegmentSignal]],
+        per_template_peak_score: dict[int, float],
+        per_template_near_misses: dict[int, list[dict]],
     ) -> None:
         hop_s = FRAME_HOP_MS / 1000.0
         for tpl in self._templates:
@@ -356,14 +355,14 @@ class AudioCueTemplateMatcher:
                     })
 
     @staticmethod
-    def _dedupe(matches: List[AudioSegmentSignal]) -> List[AudioSegmentSignal]:
+    def _dedupe(matches: list[AudioSegmentSignal]) -> list[AudioSegmentSignal]:
         """Drop matches whose start is within 0.25s of a kept higher-score match.
 
         Templates are short so cross-chunk overlap and near-peaks of the same
         event can land within a hundred ms of each other.
         """
         matches.sort(key=lambda s: s.confidence, reverse=True)
-        kept: List[AudioSegmentSignal] = []
+        kept: list[AudioSegmentSignal] = []
         for m in matches:
             if any(abs(m.start - k.start) < 0.25 for k in kept):
                 continue
@@ -372,8 +371,8 @@ class AudioCueTemplateMatcher:
         return kept
 
     @staticmethod
-    def _dedupe_near_misses(misses: List[Dict],
-                            kept_signals: List[AudioSegmentSignal]) -> List[Dict]:
+    def _dedupe_near_misses(misses: list[dict],
+                            kept_signals: list[AudioSegmentSignal]) -> list[dict]:
         """Drop near-misses within 0.25s of a kept signal or a stronger miss.
 
         Highest-score first so the strongest miss in a cluster survives. A miss
@@ -382,7 +381,7 @@ class AudioCueTemplateMatcher:
         """
         signal_starts = [s.start for s in kept_signals]
         misses.sort(key=lambda m: m['score'], reverse=True)
-        kept: List[Dict] = []
+        kept: list[dict] = []
         for m in misses:
             start = m['start_s']
             if any(abs(start - s) < 0.25 for s in signal_starts):
@@ -474,7 +473,7 @@ def _sliding_zncc(haystack: np.ndarray, needle: np.ndarray) -> np.ndarray:
 
 
 def _peak_pick(scores: np.ndarray, threshold: float,
-               suppress_frames: int) -> List[tuple]:
+               suppress_frames: int) -> list[tuple]:
     """Greedy peak picker: take the global max, suppress a window around it, repeat.
 
     Returns a list of ``(frame_index, score)`` tuples ordered by descending score.
@@ -482,7 +481,7 @@ def _peak_pick(scores: np.ndarray, threshold: float,
     if not scores.size:
         return []
     work = scores.copy()
-    peaks: List[tuple] = []
+    peaks: list[tuple] = []
     while True:
         idx = int(np.argmax(work))
         score = float(work[idx])

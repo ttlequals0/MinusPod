@@ -5,12 +5,11 @@ Provides shared GPU memory management and system memory querying functions.
 
 import gc
 import logging
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def get_available_system_memory_gb() -> Optional[float]:
+def get_available_system_memory_gb() -> float | None:
     """Get available system RAM in gigabytes.
 
     Uses /proc/meminfo on Linux, falls back to psutil if available.
@@ -43,7 +42,7 @@ def get_available_system_memory_gb() -> Optional[float]:
     return None
 
 
-def get_available_gpu_memory_gb() -> Optional[float]:
+def get_available_gpu_memory_gb() -> float | None:
     """Get available GPU VRAM in gigabytes.
 
     Returns:
@@ -69,7 +68,7 @@ def get_available_gpu_memory_gb() -> Optional[float]:
     return None
 
 
-def get_available_memory_gb(device: str = "cuda") -> Tuple[Optional[float], str]:
+def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:
     """Get available memory for transcription in gigabytes.
 
     For CUDA devices, returns GPU VRAM as the primary limit since the model

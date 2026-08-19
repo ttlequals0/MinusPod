@@ -8,14 +8,14 @@ changes (covering create, edit, delete, and sponsor reassignment).
 """
 import hashlib
 import json
-from typing import Dict, List, Sequence, Tuple
+from collections.abc import Sequence
 
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
 
 # sponsor_id -> (signature, clusters). Per-process cache; a signature mismatch
 # always recomputes, so a stale worker can only recompute, never serve wrong
 # data.
-_CACHE: Dict[object, Tuple[str, List[dict]]] = {}
+_CACHE: dict[object, tuple[str, list[dict]]] = {}
 
 
 def _group_signature(patterns: Sequence[dict]) -> str:
@@ -36,7 +36,7 @@ def tiebreaker_key(pattern: dict):
     )
 
 
-def _connected_components(ids: List, edges: List[Tuple]) -> List[List]:
+def _connected_components(ids: list, edges: list[tuple]) -> list[list]:
     """Union-find connected components over the similarity edges."""
     parent = {i: i for i in ids}
 
@@ -51,26 +51,26 @@ def _connected_components(ids: List, edges: List[Tuple]) -> List[List]:
         if ra != rb:
             parent[rb] = ra
 
-    comps: Dict[object, List] = {}
+    comps: dict[object, list] = {}
     for i in ids:
         comps.setdefault(find(i), []).append(i)
     return list(comps.values())
 
 
-def _cluster_group(patterns: List[dict]) -> List[dict]:
+def _cluster_group(patterns: list[dict]) -> list[dict]:
     """Cluster one sponsor group; one suggestion per cluster of >=2 patterns
     connected by >= the variant threshold similarity."""
     by_id = {p['id']: p for p in patterns}
     canon = {p['id']: canonicalize_for_dedupe(p.get('text_template') or '') for p in patterns}
     ids = list(by_id)
-    edges: List[Tuple] = []
+    edges: list[tuple] = []
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
             a, b = ids[i], ids[j]
             if similarity(canon[a], canon[b]) >= VARIANT_THRESHOLD:
                 edges.append((a, b))
 
-    suggestions: List[dict] = []
+    suggestions: list[dict] = []
     for comp in _connected_components(ids, edges):
         if len(comp) < 2:
             continue
@@ -86,18 +86,18 @@ def _cluster_group(patterns: List[dict]) -> List[dict]:
     return suggestions
 
 
-def merge_suggestions(patterns: Sequence[dict]) -> List[dict]:
+def merge_suggestions(patterns: Sequence[dict]) -> list[dict]:
     """All merge suggestions across sponsor groups, cached per group signature.
     Patterns without a sponsor_id are never clustered (cross-sponsor folding is
     unsafe)."""
-    groups: Dict[object, List[dict]] = {}
+    groups: dict[object, list[dict]] = {}
     for p in patterns:
         sid = p.get('sponsor_id')
         if sid is None:
             continue
         groups.setdefault(sid, []).append(p)
 
-    out: List[dict] = []
+    out: list[dict] = []
     for sid, group in groups.items():
         if len(group) < 2:
             _CACHE.pop(sid, None)

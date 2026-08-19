@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 from pathlib import Path
-from typing import Optional
 
 from utils.url import validate_outbound_host
 
@@ -47,7 +46,7 @@ class EmailConfig:
     port: int
     security: str
     username: str
-    password: Optional[str]
+    password: str | None
     from_addr: str
     recipients: list
 
@@ -250,7 +249,7 @@ def _render_plain(rows, action_hint) -> str:
     return '\n'.join(lines) + '\n'
 
 
-def _render_html(rows, action_hint, logo_cid: Optional[str]) -> str:
+def _render_html(rows, action_hint, logo_cid: str | None) -> str:
     parts = ['<div style="font-family: sans-serif; max-width: 600px;">']
     if logo_cid:
         parts.append(
@@ -277,7 +276,7 @@ def _render_html(rows, action_hint, logo_cid: Optional[str]) -> str:
 
 
 @functools.lru_cache(maxsize=1)
-def _logo_bytes() -> Optional[bytes]:
+def _logo_bytes() -> bytes | None:
     try:
         return LOGO_PATH.read_bytes()
     except OSError:

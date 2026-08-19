@@ -10,7 +10,6 @@ import importlib.util
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 _VERSION_FILE = Path(__file__).resolve().parents[2] / "version.py"
 
 
-def _read_version_file() -> Optional[str]:
+def _read_version_file() -> str | None:
     """Load version.py's __version__ by explicit path, without touching sys.path."""
     try:
         spec = importlib.util.spec_from_file_location("_minuspod_version", _VERSION_FILE)

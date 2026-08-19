@@ -12,7 +12,6 @@ policy, so the double-submit closes the remaining same-site vectors.
 from __future__ import annotations
 
 import secrets
-from typing import Optional
 
 from flask import Request, Response, session
 
@@ -61,7 +60,7 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
     return response
 
 
-def validate(request: Request) -> Optional[str]:
+def validate(request: Request) -> str | None:
     """Return None if the CSRF check passes, else a user-safe error string.
 
     Callers translate the error string into a 403. Safe methods bypass.

@@ -8,7 +8,8 @@ audio signals for ad detection.
 import logging
 import time
 import os
-from typing import Dict, List, Optional, Any, Tuple
+from collections.abc import Callable
+from typing import Any
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from .base import AudioAnalysisResult
@@ -37,7 +38,7 @@ DEFAULT_VOLUME_TIMEOUT_MULTIPLIER = 2.0    # ~2s per min of audio
 MIN_VOLUME_TIMEOUT = 180    # 3 minutes
 
 
-def calculate_component_timeouts(duration_seconds: float) -> Dict[str, int]:
+def calculate_component_timeouts(duration_seconds: float) -> dict[str, int]:
     """Calculate per-component timeouts based on episode duration.
 
     Returns timeouts in seconds for each analysis component.
@@ -102,7 +103,7 @@ class AudioAnalyzer:
         # current settings, not here, so the experiment toggle takes effect
         # without a restart (this analyzer is a long-lived singleton).
 
-    def _load_settings(self) -> Dict[str, Any]:
+    def _load_settings(self) -> dict[str, Any]:
         """Load settings from database."""
         settings = {}
         if self.db:
@@ -121,8 +122,8 @@ class AudioAnalyzer:
 
         return settings
 
-    def _load_cue_config(self, feed_id: Optional[int] = None, force: bool = False,
-                         errors: Optional[List[str]] = None):
+    def _load_cue_config(self, feed_id: int | None = None, force: bool = False,
+                         errors: list[str] | None = None):
         """Resolve the audio cue detector for this run (issue #350).
 
         This analyzer is a long-lived singleton, so reading the settings here --
@@ -218,7 +219,7 @@ class AudioAnalyzer:
             logger.warning(f"Failed to load audio cue settings: {e}")
             return False, None
 
-    def _load_silence_config(self, feed_id: Optional[int] = None):
+    def _load_silence_config(self, feed_id: int | None = None):
         """Return a SilenceDetector when silence-snap is enabled for this feed.
 
         Returns None when the flag is off (default) or no DB is available.
@@ -253,7 +254,7 @@ class AudioAnalyzer:
             return False
 
     @staticmethod
-    def _collect_component(name: str, future, timeout: int) -> Tuple[Any, Optional[str]]:
+    def _collect_component(name: str, future, timeout: int) -> tuple[Any, str | None]:
         """Collect a pooled component future with timeout protection.
 
         Returns (result, error); result is None if timeout/error occurred.
@@ -274,10 +275,10 @@ class AudioAnalyzer:
     def analyze(
         self,
         audio_path: str,
-        transcript_segments: Optional[List[Dict]] = None,
+        transcript_segments: list[dict] | None = None,
         run_parallel: bool = False,
-        status_callback: Optional[callable] = None,
-        feed_id: Optional[int] = None,
+        status_callback: Callable | None = None,
+        feed_id: int | None = None,
         force_cue_detection: bool = False,
     ) -> AudioAnalysisResult:
         """
@@ -350,8 +351,8 @@ class AudioAnalyzer:
         # simultaneously-running full-decode components.
         timeout_factor = n_components
 
-        cue_near_misses: List[Dict[str, Any]] = []
-        silence_spans: List[Dict[str, Any]] = []
+        cue_near_misses: list[dict[str, Any]] = []
+        silence_spans: list[dict[str, Any]] = []
         splice_evidence = None
 
         pool = ThreadPoolExecutor(max_workers=n_components)

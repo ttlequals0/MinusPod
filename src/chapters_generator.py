@@ -2,7 +2,6 @@
 import logging
 import math
 import re
-from typing import List, Dict, Optional, Tuple
 
 from config import (
     ModelNotConfiguredError,
@@ -60,7 +59,7 @@ def _strip_html(text: str) -> str:
     return text.strip()
 
 
-def _parse_description_anchors(description: str) -> List[Tuple[str, str]]:
+def _parse_description_anchors(description: str) -> list[tuple[str, str]]:
     """Extract (timestamp, title) pairs from an episode description.
 
     Returns deduplicated, sorted-by-time anchors. Used as soft hints in the
@@ -69,7 +68,7 @@ def _parse_description_anchors(description: str) -> List[Tuple[str, str]]:
     if not description:
         return []
     text = _strip_html(description)
-    seen: Dict[str, str] = {}
+    seen: dict[str, str] = {}
     for pattern in _TIMESTAMP_PATTERNS:
         for ts, title in pattern.findall(text):
             title = title.strip().rstrip('-:').strip()
@@ -79,7 +78,7 @@ def _parse_description_anchors(description: str) -> List[Tuple[str, str]]:
     return sorted(seen.items(), key=lambda kv: parse_timestamp(kv[0]))
 
 
-def _hint_time(hint: Dict) -> float:
+def _hint_time(hint: dict) -> float:
     """A hint's anchor time: seam hints carry 'time', range hints 'start'."""
     return hint.get('time', hint.get('start', 0.0))
 
@@ -91,8 +90,8 @@ def _format_mmss(seconds: float) -> str:
     return f"{total // 60:02d}:{total % 60:02d}"
 
 
-def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]],
-                         replacement_duration: float = 0.0) -> List[Dict]:
+def build_segment_hints(markers: list[dict] | None, cuts: list[dict] | None,
+                         replacement_duration: float = 0.0) -> list[dict]:
     """Map applied ad/segment markers onto the processed timeline as
     candidate topic-boundary hints for the topic-detection prompt.
 
@@ -112,7 +111,7 @@ def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]
     if not markers:
         return []
     cuts = cuts or []
-    hints: List[Dict] = []
+    hints: list[dict] = []
     for marker in markers:
         action = marker.get('action_applied')
         if action not in ('remove', 'beep', 'keep'):
@@ -138,7 +137,7 @@ def build_segment_hints(markers: Optional[List[Dict]], cuts: Optional[List[Dict]
     return hints
 
 
-def _format_hints_block(hints: List[Dict]) -> str:
+def _format_hints_block(hints: list[dict]) -> str:
     """Render segment hints into the prompt block explaining what they mean.
 
     Returns "" when hints is empty, leaving the caller's prompt unchanged."""
@@ -194,10 +193,10 @@ class ChaptersGenerator:
             api_key: LLM API key (defaults to environment configuration)
         """
         self.api_key = api_key or get_api_key()
-        self._llm_client_override: Optional[LLMClient] = None
-        self._episode_id: Optional[str] = None
+        self._llm_client_override: LLMClient | None = None
+        self._episode_id: str | None = None
         # (template, override), read once per run rather than per window.
-        self._chapter_prompt: Optional[Tuple[str, str]] = None
+        self._chapter_prompt: tuple[str, str] | None = None
         # Set when topic detection or title generation fails and the run
         # degrades to a fallback; read after generate_chapters() so a
         # degraded run doesn't look like a normal short episode.
@@ -205,12 +204,12 @@ class ChaptersGenerator:
         self._title_generation_failed: bool = False
         # Set when get_chapters_model() raises; appended to the degradation
         # reason below instead of just the generic "... failed" text.
-        self._model_not_configured_message: Optional[str] = None
+        self._model_not_configured_message: str | None = None
         self.chapters_degraded: bool = False
-        self.chapters_degradation_reason: Optional[str] = None
+        self.chapters_degradation_reason: str | None = None
 
     @property
-    def _llm_client(self) -> Optional[LLMClient]:
+    def _llm_client(self) -> LLMClient | None:
         """Current LLM client. Reads through ``get_llm_client`` on every access
         so that provider/base-URL changes via the settings API take effect
         immediately without restarting the worker."""
@@ -221,7 +220,7 @@ class ChaptersGenerator:
         return get_llm_client()
 
     @_llm_client.setter
-    def _llm_client(self, value: Optional[LLMClient]) -> None:
+    def _llm_client(self, value: LLMClient | None) -> None:
         self._llm_client_override = value
 
     def _initialize_client(self):
@@ -236,7 +235,7 @@ class ChaptersGenerator:
 
     def _get_full_transcript_range(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         start_time: float,
         end_time: float
     ) -> str:
@@ -259,7 +258,7 @@ class ChaptersGenerator:
 
         return '\n'.join(lines)
 
-    def _load_chapter_prompt(self) -> Tuple[str, str]:
+    def _load_chapter_prompt(self) -> tuple[str, str]:
         """The (template, override) settings pair, cached for the run."""
         if self._chapter_prompt is None:
             try:
@@ -279,10 +278,10 @@ class ChaptersGenerator:
         end_time: float,
         num_splits: int,
         episode_description: str = None,
-        anchors: Optional[List[Tuple[str, str]]] = None,
-        hints: Optional[List[Dict]] = None,
-        previous_title: Optional[str] = None,
-    ) -> Optional[List[Dict]]:
+        anchors: list[tuple[str, str]] | None = None,
+        hints: list[dict] | None = None,
+        previous_title: str | None = None,
+    ) -> list[dict] | None:
         """Use the LLM to detect topic boundaries in a transcript range.
 
         hints: optional candidate boundaries derived from detected ad/segment
@@ -410,7 +409,7 @@ class ChaptersGenerator:
 
     def get_transcript_excerpt(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         start_time: float,
         end_time: float,
         max_words: int = 300
@@ -420,11 +419,11 @@ class ChaptersGenerator:
 
     def generate_chapter_titles(
         self,
-        chapters: List[Dict],
-        segments: List[Dict],
+        chapters: list[dict],
+        segments: list[dict],
         podcast_name: str,
         episode_title: str,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Generate titles for chapters that need them.
 
         Chapters and segments share the same post-ad-removal timeline, so the
@@ -482,10 +481,10 @@ class ChaptersGenerator:
 
     def _call_claude_for_titles(
         self,
-        chapter_requests: List[Dict],
+        chapter_requests: list[dict],
         podcast_name: str,
         episode_title: str
-    ) -> List[str]:
+    ) -> list[str]:
         """Call the LLM to generate chapter titles in one batched request."""
         prompt_parts = [
             "Generate short, descriptive chapter titles (3-8 words each) for a podcast episode.",
@@ -546,7 +545,7 @@ class ChaptersGenerator:
 
         return titles[:len(chapter_requests)]
 
-    def _apply_generic_titles(self, chapters: List[Dict]) -> List[Dict]:
+    def _apply_generic_titles(self, chapters: list[dict]) -> list[dict]:
         """Apply generic titles to chapters that need them."""
         part_num = 1
         for chapter in chapters:
@@ -562,10 +561,10 @@ class ChaptersGenerator:
 
     def _enforce_min_duration(
         self,
-        chapters: List[Dict],
+        chapters: list[dict],
         episode_duration: float,
         min_duration: float,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Drop chapters shorter than min_duration by absorbing into the previous.
 
         Assumes chapters and episode_duration are already on the post-ad-removal
@@ -606,10 +605,10 @@ class ChaptersGenerator:
 
     def _adjust_segments_for_ads(
         self,
-        segments: List[Dict],
-        ads_removed: List[Dict],
+        segments: list[dict],
+        ads_removed: list[dict],
         replacement_duration: float = 0.0,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Project raw segments onto the post-ad-removal timeline.
 
         Drops segments that fall entirely inside an ad span. Shifts the
@@ -635,21 +634,21 @@ class ChaptersGenerator:
 
     def _detect_boundaries_windowed(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         episode_duration: float,
         target: float,
         window_span: float,
         max_boundaries: int,
         episode_description: str = None,
-        hints: Optional[List[Dict]] = None,
-    ) -> List[Dict]:
+        hints: list[dict] | None = None,
+    ) -> list[dict]:
         """Detect topic boundaries a window at a time, earliest first.
 
         An empty window is legitimate (a stretch can be one topic); only a
         failed call or every window coming back empty degrades the run.
         """
         window_count = max(1, math.ceil(episode_duration / window_span))
-        found: List[Dict] = []
+        found: list[dict] = []
         calls = 0
         previous_title = None
         # Parse show-notes anchors once; each window gets only its own range.
@@ -719,16 +718,16 @@ class ChaptersGenerator:
 
     def generate_chapters(
         self,
-        segments: List[Dict],
+        segments: list[dict],
         episode_description: str = None,
-        ads_removed: List[Dict] = None,
+        ads_removed: list[dict] = None,
         podcast_name: str = "Unknown",
         episode_title: str = "Unknown",
-        episode_id: Optional[str] = None,
+        episode_id: str | None = None,
         replacement_duration: float = 0.0,
-        segment_markers: Optional[List[Dict]] = None,
-        marker_cuts: Optional[List[Dict]] = None,
-    ) -> Dict:
+        segment_markers: list[dict] | None = None,
+        marker_cuts: list[dict] | None = None,
+    ) -> dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
         Shared entry point for the main processing pipeline and the manual

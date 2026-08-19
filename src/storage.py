@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any
 import tempfile
 import shutil
 
@@ -79,7 +79,7 @@ _WATERMARK_VARIANT = "artwork-minuspod.jpg"
 _WATERMARK_SALT = "artwork-minuspod.salt"
 
 
-def _detect_image_mime(data: bytes) -> Optional[str]:
+def _detect_image_mime(data: bytes) -> str | None:
     """Return the canonical Content-Type for ``data`` based on file magic,
     or None if the bytes do not match a supported image format. SVG is not
     accepted because it admits script execution.
@@ -144,7 +144,7 @@ class Storage:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, data_dir: Optional[str] = None):
+    def __new__(cls, data_dir: str | None = None):
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -152,7 +152,7 @@ class Storage:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, data_dir: Optional[str] = None):
+    def __init__(self, data_dir: str | None = None):
         if self._initialized:
             return
         # Tests and non-container deploys need a configurable root;
@@ -211,7 +211,7 @@ class Storage:
             raise PathContainmentError(f"refusing dangerous slug {slug!r}")
         return _safe_join_under(self.podcasts_dir, slug)
 
-    def load_data_json(self, slug: str) -> Dict[str, Any]:
+    def load_data_json(self, slug: str) -> dict[str, Any]:
         """Load episode data for a podcast from SQLite."""
         # Ensure directory exists
         self.get_podcast_dir(slug)
@@ -262,7 +262,7 @@ class Storage:
 
     def get_episode_path(self, slug: str, episode_id: str,
                           extension: str = ".mp3",
-                          version: Optional[int] = None) -> Path:
+                          version: int | None = None) -> Path:
         """Get path for an episode audio file.
 
         version=None or 0 -> ``{episode_id}{extension}`` (unversioned, back-compat).
@@ -273,7 +273,7 @@ class Storage:
         )
 
     def iter_episode_audio_paths(self, slug: str, episode_id: str,
-                                   extension: str = ".mp3") -> List[Path]:
+                                   extension: str = ".mp3") -> list[Path]:
         """Return all audio files for this episode (unversioned + any v1..vN)."""
         if not is_valid_episode_id(episode_id):
             raise PathContainmentError(f"refusing invalid episode id {episode_id!r}")
@@ -339,7 +339,7 @@ class Storage:
         shutil.move(tmp_path, rss_file)
         logger.debug(f"[{slug}] Saved modified RSS feed")
 
-    def get_rss(self, slug: str) -> Optional[str]:
+    def get_rss(self, slug: str) -> str | None:
         """Get cached RSS feed from filesystem."""
         podcast_dir = self.get_podcast_dir(slug)
         rss_file = podcast_dir / "modified-rss.xml"
@@ -358,7 +358,7 @@ class Storage:
 
         logger.debug(f"[{slug}:{episode_id}] Saved transcript")
 
-    def get_transcript(self, slug: str, episode_id: str) -> Optional[str]:
+    def get_transcript(self, slug: str, episode_id: str) -> str | None:
         """Get episode transcript from database."""
         episode = self.db.get_episode(slug, episode_id)
         if episode and episode.get('transcript_text'):
@@ -378,7 +378,7 @@ class Storage:
         self.db.save_final_segments(slug, episode_id, segments)
 
     def save_chapters_and_applied_cuts(self, slug: str, episode_id: str,
-                                       chapters: Dict, cuts: list) -> None:
+                                       chapters: dict, cuts: list) -> None:
         """Atomically persist chapters JSON plus the applied cut list it was
         generated against (single DB statement; a failure can never leave
         fresh chapters paired with stale cuts, which would poison the next
@@ -387,7 +387,7 @@ class Storage:
             slug, episode_id, json.dumps(chapters), cuts
         )
 
-    def get_applied_cuts(self, slug: str, episode_id: str) -> Optional[list]:
+    def get_applied_cuts(self, slug: str, episode_id: str) -> list | None:
         """Get the persisted applied cut list, or None when never persisted."""
         return self.db.get_applied_cuts(slug, episode_id)
 
@@ -401,7 +401,7 @@ class Storage:
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, VTT not saved")
 
-    def get_transcript_vtt(self, slug: str, episode_id: str) -> Optional[str]:
+    def get_transcript_vtt(self, slug: str, episode_id: str) -> str | None:
         """Get VTT transcript from database."""
         episode = self.db.get_episode(slug, episode_id)
         if episode and episode.get('transcript_vtt'):
@@ -415,7 +415,7 @@ class Storage:
 
     # ========== Chapters Methods (Podcasting 2.0) ==========
 
-    def save_chapters_json(self, slug: str, episode_id: str, chapters: Dict) -> None:
+    def save_chapters_json(self, slug: str, episode_id: str, chapters: dict) -> None:
         """Save chapters JSON to database."""
         try:
             chapters_str = json.dumps(chapters)
@@ -424,7 +424,7 @@ class Storage:
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, chapters not saved")
 
-    def get_chapters_json(self, slug: str, episode_id: str) -> Optional[Dict]:
+    def get_chapters_json(self, slug: str, episode_id: str) -> dict | None:
         """Get chapters JSON from database."""
         episode = self.db.get_episode(slug, episode_id)
         if episode and episode.get('chapters_json'):
@@ -481,7 +481,7 @@ class Storage:
 
         logger.debug(f"[{slug}:{episode_id}] Saved pass {pass_number} ads detection data")
 
-    def save_combined_ads(self, slug: str, episode_id: str, all_ads: List[Dict]) -> None:
+    def save_combined_ads(self, slug: str, episode_id: str, all_ads: list[dict]) -> None:
         """Save combined ad markers from both passes to database."""
         pending_count = count_pending_review(all_ads)
         try:
@@ -538,13 +538,13 @@ class Storage:
             logger.error(f"[{slug}] Failed to save artwork: {e}")
             return False
 
-    def podcast_dir_if_exists(self, slug: str) -> Optional[Path]:
+    def podcast_dir_if_exists(self, slug: str) -> Path | None:
         """get_podcast_dir without the mkdir: read paths must not create
         directories for probed unknown slugs."""
         podcast_dir = self._podcast_path(slug)
         return podcast_dir if podcast_dir.is_dir() else None
 
-    def get_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
+    def get_artwork(self, slug: str) -> tuple[bytes, str] | None:
         """Get cached artwork. Returns (data, content_type) or None."""
         podcast_dir = self.podcast_dir_if_exists(slug)
         if not podcast_dir:
@@ -560,7 +560,7 @@ class Storage:
 
     # ---------- Episode covers (issue #617) ----------
 
-    def _episode_artwork_dir(self, slug: str, create: bool = False) -> Optional[Path]:
+    def _episode_artwork_dir(self, slug: str, create: bool = False) -> Path | None:
         """The feed's episode-cover directory, or None when the feed has none."""
         podcast_dir = (self.get_podcast_dir(slug) if create
                        else self.podcast_dir_if_exists(slug))
@@ -572,7 +572,7 @@ class Storage:
         return art_dir
 
     def get_episode_artwork(self, slug: str,
-                            episode_id: str) -> Optional[Tuple[bytes, str]]:
+                            episode_id: str) -> tuple[bytes, str] | None:
         """Cached episode cover. Returns (data, content_type) or None.
 
         Serving bumps the mtime so eviction can drop the covers nobody is
@@ -756,7 +756,7 @@ class Storage:
         change re-composites the cached variant on the next fetch."""
         return normalize_badge_position(self.db.get_setting('artwork_badge_position'))
 
-    def get_watermarked_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
+    def get_watermarked_artwork(self, slug: str) -> tuple[bytes, str] | None:
         """Cover art with the MinusPod badge composited (issue #420), cached on
         disk as artwork-minuspod.jpg. Returns (jpeg_bytes, 'image/jpeg'), or None
         when there is no source artwork or compositing fails. save_artwork and the
@@ -794,7 +794,7 @@ class Storage:
 
         return composited, 'image/jpeg'
 
-    def artwork_version(self, slug: str) -> Optional[str]:
+    def artwork_version(self, slug: str) -> str | None:
         """Short content-addressed token for the badged cover-art URL cache-bust.
 
         Shifts when the source cover bytes or the badge (cover_badge_salt: badge
@@ -955,7 +955,7 @@ class Storage:
         return deleted
 
     def delete_original_only(self, slug: str, episode_id: str,
-                             extension: str = ".mp3") -> Tuple[bool, int]:
+                             extension: str = ".mp3") -> tuple[bool, int]:
         """Delete just the retained pre-cut original for one episode.
 
         Returns (deleted, bytes_freed). Processed file(s), DB rows, and
@@ -1021,7 +1021,7 @@ class Storage:
 
         return True
 
-    def get_storage_stats(self) -> Dict[str, Any]:
+    def get_storage_stats(self) -> dict[str, Any]:
         """Get storage statistics.
 
         The full-tree walk stat()s every file under every podcast dir, so

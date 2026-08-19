@@ -1,7 +1,6 @@
 """Podping host coverage mixin: which feed-URL domains send podpings."""
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List
 
 from config import (PODPING_HOST_ACTIVE_DAYS, PODPING_HOSTS_FLUSH_MAX_DOMAINS,
                     PODPING_HOSTS_MAX_ROWS)
@@ -18,7 +17,7 @@ class PodpingHostMixin:
         """Oldest last_seen_at that still counts as active."""
         return (datetime.now(timezone.utc) - timedelta(days=days)).strftime(ISO_FORMAT)
 
-    def record_podping_hosts(self, counts: Dict[str, int]) -> None:
+    def record_podping_hosts(self, counts: dict[str, int]) -> None:
         """Upsert a batch of {domain: ping count} in one transaction, bounded
         against a sender flooding the table with fabricated domains."""
         if not counts:
@@ -76,7 +75,7 @@ class PodpingHostMixin:
             "SELECT COUNT(*) AS n FROM podping_hosts WHERE last_seen_at >= ?",
             (cutoff,)).fetchone()['n']
 
-    def get_podping_hosts(self, limit: int = 100) -> List[Dict]:
+    def get_podping_hosts(self, limit: int = 100) -> list[dict]:
         """Most recently active domains first."""
         cursor = self.get_connection().execute(
             "SELECT domain, first_seen_at, last_seen_at, ping_count "

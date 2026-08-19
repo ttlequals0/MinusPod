@@ -12,27 +12,26 @@ from __future__ import annotations
 
 import bisect
 import logging
-from typing import Dict, List, Optional, Tuple
 
 from config import MIN_AD_DURATION_FOR_REMOVAL, MERGE_GAP_SECONDS
 
 logger = logging.getLogger('podcast.claude.silence_snap')
 
 
-def _midpoint(span: Dict) -> float:
+def _midpoint(span: dict) -> float:
     return (span['start'] + span['end']) / 2.0
 
 
 def _pick_span(
-    spans: List[Dict],
+    spans: list[dict],
     edge: float,
     max_distance_s: float,
     min_silence_s: float,
     exclude_ids: set,
-    span_ends: List[float],
-    proposed_must_be_less_than: Optional[float] = None,
-    proposed_must_be_greater_than: Optional[float] = None,
-) -> Optional[Tuple[Dict, float]]:
+    span_ends: list[float],
+    proposed_must_be_less_than: float | None = None,
+    proposed_must_be_greater_than: float | None = None,
+) -> tuple[dict, float] | None:
     """Return (best_span, midpoint) to snap ``edge`` to, or None.
 
     Selection key: nearest midpoint first; ties within 0.1s -> longer silence.
@@ -77,8 +76,8 @@ def _pick_span(
 
 
 def snap_ad_boundaries_to_silence(
-    ads: List[Dict],
-    silence_spans: List[Dict],
+    ads: list[dict],
+    silence_spans: list[dict],
     max_distance_s: float,
     min_silence_s: float,
 ) -> None:
@@ -118,7 +117,7 @@ def snap_ad_boundaries_to_silence(
         cue_snap = ad.get('cue_snap') or {}
         # Tracks spans already committed to one edge so they cannot snap the other.
         used_span_ids: set = set()
-        snap_record: Dict = {}
+        snap_record: dict = {}
         new_start = original_start
         new_end = original_end
 
@@ -221,7 +220,7 @@ def snap_ad_boundaries_to_silence(
         ad['silence_snap'] = snap_record
 
 
-def _build_record(original: float, snap_point: float, span: Dict) -> Dict:
+def _build_record(original: float, snap_point: float, span: dict) -> dict:
     """Build the per-edge audit record (mirrors _snap_record in cue_boundary_snap)."""
     return {
         'original': round(original, 3),

@@ -1,7 +1,6 @@
 """Auto-process queue mixin for MinusPod database."""
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict, Set, Tuple
 
 from utils.time import ISO_FORMAT, utc_now
 
@@ -43,7 +42,7 @@ class QueueMixin:
         return setting == 'true' if setting else True  # Default to enabled
 
     def is_auto_process_enabled_for_podcast(self, slug: str,
-                                            podcast: Optional[Dict] = None) -> bool:
+                                            podcast: dict | None = None) -> bool:
         """Check if auto-process is enabled for a specific podcast.
 
         podcast: an already-fetched row, so a caller that needs other columns
@@ -72,7 +71,7 @@ class QueueMixin:
                                       original_url: str, title: str = None,
                                       published_at: str = None,
                                       description: str = None,
-                                      priority: int = 0) -> Optional[int]:
+                                      priority: int = 0) -> int | None:
         """Add an episode to the auto-process queue. Returns queue ID or None if already queued."""
         conn = self.get_connection()
 
@@ -103,7 +102,7 @@ class QueueMixin:
                                       original_url: str, title: str = None,
                                       published_at: str = None,
                                       description: str = None,
-                                      priority: int = 0) -> Optional[int]:
+                                      priority: int = 0) -> int | None:
         """Add or reset an episode in the auto-process queue to 'pending'.
 
         Unlike queue_episode_for_processing (which skips already-queued rows),
@@ -153,7 +152,7 @@ class QueueMixin:
             return None
 
 
-    def get_next_queued_episode(self) -> Optional[Dict]:
+    def get_next_queued_episode(self) -> dict | None:
         """Get the next pending episode from the queue (FIFO order, read-only)."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -167,7 +166,7 @@ class QueueMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def claim_next_queued_episode(self) -> Optional[Dict]:
+    def claim_next_queued_episode(self) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.
 
         Closes the SELECT-then-mark gap in get_next_queued_episode: the
@@ -260,7 +259,7 @@ class QueueMixin:
             conn.rollback()
             raise
 
-    def get_queue_status(self) -> Dict:
+    def get_queue_status(self) -> dict:
         """Auto-process queue status summary, plus the pending/processing rows
         (with priority) driving the dequeue order (#625)."""
         conn = self.get_connection()
@@ -337,7 +336,7 @@ class QueueMixin:
         conn.commit()
         return cursor.rowcount
 
-    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3) -> Tuple[int, int]:
+    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3) -> tuple[int, int]:
         """Reset queue items stuck in 'processing' for too long.
 
         This catches orphaned queue items where the worker crashed or was killed
@@ -434,7 +433,7 @@ class QueueMixin:
 
     # -- Offline queue (#482): deferred-episode lifecycle --
 
-    def get_deferred_episodes(self) -> List[Dict]:
+    def get_deferred_episodes(self) -> list[dict]:
         """All episodes waiting in the offline queue, oldest deferral first."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -454,7 +453,7 @@ class QueueMixin:
         ).fetchone()
         return row['n'] if row else 0
 
-    def expire_deferred_episodes(self, ttl_hours: int) -> List[Dict]:
+    def expire_deferred_episodes(self, ttl_hours: int) -> list[dict]:
         """Fail offline-queue episodes whose TTL has run out.
 
         Marked permanently_failed (a plain 'failed' would be resurrected by
@@ -510,7 +509,7 @@ class QueueMixin:
         conn.commit()
         return expired
 
-    def requeue_deferred_episodes(self, services: Set[str]) -> int:
+    def requeue_deferred_episodes(self, services: set[str]) -> int:
         """Flip deferred episodes back to pending for reachable services.
 
         Each episode gets its auto_process_queue row upserted to pending (the

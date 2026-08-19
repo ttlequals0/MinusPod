@@ -401,7 +401,7 @@ def _enrich_models_with_pricing(models: list) -> None:
     models.sort(key=lambda m: (m.get('name') or m.get('id', '')).lower())
 
 
-def _find_similar_pattern(db, pattern_data: dict) -> Optional[dict]:
+def _find_similar_pattern(db, pattern_data: dict) -> dict | None:
     """Find an existing pattern similar to the import data."""
     # Look for exact sponsor match in same scope
     sponsor = pattern_data.get('sponsor')

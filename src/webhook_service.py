@@ -8,7 +8,6 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from jinja2 import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
@@ -51,15 +50,15 @@ class WebhookPayload:
     episode_id: str
     slug: str
     episode_title: str
-    processing_time: Optional[float] = None
-    llm_cost: Optional[float] = None
+    processing_time: float | None = None
+    llm_cost: float | None = None
     ads_removed: int = 0
     ads_held: int = 0
     ads_not_cut: int = 0
-    error_message: Optional[str] = None
-    original_duration: Optional[float] = None
-    new_duration: Optional[float] = None
-    podcast_name: Optional[str] = None
+    error_message: str | None = None
+    original_duration: float | None = None
+    new_duration: float | None = None
+    podcast_name: str | None = None
 
 
 def _format_duration(seconds):

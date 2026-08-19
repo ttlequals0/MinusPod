@@ -19,7 +19,6 @@ intentionally NOT supported to keep parsing simple.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Set, Tuple
 
 _FIELD_RANGES = (
     (0, 59),   # minute
@@ -30,11 +29,11 @@ _FIELD_RANGES = (
 )
 
 
-def _parse_field(spec: str, lo: int, hi: int) -> Set[int]:
+def _parse_field(spec: str, lo: int, hi: int) -> set[int]:
     spec = spec.strip()
     if not spec:
         raise ValueError('empty cron field')
-    out: Set[int] = set()
+    out: set[int] = set()
     for part in spec.split(','):
         step = 1
         has_step = '/' in part
@@ -70,7 +69,7 @@ def _parse_field(spec: str, lo: int, hi: int) -> Set[int]:
     return out
 
 
-def parse_expression(expr: str) -> Tuple[Set[int], Set[int], Set[int], Set[int], Set[int]]:
+def parse_expression(expr: str) -> tuple[set[int], set[int], set[int], set[int], set[int]]:
     """Parse a 5-field cron expression into per-field sets. Raises ValueError."""
     parts = expr.strip().split()
     if len(parts) != 5:
@@ -96,7 +95,7 @@ def is_valid_expression(expr: str) -> bool:
         return False
 
 
-def _matches(dt: datetime, sets: Tuple[Set[int], Set[int], Set[int], Set[int], Set[int]]) -> bool:
+def _matches(dt: datetime, sets: tuple[set[int], set[int], set[int], set[int], set[int]]) -> bool:
     minute_s, hour_s, dom_s, month_s, dow_s = sets
     if dt.minute not in minute_s:
         return False

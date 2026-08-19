@@ -9,7 +9,7 @@ folded) and bounded (VARIANT_CAP per array) so the budget covers real opening/
 closing variation rather than near-duplicates.
 """
 import json
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
 
 from text_pattern_matcher import _extract_intro_phrase, _extract_outro_phrase
 from utils.pattern_similarity import (
@@ -21,7 +21,7 @@ from utils.pattern_similarity import (
 VARIANT_CAP = 5
 
 
-def _as_list(value) -> List[str]:
+def _as_list(value) -> list[str]:
     """Coerce a variants field (list or JSON-string) into a list of strings."""
     if isinstance(value, str):
         try:
@@ -33,7 +33,7 @@ def _as_list(value) -> List[str]:
     return [v for v in value if isinstance(v, str) and v.strip()]
 
 
-def derive_intro_outro(text_template: str) -> Tuple[List[str], List[str]]:
+def derive_intro_outro(text_template: str) -> tuple[list[str], list[str]]:
     """Return ([intro], [outro]) phrases derived from a full ad template,
     each empty when extraction yields nothing."""
     if not text_template:
@@ -43,11 +43,11 @@ def derive_intro_outro(text_template: str) -> Tuple[List[str], List[str]]:
     return ([intro] if intro else []), ([outro] if outro else [])
 
 
-def dedupe_and_cap(phrases: Sequence[str], cap: int = VARIANT_CAP) -> List[str]:
+def dedupe_and_cap(phrases: Sequence[str], cap: int = VARIANT_CAP) -> list[str]:
     """Keep distinct phrases in order, dropping any >=95% similar (on the
     canonical form) to one already kept, capped at `cap`."""
-    kept: List[str] = []
-    kept_canon: List[str] = []
+    kept: list[str] = []
+    kept_canon: list[str] = []
     for p in phrases:
         if not isinstance(p, str) or not p.strip():
             continue
@@ -61,7 +61,7 @@ def dedupe_and_cap(phrases: Sequence[str], cap: int = VARIANT_CAP) -> List[str]:
     return kept
 
 
-def variants_for_pattern(pattern: dict) -> Tuple[List[str], List[str]]:
+def variants_for_pattern(pattern: dict) -> tuple[list[str], list[str]]:
     """Intro/outro variants for one pattern: use its stored variants, deriving
     from text_template for whichever side is empty (manual rows have none)."""
     intros = _as_list(pattern.get('intro_variants'))
@@ -75,11 +75,11 @@ def variants_for_pattern(pattern: dict) -> Tuple[List[str], List[str]]:
     return intros, outros
 
 
-def merge_variants(patterns: Sequence[dict]) -> Tuple[List[str], List[str]]:
+def merge_variants(patterns: Sequence[dict]) -> tuple[list[str], list[str]]:
     """Union intro/outro variants across patterns (deriving where empty), then
     dedupe + cap each side. Returns (intro_variants, outro_variants)."""
-    all_intros: List[str] = []
-    all_outros: List[str] = []
+    all_intros: list[str] = []
+    all_outros: list[str] = []
     for p in patterns:
         intros, outros = variants_for_pattern(p)
         all_intros.extend(intros)

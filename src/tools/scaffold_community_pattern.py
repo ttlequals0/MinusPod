@@ -24,7 +24,6 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
 
 _REPO_SRC = Path(__file__).resolve().parents[1]
 _REPO_ROOT = _REPO_SRC.parent
@@ -45,12 +44,12 @@ def scaffold(
     *,
     sponsor: str,
     text_template: str,
-    tags: List[str],
-    aliases: Optional[List[str]] = None,
-    out_dir: Optional[Path] = None,
-    community_id: Optional[str] = None,
-    intro_variants: Optional[List[str]] = None,
-    outro_variants: Optional[List[str]] = None,
+    tags: list[str],
+    aliases: list[str] | None = None,
+    out_dir: Path | None = None,
+    community_id: str | None = None,
+    intro_variants: list[str] | None = None,
+    outro_variants: list[str] | None = None,
     force: bool = False,
 ) -> Path:
     """Write a scaffolded pattern JSON to `<out_dir>/<slug>-<short>.json`.
@@ -92,7 +91,7 @@ def scaffold(
     return target
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description='Scaffold a community pattern JSON file.'
     )

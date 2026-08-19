@@ -5,7 +5,6 @@ import tempfile
 import os
 import shutil
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
 
 from utils.audio import AudioMetadata, get_audio_duration
 from embedded_chapters import probe_chapters, remap_chapters, render_ffmetadata
@@ -97,7 +96,7 @@ class AudioProcessor:
         self.replace_audio_path = replace_audio_path or get_replace_audio_path()
         self.bitrate = bitrate
 
-    def get_audio_duration(self, audio_path: str) -> Optional[float]:
+    def get_audio_duration(self, audio_path: str) -> float | None:
         """Get duration of audio file in seconds.
 
         Delegates to utils.audio.get_audio_duration for consistent implementation.
@@ -116,7 +115,7 @@ class AudioProcessor:
         the render resolves it so the two cannot read different files."""
         return AudioMetadata.get_duration(self.resolve_replace_audio_path()) or 1.0
 
-    def convert_to_mp3(self, input_path: str) -> Optional[str]:
+    def convert_to_mp3(self, input_path: str) -> str | None:
         """Transcode an episode to MP3 at this instance's bitrate, with no
         other changes. Used by pass-through mode (#521) for non-MP3
         enclosures: the serving stack names files .mp3 and declares
@@ -173,7 +172,7 @@ class AudioProcessor:
                     pass
 
     def normalize_audio(self, input_path: str,
-                        intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> Optional[str]:
+                        intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> str | None:
         """Run a second ffmpeg pass to even out loudness across an episode
         (lift quiet passages, tame loud peaks). Returns the path of a new
         normalized file on success, or None on failure. Caller is responsible
@@ -240,8 +239,8 @@ class AudioProcessor:
                 except OSError:
                     pass
 
-    def compute_applied_cuts(self, ad_segments: List[Dict],
-                             total_duration: float) -> List[Dict]:
+    def compute_applied_cuts(self, ad_segments: list[dict],
+                             total_duration: float) -> list[dict]:
         """Compute the cuts remove_ads actually applies to the audio.
 
         Requested segments diverge from applied cuts: near-adjacent segments
@@ -351,8 +350,8 @@ class AudioProcessor:
 
         return ads
 
-    def remove_ads(self, input_path: str, ad_segments: List[Dict],
-                   output_path: str) -> Optional[List[Dict]]:
+    def remove_ads(self, input_path: str, ad_segments: list[dict],
+                   output_path: str) -> list[dict] | None:
         """Remove ad segments from audio file.
 
         Returns the applied cut list (see compute_applied_cuts) on success --
@@ -568,7 +567,7 @@ class AudioProcessor:
                 os.unlink(chapters_meta_path)
 
     def process_episode(self, input_path: str,
-                        ad_segments: List[Dict]) -> Optional[Tuple[str, List[Dict]]]:
+                        ad_segments: list[dict]) -> tuple[str, list[dict]] | None:
         """Process episode audio to remove ads.
 
         Returns (output_path, applied_cuts) on success, None on failure.

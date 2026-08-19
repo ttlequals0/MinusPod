@@ -6,10 +6,9 @@ byte-identical. defusedxml has no SubElement/tostring, so stdlib ET is used
 for building only (we never parse untrusted OPML here).
 """
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional
 
 
-def modified_feed_url(base_url: str, slug: str, key: Optional[str]) -> str:
+def modified_feed_url(base_url: str, slug: str, key: str | None) -> str:
     """MinusPod-served feed URL, carrying ?key= while feed auth is enabled.
 
     Single implementation of the keyed feed-URL shape; api.feeds._public_feed_url
@@ -19,8 +18,8 @@ def modified_feed_url(base_url: str, slug: str, key: Optional[str]) -> str:
     return f"{url}?key={key}" if key else url
 
 
-def build_opml_xml(podcasts: List[Dict], mode: str, base_url: str,
-                   feed_auth_key: Optional[str] = None) -> str:
+def build_opml_xml(podcasts: list[dict], mode: str, base_url: str,
+                   feed_auth_key: str | None = None) -> str:
     """Render feeds as an OPML 2.0 document string.
 
     mode='modified' emits MinusPod ad-free feed URLs (keyed when feed_auth_key

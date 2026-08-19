@@ -3,7 +3,6 @@ import re
 import json
 import logging
 import threading
-from typing import List, Dict, Optional
 
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
@@ -40,7 +39,7 @@ _RUN_SPLIT_RE = re.compile(r"[\s'\u2019-]+")
 _LABELER_STOPWORDS = NON_BRAND_WORDS | REASON_DESCRIPTION_WORDS
 
 
-def _brand_run_words(run: str) -> Optional[List[str]]:
+def _brand_run_words(run: str) -> list[str] | None:
     """Words of `run` with leading filler dropped, or None if it names nothing.
 
     Only INVALID_SPONSOR_CAPTURE_WORDS come off the front; trimming ad
@@ -210,7 +209,7 @@ class SponsorService:
 
     # ========== Normalization ==========
 
-    def get_normalizations(self) -> List[Dict]:
+    def get_normalizations(self) -> list[dict]:
         """Get all active normalizations."""
         self._refresh_cache_if_needed()
         return self._cache_normalizations or []
@@ -232,12 +231,12 @@ class SponsorService:
 
     # ========== Sponsors ==========
 
-    def get_sponsors(self) -> List[Dict]:
+    def get_sponsors(self) -> list[dict]:
         """Get all active sponsors."""
         self._refresh_cache_if_needed()
         return self._cache_sponsors or []
 
-    def find_sponsor_in_text(self, text: str) -> Optional[str]:
+    def find_sponsor_in_text(self, text: str) -> str | None:
         """Identify sponsor mentioned in text. Returns canonical sponsor name or None.
 
         Uses precompiled word-boundary patterns to avoid false positives from short
@@ -276,7 +275,7 @@ class SponsorService:
     # ========== Sponsor Extraction from Text ==========
 
     @staticmethod
-    def extract_sponsor_from_text(ad_text: str) -> Optional[str]:
+    def extract_sponsor_from_text(ad_text: str) -> str | None:
         """Extract sponsor name from ad text by looking for URLs and common patterns.
 
         Looks for:
@@ -315,7 +314,7 @@ class SponsorService:
         return None
 
     @staticmethod
-    def extract_sponsor_from_reason(text: str) -> Optional[str]:
+    def extract_sponsor_from_reason(text: str) -> str | None:
         """Extract a sponsor name from an LLM ad-reason string, else None.
 
         A brand is a capitalized run narrowed to the span a domain in the same
@@ -427,7 +426,7 @@ class SponsorService:
 
     # ========== CRUD Wrappers ==========
 
-    def add_sponsor(self, name: str, aliases: List[str] = None,
+    def add_sponsor(self, name: str, aliases: list[str] = None,
                     category: str = None) -> int:
         """Add a new sponsor. Returns sponsor ID."""
         sponsor_id = self.db.create_known_sponsor(name, aliases, category)

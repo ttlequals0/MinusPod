@@ -2,7 +2,8 @@
 import os
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, Callable, List
+from typing import Any
+from collections.abc import Callable
 
 from config import (
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
@@ -97,7 +98,7 @@ def _default_chapter_prompt() -> str:
     return DEFAULT_CHAPTER_PROMPT
 
 
-def _seed_env_openai_model() -> Optional[str]:
+def _seed_env_openai_model() -> str | None:
     """OPENAI_MODEL when the operator has set it; no shipped fallback."""
     return os.environ.get('OPENAI_MODEL')
 
@@ -117,17 +118,17 @@ def _payload_max_audio_download_mb() -> int:
                               floor=MAX_AUDIO_DOWNLOAD_MB_MIN, settings={})
 
 
-def _payload_segment_category_actions() -> Dict[str, str]:
+def _payload_segment_category_actions() -> dict[str, str]:
     return resolve_segment_category_actions_map(
         registry_default('segment_category_actions'))
 
 
-def _payload_community_sync_categories() -> List[str]:
+def _payload_community_sync_categories() -> list[str]:
     return resolve_community_sync_categories(
         registry_default('community_sync_categories'))
 
 
-def _payload_jit_blocked_user_agents() -> List[str]:
+def _payload_jit_blocked_user_agents() -> list[str]:
     return resolve_jit_blocked_user_agents(registry_default('jit_blocked_user_agents'))
 
 
@@ -166,24 +167,24 @@ class SettingSpec:
                     picks up later improvements to shipped prompt text. A
                     user-edited row (is_default = 0) is never touched.
     """
-    default: Optional[str] = None
-    env: Optional[str] = None
+    default: str | None = None
+    env: str | None = None
     env_blank_is_unset: bool = False
-    factory: Optional[Callable[[], str]] = None
-    reset_factory: Optional[Callable[[], str]] = None
+    factory: Callable[[], str] | None = None
+    reset_factory: Callable[[], str] | None = None
     secret: bool = False
     stage_tunable: bool = False
     env_backed: bool = False
     seeded: bool = False
     resettable: bool = True
     in_ad_reset: bool = False
-    payload_key: Optional[str] = None
+    payload_key: str | None = None
     payload_kind: str = 'str'
-    payload_factory: Optional[Callable[[], Any]] = None
+    payload_factory: Callable[[], Any] | None = None
     refresh_default: bool = False
 
 
-SETTINGS_REGISTRY: Dict[str, SettingSpec] = {
+SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # -- Prompts --
     'system_prompt': SettingSpec(
         factory=_default_system_prompt, seeded=True, in_ad_reset=True,
@@ -584,7 +585,7 @@ def _validate_registry():
 _validate_registry()
 
 
-def registry_default(key: str) -> Optional[str]:
+def registry_default(key: str) -> str | None:
     """DB-string default for a key (seed-time semantics)."""
     spec = SETTINGS_REGISTRY[key]
     if spec.env_backed:
@@ -647,7 +648,7 @@ def iter_refreshable_defaults():
 class SettingsMixin:
     """Settings management methods."""
 
-    def get_setting(self, key: str) -> Optional[str]:
+    def get_setting(self, key: str) -> str | None:
         """Get a setting value."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -673,7 +674,7 @@ class SettingsMixin:
         except (TypeError, ValueError):
             return default
 
-    def get_all_settings(self) -> Dict[str, Any]:
+    def get_all_settings(self) -> dict[str, Any]:
         """Get all settings as a dictionary."""
         conn = self.get_connection()
         cursor = conn.execute("SELECT key, value, is_default FROM settings")
@@ -740,7 +741,7 @@ class SettingsMixin:
         self.set_setting(key, value, is_default=True)
         return True
 
-    def get_secret(self, key: str) -> Optional[str]:
+    def get_secret(self, key: str) -> str | None:
         """Return a decrypted secret, or None if unset.
 
         Transparently handles legacy plaintext rows (no envelope prefix) so
@@ -791,7 +792,7 @@ class SettingsMixin:
 
     # ========== System Settings Methods (for schema versioning) ==========
 
-    def get_system_setting(self, key: str) -> Optional[str]:
+    def get_system_setting(self, key: str) -> str | None:
         """Get a system setting value."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -813,14 +814,14 @@ class SettingsMixin:
         )
         conn.commit()
 
-    def get_pricing_last_updated(self) -> Optional[str]:
+    def get_pricing_last_updated(self) -> str | None:
         """Get the most recent updated_at from model_pricing table."""
         conn = self.get_connection()
         cursor = conn.execute("SELECT MAX(updated_at) as last_updated FROM model_pricing")
         row = cursor.fetchone()
         return row['last_updated'] if row else None
 
-    def get_model_pricing(self, source: str = None) -> List[Dict]:
+    def get_model_pricing(self, source: str = None) -> list[dict]:
         """Get model pricing entries, optionally filtered by source."""
         conn = self.get_connection()
         if source:
@@ -879,7 +880,7 @@ class SettingsMixin:
         if inserted > 0:
             logger.info(f"Seeded {inserted} default model pricing entries")
 
-    def upsert_fetched_pricing(self, models: List[Dict], source: str):
+    def upsert_fetched_pricing(self, models: list[dict], source: str):
         """Bulk upsert pricing fetched from an external source. Rejects negative rows (#237).
 
         Each row may carry a '_source' key (set by fetch_pricing_chain to record

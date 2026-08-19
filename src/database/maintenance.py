@@ -4,7 +4,6 @@ import logging
 import re
 import time
 from datetime import timedelta
-from typing import Tuple
 
 from utils.text import extract_text_in_range
 from utils.time import ISO_FORMAT, utc_now
@@ -61,7 +60,7 @@ class MaintenanceMixin:
             return None
         return days
 
-    def _cleanup_originals_only(self, conn, retention_days: int, storage) -> Tuple[int, float]:
+    def _cleanup_originals_only(self, conn, retention_days: int, storage) -> tuple[int, float]:
         """Drop the retained original for episodes past their original
         retention window but still within the main processed retention.
 
@@ -129,7 +128,7 @@ class MaintenanceMixin:
             )
         return dropped, freed_bytes / (1024 * 1024)
 
-    def cleanup_old_episodes(self, force_all: bool = False, storage=None) -> Tuple[int, float]:
+    def cleanup_old_episodes(self, force_all: bool = False, storage=None) -> tuple[int, float]:
         """Reset episodes with files older than retention_days back to 'discovered'.
 
         Deletes audio files and episode_details. Never deletes episode rows.

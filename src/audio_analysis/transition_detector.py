@@ -7,7 +7,6 @@ candidate ad regions. Reuses volume analyzer frames - zero extra I/O cost.
 
 import logging
 from dataclasses import dataclass
-from typing import List
 
 from .base import AudioSegmentSignal, LoudnessFrame, SignalType
 
@@ -59,7 +58,7 @@ class TransitionDetector:
         self.min_ad_duration = min_ad_duration
         self.max_ad_duration = max_ad_duration
 
-    def detect_transitions(self, frames: List[LoudnessFrame]) -> List[TransitionPoint]:
+    def detect_transitions(self, frames: list[LoudnessFrame]) -> list[TransitionPoint]:
         """Find abrupt loudness transitions between adjacent frames."""
         if len(frames) < 2:
             return []
@@ -90,8 +89,8 @@ class TransitionDetector:
         return transitions
 
     def find_transition_pairs(
-        self, transitions: List[TransitionPoint]
-    ) -> List[TransitionPair]:
+        self, transitions: list[TransitionPoint]
+    ) -> list[TransitionPair]:
         """
         Pair transitions into candidate ad regions.
 
@@ -152,7 +151,7 @@ class TransitionDetector:
         logger.debug(f"Paired {len(pairs)} transition pairs")
         return pairs
 
-    def pairs_to_signals(self, pairs: List[TransitionPair]) -> List[AudioSegmentSignal]:
+    def pairs_to_signals(self, pairs: list[TransitionPair]) -> list[AudioSegmentSignal]:
         """Convert transition pairs to AudioSegmentSignal objects."""
         signals = []
         for pair in pairs:
@@ -174,7 +173,7 @@ class TransitionDetector:
             ))
         return signals
 
-    def detect_and_pair(self, frames: List[LoudnessFrame]) -> List[AudioSegmentSignal]:
+    def detect_and_pair(self, frames: list[LoudnessFrame]) -> list[AudioSegmentSignal]:
         """Full pipeline: detect transitions, pair them, return signals."""
         transitions = self.detect_transitions(frames)
         pairs = self.find_transition_pairs(transitions)

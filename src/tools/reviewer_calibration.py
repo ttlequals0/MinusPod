@@ -20,7 +20,6 @@ import json
 import logging
 import sys
 import threading
-from typing import Dict, List, Optional
 
 # Defensive sys.path bootstrap so direct `python path/to/script.py` invocation
 # works as well as `python -m tools.X`.
@@ -45,7 +44,7 @@ _EPISODE_META = {
 }
 
 
-def _segments(*lines: tuple) -> List[Dict]:
+def _segments(*lines: tuple) -> list[dict]:
     return [{'start': s, 'end': e, 'text': t} for s, e, t in lines]
 
 
@@ -310,7 +309,7 @@ def _resolve_calibration_model(db) -> str:
     )
 
 
-def run_calibration(llm_client=None, model: Optional[str] = None) -> Dict:
+def run_calibration(llm_client=None, model: str | None = None) -> dict:
     """Run CALIBRATION_CORPUS through the production AdReviewer stack.
 
     Returns a dict with per-case verdicts plus aggregate agreement and
@@ -367,8 +366,8 @@ def run_calibration(llm_client=None, model: Optional[str] = None) -> Dict:
     }
 
 
-def maybe_trigger_reviewer_calibration(db, old_value: Optional[str],
-                                       new_value: Optional[str]):
+def maybe_trigger_reviewer_calibration(db, old_value: str | None,
+                                       new_value: str | None):
     """Fire run_calibration() in a daemon thread when the reviewer model
     setting actually changed and reviewer_calibration_on_change is enabled.
 
@@ -401,7 +400,7 @@ def maybe_trigger_reviewer_calibration(db, old_value: Optional[str],
     return thread
 
 
-def _print_table(cases: List[Dict]) -> None:
+def _print_table(cases: list[dict]) -> None:
     header = ('case', 'expected', 'verdict', 'agree')
     rows = [(c['id'], c['expected'], c['verdict'], 'yes' if c['agree'] else 'no')
             for c in cases]
@@ -417,7 +416,7 @@ def _print_table(cases: List[Dict]) -> None:
         print(_row(row))
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     result = run_calibration()
     _print_table(result['cases'])
     print()

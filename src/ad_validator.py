@@ -1,7 +1,7 @@
 """Post-detection validation for ad markers."""
 import re
 import logging
-from typing import ClassVar, Dict, List, Optional
+from typing import ClassVar
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -39,12 +39,12 @@ class Decision(Enum):
 @dataclass
 class ValidationResult:
     """Results from ad validation."""
-    ads: List[Dict]
+    ads: list[dict]
     accepted: int = 0
     reviewed: int = 0
     rejected: int = 0
-    warnings: List[str] = field(default_factory=list)
-    corrections: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    corrections: list[str] = field(default_factory=list)
 
 
 class AdValidator:
@@ -85,7 +85,7 @@ class AdValidator:
         re.IGNORECASE
     )
 
-    VAGUE_REASONS: ClassVar[List[str]] = [
+    VAGUE_REASONS: ClassVar[list[str]] = [
         'advertisement', 'ad detected', 'sponsor', 'promotional content',
         'possible ad', 'likely ad', 'advertisement segment'
     ]
@@ -114,10 +114,10 @@ class AdValidator:
     CORROBORATION_MIN_VOLUME_STEP_DB = 12.0
     TAIL_EOF_WINDOW_S = 5.0  # marker end this close to EOF counts as tail
 
-    def __init__(self, episode_duration: float, segments: List[Dict] = None,
+    def __init__(self, episode_duration: float, segments: list[dict] = None,
                  episode_description: str = None,
-                 false_positive_corrections: List[Dict] = None,
-                 confirmed_corrections: List[Dict] = None,
+                 false_positive_corrections: list[dict] = None,
+                 confirmed_corrections: list[dict] = None,
                  min_cut_confidence: float = 0.80,
                  positional_prior=None,
                  max_ad_duration_override: float = None,
@@ -232,7 +232,7 @@ class AdValidator:
 
         return sponsors
 
-    def _registry_confirms(self, ad: Dict) -> bool:
+    def _registry_confirms(self, ad: dict) -> bool:
         """Whether the ad's own audio names sponsors from the registry.
 
         The transcript is the evidence, not the model's reason. Two registry
@@ -263,7 +263,7 @@ class AdValidator:
             f"treating as confirmed")
         return True
 
-    def _is_sponsor_confirmed(self, ad: Dict) -> bool:
+    def _is_sponsor_confirmed(self, ad: dict) -> bool:
         """Check if the ad's sponsor is confirmed in the episode description,
         or failing that, named in the ad's own audio (see _registry_confirms).
 
@@ -294,7 +294,7 @@ class AdValidator:
 
         return self._registry_confirms(ad)
 
-    def _overlaps_corrections(self, corrections: List[Dict], start: float, end: float,
+    def _overlaps_corrections(self, corrections: list[dict], start: float, end: float,
                                overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> bool:
         """Check if a time range overlaps with any correction in the given list.
 
@@ -335,7 +335,7 @@ class AdValidator:
         return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
 
     def _matching_confirmed(self, start: float, end: float,
-                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> Optional[Dict]:
+                            overlap_threshold: float = CORRECTION_MATCH_MIN_COVERAGE) -> dict | None:
         """Return a user-confirmed correction covering >= threshold of the
         range, or None. Mirrors _overlaps_confirmed but yields the match so
         the caller can honor a trimmed approval's confirmed_span. A trimmed
@@ -353,9 +353,9 @@ class AdValidator:
                     plain = corr
         return plain
 
-    def validate(self, ads: List[Dict],
-                 audio_analysis: Optional[Dict] = None,
-                 actions_map: Optional[Dict[str, str]] = None) -> ValidationResult:
+    def validate(self, ads: list[dict],
+                 audio_analysis: dict | None = None,
+                 actions_map: dict[str, str] | None = None) -> ValidationResult:
         """Validate all ads and return results.
 
         Args:
@@ -424,7 +424,7 @@ class AdValidator:
 
         return result
 
-    def _validate_ad(self, ad: Dict) -> Dict:
+    def _validate_ad(self, ad: dict) -> dict:
         """Validate a single ad marker.
 
         Args:
@@ -589,8 +589,8 @@ class AdValidator:
             return min(1.0, confidence + 0.05)
         return confidence
 
-    def _check_reason_quality(self, ad: Dict, confidence: float,
-                               flags: List[str]) -> float:
+    def _check_reason_quality(self, ad: dict, confidence: float,
+                               flags: list[str]) -> float:
         """Adjust confidence based on reason quality.
 
         Args:
@@ -620,8 +620,8 @@ class AdValidator:
 
         return confidence
 
-    def _verify_in_transcript(self, ad: Dict, confidence: float,
-                               flags: List[str]) -> float:
+    def _verify_in_transcript(self, ad: dict, confidence: float,
+                               flags: list[str]) -> float:
         """Verify ad content appears in transcript.
 
         For ``detection_stage == 'vad_gap'`` markers without sponsor or
@@ -690,7 +690,7 @@ class AdValidator:
 
         return confidence
 
-    def _splice_events(self) -> List[Dict]:
+    def _splice_events(self) -> list[dict]:
         """Events from the stored splice_evidence payload, [] when absent."""
         payload = (self._audio_analysis or {}).get('splice_evidence') or {}
         return payload.get('events') or []
@@ -701,7 +701,7 @@ class AdValidator:
         payload = (self._audio_analysis or {}).get('splice_evidence') or {}
         return payload.get('calibration', {}).get('status') == 'calibrated'
 
-    def _audio_corroboration_source(self, ad: Dict) -> Optional[str]:
+    def _audio_corroboration_source(self, ad: dict) -> str | None:
         """Return the strongest stored-audio evidence source near the ad's
         boundaries, or None.
 
@@ -785,7 +785,7 @@ class AdValidator:
         """
         return extract_text_from_segments(self.segments, start, end)
 
-    def _make_decision(self, confidence: float, flags: List[str],
+    def _make_decision(self, confidence: float, flags: list[str],
                         duration: float = 0.0) -> Decision:
         """Decide ACCEPT/REVIEW/REJECT based on confidence and flags.
 
@@ -820,8 +820,8 @@ class AdValidator:
         else:
             return Decision.REVIEW
 
-    def _apply_hold_rules(self, ad: Dict, decision: Decision, confidence: float,
-                          flags: List[str], duration: float) -> Decision:
+    def _apply_hold_rules(self, ad: dict, decision: Decision, confidence: float,
+                          flags: list[str], duration: float) -> Decision:
         """Apply per-feed hold rules after the base decision.
 
         A held ad gets decision=REVIEW with held_for_review=True so the gate
@@ -909,7 +909,7 @@ class AdValidator:
 
         return decision
 
-    def _mark_held(self, ad: Dict, flags: List[str], reason: str) -> None:
+    def _mark_held(self, ad: dict, flags: list[str], reason: str) -> None:
         """Set held_for_review state on the ad dict and append a flag entry."""
         ad['held_for_review'] = True
         ad['hold_reason'] = reason
@@ -918,8 +918,8 @@ class AdValidator:
             f"Holding ad {ad['start']:.1f}s-{ad['end']:.1f}s for review: {reason}"
         )
 
-    def _clamp_boundaries(self, ads: List[Dict],
-                          result: ValidationResult) -> List[Dict]:
+    def _clamp_boundaries(self, ads: list[dict],
+                          result: ValidationResult) -> list[dict]:
         """Clamp ad boundaries to valid range.
 
         Args:
@@ -952,9 +952,9 @@ class AdValidator:
                 ad['merged_protected_end'] = self.episode_duration
         return ads
 
-    def _extend_trailing_ad(self, ads: List[Dict],
+    def _extend_trailing_ad(self, ads: list[dict],
                             result: ValidationResult,
-                            max_gap: float = 30.0) -> List[Dict]:
+                            max_gap: float = 30.0) -> list[dict]:
         """Extend the last ad to the end of episode if close enough.
 
         DAI post-roll ads often end slightly before the actual episode end.
@@ -1005,8 +1005,8 @@ class AdValidator:
                     return True
         return False
 
-    def _merge_close_ads(self, ads: List[Dict], result: ValidationResult,
-                         actions_map: Optional[Dict[str, str]] = None) -> List[Dict]:
+    def _merge_close_ads(self, ads: list[dict], result: ValidationResult,
+                         actions_map: dict[str, str] | None = None) -> list[dict]:
         """Merge ads with tiny gaps.
 
         Args:

@@ -3,10 +3,10 @@ import json
 import re
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any, Optional
+from typing import Any
 
 
-def parse_retry_after(value: Optional[str], *, max_seconds: float = 300.0) -> Optional[float]:
+def parse_retry_after(value: str | None, *, max_seconds: float = 300.0) -> float | None:
     """Parse an HTTP `Retry-After` header into seconds-to-wait.
 
     Accepts either a delta-seconds string (e.g. ``"7"``) or an RFC 7231
@@ -51,7 +51,7 @@ _GROQ_USED_RE = re.compile(r"used\s+(\d[\d,]*)", re.IGNORECASE)
 _GROQ_REQUESTED_RE = re.compile(r"requested\s+~?(\d[\d,]*)", re.IGNORECASE)
 
 
-def parse_groq_rate_limit_body(body: Any) -> Optional[dict]:
+def parse_groq_rate_limit_body(body: Any) -> dict | None:
     """Extract limit/used/requested from a Groq-style 429 body.
 
     Accepts a dict (already-parsed JSON), a string (raw JSON or plain text),
@@ -123,7 +123,7 @@ _GOOGLE_RETRY_IN_RE = re.compile(r"retry in\s+(\d+(?:\.\d+)?)\s*s", re.IGNORECAS
 _DURATION_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*s$", re.IGNORECASE)
 
 
-def _coerce_google_error(body: Any) -> Optional[dict]:
+def _coerce_google_error(body: Any) -> dict | None:
     """Normalize a Google 429 body to its inner ``error`` dict (or the payload).
 
     Accepts a dict, a list wrapping it, or a JSON string. Plain non-JSON strings
@@ -158,7 +158,7 @@ def _coerce_google_error(body: Any) -> Optional[dict]:
     return err
 
 
-def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> Optional[float]:
+def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> float | None:
     """Seconds-to-wait from a Google 429 body, or None.
 
     Prefers the structured RetryInfo detail (``retryDelay: "4s"``); falls back to a
@@ -187,7 +187,7 @@ def parse_google_retry_delay(body: Any, *, max_seconds: float = 300.0) -> Option
     return min(max(seconds, 0.0), max_seconds)
 
 
-def parse_google_daily_quota(body: Any) -> Optional[dict]:
+def parse_google_daily_quota(body: Any) -> dict | None:
     """Detect a Google free-tier DAILY quota exhaustion (cannot recover today).
 
     Returns ``{limit, model, quota_id}`` when the 429 is RESOURCE_EXHAUSTED with a

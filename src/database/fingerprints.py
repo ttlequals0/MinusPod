@@ -1,6 +1,5 @@
 """Audio fingerprint mixin for MinusPod database."""
 import logging
-from typing import Optional, Dict, List
 
 from database.patterns import _row_with_category
 
@@ -10,7 +9,7 @@ logger = logging.getLogger(__name__)
 class FingerprintMixin:
     """Audio fingerprint management methods."""
 
-    def get_audio_fingerprint(self, pattern_id: int) -> Optional[Dict]:
+    def get_audio_fingerprint(self, pattern_id: int) -> dict | None:
         """Get audio fingerprint for a pattern."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -19,7 +18,7 @@ class FingerprintMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_all_fingerprints_with_sponsors(self) -> List[Dict]:
+    def get_all_fingerprints_with_sponsors(self) -> list[dict]:
         """Get all audio fingerprints with sponsor names and segment category
         (#565) from ad_patterns (single JOIN). category defaults NULL ->
         'sponsor' via the shared accessor, so a re-matched fingerprint

@@ -17,7 +17,6 @@ import logging
 import os
 import threading
 import time
-from typing import Optional, Tuple
 
 logger = logging.getLogger('podcast.processing_timeouts')
 
@@ -35,7 +34,7 @@ SOFT_MIN = 300       # 5 min floor
 HARD_MAX = 86400     # 24 h ceiling
 
 _cache_lock = threading.Lock()
-_cache: dict[str, Tuple[float, int]] = {}
+_cache: dict[str, tuple[float, int]] = {}
 
 
 def _resolve(key: str, env_name: str, default: int) -> int:
@@ -45,7 +44,7 @@ def _resolve(key: str, env_name: str, default: int) -> int:
         if cached and now - cached[0] < _CACHE_TTL_SECONDS:
             return cached[1]
 
-    value: Optional[int] = None
+    value: int | None = None
     try:
         # Read the singleton straight from the `database` package rather than
         # via `api.get_database` (which just returns this same singleton).
@@ -91,7 +90,7 @@ def invalidate_cache() -> None:
         _cache.clear()
 
 
-def validate(soft: int, hard: int) -> Optional[str]:
+def validate(soft: int, hard: int) -> str | None:
     """Return an error string if invalid, else None."""
     # JSON booleans pass isinstance(int) -- reject them explicitly.
     if type(soft) is not int or type(hard) is not int:

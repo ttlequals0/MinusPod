@@ -6,7 +6,8 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 from flask import request, send_file
 
@@ -98,13 +99,13 @@ class SettingEntry:
     is_default: bool
 
 
-def _settings_view(raw: Mapping[str, Any]) -> Dict[str, SettingEntry]:
+def _settings_view(raw: Mapping[str, Any]) -> dict[str, SettingEntry]:
     """Wrap the raw get_all_settings() dict into a SettingEntry mapping.
 
     Skips entries that lack the expected shape so a malformed row can't
     crash the GET /settings endpoint.
     """
-    view: Dict[str, SettingEntry] = {}
+    view: dict[str, SettingEntry] = {}
     for key, info in raw.items():
         if not isinstance(info, Mapping):
             continue
@@ -2586,7 +2587,7 @@ def update_reviewer_settings():
 
 # ========== Community-pattern sync settings ==========
 
-def _community_category_breakdown(db) -> Dict[str, int]:
+def _community_category_breakdown(db) -> dict[str, int]:
     """Per-category counts of active community patterns, resolved the same way
     community_sync filters, so an unset category counts as sponsor there too."""
     breakdown = {cat: 0 for cat in SEGMENT_CATEGORIES}

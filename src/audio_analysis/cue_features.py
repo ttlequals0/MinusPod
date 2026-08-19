@@ -24,7 +24,6 @@ import json
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 from scipy.fft import dct, rfft
@@ -208,7 +207,7 @@ def compute_mfcc(samples: np.ndarray, sample_rate: int = SAMPLE_RATE_HZ,
 
 def decode_pcm_window(audio_path: Path | str,
                       start_seconds: float = 0.0,
-                      end_seconds: Optional[float] = None,
+                      end_seconds: float | None = None,
                       sample_rate: int = SAMPLE_RATE_HZ) -> np.ndarray:
     """ffmpeg-decode a window of audio to mono float32 in [-1, 1].
 
@@ -275,7 +274,7 @@ def deserialize_mfcc(blob: bytes, n_coeffs: int) -> np.ndarray:
     return arr.reshape(-1, n_coeffs).astype(np.float32)
 
 
-def _run_ffmpeg_pipe(cmd, input_bytes: Optional[bytes] = None,
+def _run_ffmpeg_pipe(cmd, input_bytes: bytes | None = None,
                      op_desc: str = 'ffmpeg', timeout: float = FFT_TIMEOUT_S) -> bytes:
     """Run an ffmpeg/ffprobe subprocess and return its stdout bytes.
 

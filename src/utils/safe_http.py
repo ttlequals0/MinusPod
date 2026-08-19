@@ -28,7 +28,7 @@ import enum
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Protocol
 from urllib.parse import urlparse
 
 import requests
@@ -94,7 +94,7 @@ def read_response_capped(
     return bytes(buf)
 
 
-def _declared_length(response: _ChunkedResponse) -> Optional[int]:
+def _declared_length(response: _ChunkedResponse) -> int | None:
     """Declared Content-Length, or None when absent, malformed, or the body was
     content-encoded: iter_content decodes gzip, so the header counts encoded bytes."""
     headers = response.headers
@@ -176,7 +176,7 @@ def safe_get(
     max_redirects: int = HTTP_MAX_REDIRECTS_API,
     timeout: float = HTTP_TIMEOUT_FETCH,
     stream: bool = False,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
 ) -> requests.Response:
     """GET ``url`` via a session that revalidates every redirect hop.
 
@@ -200,7 +200,7 @@ def get_capped(
     *,
     max_redirects: int = HTTP_MAX_REDIRECTS_API,
     timeout: float = HTTP_TIMEOUT_FETCH,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
 ) -> bytes:
     """GET ``url`` and return the body, enforcing a hard byte cap on the
     streamed response so a small compressed payload cannot balloon in memory.
@@ -222,7 +222,7 @@ def safe_head(
     *,
     max_redirects: int = HTTP_MAX_REDIRECTS_API,
     timeout: float = HTTP_TIMEOUT_API,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
 ) -> requests.Response:
     """HEAD ``url`` via a session that revalidates every redirect hop."""
     _validate_for_tier(url, trust)
@@ -242,7 +242,7 @@ def safe_post(
     data=None,
     json=None,
     files=None,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
     stream: bool = False,
 ) -> requests.Response:
     """POST ``url`` via a session that revalidates every redirect hop.

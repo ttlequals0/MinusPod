@@ -28,7 +28,6 @@ import re
 import urllib.parse
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
 
 from utils.community_tags import (
     BUNDLE_FORMAT,
@@ -59,7 +58,7 @@ PR_URL_TEMPLATE = (
 class ExportError(Exception):
     """Raised when a pattern fails the export pipeline."""
 
-    def __init__(self, reasons: List[str]):
+    def __init__(self, reasons: list[str]):
         super().__init__('; '.join(reasons))
         self.reasons = reasons
 
@@ -95,7 +94,7 @@ def strip_pii(text: str) -> str:
     return _strip_phones(_strip_emails(text))
 
 
-def normalize_aliases(value) -> List[str]:
+def normalize_aliases(value) -> list[str]:
     """Accept aliases as either a list (CSV-derived seed) or a JSON string
     (DB rows). Return a plain list of non-empty strings."""
     if isinstance(value, list):
@@ -110,7 +109,7 @@ def normalize_aliases(value) -> List[str]:
     return []
 
 
-def brand_match_candidates(sponsor_row: Optional[Dict]) -> set:
+def brand_match_candidates(sponsor_row: dict | None) -> set:
     """Lowercased sponsor name and aliases plus their whitespace-stripped
     variants, for brand matching. Includes the stripped forms so a sponsor
     stored as 'statefarm' still matches a 'State Farm' mention and vice versa.
@@ -135,7 +134,7 @@ def brand_match_candidates(sponsor_row: Optional[Dict]) -> set:
     return candidates
 
 
-def count_brand_occurrences(text: str, sponsor_row: Optional[Dict]) -> int:
+def count_brand_occurrences(text: str, sponsor_row: dict | None) -> int:
     """Maximum case-insensitive substring count of the sponsor's name and any
     of its aliases against `text`. Also counts whitespace-stripped variants
     so a sponsor stored as 'statefarm' still scores against a 'State Farm'
@@ -166,7 +165,7 @@ def get_sponsor_row_or_stub(db, sponsor):
     return {'name': sponsor, 'aliases': '[]'}
 
 
-def declared_sponsor_names_lower(sponsor_row: Optional[Dict]) -> set:
+def declared_sponsor_names_lower(sponsor_row: dict | None) -> set:
     """Return the lowercased name + aliases set for a known_sponsors row.
 
     Empty set when the row is missing or has no name; callers can pass this
@@ -185,10 +184,10 @@ def declared_sponsor_names_lower(sponsor_row: Optional[Dict]) -> set:
 def find_foreign_sponsors(
     text: str,
     declared_names_lower: set,
-    sponsors: List[Dict],
+    sponsors: list[dict],
     *,
     require_active: bool = False,
-) -> List[str]:
+) -> list[str]:
     """Return canonical names of sponsors whose name or any alias appears
     in `text` on a word boundary, excluding any row whose own name/alias
     matches `declared_names_lower`. Lookups are case-insensitive.
@@ -202,7 +201,7 @@ def find_foreign_sponsors(
     if not text:
         return []
     text_l = text.lower()
-    foreign: List[str] = []
+    foreign: list[str] = []
     for s in sponsors:
         if require_active and not s.get('is_active'):
             continue
@@ -220,9 +219,9 @@ def find_foreign_sponsors(
     return foreign
 
 
-def _quality_gates(pattern: Dict, sponsors: List[Dict], override: Optional[Dict] = None) -> List[str]:
+def _quality_gates(pattern: dict, sponsors: list[dict], override: dict | None = None) -> list[str]:
     """Run quality gates. Returns a list of failure reasons (empty = pass)."""
-    reasons: List[str] = []
+    reasons: list[str] = []
     text = pattern.get('text_template') or ''
 
     if len(text) < MIN_TEXT_LEN:
@@ -286,9 +285,9 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict], override: Optional[Dict]
     return reasons
 
 
-def _validate_tags(pattern: Dict, sponsor_row: Dict, override: Optional[Dict] = None) -> List[str]:
+def _validate_tags(pattern: dict, sponsor_row: dict, override: dict | None = None) -> list[str]:
     """Reject any tag not in VALID_TAGS."""
-    bad: List[str] = []
+    bad: list[str] = []
     vt = valid_tags()
     if override and override.get('sponsor_tags') is not None:
         # Refuse to coerce a non-list (`list("universal")` would explode
@@ -308,7 +307,7 @@ def _validate_tags(pattern: Dict, sponsor_row: Dict, override: Optional[Dict] = 
     return [f'unknown tag: {t}' for t in bad]
 
 
-def _classify_sponsor(sponsor_name: str, sponsors: List[Dict]) -> str:
+def _classify_sponsor(sponsor_name: str, sponsors: list[dict]) -> str:
     """Classify how the sponsor maps to the seed list: exact|alias|fuzzy|unknown."""
     if not sponsor_name:
         return 'unknown'
@@ -331,7 +330,7 @@ def _classify_sponsor(sponsor_name: str, sponsors: List[Dict]) -> str:
     return 'unknown'
 
 
-def _safe_parse_variants(value) -> List[str]:
+def _safe_parse_variants(value) -> list[str]:
     """Decode the JSON-encoded intro/outro_variants column into a list[str].
 
     Older code paths in `text_pattern_matcher.py` pre-encoded the list with
@@ -358,7 +357,7 @@ def _safe_parse_variants(value) -> List[str]:
     return [v for v in parsed if isinstance(v, str)]
 
 
-def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
+def _strip_metadata(pattern: dict, sponsor_row: dict) -> dict:
     """Build the export payload, omitting fields the plan lists as stripped."""
     intro_variants = _safe_parse_variants(pattern.get('intro_variants'))
     outro_variants = _safe_parse_variants(pattern.get('outro_variants'))
@@ -402,10 +401,10 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
 
 
 def build_export_payload(
-    pattern: Dict,
-    sponsors: List[Dict],
-    override: Optional[Dict] = None,
-) -> Dict:
+    pattern: dict,
+    sponsors: list[dict],
+    override: dict | None = None,
+) -> dict:
     """Run the full pipeline and return the JSON payload + sponsor classification."""
     sponsor_id = pattern.get('sponsor_id')
     sponsor_row = next((s for s in sponsors if s['id'] == sponsor_id), None)
@@ -446,7 +445,7 @@ def build_export_payload(
     return payload
 
 
-def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
+def build_pr_url(payload: dict) -> tuple[str, str, bool]:
     """Build the prefilled GitHub PR URL for this payload.
 
     Returns (url, filename, too_large). When `too_large` is True the URL is
@@ -466,7 +465,7 @@ def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
     return url, filename, too_large
 
 
-def _sponsor_name_for(pattern: Dict, sponsors: List[Dict]) -> Optional[str]:
+def _sponsor_name_for(pattern: dict, sponsors: list[dict]) -> str | None:
     sponsor_id = pattern.get('sponsor_id')
     if sponsor_id is None:
         return None
@@ -475,10 +474,10 @@ def _sponsor_name_for(pattern: Dict, sponsors: List[Dict]) -> Optional[str]:
 
 
 def build_bundle(
-    pattern_ids: List[int],
+    pattern_ids: list[int],
     db,
-    overrides: Optional[Dict[int, Dict]] = None,
-) -> Tuple[Dict, List[Dict]]:
+    overrides: dict[int, dict] | None = None,
+) -> tuple[dict, list[dict]]:
     """Run the export pipeline on each id and produce one bundle JSON.
 
     `overrides` maps pattern id -> partial field dict forwarded to
@@ -491,8 +490,8 @@ def build_bundle(
     """
     sponsors = db.get_known_sponsors(active_only=False)
     patterns_by_id = db.get_ad_patterns_by_ids(pattern_ids)
-    ready: List[Dict] = []
-    rejected: List[Dict] = []
+    ready: list[dict] = []
+    rejected: list[dict] = []
     for pid in pattern_ids:
         pattern = patterns_by_id.get(pid)
         if not pattern:
@@ -527,7 +526,7 @@ def build_bundle(
     return bundle, rejected
 
 
-def run_export_pipeline(pattern_id: int, db) -> Dict:
+def run_export_pipeline(pattern_id: int, db) -> dict:
     """End-to-end: load pattern + sponsors, run pipeline, return result dict.
 
     Result dict shape:

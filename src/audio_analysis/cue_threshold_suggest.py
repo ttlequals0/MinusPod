@@ -7,7 +7,6 @@ no IO, unit-testable in isolation.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
 
 from config import (
     AUDIO_CUE_SUGGEST_MIN_GAP,
@@ -20,9 +19,9 @@ from config import (
 
 
 def _unsupervised_suggest(
-    occurrence_scores: List[float],
+    occurrence_scores: list[float],
     effect_floor: float,
-) -> Dict:
+) -> dict:
     """Propose a global match threshold from a list of per-occurrence scores.
 
     Returns a dict; on a clean bimodal distribution it carries a numeric
@@ -103,10 +102,10 @@ def _unsupervised_suggest(
 
 
 def suggest_cue_threshold(
-    occurrence_scores: List[float],
+    occurrence_scores: list[float],
     effect_floor: float = AUDIO_CUE_EFFECT_FLOOR,
-    labeled_scores: Optional[List[Tuple[float, str]]] = None,
-) -> Dict:
+    labeled_scores: list[tuple[float, str]] | None = None,
+) -> dict:
     """Propose a global match threshold; verdict labels sharpen it when present.
 
     Rejected verdicts are known false positives above the current threshold,

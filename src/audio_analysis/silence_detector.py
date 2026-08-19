@@ -9,7 +9,6 @@ import logging
 import os
 import re
 import subprocess
-from typing import Dict, List, Optional
 
 from utils.audio import get_audio_duration
 from utils.ffmpeg_run import ffmpeg_timeout, decode_stderr
@@ -30,7 +29,7 @@ class SilenceDetector:
         self.noise_db = noise_db
         self.min_silence_s = min_silence_s
 
-    def detect(self, audio_path: str) -> List[Dict]:
+    def detect(self, audio_path: str) -> list[dict]:
         """Return silence spans for audio_path, empty list on any failure.
 
         Each span is {'start': float, 'end': float, 'duration': float},
@@ -76,10 +75,10 @@ class SilenceDetector:
         )
         return spans
 
-    def _parse(self, stderr_text: str, duration: float) -> List[Dict]:
+    def _parse(self, stderr_text: str, duration: float) -> list[dict]:
         """Parse silencedetect stderr lines into a sorted list of spans."""
-        pending_start: Optional[float] = None
-        spans: List[Dict] = []
+        pending_start: float | None = None
+        spans: list[dict] = []
 
         for line in stderr_text.split('\n'):
             m_end = _END_RE.search(line)

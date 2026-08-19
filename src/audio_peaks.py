@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Tuple
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class PeaksError(RuntimeError):
 def compute_peaks(audio_path: Path | str,
                   start_seconds: float = 0.0,
                   end_seconds: float | None = None,
-                  resolution_ms: int = 50) -> Tuple[List[float], int]:
+                  resolution_ms: int = 50) -> tuple[list[float], int]:
     """Return ``(peaks, effective_resolution_ms)`` for the window.
 
     Each peak is in [0, 1] and represents one ``effective_resolution_ms``

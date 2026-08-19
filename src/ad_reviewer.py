@@ -5,7 +5,8 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Literal, Optional, Tuple
+from typing import Literal
+from collections.abc import Callable
 
 from config import (
     resolve_stage_tunables,
@@ -128,7 +129,7 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
 )
 
 
-def reasoning_affirms_ad(reasoning: Optional[str]) -> bool:
+def reasoning_affirms_ad(reasoning: str | None) -> bool:
     """True when reviewer reasoning asserts the candidate span is an ad."""
     if not reasoning:
         return False
@@ -136,7 +137,7 @@ def reasoning_affirms_ad(reasoning: Optional[str]) -> bool:
     return any(r.search(lowered) for r in _AFFIRMATION_RES)
 
 
-def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
+def reasoning_contradicts_cut(reasoning: str | None) -> bool:
     """True when reviewer reasoning asserts the span is not an ad.
 
     An affirmation wins only when the prose also describes a boundary trim:
@@ -153,10 +154,10 @@ def reasoning_contradicts_cut(reasoning: Optional[str]) -> bool:
     return any(r.search(lowered) for r in _CONTRADICTION_RES)
 
 
-def _adjusted_ad_copy(ad: Dict, start: float, end: float,
+def _adjusted_ad_copy(ad: dict, start: float, end: float,
                       original_start: float, original_end: float,
-                      reasoning: Optional[str], confidence: Optional[float],
-                      model: Optional[str]) -> Dict:
+                      reasoning: str | None, confidence: float | None,
+                      model: str | None) -> dict:
     """Copy of ``ad`` with adjusted bounds and the reviewer bookkeeping
     fields every adjust application must stamp. Single seam so the two
     adjust paths (boundary-delta adjust, affirmed-confirm trim recovery)
@@ -173,8 +174,8 @@ def _adjusted_ad_copy(ad: Dict, start: float, end: float,
     return updated
 
 
-def is_contradiction_hold(verdict: str, reasoning: Optional[str],
-                          structured_is_ad: Optional[bool] = None) -> bool:
+def is_contradiction_hold(verdict: str, reasoning: str | None,
+                          structured_is_ad: bool | None = None) -> bool:
     """Single hold criterion shared by the reviewer pool split and both
     pass-1/pass-2 apply paths. Pure: no side effects. Structured is_ad=true
     overrides the prose heuristics; trim-bounds recovery remains open."""
@@ -185,8 +186,8 @@ def is_contradiction_hold(verdict: str, reasoning: Optional[str],
     return reasoning_contradicts_cut(reasoning)
 
 
-def log_contradiction_event(verdict: "ReviewVerdict", *, model: Optional[str],
-                            slug: Optional[str], episode_id: Optional[str]) -> None:
+def log_contradiction_event(verdict: "ReviewVerdict", *, model: str | None,
+                            slug: str | None, episode_id: str | None) -> None:
     """Emit the contradiction-guard telemetry line for ``verdict`` exactly
     once; a dedup flag on the instance no-ops repeat calls from the 2-3
     downstream sites that share the same verdict object."""
@@ -265,12 +266,12 @@ _PROSE_START_FIGURE_RE = re.compile(
 
 
 def _warn_prose_boundary_mismatch(
-    reasoning: Optional[str],
+    reasoning: str | None,
     start: float,
     end: float,
     *,
-    slug: Optional[str],
-    episode_id: Optional[str],
+    slug: str | None,
+    episode_id: str | None,
 ) -> None:
     """Log when adjust reasoning names a boundary figure far from the emitted
     number (the-tim-dillon-show a55cb5b8216d: reasoning named the ad's final
@@ -322,14 +323,14 @@ class ReviewVerdict:
     verdict: Verdict
     original_start: float
     original_end: float
-    adjusted_start: Optional[float] = None
-    adjusted_end: Optional[float] = None
-    reasoning: Optional[str] = None
-    confidence: Optional[float] = None
+    adjusted_start: float | None = None
+    adjusted_end: float | None = None
+    reasoning: str | None = None
+    confidence: float | None = None
     model_used: str = ""
     latency_ms: int = 0
     success: bool = True
-    structured_is_ad: Optional[bool] = None
+    structured_is_ad: bool | None = None
     # Dedup guard for log_contradiction_event; not part of the verdict itself.
     contradiction_logged: bool = field(default=False, compare=False, repr=False)
 
@@ -342,11 +343,11 @@ class ReviewResult:
     rejections removed, resurrections added). `verdicts` is the full audit
     trail, one entry per ad the reviewer evaluated.
     """
-    accepted_after_review: List[Dict] = field(default_factory=list)
-    rejected_by_reviewer: List[Dict] = field(default_factory=list)
-    resurrected: List[Dict] = field(default_factory=list)
-    verdicts: List[ReviewVerdict] = field(default_factory=list)
-    held_by_contradiction: List[Dict] = field(default_factory=list)
+    accepted_after_review: list[dict] = field(default_factory=list)
+    rejected_by_reviewer: list[dict] = field(default_factory=list)
+    resurrected: list[dict] = field(default_factory=list)
+    verdicts: list[ReviewVerdict] = field(default_factory=list)
+    held_by_contradiction: list[dict] = field(default_factory=list)
 
 
 def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
@@ -602,7 +603,7 @@ class AdReviewer:
         db,
         llm_client,
         sponsor_service=None,
-        sponsor_history_provider: Optional[Callable[[str], str]] = None,
+        sponsor_history_provider: Callable[[str], str] | None = None,
     ):
         self.db = db
         self._llm_client = llm_client
@@ -611,10 +612,10 @@ class AdReviewer:
 
     def review(
         self,
-        accepted_ads: List[Dict],
-        resurrection_eligible: List[Dict],
-        segments: List[Dict],
-        episode_meta: Dict,
+        accepted_ads: list[dict],
+        resurrection_eligible: list[dict],
+        segments: list[dict],
+        episode_meta: dict,
         pass_num: int,
         pass_model: str,
     ) -> ReviewResult:
@@ -657,10 +658,10 @@ class AdReviewer:
 
     def _review_inner(
         self,
-        accepted_ads: List[Dict],
-        resurrection_eligible: List[Dict],
-        segments: List[Dict],
-        episode_meta: Dict,
+        accepted_ads: list[dict],
+        resurrection_eligible: list[dict],
+        segments: list[dict],
+        episode_meta: dict,
         pass_num: int,
         pass_model: str,
     ) -> ReviewResult:
@@ -873,15 +874,15 @@ class AdReviewer:
     def _review_single(
         self,
         *,
-        ad: Dict,
+        ad: dict,
         pool: str,
         pass_num: int,
-        segments: List[Dict],
-        episode_meta: Dict,
+        segments: list[dict],
+        episode_meta: dict,
         system_prompt: str,
         model: str,
         max_shift: int,
-    ) -> Tuple[ReviewVerdict, Dict]:
+    ) -> tuple[ReviewVerdict, dict]:
         """Review one ad. Always returns (verdict, ad). On failure or
         unparseable response, verdict.verdict is 'failure' and ad is the input
         unmodified."""
@@ -1133,13 +1134,13 @@ class AdReviewer:
         self,
         verdict: "ReviewVerdict",
         *,
-        ad: Dict,
-        segments: List[Dict],
+        ad: dict,
+        segments: list[dict],
         model: str,
         pass_num: int,
-        slug: Optional[str],
-        episode_id: Optional[str],
-    ) -> Optional[Tuple[float, float]]:
+        slug: str | None,
+        episode_id: str | None,
+    ) -> tuple[float, float] | None:
         """Recover machine-readable trim bounds from a prose-only trim.
 
         Fired only on a contradiction hold whose verdict derived as
@@ -1272,9 +1273,9 @@ class AdReviewer:
     def _build_user_prompt(
         self,
         *,
-        ad: Dict,
-        segments: List[Dict],
-        episode_meta: Dict,
+        ad: dict,
+        segments: list[dict],
+        episode_meta: dict,
         pool: str,
         max_shift: int = 60,
     ) -> str:
@@ -1397,7 +1398,7 @@ class AdReviewer:
             logger.warning(f"reviewer sponsor list lookup failed: {e}")
             return ""
 
-    def _read_setting(self, key: str) -> Optional[str]:
+    def _read_setting(self, key: str) -> str | None:
         try:
             return self.db.get_setting(key)
         except Exception:
@@ -1441,7 +1442,7 @@ class AdReviewer:
             return text
         return ""
 
-    def _flush_log(self, verdicts: List[ReviewVerdict], episode_meta: Dict) -> None:
+    def _flush_log(self, verdicts: list[ReviewVerdict], episode_meta: dict) -> None:
         """Write all ad_reviewer_log rows in one transaction. Failures here are
         logged and dropped - audit logging is not on the critical path."""
         if not verdicts:
@@ -1477,10 +1478,10 @@ class AdReviewer:
 
 
 def split_resurrection_pool(
-    all_ads_with_validation: List[Dict],
-    ads_to_remove: List[Dict],
+    all_ads_with_validation: list[dict],
+    ads_to_remove: list[dict],
     min_cut_confidence: float,
-) -> List[Dict]:
+) -> list[dict]:
     """Identify ads eligible for resurrection.
 
     An ad is eligible when:
@@ -1520,7 +1521,7 @@ def split_resurrection_pool(
     return eligible
 
 
-def _has_disqualifying_reasons(validation: Dict) -> bool:
+def _has_disqualifying_reasons(validation: dict) -> bool:
     """Return True if validator flags indicate a non-confidence rejection.
 
     Matches the prefix scheme `ad_validator.py` emits into

@@ -14,7 +14,6 @@ import json
 import os
 import threading
 import time
-from typing import Dict
 from unittest.mock import patch
 
 import pytest
@@ -30,7 +29,7 @@ from llm_client import (
 class _StubResponse:
     """Minimal LLMResponse-shaped duck for _process_single_window."""
 
-    def __init__(self, content: str, usage: Dict):
+    def __init__(self, content: str, usage: dict):
         self.content = content
         self.usage = usage
 

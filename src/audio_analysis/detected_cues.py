@@ -5,22 +5,21 @@ Each candidate is a plain dict the API serializes directly. A loud-spot that
 sits within a small tolerance of an already-detected cue is dropped, since the
 persisted cue is the richer record (it carries a label / score / type).
 """
-from typing import Dict, List, Optional
 
 DEDUP_TOLERANCE_S = 0.75
 DEFAULT_LIMIT = 100
 
 
-def _as_float(value) -> Optional[float]:
+def _as_float(value) -> float | None:
     try:
         return round(float(value), 3)
     except (TypeError, ValueError):
         return None
 
 
-def build_detected_cues(cue_signals: List[Dict], loud_spots: List[Dict],
+def build_detected_cues(cue_signals: list[dict], loud_spots: list[dict],
                         dedup_tolerance_s: float = DEDUP_TOLERANCE_S,
-                        limit: int = DEFAULT_LIMIT) -> List[Dict]:
+                        limit: int = DEFAULT_LIMIT) -> list[dict]:
     """Return merged, source-labeled cue candidates sorted by start time.
 
     cue_signals: ``audio_cue`` entries from a persisted

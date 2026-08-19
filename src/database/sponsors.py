@@ -1,7 +1,6 @@
 """Sponsor management mixin for MinusPod database."""
 import json
 import logging
-from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +8,7 @@ logger = logging.getLogger(__name__)
 class SponsorMixin:
     """Known sponsors and normalization management methods."""
 
-    def get_known_sponsors(self, active_only: bool = True) -> List[Dict]:
+    def get_known_sponsors(self, active_only: bool = True) -> list[dict]:
         """Get all known sponsors."""
         conn = self.get_connection()
         query = "SELECT * FROM known_sponsors"
@@ -19,7 +18,7 @@ class SponsorMixin:
         cursor = conn.execute(query)
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_known_sponsor_by_id(self, sponsor_id: int) -> Optional[Dict]:
+    def get_known_sponsor_by_id(self, sponsor_id: int) -> dict | None:
         """Get a single sponsor by ID."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -28,7 +27,7 @@ class SponsorMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def get_known_sponsor_by_name(self, name: str) -> Optional[Dict]:
+    def get_known_sponsor_by_name(self, name: str) -> dict | None:
         """Get a sponsor by name."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -37,9 +36,9 @@ class SponsorMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def create_known_sponsor(self, name: str, aliases: List[str] = None,
-                              category: str = None, common_ctas: List[str] = None,
-                              tags: List[str] = None) -> int:
+    def create_known_sponsor(self, name: str, aliases: list[str] = None,
+                              category: str = None, common_ctas: list[str] = None,
+                              tags: list[str] = None) -> int:
         """Create a known sponsor. Returns sponsor ID."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -76,7 +75,7 @@ class SponsorMixin:
         conn.commit()
         return True
 
-    def get_sponsors_by_tag(self, tag: str, active_only: bool = True) -> List[Dict]:
+    def get_sponsors_by_tag(self, tag: str, active_only: bool = True) -> list[dict]:
         """Return sponsors whose tags JSON array contains the given tag.
 
         SQLite json_each is used to avoid loading every row into Python.
@@ -86,7 +85,7 @@ class SponsorMixin:
             "SELECT s.* FROM known_sponsors s, json_each(s.tags) j "
             "WHERE j.value = ?"
         )
-        params: List = [tag]
+        params: list = [tag]
         if active_only:
             query += " AND s.is_active = 1"
         query += " ORDER BY s.name"
@@ -114,7 +113,7 @@ class SponsorMixin:
     # The two stats helpers below query ad_patterns but live here because they
     # exist to enrich sponsor payloads (list/detail), not for pattern analysis.
 
-    def get_sponsor_pattern_stats(self) -> Dict[int, Dict]:
+    def get_sponsor_pattern_stats(self) -> dict[int, dict]:
         """Map sponsor_id -> {pattern_count, last_matched_at} aggregated over
         active ad_patterns. One query, used to enrich the sponsor list."""
         conn = self.get_connection()
@@ -134,7 +133,7 @@ class SponsorMixin:
             for row in cursor
         }
 
-    def get_sponsor_pattern_stats_by_id(self, sponsor_id: int) -> Dict:
+    def get_sponsor_pattern_stats_by_id(self, sponsor_id: int) -> dict:
         """Pattern stats for a single sponsor via the indexed sponsor_id lookup,
         avoiding a full aggregate scan for the detail endpoint."""
         conn = self.get_connection()
@@ -153,7 +152,7 @@ class SponsorMixin:
     # ========== Sponsor Normalizations Methods ==========
 
     def get_sponsor_normalizations(self, category: str = None,
-                                    active_only: bool = True) -> List[Dict]:
+                                    active_only: bool = True) -> list[dict]:
         """Get sponsor normalizations."""
         conn = self.get_connection()
 

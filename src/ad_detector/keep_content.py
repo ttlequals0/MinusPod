@@ -12,7 +12,6 @@ if the content coverage looks too low or the inversion would remove too much,
 it returns None and the caller falls back to normal blacklist detection rather
 than risk cutting real content.
 """
-from typing import Dict, List, Optional, Tuple
 
 
 # System prompt for the content-labeling pass. The model marks the substantive
@@ -38,13 +37,13 @@ CONTENT_SYSTEM_PROMPT = (
 
 
 def _normalize_content_spans(
-    spans: List[Dict], total_duration: float, edge_pad: float, min_gap: float,
-) -> List[Tuple[float, float]]:
+    spans: list[dict], total_duration: float, edge_pad: float, min_gap: float,
+) -> list[tuple[float, float]]:
     """Grow each content span outward by edge_pad (keep a speech buffer so we
     never clip the first/last syllable), clamp to the episode, sort, then merge
     spans separated by less than min_gap so micro-pauses between sentences are
     kept rather than cut."""
-    norm: List[Tuple[float, float]] = []
+    norm: list[tuple[float, float]] = []
     for s in spans:
         try:
             a = max(0.0, float(s['start']) - edge_pad)
@@ -54,7 +53,7 @@ def _normalize_content_spans(
         if b > a:
             norm.append((a, b))
     norm.sort()
-    merged: List[Tuple[float, float]] = []
+    merged: list[tuple[float, float]] = []
     for a, b in norm:
         if merged and a - merged[-1][1] < min_gap:
             merged[-1] = (merged[-1][0], max(merged[-1][1], b))
@@ -64,7 +63,7 @@ def _normalize_content_spans(
 
 
 def invert_content_to_ads(
-    content_spans: List[Dict],
+    content_spans: list[dict],
     total_duration: float,
     *,
     edge_pad: float,
@@ -74,7 +73,7 @@ def invert_content_to_ads(
     min_ad_seconds: float,
     max_single_ad_fraction: float,
     max_single_ad_seconds: float,
-) -> Tuple[Optional[List[Dict]], Dict]:
+) -> tuple[list[dict] | None, dict]:
     """Invert content spans to ad spans, gated for safety.
 
     Returns ``(ads, info)``. ``ads`` is the complement of the content spans, or
@@ -95,7 +94,7 @@ def invert_content_to_ads(
         multi-hour episodes, so the absolute cap backstops it)
     Inverted ad slivers shorter than ``min_ad_seconds`` are dropped.
     """
-    info: Dict = {
+    info: dict = {
         'merged_content_spans': 0,
         'coverage': 0.0,
         'removed_fraction': 0.0,
@@ -114,7 +113,7 @@ def invert_content_to_ads(
 
     coverage = sum(b - a for a, b in content) / total_duration
 
-    ads: List[Tuple[float, float]] = []
+    ads: list[tuple[float, float]] = []
     cursor = 0.0
     for a, b in content:
         if a - cursor > 0:

@@ -11,7 +11,6 @@ coordinates for cutting.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 from audio_processor import get_replacement_duration
 from transcript_generator import TranscriptGenerator
@@ -44,14 +43,14 @@ class VerificationPass:
 
     def verify(self, processed_audio_path: str, podcast_name: str,
                episode_title: str, slug: str, episode_id: str,
-               pass1_cuts: List[Dict] = None,
+               pass1_cuts: list[dict] = None,
                episode_description: str = None,
                podcast_description: str = None,
                skip_patterns: bool = False,
                progress_callback=None,
-               original_segments: List[Dict] = None,
+               original_segments: list[dict] = None,
                reuse_transcript: bool = False,
-               feed_id: Optional[int] = None) -> Dict:
+               feed_id: int | None = None) -> dict:
         """
         Run full pipeline on processed audio to find missed ads.
 
@@ -207,7 +206,7 @@ class VerificationPass:
 
     def _transcribe_verification(self, audio_path: str,
                                  podcast_name: str = None,
-                                 slug: str = None) -> List[Dict]:
+                                 slug: str = None) -> list[dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
         Delegates to self.transcriber.transcribe_chunked() so episodes longer
@@ -224,7 +223,7 @@ class VerificationPass:
         )
 
 
-def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float, Optional[float]]]:
+def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, float | None]]:
     """Build a sorted list of (cut_start, cut_duration, cut_replacement) from
     pass 1 removed ads.
 
@@ -245,7 +244,7 @@ def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float, Opt
     return cuts
 
 
-def _cut_replacement(cut: Tuple, default: Optional[float] = None) -> Optional[float]:
+def _cut_replacement(cut: tuple, default: float | None = None) -> float | None:
     """A cut tuple's own replacement duration (third element), or `default`
     for a 2-tuple or an explicit None third element.
 
@@ -257,7 +256,7 @@ def _cut_replacement(cut: Tuple, default: Optional[float] = None) -> Optional[fl
 
 
 def _map_to_original(processed_time: float,
-                     cuts: List[Tuple[float, float]],
+                     cuts: list[tuple[float, float]],
                      replacement_duration: float = 0.0) -> float:
     """Map a processed-audio timestamp back to original-audio timestamp.
 
@@ -287,9 +286,9 @@ def _map_to_original(processed_time: float,
 def _map_correction_to_processed(
     orig_start: float,
     orig_end: float,
-    cuts: List[Tuple[float, float]],
+    cuts: list[tuple[float, float]],
     replacement_duration: float = 0.0,
-) -> Optional[Tuple[float, float]]:
+) -> tuple[float, float] | None:
     """Map a user-correction range from original time to processed-audio time.
 
     Pass 1 already removed `cuts` (in original time). For a user-flagged

@@ -11,7 +11,6 @@ covers them). Emits ad markers for gaps that look like ad residue:
 Runs after Claude + text-pattern detection, before validation. See the
 2.0.7 plan for the full rationale.
 """
-from typing import Dict, List, Optional, Tuple
 from difflib import SequenceMatcher
 import logging
 import re
@@ -60,8 +59,8 @@ def _starts_with_resume(text: str) -> bool:
 
 
 def _adjacent_existing_ad(
-    gap_start: float, gap_end: float, ads: List[Dict],
-) -> Tuple[Optional[Dict], Optional[str]]:
+    gap_start: float, gap_end: float, ads: list[dict],
+) -> tuple[dict | None, str | None]:
     for ad in ads:
         ad_start = ad.get('start', 0.0)
         ad_end = ad.get('end', 0.0)
@@ -89,10 +88,10 @@ def _has_verbatim_duplicate(inside_text: str, beyond_text: str) -> bool:
 
 
 def _dai_seam_detected(
-    segments: List[Dict],
+    segments: list[dict],
     gap_start: float,
     gap_end: float,
-    adjacent: Dict,
+    adjacent: dict,
     side: str,
 ) -> bool:
     """True when the proposed gap extension shows a DAI splice duplicate.
@@ -128,7 +127,7 @@ def _dai_seam_detected(
     return _has_verbatim_duplicate(inside, beyond)
 
 
-def _new_marker(start: float, end: float, reason: str) -> Dict:
+def _new_marker(start: float, end: float, reason: str) -> dict:
     return {
         'start': float(start),
         'end': float(end),
@@ -140,13 +139,13 @@ def _new_marker(start: float, end: float, reason: str) -> Dict:
 
 
 def detect_vad_gaps(
-    segments: List[Dict],
-    existing_ads: List[Dict],
+    segments: list[dict],
+    existing_ads: list[dict],
     episode_duration: float,
     start_min_seconds: float = 3.0,
     mid_min_seconds: float = 8.0,
     tail_min_seconds: float = 3.0,
-) -> List[Dict]:
+) -> list[dict]:
     """Return ad markers for suspicious untranscribed audio spans.
 
     The input `existing_ads` may be mutated: mid-gaps adjacent to a detected
@@ -168,7 +167,7 @@ def detect_vad_gaps(
     if not segments:
         return []
 
-    new_markers: List[Dict] = []
+    new_markers: list[dict] = []
 
     # Head gap
     head_end = segments[0].get('start', 0.0)

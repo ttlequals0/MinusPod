@@ -4,7 +4,6 @@ Provides shared transcript text extraction functions.
 """
 
 import re
-from typing import List, Optional
 
 from utils.time import parse_timestamp
 
@@ -26,7 +25,7 @@ def truncate(text: str, limit: int) -> str:
     return text[:limit - 3].rstrip() + '...'
 
 
-def parse_transcript_segments(transcript_text: str) -> List[dict]:
+def parse_transcript_segments(transcript_text: str) -> list[dict]:
     """Parse VTT-formatted transcript text into segment dicts.
 
     Parses lines in the format:
@@ -38,7 +37,7 @@ def parse_transcript_segments(transcript_text: str) -> List[dict]:
     Returns:
         List of dicts with 'start', 'end', 'text' keys
     """
-    segments: List[dict] = []
+    segments: list[dict] = []
     for line in transcript_text.split('\n'):
         if line.strip() and line.startswith('['):
             try:
@@ -56,7 +55,7 @@ def parse_transcript_segments(transcript_text: str) -> List[dict]:
 
 
 def get_transcript_text_for_range(
-    segments: List[dict],
+    segments: list[dict],
     start_time: float,
     end_time: float,
 ) -> str:
@@ -78,7 +77,7 @@ def get_transcript_text_for_range(
 
 
 def get_timestamped_transcript_for_range(
-    segments: List[dict],
+    segments: list[dict],
     start_time: float,
     end_time: float,
 ) -> str:
@@ -139,7 +138,7 @@ def extract_timed_spans_in_range(
     start: float,
     end: float,
     include_partial: bool = True,
-) -> List[dict]:
+) -> list[dict]:
     """The timed spans extract_text_in_range joins, with their char offsets.
 
     Each dict is {'start', 'end', 'text', 'offset'}, where offset is the index
@@ -153,7 +152,7 @@ def extract_timed_spans_in_range(
     # Pattern matches: [timestamp --> timestamp] text
     pattern = r'\[(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\s*-->\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\]\s*([^\[]+)'
 
-    spans: List[dict] = []
+    spans: list[dict] = []
     offset = 0
     for match in re.finditer(pattern, transcript):
         seg_start = parse_timestamp(match.group(1))
@@ -179,10 +178,10 @@ def extract_timed_spans_in_range(
 
 
 def extract_text_from_segments(
-    segments: List[dict],
+    segments: list[dict],
     start: float,
     end: float,
-    max_words: Optional[int] = None
+    max_words: int | None = None
 ) -> str:
     """Extract text from segment dicts within time range.
 
@@ -198,7 +197,7 @@ def extract_text_from_segments(
     Returns:
         Extracted text content, joined with spaces
     """
-    words: List[str] = []
+    words: list[str] = []
     for seg in segments:
         seg_start = seg.get('start', 0)
         seg_end = seg.get('end', 0)

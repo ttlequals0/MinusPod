@@ -15,7 +15,6 @@ Pure function over ad dicts and audio signals; no DB, no LLM, no IO.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 
 from config import (
     AUDIO_CUE_SNAP_CONFIDENCE,
@@ -53,7 +52,7 @@ def _cue_role(cue) -> str:
     return (cue.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT)
 
 
-def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> Dict:
+def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> dict:
     """Build snap audit; sets ambiguous/candidates when 2+ eligible cues."""
     details = cue.details or {}
     rec = {
@@ -74,14 +73,14 @@ def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -
 
 
 def snap_ad_boundaries_to_cues(
-    ads: List[Dict],
+    ads: list[dict],
     audio_analysis_result,
     max_boundary_shift_s: float,
     snap_lead_s: float = DEFAULT_SNAP_LEAD_SECONDS,
     snap_lag_s: float = DEFAULT_SNAP_LAG_SECONDS,
     min_confidence: float = MIN_CUE_CONFIDENCE_FOR_SNAP,
     allow_transition: bool = False,
-) -> List[Dict]:
+) -> list[dict]:
     """Return ``ads`` with each ``start`` and ``end`` snapped to a nearby cue.
 
     Start snap: ad start moves to the cue's *end* + a tiny lead so the cut
@@ -119,7 +118,7 @@ def snap_ad_boundaries_to_cues(
             continue
 
         used_cue_ids: set = set()
-        snap_record: Dict = {}
+        snap_record: dict = {}
 
         # --- Start edge -------------------------------------------------
         start_cue, start_n = _pick_cue_for_start(
@@ -192,7 +191,7 @@ def _transition_eligible(cue, role: str, allow_transition: bool) -> bool:
 
 
 def _pick_cue_for_start(
-    cues: List, ad_start: float, ad_end: Optional[float],
+    cues: list, ad_start: float, ad_end: float | None,
     snap_lead_s: float, snap_lag_s: float,
     allow_transition: bool = False,
 ):
@@ -231,7 +230,7 @@ def _pick_cue_for_start(
 
 
 def _pick_cue_for_end(
-    cues: List, ad_end: float, ad_start: float,
+    cues: list, ad_end: float, ad_start: float,
     snap_lead_s: float, snap_lag_s: float,
     exclude_ids: set,
     allow_transition: bool = False,
