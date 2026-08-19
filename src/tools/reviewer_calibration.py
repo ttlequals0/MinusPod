@@ -335,16 +335,19 @@ def run_calibration(llm_client=None, model: str | None = None) -> dict:
             segments=case['segments'], episode_meta=episode_meta,
             pass_num=1, pass_model=resolved_model,
         )
-        verdict = result.verdicts[0]
-        agree = _verdict_agrees(verdict.verdict, case['expected'])
-        structured = verdict.structured_is_ad is not None
+        # A reviewer returning no verdict (empty or unparseable response)
+        # counts as a failed case instead of crashing the run.
+        verdict = result.verdicts[0] if result.verdicts else None
+        verdict_label = verdict.verdict if verdict else 'failure'
+        agree = verdict is not None and _verdict_agrees(verdict_label, case['expected'])
+        structured = verdict is not None and verdict.structured_is_ad is not None
         if agree:
             agree_count += 1
         if structured:
             structured_count += 1
         cases_out.append({
             'id': case['id'], 'expected': case['expected'],
-            'verdict': verdict.verdict, 'agree': agree, 'structured': structured,
+            'verdict': verdict_label, 'agree': agree, 'structured': structured,
         })
 
     n = len(CALIBRATION_CORPUS)

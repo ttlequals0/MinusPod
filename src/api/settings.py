@@ -62,6 +62,7 @@ from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
 )
+from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
 from utils.language import LANGUAGE_CODE_RE
 from utils.opml import modified_feed_url
 from utils.url import validate_base_url, validate_outbound_host, SSRFError
@@ -715,7 +716,6 @@ def _apply_review_fields(db, data):
         db.set_setting('review_model', new_model, is_default=False)
         logger.info(f"Updated review_model to: {new_model}")
         # Fire-and-forget calibration self-test; never blocks this write.
-        from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
         maybe_trigger_reviewer_calibration(db, old_model, new_model)
 
     if 'reviewMaxBoundaryShift' in data:

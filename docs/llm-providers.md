@@ -282,7 +282,7 @@ It prints a pipe-delimited table (case id, expected label, verdict, agreement) f
 
 Agreement below 0.75 means the reviewer is disagreeing with the expected keep/drop call on 2 or more of the 8 corpus cases. That is a signal to check the model's reasoning quality for this stage, not a hard failure, since the corpus is small and one model's phrasing conventions can differ from another's without being wrong. A low or dropping structured fraction on a model that used to report it consistently means the model has stopped emitting the `is_ad` field, which weakens the reviewer's contradiction guard.
 
-The self-test also runs automatically in a background thread whenever the reviewer model setting (`reviewModel`) changes via the Settings API, and stores its result under the `reviewer_calibration_last` setting. A failed or slow calibration run never blocks the settings save. Set `reviewer_calibration_on_change` to `false` (or the `REVIEWER_CALIBRATION_ON_CHANGE` environment variable) to disable the auto-run.
+The self-test also runs automatically in a background thread whenever the reviewer model setting (`reviewModel`) changes via the Settings API, and stores its result under the `reviewer_calibration_last` setting. A failed or slow calibration run never blocks the settings save. Set `reviewer_calibration_on_change` to `false` (or the `REVIEWER_CALIBRATION_ON_CHANGE` environment variable) to disable the auto-run. Each auto-run costs 8 LLM calls, one per corpus case. Calibration runs go through the production reviewer, so they emit reviewer telemetry log lines tagged `slug=reviewer-calibration`; exclude that slug from reviewer metric queries so corpus cases do not skew real verdict counts.
 
 ---
 

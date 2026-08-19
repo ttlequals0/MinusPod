@@ -2170,9 +2170,11 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
 
         v_status = verification_result.get('status')
-        if v_status in ('no_segments', 'transcription_failed'):
+        if v_status in ('no_segments', 'transcription_failed', 'detection_failed'):
+            v_error = verification_result.get('error')
+            detail = f": {v_error}" if v_error else ""
             audio_logger.warning(
-                f"[{slug}:{episode_id}] Verification incomplete ({v_status}); "
+                f"[{slug}:{episode_id}] Verification incomplete ({v_status}{detail}); "
                 "not reporting a clean scan")
             return (verification_count, v_ads_for_ui, v_cuts_for_assets,
                     v_ads_held, processed_path, verification_cue_count,

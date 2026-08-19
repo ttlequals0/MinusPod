@@ -9,7 +9,7 @@ Package layout:
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional, NamedTuple
+from typing import NamedTuple
 
 from audio_enforcer import AudioEnforcer
 from cancel import _check_cancel

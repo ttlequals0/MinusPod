@@ -214,7 +214,7 @@ def test_settings_api_review_model_change_invokes_hook(monkeypatch):
 
     calls = []
     monkeypatch.setattr(
-        'tools.reviewer_calibration.maybe_trigger_reviewer_calibration',
+        'api.settings.maybe_trigger_reviewer_calibration',
         lambda db_arg, old, new: calls.append((old, new)),
     )
     err = _apply_review_fields(db, {'reviewModel': 'new-model'})

@@ -34,16 +34,23 @@ release notes.
   Contradiction holds, where a verification finding disagrees with a kept
   pass-1 span, key off the structured field when present, and the telemetry
   for a hold now emits once per episode instead of once per contradicting
-  window.
+  window. On a model that emits `is_ad` true for a disputed span, the guard no
+  longer holds it, so spans that used to land in Held for Review are now cut.
+  Installs running the shipped reviewer prompt unedited pick this up on
+  upgrade, since that prompt is re-seeded on startup.
 - `AD_DETECTION_MAX_FAILED_WINDOW_RATIO` (default `0.25`). When this fraction
   of a detection or verification pass's windows fail on an LLM error or
-  timeout, the whole pass is now treated as failed and the episode retried,
-  instead of publishing with the failed windows unexamined. Set to `1.0` to
-  restore the previous behavior.
-- Community patterns carry a staleness-based trust tier: active (confirmed
-  locally), unproven (never confirmed locally), or stale (community-sourced
-  and unconfirmed both locally for over 90 days and by the community for over
-  a year). A new `community_last_confirmed_at` column and optional
+  timeout, the whole pass is now treated as failed instead of being accepted
+  with the failed windows unexamined. A failed first pass fails the episode
+  and the retry ladder picks it up. A failed verification pass leaves the
+  first-pass markers and audio as they are, and records the second scan as
+  incomplete rather than clean, which also fixes an all-windows-failed
+  verification run reading as a clean scan. Set to `1.0` to restore the
+  previous behavior.
+- Community patterns carry a staleness-based trust tier: active (matched
+  locally in the last 90 days), unproven (no recent local match), or stale (a
+  community pattern with no local match in the last 90 days and no community
+  confirmation within a year). A new `community_last_confirmed_at` column and optional
   `last_confirmed_at` corpus field track community confirmation, and the
   Patterns page shows an Unproven or Stale badge; an active pattern gets no
   badge.
@@ -88,11 +95,11 @@ release notes.
   database layer's dynamic SQL is audited and exempted from `S608`: the
   interpolated identifiers are hardcoded or allowlist-validated, and values
   are always bound parameters.
-- `zip()` calls pairing same-length lists now pass `strict=True`, catching a
-  length mismatch instead of silently truncating. One of the sites this
-  caught was a latent bug: chapter span end times could carry one more entry
-  than an empty start-time list, which the strict check now prevents from
-  recurring.
+- `zip()` calls pairing same-length lists now pass `strict=True`, which raises
+  on a mismatch instead of silently truncating. One of the sites this
+  caught was a latent length mismatch: chapter span end times could carry one
+  more entry than an empty start-time list, which the strict check now
+  prevents from recurring.
 - Exception re-raises now chain explicitly (`raise ... from err` or `from
   None`), so a traceback shows the real cause instead of only the immediate
   wrapper.

@@ -62,7 +62,8 @@ class VerificationPass:
             'ads': list of ad dicts in ORIGINAL-audio timestamps (for UI/DB)
             'ads_processed': list of ad dicts in PROCESSED-audio timestamps (for cutting)
             'segments': transcript segments from verification
-            'status': 'clean', 'found_ads', 'no_segments', or 'transcription_failed'
+            'status': 'clean', 'found_ads', 'no_segments',
+                      'transcription_failed', or 'detection_failed'
         """
         # Step 1: Get verification segments.
         if not pass1_cuts and original_segments:
@@ -150,6 +151,16 @@ class VerificationPass:
             progress_callback=progress_callback,
             audio_analysis=processed_analysis,
         )
+        detection_error = verification_result.get('error')
+        if verification_result.get('status') == 'failed' or detection_error:
+            # Enough detection windows failed that an unknown share of the
+            # audio went unexamined, so this pass is not a clean scan.
+            logger.warning(
+                f"[{slug}:{episode_id}] Verification detection failed: {detection_error}")
+            return {'ads': [], 'ads_processed': [], 'segments': verification_segments,
+                    'status': 'detection_failed', 'error': detection_error,
+                    'audio_cue_count': verification_cue_count}
+
         processed_ads = verification_result.get('ads', [])
 
         if not processed_ads:

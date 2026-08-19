@@ -9634,11 +9634,11 @@ components:
           enum: [active, unproven, stale]
           description: |
             Computed staleness-based trust tier (not stored). active: matched
-            locally within the last 90 days. stale: a community pattern that
-            has not matched locally and whose newest of last-confirmed/updated/
-            created timestamp is older than 365 days. unproven: everything
-            else, including all local (non-community) patterns, which are
-            never 'stale'.
+            locally within the last 90 days. stale: a community pattern with no
+            local match in the last 90 days whose newest community-confirmation
+            or creation timestamp is also older than 365 days. unproven: no
+            recent local match, but not stale; includes all local
+            (non-community) patterns, which are never 'stale'.
 
     Network:
       type: object
