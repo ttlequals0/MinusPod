@@ -709,8 +709,13 @@ def _apply_review_fields(db, data):
         logger.info(f"Updated enable_ad_review to: {value}")
 
     if 'reviewModel' in data:
-        db.set_setting('review_model', data['reviewModel'], is_default=False)
-        logger.info(f"Updated review_model to: {data['reviewModel']}")
+        old_model = db.get_setting('review_model')
+        new_model = data['reviewModel']
+        db.set_setting('review_model', new_model, is_default=False)
+        logger.info(f"Updated review_model to: {new_model}")
+        # Fire-and-forget calibration self-test; never blocks this write.
+        from tools.reviewer_calibration import maybe_trigger_reviewer_calibration
+        maybe_trigger_reviewer_calibration(db, old_model, new_model)
 
     if 'reviewMaxBoundaryShift' in data:
         try:

@@ -268,6 +268,22 @@ If the pricing fetch fails on startup and no pricing data exists in the database
 
 Pricing data comes from third-party sources and may lag behind provider announcements. Check your provider's billing dashboard for authoritative cost figures. MinusPod's cost tracking is an estimate for convenience, not a billing system.
 
+## Reviewer Calibration Self-Test
+
+The reviewer stage (the LLM pass that confirms, adjusts, or rejects candidate ad boundaries) can drift when you switch models or providers. `tools.reviewer_calibration` runs a small fixed corpus of 8 fictional transcripts (4 ad reads, 4 non-ads) through the same `AdReviewer` code path production uses, and reports how often the model's verdict agrees with the expected label plus how often its response carries the structured `is_ad` field the contradiction guard relies on.
+
+Run it manually against your configured provider:
+
+```bash
+PYTHONPATH=src python -m tools.reviewer_calibration
+```
+
+It prints a pipe-delimited table (case id, expected label, verdict, agreement) followed by a summary line with the model, provider, agreement fraction, and structured fraction. The command exits 1 when agreement falls below 0.75, so it can gate a CI or release check.
+
+Agreement below 0.75 means the reviewer is disagreeing with the expected keep/drop call on 2 or more of the 8 corpus cases. That is a signal to check the model's reasoning quality for this stage, not a hard failure, since the corpus is small and one model's phrasing conventions can differ from another's without being wrong. A low or dropping structured fraction on a model that used to report it consistently means the model has stopped emitting the `is_ad` field, which weakens the reviewer's contradiction guard.
+
+The self-test also runs automatically in a background thread whenever the reviewer model setting (`reviewModel`) changes via the Settings API, and stores its result under the `reviewer_calibration_last` setting. A failed or slow calibration run never blocks the settings save. Set `reviewer_calibration_on_change` to `false` (or the `REVIEWER_CALIBRATION_ON_CHANGE` environment variable) to disable the auto-run.
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)

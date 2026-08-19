@@ -1882,6 +1882,8 @@ ENV_BACKED_SETTINGS = (
     ('feed_auth_enabled', 'FEED_AUTH_ENABLED', 'false', _validate_bool_string),
     ('artwork_watermark_enabled', 'ARTWORK_WATERMARK_ENABLED', 'false', _validate_bool_string),
     ('artwork_badge_position', 'ARTWORK_BADGE_POSITION', 'bottom-right', _validate_badge_position),
+    # Gates the reviewer calibration self-test auto-run on review_model change.
+    ('reviewer_calibration_on_change', 'REVIEWER_CALIBRATION_ON_CHANGE', 'true', _validate_bool_string),
 )
 
 
