@@ -64,6 +64,23 @@ MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork ma
 
 Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod*`, ...).
 
+### Outbound request safety
+
+Every outbound fetch (RSS sources, enclosures, artwork, webhooks, LLM base
+URLs) runs through one SSRF-checked path. Operator-typed targets may point at
+loopback or LAN addresses; URLs taken out of feed content may not, and cloud
+metadata and link-local addresses are refused at both tiers. Redirects are
+rechecked on every hop, and HTTPS to HTTP downgrades are refused.
+
+The resolved address is also pinned. A hostname is resolved once per hop, every
+returned address is checked, and the connection goes to that address, so a DNS
+record that answers with a public address for the check and a private one a
+moment later cannot reach an internal service. The request URL, the `Host`
+header, SNI, and certificate verification all stay on the original hostname, so
+TLS trust is unchanged. If an outbound HTTP proxy is configured, the proxy
+resolves the name itself and the pin does not apply. Set
+`SSRF_IP_PINNING=false` to turn the pin off while isolating a fetch failure.
+
 ### Rate limiting storage
 
 Rate limits are tracked per worker (memory-backed), so with the default two workers each declared limit is effectively doubled. For exact limits or multi-host scaling, set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar. Don't drop below two workers. The UI freezes during bulk RSS refresh with only one.

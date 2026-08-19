@@ -24,6 +24,32 @@ class SSRFError(ValueError):
     pass
 
 
+def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
+    """Per-IP SSRF policy shared by pre-validation and the pinned connect.
+
+    Cloud metadata and link-local addresses are blocked at every tier;
+    loopback/private/multicast/reserved are allowed only when allow_private.
+    """
+    if ip_str in _CLOUD_METADATA_IPS:
+        raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
+    try:
+        addr = ipaddress.ip_address(ip_str)
+    except ValueError:
+        raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
+    if addr.is_link_local:
+        raise SSRFError(f"Blocked link-local IP: {ip_str}")
+    if allow_private:
+        return
+    if addr.is_loopback:
+        raise SSRFError(f"Blocked loopback IP: {ip_str}")
+    if addr.is_multicast:
+        raise SSRFError(f"Blocked multicast IP: {ip_str}")
+    if addr.is_private:
+        raise SSRFError(f"Blocked private IP: {ip_str}")
+    if addr.is_reserved:
+        raise SSRFError(f"Blocked reserved IP: {ip_str}")
+
+
 def validate_url(url: str) -> str:
     """Validate a URL for safe outbound requests.
 
@@ -62,12 +88,9 @@ def validate_url(url: str) -> str:
     if ALLOWED_URL_PORTS and port not in ALLOWED_URL_PORTS:
         raise SSRFError(f"Blocked port: {port}")
 
-    # Resolve hostname and check all IPs.
-    # Known residual risk: DNS-rebinding TOCTOU between validation and
-    # connect. Closing it requires a custom requests HTTPAdapter that
-    # pins the resolved IP (rewriting the URL to the IP while preserving
-    # SNI via the Host header). Not implemented; tracked as a follow-up
-    # issue titled "Pin resolved IP for SSRF TOCTOU closure".
+    # Resolve hostname and check all IPs. The DNS-rebinding TOCTOU between
+    # this check and connect time is closed by utils.pinned_transport, which
+    # re-runs check_resolved_ip on the address it actually connects to.
     try:
         addrinfos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
@@ -77,27 +100,7 @@ def validate_url(url: str) -> str:
         raise SSRFError(f"No addresses found for hostname: {hostname!r}")
 
     for _family, _type, _proto, _canonname, sockaddr in addrinfos:
-        ip_str = sockaddr[0]
-
-        # Explicit cloud metadata block
-        if ip_str in _CLOUD_METADATA_IPS:
-            raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
-
-        try:
-            addr = ipaddress.ip_address(ip_str)
-        except ValueError:
-            raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
-
-        if addr.is_loopback:
-            raise SSRFError(f"Blocked loopback IP: {ip_str}")
-        if addr.is_link_local:
-            raise SSRFError(f"Blocked link-local IP: {ip_str}")
-        if addr.is_multicast:
-            raise SSRFError(f"Blocked multicast IP: {ip_str}")
-        if addr.is_private:
-            raise SSRFError(f"Blocked private IP: {ip_str}")
-        if addr.is_reserved:
-            raise SSRFError(f"Blocked reserved IP: {ip_str}")
+        check_resolved_ip(sockaddr[0], allow_private=False)
 
     return url
 
@@ -166,14 +169,6 @@ def validate_outbound_host(host: str, port: int = 0) -> str:
     except socket.gaierror:
         return host
     for _family, _type, _proto, _canonname, sockaddr in addrinfos:
-        ip_str = sockaddr[0]
-        if ip_str in _CLOUD_METADATA_IPS:
-            raise SSRFError(f"Blocked cloud metadata IP: {ip_str}")
-        try:
-            addr = ipaddress.ip_address(ip_str)
-        except ValueError:
-            raise SSRFError(f"Invalid resolved IP: {ip_str}") from None
-        if addr.is_link_local:
-            raise SSRFError(f"Blocked link-local IP: {ip_str}")
+        check_resolved_ip(sockaddr[0], allow_private=True)
 
     return host

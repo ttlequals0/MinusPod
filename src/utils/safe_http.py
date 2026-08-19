@@ -15,17 +15,18 @@ Defenses layered on top of the tier check:
 - HTTPS -> HTTP downgrade blocked at every tier.
 - Validates the final URL every request so a compromised DNS lookup cannot
   turn a registered hostname into a private IP mid-flight.
-
-DNS-rebinding defense (resolving hostname -> IP once, then connecting to the
-IP with SNI preserved for the original hostname) is a follow-up iteration;
-the current validation layer still catches static private/metadata targets
-before any bytes hit the wire.
+- DNS-rebinding defense: every request (and every redirect hop) resolves the
+  hostname once, validates all resolved addresses, and connects to the pinned
+  address with the URL, Host header, SNI, and certificate verification left on
+  the original hostname. Set ``SSRF_IP_PINNING=false`` to fall back to the
+  stock adapters and validate-then-fetch behavior.
 """
 
 from __future__ import annotations
 
 import enum
 import logging
+import os
 from dataclasses import dataclass
 from typing import Optional, Protocol
 from urllib.parse import urlparse
@@ -33,6 +34,7 @@ from urllib.parse import urlparse
 import requests
 
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
+from utils.pinned_transport import PinnedHTTPAdapter
 from utils.url import SSRFError, validate_base_url, validate_url
 
 logger = logging.getLogger(__name__)
@@ -145,6 +147,12 @@ class _RevalidatingSession(requests.Session):
         super().__init__()
         self._trust = trust
         self.max_redirects = max_redirects
+        if os.environ.get('SSRF_IP_PINNING', 'true').lower() != 'false':
+            adapter = PinnedHTTPAdapter(
+                allow_private=trust is URLTrust.OPERATOR_CONFIGURED
+            )
+            self.mount('http://', adapter)
+            self.mount('https://', adapter)
 
     def rebuild_auth(self, prepared_request, response):
         original_host = urlparse(response.request.url).hostname if response.request else None
