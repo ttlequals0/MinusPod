@@ -431,3 +431,93 @@ def test_redirect_hop_repins_and_rewrites_the_host_header(monkeypatch):
     finally:
         first.shutdown()
         final.shutdown()
+
+
+def test_unresolvable_operator_host_is_a_connection_error(monkeypatch):
+    # validate_outbound_host lets unresolvable names through, so the adapter
+    # must report a network failure, not a policy block: callers retry one and
+    # give up on the other.
+    real = socket.getaddrinfo
+
+    def fail(host, port, *a, **kw):
+        if host == "nxdomain.example":
+            raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+        return real(host, port, *a, **kw)
+
+    monkeypatch.setattr(socket, "getaddrinfo", fail)
+    with pytest.raises(requests.exceptions.ConnectionError) as excinfo:
+        safe_get("http://nxdomain.example/x",
+                 trust=URLTrust.OPERATOR_CONFIGURED, timeout=2)
+    assert not isinstance(excinfo.value, SSRFError)
+
+
+def test_unresolvable_feed_host_still_blocked_by_the_pre_check(monkeypatch):
+    real = socket.getaddrinfo
+
+    def fail(host, port, *a, **kw):
+        if host == "nxdomain.example":
+            raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
+        return real(host, port, *a, **kw)
+
+    monkeypatch.setattr(socket, "getaddrinfo", fail)
+    with pytest.raises(SSRFError):
+        safe_get("http://nxdomain.example/x", trust=URLTrust.FEED_CONTENT,
+                 timeout=2)
+
+
+def test_empty_resolution_is_a_connection_error(monkeypatch):
+    from utils.pinned_transport import PinnedHTTPAdapter
+
+    real = socket.getaddrinfo
+
+    def empty(host, port, *a, **kw):
+        if host == "empty.example":
+            return []
+        return real(host, port, *a, **kw)
+
+    monkeypatch.setattr(socket, "getaddrinfo", empty)
+    adapter = PinnedHTTPAdapter(allow_private=True)
+    req = requests.Request("GET", "http://empty.example/x").prepare()
+    with pytest.raises(requests.exceptions.ConnectionError):
+        adapter.send(req)
+
+
+def test_adapter_validates_every_address_the_second_lookup_returns(monkeypatch):
+    # The pre-check sees one public address; the adapter's own lookup returns
+    # that address plus a private one. Only the adapter's validate-all loop
+    # catches this.
+    calls = {"n": 0}
+    real = socket.getaddrinfo
+
+    def widen(host, port, *a, **kw):
+        if host == "widen.example":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return _addrinfo("93.184.216.34", port or 80)
+            return (_addrinfo("93.184.216.34", port or 80)
+                    + _addrinfo("10.1.2.3", port or 80))
+        return real(host, port, *a, **kw)
+
+    monkeypatch.setattr(socket, "getaddrinfo", widen)
+    with pytest.raises(SSRFError):
+        safe_get("http://widen.example/x", trust=URLTrust.FEED_CONTENT,
+                 timeout=2)
+
+
+def test_pin_that_does_not_match_the_request_host_raises():
+    from utils.pinned_transport import PinnedHTTPAdapter
+
+    adapter = PinnedHTTPAdapter(allow_private=True)
+    adapter._pin = ("stale.example", "127.0.0.1")
+    req = requests.Request("GET", "http://other.example/x").prepare()
+    with pytest.raises(RuntimeError):
+        adapter.build_connection_pool_key_attributes(req, True)
+
+
+@pytest.mark.parametrize("value", ["false", "FALSE", " off ", "0", "no"])
+def test_kill_switch_accepts_the_usual_falsey_spellings(monkeypatch, value):
+    monkeypatch.setenv("SSRF_IP_PINNING", value)
+    from utils import safe_http
+    from utils.pinned_transport import PinnedHTTPAdapter
+    s = safe_http._RevalidatingSession(URLTrust.FEED_CONTENT, 3)
+    assert not isinstance(s.get_adapter("https://x"), PinnedHTTPAdapter)

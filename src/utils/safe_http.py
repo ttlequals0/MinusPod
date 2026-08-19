@@ -147,7 +147,8 @@ class _RevalidatingSession(requests.Session):
         super().__init__()
         self._trust = trust
         self.max_redirects = max_redirects
-        if os.environ.get('SSRF_IP_PINNING', 'true').lower() != 'false':
+        pinning = os.environ.get('SSRF_IP_PINNING', 'true').strip().lower()
+        if pinning not in ('0', 'false', 'no', 'off'):
             adapter = PinnedHTTPAdapter(
                 allow_private=trust is URLTrust.OPERATOR_CONFIGURED
             )

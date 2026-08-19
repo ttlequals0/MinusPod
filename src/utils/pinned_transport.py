@@ -14,9 +14,10 @@ import socket
 from urllib.parse import urlparse
 
 from requests.adapters import HTTPAdapter
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.utils import select_proxy
 
-from utils.url import SSRFError, check_resolved_ip
+from utils.url import check_resolved_ip
 
 
 def _is_ip_literal(host: str) -> bool:
@@ -67,12 +68,18 @@ class PinnedHTTPAdapter(HTTPAdapter):
         return super().send(request, **kwargs)
 
     def _resolve_validated(self, host: str, port: int) -> str:
+        # A name that does not resolve reaches nothing, so it is a network
+        # failure and not an SSRF verdict: callers retry the former.
         try:
             infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-        except socket.gaierror:
-            raise SSRFError(f"Cannot resolve hostname: {host!r}") from None
+        except socket.gaierror as exc:
+            raise RequestsConnectionError(
+                f"Cannot resolve hostname: {host!r}"
+            ) from exc
         if not infos:
-            raise SSRFError(f"No addresses found for hostname: {host!r}")
+            raise RequestsConnectionError(
+                f"No addresses found for hostname: {host!r}"
+            )
         for _family, _type, _proto, _canonname, sockaddr in infos:
             check_resolved_ip(sockaddr[0], allow_private=self._allow_private)
         return infos[0][4][0]
@@ -86,7 +93,10 @@ class PinnedHTTPAdapter(HTTPAdapter):
             return host_params, pool_kwargs
         host, ip = self._pin
         if host_params.get("host") != host:
-            return host_params, pool_kwargs
+            raise RuntimeError(
+                f"Pinned host {host!r} does not match request host "
+                f"{host_params.get('host')!r}"
+            )
         host_params["host"] = ip
         if host_params.get("scheme") == "https":
             # Keeps SNI and cert checks on the real hostname, and is part of

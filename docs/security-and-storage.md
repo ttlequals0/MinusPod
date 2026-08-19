@@ -66,9 +66,9 @@ Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod
 
 ### Outbound request safety
 
-Every outbound fetch (RSS sources, enclosures, artwork, webhooks, LLM base
-URLs) runs through one SSRF-checked path. Operator-typed targets may point at
-loopback or LAN addresses; URLs taken out of feed content may not, and cloud
+Every outbound fetch MinusPod makes itself (RSS sources, enclosures, artwork,
+webhooks) runs through one SSRF-checked path. Operator-typed targets may point
+at loopback or LAN addresses; URLs taken out of feed content may not, and cloud
 metadata and link-local addresses are refused at both tiers. Redirects are
 rechecked on every hop, and HTTPS to HTTP downgrades are refused.
 
@@ -80,6 +80,11 @@ header, SNI, and certificate verification all stay on the original hostname, so
 TLS trust is unchanged. If an outbound HTTP proxy is configured, the proxy
 resolves the name itself and the pin does not apply. Set
 `SSRF_IP_PINNING=false` to turn the pin off while isolating a fetch failure.
+
+LLM completion traffic is the exception. The provider SDKs do their own HTTP,
+so a configured base URL is checked when you save it and on the calls MinusPod
+makes directly, but the SDK's own connections are not pinned. Point base URLs
+at hosts you control.
 
 ### Rate limiting storage
 
