@@ -7,7 +7,7 @@ line-length = 120
 extend-exclude = ["benchmarks", "frontend", ".venv", "smoke", "tmp"]
 
 [lint]
-select = ["F", "B905"]
+select = ["F", "B905", "B904"]
 
 [lint.per-file-ignores]
 # __init__.py files re-export package symbols; unused-import there is the

@@ -1552,7 +1552,7 @@ class Transcriber:
                     response.close()
                     raise ResponseTooLargeError(
                         f"Audio stream exceeded the {max_mb}MB download cap"
-                    )
+                    ) from None
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path

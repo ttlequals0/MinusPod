@@ -866,7 +866,7 @@ class OpenAICompatibleClient(LLMClient):
                         # speculative fallback is unconfirmed; revert and
                         # surface the original error, not the retry's.
                         self._json_format_supported = None
-                        raise e
+                        raise e from None
                     self._persist_json_format_flag()
                     return response
                 raise

@@ -256,7 +256,9 @@ def backup_now(db) -> Dict[str, Any]:
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise BackupInProgressError('a backup is already in progress')
+            # Expected control-flow signal for callers; the low-level lock
+            # errno adds nothing they act on.
+            raise BackupInProgressError('a backup is already in progress') from None
 
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.
