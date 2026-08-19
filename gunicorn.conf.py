@@ -94,3 +94,11 @@ def post_fork(server, worker):
 def when_ready(server):
     """Master, after all workers booted."""
     _log.info("gunicorn when_ready: workers=%s threads=%s", workers, threads)
+    # memory:// limiter storage is per-process, so N workers means ~N x the
+    # declared rate limits (login lockout is DB-backed and unaffected).
+    storage = os.environ.get("RATE_LIMIT_STORAGE_URI", "memory://")
+    if workers > 1 and storage.startswith("memory"):
+        server.log.warning(
+            "Rate limits are per-worker: %d workers with %s storage give ~%dx "
+            "the configured limits. Set RATE_LIMIT_STORAGE_URI=redis://... to "
+            "share counters.", workers, storage, workers)
