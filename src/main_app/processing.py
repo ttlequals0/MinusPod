@@ -21,6 +21,7 @@ from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
+from ad_yield import low_ad_yield
 from ad_reviewer import (
     AdReviewer, is_contradiction_hold, split_resurrection_pool,
 )
@@ -68,12 +69,15 @@ from config import (
     resolve_max_ad_duration,
     resolve_max_ad_duration_confirmed,
     resolve_cue_gated_approval,
+    resolve_low_ad_yield_action,
+    LOW_AD_YIELD_ACTION_MODES,
     differential_fetch_effective,
     resolve_differential_fetch_setting,
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
     ModelNotConfiguredError,
 )
+from database.queue import compute_queue_priority
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from upstream_chapters import fetch_upstream_chapters
@@ -2716,6 +2720,84 @@ def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_titl
         f"low-priority automatic llm re-detect")
 
 
+def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title,
+                                     podcast_name, episode_description,
+                                     episode_published_at, episode_data, run_stats):
+    """Queue one automatic rerun when a pipeline run removed far less ad time
+    than the feed usually yields.
+
+    Fires at most once per episode ever (the low_yield_rerun_at stamp) and
+    only for runs the pipeline started: a row carrying reprocess_requested_at
+    was asked for by a user or by this policy's own rerun. Never raises into
+    the pipeline.
+    """
+    try:
+        if (episode_data or {}).get('reprocess_requested_at'):
+            return
+        # A degraded run queues its own re-detect, and its yield says nothing
+        # about detection quality.
+        if (run_stats or {}).get('detection_degraded'):
+            return
+        podcast = db.get_podcast_by_slug(slug)
+        action = resolve_low_ad_yield_action(db, podcast)
+        if action not in LOW_AD_YIELD_ACTION_MODES:
+            return
+        episode = db.get_episode(slug, episode_id)
+        if not episode:
+            return
+        if episode.get('low_yield_rerun_at'):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] low_ad_yield_action suppressed: "
+                f"already rerun at {episode['low_yield_rerun_at']}")
+            return
+        yield_info = low_ad_yield(db, episode,
+                                  [{'status': 'completed', 'stats': run_stats}])
+        if not yield_info:
+            return
+
+        mode = LOW_AD_YIELD_ACTION_MODES[action]
+        if mode == 'llm' and not db.has_transcript(slug, episode_id):
+            audio_logger.info(
+                f"[{slug}:{episode_id}] low_ad_yield_action redetect needs a "
+                f"stored transcript; falling back to reprocess")
+            mode = 'reprocess'
+
+        # Stamped before anything is queued so a crash cannot fire twice.
+        db.upsert_episode(slug, episode_id, low_yield_rerun_at=utc_now_iso())
+        # reprocess_requested_at makes the rerun look user-requested to the
+        # queue gates and stops it from triggering the policy again.
+        db.upsert_episode(
+            slug, episode_id,
+            status=EpisodeStatus.PENDING.value,
+            reprocess_mode=mode,
+            reprocess_requested_at=utc_now_iso(),
+            retry_count=0,
+            error_message=None,
+            deferred_at=None,
+            deferred_service=None,
+        )
+        # Lazy import: keeps the per-mode clear rules in one place without
+        # loading the API blueprint at pipeline import time.
+        from api.episodes import _clear_episode_for_mode
+        _clear_episode_for_mode(db, slug, episode_id, mode)
+
+        # Queued rather than started: this run still holds the processing
+        # lock, so the queue processor picks it up after the release.
+        priority = compute_queue_priority(
+            (podcast or {}).get('queue_priority'), episode_published_at, manual=True)
+        db.upsert_episode_for_processing(
+            slug, episode_id, episode_url, episode_title,
+            episode_published_at, episode_description, priority=priority)
+        status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
+        audio_logger.info(
+            f"low_ad_yield_action fired action={mode} slug={slug} "
+            f"episode_id={episode_id} removed={yield_info['removedSeconds']:.1f}s "
+            f"feed_avg={yield_info['feedAverageSeconds']:.1f}s")
+    except Exception as err:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] low_ad_yield_action hook failed: {err}")
+
+
 def _refresh_rss_for_slug(slug, episode_id):
     """Force-refresh the RSS feed cache for ``slug``, logging on failure."""
     from main_app.feeds import get_feed_map, refresh_rss_feed
@@ -4091,6 +4173,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                ads_held=held_count, ads_not_cut=not_cut_count)
 
             _fire_degraded_redetect()
+            # After finalize: the heuristic reads the durations and history
+            # this run just persisted.
+            _maybe_fire_low_ad_yield_action(
+                slug, episode_id, episode_url, episode_title, podcast_name,
+                episode_description, episode_published_at, episode_data, run_stats)
 
             status_service.complete_job()
             return True

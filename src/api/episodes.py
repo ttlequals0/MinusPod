@@ -15,6 +15,7 @@ from config import (
     is_pending_review, resolve_feed_processing_mode,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
+from ad_yield import latest_completed_run, low_ad_yield
 from audio_peaks import compute_peaks, PeaksError
 from audio_processor import get_replacement_duration
 from chapters_generator import ChaptersGenerator
@@ -142,18 +143,11 @@ def _processed_url(slug: str, episode_id: str, version: int,
     return episode_public_url("", slug, episode_id, version, key=key)
 
 
-def _latest_completed_run(runs):
-    """Most recent completed run from a processingRuns list, or None. The
-    run that produced the currently served audio."""
-    return next((r for r in reversed(runs) if r.get('status') == 'completed'),
-                None)
-
-
 def _episode_token_fields(runs) -> dict:
     """API token fields from the most recent completed run (or empty dict).
     Derived from the processingRuns list already queried for the response,
     replacing a second (unindexed) processing_history lookup."""
-    run = _latest_completed_run(runs)
+    run = latest_completed_run(runs)
     if not run:
         return {}
     return {
@@ -308,57 +302,14 @@ def _processing_runs(db, episode):
     return runs
 
 
-# A run is flagged only when the feed has an established ad load (average
-# of at least 2 minutes over 3+ recent episodes) and this episode removed
-# under 35% of it. DAI copies served with unfilled slots trip this; so
-# would a real detection miss.
-_LOW_YIELD_MIN_AVG_SECONDS = 120
-_LOW_YIELD_MIN_SAMPLES = 3
-_LOW_YIELD_FRACTION = 0.35
-
-
-def _low_ad_yield(db, episode, runs):
-    """Compare this episode's removed ad time against the feed's recent
-    average (#519). Returns the comparison dict when far below it.
-
-    Pass-through runs (#521) and skip-detection runs (#538) remove nothing
-    by design, so they never get the badge. The check keys on the run that
-    produced the served audio (the latest completed one), not merely the
-    newest history row, so a failed later attempt cannot un-suppress it.
-    Suppressed siblings in the baseline only drag the feed average down,
-    which makes the badge less likely to fire, not more.
-    """
-    latest_completed = _latest_completed_run(runs) if runs else None
-    latest_stats = ((latest_completed or {}).get('stats')) or {}
-    if latest_stats.get('mode') == 'passthrough' or latest_stats.get('detectionSkipped'):
-        return None
-    original = episode.get('original_duration')
-    new = episode.get('new_duration')
-    if not original or new is None:
-        return None
-    removed = original - new
-    yields = db.get_recent_ad_yields(episode['podcast_id'],
-                                     episode['episode_id'])
-    if len(yields) < _LOW_YIELD_MIN_SAMPLES:
-        return None
-    average = sum(yields) / len(yields)
-    if average < _LOW_YIELD_MIN_AVG_SECONDS or removed >= average * _LOW_YIELD_FRACTION:
-        return None
-    return {
-        'removedSeconds': round(removed, 1),
-        'feedAverageSeconds': round(average, 1),
-        'sampleSize': len(yields),
-    }
-
-
 def _partial_detection(episode, runs):
     """Degraded pass-1 completion (episodes.detection_degraded). Window
     counts come from the run that produced the served audio (the latest
-    completed one, same lookup _low_ad_yield uses above), when available."""
+    completed one, same lookup low_ad_yield uses), when available."""
     reason = episode.get('detection_degraded')
     if not reason:
         return None
-    latest_completed = _latest_completed_run(runs) if runs else None
+    latest_completed = latest_completed_run(runs) if runs else None
     latest_stats = ((latest_completed or {}).get('stats')) or {}
     windows = latest_stats.get('windows') or {}
     return {
@@ -486,7 +437,7 @@ def get_episode(slug, episode_id):
         'verificationResponse': episode.get('second_pass_response'),
         'rssDuration': episode.get('rss_duration'),
         'processingRuns': processing_runs,
-        'lowAdYield': _low_ad_yield(db, episode, processing_runs),
+        'lowAdYield': low_ad_yield(db, episode, processing_runs),
         'navigation': db.get_episode_neighbors(slug, episode_id),
         **_episode_token_fields(processing_runs),
     })

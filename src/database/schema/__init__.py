@@ -239,6 +239,9 @@ class SchemaMixin:
             # non-auth LLM failure published on pattern/cross-fetch markers
             # alone. NULL on a clean run.
             ('detection_degraded', 'TEXT'),
+            # Low-ad-yield policy rerun stamp: set once, ever, when the policy
+            # requeues this episode. NULL means the policy has not fired.
+            ('low_yield_rerun_at', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -355,6 +358,9 @@ class SchemaMixin:
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
             ('title_skip_patterns', 'TEXT'),
             ('title_skip_action', 'TEXT'),
+            # Per-feed low-ad-yield action override; NULL = use the global
+            # low_ad_yield_action setting.
+            ('low_ad_yield_action', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

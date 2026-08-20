@@ -442,6 +442,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # Internal gate for the reviewer calibration self-test auto-run; not
     # exposed in the Settings UI, so no payload_key.
     'reviewer_calibration_on_change': SettingSpec(env_backed=True),
+    # Automatic response to a low-ad-yield pipeline run (nothing | redetect |
+    # reprocess | full); per-feed overridable.
+    'low_ad_yield_action': SettingSpec(
+        env_backed=True, payload_key='lowAdYieldAction'),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),

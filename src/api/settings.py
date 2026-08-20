@@ -37,6 +37,7 @@ from config import (
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     PODCAST_SEARCH_PROVIDERS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
+    LOW_AD_YIELD_ACTIONS,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -215,6 +216,9 @@ def get_settings():
     artwork_badge_position = _setting_value(
         settings, 'artwork_badge_position',
         registry_default('artwork_badge_position'))
+    low_ad_yield_action = _setting_value(
+        settings, 'low_ad_yield_action',
+        registry_default('low_ad_yield_action'))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -522,6 +526,7 @@ def get_settings():
             'artwork_watermark_enabled', artwork_watermark_enabled),
         'artworkBadgePosition': _sv(
             'artwork_badge_position', artwork_badge_position),
+        'lowAdYieldAction': _sv('low_ad_yield_action', low_ad_yield_action),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -837,6 +842,14 @@ def _apply_processing_flags(db, data):
                        is_default=False)
         db.clear_all_podcast_etags()
         logger.info(f"Updated artwork badge position to: {data['artworkBadgePosition']}")
+
+    if 'lowAdYieldAction' in data:
+        if data['lowAdYieldAction'] not in LOW_AD_YIELD_ACTIONS:
+            return error_response(
+                f'lowAdYieldAction must be one of: {", ".join(LOW_AD_YIELD_ACTIONS)}', 400)
+        db.set_setting('low_ad_yield_action', data['lowAdYieldAction'],
+                       is_default=False)
+        logger.info(f"Updated low-ad-yield action to: {data['lowAdYieldAction']}")
 
     if 'feedAuthEnabled' in data:
         enabled = data['feedAuthEnabled']

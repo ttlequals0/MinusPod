@@ -687,6 +687,36 @@ PROCESSING_MODE_COLUMN_UPDATES = {
 }
 
 
+# Low-ad-yield response policy: what to do when a pipeline run finishes with
+# far less ad time removed than the feed usually yields. Values map to the
+# reprocess modes the reprocess endpoint accepts.
+LOW_AD_YIELD_ACTION_MODES = {
+    'redetect': 'llm',
+    'reprocess': 'reprocess',
+    'full': 'full',
+}
+LOW_AD_YIELD_ACTION_NOTHING = 'nothing'
+LOW_AD_YIELD_ACTIONS = (LOW_AD_YIELD_ACTION_NOTHING, *LOW_AD_YIELD_ACTION_MODES)
+
+
+def resolve_low_ad_yield_action(db, podcast_row) -> str:
+    """Per-feed low-ad-yield action if set, else the global setting.
+
+    Unknown or unset values resolve to 'nothing' so a bad row cannot start
+    reruns nobody asked for.
+    """
+    feed_value = (podcast_row or {}).get('low_ad_yield_action')
+    if feed_value in LOW_AD_YIELD_ACTIONS:
+        return feed_value
+    try:
+        value = db.get_setting('low_ad_yield_action')
+    except Exception:
+        return LOW_AD_YIELD_ACTION_NOTHING
+    if value is None:
+        value = resolve_env_backed_default('low_ad_yield_action')
+    return value if value in LOW_AD_YIELD_ACTIONS else LOW_AD_YIELD_ACTION_NOTHING
+
+
 def resolve_skip_second_pass(podcast_row):
     """Whether the feed opts out of the pass-2 verification scan (issue #599).
 
@@ -1727,6 +1757,10 @@ def _validate_bool_string(value: str) -> bool:
     return str(value).strip().lower() in ('true', 'false', '1', '0', 'yes', 'no')
 
 
+def _validate_low_ad_yield_action(value: str) -> bool:
+    return value in LOW_AD_YIELD_ACTIONS
+
+
 def _validate_badge_position(value: str) -> bool:
     from artwork_watermark import BADGE_POSITIONS  # lazy: keeps Pillow out of config import
     return value in BADGE_POSITIONS
@@ -1901,6 +1935,9 @@ ENV_BACKED_SETTINGS = (
     ('artwork_badge_position', 'ARTWORK_BADGE_POSITION', 'bottom-right', _validate_badge_position),
     # Gates the reviewer calibration self-test auto-run on review_model change.
     ('reviewer_calibration_on_change', 'REVIEWER_CALIBRATION_ON_CHANGE', 'true', _validate_bool_string),
+    # Automatic response to a low-ad-yield pipeline run; per-feed overridable.
+    ('low_ad_yield_action', 'LOW_AD_YIELD_ACTION', LOW_AD_YIELD_ACTION_NOTHING,
+     _validate_low_ad_yield_action),
 )
 
 

@@ -32,6 +32,7 @@ from config import (
     PROCESSING_MODE_CUE_ONLY,
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
+    LOW_AD_YIELD_ACTIONS,
     cue_only_missing_roles,
 )
 from differential_fetcher import is_likely_dai_feed
@@ -218,6 +219,19 @@ def _normalize_chapters_mode(value):
 # (not 0) to keep unset rows clean; both read back as 'normal' downstream.
 QUEUE_PRIORITY_DB_VALUES = {'high': 10, 'low': -10}
 _QUEUE_PRIORITY_API_VALUES = {v: k for k, v in QUEUE_PRIORITY_DB_VALUES.items()}
+
+
+def _normalize_low_ad_yield_action(value):
+    """Validate the per-feed lowAdYieldAction override.
+
+    Returns (db_value, error). None clears the override (stored NULL, which
+    means "use the global setting").
+    """
+    if value is None:
+        return None, None
+    if value in LOW_AD_YIELD_ACTIONS:
+        return value, None
+    return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
 
 
 def _normalize_queue_priority(value):
@@ -461,6 +475,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'detectionMode': podcast.get('detection_mode'),
         'chaptersMode': podcast.get('chapters_mode'),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
+        'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
         'segmentCategoryActions': _deserialize_segment_category_actions(
@@ -1007,6 +1022,12 @@ def update_feed(slug):
         if qp_err:
             return error_response(qp_err, 400)
         updates['queue_priority'] = qp_val
+
+    if 'lowAdYieldAction' in data:
+        ly_val, ly_err = _normalize_low_ad_yield_action(data['lowAdYieldAction'])
+        if ly_err:
+            return error_response(ly_err, 400)
+        updates['low_ad_yield_action'] = ly_val
 
     if 'titleSkipPatterns' in data:
         patterns_val, patterns_err = _normalize_title_skip_patterns(data['titleSkipPatterns'])

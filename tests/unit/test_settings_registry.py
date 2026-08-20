@@ -409,11 +409,12 @@ class TestGetDefaults:
         # detectShowSegments added after that (83 -> 84).
         # processNewEpisodesFirst added after that (84 -> 85).
         # jitBlockedUserAgents added after that (85 -> 86).
+        # lowAdYieldAction added after that (86 -> 87).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 86
+        assert len(payload_keys) == 87
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

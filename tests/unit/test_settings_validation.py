@@ -888,3 +888,29 @@ class TestWhisperApiTimeoutSetting:
     def test_a_non_number_is_rejected(self, client):
         resp = self._put(client, {'whisperApiTimeoutSeconds': 'soon'})
         assert resp.status_code == 400
+
+
+class TestLowAdYieldAction:
+    """Global low-ad-yield action: exposed on GET, validated on PUT."""
+
+    def _put(self, client, payload):
+        return client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps(payload),
+                          content_type='application/json')
+
+    def test_get_exposes_the_default(self, client):
+        body = json.loads(client.get('/api/v1/settings').data)
+        assert body['lowAdYieldAction']['value'] == 'nothing'
+        assert body['defaults']['lowAdYieldAction'] == 'nothing'
+
+    @pytest.mark.parametrize('action', ['nothing', 'redetect', 'reprocess', 'full'])
+    def test_put_accepts_each_action(self, client, action):
+        assert self._put(client, {'lowAdYieldAction': action}).status_code == 200
+        assert database.Database().get_setting('low_ad_yield_action') == action
+
+    def test_put_rejects_an_unknown_action(self, client):
+        self._put(client, {'lowAdYieldAction': 'redetect'})
+        resp = self._put(client, {'lowAdYieldAction': 'panic'})
+        assert resp.status_code == 400
+        assert 'lowAdYieldAction' in json.loads(resp.data)['error']
+        assert database.Database().get_setting('low_ad_yield_action') == 'redetect'
