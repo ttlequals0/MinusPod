@@ -47,13 +47,34 @@ describe('RunLogViewer', () => {
     expect(screen.getByText('cut failed')).toBeTruthy();
   });
 
-  it('filters to the chosen minimum level', async () => {
+  it('shows every level until a chip is selected', async () => {
+    renderViewer();
+    await screen.findByText('Starting sweep');
+    expect(screen.getByRole('button', { name: 'Debug' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByText('window 1 prompt built')).toBeTruthy();
+    expect(screen.getByText('cut failed')).toBeTruthy();
+  });
+
+  it('keeps only the selected levels', async () => {
     renderViewer();
     await screen.findByText('Starting sweep');
     await userEvent.click(screen.getByRole('button', { name: 'Warning' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Error' }));
     await waitFor(() => expect(screen.queryByText('Starting sweep')).toBeNull());
+    expect(screen.queryByText('window 1 prompt built')).toBeNull();
     expect(screen.getByText('window 2 retried')).toBeTruthy();
     expect(screen.getByText('cut failed')).toBeTruthy();
+  });
+
+  it('clears a level filter when its chip is clicked again', async () => {
+    renderViewer();
+    await screen.findByText('Starting sweep');
+    const chip = screen.getByRole('button', { name: 'Error' });
+    await userEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText('Starting sweep')).toBeNull());
+    await userEvent.click(chip);
+    expect(await screen.findByText('Starting sweep')).toBeTruthy();
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
   });
 
   it('filters by search text', async () => {
@@ -64,7 +85,7 @@ describe('RunLogViewer', () => {
     expect(screen.getByText('window 2 retried')).toBeTruthy();
   });
 
-  it('keeps critical and unfamiliar levels under every filter', async () => {
+  it('shows critical under the error chip and never hides unfamiliar levels', async () => {
     mockGetEpisodeRunLog.mockResolvedValue({
       runNumber: 2,
       lines: [

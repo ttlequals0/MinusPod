@@ -17,11 +17,11 @@ interface RunLogViewerProps {
 const LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 type Level = typeof LEVELS[number];
 
-const LEVEL_RANK: Record<string, number> = {
-  debug: 10, info: 20, warning: 30, error: 40, critical: 50,
+// Chip each known level answers to; critical rides the error chip. A level
+// missing here (custom handlers) matches no chip and is never hidden.
+const LEVEL_CHIP: Record<string, Level> = {
+  debug: 'debug', info: 'info', warning: 'warning', error: 'error', critical: 'error',
 };
-// A level the map does not know outranks every chip, so it is never hidden.
-const UNKNOWN_LEVEL_RANK = 100;
 const LEVEL_LABEL: Record<Level, string> = {
   debug: 'Debug', info: 'Info', warning: 'Warning', error: 'Error',
 };
@@ -50,7 +50,9 @@ function formatBytes(bytes: number): string {
 }
 
 function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps) {
-  const [minLevel, setMinLevel] = useState<Level>('debug');
+  // No chips selected means no level filter; selecting chips keeps only
+  // those levels. Matches how the pills read at a glance.
+  const [selectedLevels, setSelectedLevels] = useState<ReadonlySet<Level>>(new Set());
   const [search, setSearch] = useState('');
   const [shown, setShown] = useState(PAGE);
 
@@ -64,12 +66,14 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   // switching chips costs nothing; the server filter serves API callers.
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const floor = LEVEL_RANK[minLevel];
     return lines.filter((line) => {
-      if ((LEVEL_RANK[line.level?.toLowerCase()] ?? UNKNOWN_LEVEL_RANK) < floor) return false;
+      if (selectedLevels.size > 0) {
+        const chip = LEVEL_CHIP[line.level?.toLowerCase()];
+        if (chip !== undefined && !selectedLevels.has(chip)) return false;
+      }
       return !needle || line.msg.toLowerCase().includes(needle);
     });
-  }, [lines, minLevel, search]);
+  }, [lines, selectedLevels, search]);
 
   const visible = filtered.slice(0, shown);
 
@@ -103,14 +107,18 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
       </div>
 
       <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-        <div className="flex items-center gap-1" role="group" aria-label="Minimum level">
+        <div className="flex items-center gap-1" role="group" aria-label="Filter by level">
           {LEVELS.map((level) => (
             <button
               key={level}
-              aria-pressed={minLevel === level}
-              onClick={() => onFilterChange(() => setMinLevel(level))}
+              aria-pressed={selectedLevels.has(level)}
+              onClick={() => onFilterChange(() => setSelectedLevels((prev) => {
+                const next = new Set(prev);
+                if (next.has(level)) next.delete(level); else next.add(level);
+                return next;
+              }))}
               className={`px-2.5 py-1 text-xs rounded transition-colors ${focusRing} ${
-                minLevel === level ? 'bg-primary text-primary-foreground' : btnOutline
+                selectedLevels.has(level) ? 'bg-primary text-primary-foreground' : btnOutline
               }`}
             >
               {LEVEL_LABEL[level]}
@@ -143,7 +151,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
         )}
         {!isLoading && !error && filtered.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No lines match this level and search.
+            No lines match the current filters.
           </p>
         )}
         {visible.length > 0 && (
