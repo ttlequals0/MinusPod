@@ -24,7 +24,8 @@ from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
 from reprocess_modes import (
-    REPROCESS_MODE_CLEAR, clear_episode_for_mode, reset_episode_for_reprocess,
+    REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode,
+    clear_episode_for_mode, reset_episode_for_reprocess,
 )
 from split_planning import build_split_candidates, build_split_pieces
 from utils.constants import EpisodeStatus
@@ -77,31 +78,25 @@ def _check_recut_preconditions(db, slug, episode_id, episode):
 # reprocess_episode_with_mode = 'single'). Fields:
 #   contexts:         endpoints that may request the mode. recut stays
 #                     single-episode-only by design.
-#   needs_transcript: mode reuses the saved transcript to skip re-transcription
-#                     and cannot run without one (issue #349).
 #   preconditions:    extra per-episode input checks, single-episode-only
 #                     (returns an error_response or None).
-# What each mode wipes before requeueing lives in reprocess_modes, which the
-# pipeline's automatic reruns import as well.
+# What each mode wipes before requeueing, and which modes need a saved
+# transcript, live in reprocess_modes, which the pipeline imports as well.
 REPROCESS_MODE_SPECS = {
     'reprocess': {
         'contexts': ('batch', 'bulk', 'single'),
-        'needs_transcript': False,
         'preconditions': None,
     },
     'full': {
         'contexts': ('batch', 'bulk', 'single'),
-        'needs_transcript': False,
         'preconditions': None,
     },
     'llm': {
         'contexts': ('batch', 'bulk', 'single'),
-        'needs_transcript': True,
         'preconditions': None,
     },
     'recut': {
         'contexts': ('single',),
-        'needs_transcript': False,
         'preconditions': _check_recut_preconditions,
     },
 }
@@ -911,7 +906,6 @@ def reprocess_all_episodes(slug):
 
     if not _mode_allowed(mode, 'batch'):
         return error_response('Invalid mode. Use "reprocess", "full", or "llm"', 400)
-    mode_spec = REPROCESS_MODE_SPECS[mode]
 
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
@@ -940,7 +934,7 @@ def reprocess_all_episodes(slug):
             continue
 
         # LLM-only reprocess needs a saved transcript; skip episodes without one.
-        if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
+        if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
             skipped.append({'episodeId': episode_id,
                             'reason': 'No transcript for LLM-only reprocess'})
             continue
@@ -1039,7 +1033,6 @@ def bulk_episode_action(slug):
     elif action in ('reprocess', 'reprocess_full', 'reprocess_llm'):
         # File cleanup must be per-episode, but DB updates are batched
         mode = {'reprocess_full': 'full', 'reprocess_llm': 'llm'}.get(action, 'reprocess')
-        mode_spec = REPROCESS_MODE_SPECS[mode]
         eligible_ids = []
         for episode_id in episode_ids:
             try:
@@ -1048,7 +1041,7 @@ def bulk_episode_action(slug):
                     skipped += 1
                     continue
                 # LLM-only reprocess needs a saved transcript; skip episodes without one.
-                if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
+                if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
                     skipped += 1
                     continue
                 # Keep existing audio until the new version is durable (orchestration-5).
@@ -1057,11 +1050,7 @@ def bulk_episode_action(slug):
                 logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
                 errors.append(f"{episode_id}: bulk action failed")
         if eligible_ids:
-            # LLM-only mode preserves the transcript; other modes wipe the row.
-            if REPROCESS_MODE_CLEAR[mode] == 'ad_data':
-                db.batch_clear_episode_ad_data(slug, eligible_ids)
-            else:
-                db.batch_clear_episode_details(slug, eligible_ids)
+            batch_clear_episodes_for_mode(db, slug, eligible_ids, mode)
             now_str = utc_now_iso()
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_mode=mode,
@@ -1395,7 +1384,7 @@ def reprocess_episode_with_mode(slug, episode_id):
 
     # LLM-only reprocess reuses the saved transcript to skip re-transcription;
     # it cannot run without one. Mirror retry-ad-detection's guard.
-    if mode_spec['needs_transcript'] and not db.has_transcript(slug, episode_id):
+    if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
         return error_response(
             'No transcript available for LLM-only reprocess. '
             'Use "reprocess" or "full" to re-transcribe first.', 400)

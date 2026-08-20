@@ -77,7 +77,6 @@ from config import (
     VETO_MIN_CUT_SECONDS,
     ModelNotConfiguredError,
 )
-from database.queue import compute_queue_priority
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from upstream_chapters import fetch_upstream_chapters
@@ -94,11 +93,14 @@ from llm_client import (
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
-from reprocess_modes import reset_episode_for_reprocess
+from reprocess_modes import (
+    REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode,
+)
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
 from utils.constants import (
-    CANCELED_ERROR_MESSAGE, EpisodeStatus, REPROCESS_SOURCE_JIT,
+    CANCELED_ERROR_MESSAGE, EpisodeStatus, PIPELINE_REPROCESS_SOURCES,
+    REPROCESS_SOURCE_DEGRADED, REPROCESS_SOURCE_POLICY,
 )
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
@@ -2714,7 +2716,8 @@ def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_titl
     if (episode_data or {}).get('detection_degraded'):
         return
     db.upsert_episode(slug, episode_id, reprocess_mode='llm',
-                       reprocess_requested_at=utc_now_iso())
+                       reprocess_requested_at=utc_now_iso(),
+                       reprocess_source=REPROCESS_SOURCE_DEGRADED)
     db.upsert_episode_for_processing(
         slug, episode_id, episode_url, episode_title,
         episode_published_at, episode_description, priority=-10)
@@ -2740,10 +2743,10 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
     """
     try:
         row = episode_data or {}
-        # The JIT play path stamps reprocess_requested_at only to clear the
-        # auto-process gate, so its own marker separates it from a person.
+        # The stamp alone only clears the auto-process gate; the source says
+        # whether the pipeline or a person asked for this run.
         if (row.get('reprocess_requested_at')
-                and row.get('reprocess_source') != REPROCESS_SOURCE_JIT):
+                and row.get('reprocess_source') not in PIPELINE_REPROCESS_SOURCES):
             return
         # A degraded run queues its own re-detect, and its yield says nothing
         # about detection quality.
@@ -2771,7 +2774,7 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
             return
 
         mode = LOW_AD_YIELD_ACTION_MODES[action]
-        if mode == 'llm' and not db.has_transcript(slug, episode_id):
+        if REPROCESS_MODE_NEEDS_TRANSCRIPT[mode] and not db.has_transcript(slug, episode_id):
             audio_logger.info(
                 f"[{slug}:{episode_id}] low_ad_yield_action redetect needs a "
                 f"stored transcript; falling back to reprocess")
@@ -2779,17 +2782,19 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
 
         # Stamped before anything is queued so a crash cannot fire twice.
         db.upsert_episode(slug, episode_id, low_yield_rerun_at=utc_now_iso())
-        # The reset marks the row user-requested, which also stops this rerun
-        # from triggering the policy again.
-        reset_episode_for_reprocess(db, slug, episode_id, mode)
+        # Status stays 'processed' so the episode keeps serving until the rerun
+        # starts, which is also when the per-mode clear runs. The policy source
+        # stops this rerun from triggering the policy again.
+        db.upsert_episode(slug, episode_id, reprocess_mode=mode,
+                          reprocess_requested_at=utc_now_iso(),
+                          reprocess_source=REPROCESS_SOURCE_POLICY)
 
-        # Queued rather than started: this run still holds the processing
-        # lock, so the queue processor picks it up after the release.
-        priority = compute_queue_priority(
-            (podcast or {}).get('queue_priority'), episode_published_at, manual=True)
+        # Queued rather than started: this run still holds the processing lock,
+        # so the queue processor picks it up after the release. Low priority,
+        # like the degraded re-detect: fresh episodes come first.
         db.upsert_episode_for_processing(
             slug, episode_id, episode_url, episode_title,
-            episode_published_at, episode_description, priority=priority)
+            episode_published_at, episode_description, priority=-10)
         status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
         audio_logger.info(
             f"low_ad_yield_action fired action={mode} slug={slug} "
@@ -3650,6 +3655,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         if episode_published_at:
             upsert_kwargs['published_at'] = episode_published_at
         db.upsert_episode(slug, episode_id, **upsert_kwargs)
+
+        # A policy rerun keeps the episode served until this point, so its
+        # per-mode clear happens here rather than when the rerun was queued.
+        if (reprocess_mode
+                and (episode_data or {}).get('reprocess_source') == REPROCESS_SOURCE_POLICY):
+            clear_episode_for_mode(db, slug, episode_id, reprocess_mode)
 
         # Stage 1: Download and transcribe
         audio_path, segments = _download_and_transcribe(

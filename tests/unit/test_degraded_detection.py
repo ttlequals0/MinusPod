@@ -200,7 +200,7 @@ class TestMaybeEnqueueDegradedRedetect:
                         {'detection_degraded': None})
         db.upsert_episode.assert_called_once_with(
             'degraded-feed', 'ep1', reprocess_mode='llm',
-            reprocess_requested_at=ANY)
+            reprocess_requested_at=ANY, reprocess_source='degraded')
         db.upsert_episode_for_processing.assert_called_once_with(
             'degraded-feed', 'ep1', 'https://example.com/ep1.mp3', 'Ep Title',
             '2026-01-01T00:00:00Z', 'desc', priority=-10)

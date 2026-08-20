@@ -518,9 +518,12 @@ def register_routes(app):
             # reads, not only the status file the UI shows. The user-intent
             # mark is what gets it past the drainer's auto-process gate on a
             # feed with auto-process off.
-            db.upsert_episode(slug, episode_id,
-                              reprocess_requested_at=utc_now_iso(),
-                              reprocess_source=REPROCESS_SOURCE_JIT)
+            # Never over an existing stamp: relabelling a person's reprocess
+            # as a play request would let automatic policies act on their run.
+            if not (episode or {}).get('reprocess_requested_at'):
+                db.upsert_episode(slug, episode_id,
+                                  reprocess_requested_at=utc_now_iso(),
+                                  reprocess_source=REPROCESS_SOURCE_JIT)
             feed_priority = db.get_podcast_queue_priority(slug)
             priority = compute_queue_priority(
                 feed_priority, ep_data.get('published'), manual=True)

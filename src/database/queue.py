@@ -203,16 +203,14 @@ class QueueMixin:
             # Lost the race to another consumer; try the next pending row.
         return None
 
-    def update_queue_status(self, queue_id: int, status: str,
-                            error_message: str = None,
-                            expect_status: str = None) -> bool:
-        """Update the status of a queued episode. Returns whether a row changed.
+    def _update_queue_status(self, queue_id: int, status: str,
+                             error_message: str = None,
+                             expect_status: str = None) -> bool:
+        """Write a queue row's status. Returns whether a row changed.
 
-        ``expect_status`` makes the write conditional on the row still holding
-        that status. The drainer passes 'processing' when it reports on the run
-        it claimed: the queue row is unique per episode, so a hook that
-        re-queued the episode mid-run owns that same row, and an unconditional
-        verdict would close the rerun before it ever started.
+        Private: callers reporting on a claim they hold go through
+        close_claimed_queue_row, whose guard keeps a mid-run requeue alive.
+        ``expect_status`` is that guard.
         """
         conn = self.get_connection()
         where = 'WHERE id = ?'
@@ -249,8 +247,15 @@ class QueueMixin:
         (degraded re-detect, low-ad-yield rerun), so that rerun survives.
         Returns whether a row changed.
         """
-        return self.update_queue_status(queue_id, status, error_message,
-                                        expect_status='processing')
+        return self._update_queue_status(queue_id, status, error_message,
+                                         expect_status='processing')
+
+    def get_queue_row_status(self, queue_id: int) -> str | None:
+        """Current status of one queue row, or None when it is gone."""
+        row = self.get_connection().execute(
+            'SELECT status FROM auto_process_queue WHERE id = ?', (queue_id,)
+        ).fetchone()
+        return row['status'] if row else None
 
     def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
         """Mark any non-terminal queue rows for this episode as completed.

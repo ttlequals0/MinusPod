@@ -100,3 +100,30 @@ def test_queue_busy_records_jit_provenance(
                if c.kwargs.get('reprocess_requested_at')]
     assert stamped
     assert stamped[0].kwargs['reprocess_source'] == REPROCESS_SOURCE_JIT
+
+
+@patch('main_app.processing.start_background_processing',
+       return_value=(False, 'queue_busy:other:ep'))
+@patch('main_app.routes._lookup_episode', return_value=LOOKUP)
+@patch('main_app.routes.status_service')
+@patch('main_app.routes.db')
+@patch('main_app.routes.get_feed_map',
+       return_value={SLUG: {'in': 'https://example.com/f.xml', 'out': SLUG}})
+def test_a_play_does_not_overwrite_a_manual_reprocess_stamp(
+    _feed_map, mock_db, mock_status, _lookup, _start, client,
+):
+    """Relabelling a person's reprocess as a play request would let the
+    low-ad-yield policy fire on a run the user asked for."""
+    mock_db.get_episode.return_value = {
+        'episode_id': EP, 'status': 'pending',
+        'original_url': 'https://example.com/ep.mp3',
+        'reprocess_requested_at': '2026-01-01T00:00:00Z',
+    }
+    mock_status.get_queue_position.return_value = 1
+
+    client.get(f'/episodes/{SLUG}/{EP}.mp3')
+
+    stamped = [c for c in mock_db.upsert_episode.call_args_list
+               if 'reprocess_source' in c.kwargs or c.kwargs.get('reprocess_requested_at')]
+    assert not stamped
+    mock_db.upsert_episode_for_processing.assert_called_once()

@@ -230,7 +230,10 @@ def background_queue_processor():
                         # Check final status
                         episode = db.get_episode(slug, episode_id)
                         if episode and episode['status'] == 'processed':
-                            if db.close_claimed_queue_row(queue_id, 'completed'):
+                            # finalize already closes the row on success, so only a
+                            # row back in 'pending' means the run queued a rerun.
+                            if (db.close_claimed_queue_row(queue_id, 'completed')
+                                    or db.get_queue_row_status(queue_id) != 'pending'):
                                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
                             else:
                                 refresh_logger.info(
@@ -266,7 +269,7 @@ def background_queue_processor():
                                 error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
                             wrote = db.close_claimed_queue_row(queue_id, 'failed', error_msg)
                             episode_status = episode.get('status') if episode else None
-                            if not wrote:
+                            if not wrote and db.get_queue_row_status(queue_id) == 'pending':
                                 refresh_logger.info(
                                     f"[{slug}:{episode_id}] Run ended as {episode_status}; a rerun "
                                     f"was queued during the run and stays queued")

@@ -14,6 +14,7 @@ from config import (  # noqa: E402
     resolve_low_ad_yield_action,
 )
 from database import Database  # noqa: E402
+import main_app.processing as processing  # noqa: E402
 from reprocess_modes import clear_episode_for_mode  # noqa: E402
 from utils.constants import REPROCESS_SOURCE_JIT  # noqa: E402
 
@@ -159,7 +160,7 @@ SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
 class TestCompletionPathWiring:
     """The gate matrix is worthless if the pipeline never calls the hook."""
 
-    def _run_pipeline(self):
+    def _run_pipeline(self, episode_row=None):
         podcast_row = {'id': 1, 'slug': 'wiring-feed', 'description': None,
                        'tags': None, 'dai_platform': None,
                        'passthrough_enabled': None, 'skip_ad_detection': None}
@@ -194,7 +195,8 @@ class TestCompletionPathWiring:
             p(processing.os, 'unlink')
             p(processing.os.path, 'exists', return_value=False)
 
-            db.get_episode.return_value = {'reprocess_requested_at': None}
+            db.get_episode.return_value = dict(
+                episode_row or {'reprocess_requested_at': None})
             db.get_podcast_by_slug.return_value = podcast_row
             db.get_setting.return_value = 'false'
             db.get_all_settings.return_value = {}
@@ -205,10 +207,23 @@ class TestCompletionPathWiring:
             storage.get_episode_path.return_value = '/tmp/final.mp3'
             result = processing.process_episode(
                 'wiring-feed', 'ep1', 'https://example.com/ep1.mp3')
-        return result, finalize, hook
+        return result, finalize, hook, db
+
+    def test_a_policy_rerun_clears_when_it_starts_processing(self):
+        _, _, _, db = self._run_pipeline(
+            episode_row={'reprocess_mode': 'reprocess', 'reprocess_source': 'policy',
+                         'reprocess_requested_at': '2026-01-01T00:00:00Z'})
+
+        db.clear_episode_details.assert_called_once_with('wiring-feed', 'ep1')
+
+    def test_an_ordinary_run_clears_nothing_up_front(self):
+        _, _, _, db = self._run_pipeline()
+
+        db.clear_episode_details.assert_not_called()
+        db.clear_episode_ad_data.assert_not_called()
 
     def test_the_success_path_calls_the_hook_after_finalize(self):
-        result, finalize, hook = self._run_pipeline()
+        result, finalize, hook, _ = self._run_pipeline()
 
         assert result is True
         finalize.assert_called_once()
@@ -288,9 +303,6 @@ class TestClearEpisodeForMode:
 
 
 
-import main_app.processing as processing  # noqa: E402
-
-
 class TestFireLowAdYieldAction:
     """Gate matrix and firing behavior for the pipeline hook."""
 
@@ -326,9 +338,20 @@ class TestFireLowAdYieldAction:
         assert kwargs[0]['low_yield_rerun_at']
         assert kwargs[1]['reprocess_mode'] == 'llm'
         assert kwargs[1]['reprocess_requested_at']
-        assert kwargs[1]['status'] == 'pending'
+        assert kwargs[1]['reprocess_source'] == 'policy'
         db.upsert_episode_for_processing.assert_called_once()
         status_service.queue_episode.assert_called_once()
+
+    def test_the_episode_stays_published_until_the_rerun_starts(self):
+        db, _ = self._call()
+        for kwargs in self._rerun_kwargs(db):
+            assert 'status' not in kwargs
+        db.clear_episode_details.assert_not_called()
+        db.clear_episode_ad_data.assert_not_called()
+
+    def test_the_rerun_is_queued_behind_fresh_episodes(self):
+        db, _ = self._call()
+        assert db.upsert_episode_for_processing.call_args.kwargs['priority'] == -10
 
     def test_stamp_is_written_before_the_queue_row(self):
         db, _ = self._call()
@@ -340,16 +363,10 @@ class TestFireLowAdYieldAction:
     def test_reprocess_action_uses_reprocess_mode(self):
         db, _ = self._call(action='reprocess')
         assert self._rerun_kwargs(db)[1]['reprocess_mode'] == 'reprocess'
-        db.clear_episode_details.assert_called_once_with('a-feed', 'ep1')
 
     def test_full_action_uses_full_mode(self):
         db, _ = self._call(action='full')
         assert self._rerun_kwargs(db)[1]['reprocess_mode'] == 'full'
-
-    def test_redetect_clears_ad_data_only(self):
-        db, _ = self._call(action='redetect')
-        db.clear_episode_ad_data.assert_called_once_with('a-feed', 'ep1')
-        db.clear_episode_details.assert_not_called()
 
     def test_redetect_without_transcript_falls_back_to_reprocess(self):
         db, _ = self._call(action='redetect', has_transcript=False)
@@ -358,6 +375,14 @@ class TestFireLowAdYieldAction:
     def test_jit_direct_run_fires(self):
         # A play request that started processing straight away leaves no stamp.
         db, _ = self._call(episode_data={})
+        db.upsert_episode_for_processing.assert_called_once()
+
+    def test_degraded_redetect_run_fires(self):
+        # The degraded chain's own re-detect is pipeline work, so its clean
+        # run is the first one the policy can judge.
+        db, _ = self._call(episode_data={
+            'reprocess_requested_at': '2026-01-01T00:00:00Z',
+            'reprocess_source': 'degraded'})
         db.upsert_episode_for_processing.assert_called_once()
 
     def test_jit_queue_busy_run_fires(self):
@@ -376,9 +401,9 @@ class TestFireLowAdYieldAction:
         db.upsert_episode_for_processing.assert_not_called()
 
     def test_policy_rerun_does_not_fire(self):
-        # The policy's own rerun writes the stamp with no jit marker.
         db, _ = self._call(
-            episode_data={'reprocess_requested_at': '2026-01-01T00:00:00Z'})
+            episode_data={'reprocess_requested_at': '2026-01-01T00:00:00Z',
+                          'reprocess_source': 'policy'})
         db.upsert_episode.assert_not_called()
         db.upsert_episode_for_processing.assert_not_called()
 

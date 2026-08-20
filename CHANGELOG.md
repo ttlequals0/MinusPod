@@ -19,15 +19,16 @@ release notes.
   less ad time than the feed's recent average, it can rerun detection
   automatically. Choose the action under Settings > Global Defaults: do nothing
   (the default), redetect ads from the stored transcript, reprocess, or run a
-  full analysis. Each feed can override that choice or turn the policy off. A
-  rerun happens at most once per episode. The mark goes down when the rerun is
-  queued, so a rerun that fails still spends it. The policy never fires after a
-  manual reprocess or on a pass-through, skip-detection, or cue-only feed.
-  Degraded runs, which publish on partial detection, are skipped too, since they
-  already queue their own re-detect. Playing an unprocessed episode counts as an
-  automatic run and can trigger the policy.
-  `LOW_AD_YIELD_ACTION` seeds the global default on a fresh install; the stored
-  setting is editable at runtime.
+  full analysis. Each feed can override that choice or turn the policy off. The
+  episode keeps serving its current audio while the rerun waits its turn, behind
+  any fresh episodes in the queue. A rerun happens at most once per episode. The
+  mark goes down when the rerun is queued, so a rerun that fails still spends
+  it. The policy never fires after a manual reprocess or on a pass-through,
+  skip-detection, or cue-only feed. Degraded runs, which publish on partial
+  detection, are skipped too, since they already queue their own re-detect.
+  Playing an unprocessed episode counts as an automatic run and can trigger the
+  policy. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh install; the
+  stored setting is editable at runtime.
 
 ### Fixed
 

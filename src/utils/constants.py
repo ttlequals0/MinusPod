@@ -1089,6 +1089,10 @@ Output: [{"start": 2324.5, "end": 2381.1, "confidence": 0.85, "category": "outro
 """
 
 
-# Provenance of a reprocess_requested_at stamp. A play request writes it to
-# clear the auto-process gate, which is not the same as a person asking.
+# Provenance of a reprocess_requested_at stamp. The stamp itself only says
+# "may bypass the auto-process gate", which is not the same as a person asking.
 REPROCESS_SOURCE_JIT = 'jit'
+REPROCESS_SOURCE_DEGRADED = 'degraded'
+REPROCESS_SOURCE_POLICY = 'policy'
+# Sources the pipeline wrote for itself; a NULL source means a person.
+PIPELINE_REPROCESS_SOURCES = (REPROCESS_SOURCE_JIT, REPROCESS_SOURCE_DEGRADED)

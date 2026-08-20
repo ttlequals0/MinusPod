@@ -16,6 +16,27 @@ REPROCESS_MODE_CLEAR = {
 }
 
 
+# Modes that reuse the saved transcript to skip re-transcription and cannot
+# run without one (issue #349).
+REPROCESS_MODE_NEEDS_TRANSCRIPT = {
+    'reprocess': False,
+    'full': False,
+    'llm': True,
+    'recut': False,
+}
+
+
+def batch_clear_episodes_for_mode(db, slug, episode_ids, mode):
+    """Bulk counterpart of clear_episode_for_mode."""
+    clear = REPROCESS_MODE_CLEAR[mode]
+    if clear == 'none':
+        return
+    if clear == 'ad_data':
+        db.batch_clear_episode_ad_data(slug, episode_ids)
+    else:
+        db.batch_clear_episode_details(slug, episode_ids)
+
+
 def clear_episode_for_mode(db, slug, episode_id, mode):
     """Clear cached detection data before a reprocess, per the mode's rule."""
     clear = REPROCESS_MODE_CLEAR[mode]
@@ -29,6 +50,10 @@ def clear_episode_for_mode(db, slug, episode_id, mode):
 
 def reset_episode_for_reprocess(db, slug, episode_id, mode):
     """Put an episode back in the queue's hands for a rerun in ``mode``.
+
+    For user-requested reprocesses: the episode leaves the served feed until
+    the rerun finishes. Automatic reruns keep the episode published and clear
+    when the run starts instead.
 
     Sets the reprocess mode before anything reads it, marks the row
     user-requested so the queue gates honor it, then clears the cached
