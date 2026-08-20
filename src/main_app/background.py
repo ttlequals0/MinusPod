@@ -4,7 +4,11 @@ import os
 import shutil
 import time
 
-from config import MAX_EPISODE_RETRIES, title_matches_skip_patterns
+import run_log
+from config import (
+    MAX_EPISODE_RETRIES, resolve_episode_log_retention_days,
+    title_matches_skip_patterns,
+)
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 # Singletons are bound in main_app/__init__.py before this submodule
 # is loaded by the explicit `from main_app.background import ...` at
@@ -50,6 +54,16 @@ def run_cleanup():
                         shutil.rmtree(orphan_path, ignore_errors=True)
     except Exception as e:
         refresh_logger.error(f"Orphan cleanup failed: {e}")
+
+    # Episode run logs (#660): prune by age and drop files no row points at.
+    try:
+        pruned, orphans = run_log.sweep_expired_logs(
+            db, storage.data_dir, resolve_episode_log_retention_days(db))
+        if pruned or orphans:
+            refresh_logger.info(
+                f"Cleanup: removed {pruned} expired run log(s) and {orphans} orphan file(s)")
+    except Exception as e:
+        refresh_logger.error(f"Run log cleanup failed: {e}")
 
     # Periodic search index rebuild (every 6 hours). rebuild_search_index
     # logs "Search index rebuilt with N items" itself, so no duplicate log

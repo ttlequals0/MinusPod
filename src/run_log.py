@@ -74,6 +74,68 @@ def run_log_path(data_dir, slug, episode_id, history_id):
                             f"run-{history_id}.jsonl")
 
 
+def sweep_expired_logs(db, data_dir, retention_days):
+    """Delete run logs past retention, clearing the pointers that named them.
+
+    Returns (pruned, orphans): rows whose log was deleted, and files with no
+    row (including temp files a killed run left behind). Retention 0 removes
+    everything, matching the setting that turns storage off.
+    """
+    cutoff = time.time() - max(0, int(retention_days or 0)) * 86400
+    pointers = {}
+    try:
+        pointers = db.get_history_log_pointers()
+    except Exception as err:
+        logger.warning(f"run log sweep could not read log pointers: {err}")
+
+    pruned = orphans = 0
+    root = episode_log_root(data_dir)
+    if root.exists():
+        for path in sorted(root.rglob('run-*.jsonl')):
+            try:
+                if path.stat().st_mtime > cutoff:
+                    continue
+                relative = path.relative_to(Path(data_dir)).as_posix()
+                path.unlink()
+                _prune_empty_dirs(path.parent, root)
+            except Exception as err:
+                logger.warning(f"run log sweep could not remove {path}: {err}")
+                continue
+            history_id = pointers.get(relative)
+            if history_id is None:
+                orphans += 1
+                continue
+            pruned += 1
+            try:
+                db.set_history_log_pointer(history_id, None, None)
+            except Exception as err:
+                logger.warning(
+                    f"run log sweep could not clear pointer {history_id}: {err}")
+
+    temp_dir = run_log_temp_dir(data_dir)
+    if temp_dir.exists():
+        for path in sorted(temp_dir.glob('*.jsonl.tmp')):
+            try:
+                if path.stat().st_mtime > cutoff:
+                    continue
+                path.unlink()
+                orphans += 1
+            except Exception as err:
+                logger.warning(f"run log sweep could not remove {path}: {err}")
+    return pruned, orphans
+
+
+def _prune_empty_dirs(directory, root):
+    """Remove now-empty episode and feed directories under the log root."""
+    current = directory
+    while current != root and root in current.parents:
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent
+
+
 class RunLogRecorder(logging.Handler):
     """Logging handler that writes one run's records to a JSONL file."""
 

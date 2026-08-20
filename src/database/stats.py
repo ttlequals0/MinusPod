@@ -326,6 +326,14 @@ class StatsMixin:
             pass
         return cursor.lastrowid
 
+    def get_history_log_pointers(self) -> dict:
+        """Map of stored run log path to history row id, for the retention sweep."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            "SELECT id, log_file FROM processing_history WHERE log_file IS NOT NULL"
+        ).fetchall()
+        return {row['log_file']: row['id'] for row in rows}
+
     def set_history_log_pointer(self, history_id: int, log_file: str | None,
                                 log_bytes: int | None) -> bool:
         """Point a history row at its run log file (#660), or clear it with
