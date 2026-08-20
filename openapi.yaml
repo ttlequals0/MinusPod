@@ -586,6 +586,19 @@ paths:
                     ad time than the feed's recent average: 'nothing' (default),
                     'redetect' (LLM-only rerun from the stored transcript),
                     'reprocess', or 'full'. Fires at most once per episode.
+                episodeLogs:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - on
+                    - off
+                    - null
+                  description: >-
+                    Per-feed run log storage (issue 660): 'on' stores each
+                    run's pipeline log, 'off' never does, null follows the
+                    global setting. Nothing is stored while
+                    episodeLogRetentionDays is 0.
                 titleSkipPatterns:
                   type:
                     - array
@@ -1199,6 +1212,79 @@ paths:
                           type: string
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/runs/{run_number}/log:
+    get:
+      tags:
+        - Episodes
+      summary: Pipeline log for one processing run
+      description: |
+        Returns the captured pipeline log for a single processing run, either
+        as parsed JSONL lines or as the raw file. Logs are stored when the
+        feed opts in and the retention setting is above zero; the 404 body
+        distinguishes a run that stored no log from one whose log the
+        retention sweep removed.
+      operationId: getEpisodeRunLog
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - in: path
+          name: run_number
+          required: true
+          schema: { type: integer }
+          description: Run number, matching processingRuns[].runNumber
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, raw]
+          description: json (default) or raw for the JSONL file as a download
+        - in: query
+          name: level
+          schema:
+            type: string
+            enum: [debug, info, warning, error]
+          description: Minimum level to include; json format only
+      responses:
+        '200':
+          description: Run log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runNumber: { type: integer }
+                  truncated:
+                    type: boolean
+                    description: True when the run hit the size cap
+                  bytes: { type: integer }
+                  lines:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ts: { type: string, format: date-time }
+                        level: { type: string }
+                        logger: { type: string }
+                        msg: { type: string }
+            text/plain:
+              schema:
+                type: string
+                description: The raw JSONL file (format=raw)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: No log for this run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  status: { type: integer }
+                  code:
+                    type: string
+                    enum: [log_not_stored, log_pruned]
 
   /feeds/{slug}/episodes/{episode_id}/peaks:
     get:
@@ -3872,6 +3958,15 @@ paths:
                     ad time than the feed's recent average: 'nothing' (default),
                     'redetect' (LLM-only rerun from the stored transcript),
                     'reprocess', or 'full'. Fires at most once per episode.
+                episodeLogRetentionDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 365
+                  description: Days to keep per-run pipeline logs (issue 660). 0 turns run log storage off and sweeps what is already stored.
+                episodeLogLevel:
+                  type: string
+                  enum: [debug, info]
+                  description: Minimum level kept in a run log (issue 660). Defaults to debug.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -7919,6 +8014,17 @@ components:
           description: >-
             Per-feed override of the global lowAdYieldAction setting; null
             means the global value applies.
+        episodeLogs:
+          type:
+            - string
+            - 'null'
+          enum:
+            - on
+            - off
+            - null
+          description: >-
+            Per-feed run log storage (issue 660); null follows the global
+            setting.
         titleSkipPatterns:
           type: array
           items:
@@ -8301,6 +8407,9 @@ components:
           type: integer
         llmCost:
           type: number
+        hasLog:
+          type: boolean
+          description: True when this run stored a pipeline log the run-log endpoint can serve.
         stats:
           type:
             - object
@@ -9284,6 +9393,23 @@ components:
                 'reprocess', or 'full'. Fires at most once per episode.
             isDefault:
               type: boolean
+        episodeLogRetentionDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              description: Days to keep per-run pipeline logs (issue 660); 0 turns storage off.
+            isDefault:
+              type: boolean
+        episodeLogLevel:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [debug, info]
+              description: Minimum level kept in a run log (issue 660).
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -9490,6 +9616,11 @@ components:
             lowAdYieldAction:
               type: string
               enum: [nothing, redetect, reprocess, full]
+            episodeLogRetentionDays:
+              type: integer
+            episodeLogLevel:
+              type: string
+              enum: [debug, info]
             feedAuthEnabled:
               type: boolean
             minCutConfidence:

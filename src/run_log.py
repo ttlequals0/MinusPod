@@ -74,6 +74,12 @@ def run_log_path(data_dir, slug, episode_id, history_id):
                             f"run-{history_id}.jsonl")
 
 
+def resolve_stored_log_path(data_dir, relative_path):
+    """Absolute path for a stored pointer, refusing anything outside the data dir."""
+    from storage import _safe_join_under
+    return _safe_join_under(Path(data_dir), *str(relative_path).split('/'))
+
+
 def sweep_expired_logs(db, data_dir, retention_days):
     """Delete run logs past retention, clearing the pointers that named them.
 

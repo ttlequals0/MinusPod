@@ -275,6 +275,7 @@ def _processing_runs(db, episode):
             'inputTokens': row.get('input_tokens') or 0,
             'outputTokens': row.get('output_tokens') or 0,
             'llmCost': round(row.get('llm_cost') or 0.0, 6),
+            'hasLog': bool(row.get('log_file')),
             'stats': _run_stats_to_api(stats),
         })
     return runs
@@ -545,6 +546,90 @@ def serve_original_audio(slug, episode_id):
     # download serially and refuse to seek past the buffered tail.
     response.headers['Accept-Ranges'] = 'bytes'
     return response
+
+
+RUN_LOG_LEVELS = {'debug': 10, 'info': 20, 'warning': 30, 'error': 40}
+
+
+def _run_log_row(db, slug, episode_id, run_number):
+    """The history row for this run, or (None, error_response)."""
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return None, error_response('Episode not found', 404)
+    for row in db.get_episode_processing_runs(episode['podcast_id'],
+                                              episode['episode_id']):
+        if row.get('reprocess_number') == run_number:
+            return row, None
+    return None, error_response('Processing run not found', 404)
+
+
+def _missing_log_response(code, message):
+    """404 that says whether the log was never stored or has been pruned."""
+    return json_response({'error': message, 'status': 404, 'code': code}, 404)
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/runs/<int:run_number>/log',
+           methods=['GET'])
+@log_request
+def get_episode_run_log(slug, episode_id, run_number):
+    """Return one processing run's pipeline log (#660).
+
+    Query params:
+        format (json|raw, default json) - raw downloads the JSONL file
+        level  (debug|info|warning|error) - minimum level, json only
+    """
+    from run_log import TRUNCATION_MARKER, resolve_stored_log_path
+    from storage import PathContainmentError
+
+    db = get_database()
+    row, err = _run_log_row(db, slug, episode_id, run_number)
+    if err is not None:
+        return err
+    if not row.get('log_file'):
+        return _missing_log_response(
+            'log_not_stored', 'No log was stored for this run')
+
+    try:
+        path = resolve_stored_log_path(get_storage().data_dir, row['log_file'])
+    except PathContainmentError:
+        logger.warning(f"Run log pointer escapes the data dir: {row['log_file']}")
+        return _missing_log_response('log_pruned', 'Run log is no longer available')
+    if not path.exists():
+        return _missing_log_response('log_pruned', 'Run log is no longer available')
+
+    if request.args.get('format') == 'raw':
+        filename = f"{slug}-{episode_id}-run{run_number}.jsonl"
+        return Response(
+            path.read_bytes(), mimetype='text/plain',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'})
+
+    level_arg = (request.args.get('level') or '').lower()
+    if level_arg and level_arg not in RUN_LOG_LEVELS:
+        return error_response(
+            f"level must be one of: {', '.join(RUN_LOG_LEVELS)}", 400)
+    minimum = RUN_LOG_LEVELS.get(level_arg, 0)
+
+    lines = []
+    truncated = False
+    for raw_line in path.read_text(errors='replace').splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            entry = json.loads(raw_line)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if entry.get('msg') == TRUNCATION_MARKER:
+            truncated = True
+        if RUN_LOG_LEVELS.get(str(entry.get('level', '')).lower(), 0) < minimum:
+            continue
+        lines.append(entry)
+
+    return json_response({
+        'runNumber': run_number,
+        'lines': lines,
+        'truncated': truncated,
+        'bytes': path.stat().st_size,
+    })
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])
