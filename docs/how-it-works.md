@@ -71,7 +71,9 @@ To prevent memory issues from concurrent processing, episodes are processed one 
 - Only one episode processes at a time (Whisper + FFmpeg are memory-intensive)
 - Processing runs in a background thread, so the UI stays responsive
 - Episodes stuck in "processing" status reset automatically on server restart
-- View and cancel processing episodes in Settings
+- View the active episode and the full waiting queue in Settings > Processing
+  Queue, listed in the order the worker will claim them, and cancel any of them
+  there
 
 When you request an episode that needs processing:
 1. If nothing is processing, it starts in the background and returns HTTP 503 with `Retry-After: 30`

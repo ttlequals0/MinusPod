@@ -74,6 +74,14 @@ export interface ProcessingEpisode {
   title: string;
   podcast: string;
   startedAt: string | null;
+  /** Pipeline stage for the active job, or 'queued' while waiting its turn. */
+  stage?: string | null;
+  queuedAt?: string | null;
+  /** 1-based position in the pending queue (queued entries only). */
+  queuePosition?: number;
+  /** Size of the whole backlog, which can exceed the rows the API returns. */
+  queueTotal?: number;
+  priority?: number | null;
 }
 
 export async function getProcessingEpisodes(): Promise<ProcessingEpisode[]> {

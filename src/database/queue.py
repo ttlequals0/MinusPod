@@ -15,6 +15,9 @@ FRESH_WINDOW_HOURS = 48
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
 
+# Bound on the pending rows returned by get_pending_queued_episodes.
+_PENDING_QUEUE_LIMIT = 200
+
 
 def compute_queue_priority(feed_priority, published_at_iso, manual=False, now=None,
                             apply_fresh_boost=True):
@@ -165,6 +168,29 @@ class QueueMixin:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def get_pending_queued_episodes(self, limit: int = _PENDING_QUEUE_LIMIT) -> list[dict]:
+        """Pending queue rows in dequeue order (same ORDER BY as the claim).
+
+        Feeds the Processing Queue panel, which showed only the active job plus
+        the display queue and so hid the auto-process backlog entirely. Capped
+        at `limit` rows; each row carries total_pending (the uncapped count,
+        via a window function evaluated before the LIMIT) so a caller can say
+        how much of the backlog it is showing.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT q.episode_id, q.title, q.priority, q.created_at,
+                      p.slug as podcast_slug, p.title as podcast_title,
+                      COUNT(*) OVER () as total_pending
+               FROM auto_process_queue q
+               JOIN podcasts p ON q.podcast_id = p.id
+               WHERE q.status = 'pending'
+               ORDER BY q.priority DESC, q.created_at ASC
+               LIMIT ?""",
+            (limit,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
     def claim_next_queued_episode(self) -> dict | None:
         """Atomically claim the next pending episode, marking it 'processing'.

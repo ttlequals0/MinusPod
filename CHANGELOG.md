@@ -30,6 +30,17 @@ release notes.
   policy. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh install; the
   stored setting is editable at runtime.
 
+### Changed
+
+- The Settings page's Processing Queue lists the whole backlog. It showed only
+  the active job plus whatever an enqueue path had registered by hand, so a bulk
+  reprocess or a feed refresh that queued a dozen episodes looked like one item,
+  or like nothing at all. `GET /episodes/processing` now returns the pending
+  queue rows in the order the worker claims them, and the panel numbers each
+  waiting episode and collapses past ten rows behind a Show all toggle. Cancel
+  works per row, so only the row being canceled reads as canceling. The list is
+  capped at 200 rows while the heading counts the whole backlog.
+
 ### Fixed
 
 - The queue drainer dropped an episode re-queued while its own run was still

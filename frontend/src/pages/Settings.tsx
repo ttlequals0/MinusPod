@@ -797,6 +797,9 @@ function Settings() {
         processingEpisodes={processingEpisodes}
         onCancel={(params) => cancelMutation.mutate(params)}
         cancelIsPending={cancelMutation.isPending}
+        cancelingKey={cancelMutation.variables
+          ? `${cancelMutation.variables.slug}:${cancelMutation.variables.episodeId}`
+          : null}
       />
 
       {/* Settings search: filters the configurable sections below by matching a

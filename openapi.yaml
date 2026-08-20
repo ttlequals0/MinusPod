@@ -1766,8 +1766,11 @@ paths:
     get:
       tags:
         - Processing
-      summary: List processing episodes
-      description: Returns all episodes currently in processing status across all feeds
+      summary: List processing and queued episodes
+      description: >-
+        Returns the episodes currently processing across all feeds, followed by
+        the full pending queue in dequeue order (priority first, then age).
+        Queued entries carry stage=queued and a 1-based queuePosition.
       operationId: listProcessingEpisodes
       responses:
         '200':
@@ -9609,6 +9612,34 @@ components:
             - 'null'
           format: date-time
           description: When processing started (if available)
+        stage:
+          type:
+            - string
+            - 'null'
+          description: >-
+            Current pipeline stage for the active job, or "queued" for an
+            episode still waiting its turn
+        queuedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the episode was added to the queue (queued entries only)
+        queuePosition:
+          type: integer
+          description: 1-based position in the pending queue (queued entries only)
+        queueTotal:
+          type: integer
+          description: >-
+            Total pending episodes, which can exceed the number of queued
+            entries returned (the row list is capped)
+        priority:
+          type:
+            - integer
+            - 'null'
+          description: >-
+            Dequeue priority of the queue row; null for a display-queue entry
+            with no auto-process queue row
 
     Pattern:
       type: object

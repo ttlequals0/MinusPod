@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+from datetime import datetime, timezone
 
 from flask import Response, redirect, request, send_file, abort, url_for
 
@@ -33,7 +34,7 @@ from utils.episode_paths import episode_public_url
 from utils.text import (
     extract_timed_spans_in_range, parse_transcript_segments,
 )
-from utils.time import utc_now_iso
+from utils.time import ISO_FORMAT, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
 
@@ -1203,10 +1204,23 @@ def retry_ad_detection(slug, episode_id):
 
 # ========== Processing Queue Endpoints ==========
 
+def _epoch_to_iso(ts):
+    """Epoch seconds (StatusService's display queue) as an ISO string, so every
+    queuedAt in the response has the same shape as the DB's created_at."""
+    if not ts:
+        return None
+    return datetime.fromtimestamp(ts, timezone.utc).strftime(ISO_FORMAT)
+
+
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
-    """Episodes processing now (DB + StatusService current_job). Issue #236."""
+    """Episodes processing now, then the full pending queue in dequeue order.
+
+    Sources: the DB's 'processing' rows plus StatusService.current_job for the
+    active job; auto_process_queue pending rows plus StatusService's display
+    queue for the backlog. Issue #236.
+    """
     db = get_database()
     conn = db.get_connection()
 
@@ -1246,25 +1260,55 @@ def get_processing_episodes():
                 'stage': current.stage,
             })
 
-    # Append queued episodes (waiting on the lock) so the panel and banner
-    # surface "what's next" alongside the active job.
+    # Append the waiting queue after the active job(s). The auto_process_queue
+    # rows are the real backlog, so they come first and in dequeue order
+    # (priority DESC, created_at ASC, the same ORDER BY the worker claims by);
+    # StatusService's display queue only holds entries an enqueue path added by
+    # hand, so it contributes just the rows the DB does not already cover.
     seen = {(e['slug'], e['episodeId']) for e in episodes}
+    queued = []
+    pending_rows = db.get_pending_queued_episodes()
+    pending_total = pending_rows[0]['total_pending'] if pending_rows else 0
+    for row in pending_rows:
+        key = (row['podcast_slug'], row['episode_id'])
+        if key in seen:
+            continue
+        seen.add(key)
+        queued.append({
+            'episodeId': row['episode_id'],
+            'slug': row['podcast_slug'],
+            'title': row['title'] or 'Unknown',
+            'podcast': row['podcast_title'] or row['podcast_slug'],
+            'startedAt': None,
+            'queuedAt': row['created_at'],
+            'priority': row['priority'],
+            'stage': 'queued',
+        })
+
     for q in status.queued_episodes:
         key = (q['slug'], q['episode_id'])
         if key in seen:
             continue
         seen.add(key)
-        episodes.append({
+        queued.append({
             'episodeId': q['episode_id'],
             'slug': q['slug'],
             'title': q.get('title') or 'Unknown',
             'podcast': q.get('podcast_name') or q['slug'],
             'startedAt': None,
-            'queuedAt': q.get('queued_at'),
+            'queuedAt': _epoch_to_iso(q.get('queued_at')),
+            'priority': None,
             'stage': 'queued',
         })
 
-    return json_response(episodes)
+    # queueTotal counts the whole backlog even when the row list is capped, so
+    # the panel's "Waiting (N)" does not silently under-report a long queue.
+    queue_total = (pending_total - len(pending_rows)) + len(queued)
+    for position, entry in enumerate(queued, start=1):
+        entry['queuePosition'] = position
+        entry['queueTotal'] = queue_total
+
+    return json_response(episodes + queued)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/cancel', methods=['POST'])
