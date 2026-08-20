@@ -326,6 +326,18 @@ class StatsMixin:
             pass
         return cursor.lastrowid
 
+    def set_history_log_pointer(self, history_id: int, log_file: str | None,
+                                log_bytes: int | None) -> bool:
+        """Point a history row at its run log file (#660), or clear it with
+        None/None when the retention sweep deletes the file."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE processing_history SET log_file = ?, log_bytes = ? WHERE id = ?",
+            (log_file, log_bytes, history_id)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
     def get_episode_processing_runs(self, podcast_id: int, episode_id: str) -> list:
         """All processing-history rows for one episode, oldest first.
 

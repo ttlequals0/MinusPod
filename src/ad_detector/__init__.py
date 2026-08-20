@@ -21,6 +21,7 @@ from llm_client import (
     get_effective_provider, model_matches_provider,
     StructuralRateLimitError,
 )
+from run_log import current_recorder
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm, call_llm_for_window
 from utils.markers import mark_distinct_merge, note_merged_members
@@ -1021,6 +1022,11 @@ class AdDetector:
             worker = self._process_single_window
 
         def _run_one(idx):
+            # Pool workers log without the run tag, so the run log needs their
+            # thread registered (#660).
+            recorder = current_recorder()
+            if recorder is not None:
+                recorder.register_thread()
             return worker(
                 window_idx=idx, window=windows[idx], total_windows=total, **kwargs
             )

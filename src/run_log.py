@@ -48,6 +48,32 @@ def _clear_current_recorder(recorder):
             _active_recorder = None
 
 
+def run_log_temp_dir(data_dir):
+    """Where in-flight run logs are written before they are finalized."""
+    return Path(data_dir) / 'logs' / 'tmp'
+
+
+def episode_log_root(data_dir):
+    """Root of the per-episode run log tree."""
+    return Path(data_dir) / 'logs' / 'episodes'
+
+
+def run_log_relative_path(slug, episode_id, history_id) -> str:
+    """Stored pointer: the run log path relative to the data dir."""
+    return f"logs/episodes/{slug}/{episode_id}/run-{history_id}.jsonl"
+
+
+def run_log_path(data_dir, slug, episode_id, history_id):
+    """Absolute run log path, refusing slugs that escape the log root."""
+    # Lazy: storage pulls the database stack, and this module stays importable
+    # on its own.
+    from storage import _safe_join_under
+    root = episode_log_root(data_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    return _safe_join_under(root, str(slug), str(episode_id),
+                            f"run-{history_id}.jsonl")
+
+
 class RunLogRecorder(logging.Handler):
     """Logging handler that writes one run's records to a JSONL file."""
 
@@ -176,6 +202,8 @@ class RunLogRecorder(logging.Handler):
 
     def finalize(self, final_path):
         """Move the temp file to ``final_path``; returns bytes/truncated or None."""
+        if self._finalized:
+            return None
         self._finalized = True
         self._close()
         if self.disabled or self.bytes_written == 0:

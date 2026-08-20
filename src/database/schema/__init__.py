@@ -1185,6 +1185,9 @@ class SchemaMixin:
             ('processing_stats_json', 'TEXT'),
             # MinusPod version that produced this run (2.78.4)
             ('app_version', 'TEXT'),
+            # Run log pointer (#660): data-dir-relative path and size
+            ('log_file', 'TEXT'),
+            ('log_bytes', 'INTEGER'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 

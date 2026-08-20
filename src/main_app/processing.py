@@ -70,6 +70,8 @@ from config import (
     resolve_max_ad_duration_confirmed,
     resolve_cue_gated_approval,
     resolve_low_ad_yield_action,
+    resolve_episode_log_level,
+    resolve_episode_log_storage,
     LOW_AD_YIELD_ACTION_MODES,
     differential_fetch_effective,
     resolve_differential_fetch_setting,
@@ -93,6 +95,7 @@ from llm_client import (
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
+import run_log
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode,
 )
@@ -2853,6 +2856,53 @@ def _log_completion_summary(slug, episode_id, pass1_cut_count, *, verification_c
     return token_totals
 
 
+def _start_run_log(slug, episode_id):
+    """Attach a run-log recorder when this feed stores logs (#660).
+
+    Returns the recorder or None; setup problems disable capture for the run
+    rather than touching the pipeline.
+    """
+    try:
+        if not resolve_episode_log_storage(db, db.get_podcast_by_slug(slug)):
+            return None
+        recorder = run_log.RunLogRecorder(
+            slug, episode_id, resolve_episode_log_level(db),
+            run_log.run_log_temp_dir(storage.data_dir))
+        recorder.attach()
+        return recorder
+    except Exception as err:
+        audio_logger.warning(f"[{slug}:{episode_id}] run log setup failed: {err}")
+        return None
+
+
+def _end_run_log(recorder):
+    """Detach the recorder; a run that never wrote a history row drops its file."""
+    if recorder is None:
+        return
+    try:
+        recorder.detach()
+        recorder.discard()
+    except Exception as err:
+        audio_logger.warning(f"run log teardown failed: {err}")
+
+
+def _finalize_run_log(db, history_id, slug, episode_id):
+    """Move this run's log onto its freshly written history row."""
+    recorder = run_log.current_recorder()
+    if recorder is None or not history_id:
+        return
+    try:
+        result = recorder.finalize(
+            run_log.run_log_path(storage.data_dir, slug, episode_id, history_id))
+        if result:
+            db.set_history_log_pointer(
+                history_id,
+                run_log.run_log_relative_path(slug, episode_id, history_id),
+                result['bytes'])
+    except Exception as err:
+        audio_logger.warning(f"[{slug}:{episode_id}] run log finalize failed: {err}")
+
+
 def _record_history_row(db, slug, episode_id, episode_title, podcast_name, status,
                         processing_time, ads_detected, token_totals,
                         error_message=None, audio_cues_detected=0,
@@ -2862,7 +2912,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
     podcast_data = db.get_podcast_by_slug(slug)
     if not podcast_data:
         return False
-    db.record_processing_history(
+    history_id = db.record_processing_history(
         podcast_id=podcast_data['id'], podcast_slug=slug,
         podcast_title=podcast_data.get('title') or podcast_name,
         episode_id=episode_id, episode_title=episode_title,
@@ -2874,6 +2924,7 @@ def _record_history_row(db, slug, episode_id, episode_title, podcast_name, statu
         audio_cues_detected=audio_cues_detected,
         processing_stats=run_stats,
     )
+    _finalize_run_log(db, history_id, slug, episode_id)
     return True
 
 
@@ -3542,6 +3593,25 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
+                   episode_title: str = "Unknown", podcast_name: str = "Unknown",
+                   episode_description: str = None, episode_artwork_url: str = None,
+                   episode_published_at: str = None, cancel_event: threading.Event = None):
+    """Process one episode, capturing this run's log when the feed stores logs.
+
+    The recorder wraps every branch below (recut, pass-through, full pipeline)
+    so each of them finalizes its log against the history row it writes.
+    """
+    recorder = _start_run_log(slug, episode_id)
+    try:
+        return _run_episode_pipeline(
+            slug, episode_id, episode_url, episode_title, podcast_name,
+            episode_description, episode_artwork_url, episode_published_at,
+            cancel_event)
+    finally:
+        _end_run_log(recorder)
+
+
+def _run_episode_pipeline(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
                    episode_published_at: str = None, cancel_event: threading.Event = None):

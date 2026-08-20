@@ -286,6 +286,10 @@ TABLE_DDL['processing_history'] = """CREATE TABLE IF NOT EXISTS processing_histo
     -- MinusPod version that produced this run (2.78.4); NULL for rows
     -- recorded before this release.
     app_version TEXT,
+    -- Run log pointer (#660): path relative to the data dir and its size.
+    -- NULL when the run stored no log or the sweep pruned it.
+    log_file TEXT,
+    log_bytes INTEGER,
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
 )"""
 
