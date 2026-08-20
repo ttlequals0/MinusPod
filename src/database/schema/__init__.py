@@ -242,6 +242,9 @@ class SchemaMixin:
             # Low-ad-yield policy rerun stamp: set once, ever, when the policy
             # requeues this episode. NULL means the policy has not fired.
             ('low_yield_rerun_at', 'TEXT'),
+            # Provenance of the current reprocess_requested_at stamp: 'jit'
+            # for a play request, NULL for a person or an automatic rerun.
+            ('reprocess_source', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)

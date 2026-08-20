@@ -23,6 +23,7 @@ from database.queue import compute_queue_priority
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
+from reprocess_modes import REPROCESS_MODE_CLEAR, clear_episode_for_mode
 from split_planning import build_split_candidates, build_split_pieces
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
@@ -74,40 +75,30 @@ def _check_recut_preconditions(db, slug, episode_id, episode):
 # reprocess_episode_with_mode = 'single'). Fields:
 #   contexts:         endpoints that may request the mode. recut stays
 #                     single-episode-only by design.
-#   clear:            what to wipe before requeueing. 'details' wipes the whole
-#                     episode_details row; 'ad_data' keeps the saved transcript
-#                     (clears just the ad-detection outputs) so transcription is
-#                     skipped; 'none' keeps everything -- recut re-cuts the
-#                     retained original from the saved ad detections and
-#                     re-times the saved transcript, so clearing either would
-#                     break it (the derived audio/VTT/chapters are overwritten
-#                     during the recut).
 #   needs_transcript: mode reuses the saved transcript to skip re-transcription
 #                     and cannot run without one (issue #349).
 #   preconditions:    extra per-episode input checks, single-episode-only
 #                     (returns an error_response or None).
+# What each mode wipes before requeueing lives in reprocess_modes, which the
+# pipeline's automatic reruns import as well.
 REPROCESS_MODE_SPECS = {
     'reprocess': {
         'contexts': ('batch', 'bulk', 'single'),
-        'clear': 'details',
         'needs_transcript': False,
         'preconditions': None,
     },
     'full': {
         'contexts': ('batch', 'bulk', 'single'),
-        'clear': 'details',
         'needs_transcript': False,
         'preconditions': None,
     },
     'llm': {
         'contexts': ('batch', 'bulk', 'single'),
-        'clear': 'ad_data',
         'needs_transcript': True,
         'preconditions': None,
     },
     'recut': {
         'contexts': ('single',),
-        'clear': 'none',
         'needs_transcript': False,
         'preconditions': _check_recut_preconditions,
     },
@@ -117,17 +108,6 @@ REPROCESS_MODE_SPECS = {
 def _mode_allowed(mode, context):
     spec = REPROCESS_MODE_SPECS.get(mode)
     return spec is not None and context in spec['contexts']
-
-
-def _clear_episode_for_mode(db, slug, episode_id, mode):
-    """Clear cached detection data before a reprocess, per the mode's spec."""
-    clear = REPROCESS_MODE_SPECS[mode]['clear']
-    if clear == 'none':
-        return
-    if clear == 'ad_data':
-        db.clear_episode_ad_data(slug, episode_id)
-    else:
-        db.clear_episode_details(slug, episode_id)
 
 
 def _processed_url(slug: str, episode_id: str, version: int,
@@ -965,7 +945,7 @@ def reprocess_all_episodes(slug):
 
         try:
             # Keep existing audio until the new version is durable (orchestration-5).
-            _clear_episode_for_mode(db, slug, episode_id, mode)
+            clear_episode_for_mode(db, slug, episode_id, mode)
 
             # Reset status to pending with reprocess mode for priority queue
             db.upsert_episode(
@@ -1076,7 +1056,7 @@ def bulk_episode_action(slug):
                 errors.append(f"{episode_id}: bulk action failed")
         if eligible_ids:
             # LLM-only mode preserves the transcript; other modes wipe the row.
-            if mode_spec['clear'] == 'ad_data':
+            if REPROCESS_MODE_CLEAR[mode] == 'ad_data':
                 db.batch_clear_episode_ad_data(slug, eligible_ids)
             else:
                 db.batch_clear_episode_details(slug, eligible_ids)
@@ -1438,7 +1418,7 @@ def reprocess_episode_with_mode(slug, episode_id):
 
         # 2. Clear cached detection data; keep the processed audio until the new
         # version is durable (orchestration-5).
-        _clear_episode_for_mode(db, slug, episode_id, mode)
+        clear_episode_for_mode(db, slug, episode_id, mode)
 
         # 3. Get episode metadata for processing
         episode_url = episode.get('original_url')

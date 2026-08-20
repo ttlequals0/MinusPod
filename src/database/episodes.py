@@ -220,6 +220,10 @@ class EpisodeMixin:
         if row:
             # Update existing episode
             db_id = row['id']
+            # Provenance travels with the stamp: a write that re-stamps
+            # reprocess_requested_at without naming a source clears the old one.
+            if 'reprocess_requested_at' in kwargs and 'reprocess_source' not in kwargs:
+                kwargs = dict(kwargs, reprocess_source=None)
             if kwargs:
                 fields = []
                 values = []
@@ -232,7 +236,7 @@ class EpisodeMixin:
                                'reprocess_mode', 'reprocess_requested_at', 'retry_count',
                                'published_at', 'episode_number',
                                'deferred_at', 'deferred_service', 'detection_degraded',
-                               'low_yield_rerun_at'):
+                               'low_yield_rerun_at', 'reprocess_source'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -258,8 +262,8 @@ class EpisodeMixin:
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
                     error_message, ad_detection_status, artwork_url, episode_number,
                     retry_count, published_at, deferred_at, deferred_service,
-                    reprocess_requested_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    reprocess_requested_at, reprocess_source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -282,7 +286,8 @@ class EpisodeMixin:
                     kwargs.get('published_at'),
                     kwargs.get('deferred_at'),
                     kwargs.get('deferred_service'),
-                    kwargs.get('reprocess_requested_at')
+                    kwargs.get('reprocess_requested_at'),
+                    kwargs.get('reprocess_source')
                 )
             )
             db_id = cursor.lastrowid
@@ -1110,6 +1115,7 @@ class EpisodeMixin:
             f"""UPDATE episodes SET
                 status = 'pending', retry_count = 0, error_message = NULL,
                 reprocess_mode = ?, reprocess_requested_at = ?,
+                reprocess_source = NULL,
                 deferred_at = NULL, deferred_service = NULL,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
             WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608

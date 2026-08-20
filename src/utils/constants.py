@@ -1087,3 +1087,8 @@ OUTRO EXAMPLE:
 
 Output: [{"start": 2324.5, "end": 2381.1, "confidence": 0.85, "category": "outro", "reason": "Show sign-off and closing theme music", "end_text": "[closing theme music]"}]
 """
+
+
+# Provenance of a reprocess_requested_at stamp. A play request writes it to
+# clear the auto-process gate, which is not the same as a person asking.
+REPROCESS_SOURCE_JIT = 'jit'

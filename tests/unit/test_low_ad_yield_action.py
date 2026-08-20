@@ -14,6 +14,8 @@ from config import (  # noqa: E402
     resolve_low_ad_yield_action,
 )
 from database import Database  # noqa: E402
+from reprocess_modes import clear_episode_for_mode  # noqa: E402
+from utils.constants import REPROCESS_SOURCE_JIT  # noqa: E402
 
 
 def _runs(**stats):
@@ -151,6 +153,74 @@ class TestLowAdYieldAgainstRealHistory:
         db.delete_podcast(slug)
 
 
+class TestReprocessProvenance:
+    """reprocess_source describes the reprocess_requested_at stamp it was
+    written with; an unannotated write must not inherit a stale marker."""
+
+    def _seed(self, db, slug, episode_id):
+        db.create_podcast(slug, 'https://example.com/feed.xml', 'A Podcast')
+        db.upsert_episode(slug, episode_id, original_url='https://example.com/a.mp3',
+                          reprocess_requested_at='2026-01-01T00:00:00Z',
+                          reprocess_source=REPROCESS_SOURCE_JIT)
+
+    def test_jit_marker_round_trips(self):
+        db = Database()
+        slug = 'provenance-jit-feed'
+        self._seed(db, slug, 'ep1')
+        assert db.get_episode(slug, 'ep1')['reprocess_source'] == REPROCESS_SOURCE_JIT
+        db.delete_podcast(slug)
+
+    def test_a_later_unannotated_stamp_clears_the_marker(self):
+        db = Database()
+        slug = 'provenance-manual-feed'
+        self._seed(db, slug, 'ep1')
+        db.upsert_episode(slug, 'ep1', status='pending',
+                          reprocess_requested_at='2026-02-01T00:00:00Z')
+        assert db.get_episode(slug, 'ep1')['reprocess_source'] is None
+        db.delete_podcast(slug)
+
+    def test_batch_pending_clears_the_marker(self):
+        db = Database()
+        slug = 'provenance-batch-feed'
+        self._seed(db, slug, 'ep1')
+        db.batch_set_episodes_pending(slug, ['ep1'], reprocess_mode='full',
+                                      reprocess_requested_at='2026-02-01T00:00:00Z')
+        assert db.get_episode(slug, 'ep1')['reprocess_source'] is None
+        db.delete_podcast(slug)
+
+    def test_an_unrelated_write_keeps_the_marker(self):
+        db = Database()
+        slug = 'provenance-untouched-feed'
+        self._seed(db, slug, 'ep1')
+        db.upsert_episode(slug, 'ep1', status='processing')
+        assert db.get_episode(slug, 'ep1')['reprocess_source'] == REPROCESS_SOURCE_JIT
+        db.delete_podcast(slug)
+
+
+class TestClearEpisodeForMode:
+    """The per-mode clearing rules now live in reprocess_modes, imported by
+    both the API and the pipeline."""
+
+    def test_llm_keeps_the_transcript(self):
+        db = MagicMock()
+        clear_episode_for_mode(db, 'a-feed', 'ep1', 'llm')
+        db.clear_episode_ad_data.assert_called_once_with('a-feed', 'ep1')
+        db.clear_episode_details.assert_not_called()
+
+    def test_reprocess_and_full_wipe_the_details_row(self):
+        for mode in ('reprocess', 'full'):
+            db = MagicMock()
+            clear_episode_for_mode(db, 'a-feed', 'ep1', mode)
+            db.clear_episode_details.assert_called_once_with('a-feed', 'ep1')
+
+    def test_recut_clears_nothing(self):
+        db = MagicMock()
+        clear_episode_for_mode(db, 'a-feed', 'ep1', 'recut')
+        db.clear_episode_details.assert_not_called()
+        db.clear_episode_ad_data.assert_not_called()
+
+
+
 import main_app.processing as processing  # noqa: E402
 
 
@@ -218,7 +288,28 @@ class TestFireLowAdYieldAction:
         db, _ = self._call(action='redetect', has_transcript=False)
         assert self._rerun_kwargs(db)[1]['reprocess_mode'] == 'reprocess'
 
+    def test_jit_direct_run_fires(self):
+        # A play request that started processing straight away leaves no stamp.
+        db, _ = self._call(episode_data={})
+        db.upsert_episode_for_processing.assert_called_once()
+
+    def test_jit_queue_busy_run_fires(self):
+        # The stamp only gets the play past the auto-process gate; the jit
+        # marker says a listener request, not a person, asked for this run.
+        db, _ = self._call(episode_data={
+            'reprocess_requested_at': '2026-01-01T00:00:00Z',
+            'reprocess_source': 'jit'})
+        db.upsert_episode_for_processing.assert_called_once()
+
     def test_manual_run_does_not_fire(self):
+        db, _ = self._call(
+            episode_data={'reprocess_requested_at': '2026-01-01T00:00:00Z',
+                          'reprocess_source': None})
+        db.upsert_episode.assert_not_called()
+        db.upsert_episode_for_processing.assert_not_called()
+
+    def test_policy_rerun_does_not_fire(self):
+        # The policy's own rerun writes the stamp with no jit marker.
         db, _ = self._call(
             episode_data={'reprocess_requested_at': '2026-01-01T00:00:00Z'})
         db.upsert_episode.assert_not_called()

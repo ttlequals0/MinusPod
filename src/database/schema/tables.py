@@ -125,6 +125,9 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     -- Low-ad-yield policy rerun stamp: set once, ever, when the policy
     -- requeues this episode. NULL means it has not fired.
     low_yield_rerun_at TEXT,
+    -- Provenance of the current reprocess_requested_at stamp: 'jit' for a
+    -- play request, NULL for a person or an automatic rerun.
+    reprocess_source TEXT,
     artwork_url TEXT,
     episode_number INTEGER,
     -- Upstream podcast:chapters JSON URL, captured at RSS discovery/refresh

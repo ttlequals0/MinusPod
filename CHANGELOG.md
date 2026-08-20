@@ -11,7 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-## [2.90.0] - 2026-08-19
+## [2.89.1] - 2026-08-19
 
 ### Added
 
@@ -20,9 +20,11 @@ release notes.
   automatically. Choose the action under Settings > Global Defaults: do nothing
   (the default), redetect ads from the stored transcript, reprocess, or run a
   full analysis. Each feed can override that choice or turn the policy off. A
-  rerun happens at most once per episode, and never after a manual reprocess,
-  on a pass-through or skip-detection feed, or after a run that published on
-  partial detection. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh
+  rerun happens at most once per episode, and never after a manual reprocess or
+  on a pass-through or skip-detection feed. Degraded runs, which publish on
+  partial detection, are skipped too, since they already queue their own
+  re-detect. Playing an unprocessed episode counts as an automatic run and can
+  trigger the policy. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh
   install; the stored setting is editable at runtime.
 
 ## [2.89.0] - 2026-08-19

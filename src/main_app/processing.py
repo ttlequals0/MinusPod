@@ -94,9 +94,12 @@ from llm_client import (
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
+from reprocess_modes import clear_episode_for_mode
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
-from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
+from utils.constants import (
+    CANCELED_ERROR_MESSAGE, EpisodeStatus, REPROCESS_SOURCE_JIT,
+)
 from utils.episode_paths import episode_relative_path
 from utils.errors import ServiceUnavailableError, AudioTooLargeError, AudioExtractionTimeout
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
@@ -2727,11 +2730,16 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
     feed usually yields.
 
     Fires once per episode ever (the low_yield_rerun_at stamp) and only for
-    runs the pipeline started, since reprocess_requested_at marks the rows a
-    user or this policy asked for. Never raises into the pipeline.
+    runs nobody asked for by hand: scheduled auto-process and play requests
+    qualify, manual reprocesses and this policy's own reruns do not. Never
+    raises into the pipeline.
     """
     try:
-        if (episode_data or {}).get('reprocess_requested_at'):
+        row = episode_data or {}
+        # The JIT play path stamps reprocess_requested_at only to clear the
+        # auto-process gate, so its own marker separates it from a person.
+        if (row.get('reprocess_requested_at')
+                and row.get('reprocess_source') != REPROCESS_SOURCE_JIT):
             return
         # A degraded run queues its own re-detect, and its yield says nothing
         # about detection quality.
@@ -2775,10 +2783,7 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
             deferred_at=None,
             deferred_service=None,
         )
-        # Lazy import: keeps the per-mode clear rules in one place without
-        # loading the API blueprint at pipeline import time.
-        from api.episodes import _clear_episode_for_mode
-        _clear_episode_for_mode(db, slug, episode_id, mode)
+        clear_episode_for_mode(db, slug, episode_id, mode)
 
         # Queued rather than started: this run still holds the processing
         # lock, so the queue processor picks it up after the release.

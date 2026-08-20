@@ -27,7 +27,7 @@ from config import (
 )
 from database.queue import compute_queue_priority
 from rss_parser import extract_cached_base_url, extract_cached_feed_auth_key
-from utils.constants import EpisodeStatus
+from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime, utc_now_iso
 from utils.url import SSRFError
@@ -519,7 +519,8 @@ def register_routes(app):
             # mark is what gets it past the drainer's auto-process gate on a
             # feed with auto-process off.
             db.upsert_episode(slug, episode_id,
-                              reprocess_requested_at=utc_now_iso())
+                              reprocess_requested_at=utc_now_iso(),
+                              reprocess_source=REPROCESS_SOURCE_JIT)
             feed_priority = db.get_podcast_queue_priority(slug)
             priority = compute_queue_priority(
                 feed_priority, ep_data.get('published'), manual=True)
