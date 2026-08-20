@@ -17,7 +17,11 @@ interface RunLogViewerProps {
 const LEVELS = ['debug', 'info', 'warning', 'error'] as const;
 type Level = typeof LEVELS[number];
 
-const LEVEL_RANK: Record<string, number> = { debug: 10, info: 20, warning: 30, error: 40 };
+const LEVEL_RANK: Record<string, number> = {
+  debug: 10, info: 20, warning: 30, error: 40, critical: 50,
+};
+// A level the map does not know outranks every chip, so it is never hidden.
+const UNKNOWN_LEVEL_RANK = 100;
 const LEVEL_LABEL: Record<Level, string> = {
   debug: 'Debug', info: 'Info', warning: 'Warning', error: 'Error',
 };
@@ -27,6 +31,7 @@ const LEVEL_STYLE: Record<string, { rail: string; tag: string }> = {
   info: { rail: 'border-l-border', tag: 'text-foreground' },
   warning: { rail: 'border-l-warning', tag: 'text-warning' },
   error: { rail: 'border-l-destructive', tag: 'text-destructive' },
+  critical: { rail: 'border-l-destructive', tag: 'text-destructive' },
 };
 
 // Rows rendered before the reader scrolls, and how many more each time they
@@ -59,7 +64,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
     const needle = search.trim().toLowerCase();
     const floor = LEVEL_RANK[minLevel];
     return lines.filter((line) => {
-      if ((LEVEL_RANK[line.level?.toLowerCase()] ?? 0) < floor) return false;
+      if ((LEVEL_RANK[line.level?.toLowerCase()] ?? UNKNOWN_LEVEL_RANK) < floor) return false;
       return !needle || line.msg.toLowerCase().includes(needle);
     });
   }, [lines, minLevel, search]);

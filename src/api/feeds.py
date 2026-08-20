@@ -41,6 +41,7 @@ from positional_prior import compute_ad_distribution
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
+import run_log
 from utils.constants import EpisodeStatus
 from utils.http import safe_url_for_log
 from utils.language import LANGUAGE_CODE_RE
@@ -1225,6 +1226,7 @@ def delete_feed(slug):
 
         # Delete files
         storage.cleanup_podcast_dir(slug)
+        run_log.delete_feed_logs(storage.data_dir, slug)
 
         logger.info(f"Deleted feed: {slug}")
         return json_response({'message': 'Feed deleted', 'slug': slug})

@@ -64,6 +64,27 @@ describe('RunLogViewer', () => {
     expect(screen.getByText('window 2 retried')).toBeTruthy();
   });
 
+  it('keeps critical and unfamiliar levels under every filter', async () => {
+    mockGetEpisodeRunLog.mockResolvedValue({
+      runNumber: 2,
+      lines: [
+        ...LINES,
+        { ts: '2026-08-19T12:00:04.000Z', level: 'CRITICAL', logger: 'podcast.audio', msg: 'process is going down' },
+        { ts: '2026-08-19T12:00:05.000Z', level: 'AUDIT', logger: 'podcast.audio', msg: 'unfamiliar level' },
+      ],
+      truncated: false,
+      bytes: 4096,
+    });
+    renderViewer();
+    await screen.findByText('Starting sweep');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Error' }));
+
+    expect(screen.getByText('process is going down')).toBeTruthy();
+    expect(screen.getByText('unfamiliar level')).toBeTruthy();
+    expect(screen.queryByText('Starting sweep')).toBeNull();
+  });
+
   it('reports how many lines are showing', async () => {
     renderViewer();
     await screen.findByText('Starting sweep');

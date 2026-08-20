@@ -548,7 +548,10 @@ def serve_original_audio(slug, episode_id):
     return response
 
 
-RUN_LOG_LEVELS = {'debug': 10, 'info': 20, 'warning': 30, 'error': 40}
+RUN_LOG_LEVELS = {'debug': 10, 'info': 20, 'warning': 30, 'error': 40, 'critical': 50}
+# A level name the map does not know ranks above every filter, so a custom or
+# future level is never silently hidden by the level chips.
+UNKNOWN_RUN_LOG_LEVEL = 100
 
 
 def _run_log_row(db, slug, episode_id, run_number):
@@ -599,9 +602,16 @@ def get_episode_run_log(slug, episode_id, run_number):
 
     if request.args.get('format') == 'raw':
         filename = f"{slug}-{episode_id}-run{run_number}.jsonl"
-        return Response(
-            path.read_bytes(), mimetype='text/plain',
-            headers={'Content-Disposition': f'attachment; filename="{filename}"'})
+        response = send_file(path, mimetype='text/plain', as_attachment=True,
+                             download_name=filename, conditional=True)
+        # Quoted filename: werkzeug leaves a bare token unquoted, and the
+        # documented header shape is the quoted one.
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        # Log text is attacker-influenced (episode titles, LLM output), so the
+        # browser must neither sniff it nor run anything from it.
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Content-Security-Policy'] = "default-src 'none'"
+        return response
 
     level_arg = (request.args.get('level') or '').lower()
     if level_arg and level_arg not in RUN_LOG_LEVELS:
@@ -620,7 +630,9 @@ def get_episode_run_log(slug, episode_id, run_number):
             continue
         if entry.get('msg') == TRUNCATION_MARKER:
             truncated = True
-        if RUN_LOG_LEVELS.get(str(entry.get('level', '')).lower(), 0) < minimum:
+        rank = RUN_LOG_LEVELS.get(str(entry.get('level', '')).lower(),
+                                  UNKNOWN_RUN_LOG_LEVEL)
+        if rank < minimum:
             continue
         lines.append(entry)
 

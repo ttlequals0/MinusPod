@@ -149,3 +149,32 @@ def test_settings_ad_detection_put_body_uses_request_shapes():
             f"This usually means the response-shape object block was copied "
             f"into the request body."
         )
+
+
+def _enum_values(schema_holder, field):
+    return schema_holder.get('properties', {}).get(field, {}).get('enum')
+
+
+def test_string_enums_are_quoted_in_the_spec():
+    """YAML 1.1 reads bare on/off/yes/no as booleans.
+
+    An unquoted `on` in an enum makes generated clients send `true`, which
+    every string-valued setting rejects. Checked here rather than by eye
+    because the spec parses fine either way.
+    """
+    with open(SPEC_PATH) as f:
+        doc = yaml.safe_load(f)
+
+    holders = [
+        doc['components']['schemas']['Feed'],
+        (doc['paths']['/feeds/{slug}']['patch']['requestBody']['content']
+         ['application/json']['schema']),
+    ]
+    for holder in holders:
+        values = _enum_values(holder, 'episodeLogs')
+        assert values, 'episodeLogs enum missing'
+        for value in values:
+            assert value is None or isinstance(value, str), (
+                f"episodeLogs enum value {value!r} parsed as {type(value).__name__}; "
+                f"quote it in openapi.yaml"
+            )

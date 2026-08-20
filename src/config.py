@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 from typing import Any
 from urllib.parse import urlparse
 
@@ -730,13 +731,18 @@ EPISODE_LOG_LEVELS = (EPISODE_LOG_LEVEL_DEBUG, EPISODE_LOG_LEVEL_INFO)
 
 
 def _episode_log_settings_view(db, key):
-    """Pre-loaded settings view so an explicit handle wins over the singleton."""
+    """Pre-loaded settings view so an explicit handle is the only source read.
+
+    A failing handle yields an empty view, which falls through to the env
+    default; never to the singleton, whose answer would be for another DB.
+    """
     if db is None:
         return None
     try:
         return {key: db.get_setting(key)}
-    except Exception:
-        return None
+    except sqlite3.Error as err:
+        _tunable_logger.warning("Could not read %s from the given handle: %s", key, err)
+        return {key: None}
 
 
 def resolve_episode_log_retention_days(db=None) -> int:
@@ -750,12 +756,8 @@ def resolve_episode_log_retention_days(db=None) -> int:
 
 def resolve_episode_log_level(db=None) -> int:
     """Minimum level kept in a run log, as a logging level constant."""
-    raw = None
     if db is not None:
-        try:
-            raw = db.get_setting('episode_log_level')
-        except Exception:
-            raw = None
+        raw = _episode_log_settings_view(db, 'episode_log_level')['episode_log_level']
     else:
         raw = _db_setting('episode_log_level')
     if raw is None or str(raw).strip() == '':

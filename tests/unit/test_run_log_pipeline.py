@@ -32,9 +32,10 @@ def db():
 
 
 def _run_pipeline(fail=False):
-    """Drive process_episode with every heavy stage stubbed out."""
+    """Drive the background entry point with every heavy stage stubbed out."""
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))  # noqa: E731
+        stack.enter_context(patch('processing_queue.ProcessingQueue'))
         p(processing, 'status_service')
         p(processing, 'start_episode_token_tracking')
         p(processing, 'get_available_memory_gb', return_value=None)
@@ -76,9 +77,9 @@ def _run_pipeline(fail=False):
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.return_value = ('/tmp/cut.mp3', [])
         local_ap.get_audio_duration.return_value = 100.0
-        return processing.process_episode(
+        return processing._process_episode_background(
             SLUG, EPISODE_ID, 'https://example.com/ep1.mp3',
-            episode_title='Run Log Episode')
+            'Run Log Episode', 'Run Log Feed', None, None)
 
 
 def _history_row(db):
@@ -94,7 +95,7 @@ def _log_lines(path):
 
 class TestStorageEnabled:
     def test_a_completed_run_leaves_a_log_keyed_to_its_history_row(self, db):
-        assert _run_pipeline() is True
+        _run_pipeline()
 
         row = _history_row(db)
         expected = (f"logs/episodes/{SLUG}/{EPISODE_ID}/run-{row['id']}.jsonl")
@@ -107,7 +108,7 @@ class TestStorageEnabled:
         assert all(f"[{SLUG}:{EPISODE_ID}]" in msg for msg in messages)
 
     def test_a_failed_run_keeps_its_log(self, db):
-        assert _run_pipeline(fail=True) is False
+        _run_pipeline(fail=True)
 
         row = _history_row(db)
         assert row['status'] == 'failed'
@@ -128,11 +129,56 @@ class TestStorageEnabled:
                     if isinstance(h, run_log.RunLogRecorder)]
 
 
+class TestFallbackFailurePath:
+    """process_episode's own error handling can raise; the wrapper's last-ditch
+    failure bookkeeping writes the history row and must still own the log."""
+
+    def test_a_run_that_blows_past_process_episode_keeps_its_log(self, db):
+        with ExitStack() as stack:
+            stack.enter_context(patch('processing_queue.ProcessingQueue'))
+            stack.enter_context(patch.object(
+                processing, 'process_episode',
+                side_effect=RuntimeError('handler itself exploded')))
+            stack.enter_context(patch.object(processing, 'status_service'))
+            stack.enter_context(patch.object(
+                processing, 'get_episode_token_totals',
+                return_value={'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}))
+            processing._process_episode_background(
+                SLUG, EPISODE_ID, 'https://example.com/ep1.mp3',
+                'Run Log Episode', 'Run Log Feed', None, None)
+
+        row = _history_row(db)
+        assert row['status'] == 'failed'
+        assert row['log_file']
+        path = processing.storage.data_dir / row['log_file']
+        assert path.exists()
+        assert any('exploded' in entry['msg'] for entry in _log_lines(path))
+
+
+class TestSlotGuard:
+    def test_a_slot_holding_another_run_is_not_finalized(self, db, tmp_path):
+        other = run_log.RunLogRecorder('other-feed', 'other-ep', logging.INFO, tmp_path)
+        other.attach()
+        try:
+            logging.getLogger('podcast.audio').info('[other-feed:other-ep] mine')
+            history_id = db.record_processing_history(
+                podcast_id=db.get_podcast_by_slug(SLUG)['id'], podcast_slug=SLUG,
+                podcast_title='Run Log Feed', episode_id=EPISODE_ID,
+                episode_title='One', status='completed')
+
+            processing._finalize_run_log(db, history_id, SLUG, EPISODE_ID)
+        finally:
+            other.detach()
+            other.discard()
+
+        assert _history_row(db)['log_file'] is None
+
+
 class TestStorageDisabled:
     def test_a_feed_opted_out_stores_nothing(self, db):
         db.update_podcast(SLUG, episode_logs='off')
 
-        assert _run_pipeline() is True
+        _run_pipeline()
 
         row = _history_row(db)
         assert row['log_file'] is None
@@ -143,7 +189,7 @@ class TestStorageDisabled:
     def test_retention_zero_stores_nothing(self, db):
         db.set_setting('episode_log_retention_days', '0', is_default=False)
         try:
-            assert _run_pipeline() is True
+            _run_pipeline()
         finally:
             db.set_setting('episode_log_retention_days', '30', is_default=False)
 

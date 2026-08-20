@@ -20,6 +20,8 @@ release notes.
   full-screen viewer with a minimum-level filter, text search, and a raw
   download. A log holds whatever that run logged, including the lines its
   detection and reviewer worker threads wrote, and a failed run keeps its log.
+  A run's log closes when its history row lands, so anything logged after that,
+  like the webhook and the RSS refresh, is not in it.
   Retention is 30 days by default, editable in Settings > Global Defaults, where
   0 keeps nothing and lets the cleanup sweep delete what is already stored. Any
   feed can opt in or out in its own settings. Files live under

@@ -250,6 +250,10 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
     from processing_queue import ProcessingQueue
     queue = ProcessingQueue()
     start_time = time.time()
+    # The run log is bracketed here, not inside process_episode: the fallback
+    # failure handler below writes a history row too, and it needs a live
+    # recorder to finalize onto it (#660).
+    recorder = _start_run_log(slug, episode_id)
     try:
         process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at, cancel_event=cancel_event)
     except ProcessingCancelled:
@@ -283,6 +287,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
         except Exception as handler_err:
             audio_logger.error(f"[{slug}:{episode_id}] Failed to handle failure: {handler_err}")
     finally:
+        _end_run_log(recorder)
         # Backstop for swallowed write failures anywhere in the run: this
         # thread's connection must not leave here with an open transaction.
         db.clear_leaked_transaction(audio_logger, 'episode processing')
@@ -2891,6 +2896,12 @@ def _finalize_run_log(db, history_id, slug, episode_id):
     recorder = run_log.current_recorder()
     if recorder is None or not history_id:
         return
+    if recorder.tag != f"[{slug}:{episode_id}]":
+        # The slot holds another run's recorder; finalizing would file its log
+        # under this row.
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] run log slot holds {recorder.tag}; not finalizing")
+        return
     try:
         result = recorder.finalize(
             run_log.run_log_path(storage.data_dir, slug, episode_id, history_id))
@@ -3593,25 +3604,6 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
-                   episode_title: str = "Unknown", podcast_name: str = "Unknown",
-                   episode_description: str = None, episode_artwork_url: str = None,
-                   episode_published_at: str = None, cancel_event: threading.Event = None):
-    """Process one episode, capturing this run's log when the feed stores logs.
-
-    The recorder wraps every branch below (recut, pass-through, full pipeline)
-    so each of them finalizes its log against the history row it writes.
-    """
-    recorder = _start_run_log(slug, episode_id)
-    try:
-        return _run_episode_pipeline(
-            slug, episode_id, episode_url, episode_title, podcast_name,
-            episode_description, episode_artwork_url, episode_published_at,
-            cancel_event)
-    finally:
-        _end_run_log(recorder)
-
-
-def _run_episode_pipeline(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
                    episode_description: str = None, episode_artwork_url: str = None,
                    episode_published_at: str = None, cancel_event: threading.Event = None):

@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import threading
 import time
 from datetime import datetime, timezone
@@ -18,6 +19,8 @@ logger = logging.getLogger('podcast.run_log')
 
 DEFAULT_SIZE_CAP_BYTES = 20 * 1024 * 1024
 TRUNCATION_MARKER = 'log truncated at size cap'
+STOPPED_MARKER = 'log capture stopped early after a write error'
+EPISODE_LOG_PREFIX = 'logs/episodes/'
 
 _MESSAGE_FORMATTER = logging.Formatter('%(message)s')
 _TEMP_NAME_UNSAFE = re.compile(r'[^A-Za-z0-9._-]')
@@ -75,9 +78,42 @@ def run_log_path(data_dir, slug, episode_id, history_id):
 
 
 def resolve_stored_log_path(data_dir, relative_path):
-    """Absolute path for a stored pointer, refusing anything outside the data dir."""
+    """Absolute path for a stored pointer, refusing anything outside the log tree.
+
+    Contained under the episode log root, not the data dir: a poisoned pointer
+    must not be able to name the database or an audio file.
+    """
+    from storage import PathContainmentError, _safe_join_under
+    relative = str(relative_path)
+    if not relative.startswith(EPISODE_LOG_PREFIX):
+        raise PathContainmentError(
+            f"log pointer {relative!r} is not under {EPISODE_LOG_PREFIX}")
+    return _safe_join_under(episode_log_root(data_dir),
+                            *relative[len(EPISODE_LOG_PREFIX):].split('/'))
+
+
+def delete_feed_logs(data_dir, slug):
+    """Remove one feed's run logs; called when the feed itself is deleted."""
+    try:
+        directory = _safe_feed_log_dir(data_dir, slug)
+    except Exception as err:
+        logger.warning(f"[{slug}] refusing to delete run logs: {err}")
+        return False
+    if not directory.exists():
+        return True
+    try:
+        shutil.rmtree(directory)
+        return True
+    except OSError as err:
+        logger.warning(f"[{slug}] failed to delete run logs: {err}")
+        return False
+
+
+def _safe_feed_log_dir(data_dir, slug):
     from storage import _safe_join_under
-    return _safe_join_under(Path(data_dir), *str(relative_path).split('/'))
+    root = episode_log_root(data_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    return _safe_join_under(root, str(slug))
 
 
 def sweep_expired_logs(db, data_dir, retention_days):
@@ -217,34 +253,35 @@ class RunLogRecorder(logging.Handler):
             return record.thread in self._threads
 
     def _write(self, level, logger_name, message, created=None):
-        payload = json.dumps({
+        line = json.dumps({
             'ts': _iso_ts(created),
             'level': level,
             'logger': logger_name,
             'msg': message,
-        }, ensure_ascii=False)
-        line = payload + '\n'
-        encoded_len = len(line.encode('utf-8'))
+        }, ensure_ascii=False) + '\n'
+        encoded_len = _encoded_len(line)
         if self.bytes_written + encoded_len > self.size_cap_bytes:
             self.truncated = True
-            self._write_marker()
+            self._write_marker(TRUNCATION_MARKER)
             return
         self._stream_write(line, encoded_len)
 
-    def _write_marker(self):
+    def _write_marker(self, message):
         marker = json.dumps({
             'ts': _iso_ts(None),
             'level': 'WARNING',
             'logger': logger.name,
-            'msg': TRUNCATION_MARKER,
+            'msg': message,
         }) + '\n'
-        self._stream_write(marker, len(marker.encode('utf-8')))
+        self._stream_write(marker, _encoded_len(marker))
 
     def _stream_write(self, line, encoded_len):
         if self._stream is None:
             self.temp_path.parent.mkdir(parents=True, exist_ok=True)
+            # backslashreplace: a lone surrogate in a transcript must not cost
+            # the run its whole log.
             self._stream = open(self.temp_path, 'a', encoding='utf-8',
-                                buffering=1)
+                                errors='backslashreplace', buffering=1)
         self._stream.write(line)
         self.bytes_written += encoded_len
 
@@ -269,12 +306,21 @@ class RunLogRecorder(logging.Handler):
             pass
 
     def finalize(self, final_path):
-        """Move the temp file to ``final_path``; returns bytes/truncated or None."""
+        """Move the temp file to ``final_path``; returns bytes/truncated or None.
+
+        A recorder that disabled itself mid-run keeps the lines it did write,
+        with a marker saying capture stopped there.
+        """
         if self._finalized:
             return None
         self._finalized = True
+        if self.disabled and self.bytes_written:
+            try:
+                self._write_marker(STOPPED_MARKER)
+            except Exception:
+                pass
         self._close()
-        if self.disabled or self.bytes_written == 0:
+        if self.bytes_written == 0:
             self._remove_temp()
             return None
         try:
@@ -289,15 +335,22 @@ class RunLogRecorder(logging.Handler):
 
     def discard(self):
         """Drop the temp file; a finalized recorder keeps its final file."""
+        self.disabled = True
         self._close()
         if not self._finalized:
             self._remove_temp()
+        self._finalized = True
 
     def _remove_temp(self):
         try:
             self.temp_path.unlink(missing_ok=True)
         except Exception as err:
             logger.warning(f"run log temp cleanup failed for {self.tag}: {err}")
+
+
+def _encoded_len(line):
+    """Byte length under the same errors policy the log stream writes with."""
+    return len(line.encode('utf-8', 'backslashreplace'))
 
 
 def _iso_ts(created):

@@ -80,6 +80,24 @@ class TestLogLevel:
         assert resolve_episode_log_level(db) == logging.DEBUG
 
 
+class TestHandleIsolation:
+    """A passed handle is the only source read; a broken one falls to the
+    env default rather than quietly answering from the singleton."""
+
+    def test_a_failing_handle_falls_back_to_the_default(self, db):
+        import sqlite3
+
+        class Broken:
+            def get_setting(self, key):
+                raise sqlite3.OperationalError('database is locked')
+
+        db.set_setting('episode_log_retention_days', '90', is_default=False)
+        db.set_setting('episode_log_level', 'info', is_default=False)
+
+        assert resolve_episode_log_retention_days(Broken()) == 30
+        assert resolve_episode_log_level(Broken()) == logging.DEBUG
+
+
 class TestStorageResolution:
     def test_enabled_by_default_for_a_feed_with_no_override(self, db):
         assert resolve_episode_log_storage(db, {'episode_logs': None}) is True

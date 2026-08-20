@@ -123,6 +123,23 @@ class TestJsonView:
         assert _get(app_client, 1).get_json()['lines'] == [LINES[0]]
 
 
+class TestLoudLevels:
+    def test_critical_and_unknown_levels_survive_every_filter(self, app_client, seeded):
+        body = ''.join(json.dumps(line) + '\n' for line in LINES)
+        body += json.dumps({'ts': '2026-08-20T00:00:05.000Z', 'level': 'CRITICAL',
+                            'logger': 'podcast.audio', 'msg': 'process is going down'}) + '\n'
+        body += json.dumps({'ts': '2026-08-20T00:00:06.000Z', 'level': 'AUDIT',
+                            'logger': 'podcast.audio', 'msg': 'unfamiliar level'}) + '\n'
+        seeded['add_run'](body=body)
+        _authed(app_client)
+
+        for level in ('debug', 'info', 'warning', 'error', 'critical'):
+            messages = [line['msg'] for line in
+                        _get(app_client, 1, f'?level={level}').get_json()['lines']]
+            assert 'process is going down' in messages, level
+            assert 'unfamiliar level' in messages, level
+
+
 class TestRawDownload:
     def test_raw_returns_the_file_verbatim(self, app_client, seeded):
         seeded['add_run']()
@@ -136,6 +153,15 @@ class TestRawDownload:
             json.dumps(line) + '\n' for line in LINES)
         assert resp.headers['Content-Disposition'] == (
             f'attachment; filename="{SLUG}-{EPISODE_ID}-run1.jsonl"')
+
+    def test_raw_denies_script_loading(self, app_client, seeded):
+        seeded['add_run']()
+        _authed(app_client)
+
+        resp = _get(app_client, 1, '?format=raw')
+
+        assert resp.headers['Content-Security-Policy'] == "default-src 'none'"
+        assert resp.headers['X-Content-Type-Options'] == 'nosniff'
 
 
 class TestNotFound:
@@ -156,6 +182,17 @@ class TestNotFound:
 
         assert resp.status_code == 404
         assert resp.get_json()['code'] == 'log_pruned'
+
+    def test_a_pointer_outside_the_log_tree_serves_nothing(self, app_client, seeded):
+        history_id = seeded['add_run']()
+        seeded['db'].set_history_log_pointer(history_id, '../../podcast.db', 10)
+        _authed(app_client)
+
+        resp = _get(app_client, 1)
+
+        assert resp.status_code == 404
+        assert resp.get_json()['code'] == 'log_pruned'
+        assert (seeded['storage'].data_dir / 'podcast.db').exists()
 
     def test_an_unknown_run_number_is_404(self, app_client, seeded):
         seeded['add_run']()
@@ -194,6 +231,26 @@ class TestNotFound:
         path = f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/runs/1/log'
         assert path not in AUTH_EXEMPT_PATHS
         assert not any(p.match(path) for p in PODCAST_APP_EXEMPT_PATTERNS)
+
+
+class TestFeedDeletion:
+    def test_deleting_the_feed_removes_its_logs(self, app_client, seeded):
+        import run_log
+
+        seeded['add_run']()
+        log_dir = run_log.episode_log_root(seeded['storage'].data_dir) / SLUG
+        assert log_dir.exists()
+        _authed(app_client)
+        csrf = None
+        for cookie in app_client._cookies.values():
+            if cookie.key == 'minuspod_csrf':
+                csrf = cookie.value
+
+        resp = app_client.delete(f'/api/v1/feeds/{SLUG}',
+                                 headers={'X-CSRF-Token': csrf} if csrf else {})
+
+        assert resp.status_code == 200
+        assert not log_dir.exists()
 
 
 class TestHasLogFlag:

@@ -12,6 +12,9 @@ from run_log import RunLogRecorder, TRUNCATION_MARKER
 def rec(tmp_path):
     recorder = RunLogRecorder('my-feed', 'ep123', logging.INFO, tmp_path)
     yield recorder
+    # Detach first: a test that fails mid-way must not leave the handler on
+    # the root logger for the rest of the session.
+    recorder.detach()
     recorder.discard()
 
 
@@ -170,16 +173,6 @@ class TestCrashSafety:
         assert rec._stream is None
         assert [entry['msg'] for entry in _lines(_temp_file(rec))] == ['[my-feed:ep123] first']
 
-    def test_disabled_recorder_finalizes_to_nothing(self, rec, src_logger, tmp_path):
-        rec.attach()
-        src_logger.info('[my-feed:ep123] first')
-        rec._stream.write = _raise_oserror
-        src_logger.info('[my-feed:ep123] second')
-        rec.detach()
-
-        assert rec.finalize(tmp_path / 'final' / 'run-1.jsonl') is None
-        assert not (tmp_path / 'final' / 'run-1.jsonl').exists()
-
     def test_unwritable_temp_dir_never_raises(self, tmp_path, src_logger):
         recorder = RunLogRecorder('my-feed', 'ep123', logging.INFO,
                                   tmp_path / 'missing' / 'deeper' / 'nope')
@@ -198,6 +191,105 @@ class TestCrashSafety:
 
 def _raise_oserror(*args, **kwargs):
     raise OSError('disk gone')
+
+
+class TestUnwritableText:
+    def test_a_lone_surrogate_does_not_disable_the_recorder(self, rec, src_logger):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] transcript said \ud83d and then more')
+        src_logger.info('[my-feed:ep123] still capturing')
+        rec.detach()
+
+        assert rec.disabled is False
+        assert len(_lines(_temp_file(rec))) == 2
+
+
+class TestDisabledRunKeepsItsLines:
+    def test_finalize_keeps_what_a_disabled_recorder_wrote(self, rec, src_logger, tmp_path):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] first')
+        rec._stream.write = _raise_oserror
+        src_logger.info('[my-feed:ep123] second')
+        rec.detach()
+        final = tmp_path / 'final' / 'run-9.jsonl'
+
+        result = rec.finalize(final)
+
+        assert result['bytes'] == final.stat().st_size
+        messages = [entry['msg'] for entry in _lines(final)]
+        assert messages[0] == '[my-feed:ep123] first'
+
+    def test_a_disabled_recorder_marks_where_capture_stopped(self, rec, src_logger, tmp_path):
+        from run_log import STOPPED_MARKER
+
+        rec.attach()
+        src_logger.info('[my-feed:ep123] first')
+        rec._stream.write = _raise_oserror
+        src_logger.info('[my-feed:ep123] second')
+        rec.detach()
+        final = tmp_path / 'final' / 'run-10.jsonl'
+
+        rec.finalize(final)
+
+        assert _lines(final)[-1]['msg'] == STOPPED_MARKER
+
+    def test_a_disabled_recorder_that_wrote_nothing_finalizes_to_none(self, tmp_path, src_logger):
+        recorder = RunLogRecorder('my-feed', 'ep123', logging.INFO,
+                                  tmp_path / 'nope' / 'deeper')
+        recorder.attach()
+        recorder.temp_path.parent.mkdir(parents=True, exist_ok=True)
+        recorder.temp_path.parent.chmod(0o500)
+        try:
+            src_logger.info('[my-feed:ep123] first')
+        finally:
+            recorder.temp_path.parent.chmod(0o700)
+            recorder.detach()
+
+        assert recorder.finalize(tmp_path / 'final.jsonl') is None
+        assert not (tmp_path / 'final.jsonl').exists()
+
+
+class TestDiscardStopsCapture:
+    def test_discard_disables_the_recorder(self, rec, src_logger):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] first')
+        rec.discard()
+        src_logger.info('[my-feed:ep123] after discard')
+        rec.detach()
+
+        assert rec.disabled is True
+        assert not _temp_file(rec).exists()
+
+    def test_finalize_after_discard_writes_nothing(self, rec, src_logger, tmp_path):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] first')
+        rec.detach()
+        rec.discard()
+
+        assert rec.finalize(tmp_path / 'final' / 'run-3.jsonl') is None
+        assert not (tmp_path / 'final' / 'run-3.jsonl').exists()
+
+
+class TestStoredPathContainment:
+    def test_a_pointer_outside_the_log_tree_is_refused(self, tmp_path):
+        from run_log import resolve_stored_log_path
+        from storage import PathContainmentError
+
+        (tmp_path / 'podcast.db').write_text('secrets')
+
+        for poisoned in ('podcast.db',
+                         'logs/episodes/../../podcast.db',
+                         '/etc/passwd',
+                         'logs/tmp/run-x.jsonl.tmp'):
+            with pytest.raises(PathContainmentError):
+                resolve_stored_log_path(tmp_path, poisoned)
+
+    def test_a_normal_pointer_resolves(self, tmp_path):
+        from run_log import resolve_stored_log_path
+
+        path = resolve_stored_log_path(tmp_path, 'logs/episodes/feed/ep1/run-2.jsonl')
+
+        assert path == tmp_path / 'logs' / 'episodes' / 'feed' / 'ep1' / 'run-2.jsonl'
 
 
 class TestFinalizeAndDiscard:

@@ -591,8 +591,8 @@ paths:
                     - string
                     - 'null'
                   enum:
-                    - on
-                    - off
+                    - 'on'
+                    - 'off'
                     - null
                   description: >-
                     Per-feed run log storage (issue 660): 'on' stores each
@@ -1243,8 +1243,8 @@ paths:
           name: level
           schema:
             type: string
-            enum: [debug, info, warning, error]
-          description: Minimum level to include; json format only
+            enum: [debug, info, warning, error, critical]
+          description: Minimum level to include; json format only. Levels the server does not know rank above every filter, so they are always returned.
       responses:
         '200':
           description: Run log
@@ -8019,8 +8019,8 @@ components:
             - string
             - 'null'
           enum:
-            - on
-            - off
+            - 'on'
+            - 'off'
             - null
           description: >-
             Per-feed run log storage (issue 660); null follows the global
