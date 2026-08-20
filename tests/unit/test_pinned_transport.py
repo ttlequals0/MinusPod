@@ -4,6 +4,7 @@ import socket
 import ssl
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse
 
 import pytest
 import requests
@@ -87,7 +88,7 @@ def test_pinned_connect_hits_resolved_ip_and_preserves_host_header(monkeypatch):
                         trust=URLTrust.OPERATOR_CONFIGURED, timeout=5)
         assert resp.status_code == 200
         assert seen["host"] == f"pinned.example:{port}"
-        assert resp.url.startswith("http://pinned.example")
+        assert urlparse(resp.url).hostname == "pinned.example"
     finally:
         srv.shutdown()
 
@@ -291,6 +292,7 @@ def _issue_cert(tmp_path, hostname):
 def _https_server(cert_pem, key_pem, sni_seen):
     srv = HTTPServer(("127.0.0.1", 0), _OkHandler)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(str(cert_pem), str(key_pem))
 
     def record_sni(sock, server_name, context):
