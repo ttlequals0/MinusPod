@@ -204,29 +204,42 @@ class QueueMixin:
         return None
 
     def update_queue_status(self, queue_id: int, status: str,
-                            error_message: str = None) -> bool:
-        """Update the status of a queued episode."""
+                            error_message: str = None,
+                            expect_status: str = None) -> bool:
+        """Update the status of a queued episode. Returns whether a row changed.
+
+        ``expect_status`` makes the write conditional on the row still holding
+        that status. The drainer passes 'processing' when it reports on the run
+        it claimed: the queue row is unique per episode, so a hook that
+        re-queued the episode mid-run owns that same row, and an unconditional
+        verdict would close the rerun before it ever started.
+        """
         conn = self.get_connection()
+        where = 'WHERE id = ?'
+        tail = [queue_id]
+        if expect_status is not None:
+            where += ' AND status = ?'
+            tail.append(expect_status)
         if error_message:
-            conn.execute(
-                """UPDATE auto_process_queue SET
+            cursor = conn.execute(
+                f"""UPDATE auto_process_queue SET
                    status = ?,
                    error_message = ?,
                    attempts = attempts + 1,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-                   WHERE id = ?""",
-                (status, error_message, queue_id)
+                   {where}""",  # noqa: S608
+                (status, error_message, *tail)
             )
         else:
-            conn.execute(
-                """UPDATE auto_process_queue SET
+            cursor = conn.execute(
+                f"""UPDATE auto_process_queue SET
                    status = ?,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-                   WHERE id = ?""",
-                (status, queue_id)
+                   {where}""",  # noqa: S608
+                (status, *tail)
             )
         conn.commit()
-        return True
+        return cursor.rowcount > 0
 
     def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
         """Mark any non-terminal queue rows for this episode as completed.

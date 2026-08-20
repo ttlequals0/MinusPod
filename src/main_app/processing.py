@@ -2745,6 +2745,10 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
         # about detection quality.
         if (run_stats or {}).get('detection_degraded'):
             return
+        # A cue-only feed reruns the same cue pipeline whatever mode is asked
+        # for, so a rerun can only spend the one shot.
+        if (run_stats or {}).get('cue_only'):
+            return
         podcast = db.get_podcast_by_slug(slug)
         action = resolve_low_ad_yield_action(db, podcast)
         if action not in LOW_AD_YIELD_ACTION_MODES:

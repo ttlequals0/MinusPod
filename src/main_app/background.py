@@ -227,14 +227,24 @@ def background_queue_processor():
 
                         # Check final status
                         episode = db.get_episode(slug, episode_id)
+                        # Every verdict below is conditional on this claim still
+                        # holding the row: a run that re-queued the episode
+                        # (degraded re-detect, low-ad-yield rerun) already reset
+                        # it to pending, and that rerun must survive.
                         if episode and episode['status'] == 'processed':
-                            db.update_queue_status(queue_id, 'completed')
-                            refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
+                            if db.update_queue_status(queue_id, 'completed',
+                                                      expect_status='processing'):
+                                refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
+                            else:
+                                refresh_logger.info(
+                                    f"[{slug}:{episode_id}] Auto-process completed; a rerun was "
+                                    f"queued during the run and stays queued")
                         elif episode and episode['status'] == 'processing':
                             # Still running: requeue rather than fail. The next
                             # claim restarts an orphan, since the lock gates a
                             # start, not the row's status.
-                            db.update_queue_status(queue_id, 'pending')
+                            db.update_queue_status(queue_id, 'pending',
+                                                   expect_status='processing')
                             if queue.is_processing(slug, episode_id):
                                 refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {waited}s, will check again later")
                             else:
@@ -244,23 +254,30 @@ def background_queue_processor():
                             # the row so it is not counted as a failure (the
                             # retry ladder would skip it anyway); the re-drive
                             # re-opens it as pending once the service is back.
-                            db.update_queue_status(queue_id, 'completed')
+                            db.update_queue_status(queue_id, 'completed',
+                                                   expect_status='processing')
                             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
                         elif (episode and episode['status'] == 'pending'
                                 and episode.get('error_message') == CANCELED_ERROR_MESSAGE):
                             # Only a user cancel closes the row. The stuck-row
                             # sweep also writes 'pending', and that one still
                             # needs the retry ladder.
-                            db.update_queue_status(queue_id, 'completed')
+                            db.update_queue_status(queue_id, 'completed',
+                                                   expect_status='processing')
                             refresh_logger.info(f"[{slug}:{episode_id}] Cancelled; queue row closed")
                         else:
                             # Actually failed - get the real error message
                             error_msg = episode.get('error_message') if episode else None
                             if not error_msg:
                                 error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
-                            db.update_queue_status(queue_id, 'failed', error_msg)
+                            wrote = db.update_queue_status(queue_id, 'failed', error_msg,
+                                                            expect_status='processing')
                             episode_status = episode.get('status') if episode else None
-                            if episode_status == EpisodeStatus.PERMANENTLY_FAILED:
+                            if not wrote:
+                                refresh_logger.info(
+                                    f"[{slug}:{episode_id}] Run ended as {episode_status}; a rerun "
+                                    f"was queued during the run and stays queued")
+                            elif episode_status == EpisodeStatus.PERMANENTLY_FAILED:
                                 refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process permanently failed: {error_msg}")
                             else:
                                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-process failed (transient), will auto-retry: {error_msg}")

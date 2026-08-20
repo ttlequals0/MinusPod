@@ -20,12 +20,22 @@ release notes.
   automatically. Choose the action under Settings > Global Defaults: do nothing
   (the default), redetect ads from the stored transcript, reprocess, or run a
   full analysis. Each feed can override that choice or turn the policy off. A
-  rerun happens at most once per episode, and never after a manual reprocess or
-  on a pass-through or skip-detection feed. Degraded runs, which publish on
-  partial detection, are skipped too, since they already queue their own
-  re-detect. Playing an unprocessed episode counts as an automatic run and can
-  trigger the policy. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh
-  install; the stored setting is editable at runtime.
+  rerun happens at most once per episode. The mark goes down when the rerun is
+  queued, so a rerun that fails still spends it. The policy never fires after a
+  manual reprocess or on a pass-through, skip-detection, or cue-only feed.
+  Degraded runs, which publish on partial detection, are skipped too, since they
+  already queue their own re-detect. Playing an unprocessed episode counts as an
+  automatic run and can trigger the policy.
+  `LOW_AD_YIELD_ACTION` seeds the global default on a fresh install; the stored
+  setting is editable at runtime.
+
+### Fixed
+
+- The queue drainer dropped an episode re-queued while its own run was still
+  finishing. The queue holds one row per episode, so the drainer's verdict on
+  the finished run overwrote that row and the rerun never happened. A verdict
+  now only lands on a row the drainer still holds, which also repairs the
+  automatic re-detect a degraded run queues for itself.
 
 ## [2.89.0] - 2026-08-19
 

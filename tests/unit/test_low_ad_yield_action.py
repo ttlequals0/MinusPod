@@ -153,6 +153,73 @@ class TestLowAdYieldAgainstRealHistory:
         db.delete_podcast(slug)
 
 
+SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'}]
+
+
+class TestCompletionPathWiring:
+    """The gate matrix is worthless if the pipeline never calls the hook."""
+
+    def _run_pipeline(self):
+        podcast_row = {'id': 1, 'slug': 'wiring-feed', 'description': None,
+                       'tags': None, 'dai_platform': None,
+                       'passthrough_enabled': None, 'skip_ad_detection': None}
+        with ExitStack() as stack:
+            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))  # noqa: E731
+            db = p(processing, 'db')
+            p(processing, 'status_service')
+            storage = p(processing, 'storage')
+            audio_processor = p(processing, 'audio_processor')
+            p(processing.ad_detector, 'get_model', return_value='test-model')
+            p(processing.ad_detector, 'get_verification_model', return_value='test-model')
+            p(processing, 'start_episode_token_tracking')
+            p(processing, 'get_available_memory_gb', return_value=None)
+            p(processing, 'get_min_cut_confidence', return_value=0.8)
+            p(processing, '_download_and_transcribe',
+              return_value=('/tmp/wiring.mp3', SEGMENTS))
+            p(processing, '_run_differential_fetch', return_value=None)
+            p(processing, '_run_audio_analysis', return_value=None)
+            p(processing, 'load_positional_prior', return_value=None)
+            p(processing, '_detect_ads_first_pass', return_value=([], 0, None))
+            p(processing, '_refine_and_validate', return_value=([], []))
+            p(processing, '_run_ad_reviewer', return_value=([], []))
+            p(processing, '_snap_terminal_starts', return_value=[])
+            p(processing, '_complete_cut_tails', return_value=[])
+            local_ap_cls = p(processing, 'AudioProcessor')
+            p(processing, '_run_verification_pass',
+              return_value=(0, [], [], [], '/tmp/cut.mp3', 0, True, 0))
+            p(processing, '_generate_assets')
+            finalize = p(processing, '_finalize_episode')
+            hook = p(processing, '_maybe_fire_low_ad_yield_action')
+            p(processing.shutil, 'move')
+            p(processing.os, 'unlink')
+            p(processing.os.path, 'exists', return_value=False)
+
+            db.get_episode.return_value = {'reprocess_requested_at': None}
+            db.get_podcast_by_slug.return_value = podcast_row
+            db.get_setting.return_value = 'false'
+            db.get_all_settings.return_value = {}
+            audio_processor.get_audio_duration.return_value = 100.0
+            local_ap = local_ap_cls.return_value
+            local_ap.process_episode.return_value = ('/tmp/cut.mp3', [])
+            local_ap.get_audio_duration.return_value = 100.0
+            storage.get_episode_path.return_value = '/tmp/final.mp3'
+            result = processing.process_episode(
+                'wiring-feed', 'ep1', 'https://example.com/ep1.mp3')
+        return result, finalize, hook
+
+    def test_the_success_path_calls_the_hook_after_finalize(self):
+        result, finalize, hook = self._run_pipeline()
+
+        assert result is True
+        finalize.assert_called_once()
+        hook.assert_called_once()
+        args = hook.call_args.args
+        assert args[0] == 'wiring-feed'
+        assert args[1] == 'ep1'
+        # Last two arguments are the pre-run row snapshot and this run's stats.
+        assert args[-1]['mode'] == 'auto'
+
+
 class TestReprocessProvenance:
     """reprocess_source describes the reprocess_requested_at stamp it was
     written with; an unannotated write must not inherit a stale marker."""
@@ -328,6 +395,12 @@ class TestFireLowAdYieldAction:
     def test_degraded_run_does_not_fire(self):
         # The degraded re-detect owns that case; two hooks must not both queue.
         db, _ = self._call(run_stats={'mode': 'auto', 'detection_degraded': 'boom'})
+        db.upsert_episode.assert_not_called()
+
+    def test_cue_only_run_does_not_fire(self):
+        # A rerun of a cue-only feed runs the identical pipeline, so it can
+        # only burn the one shot.
+        db, _ = self._call(run_stats={'mode': 'auto', 'cue_only': True})
         db.upsert_episode.assert_not_called()
 
     def test_passthrough_run_does_not_fire(self):
