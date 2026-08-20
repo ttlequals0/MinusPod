@@ -1,5 +1,5 @@
 import { apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -9,6 +9,22 @@ export const CUE_SCORE_MAX = 0.99;
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
   return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+}
+
+// Direct URL for a run's raw JSONL log; the browser downloads it with the
+// session cookie (GET needs no CSRF).
+export function episodeRunLogDownloadUrl(
+  slug: string, episodeId: string, runNumber: number,
+): string {
+  return `/api/v1/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log?format=raw`;
+}
+
+export async function getEpisodeRunLog(
+  slug: string, episodeId: string, runNumber: number,
+): Promise<RunLogResponse> {
+  return apiRequest<RunLogResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log`,
+  );
 }
 
 export interface PeaksResponse {
@@ -213,6 +229,7 @@ export interface UpdateFeedPayload {
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
+  episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;

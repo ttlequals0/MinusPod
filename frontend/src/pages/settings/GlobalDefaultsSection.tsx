@@ -1,7 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
-import type { LowAdYieldAction } from '../../api/types';
+import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 
@@ -20,6 +20,10 @@ interface GlobalDefaultsSectionProps {
   onProcessNewEpisodesFirstChange: (enabled: boolean) => void;
   lowAdYieldAction: LowAdYieldAction;
   onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
+  episodeLogRetentionDays: number;
+  onEpisodeLogRetentionDaysChange: (days: number) => void;
+  episodeLogLevel: EpisodeLogLevel;
+  onEpisodeLogLevelChange: (level: EpisodeLogLevel) => void;
 }
 
 function GlobalDefaultsSection({
@@ -37,6 +41,10 @@ function GlobalDefaultsSection({
   onProcessNewEpisodesFirstChange,
   lowAdYieldAction,
   onLowAdYieldActionChange,
+  episodeLogRetentionDays,
+  onEpisodeLogRetentionDaysChange,
+  episodeLogLevel,
+  onEpisodeLogLevelChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -159,6 +167,51 @@ function GlobalDefaultsSection({
           </select>
           <p className="mt-2 text-sm text-muted-foreground">
             When an episode finishes with far less ad time removed than its feed usually yields, run this action automatically (once per episode).
+          </p>
+        </div>
+
+        {/* Episode run logs */}
+        <div className="pt-4 border-t border-border">
+          <label
+            htmlFor="episodeLogRetentionDays"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
+            Keep episode run logs for
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="episodeLogRetentionDays"
+              value={episodeLogRetentionDays}
+              min={0}
+              max={365}
+              fallback={30}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={onEpisodeLogRetentionDaysChange}
+            />
+            <span className="text-sm text-muted-foreground">days (0-365)</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Each run writes its pipeline log to disk, readable on the episode page. 0 keeps
+            nothing and deletes what is already stored. A feed can opt out in its own settings.
+          </p>
+          <label
+            htmlFor="episodeLogLevel"
+            className="block text-sm font-medium text-foreground mt-4 mb-2"
+          >
+            Detail kept in a run log
+          </label>
+          <select
+            id="episodeLogLevel"
+            value={episodeLogLevel}
+            onChange={(e) => onEpisodeLogLevelChange(e.target.value as EpisodeLogLevel)}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="debug">Everything the pipeline logs</option>
+            <option value="info">Info and above</option>
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Run logs keep what the server already logs, so debug lines appear only when
+            LOG_LEVEL is debug too.
           </p>
         </div>
 

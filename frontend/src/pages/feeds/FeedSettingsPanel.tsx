@@ -4,7 +4,7 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import type { Feed, LowAdYieldAction } from '../../api/types';
+import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
@@ -176,6 +176,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     (settings?.lowAdYieldAction?.value as LowAdYieldAction | undefined) ?? 'nothing';
   const globalLowAdYieldLabel = LOW_AD_YIELD_ACTION_LABELS[globalLowAdYieldAction]
     ?? LOW_AD_YIELD_ACTION_LABELS.nothing;
+
+  // Retention 0 turns run log storage off everywhere, so the global option
+  // has to say which way it currently falls.
+  const globalRetentionDays = settings?.episodeLogRetentionDays?.value ?? 30;
+  const globalEpisodeLogsLabel = globalRetentionDays > 0 ? 'keep logs' : 'off';
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
@@ -873,6 +878,31 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <p className="text-xs text-muted-foreground">
                 When an episode finishes with far less ad time removed than this feed usually
                 yields, run this action automatically (once per episode).
+              </p>
+            </div>
+          </div>
+
+          {/* Per-feed run log storage override */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.episodeLogs ?? ''}
+                onChange={(e) => updateMutation.mutate({
+                  episodeLogs: e.target.value === ''
+                    ? null : (e.target.value as EpisodeLogsOverride),
+                })}
+                disabled={updateMutation.isPending}
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                aria-label="Run log storage"
+              >
+                <option value="">Use global ({globalEpisodeLogsLabel})</option>
+                <option value="on">Keep logs</option>
+                <option value="off">Don't keep logs</option>
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Keep each run's pipeline log for this feed, readable on the episode page.
+                Nothing is kept while the global retention is 0 days.
               </p>
             </div>
           </div>

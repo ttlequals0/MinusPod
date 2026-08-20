@@ -29,6 +29,7 @@ import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
+import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnDestructive, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 
@@ -1415,6 +1416,23 @@ function EpisodeDetail() {
             storageKey="episode-processing-stats"
           >
             <ProcessingRunsTable runs={episode.processingRuns} rssDuration={episode.rssDuration} />
+          </CollapsibleSection>
+        </div>
+      )}
+
+      {episode.processingRuns && episode.processingRuns.length > 0 && (
+        <div className="mb-6">
+          <CollapsibleSection
+            title="Logs"
+            subtitle="The pipeline log each run wrote"
+            defaultOpen={false}
+            storageKey="episode-run-logs"
+          >
+            <EpisodeLogsCard
+              slug={slug!}
+              episodeId={episodeId!}
+              runs={episode.processingRuns}
+            />
           </CollapsibleSection>
         </div>
       )}
