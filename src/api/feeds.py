@@ -33,6 +33,7 @@ from config import (
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
+    EPISODE_LOGS_VALUES,
     cue_only_missing_roles,
 )
 from differential_fetcher import is_likely_dai_feed
@@ -232,6 +233,19 @@ def _normalize_low_ad_yield_action(value):
     if value in LOW_AD_YIELD_ACTIONS:
         return value, None
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
+
+
+def _normalize_episode_logs(value):
+    """Validate the per-feed episodeLogs override (#660).
+
+    Returns (db_value, error). None clears the override (stored NULL, which
+    means "follow the global setting").
+    """
+    if value is None:
+        return None, None
+    if value in EPISODE_LOGS_VALUES:
+        return value, None
+    return None, f"episodeLogs must be one of: {', '.join(EPISODE_LOGS_VALUES)}"
 
 
 def _normalize_queue_priority(value):
@@ -476,6 +490,7 @@ def _podcast_base_json(podcast, feed_url) -> dict:
         'chaptersMode': podcast.get('chapters_mode'),
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
+        'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_title_skip_patterns(podcast.get('title_skip_patterns')),
         'titleSkipAction': podcast.get('title_skip_action') or 'serve_original',
         'segmentCategoryActions': _deserialize_segment_category_actions(
@@ -1028,6 +1043,12 @@ def update_feed(slug):
         if ly_err:
             return error_response(ly_err, 400)
         updates['low_ad_yield_action'] = ly_val
+
+    if 'episodeLogs' in data:
+        logs_val, logs_err = _normalize_episode_logs(data['episodeLogs'])
+        if logs_err:
+            return error_response(logs_err, 400)
+        updates['episode_logs'] = logs_val
 
     if 'titleSkipPatterns' in data:
         patterns_val, patterns_err = _normalize_title_skip_patterns(data['titleSkipPatterns'])

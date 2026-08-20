@@ -38,6 +38,8 @@ from config import (
     PODCAST_SEARCH_PROVIDERS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     LOW_AD_YIELD_ACTIONS,
+    EPISODE_LOG_LEVELS,
+    EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     resolve_segment_category_actions_map,
     resolve_community_sync_categories,
     resolve_jit_blocked_user_agents,
@@ -219,6 +221,13 @@ def get_settings():
     low_ad_yield_action = _setting_value(
         settings, 'low_ad_yield_action',
         registry_default('low_ad_yield_action'))
+    episode_log_retention_days = get_env_backed_int(
+        'episode_log_retention_days',
+        floor=EPISODE_LOG_RETENTION_DAYS_MIN,
+        ceiling=EPISODE_LOG_RETENTION_DAYS_MAX,
+        settings=settings)
+    episode_log_level = _setting_value(
+        settings, 'episode_log_level', registry_default('episode_log_level'))
     feed_auth_enabled = coerce_bool_setting(
         _setting_value(settings, 'feed_auth_enabled',
                        registry_default('feed_auth_enabled')))
@@ -527,6 +536,9 @@ def get_settings():
         'artworkBadgePosition': _sv(
             'artwork_badge_position', artwork_badge_position),
         'lowAdYieldAction': _sv('low_ad_yield_action', low_ad_yield_action),
+        'episodeLogRetentionDays': _sv(
+            'episode_log_retention_days', episode_log_retention_days),
+        'episodeLogLevel': _sv('episode_log_level', episode_log_level),
         'feedAuthEnabled': _sv('feed_auth_enabled', feed_auth_enabled),
         'feedAuthKey': feed_auth_key,
         'opmlModifiedUrl': opml_modified_url,
@@ -850,6 +862,26 @@ def _apply_processing_flags(db, data):
         db.set_setting('low_ad_yield_action', data['lowAdYieldAction'],
                        is_default=False)
         logger.info(f"Updated low-ad-yield action to: {data['lowAdYieldAction']}")
+
+    if 'episodeLogRetentionDays' in data:
+        days = data['episodeLogRetentionDays']
+        if (not isinstance(days, int) or isinstance(days, bool)
+                or days < EPISODE_LOG_RETENTION_DAYS_MIN
+                or days > EPISODE_LOG_RETENTION_DAYS_MAX):
+            return error_response(
+                'episodeLogRetentionDays must be an integer between '
+                f'{EPISODE_LOG_RETENTION_DAYS_MIN} and '
+                f'{EPISODE_LOG_RETENTION_DAYS_MAX}', 400)
+        db.set_setting('episode_log_retention_days', str(days), is_default=False)
+        logger.info(f"Updated episode log retention to {days} days")
+
+    if 'episodeLogLevel' in data:
+        if data['episodeLogLevel'] not in EPISODE_LOG_LEVELS:
+            return error_response(
+                f'episodeLogLevel must be one of: {", ".join(EPISODE_LOG_LEVELS)}', 400)
+        db.set_setting('episode_log_level', data['episodeLogLevel'],
+                       is_default=False)
+        logger.info(f"Updated episode log level to: {data['episodeLogLevel']}")
 
     if 'feedAuthEnabled' in data:
         enabled = data['feedAuthEnabled']

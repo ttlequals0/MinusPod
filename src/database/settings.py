@@ -446,6 +446,13 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # reprocess | full); per-feed overridable.
     'low_ad_yield_action': SettingSpec(
         env_backed=True, payload_key='lowAdYieldAction'),
+    # Episode run logs (#660): retention days (0 disables storage) and the
+    # minimum level kept in a run log.
+    'episode_log_retention_days': SettingSpec(
+        env_backed=True, payload_key='episodeLogRetentionDays',
+        payload_kind='int'),
+    'episode_log_level': SettingSpec(
+        env_backed=True, payload_key='episodeLogLevel'),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),

@@ -364,6 +364,9 @@ class SchemaMixin:
             # Per-feed low-ad-yield action override; NULL = use the global
             # low_ad_yield_action setting.
             ('low_ad_yield_action', 'TEXT'),
+            # Per-feed episode run log storage (#660); NULL = follow the
+            # global setting, 'on' = store, 'off' = never store.
+            ('episode_logs', 'TEXT'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

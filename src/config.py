@@ -717,6 +717,61 @@ def resolve_low_ad_yield_action(db, podcast_row) -> str:
     return value if value in LOW_AD_YIELD_ACTIONS else LOW_AD_YIELD_ACTION_NOTHING
 
 
+# Episode run logs (#660): per-feed override values and the global bounds.
+EPISODE_LOGS_ON = 'on'
+EPISODE_LOGS_OFF = 'off'
+EPISODE_LOGS_VALUES = (EPISODE_LOGS_ON, EPISODE_LOGS_OFF)
+EPISODE_LOG_RETENTION_DAYS_DEFAULT = 30
+EPISODE_LOG_RETENTION_DAYS_MIN = 0
+EPISODE_LOG_RETENTION_DAYS_MAX = 365
+EPISODE_LOG_LEVEL_DEBUG = 'debug'
+EPISODE_LOG_LEVEL_INFO = 'info'
+EPISODE_LOG_LEVELS = (EPISODE_LOG_LEVEL_DEBUG, EPISODE_LOG_LEVEL_INFO)
+
+
+def _episode_log_settings_view(db, key):
+    """Pre-loaded settings view so an explicit handle wins over the singleton."""
+    if db is None:
+        return None
+    try:
+        return {key: db.get_setting(key)}
+    except Exception:
+        return None
+
+
+def resolve_episode_log_retention_days(db=None) -> int:
+    """Days to keep episode run logs; 0 disables run-log storage entirely."""
+    return get_env_backed_int(
+        'episode_log_retention_days',
+        floor=EPISODE_LOG_RETENTION_DAYS_MIN,
+        ceiling=EPISODE_LOG_RETENTION_DAYS_MAX,
+        settings=_episode_log_settings_view(db, 'episode_log_retention_days'))
+
+
+def resolve_episode_log_level(db=None) -> int:
+    """Minimum level kept in a run log, as a logging level constant."""
+    raw = None
+    if db is not None:
+        try:
+            raw = db.get_setting('episode_log_level')
+        except Exception:
+            raw = None
+    else:
+        raw = _db_setting('episode_log_level')
+    if raw is None or str(raw).strip() == '':
+        raw = resolve_env_backed_default('episode_log_level')
+    return (logging.INFO if str(raw).strip().lower() == EPISODE_LOG_LEVEL_INFO
+            else logging.DEBUG)
+
+
+def resolve_episode_log_storage(db, podcast_row) -> bool:
+    """Whether this run's log is stored: retention 0 disables everything,
+    otherwise the per-feed override wins and NULL follows the global on."""
+    if resolve_episode_log_retention_days(db) <= 0:
+        return False
+    return (podcast_row or {}).get('episode_logs') != EPISODE_LOGS_OFF
+
+
 def resolve_skip_second_pass(podcast_row):
     """Whether the feed opts out of the pass-2 verification scan (issue #599).
 
@@ -1761,6 +1816,18 @@ def _validate_low_ad_yield_action(value: str) -> bool:
     return value in LOW_AD_YIELD_ACTIONS
 
 
+def _validate_episode_log_retention_days(value: str) -> bool:
+    try:
+        days = int(value)
+    except (ValueError, TypeError):
+        return False
+    return EPISODE_LOG_RETENTION_DAYS_MIN <= days <= EPISODE_LOG_RETENTION_DAYS_MAX
+
+
+def _validate_episode_log_level(value: str) -> bool:
+    return value in EPISODE_LOG_LEVELS
+
+
 def _validate_badge_position(value: str) -> bool:
     from artwork_watermark import BADGE_POSITIONS  # lazy: keeps Pillow out of config import
     return value in BADGE_POSITIONS
@@ -1938,6 +2005,11 @@ ENV_BACKED_SETTINGS = (
     # Automatic response to a low-ad-yield pipeline run; per-feed overridable.
     ('low_ad_yield_action', 'LOW_AD_YIELD_ACTION', LOW_AD_YIELD_ACTION_NOTHING,
      _validate_low_ad_yield_action),
+    # Episode run logs (#660): retention 0 turns the subsystem off.
+    ('episode_log_retention_days', 'EPISODE_LOG_RETENTION_DAYS',
+     str(EPISODE_LOG_RETENTION_DAYS_DEFAULT), _validate_episode_log_retention_days),
+    ('episode_log_level', 'EPISODE_LOG_LEVEL', EPISODE_LOG_LEVEL_DEBUG,
+     _validate_episode_log_level),
 )
 
 

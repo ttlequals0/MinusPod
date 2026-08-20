@@ -84,6 +84,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Per-feed low-ad-yield action override: NULL = use the global
     -- low_ad_yield_action setting.
     low_ad_yield_action TEXT,
+    -- Per-feed episode run log storage (#660): NULL = follow the global
+    -- setting, 'on' = store, 'off' = never store.
+    episode_logs TEXT,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',

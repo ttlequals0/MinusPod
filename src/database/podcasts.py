@@ -234,7 +234,7 @@ class PodcastMixin:
                 'segment_category_actions', 'detect_show_segments',
                 'skip_second_pass', 'skip_transcription', 'cue_only_safety',
                 'queue_priority', 'title_skip_patterns', 'title_skip_action',
-                'low_ad_yield_action',
+                'low_ad_yield_action', 'episode_logs',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)
