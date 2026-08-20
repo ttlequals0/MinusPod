@@ -44,10 +44,16 @@ class TestKeepRule:
         assert len(lines) == 1
         assert lines[0]['msg'] == '[my-feed:ep123] Starting'
 
-    def test_untagged_record_from_unregistered_thread_is_dropped(self, rec, src_logger):
+    def test_untagged_record_from_an_unregistered_thread_is_dropped(self, rec, src_logger):
         rec.attach()
-        src_logger.info('something unrelated')
-        src_logger.info('[other-feed:ep999] not ours')
+
+        def outsider():
+            src_logger.info('something unrelated')
+            src_logger.info('[other-feed:ep999] not ours')
+
+        t = threading.Thread(target=outsider)
+        t.start()
+        t.join()
         rec.detach()
 
         assert not _temp_file(rec).exists()
@@ -69,14 +75,25 @@ class TestKeepRule:
 
     def test_registration_does_not_leak_to_other_threads(self, rec, src_logger):
         rec.attach()
+        registered_done = threading.Event()
+        outsider_done = threading.Event()
 
         def worker():
             rec.register_thread()
+            registered_done.set()
+            # Held alive so the outsider cannot be handed this ident.
+            outsider_done.wait(5)
 
-        t = threading.Thread(target=worker)
-        t.start()
-        t.join()
-        src_logger.info('main thread, untagged')
+        def outsider():
+            registered_done.wait(5)
+            src_logger.info('not this run')
+            outsider_done.set()
+
+        threads = [threading.Thread(target=worker), threading.Thread(target=outsider)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
         rec.detach()
 
         assert not _temp_file(rec).exists()
@@ -99,6 +116,63 @@ class TestKeepRule:
         lines = _lines(_temp_file(recorder))
         assert [entry['level'] for entry in lines] == ['DEBUG']
         recorder.discard()
+
+
+class TestRunThreadCapture:
+    def test_the_attaching_thread_is_captured_untagged(self, rec, src_logger):
+        rec.attach()
+        src_logger.info('FFMPEG convert failed: no such codec')
+        rec.detach()
+
+        assert [entry['msg'] for entry in _lines(_temp_file(rec))] == [
+            'FFMPEG convert failed: no such codec']
+
+    def test_pool_workers_register_through_the_module_helper(self, rec, src_logger):
+        from run_log import register_worker_thread, unregister_worker_thread
+
+        rec.attach()
+
+        def worker():
+            register_worker_thread()
+            try:
+                src_logger.info('chunk 2 failed')
+            finally:
+                unregister_worker_thread()
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join()
+        rec.detach()
+
+        assert 'chunk 2 failed' in [entry['msg'] for entry in _lines(_temp_file(rec))]
+
+    def test_the_helpers_are_a_no_op_without_a_recorder(self):
+        from run_log import register_worker_thread, unregister_worker_thread
+
+        register_worker_thread()
+        unregister_worker_thread()
+
+    def test_a_recycled_ident_is_not_captured(self, rec):
+        from run_log import register_worker_thread, unregister_worker_thread
+
+        rec.attach()
+        idents = []
+
+        def worker():
+            register_worker_thread()
+            idents.append(threading.get_ident())
+            unregister_worker_thread()
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join()
+        rec.detach()
+
+        # A later thread handed the same ident must not inherit the run.
+        record = logging.LogRecord('podcast.other', logging.INFO, __file__, 1,
+                                   'unrelated work', None, None)
+        record.thread = idents[0]
+        assert rec._belongs(record, record.getMessage()) is False
 
 
 class TestLineShape:
@@ -268,6 +342,34 @@ class TestDiscardStopsCapture:
 
         assert rec.finalize(tmp_path / 'final' / 'run-3.jsonl') is None
         assert not (tmp_path / 'final' / 'run-3.jsonl').exists()
+
+
+class TestFinalizeRace:
+    def test_a_record_arriving_after_finalize_cannot_recreate_the_temp_file(
+            self, rec, src_logger, tmp_path):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] first')
+        temp = _temp_file(rec)
+        final = tmp_path / 'final' / 'run-11.jsonl'
+
+        rec.finalize(final)
+        src_logger.info('[my-feed:ep123] straggler')
+        rec.detach()
+
+        assert not temp.exists()
+        assert [entry['msg'] for entry in _lines(final)] == ['[my-feed:ep123] first']
+
+    def test_reported_bytes_match_the_file_for_non_ascii_lines(
+            self, rec, src_logger, tmp_path):
+        rec.attach()
+        src_logger.info('[my-feed:ep123] sponsor: Cafe élégant 30s')
+        src_logger.info('[my-feed:ep123] surrogate \ud83d tail')
+        rec.detach()
+        final = tmp_path / 'final' / 'run-12.jsonl'
+
+        result = rec.finalize(final)
+
+        assert result['bytes'] == final.stat().st_size
 
 
 class TestStoredPathContainment:

@@ -102,10 +102,9 @@ class TestStorageEnabled:
         assert row['log_file'] == expected
         path = processing.storage.data_dir / expected
         assert path.exists()
-        assert row['log_bytes'] == path.stat().st_size
+        assert path.stat().st_size > 0
         messages = [entry['msg'] for entry in _log_lines(path)]
-        assert any('Starting' in msg for msg in messages)
-        assert all(f"[{SLUG}:{EPISODE_ID}]" in msg for msg in messages)
+        assert any(f"[{SLUG}:{EPISODE_ID}] Starting" in msg for msg in messages)
 
     def test_a_failed_run_keeps_its_log(self, db):
         _run_pipeline(fail=True)
@@ -182,7 +181,6 @@ class TestStorageDisabled:
 
         row = _history_row(db)
         assert row['log_file'] is None
-        assert row['log_bytes'] is None
         assert not (processing.storage.data_dir / run_log.run_log_relative_path(
             SLUG, EPISODE_ID, row['id'])).exists()
 
@@ -217,6 +215,32 @@ class TestWorkerThreadRegistration:
         lines = _log_lines(recorder.temp_path)
         recorder.discard()
         assert len(lines) == 2
+
+    def test_transcription_chunks_register_their_thread(self, tmp_path):
+        import transcriber as transcriber_mod
+
+        recorder = run_log.RunLogRecorder('w-feed', 'w-ep', logging.INFO, tmp_path)
+        worker_logger = logging.getLogger('podcast.test.chunks')
+        worker_logger.setLevel(logging.INFO)
+        fake = MagicMock()
+        fake.filter_hallucinations.side_effect = lambda segments: segments
+        fake._transcribe_via_api.side_effect = (
+            lambda *a, **k: (worker_logger.info('chunk failed without a tag'),
+                             [{'start': 0.0, 'end': 1.0, 'text': 'hi'}])[1])
+
+        recorder.attach()
+        try:
+            with patch.object(transcriber_mod, 'extract_audio_chunk',
+                              return_value='/tmp/does-not-exist.flac'):
+                transcriber_mod.Transcriber._transcribe_chunked_parallel_api(
+                    fake, '/tmp/audio.mp3', 'Show', 1800.0,
+                    {'skip_flac_compression': 'true'})
+        finally:
+            recorder.detach()
+
+        lines = _log_lines(recorder.temp_path)
+        recorder.discard()
+        assert any('chunk failed without a tag' == entry['msg'] for entry in lines)
 
     def test_reviewer_batch_registers_its_thread(self, tmp_path):
         recorder = run_log.RunLogRecorder('w-feed', 'w-ep', logging.INFO, tmp_path)
@@ -262,10 +286,8 @@ class TestHistoryPointer:
             podcast_title='Run Log Feed', episode_id=EPISODE_ID,
             episode_title='One', status='completed')
 
-        assert db.set_history_log_pointer(history_id, 'logs/x.jsonl', 12) is True
-        row = _history_row(db)
-        assert (row['log_file'], row['log_bytes']) == ('logs/x.jsonl', 12)
+        assert db.set_history_log_pointer(history_id, 'logs/x.jsonl') is True
+        assert _history_row(db)['log_file'] == 'logs/x.jsonl'
 
-        assert db.set_history_log_pointer(history_id, None, None) is True
-        row = _history_row(db)
-        assert (row['log_file'], row['log_bytes']) == (None, None)
+        assert db.set_history_log_pointer(history_id, None) is True
+        assert _history_row(db)['log_file'] is None

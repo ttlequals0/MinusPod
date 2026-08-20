@@ -730,37 +730,34 @@ EPISODE_LOG_LEVEL_INFO = 'info'
 EPISODE_LOG_LEVELS = (EPISODE_LOG_LEVEL_DEBUG, EPISODE_LOG_LEVEL_INFO)
 
 
-def _episode_log_settings_view(db, key):
-    """Pre-loaded settings view so an explicit handle is the only source read.
-
-    A failing handle yields an empty view, which falls through to the env
-    default; never to the singleton, whose answer would be for another DB.
-    """
-    if db is None:
-        return None
+def _episode_log_setting(db, key):
+    """One episode-log setting from the given handle, or None to use the
+    env-backed default. The handle is the only source read."""
     try:
-        return {key: db.get_setting(key)}
+        raw = db.get_setting(key)
     except sqlite3.Error as err:
         _tunable_logger.warning("Could not read %s from the given handle: %s", key, err)
-        return {key: None}
+        return None
+    return raw if raw is not None and str(raw).strip() != '' else None
 
 
-def resolve_episode_log_retention_days(db=None) -> int:
+def resolve_episode_log_retention_days(db) -> int:
     """Days to keep episode run logs; 0 disables run-log storage entirely."""
-    return get_env_backed_int(
-        'episode_log_retention_days',
-        floor=EPISODE_LOG_RETENTION_DAYS_MIN,
-        ceiling=EPISODE_LOG_RETENTION_DAYS_MAX,
-        settings=_episode_log_settings_view(db, 'episode_log_retention_days'))
+    raw = _episode_log_setting(db, 'episode_log_retention_days')
+    if raw is None:
+        raw = resolve_env_backed_default('episode_log_retention_days')
+    try:
+        days = int(raw)
+    except (TypeError, ValueError):
+        days = int(resolve_env_backed_default('episode_log_retention_days'))
+    return max(EPISODE_LOG_RETENTION_DAYS_MIN,
+               min(EPISODE_LOG_RETENTION_DAYS_MAX, days))
 
 
-def resolve_episode_log_level(db=None) -> int:
+def resolve_episode_log_level(db) -> int:
     """Minimum level kept in a run log, as a logging level constant."""
-    if db is not None:
-        raw = _episode_log_settings_view(db, 'episode_log_level')['episode_log_level']
-    else:
-        raw = _db_setting('episode_log_level')
-    if raw is None or str(raw).strip() == '':
+    raw = _episode_log_setting(db, 'episode_log_level')
+    if raw is None:
         raw = resolve_env_backed_default('episode_log_level')
     return (logging.INFO if str(raw).strip().lower() == EPISODE_LOG_LEVEL_INFO
             else logging.DEBUG)

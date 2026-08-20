@@ -56,12 +56,17 @@ def run_cleanup():
         refresh_logger.error(f"Orphan cleanup failed: {e}")
 
     # Episode run logs (#660): prune by age and drop files no row points at.
+    # Hourly at most; the cleanup tick runs far more often than the log tree
+    # changes, and the sweep walks every stored log.
     try:
-        pruned, orphans = run_log.sweep_expired_logs(
-            db, storage.data_dir, resolve_episode_log_retention_days(db))
-        if pruned or orphans:
-            refresh_logger.info(
-                f"Cleanup: removed {pruned} expired run log(s) and {orphans} orphan file(s)")
+        last_sweep = getattr(run_cleanup, '_last_run_log_sweep', 0)
+        if time.time() - last_sweep > 3600:
+            run_cleanup._last_run_log_sweep = time.time()
+            pruned, orphans = run_log.sweep_expired_logs(
+                db, storage.data_dir, resolve_episode_log_retention_days(db))
+            if pruned or orphans:
+                refresh_logger.info(
+                    f"Cleanup: removed {pruned} expired run log(s) and {orphans} orphan file(s)")
     except Exception as e:
         refresh_logger.error(f"Run log cleanup failed: {e}")
 

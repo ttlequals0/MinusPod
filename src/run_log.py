@@ -21,6 +21,8 @@ DEFAULT_SIZE_CAP_BYTES = 20 * 1024 * 1024
 TRUNCATION_MARKER = 'log truncated at size cap'
 STOPPED_MARKER = 'log capture stopped early after a write error'
 EPISODE_LOG_PREFIX = 'logs/episodes/'
+# A .jsonl.tmp younger than this may belong to a run still writing it.
+TEMP_MIN_AGE_SECONDS = 6 * 3600
 
 _MESSAGE_FORMATTER = logging.Formatter('%(message)s')
 _TEMP_NAME_UNSAFE = re.compile(r'[^A-Za-z0-9._-]')
@@ -49,6 +51,33 @@ def _clear_current_recorder(recorder):
     with _active_lock:
         if _active_recorder is recorder:
             _active_recorder = None
+
+
+def register_worker_thread():
+    """Mark the calling pool worker as part of the run in flight, if any."""
+    recorder = current_recorder()
+    if recorder is not None:
+        recorder.register_thread()
+
+
+def unregister_worker_thread():
+    """Drop the calling thread's registration once its task is done."""
+    recorder = current_recorder()
+    if recorder is not None:
+        recorder.unregister_thread()
+
+
+def run_in_worker_thread(fn, *args, **kwargs):
+    """Pool-task wrapper that registers the worker thread for the run log.
+
+    Registration is dropped in the finally: thread idents are recycled, and an
+    unregistered ident must not hand a later thread this run's capture.
+    """
+    register_worker_thread()
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        unregister_worker_thread()
 
 
 def run_log_temp_dir(data_dir):
@@ -123,14 +152,19 @@ def sweep_expired_logs(db, data_dir, retention_days):
     row (including temp files a killed run left behind). Retention 0 removes
     everything, matching the setting that turns storage off.
     """
-    cutoff = time.time() - max(0, int(retention_days or 0)) * 86400
-    pointers = {}
+    now = time.time()
+    cutoff = now - max(0, int(retention_days or 0)) * 86400
     try:
         pointers = db.get_history_log_pointers()
     except Exception as err:
-        logger.warning(f"run log sweep could not read log pointers: {err}")
+        # Without the map every file looks like an orphan, and deleting on
+        # that guess would take live logs with it.
+        logger.warning(
+            f"run log sweep skipped: could not read log pointers: {err}")
+        return 0, 0
 
     pruned = orphans = 0
+    cleared = set()
     root = episode_log_root(data_dir)
     if root.exists():
         for path in sorted(root.rglob('run-*.jsonl')):
@@ -148,23 +182,43 @@ def sweep_expired_logs(db, data_dir, retention_days):
                 orphans += 1
                 continue
             pruned += 1
-            try:
-                db.set_history_log_pointer(history_id, None, None)
-            except Exception as err:
-                logger.warning(
-                    f"run log sweep could not clear pointer {history_id}: {err}")
+            cleared.add(history_id)
+            _clear_pointer(db, history_id)
+
+    # Heal rows whose file went missing out of band (manual delete, restored
+    # database, moved data dir) so the UI stops offering a log that is gone.
+    for relative, history_id in pointers.items():
+        if history_id in cleared:
+            continue
+        try:
+            if resolve_stored_log_path(data_dir, relative).exists():
+                continue
+        except Exception:
+            pass
+        pruned += 1
+        _clear_pointer(db, history_id)
 
     temp_dir = run_log_temp_dir(data_dir)
     if temp_dir.exists():
+        # A live recorder owns a fresh temp file, and retention 0 would
+        # otherwise unlink the log of the run in flight.
+        temp_cutoff = min(cutoff, now - TEMP_MIN_AGE_SECONDS)
         for path in sorted(temp_dir.glob('*.jsonl.tmp')):
             try:
-                if path.stat().st_mtime > cutoff:
+                if path.stat().st_mtime > temp_cutoff:
                     continue
                 path.unlink()
                 orphans += 1
             except Exception as err:
                 logger.warning(f"run log sweep could not remove {path}: {err}")
     return pruned, orphans
+
+
+def _clear_pointer(db, history_id):
+    try:
+        db.set_history_log_pointer(history_id, None)
+    except Exception as err:
+        logger.warning(f"run log sweep could not clear pointer {history_id}: {err}")
 
 
 def _prune_empty_dirs(directory, root):
@@ -205,11 +259,16 @@ class RunLogRecorder(logging.Handler):
         return f"run-{safe_slug}-{safe_episode}-{stamp}.jsonl.tmp"
 
     def attach(self):
-        """Start capturing on the root logger. Idempotent."""
+        """Start capturing on the root logger. Idempotent.
+
+        The attaching thread is the pipeline thread, so its untagged lines
+        (ffmpeg, transcriber, storage) belong to this run.
+        """
         try:
             root = logging.getLogger()
             if self not in root.handlers:
                 root.addHandler(self)
+            self.register_thread()
             _set_current_recorder(self)
         except Exception as err:
             self._disable(err)
@@ -232,6 +291,14 @@ class RunLogRecorder(logging.Handler):
         except Exception as err:
             logger.warning(f"run log thread registration failed: {err}")
 
+    def unregister_thread(self):
+        """Forget the calling thread; a recycled ident is not this run."""
+        try:
+            with self._threads_lock:
+                self._threads.discard(threading.get_ident())
+        except Exception as err:
+            logger.warning(f"run log thread deregistration failed: {err}")
+
     def emit(self, record):
         if self.disabled or self.truncated or self._finalized:
             return
@@ -253,37 +320,41 @@ class RunLogRecorder(logging.Handler):
             return record.thread in self._threads
 
     def _write(self, level, logger_name, message, created=None):
-        line = json.dumps({
+        encoded = _encode_line({
             'ts': _iso_ts(created),
             'level': level,
             'logger': logger_name,
             'msg': message,
-        }, ensure_ascii=False) + '\n'
-        encoded_len = _encoded_len(line)
-        if self.bytes_written + encoded_len > self.size_cap_bytes:
+        })
+        if self.bytes_written + len(encoded) > self.size_cap_bytes:
             self.truncated = True
             self._write_marker(TRUNCATION_MARKER)
             return
-        self._stream_write(line, encoded_len)
+        self._stream_write(encoded)
 
     def _write_marker(self, message):
-        marker = json.dumps({
+        self._stream_write(_encode_line({
             'ts': _iso_ts(None),
             'level': 'WARNING',
             'logger': logger.name,
             'msg': message,
-        }) + '\n'
-        self._stream_write(marker, _encoded_len(marker))
+        }))
 
-    def _stream_write(self, line, encoded_len):
+    def _open_stream(self):
+        self.temp_path.parent.mkdir(parents=True, exist_ok=True)
+        # Binary and unbuffered: lines are already encoded once, and a killed
+        # process keeps everything written so far.
+        return open(self.temp_path, 'ab', buffering=0)
+
+    def _stream_write(self, encoded):
         if self._stream is None:
-            self.temp_path.parent.mkdir(parents=True, exist_ok=True)
-            # backslashreplace: a lone surrogate in a transcript must not cost
-            # the run its whole log.
-            self._stream = open(self.temp_path, 'a', encoding='utf-8',
-                                errors='backslashreplace', buffering=1)
-        self._stream.write(line)
-        self.bytes_written += encoded_len
+            # A record racing finalize must not recreate the temp file the
+            # rename just consumed.
+            if self._finalized or self.disabled:
+                return
+            self._stream = self._open_stream()
+        self._stream.write(encoded)
+        self.bytes_written += len(encoded)
 
     def _disable(self, err):
         """Turn the recorder off for the rest of the run, once, quietly."""
@@ -311,27 +382,39 @@ class RunLogRecorder(logging.Handler):
         A recorder that disabled itself mid-run keeps the lines it did write,
         with a marker saying capture stopped there.
         """
-        if self._finalized:
-            return None
-        self._finalized = True
-        if self.disabled and self.bytes_written:
-            try:
-                self._write_marker(STOPPED_MARKER)
-            except Exception:
-                pass
-        self._close()
-        if self.bytes_written == 0:
-            self._remove_temp()
-            return None
+        # The handler lock is what emit runs under, so no record can be
+        # mid-write while the file is closed and renamed.
+        self.acquire()
         try:
-            final_path = Path(final_path)
-            final_path.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(self.temp_path, final_path)
-            return {'bytes': self.bytes_written, 'truncated': self.truncated}
-        except Exception as err:
-            logger.warning(f"run log finalize failed for {self.tag}: {err}")
-            self._remove_temp()
-            return None
+            if self._finalized:
+                return None
+            self._finalized = True
+            if self.disabled and self.bytes_written:
+                self._append_stopped_marker()
+            self._close()
+            if self.bytes_written == 0:
+                self._remove_temp()
+                return None
+            try:
+                final_path = Path(final_path)
+                final_path.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(self.temp_path, final_path)
+                return {'bytes': self.bytes_written, 'truncated': self.truncated}
+            except Exception as err:
+                logger.warning(f"run log finalize failed for {self.tag}: {err}")
+                self._remove_temp()
+                return None
+        finally:
+            self.release()
+
+    def _append_stopped_marker(self):
+        """Best-effort note that capture died before the run did."""
+        try:
+            if self._stream is None:
+                self._stream = self._open_stream()
+            self._write_marker(STOPPED_MARKER)
+        except Exception:
+            pass
 
     def discard(self):
         """Drop the temp file; a finalized recorder keeps its final file."""
@@ -348,9 +431,11 @@ class RunLogRecorder(logging.Handler):
             logger.warning(f"run log temp cleanup failed for {self.tag}: {err}")
 
 
-def _encoded_len(line):
-    """Byte length under the same errors policy the log stream writes with."""
-    return len(line.encode('utf-8', 'backslashreplace'))
+def _encode_line(payload):
+    """One JSONL line as bytes; backslashreplace keeps a lone surrogate in a
+    transcript from costing the run its whole log."""
+    return (json.dumps(payload, ensure_ascii=False) + '\n').encode(
+        'utf-8', 'backslashreplace')
 
 
 def _iso_ts(created):

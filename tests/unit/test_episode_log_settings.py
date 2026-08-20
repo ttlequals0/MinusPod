@@ -81,7 +81,7 @@ class TestLogLevel:
 
 
 class TestHandleIsolation:
-    """A passed handle is the only source read; a broken one falls to the
+    """The passed handle is the only source read; a broken one falls to the
     env default rather than quietly answering from the singleton."""
 
     def test_a_failing_handle_falls_back_to_the_default(self, db):
@@ -96,6 +96,14 @@ class TestHandleIsolation:
 
         assert resolve_episode_log_retention_days(Broken()) == 30
         assert resolve_episode_log_level(Broken()) == logging.DEBUG
+
+    def test_the_handle_is_required(self):
+        import pytest as _pytest
+
+        with _pytest.raises(TypeError):
+            resolve_episode_log_retention_days()
+        with _pytest.raises(TypeError):
+            resolve_episode_log_level()
 
 
 class TestStorageResolution:

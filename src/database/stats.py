@@ -334,14 +334,13 @@ class StatsMixin:
         ).fetchall()
         return {row['log_file']: row['id'] for row in rows}
 
-    def set_history_log_pointer(self, history_id: int, log_file: str | None,
-                                log_bytes: int | None) -> bool:
+    def set_history_log_pointer(self, history_id: int, log_file: str | None) -> bool:
         """Point a history row at its run log file (#660), or clear it with
-        None/None when the retention sweep deletes the file."""
+        None when the retention sweep deletes the file."""
         conn = self.get_connection()
         cursor = conn.execute(
-            "UPDATE processing_history SET log_file = ?, log_bytes = ? WHERE id = ?",
-            (log_file, log_bytes, history_id)
+            "UPDATE processing_history SET log_file = ? WHERE id = ?",
+            (log_file, history_id)
         )
         conn.commit()
         return cursor.rowcount > 0

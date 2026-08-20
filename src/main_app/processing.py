@@ -2903,13 +2903,11 @@ def _finalize_run_log(db, history_id, slug, episode_id):
             f"[{slug}:{episode_id}] run log slot holds {recorder.tag}; not finalizing")
         return
     try:
-        result = recorder.finalize(
-            run_log.run_log_path(storage.data_dir, slug, episode_id, history_id))
-        if result:
+        if recorder.finalize(
+                run_log.run_log_path(storage.data_dir, slug, episode_id, history_id)):
             db.set_history_log_pointer(
                 history_id,
-                run_log.run_log_relative_path(slug, episode_id, history_id),
-                result['bytes'])
+                run_log.run_log_relative_path(slug, episode_id, history_id))
     except Exception as err:
         audio_logger.warning(f"[{slug}:{episode_id}] run log finalize failed: {err}")
 

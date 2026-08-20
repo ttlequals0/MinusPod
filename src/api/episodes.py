@@ -548,9 +548,12 @@ def serve_original_audio(slug, episode_id):
     return response
 
 
-RUN_LOG_LEVELS = {'debug': 10, 'info': 20, 'warning': 30, 'error': 40, 'critical': 50}
+# Straight from the stdlib so warning/critical aliases cannot drift from what
+# the recorder writes.
+RUN_LOG_LEVELS = {name.lower(): value
+                  for name, value in logging.getLevelNamesMapping().items()}
 # A level name the map does not know ranks above every filter, so a custom or
-# future level is never silently hidden by the level chips.
+# future level is never silently hidden.
 UNKNOWN_RUN_LOG_LEVEL = 100
 
 
@@ -602,8 +605,12 @@ def get_episode_run_log(slug, episode_id, run_number):
 
     if request.args.get('format') == 'raw':
         filename = f"{slug}-{episode_id}-run{run_number}.jsonl"
-        response = send_file(path, mimetype='text/plain', as_attachment=True,
-                             download_name=filename, conditional=True)
+        try:
+            response = send_file(path, mimetype='text/plain', as_attachment=True,
+                                 download_name=filename, conditional=True)
+        except OSError:
+            # The sweep can land between the check above and this read.
+            return _missing_log_response('log_pruned', 'Run log is no longer available')
         # Quoted filename: werkzeug leaves a bare token unquoted, and the
         # documented header shape is the quoted one.
         response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
@@ -616,12 +623,20 @@ def get_episode_run_log(slug, episode_id, run_number):
     level_arg = (request.args.get('level') or '').lower()
     if level_arg and level_arg not in RUN_LOG_LEVELS:
         return error_response(
-            f"level must be one of: {', '.join(RUN_LOG_LEVELS)}", 400)
+            f"level must be one of: {', '.join(sorted(RUN_LOG_LEVELS))}", 400)
+    # Server-side filter kept alongside the viewer's client-side chips: the
+    # API is usable on its own, the viewer filters without a refetch per chip.
     minimum = RUN_LOG_LEVELS.get(level_arg, 0)
+
+    try:
+        text = path.read_text(encoding='utf-8', errors='replace')
+        size = path.stat().st_size
+    except OSError:
+        return _missing_log_response('log_pruned', 'Run log is no longer available')
 
     lines = []
     truncated = False
-    for raw_line in path.read_text(errors='replace').splitlines():
+    for raw_line in text.splitlines():
         if not raw_line.strip():
             continue
         try:
@@ -640,7 +655,7 @@ def get_episode_run_log(slug, episode_id, run_number):
         'runNumber': run_number,
         'lines': lines,
         'truncated': truncated,
-        'bytes': path.stat().st_size,
+        'bytes': size,
     })
 
 

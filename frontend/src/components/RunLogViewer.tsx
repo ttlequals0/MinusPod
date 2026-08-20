@@ -60,6 +60,8 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   });
 
   const lines: RunLogLine[] = useMemo(() => data?.lines ?? [], [data]);
+  // Filtered here rather than through the endpoint's own level param, so
+  // switching chips costs nothing; the server filter serves API callers.
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     const floor = LEVEL_RANK[minLevel];

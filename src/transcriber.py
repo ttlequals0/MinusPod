@@ -13,6 +13,7 @@ import wave
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from run_log import run_in_worker_thread
 from utils.audio import get_audio_duration
 from utils.errors import (
     ServiceUnavailableError, AudioTooLargeError, AudioExtractionError,
@@ -1930,7 +1931,8 @@ class Transcriber:
         exe = ThreadPoolExecutor(max_workers=max_workers)
         try:
             futures = [
-                exe.submit(_process_chunk, i, s, e) for i, s, e in plan
+                exe.submit(run_in_worker_thread, _process_chunk, i, s, e)
+                for i, s, e in plan
             ]
             for completed, fut in enumerate(as_completed(futures), 1):
                 chunk_idx, segs = fut.result()

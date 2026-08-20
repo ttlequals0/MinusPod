@@ -24,7 +24,7 @@ from config import (
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
-from run_log import current_recorder
+from run_log import run_in_worker_thread
 from llm_client import (
     get_llm_max_retries, get_llm_timeout, is_rate_limit_error,
     StructuralRateLimitError,
@@ -844,11 +844,6 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
-            # Pool workers log without the run tag, so the run log needs their
-            # thread registered (#660).
-            recorder = current_recorder()
-            if recorder is not None:
-                recorder.register_thread()
             return self._review_single(
                 ad=ads[idx],
                 pool=pool,
@@ -866,7 +861,8 @@ class AdReviewer:
         ordered = [None] * len(ads)
         with ThreadPoolExecutor(max_workers=max_workers,
                                 thread_name_prefix='reviewer') as executor:
-            futures = {executor.submit(_run_one, i): i for i in range(len(ads))}
+            futures = {executor.submit(run_in_worker_thread, _run_one, i): i
+                       for i in range(len(ads))}
             for fut in as_completed(futures):
                 idx = futures[fut]
                 ordered[idx] = fut.result()

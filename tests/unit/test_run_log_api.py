@@ -57,8 +57,7 @@ def seeded(app_client):
         path.write_text(text)
         db.set_history_log_pointer(
             history_id,
-            run_log.run_log_relative_path(SLUG, EPISODE_ID, history_id),
-            path.stat().st_size)
+            run_log.run_log_relative_path(SLUG, EPISODE_ID, history_id))
         if prune:
             path.unlink()
         return history_id
@@ -185,7 +184,7 @@ class TestNotFound:
 
     def test_a_pointer_outside_the_log_tree_serves_nothing(self, app_client, seeded):
         history_id = seeded['add_run']()
-        seeded['db'].set_history_log_pointer(history_id, '../../podcast.db', 10)
+        seeded['db'].set_history_log_pointer(history_id, '../../podcast.db')
         _authed(app_client)
 
         resp = _get(app_client, 1)
@@ -193,6 +192,23 @@ class TestNotFound:
         assert resp.status_code == 404
         assert resp.get_json()['code'] == 'log_pruned'
         assert (seeded['storage'].data_dir / 'podcast.db').exists()
+
+    def test_a_file_deleted_mid_request_reports_pruned(self, app_client, seeded, monkeypatch):
+        """The sweep can land between the existence check and the read."""
+        import run_log
+
+        history_id = seeded['add_run']()
+        path = run_log.run_log_path(seeded['storage'].data_dir, SLUG, EPISODE_ID, history_id)
+        path.unlink()
+        # exists() lies, so the route gets past its check and the read is the
+        # first thing to notice the file is gone.
+        monkeypatch.setattr('pathlib.Path.exists', lambda self: True)
+        _authed(app_client)
+
+        for query in ('', '?format=raw'):
+            resp = _get(app_client, 1, query)
+            assert resp.status_code == 404, query
+            assert resp.get_json()['code'] == 'log_pruned'
 
     def test_an_unknown_run_number_is_404(self, app_client, seeded):
         seeded['add_run']()
