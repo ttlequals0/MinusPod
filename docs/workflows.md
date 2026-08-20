@@ -38,6 +38,11 @@ behind that address.
 Amber badges mark the stages that make an LLM call. Transcription is billed too
 if you point it at a hosted Whisper API; on a local GPU it costs only time.
 
+Long episodes transcribe in chunks sized to fit GPU memory. Cutting and
+normalizing a chunk is its own ffmpeg pass, and that pass runs ahead of the
+GPU: while one chunk transcribes, the next ones are already being prepared.
+The verify pass re-transcribes the cut file the same way.
+
 ---
 
 ## Five kinds of evidence, five outcomes

@@ -1069,11 +1069,14 @@ class TestChunkExtractionTimeoutFallback:
         )
 
     def test_timeout_halves_the_chunk_and_retries(self):
-        seen = []
+        # Keyed by span, not call order: the prefetcher extracts lookahead
+        # chunks concurrently, so arrival order is not deterministic.
+        seen_spans = set()
+        full_span = 1800 + CHUNK_OVERLAP_SECONDS
 
         def extract(path, start, end, **kwargs):
-            seen.append(end - start)
-            if len(seen) == 1:
+            seen_spans.add(round(end - start, 3))
+            if start == 0.0 and end - start == pytest.approx(full_span):
                 raise AudioExtractionTimeout('timed out')
             tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
             tmp.close()
@@ -1084,10 +1087,10 @@ class TestChunkExtractionTimeoutFallback:
         with p1, p2, p3, p4:
             t.transcribe_chunked('/tmp/in.mp3')
 
-        # First attempt used the full chunk; the retry used half of it
-        # (both spans carry the same chunk overlap on top).
-        assert seen[1] == pytest.approx(1800 / 2 + CHUNK_OVERLAP_SECONDS)
-        assert seen[0] == pytest.approx(1800 + CHUNK_OVERLAP_SECONDS)
+        # The full first chunk was attempted, and after the timeout the
+        # retry ran at half the chunk size (same overlap on top).
+        assert round(full_span, 3) in seen_spans
+        assert round(1800 / 2 + CHUNK_OVERLAP_SECONDS, 3) in seen_spans
 
     def test_second_timeout_surfaces_the_timeout_error(self):
         def extract(path, start, end, **kwargs):

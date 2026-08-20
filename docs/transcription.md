@@ -127,6 +127,23 @@ WHISPER_DEVICE=cpu
 
 All settings can also be configured via the Settings UI under the Transcription section.
 
+## Chunked transcription
+
+Episodes longer than one chunk are transcribed in pieces. Chunk size is
+computed from free GPU memory at run time (larger models leave room for
+shorter chunks; the log line "Calculated chunk duration" shows the math), with
+a 30-second overlap between chunks so no sentence is lost at a boundary.
+
+Each chunk is cut from the source file by its own ffmpeg pass, which also
+applies loudness normalization and band-pass filtering in the same step. Those
+passes are CPU-bound and slower than GPU inference, so they run ahead of the
+GPU: two extraction workers prepare upcoming chunks while the current one
+transcribes. If a chunk hits GPU out-of-memory or an extraction timeout, the
+chunk size is halved and the queued extractions are redone at the new size.
+
+The remote API backend parallelizes differently: with no shared GPU to
+protect, chunks upload and transcribe concurrently.
+
 ## Transcription language
 
 Whisper is pinned to English by default. That keeps it from misdetecting on music intros or cold opens (a common failure mode on podcasts). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds; Whisper will detect per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).

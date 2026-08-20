@@ -11,6 +11,22 @@ release notes.
 
 ## [Unreleased]
 
+## [2.89.3] - 2026-08-20
+
+### Changed
+
+- Chunk extraction now runs ahead of the GPU during chunked transcription.
+  Two ffmpeg workers cut and normalize upcoming chunks while the current one
+  transcribes, instead of the GPU idling through each extraction. On a
+  46-minute episode with the large-v3 model this takes roughly five minutes
+  off a full run, with the same gain again in the verification pass. A
+  mid-run chunk-size change (GPU out-of-memory, extraction timeout) discards
+  the queued extractions and redoes them at the new size.
+- The log viewer's level pills are now plain filters: none selected shows
+  every line, and selecting pills keeps only those levels. They previously
+  acted as a minimum-severity threshold, which read as a broken filter when
+  Debug was selected and INFO lines still showed.
+
 ## [2.89.2] - 2026-08-20
 
 ### Added

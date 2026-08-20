@@ -343,6 +343,100 @@ def _unlink_quiet(path):
             pass
 
 
+# Chunk extraction (ffmpeg with the normalization filter chain) is CPU-bound
+# and takes longer than GPU inference on a chunk, so it runs ahead of the GPU
+# in a small pool: while chunk N transcribes, chunks N+1.. extract.
+EXTRACT_PREFETCH_WORKERS = 2
+# How many chunks past the current one to keep in flight. Bounds /tmp usage:
+# each extracted chunk is a 16kHz mono WAV, ~2MB per audio minute.
+EXTRACT_PREFETCH_AHEAD = 2
+
+
+def _chunk_bounds_ahead(start, chunk_duration, duration, overlap, count):
+    """Next `count` (start, end_with_overlap) pairs the chunk loop will need.
+
+    Mirrors the loop's own boundary math; a chunk-size change mid-run makes
+    previously computed pairs stale, which the prefetcher detects by key miss.
+    """
+    bounds = []
+    while start < duration and len(bounds) < count:
+        end = min(start + chunk_duration, duration)
+        end_with_overlap = min(end + overlap, duration) if end < duration else end
+        bounds.append((start, end_with_overlap))
+        start = end
+    return bounds
+
+
+def _unlink_future_chunk(future):
+    """Done-callback for a discarded extraction: swallow its error, drop its file."""
+    try:
+        _unlink_quiet(future.result())
+    except Exception:
+        pass
+
+
+class _ChunkPrefetcher:
+    """Runs chunk extractions ahead of the GPU during chunked transcription.
+
+    Futures are keyed by (start, end_with_overlap). The chunk loop asks for
+    exactly the bounds it computed; a miss means the chunk size changed since
+    the extraction was queued (OOM shrink, extraction-timeout shrink), so the
+    whole queue is stale and gets discarded. Discarded and leftover
+    extractions unlink their temp files on completion. Single-threaded
+    caller; no locking needed.
+    """
+
+    def __init__(self, audio_path):
+        self._audio_path = audio_path
+        self._executor = ThreadPoolExecutor(max_workers=EXTRACT_PREFETCH_WORKERS)
+        self._pending = {}
+
+    def _submit(self, bounds):
+        if bounds not in self._pending:
+            start, end = bounds
+            # run_in_worker_thread keeps the pool thread's ffmpeg log lines
+            # inside the episode's run log.
+            self._pending[bounds] = self._executor.submit(
+                run_in_worker_thread, extract_audio_chunk,
+                self._audio_path, start, end, preprocess=True,
+            )
+
+    def schedule_ahead(self, start, chunk_duration, duration, overlap):
+        for bounds in _chunk_bounds_ahead(
+            start, chunk_duration, duration, overlap, EXTRACT_PREFETCH_AHEAD,
+        ):
+            self._submit(bounds)
+
+    def ensure(self, bounds):
+        """Make sure these exact bounds are queued, without blocking.
+
+        A miss means the queue was built for a different chunk size; it is
+        discarded wholesale before the fresh submit. Call before
+        schedule_ahead so a stale queue cannot swallow the new lookahead.
+        """
+        if bounds not in self._pending:
+            self.discard_pending()
+            self._submit(bounds)
+
+    def take(self, bounds):
+        """Blocking result for bounds previously passed to ensure().
+
+        Raises whatever the extraction raised (AudioExtractionTimeout
+        included), exactly like calling extract_audio_chunk inline.
+        """
+        return self._pending.pop(bounds).result()
+
+    def discard_pending(self):
+        for future in self._pending.values():
+            if not future.cancel():
+                future.add_done_callback(_unlink_future_chunk)
+        self._pending.clear()
+
+    def close(self):
+        self.discard_pending()
+        self._executor.shutdown(wait=False)
+
+
 def _ffmpeg_error_tail(stderr, limit: int = 500) -> str:
     """The diagnosable part of ffmpeg stderr for logs.
 
@@ -2115,138 +2209,147 @@ class Transcriber:
         # rather than aborting the whole episode. Cap at ~20% of expected chunks.
         max_failed_chunks = max(1, num_chunks // 5)
 
-        while chunk_start < duration:
-            # Calculate chunk end with overlap for next chunk
-            chunk_end = min(chunk_start + chunk_duration, duration)
+        # Extractions overlap GPU inference; close() reaps whatever is
+        # still in flight on any exit path so no pool thread or temp
+        # chunk file outlives the run.
+        prefetcher = _ChunkPrefetcher(audio_path)
+        try:
+            while chunk_start < duration:
+                # Calculate chunk end with overlap for next chunk
+                chunk_end = min(chunk_start + chunk_duration, duration)
 
-            # For all but the last chunk, add overlap
-            if chunk_end < duration:
-                chunk_end_with_overlap = min(chunk_end + overlap, duration)
-            else:
-                chunk_end_with_overlap = chunk_end
-
-            # Recalculate num_chunks with current chunk_duration (may have changed due to OOM)
-            remaining_duration = duration - chunk_start
-            remaining_chunks = max(1, int((remaining_duration - overlap) // (chunk_duration - overlap)) + 1)
-
-            logger.info(
-                f"Processing chunk {chunk_num + 1} (~{remaining_chunks} remaining): "
-                f"{chunk_start/60:.1f}-{chunk_end_with_overlap/60:.1f} min "
-                f"(chunk_size={chunk_duration/60:.0f}min)"
-            )
-
-            # Extract chunk using ffmpeg, applying the preprocess filter
-            # chain in the same pass so transcribe() can skip its own
-            try:
-                chunk_path = extract_audio_chunk(
-                    audio_path, chunk_start, chunk_end_with_overlap, preprocess=True
-                )
-            except AudioExtractionTimeout:
-                # Re-running the same call would time out again, so shrink the
-                # chunk once before giving up, mirroring the OOM path (#644).
-                if extract_timeout_retries >= max_extract_timeout_retries:
-                    raise
-                extract_timeout_retries += 1
-                chunk_duration = max(CHUNK_MIN_DURATION_SECONDS, chunk_duration // 2)
-                logger.warning(
-                    f"Chunk {chunk_num + 1} extraction timed out; retrying with "
-                    f"chunk_size={chunk_duration/60:.0f}min"
-                )
-                continue
-            if not chunk_path:
-                logger.error(f"Failed to extract chunk {chunk_num + 1}")
-                # Name local extraction as the cause (#556): the generic
-                # transcription-failure message points at the wrong layer.
-                raise AudioExtractionError(
-                    'Audio chunk extraction failed (ffmpeg could not decode '
-                    'the source file); transcription never started')
-
-            try:
-                # Transcribe chunk (will handle its own batch sizing and retries)
-                chunk_segments = self.transcribe(
-                    chunk_path, podcast_name,
-                    language_override=language_override, preprocessed=True,
-                )
-
-                if chunk_segments is None:
-                    failed_chunks.append((chunk_start, chunk_end_with_overlap))
-                    logger.error(
-                        f"Chunk {chunk_num + 1} transcription failed "
-                        f"({chunk_start/60:.1f}-{chunk_end_with_overlap/60:.1f} min); "
-                        f"leaving transcript gap and continuing"
-                    )
-                    if len(failed_chunks) > max_failed_chunks:
-                        logger.error(
-                            f"Too many failed chunks ({len(failed_chunks)} > {max_failed_chunks}); "
-                            f"aborting transcription"
-                        )
-                        return None
-                    chunk_num += 1
-                    chunk_start = chunk_end
-                    continue
-
-                # Reset OOM retry count on success
-                oom_retry_count = 0
-
-                # Adjust timestamps to be relative to full audio
-                for seg in chunk_segments:
-                    seg['start'] += chunk_start
-                    seg['end'] += chunk_start
-                    # Adjust word timestamps too if present
-                    if seg.get('words'):
-                        for word in seg['words']:
-                            word['start'] += chunk_start
-                            word['end'] += chunk_start
-
-                # Merge with existing segments, handling overlap deduplication
-                if not all_segments:
-                    all_segments = chunk_segments
+                # For all but the last chunk, add overlap
+                if chunk_end < duration:
+                    chunk_end_with_overlap = min(chunk_end + overlap, duration)
                 else:
-                    all_segments = merge_overlapping_segments(
-                        all_segments, chunk_segments, chunk_start, overlap
-                    )
+                    chunk_end_with_overlap = chunk_end
 
-                # Increment chunk counter only after successful processing
-                chunk_num += 1
+                # Recalculate num_chunks with current chunk_duration (may have changed due to OOM)
+                remaining_duration = duration - chunk_start
+                remaining_chunks = max(1, int((remaining_duration - overlap) // (chunk_duration - overlap)) + 1)
 
                 logger.info(
-                    f"Chunk {chunk_num} complete: {len(chunk_segments)} segments "
-                    f"(total: {len(all_segments)})"
+                    f"Processing chunk {chunk_num + 1} (~{remaining_chunks} remaining): "
+                    f"{chunk_start/60:.1f}-{chunk_end_with_overlap/60:.1f} min "
+                    f"(chunk_size={chunk_duration/60:.0f}min)"
                 )
 
-                # Move to next chunk
-                chunk_start = chunk_end
-
-            except Exception as e:
-                error_str = str(e).lower()
-                is_oom = 'out of memory' in error_str or 'oom' in error_str or 'cuda' in error_str
-
-                if is_oom and oom_retry_count < max_oom_retries:
-                    oom_retry_count += 1
-                    old_chunk_duration = chunk_duration
+                # Take this chunk from the prefetcher, then queue the next
+                # chunks so their ffmpeg passes (preprocess filter folded in)
+                # run while the GPU transcribes this one.
+                bounds = (chunk_start, chunk_end_with_overlap)
+                prefetcher.ensure(bounds)
+                prefetcher.schedule_ahead(chunk_end, chunk_duration, duration, overlap)
+                try:
+                    chunk_path = prefetcher.take(bounds)
+                except AudioExtractionTimeout:
+                    # Re-running the same call would time out again, so shrink the
+                    # chunk once before giving up, mirroring the OOM path (#644).
+                    if extract_timeout_retries >= max_extract_timeout_retries:
+                        raise
+                    extract_timeout_retries += 1
                     chunk_duration = max(CHUNK_MIN_DURATION_SECONDS, chunk_duration // 2)
-
                     logger.warning(
-                        f"OOM on chunk {chunk_num + 1} (attempt {oom_retry_count}/{max_oom_retries}). "
-                        f"Reducing chunk size: {old_chunk_duration/60:.0f}min -> {chunk_duration/60:.0f}min"
+                        f"Chunk {chunk_num + 1} extraction timed out; retrying with "
+                        f"chunk_size={chunk_duration/60:.0f}min"
+                    )
+                    continue
+                if not chunk_path:
+                    logger.error(f"Failed to extract chunk {chunk_num + 1}")
+                    # Name local extraction as the cause (#556): the generic
+                    # transcription-failure message points at the wrong layer.
+                    raise AudioExtractionError(
+                        'Audio chunk extraction failed (ffmpeg could not decode '
+                        'the source file); transcription never started')
+
+                try:
+                    # Transcribe chunk (will handle its own batch sizing and retries)
+                    chunk_segments = self.transcribe(
+                        chunk_path, podcast_name,
+                        language_override=language_override, preprocessed=True,
                     )
 
-                    # Clean up and retry this chunk with smaller size
+                    if chunk_segments is None:
+                        failed_chunks.append((chunk_start, chunk_end_with_overlap))
+                        logger.error(
+                            f"Chunk {chunk_num + 1} transcription failed "
+                            f"({chunk_start/60:.1f}-{chunk_end_with_overlap/60:.1f} min); "
+                            f"leaving transcript gap and continuing"
+                        )
+                        if len(failed_chunks) > max_failed_chunks:
+                            logger.error(
+                                f"Too many failed chunks ({len(failed_chunks)} > {max_failed_chunks}); "
+                                f"aborting transcription"
+                            )
+                            return None
+                        chunk_num += 1
+                        chunk_start = chunk_end
+                        continue
+
+                    # Reset OOM retry count on success
+                    oom_retry_count = 0
+
+                    # Adjust timestamps to be relative to full audio
+                    for seg in chunk_segments:
+                        seg['start'] += chunk_start
+                        seg['end'] += chunk_start
+                        # Adjust word timestamps too if present
+                        if seg.get('words'):
+                            for word in seg['words']:
+                                word['start'] += chunk_start
+                                word['end'] += chunk_start
+
+                    # Merge with existing segments, handling overlap deduplication
+                    if not all_segments:
+                        all_segments = chunk_segments
+                    else:
+                        all_segments = merge_overlapping_segments(
+                            all_segments, chunk_segments, chunk_start, overlap
+                        )
+
+                    # Increment chunk counter only after successful processing
+                    chunk_num += 1
+
+                    logger.info(
+                        f"Chunk {chunk_num} complete: {len(chunk_segments)} segments "
+                        f"(total: {len(all_segments)})"
+                    )
+
+                    # Move to next chunk
+                    chunk_start = chunk_end
+
+                except Exception as e:
+                    error_str = str(e).lower()
+                    is_oom = 'out of memory' in error_str or 'oom' in error_str or 'cuda' in error_str
+
+                    if is_oom and oom_retry_count < max_oom_retries:
+                        oom_retry_count += 1
+                        old_chunk_duration = chunk_duration
+                        chunk_duration = max(CHUNK_MIN_DURATION_SECONDS, chunk_duration // 2)
+
+                        logger.warning(
+                            f"OOM on chunk {chunk_num + 1} (attempt {oom_retry_count}/{max_oom_retries}). "
+                            f"Reducing chunk size: {old_chunk_duration/60:.0f}min -> {chunk_duration/60:.0f}min"
+                        )
+
+                        # Clean up and retry this chunk with smaller size
+                        clear_gpu_memory()
+                        WhisperModelSingleton.unload_model()
+                        # Don't advance chunk_start - retry from same position
+                        continue
+                    # Non-OOM error or max retries reached
+                    logger.error(f"Chunk {chunk_num + 1} failed: {e}")
+                    raise
+
+                finally:
+                    # Clean up chunk file
+                    _unlink_quiet(chunk_path)
+
+                    # Clear GPU cache between chunks (no reload cost)
                     clear_gpu_memory()
-                    WhisperModelSingleton.unload_model()
-                    # Don't advance chunk_start - retry from same position
-                    continue
-                # Non-OOM error or max retries reached
-                logger.error(f"Chunk {chunk_num + 1} failed: {e}")
-                raise
-
-            finally:
-                # Clean up chunk file
-                _unlink_quiet(chunk_path)
-
-                # Clear GPU cache between chunks (no reload cost)
-                clear_gpu_memory()
-                logger.debug("Cleared GPU memory after chunk processing")
+                    logger.debug("Cleared GPU memory after chunk processing")
+        finally:
+            prefetcher.close()
 
         # Unload model once after all chunks complete to free VRAM
         # for downstream stages (audio analysis, fingerprinting, etc.)

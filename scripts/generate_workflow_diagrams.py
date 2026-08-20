@@ -314,7 +314,7 @@ def d_pipeline(t):
     c.arrow(440, y + row, 440, y + row + gap)
     y += row + gap
 
-    stage(X, y, FW, "02", "Transcribe", "Speech to timestamped text",
+    stage(X, y, FW, "02", "Transcribe", "Speech to timestamped text; the next chunk is prepared while the GPU works",
           "SLOWEST STEP", t["mutedFg"])
     bracket(y + row, y + row + gapB, split=True)
     y += row + gapB
