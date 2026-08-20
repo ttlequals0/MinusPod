@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.89.0
+  version: 2.90.0
   contact:
     name: MinusPod
   license:
@@ -570,6 +570,22 @@ paths:
                     - low
                     - null
                   description: Per-feed auto-process queue priority (issue 625). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting; 'normal' or null uses the default ordering. Changing it re-stamps this feed's already-queued pending episodes immediately.
+                lowAdYieldAction:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - nothing
+                    - redetect
+                    - reprocess
+                    - full
+                    - null
+                  description: >-
+                    Per-feed override of the global lowAdYieldAction
+                    setting; null uses the global value. Automatic response when a pipeline-initiated run removes far less
+                    ad time than the feed's recent average: 'nothing' (default),
+                    'redetect' (LLM-only rerun from the stored transcript),
+                    'reprocess', or 'full'. Fires at most once per episode.
                 titleSkipPatterns:
                   type:
                     - array
@@ -3845,6 +3861,14 @@ paths:
                   type: string
                   enum: [bottom-right, bottom-left, top-right, top-left]
                   description: Corner the MinusPod badge is composited into (issue #600). Defaults to bottom-right.
+                lowAdYieldAction:
+                  type: string
+                  enum: [nothing, redetect, reprocess, full]
+                  description: >-
+                    Automatic response when a pipeline-initiated run removes far less
+                    ad time than the feed's recent average: 'nothing' (default),
+                    'redetect' (LLM-only rerun from the stored transcript),
+                    'reprocess', or 'full'. Fires at most once per episode.
                 feedAuthEnabled:
                   type: boolean
                   description: Require the global feed auth key on all public feed and episode URLs. Enabling generates the key if absent.
@@ -7879,6 +7903,19 @@ components:
             - normal
             - low
           description: Per-feed auto-process queue priority (issue 625), always resolved to one of the three values ('normal' covers both an explicit normal setting and no override). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting.
+        lowAdYieldAction:
+          type:
+            - string
+            - 'null'
+          enum:
+            - nothing
+            - redetect
+            - reprocess
+            - full
+            - null
+          description: >-
+            Per-feed override of the global lowAdYieldAction setting; null
+            means the global value applies.
         titleSkipPatterns:
           type: array
           items:
@@ -9231,6 +9268,19 @@ components:
               description: Corner the MinusPod badge is composited into (issue #600). Defaults to bottom-right.
             isDefault:
               type: boolean
+        lowAdYieldAction:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [nothing, redetect, reprocess, full]
+              description: >-
+                Automatic response when a pipeline-initiated run removes far less
+                ad time than the feed's recent average: 'nothing' (default),
+                'redetect' (LLM-only rerun from the stored transcript),
+                'reprocess', or 'full'. Fires at most once per episode.
+            isDefault:
+              type: boolean
         feedAuthEnabled:
           type: object
           properties:
@@ -9434,6 +9484,9 @@ components:
             artworkBadgePosition:
               type: string
               enum: [bottom-right, bottom-left, top-right, top-left]
+            lowAdYieldAction:
+              type: string
+              enum: [nothing, redetect, reprocess, full]
             feedAuthEnabled:
               type: boolean
             minCutConfidence:

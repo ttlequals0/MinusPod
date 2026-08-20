@@ -11,6 +11,20 @@ release notes.
 
 ## [Unreleased]
 
+## [2.90.0] - 2026-08-19
+
+### Added
+
+- Low-ad-yield response policy. When a run MinusPod started itself removes far
+  less ad time than the feed's recent average, it can rerun detection
+  automatically. Choose the action under Settings > Global Defaults: do nothing
+  (the default), redetect ads from the stored transcript, reprocess, or run a
+  full analysis. Each feed can override that choice or turn the policy off. A
+  rerun happens at most once per episode, and never after a manual reprocess,
+  on a pass-through or skip-detection feed, or after a run that published on
+  partial detection. `LOW_AD_YIELD_ACTION` seeds the global default on a fresh
+  install; the stored setting is editable at runtime.
+
 ## [2.89.0] - 2026-08-19
 
 ### Security

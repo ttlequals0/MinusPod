@@ -158,7 +158,7 @@ function GlobalDefaultsSection({
             ))}
           </select>
           <p className="mt-2 text-sm text-muted-foreground">
-            When an episode finishes with far less ad time removed than this feed usually yields, run this action automatically (once per episode).
+            When an episode finishes with far less ad time removed than the feed usually yields, run this action automatically (once per episode).
           </p>
         </div>
 

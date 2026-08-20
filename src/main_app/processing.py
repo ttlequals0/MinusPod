@@ -2723,13 +2723,12 @@ def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_titl
 def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title,
                                      podcast_name, episode_description,
                                      episode_published_at, episode_data, run_stats):
-    """Queue one automatic rerun when a pipeline run removed far less ad time
-    than the feed usually yields.
+    """Queue one automatic rerun when a run removed far less ad time than the
+    feed usually yields.
 
-    Fires at most once per episode ever (the low_yield_rerun_at stamp) and
-    only for runs the pipeline started: a row carrying reprocess_requested_at
-    was asked for by a user or by this policy's own rerun. Never raises into
-    the pipeline.
+    Fires once per episode ever (the low_yield_rerun_at stamp) and only for
+    runs the pipeline started, since reprocess_requested_at marks the rows a
+    user or this policy asked for. Never raises into the pipeline.
     """
     try:
         if (episode_data or {}).get('reprocess_requested_at'):
