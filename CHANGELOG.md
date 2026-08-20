@@ -11,6 +11,25 @@ release notes.
 
 ## [Unreleased]
 
+## [2.89.2] - 2026-08-20
+
+### Added
+
+- Per-run episode logs. Every processing run writes its pipeline log to disk as
+  JSONL, and the episode page's new Logs card opens any run's log in a
+  full-screen viewer with a minimum-level filter, text search, and a raw
+  download. A log holds whatever that run logged, including the lines its
+  detection and reviewer worker threads wrote, and a failed run keeps its log.
+  Retention is 30 days by default, editable in Settings > Global Defaults, where
+  0 keeps nothing and lets the cleanup sweep delete what is already stored. Any
+  feed can opt in or out in its own settings. Files live under
+  `data/logs/episodes/<slug>/<episode-id>/` and stop at 20 MB per run with a
+  truncation marker; the cleanup sweep also removes files no run points at.
+  `EPISODE_LOG_RETENTION_DAYS` and `EPISODE_LOG_LEVEL` seed the two global
+  settings. New endpoint:
+  `GET /feeds/<slug>/episodes/<episode-id>/runs/<n>/log`, with `format=raw` for
+  the file itself. Closes #660.
+
 ## [2.89.1] - 2026-08-19
 
 ### Added
