@@ -122,6 +122,35 @@ class TestSchemaColumns:
         assert 'low_ad_yield_action' in pod_cols
 
 
+class TestLowAdYieldAgainstRealHistory:
+    """The motivating shape: a feed that usually loses about 10 minutes of ads
+    and one episode that lost nothing."""
+
+    def _seed(self, db, slug):
+        db.create_podcast(slug, 'https://example.com/feed.xml', 'A Podcast')
+        for i in range(3):
+            episode_id = f'baseline-{i}'
+            db.upsert_episode(slug, episode_id, original_url='https://example.com/a.mp3',
+                              status='processed', original_duration=3600.0,
+                              new_duration=3000.0,
+                              processed_at=f'2026-08-0{i + 1}T00:00:00Z')
+        db.upsert_episode(slug, 'flat-copy', original_url='https://example.com/b.mp3',
+                          status='processed', original_duration=3600.0,
+                          new_duration=3600.0, processed_at='2026-08-04T00:00:00Z')
+
+    def test_flags_the_episode_that_removed_nothing(self):
+        db = Database()
+        slug = 'low-yield-fixture-feed'
+        self._seed(db, slug)
+        episode = db.get_episode(slug, 'flat-copy')
+
+        result = low_ad_yield(db, episode, _runs(mode='auto'))
+        assert result == {'removedSeconds': 0.0, 'feedAverageSeconds': 600.0,
+                          'sampleSize': 3}
+
+        db.delete_podcast(slug)
+
+
 import main_app.processing as processing  # noqa: E402
 
 
