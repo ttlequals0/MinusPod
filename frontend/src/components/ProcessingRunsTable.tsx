@@ -182,10 +182,6 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
           </div>
         ))}
       </div>
-
-      <p className="text-xs text-muted-foreground mt-3">
-        Older runs and recuts only carry the basic columns.
-      </p>
     </div>
   );
 }

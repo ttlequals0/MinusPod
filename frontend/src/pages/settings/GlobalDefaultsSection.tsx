@@ -145,7 +145,7 @@ function GlobalDefaultsSection({
         {/* Low ad yield response */}
         <div className="pt-4 border-t border-border">
           <label htmlFor="lowAdYieldAction" className="block text-sm font-medium text-foreground mb-2">
-            When an episode removes far less than usual
+            When an episode detects fewer ads than usual
           </label>
           <select
             id="lowAdYieldAction"

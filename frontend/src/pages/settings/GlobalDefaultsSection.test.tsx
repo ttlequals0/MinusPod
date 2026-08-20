@@ -243,13 +243,13 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
 describe('GlobalDefaultsSection: low ad yield action', () => {
   it('defaults to Do nothing', () => {
     render(<LowAdYieldHarness onCommit={() => {}} />);
-    const select = screen.getByLabelText('When an episode removes far less than usual') as HTMLSelectElement;
+    const select = screen.getByLabelText('When an episode detects fewer ads than usual') as HTMLSelectElement;
     expect(select.value).toBe('nothing');
   });
 
   it('offers all four actions', () => {
     render(<LowAdYieldHarness onCommit={() => {}} />);
-    const select = screen.getByLabelText('When an episode removes far less than usual') as HTMLSelectElement;
+    const select = screen.getByLabelText('When an episode detects fewer ads than usual') as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual(
       ['nothing', 'redetect', 'reprocess', 'full']);
   });
@@ -260,7 +260,7 @@ describe('GlobalDefaultsSection: low ad yield action', () => {
     const user = userEvent.setup();
 
     await user.selectOptions(
-      screen.getByLabelText('When an episode removes far less than usual'), 'full');
+      screen.getByLabelText('When an episode detects fewer ads than usual'), 'full');
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed!.lowAdYieldAction).toBe('full');
   });
