@@ -91,7 +91,7 @@ class TestWaiterOrphanDetection:
         assert 'orphaned' in warnings.lower()
         # Requeued, not failed: the work still needs doing.
         assert any(call.args[1] == 'pending'
-                   for call in mock_db.update_queue_status.call_args_list)
+                   for call in mock_db.close_claimed_queue_row.call_args_list)
 
     def test_a_live_job_is_left_alone(self):
         log, mock_db = self._drain_once(queue_says_processing=True)
@@ -109,7 +109,7 @@ class TestWaiterOrphanDetection:
                                         episode_status='pending',
                                         error_message=CANCELED_ERROR_MESSAGE)
 
-        statuses = [call.args[1] for call in mock_db.update_queue_status.call_args_list]
+        statuses = [call.args[1] for call in mock_db.close_claimed_queue_row.call_args_list]
         assert 'completed' in statuses
         assert 'failed' not in statuses
 
@@ -120,7 +120,7 @@ class TestWaiterOrphanDetection:
             queue_says_processing=False, episode_status='pending',
             error_message='Reset after worker crash (no retry penalty)')
 
-        statuses = [call.args[1] for call in mock_db.update_queue_status.call_args_list]
+        statuses = [call.args[1] for call in mock_db.close_claimed_queue_row.call_args_list]
         assert 'failed' in statuses
 
     def test_the_orphan_warning_names_the_actual_status(self):

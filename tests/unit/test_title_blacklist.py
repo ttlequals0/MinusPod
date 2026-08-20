@@ -165,14 +165,14 @@ class TestClaimGateTitleBlacklist:
         mock_db, start = self._run(reprocess_requested_at=None)
 
         start.assert_not_called()
-        statuses = [c.args for c in mock_db.update_queue_status.call_args_list]
+        statuses = [c.args for c in mock_db.close_claimed_queue_row.call_args_list]
         assert (7, 'completed', 'skipped: title blacklist') in statuses
 
     def test_processes_when_reprocess_requested(self):
         mock_db, start = self._run(reprocess_requested_at='2026-08-07T00:00:00Z')
 
         start.assert_called_once()
-        statuses = [c.args for c in mock_db.update_queue_status.call_args_list]
+        statuses = [c.args for c in mock_db.close_claimed_queue_row.call_args_list]
         assert (7, 'completed', 'skipped: title blacklist') not in statuses
 
 

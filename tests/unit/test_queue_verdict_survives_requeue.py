@@ -12,6 +12,7 @@ from tests.app_bootstrap import bootstrap
 
 _data_dir = bootstrap('queue_verdict_test_')
 
+import main_app.background as background  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from database import Database  # noqa: E402
 
@@ -160,4 +161,44 @@ class TestLowYieldRerunSurvives:
         assert db.claim_next_queued_episode()['id'] == row['id']
 
         db.clear_setting('low_ad_yield_action')
+        db.delete_podcast(slug)
+
+
+class TestDrainerErrorPathKeepsRequeue:
+    """The drainer's own error handler closes the row too, and it used to do
+    that unconditionally."""
+
+    def test_an_exception_after_a_mid_run_requeue_leaves_the_row_claimable(self):
+        db = Database()
+        slug = 'verdict-error-path-feed'
+        db.create_podcast(slug, 'https://example.com/feed.xml', 'A Podcast')
+        db.upsert_episode(slug, 'ep1', original_url=URL, status='processing')
+        db.upsert_episode_for_processing(slug, 'ep1', URL, 'Episode One')
+
+        def _start(*args, **kwargs):
+            # Stands in for a hook that re-queues the episode mid-run.
+            db.upsert_episode_for_processing(slug, 'ep1', URL, 'Episode One')
+            return True, 'started'
+
+        iterations = {'n': 0}
+
+        def _is_set():
+            iterations['n'] += 1
+            return iterations['n'] > 1
+
+        with patch.object(background, 'db', db), \
+             patch.object(background, 'shutdown_event') as ev, \
+             patch('main_app.processing.start_background_processing', side_effect=_start), \
+             patch('processing_timeouts.get_hard_timeout',
+                   side_effect=RuntimeError('poll loop blew up')), \
+             patch('offline_queue.offline_queue_tick'):
+            ev.is_set.side_effect = _is_set
+            ev.wait.return_value = False
+            background.background_queue_processor()
+
+        row = db.get_connection().execute(
+            "SELECT id, status FROM auto_process_queue WHERE episode_id = 'ep1'"
+        ).fetchone()
+        assert row['status'] == 'pending'
+        assert db.claim_next_queued_episode()['id'] == row['id']
         db.delete_podcast(slug)

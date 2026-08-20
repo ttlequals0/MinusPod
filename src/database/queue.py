@@ -241,6 +241,17 @@ class QueueMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def close_claimed_queue_row(self, queue_id: int, status: str,
+                                error_message: str = None) -> bool:
+        """Report a drainer verdict on a row this claim still holds.
+
+        The write is skipped when something re-queued the episode mid-run
+        (degraded re-detect, low-ad-yield rerun), so that rerun survives.
+        Returns whether a row changed.
+        """
+        return self.update_queue_status(queue_id, status, error_message,
+                                        expect_status='processing')
+
     def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
         """Mark any non-terminal queue rows for this episode as completed.
 

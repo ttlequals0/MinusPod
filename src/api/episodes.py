@@ -23,7 +23,9 @@ from database.queue import compute_queue_priority
 from embedded_chapters import embed_chapters
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 from processing_queue import ProcessingQueue
-from reprocess_modes import REPROCESS_MODE_CLEAR, clear_episode_for_mode
+from reprocess_modes import (
+    REPROCESS_MODE_CLEAR, clear_episode_for_mode, reset_episode_for_reprocess,
+)
 from split_planning import build_split_candidates, build_split_pieces
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
@@ -1404,23 +1406,11 @@ def reprocess_episode_with_mode(slug, episode_id):
             return err
 
     try:
-        # 1. Set reprocess_mode FIRST so process_episode can read it
-        db.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.PENDING.value,
-            reprocess_mode=mode,
-            reprocess_requested_at=utc_now_iso(),
-            retry_count=0,
-            error_message=None,
-            deferred_at=None,
-            deferred_service=None,
-        )
+        # Mode, user-request mark, and the per-mode clear. The processed audio
+        # stays until the new version is durable (orchestration-5).
+        reset_episode_for_reprocess(db, slug, episode_id, mode)
 
-        # 2. Clear cached detection data; keep the processed audio until the new
-        # version is durable (orchestration-5).
-        clear_episode_for_mode(db, slug, episode_id, mode)
-
-        # 3. Get episode metadata for processing
+        # Get episode metadata for processing
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')
         podcast_name = podcast.get('title', slug)

@@ -94,7 +94,7 @@ from llm_client import (
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
-from reprocess_modes import clear_episode_for_mode
+from reprocess_modes import reset_episode_for_reprocess
 from splice_calibration import compute_splice_calibration
 from transcriber import extract_audio_chunk
 from utils.constants import (
@@ -2725,7 +2725,8 @@ def _maybe_enqueue_degraded_redetect(slug, episode_id, episode_url, episode_titl
 
 def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title,
                                      podcast_name, episode_description,
-                                     episode_published_at, episode_data, run_stats):
+                                     episode_published_at, episode_data, run_stats,
+                                     podcast_row=None):
     """Queue one automatic rerun when a run removed far less ad time than the
     feed usually yields.
 
@@ -2733,6 +2734,9 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
     runs nobody asked for by hand: scheduled auto-process and play requests
     qualify, manual reprocesses and this policy's own reruns do not. Never
     raises into the pipeline.
+
+    podcast_row, when given, is the already-fetched podcasts row the pipeline
+    holds; None falls back to fetching it here.
     """
     try:
         row = episode_data or {}
@@ -2749,7 +2753,7 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
         # for, so a rerun can only spend the one shot.
         if (run_stats or {}).get('cue_only'):
             return
-        podcast = db.get_podcast_by_slug(slug)
+        podcast = podcast_row if podcast_row is not None else db.get_podcast_by_slug(slug)
         action = resolve_low_ad_yield_action(db, podcast)
         if action not in LOW_AD_YIELD_ACTION_MODES:
             return
@@ -2775,19 +2779,9 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
 
         # Stamped before anything is queued so a crash cannot fire twice.
         db.upsert_episode(slug, episode_id, low_yield_rerun_at=utc_now_iso())
-        # reprocess_requested_at makes the rerun look user-requested to the
-        # queue gates and stops it from triggering the policy again.
-        db.upsert_episode(
-            slug, episode_id,
-            status=EpisodeStatus.PENDING.value,
-            reprocess_mode=mode,
-            reprocess_requested_at=utc_now_iso(),
-            retry_count=0,
-            error_message=None,
-            deferred_at=None,
-            deferred_service=None,
-        )
-        clear_episode_for_mode(db, slug, episode_id, mode)
+        # The reset marks the row user-requested, which also stops this rerun
+        # from triggering the policy again.
+        reset_episode_for_reprocess(db, slug, episode_id, mode)
 
         # Queued rather than started: this run still holds the processing
         # lock, so the queue processor picks it up after the release.
@@ -4185,7 +4179,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # this run just persisted.
             _maybe_fire_low_ad_yield_action(
                 slug, episode_id, episode_url, episode_title, podcast_name,
-                episode_description, episode_published_at, episode_data, run_stats)
+                episode_description, episode_published_at, episode_data, run_stats,
+                podcast_row=podcast_settings)
 
             status_service.complete_job()
             return True
