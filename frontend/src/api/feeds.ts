@@ -1,5 +1,5 @@
 import { apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, LowAdYieldAction } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -212,6 +212,7 @@ export interface UpdateFeedPayload {
   detectionMode?: string | null;
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
+  lowAdYieldAction?: LowAdYieldAction | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;

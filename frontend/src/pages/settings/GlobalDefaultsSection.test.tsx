@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
+import type { LowAdYieldAction } from '../../api/types';
 
 function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
   const [minutes, setMinutes] = useState(15);
@@ -29,6 +30,8 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -56,6 +59,8 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst
         onProcessNewEpisodesFirstChange={() => {}}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
       />
       <button onClick={() => onCommit({ podpingEnabled })}>Commit</button>
     </>
@@ -83,6 +88,8 @@ function ProcessNewFirstHarness({ onCommit }: { onCommit: (payload: ProcessNewFi
         onOnlyExposeProcessedDefaultChange={() => {}}
         processNewEpisodesFirst={processNewEpisodesFirst}
         onProcessNewEpisodesFirstChange={setProcessNewEpisodesFirst}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
       />
       <button onClick={() => onCommit({ processNewEpisodesFirst })}>Commit</button>
     </>
@@ -201,5 +208,60 @@ describe('GlobalDefaultsSection: no Segment actions details block', () => {
     const { container } = render(<Harness onCommit={() => {}} />);
     expect(screen.queryByText('Segment actions')).toBeNull();
     expect(container.querySelector('details')).toBeNull();
+  });
+});
+
+interface LowAdYieldState {
+  lowAdYieldAction: LowAdYieldAction;
+}
+
+function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) => void }) {
+  const [lowAdYieldAction, setLowAdYieldAction] = useState<LowAdYieldAction>('nothing');
+  return (
+    <>
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
+        rssRefreshIntervalMinutes={15}
+        onRssRefreshIntervalMinutesChange={() => {}}
+        podpingEnabled={false}
+        onPodpingEnabledChange={() => {}}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst
+        onProcessNewEpisodesFirstChange={() => {}}
+        lowAdYieldAction={lowAdYieldAction}
+        onLowAdYieldActionChange={setLowAdYieldAction}
+      />
+      <button onClick={() => onCommit({ lowAdYieldAction })}>Commit</button>
+    </>
+  );
+}
+
+describe('GlobalDefaultsSection: low ad yield action', () => {
+  it('defaults to Do nothing', () => {
+    render(<LowAdYieldHarness onCommit={() => {}} />);
+    const select = screen.getByLabelText('When an episode removes far less than usual') as HTMLSelectElement;
+    expect(select.value).toBe('nothing');
+  });
+
+  it('offers all four actions', () => {
+    render(<LowAdYieldHarness onCommit={() => {}} />);
+    const select = screen.getByLabelText('When an episode removes far less than usual') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(
+      ['nothing', 'redetect', 'reprocess', 'full']);
+  });
+
+  it('commits the chosen action', async () => {
+    let committed: LowAdYieldState | null = null;
+    render(<LowAdYieldHarness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    await user.selectOptions(
+      screen.getByLabelText('When an episode removes far less than usual'), 'full');
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(committed!.lowAdYieldAction).toBe('full');
   });
 });

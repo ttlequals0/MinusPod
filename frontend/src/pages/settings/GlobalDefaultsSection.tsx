@@ -1,4 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { selectBase } from '../../components/fieldStyles';
+import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
+import type { LowAdYieldAction } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 
@@ -15,6 +18,8 @@ interface GlobalDefaultsSectionProps {
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
   processNewEpisodesFirst: boolean;
   onProcessNewEpisodesFirstChange: (enabled: boolean) => void;
+  lowAdYieldAction: LowAdYieldAction;
+  onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
 }
 
 function GlobalDefaultsSection({
@@ -30,6 +35,8 @@ function GlobalDefaultsSection({
   onOnlyExposeProcessedDefaultChange,
   processNewEpisodesFirst,
   onProcessNewEpisodesFirstChange,
+  lowAdYieldAction,
+  onLowAdYieldActionChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -132,6 +139,26 @@ function GlobalDefaultsSection({
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Caps how many recent episodes appear in each podcast's served RSS feed. Per-feed Max Episodes can override this.
+          </p>
+        </div>
+
+        {/* Low ad yield response */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="lowAdYieldAction" className="block text-sm font-medium text-foreground mb-2">
+            When an episode removes far less than usual
+          </label>
+          <select
+            id="lowAdYieldAction"
+            value={lowAdYieldAction}
+            onChange={(e) => onLowAdYieldActionChange(e.target.value as LowAdYieldAction)}
+            className={`w-full ${selectBase}`}
+          >
+            {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
+              <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">
+            When an episode finishes with far less ad time removed than this feed usually yields, run this action automatically (once per episode).
           </p>
         </div>
 

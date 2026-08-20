@@ -4,7 +4,7 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import type { Feed } from '../../api/types';
+import type { Feed, LowAdYieldAction } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
@@ -23,6 +23,7 @@ import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonSty
 import { ConfirmModal } from '../../components/Modal';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
+import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { focusRing } from '../../components/fieldStyles';
 
 interface Props {
@@ -170,6 +171,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const hasEnabledCueTemplate = (cueType: 'ad_break_start' | 'ad_break_end') =>
     (cueTemplates ?? []).some((t) => t.cueType === cueType && t.enabled);
   const cueOnlyEligible = hasEnabledCueTemplate('ad_break_start') && hasEnabledCueTemplate('ad_break_end');
+
+  const globalLowAdYieldAction =
+    (settings?.lowAdYieldAction?.value as LowAdYieldAction | undefined) ?? 'nothing';
+  const globalLowAdYieldLabel = LOW_AD_YIELD_ACTION_LABELS[globalLowAdYieldAction]
+    ?? LOW_AD_YIELD_ACTION_LABELS.nothing;
 
   const s = (v: number | null | undefined) => (v != null ? String(v) : '');
 
@@ -841,6 +847,32 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               <p className="text-xs text-muted-foreground">
                 High processes before other queued episodes. Low runs only when nothing else is waiting.
                 New episodes and manual reprocesses get an automatic boost.
+              </p>
+            </div>
+          </div>
+
+          {/* Per-feed low-ad-yield action override */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+            <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield:</span>
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <select
+                value={feed.lowAdYieldAction ?? ''}
+                onChange={(e) => updateMutation.mutate({
+                  lowAdYieldAction: e.target.value === ''
+                    ? null : (e.target.value as LowAdYieldAction),
+                })}
+                disabled={updateMutation.isPending}
+                className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                aria-label="Low ad yield action"
+              >
+                <option value="">Use global ({globalLowAdYieldLabel})</option>
+                {(Object.keys(LOW_AD_YIELD_ACTION_LABELS) as LowAdYieldAction[]).map((action) => (
+                  <option key={action} value={action}>{LOW_AD_YIELD_ACTION_LABELS[action]}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                When an episode finishes with far less ad time removed than this feed usually
+                yields, run this action automatically (once per episode).
               </p>
             </div>
           </div>

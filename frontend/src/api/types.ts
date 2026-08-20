@@ -63,6 +63,7 @@ export interface Feed {
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
+  lowAdYieldAction?: LowAdYieldAction | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;
@@ -381,6 +382,9 @@ export interface SettingValueNumber {
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+// Automatic response to a run that removed far less ad time than the feed
+// usually yields. Per-feed null means "use the global setting".
+export type LowAdYieldAction = 'nothing' | 'redetect' | 'reprocess' | 'full';
 export type WhisperBackend = 'local' | 'openai-api';
 
 export interface WhisperApiConfig {
@@ -427,6 +431,7 @@ export interface Settings {
   processNewEpisodesFirst: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
   artworkBadgePosition: SettingValue;
+  lowAdYieldAction: SettingValue;
   feedAuthEnabled: SettingValueBoolean;
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
@@ -520,6 +525,7 @@ export interface Settings {
     processNewEpisodesFirst: boolean;
     artworkWatermarkEnabled: boolean;
     artworkBadgePosition: string;
+    lowAdYieldAction: string;
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
@@ -613,6 +619,7 @@ export interface UpdateSettingsPayload {
   processNewEpisodesFirst?: boolean;
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
+  lowAdYieldAction?: LowAdYieldAction;
   feedAuthEnabled?: boolean;
   jitBlockedUserAgents?: string[];
   audioBitrate?: string;
