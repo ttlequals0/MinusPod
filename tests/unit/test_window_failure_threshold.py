@@ -93,7 +93,8 @@ class TestWindowFailureThreshold:
     def test_ratio_one_disables(self, monkeypatch):
         # ratio=1.0 restores legacy publish-anyway behavior: only an
         # all-windows-failed run still triggers the envelope.
-        monkeypatch.setattr(ad_detector, 'AD_DETECTION_MAX_FAILED_WINDOW_RATIO', 1.0)
+        monkeypatch.setattr(ad_detector, '_resolve_max_failed_window_ratio',
+                            lambda: 1.0)
         detector = AdDetector(api_key='test-key')
 
         (final_ads, _all_raw, failed_windows, failure,
@@ -115,3 +116,36 @@ class TestWindowFailureThreshold:
 
         assert failure is not None
         assert 'All 3 detection windows failed' in failure['error']
+
+
+class TestResolveMaxFailedWindowRatio:
+    """The threshold is runtime-tunable through the env-backed settings seam."""
+
+    def _resolve(self, monkeypatch, db_value):
+        monkeypatch.setattr('llm_client._get_cached_setting',
+                            lambda key: db_value)
+        return ad_detector._resolve_max_failed_window_ratio()
+
+    def test_env_default_when_no_db_row(self, monkeypatch):
+        monkeypatch.delenv('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', raising=False)
+        assert self._resolve(monkeypatch, None) == 0.25
+
+    def test_env_value_seeds_the_default(self, monkeypatch):
+        monkeypatch.setenv('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', '0.5')
+        assert self._resolve(monkeypatch, None) == 0.5
+
+    def test_db_value_wins_over_env(self, monkeypatch):
+        monkeypatch.setenv('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', '0.5')
+        assert self._resolve(monkeypatch, '0.1') == 0.1
+
+    def test_out_of_range_db_value_is_clamped(self, monkeypatch):
+        assert self._resolve(monkeypatch, '4.2') == 1.0
+        assert self._resolve(monkeypatch, '-1') == 0.0
+
+    def test_junk_db_value_falls_back_to_the_parse_time_default(self, monkeypatch):
+        assert self._resolve(monkeypatch, 'not-a-number') == (
+            ad_detector.AD_DETECTION_MAX_FAILED_WINDOW_RATIO)
+
+    def test_junk_env_value_falls_back_to_the_registered_default(self, monkeypatch):
+        monkeypatch.setenv('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', 'junk')
+        assert self._resolve(monkeypatch, None) == 0.25

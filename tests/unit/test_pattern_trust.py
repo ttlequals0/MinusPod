@@ -49,12 +49,11 @@ def test_community_pattern_with_no_timestamps_is_unproven():
     assert compute_pattern_trust(row, NOW) == 'unproven'
 
 
-def test_community_stale_by_updated_at_when_confirmed_at_absent():
+def test_community_stale_by_created_at_when_confirmed_at_absent():
     row = {
         'source': 'community',
         'last_matched_at': None,
         'community_last_confirmed_at': None,
-        'updated_at': '2024-01-01T00:00:00Z',
         'created_at': '2019-01-01T00:00:00Z',
     }
     assert compute_pattern_trust(row, NOW) == 'stale'

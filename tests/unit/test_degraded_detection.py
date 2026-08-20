@@ -58,6 +58,32 @@ class TestDegradedContinue:
             'degraded-feed', 'ep1', ad_detection_status='failed',
             detection_degraded='Overloaded (server busy)')
 
+    def test_partial_window_failure_retries_instead_of_degrading(self):
+        # 2 of 6 windows failed: the provider still answered 4, so a retry is
+        # likely to complete. Publishing pattern-only cuts would be permanent.
+        ad_result = {'status': 'failed',
+                     'error': '2/6 detection windows failed (last error: APITimeoutError)',
+                     'ads': list(PATTERN_ADS), 'windows_total': 6,
+                     'windows_failed': 2, 'detection_stats': {}}
+        run_stats = {}
+        with pytest.raises(Exception, match='Ad detection failed'):
+            _call_detect(ad_result, run_stats)
+        assert 'detection_degraded' not in run_stats
+        assert processing.is_transient_error(
+            Exception(ad_result['error'])), "must stay on the retry ladder"
+
+    def test_total_window_outage_still_degrades_with_markers(self):
+        ad_result = {'status': 'failed',
+                     'error': 'All 6 detection windows failed (last error: APITimeoutError)',
+                     'ads': list(PATTERN_ADS), 'windows_total': 6,
+                     'windows_failed': 6, 'detection_stats': {}}
+        run_stats = {}
+        (first_pass_ads, count, _result), _db = _call_detect(ad_result, run_stats)
+
+        assert first_pass_ads == PATTERN_ADS
+        assert count == 1
+        assert run_stats['detection_degraded'].startswith('All 6 detection windows failed')
+
     def test_zero_markers_still_hard_fails(self):
         ad_result = {'status': 'failed', 'error': 'Overloaded (server busy)',
                      'ads': [], 'detection_stats': {}}

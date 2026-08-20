@@ -64,7 +64,6 @@ def compute_pattern_trust(row: dict, now: datetime) -> str:
 
     candidates = [
         parse_iso_utc(row.get('community_last_confirmed_at')),
-        parse_iso_utc(row.get('updated_at')),
         parse_iso_utc(row.get('created_at')),
     ]
     parsed = [d for d in candidates if d is not None]

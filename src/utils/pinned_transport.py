@@ -4,7 +4,8 @@ Closes the SSRF DNS-rebinding TOCTOU: validate_url vetted the addresses a
 hostname resolved to, but requests resolved it again at connect time, so a
 flipping record could pass validation with a public IP and connect to a
 private one. Each request and redirect hop now resolves once, validates every
-returned address, and connects to the first, while request.url keeps the
+returned address, and connects to the validated addresses in order (falling
+back to the next one only when a connect fails), while request.url keeps the
 hostname and SNI plus certificate verification stay on it too.
 """
 from __future__ import annotations
@@ -17,7 +18,7 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.utils import select_proxy
 
-from utils.url import check_resolved_ip
+from utils.url import check_resolved_ip, resolve_and_check
 
 
 def _is_ip_literal(host: str) -> bool:
@@ -29,7 +30,7 @@ def _is_ip_literal(host: str) -> bool:
 
 
 class PinnedHTTPAdapter(HTTPAdapter):
-    """Resolves once per hop, validates every address, connects to the first."""
+    """Resolves once per hop, validates every address, connects to them in order."""
 
     def __init__(self, allow_private: bool, **kwargs):
         self._allow_private = allow_private
@@ -60,29 +61,37 @@ class PinnedHTTPAdapter(HTTPAdapter):
 
         default_port = 443 if scheme == "https" else 80
         port = parsed.port or default_port
-        self._pin = (host, self._resolve_validated(host, port))
+        addresses = self._resolve_validated(host, port)
         if "Host" not in request.headers:
             suffix = "" if port == default_port else f":{port}"
             request.headers["Host"] = f"{host}{suffix}"
             self._injected_host = True
-        return super().send(request, **kwargs)
 
-    def _resolve_validated(self, host: str, port: int) -> str:
+        # Connect fallback: every address here already passed SSRF validation,
+        # so a dead first address may fail over to the next instead of failing
+        # the whole request. ConnectTimeout subclasses ConnectionError, and
+        # neither is raised once a response has been received.
+        first_error = None
+        for ip in addresses:
+            self._pin = (host, ip)
+            try:
+                return super().send(request, **kwargs)
+            except RequestsConnectionError as exc:
+                if first_error is None:
+                    first_error = exc
+        raise first_error
+
+    def _resolve_validated(self, host: str, port: int) -> list[str]:
         # A name that does not resolve reaches nothing, so it is a network
         # failure and not an SSRF verdict: callers retry the former.
         try:
-            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+            infos = resolve_and_check(host, port, allow_private=self._allow_private)
         except socket.gaierror as exc:
             raise RequestsConnectionError(
                 f"Cannot resolve hostname: {host!r}"
             ) from exc
-        if not infos:
-            raise RequestsConnectionError(
-                f"No addresses found for hostname: {host!r}"
-            )
-        for _family, _type, _proto, _canonname, sockaddr in infos:
-            check_resolved_ip(sockaddr[0], allow_private=self._allow_private)
-        return infos[0][4][0]
+        # Deduped so each distinct address is tried at most once.
+        return list(dict.fromkeys(info[4][0] for info in infos))
 
     def build_connection_pool_key_attributes(self, request, verify, cert=None):
         """Swap the pool host for the pinned IP, keeping TLS on the hostname."""

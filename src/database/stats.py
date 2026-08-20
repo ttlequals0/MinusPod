@@ -448,7 +448,7 @@ class StatsMixin:
 
         # Get total count
         cursor = conn.execute(
-            f"SELECT COUNT(*) FROM processing_history WHERE {where_sql}",
+            f"SELECT COUNT(*) FROM processing_history WHERE {where_sql}",  # noqa: S608
             params
         )
         total_count = cursor.fetchone()[0]
@@ -464,7 +464,7 @@ class StatsMixin:
                 FROM processing_history
                 WHERE {where_sql}
                 ORDER BY {sort_by} {sort_dir}
-                LIMIT ? OFFSET ?""",
+                LIMIT ? OFFSET ?""",  # noqa: S608
             query_params
         )
 
@@ -530,7 +530,7 @@ class StatsMixin:
                        END AS downloaded_duration
                 FROM processing_history
                 WHERE {where_sql}
-                ORDER BY processed_at DESC""",
+                ORDER BY processed_at DESC""",  # noqa: S608
             params
         )
         try:
@@ -618,7 +618,7 @@ class StatsMixin:
             FROM processing_history h
             LEFT JOIN episodes e ON e.episode_id = h.episode_id
                 AND e.podcast_id = h.podcast_id
-            WHERE {where_sql}""",
+            WHERE {where_sql}""",  # noqa: S608
             params
         ).fetchone()
 
@@ -685,7 +685,7 @@ class StatsMixin:
             FROM processing_history
             WHERE {where_sql} AND processed_at IS NOT NULL
             GROUP BY day_of_week
-            ORDER BY day_of_week""",
+            ORDER BY day_of_week""",  # noqa: S608
             params
         ).fetchall()
 
@@ -775,7 +775,7 @@ class StatsMixin:
             FROM ad_reviewer_log l
             {where_clause}
             GROUP BY verdict, pass
-            """,
+            """,  # noqa: S608
             params,
         ).fetchall()
 

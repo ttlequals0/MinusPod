@@ -731,8 +731,14 @@ def _apply_review_fields(db, data):
 def _apply_model_fields(db, data):
     """Persist primary model selections; whisper change marks model for reload."""
     if 'claudeModel' in data:
+        old_claude = db.get_setting('claude_model')
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
+        # review_model defaults to same_as_pass, so the detection model IS the
+        # reviewer model until an explicit reviewer model is set.
+        review_model = db.get_setting('review_model')
+        if not review_model or review_model == 'same_as_pass':
+            maybe_trigger_reviewer_calibration(db, old_claude, data['claudeModel'])
 
     if 'verificationModel' in data:
         db.set_setting('verification_model', data['verificationModel'], is_default=False)

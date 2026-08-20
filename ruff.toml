@@ -13,7 +13,7 @@ select = ["F", "B905", "B904", "S608", "UP006", "UP045", "UP035"]
 # __init__.py files re-export package symbols; unused-import there is the
 # intended public API, not dead code.
 "**/__init__.py" = ["F401"]
-# Dynamic SQL in the database layer interpolates only hardcoded or
-# allowlist-validated identifiers (see VALID_SORT_COLUMNS); values are
-# always bound parameters. Audited 2026-08.
-"src/database/**" = ["S608"]
+# Dynamic SQL in the database layer carries per-line `noqa: S608`: every
+# such site interpolates only hardcoded or allowlist-validated identifiers
+# (see VALID_SORT_COLUMNS), never a value. Whole layer audited 2026-08; new
+# SQL there is linted, so a new suppression needs the same audit.

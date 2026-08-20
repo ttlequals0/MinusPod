@@ -210,7 +210,7 @@ class CueTemplateMixin:
         args.append(template_id)
         conn = self.get_connection()
         cursor = conn.execute(
-            f"UPDATE audio_cue_templates SET {', '.join(sets)} WHERE id = ?",
+            f"UPDATE audio_cue_templates SET {', '.join(sets)} WHERE id = ?",  # noqa: S608
             tuple(args),
         )
         conn.commit()
@@ -271,7 +271,7 @@ class CueTemplateMixin:
         conn = self.get_connection()
         args = (podcast_id, episode_id) if has_podcast else (episode_id,)
         row = conn.execute(
-            f"SELECT status, {payload_col}, error, updated_at FROM {table} "
+            f"SELECT status, {payload_col}, error, updated_at FROM {table} "  # noqa: S608
             f"WHERE {self._scan_where(key_col, has_podcast)}",
             args,
         ).fetchone()
@@ -324,7 +324,7 @@ class CueTemplateMixin:
                    claim_epoch={table}.claim_epoch + 1
                WHERE ({table}.status = 'scanning' AND {table}.updated_at <= :cutoff)
                   OR ({table}.status = 'error' AND (:force OR {table}.updated_at <= :cutoff))
-                  OR ({table}.status = 'ready' AND :force)""",
+                  OR ({table}.status = 'ready' AND :force)""",  # noqa: S608
             {'pid': podcast_id, 'eid': episode_id, 'cutoff': cutoff, 'force': 1 if force else 0},
         )
         conn.commit()
@@ -333,7 +333,7 @@ class CueTemplateMixin:
         # Did not claim: report the live state of the row that blocked us.
         args = (podcast_id, episode_id) if has_podcast else (episode_id,)
         row = conn.execute(
-            f"SELECT status FROM {table} WHERE {self._scan_where(key_col, has_podcast)}",
+            f"SELECT status FROM {table} WHERE {self._scan_where(key_col, has_podcast)}",  # noqa: S608
             args,
         ).fetchone()
         return row['status'] if row else 'scanning'
@@ -350,7 +350,7 @@ class CueTemplateMixin:
         conn = self.get_connection()
         args = (podcast_id, episode_id) if has_podcast else (episode_id,)
         row = conn.execute(
-            f"SELECT claim_epoch FROM {table} "
+            f"SELECT claim_epoch FROM {table} "  # noqa: S608
             f"WHERE {self._scan_where(key_col, has_podcast)}",
             args,
         ).fetchone()
@@ -375,7 +375,7 @@ class CueTemplateMixin:
         conn.execute(
             f"""UPDATE {table} SET status='ready', {payload_col}=?, error=NULL,
                    updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",
+               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",  # noqa: S608
             args,
         )
         conn.commit()
@@ -397,7 +397,7 @@ class CueTemplateMixin:
         conn.execute(
             f"""UPDATE {table} SET status='error', error=?,
                    updated_at=strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",
+               WHERE {self._scan_where(key_col, has_podcast)}{guard}""",  # noqa: S608
             args,
         )
         conn.commit()

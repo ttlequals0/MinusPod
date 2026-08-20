@@ -73,9 +73,11 @@ metadata and link-local addresses are refused at both tiers. Redirects are
 rechecked on every hop, and HTTPS to HTTP downgrades are refused.
 
 The resolved address is also pinned. A hostname is resolved once per hop, every
-returned address is checked, and the connection goes to that address, so a DNS
-record that answers with a public address for the check and a private one a
-moment later cannot reach an internal service. The request URL, the `Host`
+returned address is checked, and the connection goes to one of those addresses,
+so a DNS record that answers with a public address for the check and a private
+one a moment later cannot reach an internal service. When a connect fails, the
+remaining validated addresses are tried in turn, each at most once, so a
+multi-homed host stays reachable. The request URL, the `Host`
 header, SNI, and certificate verification all stay on the original hostname, so
 TLS trust is unchanged. If an outbound HTTP proxy is configured, the proxy
 resolves the name itself and the pin does not apply. Set

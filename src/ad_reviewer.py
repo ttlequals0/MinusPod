@@ -188,16 +188,13 @@ def is_contradiction_hold(verdict: str, reasoning: str | None,
 
 def log_contradiction_event(verdict: "ReviewVerdict", *, model: str | None,
                             slug: str | None, episode_id: str | None) -> None:
-    """Emit the contradiction-guard telemetry line for ``verdict`` exactly
-    once; a dedup flag on the instance no-ops repeat calls from the 2-3
-    downstream sites that share the same verdict object."""
-    if verdict.contradiction_logged:
-        return
+    """Emit the contradiction-guard telemetry line for ``verdict``. Called
+    only from the reviewer's accepted-pool loop, which sees every verdict
+    once."""
     if verdict.verdict not in ('confirmed', 'adjust'):
         return
     if not reasoning_contradicts_cut(verdict.reasoning):
         return
-    verdict.contradiction_logged = True
     event = ("reviewer_contradiction_suppressed_by_structured"
              if verdict.structured_is_ad is True
              else "reviewer_contradiction_guard_fired")
@@ -331,8 +328,6 @@ class ReviewVerdict:
     latency_ms: int = 0
     success: bool = True
     structured_is_ad: bool | None = None
-    # Dedup guard for log_contradiction_event; not part of the verdict itself.
-    contradiction_logged: bool = field(default=False, compare=False, repr=False)
 
 
 @dataclass
@@ -1412,6 +1407,8 @@ class AdReviewer:
             return 60
 
     def _resolve_model(self, pass_model: str) -> str:
+        # Same same_as_pass rule as tools.reviewer_calibration._resolve_calibration_model,
+        # which resolves the pass model from settings instead of the live run.
         configured = self._read_setting("review_model") or "same_as_pass"
         if configured == "same_as_pass":
             return pass_model

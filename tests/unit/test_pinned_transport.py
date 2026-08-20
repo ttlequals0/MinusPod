@@ -509,3 +509,47 @@ def test_kill_switch_accepts_the_usual_falsey_spellings(monkeypatch, value):
     monkeypatch.setenv("SSRF_IP_PINNING", value)
     s = safe_http._RevalidatingSession(URLTrust.FEED_CONTENT, 3)
     assert not isinstance(s.get_adapter("https://x"), PinnedHTTPAdapter)
+
+
+def test_connect_failure_falls_back_to_the_next_validated_address(monkeypatch):
+    # First validated address is a dead loopback IP, second is the live
+    # server: the request must succeed via the second.
+    srv = HTTPServer(("127.0.0.1", 0), _OkHandler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        port = srv.server_address[1]
+        real = socket.getaddrinfo
+
+        def fake(host, p, *a, **kw):
+            if host == "failover.example":
+                return (_addrinfo("127.0.0.2", p or port)
+                        + _addrinfo("127.0.0.1", p or port))
+            return real(host, p, *a, **kw)
+
+        monkeypatch.setattr(socket, "getaddrinfo", fake)
+        resp = safe_get(f"http://failover.example:{port}/x",
+                        trust=URLTrust.OPERATOR_CONFIGURED, timeout=5)
+        assert resp.status_code == 200
+        assert resp.content == b"ok"
+        assert _OkHandler.seen_host == f"failover.example:{port}"
+    finally:
+        srv.shutdown()
+
+
+def test_all_validated_addresses_dead_raises_connection_error(monkeypatch):
+    # Nothing is listening on either address; the original failure surfaces.
+    srv = HTTPServer(("127.0.0.1", 0), _OkHandler)
+    port = srv.server_address[1]
+    srv.server_close()
+    real = socket.getaddrinfo
+
+    def fake(host, p, *a, **kw):
+        if host == "alldead.example":
+            return (_addrinfo("127.0.0.2", p or port)
+                    + _addrinfo("127.0.0.3", p or port))
+        return real(host, p, *a, **kw)
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake)
+    with pytest.raises(requests.exceptions.ConnectionError):
+        safe_get(f"http://alldead.example:{port}/x",
+                 trust=URLTrust.OPERATOR_CONFIGURED, timeout=5)

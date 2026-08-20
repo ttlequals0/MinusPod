@@ -20,12 +20,12 @@ release notes.
   hostname again to connect, so a record that flipped between the two lookups
   could pass validation on a public address and connect to a private one. A
   new transport now resolves each request and redirect hop once, validates
-  every returned address, and connects to the first one that passes; the URL,
-  `Host` header, SNI, and certificate verification stay on the original
-  hostname. There is no multi-address connect fallback, so if the first
-  validated address is unreachable the request fails rather than trying the
-  next one. `SSRF_IP_PINNING=false` is the kill switch back to the previous
-  per-request resolution, for isolating a fetch failure the pin might cause.
+  every returned address, and connects to the validated addresses in order; the
+  URL, `Host` header, SNI, and certificate verification stay on the original
+  hostname. A connect failure falls back to the next validated address, each
+  tried at most once, so a multi-homed host stays reachable.
+  `SSRF_IP_PINNING=false` is the kill switch back to the previous per-request
+  resolution, for isolating a fetch failure the pin might cause.
 
 ### Added
 
@@ -46,7 +46,11 @@ release notes.
   first-pass markers and audio as they are, and records the second scan as
   incomplete rather than clean, which also fixes an all-windows-failed
   verification run reading as a clean scan. Set to `1.0` to restore the
-  previous behavior.
+  previous behavior. The variable seeds a stored setting that is read on every
+  pass, so the threshold can be retuned without a restart. A pass where only
+  some windows failed is retried rather than published from pattern matches
+  alone, since a provider that answered part of a pass usually answers all of
+  it on the retry.
 - Community patterns carry a staleness-based trust tier: active (matched
   locally in the last 90 days), unproven (no recent local match), or stale (a
   community pattern with no local match in the last 90 days and no community
@@ -58,7 +62,8 @@ release notes.
   runs a labeled corpus of ad and non-ad transcripts through the production
   reviewer stack and reports verdict agreement plus how often responses carry
   the structured `is_ad` field. It also runs automatically in a background
-  thread whenever the reviewer model setting changes, storing its result
+  thread whenever the reviewer model setting changes, including a detection
+  model change while the reviewer is left on `same_as_pass`, storing its result
   under the `reviewer_calibration_last` setting; a failed or slow run never
   blocks the settings save. Disable the auto-run with
   `reviewer_calibration_on_change` (or `REVIEWER_CALIBRATION_ON_CHANGE`).

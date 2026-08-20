@@ -432,6 +432,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True,
         in_ad_reset=True, payload_key='adDetectionParallelWindows',
         payload_factory=lambda: AD_DETECTION_PARALLEL_WINDOWS_DEFAULT),
+    # Not exposed in the Settings UI (no payload_key); env seeds it and an
+    # operator can edit the DB row to retune without a restart.
+    'ad_detection_max_failed_window_ratio': SettingSpec(env_backed=True),
     'ad_reviewer_parallel_ads': SettingSpec(
         env_backed=True,
         in_ad_reset=True, payload_key='adReviewerParallelAds',

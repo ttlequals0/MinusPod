@@ -78,7 +78,7 @@ class PatternMixin:
         conn = self.get_connection()
         placeholders = ','.join('?' * len(community_ids))
         cursor = conn.execute(
-            f"SELECT * FROM ad_patterns WHERE community_id IN ({placeholders})",
+            f"SELECT * FROM ad_patterns WHERE community_id IN ({placeholders})",  # noqa: S608
             community_ids,
         )
         return {row['community_id']: _row_with_category(dict(row)) for row in cursor.fetchall()}
@@ -127,7 +127,7 @@ class PatternMixin:
                FROM ad_patterns ap
                LEFT JOIN podcasts p ON ap.podcast_id = p.slug
                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
-               WHERE ap.id IN ({placeholders})""",
+               WHERE ap.id IN ({placeholders})""",  # noqa: S608
             tuple(pattern_ids),
         )
         return {row['id']: _row_with_category(dict(row)) for row in cursor.fetchall()}
@@ -223,7 +223,7 @@ class PatternMixin:
 
         values.append(pattern_id)
         conn.execute(
-            f"UPDATE ad_patterns SET {', '.join(fields)} WHERE id = ?",
+            f"UPDATE ad_patterns SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
             values
         )
         return True
@@ -271,11 +271,11 @@ class PatternMixin:
         placeholders = ','.join('?' * len(ids))
         # Explicit as well as the FK cascade: enforcement is per connection.
         conn.execute(
-            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})",
+            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})",  # noqa: S608
             ids,
         )
         cursor = conn.execute(
-            f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",
+            f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",  # noqa: S608
             ids,
         )
         return cursor.rowcount
@@ -292,7 +292,7 @@ class PatternMixin:
         conn = self.get_connection()
         placeholders = ','.join('?' * len(ids))
         cursor = conn.execute(
-            f"UPDATE ad_patterns SET is_active = 0, "
+            f"UPDATE ad_patterns SET is_active = 0, "  # noqa: S608
             f"disabled_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), "
             f"disabled_reason = COALESCE(disabled_reason, 'bulk-disable') "
             f"WHERE id IN ({placeholders})",
@@ -595,7 +595,7 @@ class PatternMixin:
             AND pc.correction_type IN
                 ('false_positive', 'confirm', 'boundary_adjustment', 'create')
             AND pc.episode_id IN ({placeholders})
-        ''', [podcast_slug] + list(episode_ids))
+        ''', [podcast_slug] + list(episode_ids))  # noqa: S608
 
         results = []
         for row in cursor.fetchall():

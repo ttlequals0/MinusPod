@@ -69,7 +69,7 @@ class SponsorMixin:
 
         values.append(sponsor_id)
         conn.execute(
-            f"UPDATE known_sponsors SET {', '.join(fields)} WHERE id = ?",
+            f"UPDATE known_sponsors SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
             values
         )
         conn.commit()
@@ -198,7 +198,7 @@ class SponsorMixin:
 
         values.append(norm_id)
         conn.execute(
-            f"UPDATE sponsor_normalizations SET {', '.join(fields)} WHERE id = ?",
+            f"UPDATE sponsor_normalizations SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
             values
         )
         conn.commit()

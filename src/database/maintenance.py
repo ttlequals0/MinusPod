@@ -115,7 +115,7 @@ class MaintenanceMixin:
                 chunk = cleared_ids[i:i + 500]
                 placeholders = ','.join('?' * len(chunk))
                 conn.execute(
-                    f"UPDATE episodes SET original_file = NULL WHERE id IN ({placeholders})",
+                    f"UPDATE episodes SET original_file = NULL WHERE id IN ({placeholders})",  # noqa: S608
                     chunk,
                 )
             conn.commit()
@@ -241,7 +241,7 @@ class MaintenanceMixin:
                              (CASE WHEN ap.created_by = 'user' OR ap.source = 'community'
                                    THEN 0 ELSE 1 END),
                              ap.confirmation_count DESC,
-                             ap.id ASC''',
+                             ap.id ASC''',  # noqa: S608
                 all_ids
             )
             patterns = patterns_cursor.fetchall()
@@ -279,7 +279,7 @@ class MaintenanceMixin:
             conn.execute(
                 f'''UPDATE pattern_corrections
                     SET pattern_id = ?
-                    WHERE pattern_id IN ({placeholders})''',
+                    WHERE pattern_id IN ({placeholders})''',  # noqa: S608
                 [keep_id] + remove_ids
             )
 
@@ -287,7 +287,7 @@ class MaintenanceMixin:
             # the keeper's audio too; promote one when the keeper has none.
             group_ids = remove_ids + [keep_id]
             fingerprinted = {row['pattern_id'] for row in conn.execute(
-                'SELECT pattern_id FROM audio_fingerprints WHERE pattern_id IN '
+                'SELECT pattern_id FROM audio_fingerprints WHERE pattern_id IN '  # noqa: S608
                 f"({','.join('?' * len(group_ids))})",
                 group_ids
             )}
@@ -304,13 +304,13 @@ class MaintenanceMixin:
             # Drop the rest before their patterns go; the FK cascade would too,
             # but enforcement is per connection so do not lean on it.
             conn.execute(
-                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',
+                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608
                 remove_ids
             )
 
             # Delete duplicate patterns
             conn.execute(
-                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+                f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608
                 remove_ids
             )
             removed_count += len(remove_ids)

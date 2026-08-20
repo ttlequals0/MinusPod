@@ -6,6 +6,7 @@ import shutil
 import tempfile
 import threading
 import time
+from dataclasses import replace
 
 import requests
 import requests.exceptions
@@ -21,8 +22,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.boundaries import snap_terminal_ad_to_splice
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from ad_reviewer import (
-    AdReviewer, ReviewVerdict, is_contradiction_hold, log_contradiction_event,
-    split_resurrection_pool,
+    AdReviewer, is_contradiction_hold, split_resurrection_pool,
 )
 from audio_analysis.cue_template_matcher import AudioCueTemplateMatcher
 from audio_processor import get_replacement_duration, AudioProcessor
@@ -761,8 +761,16 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         # Degraded continue: a transient, non-auth failure that still left
         # pattern/cross-fetch markers publishes those instead of failing the
         # episode. Auth-class failures and zero markers still raise.
+        # A partial window failure (some windows answered) is excluded: the
+        # provider is working well enough that a retry will likely complete,
+        # so publishing pattern-only cuts permanently would discard the LLM
+        # markers the successful windows found. Only a total outage degrades.
+        windows_total = ad_result.get('windows_total') or 0
+        windows_failed = ad_result.get('windows_failed') or 0
+        partial_window_failure = 0 < windows_failed < windows_total
         classification_error = Exception(error_msg)
-        if (first_pass_ads and is_transient_error(classification_error)
+        if (first_pass_ads and not partial_window_failure
+                and is_transient_error(classification_error)
                 and not is_auth_error(classification_error)):
             sanitized = ' '.join(error_msg.split())[:300]
             audio_logger.warning(
@@ -1513,8 +1521,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         key = (v.original_start, v.original_end)
         proc_ad = original_to_processed.get(key)
         ui_ad = ui_by_key.get(key)
-        log_contradiction_event(v, model=v.model_used, slug=slug,
-                                episode_id=episode_id)
 
         # Contradiction hold (same criterion the reviewer used to populate
         # result.held_by_contradiction): the ad must NOT cut. Checked before
@@ -1536,7 +1542,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 )
                 continue
             # Same shape as a pass-1 contradiction hold, in original coords.
-            _apply_reviewer_verdict_to_ad(held_ad, v, slug=slug, episode_id=episode_id)
+            _apply_reviewer_verdict_to_ad(held_ad, v)
             if held_ad in v_ads_for_ui:
                 v_ads_for_ui.remove(held_ad)
             v_ads_held.append(held_ad)
@@ -1554,13 +1560,8 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
                 f"[{slug}:{episode_id}] Pass 2 reviewer proposed adjust "
                 f"@ {v.original_start:.1f}s; treating as confirmed"
             )
-            coerced = ReviewVerdict(
-                pool=v.pool, pass_num=v.pass_num, verdict='confirmed',
-                original_start=v.original_start, original_end=v.original_end,
-                reasoning=v.reasoning, confidence=v.confidence,
-                model_used=v.model_used, latency_ms=v.latency_ms,
-                success=v.success, structured_is_ad=v.structured_is_ad,
-            )
+            coerced = replace(v, verdict='confirmed',
+                              adjusted_start=None, adjusted_end=None)
             if proc_ad is not None:
                 _stamp_reviewer_fields(proc_ad, coerced)
             if ui_ad is not None:
@@ -1621,10 +1622,9 @@ def _ad_review_enabled(db) -> bool:
     return str(value or '').strip().lower() == 'true'
 
 
-def _apply_reviewer_verdict_to_ad(ad, v, *, slug=None, episode_id=None):
+def _apply_reviewer_verdict_to_ad(ad, v):
     """Merge a single reviewer verdict into the master ad dict, in place."""
     _stamp_reviewer_fields(ad, v)
-    log_contradiction_event(v, model=v.model_used, slug=slug, episode_id=episode_id)
     if is_contradiction_hold(v.verdict, v.reasoning, v.structured_is_ad):
         # Contradiction guard (spec 1.4): hold for a human, never auto-reject.
         # Boundaries stay at the pass-1 values; an "adjust" whose reasoning
@@ -1657,7 +1657,7 @@ def _apply_reviewer_verdict_to_ad(ad, v, *, slug=None, episode_id=None):
         ad['source'] = 'reviewer'
 
 
-def _merge_reviewer_result(result, all_ads_with_validation, *, slug=None, episode_id=None):
+def _merge_reviewer_result(result, all_ads_with_validation):
     """Apply reviewer verdicts to the master ad list and append any newly
     resurrected ads. Mutates ``all_ads_with_validation`` in place.
     """
@@ -1667,7 +1667,7 @@ def _merge_reviewer_result(result, all_ads_with_validation, *, slug=None, episod
         ad = master_by_key.get((v.original_start, v.original_end))
         if ad is None:
             continue
-        _apply_reviewer_verdict_to_ad(ad, v, slug=slug, episode_id=episode_id)
+        _apply_reviewer_verdict_to_ad(ad, v)
 
     for ad in result.resurrected:
         key = (ad.get('start'), ad.get('end'))
@@ -1732,7 +1732,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     # Merge reviewer fields into the master list (in-place), and pull in any
     # resurrected ads that weren't there before. Index by (start, end) so the
     # verdict loop is O(V), not O(V*N).
-    _merge_reviewer_result(result, all_ads_with_validation, slug=slug, episode_id=episode_id)
+    _merge_reviewer_result(result, all_ads_with_validation)
 
     _log_reviewer_verdicts(slug, episode_id, pass_num, result.verdicts)
 

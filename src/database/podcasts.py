@@ -54,7 +54,7 @@ class PodcastMixin:
             LEFT JOIN episodes e ON p.id = e.podcast_id
             GROUP BY p.id
             ORDER BY p.created_at DESC
-        """)
+        """)  # noqa: S608
         return [dict(row) for row in cursor.fetchall()]
 
     def get_podcast_feed_urls(self) -> list[dict]:
@@ -93,7 +93,7 @@ class PodcastMixin:
             LEFT JOIN episodes e ON p.id = e.podcast_id
             WHERE p.slug = ?
             GROUP BY p.id
-        """, (slug,))
+        """, (slug,))  # noqa: S608
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -169,7 +169,7 @@ class PodcastMixin:
         cols_sql = ', '.join(cols)
         conn = self.get_connection()
         cursor = conn.execute(
-            f"SELECT {cols_sql} FROM podcasts WHERE id = ?",
+            f"SELECT {cols_sql} FROM podcasts WHERE id = ?",  # noqa: S608
             (podcast_id,),
         )
         row = cursor.fetchone()
@@ -248,7 +248,7 @@ class PodcastMixin:
         values.append(slug)
 
         conn.execute(
-            f"UPDATE podcasts SET {', '.join(fields)} WHERE slug = ?",
+            f"UPDATE podcasts SET {', '.join(fields)} WHERE slug = ?",  # noqa: S608
             values
         )
         conn.commit()
@@ -413,9 +413,9 @@ class PodcastMixin:
         # while the patterns they point at still exist to select from.
         doomed = "SELECT id FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?"
         conn.execute(
-            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({doomed})", (slug,))
+            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
         conn.execute(
-            f"DELETE FROM pattern_corrections WHERE pattern_id IN ({doomed})", (slug,))
+            f"DELETE FROM pattern_corrections WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
         conn.execute(
             "DELETE FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?",
             (slug,))

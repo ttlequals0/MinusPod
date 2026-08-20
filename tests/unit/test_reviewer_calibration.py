@@ -109,7 +109,7 @@ def test_cli_exits_zero_above_threshold(monkeypatch, capsys):
         'agreement': 0.875, 'structured_fraction': 1.0, 'ran_at': '2026-08-19T00:00:00Z',
     }
     monkeypatch.setattr('tools.reviewer_calibration.run_calibration', lambda **kw: canned)
-    code = main([])
+    code = main()
     assert code == 0
     out = capsys.readouterr().out
     assert '|' in out
@@ -123,7 +123,7 @@ def test_cli_exits_one_below_threshold(monkeypatch, capsys):
         'agreement': 0.5, 'structured_fraction': 0.0, 'ran_at': '2026-08-19T00:00:00Z',
     }
     monkeypatch.setattr('tools.reviewer_calibration.run_calibration', lambda **kw: canned)
-    code = main([])
+    code = main()
     assert code == 1
 
 
@@ -221,3 +221,37 @@ def test_settings_api_review_model_change_invokes_hook(monkeypatch):
     assert err is None
     assert calls == [('old-model', 'new-model')]
     assert db.get_setting('review_model') == 'new-model'
+
+
+def test_settings_api_claude_model_change_calibrates_when_review_is_same_as_pass(monkeypatch):
+    # review_model 'same_as_pass' means the detection model is the effective
+    # reviewer model, so changing it must calibrate.
+    from api.settings import _apply_model_fields
+
+    db = _build_db()
+    db.set_setting('review_model', 'same_as_pass', is_default=False)
+    db.set_setting('claude_model', 'old-model', is_default=False)
+
+    calls = []
+    monkeypatch.setattr(
+        'api.settings.maybe_trigger_reviewer_calibration',
+        lambda db_arg, old, new: calls.append((old, new)),
+    )
+    _apply_model_fields(db, {'claudeModel': 'new-model'})
+    assert calls == [('old-model', 'new-model')]
+
+
+def test_settings_api_claude_model_change_skips_calibration_with_explicit_reviewer(monkeypatch):
+    from api.settings import _apply_model_fields
+
+    db = _build_db()
+    db.set_setting('review_model', 'reviewer-model', is_default=False)
+    db.set_setting('claude_model', 'old-model', is_default=False)
+
+    calls = []
+    monkeypatch.setattr(
+        'api.settings.maybe_trigger_reviewer_calibration',
+        lambda db_arg, old, new: calls.append((old, new)),
+    )
+    _apply_model_fields(db, {'claudeModel': 'new-model'})
+    assert calls == []

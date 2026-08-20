@@ -186,6 +186,7 @@ def safe_get(
     and ``requests.RequestException`` for network errors. Callers apply
     ``read_response_capped`` on the returned response to enforce size.
     """
+    # Pre-flight verdict only; PinnedHTTPAdapter re-validates at connect time.
     _validate_for_tier(url, trust)
     session = _RevalidatingSession(trust, max_redirects)
     try:

@@ -182,7 +182,9 @@ WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unles
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each kept ad: {{"is_ad": true, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each kept ad: {{"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+
+Set "is_ad" true only when the span is a real advertisement to cut. Set it false, or return an empty array, when it is not.
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
@@ -241,7 +243,9 @@ WHEN IN DOUBT: Agree with the validator and return empty. Only resurrect when th
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each resurrected ad: {{"is_ad": true, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each resurrected ad: {{"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+
+Set "is_ad" true only when the span is a real advertisement to cut. Set it false, or return an empty array, when it is not.
 
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 

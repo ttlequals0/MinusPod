@@ -82,7 +82,7 @@ class EpisodeMixin:
 
         # Get total count
         cursor = conn.execute(
-            f"SELECT COUNT(*) FROM episodes e {where_clause}",
+            f"SELECT COUNT(*) FROM episodes e {where_clause}",  # noqa: S608
             params
         )
         total = cursor.fetchone()[0]
@@ -104,7 +104,7 @@ class EpisodeMixin:
             f"""SELECT e.* FROM episodes e
                 {where_clause}
                 {order_clause}
-                LIMIT ? OFFSET ?""",
+                LIMIT ? OFFSET ?""",  # noqa: S608
             params
         )
 
@@ -161,7 +161,7 @@ class EpisodeMixin:
                     WHERE podcast_id = ?
                       AND (COALESCE(published_at, created_at), id) {comparison} (?, ?)
                     ORDER BY COALESCE(published_at, created_at) {direction}, id {direction}
-                    LIMIT 1""",
+                    LIMIT 1""",  # noqa: S608
                 (podcast_id, cur['k'], cur['id'])
             ).fetchone()
             return {'id': row['episode_id'], 'title': row['title']} if row else None
@@ -244,7 +244,7 @@ class EpisodeMixin:
                     fields.append("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')")
                     values.append(db_id)
                     conn.execute(
-                        f"UPDATE episodes SET {', '.join(fields)} WHERE id = ?",
+                        f"UPDATE episodes SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
                         values
                     )
                     conn.commit()
@@ -367,7 +367,7 @@ class EpisodeMixin:
             if updates:
                 values.append(row['id'])
                 conn.execute(
-                    f"UPDATE episode_details SET {', '.join(updates)} WHERE id = ?",
+                    f"UPDATE episode_details SET {', '.join(updates)} WHERE id = ?",  # noqa: S608
                     values
                 )
         else:
@@ -837,7 +837,7 @@ class EpisodeMixin:
                      AND e.original_duration > ?
                      AND ed.{col} IS NOT NULL
                ORDER BY COALESCE(e.published_at, e.created_at) DESC
-               LIMIT ?""",
+               LIMIT ?""",  # noqa: S608
             (slug, exclude_episode_id, min_duration, limit)
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -877,7 +877,7 @@ class EpisodeMixin:
             f"""SELECT e.*, p.slug
                 FROM episodes e
                 JOIN podcasts p ON e.podcast_id = p.id
-                WHERE p.slug = ? AND e.episode_id IN ({placeholders})""",
+                WHERE p.slug = ? AND e.episode_id IN ({placeholders})""",  # noqa: S608
             [slug] + list(episode_ids)
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -893,11 +893,11 @@ class EpisodeMixin:
         conn = self.get_connection()
         placeholders = ','.join('?' for _ in db_ids)
         conn.execute(
-            f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",
+            f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",  # noqa: S608
             db_ids
         )
         conn.execute(
-            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",  # noqa: S608
             db_ids
         )
         conn.commit()
@@ -922,7 +922,7 @@ class EpisodeMixin:
             db_ids
         )
         conn.execute(
-            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",
+            f"UPDATE episodes SET pending_review_count = 0 WHERE id IN ({placeholders})",  # noqa: S608
             db_ids
         )
         conn.commit()
@@ -944,7 +944,7 @@ class EpisodeMixin:
                 ads_removed = 0, ads_removed_firstpass = 0, ads_removed_secondpass = 0,
                 error_message = NULL, ad_detection_status = NULL,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
+            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
             [podcast['id']] + list(episode_ids)
         )
         conn.commit()
@@ -1111,7 +1111,7 @@ class EpisodeMixin:
                 reprocess_mode = ?, reprocess_requested_at = ?,
                 deferred_at = NULL, deferred_service = NULL,
                 updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",
+            WHERE podcast_id = ? AND episode_id IN ({placeholders})""",  # noqa: S608
             params
         )
         conn.commit()

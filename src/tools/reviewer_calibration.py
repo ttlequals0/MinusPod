@@ -9,10 +9,8 @@ CLI usage (see docs/llm-providers.md):
 
     PYTHONPATH=src python -m tools.reviewer_calibration
 
-Also auto-runs in a background thread whenever the reviewer model setting
-changes (see `maybe_trigger_reviewer_calibration`, called from
-`src/api/settings.py`), storing its result under the `reviewer_calibration_last`
-setting.
+Also auto-runs in a background thread on a reviewer model change, storing its
+result under the `reviewer_calibration_last` setting.
 """
 from __future__ import annotations
 
@@ -294,7 +292,8 @@ def _verdict_agrees(verdict: str, expected: str) -> bool:
 
 def _resolve_calibration_model(db) -> str:
     """review_model wins unless it's the same_as_pass placeholder, in which
-    case fall back to the detection pass model."""
+    case fall back to the detection pass model. Same rule as
+    AdReviewer._resolve_model, which reads the live pass model instead."""
     configured = db.get_setting('review_model')
     if configured and configured != 'same_as_pass':
         return configured
@@ -415,7 +414,7 @@ def _print_table(cases: list[dict]) -> None:
         print(_row(row))
 
 
-def main(argv: list[str] | None = None) -> int:
+def main() -> int:
     result = run_calibration()
     _print_table(result['cases'])
     print()

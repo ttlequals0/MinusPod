@@ -115,7 +115,7 @@ class CueDetectionMixin:
         """
         conn = self.get_connection()
         row = conn.execute(
-            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "
+            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "  # noqa: S608
             f"WHERE podcast_id = ? AND {_ABOVE_THRESHOLD}",
             (podcast_id,),
         ).fetchone()
@@ -130,13 +130,13 @@ class CueDetectionMixin:
         """
         conn = self.get_connection()
         totals = conn.execute(
-            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "
+            f"SELECT {_ADVISORY_AGGREGATE_SQL} FROM cue_detections "  # noqa: S608
             f"WHERE {_ABOVE_THRESHOLD}"
         ).fetchone()
         buckets = conn.execute(
             f"""SELECT CAST(match_score * 10 AS INT) AS bucket, COUNT(*) AS n
                FROM cue_detections WHERE match_score IS NOT NULL AND {_ABOVE_THRESHOLD}
-               GROUP BY bucket ORDER BY bucket"""
+               GROUP BY bucket ORDER BY bucket"""  # noqa: S608
         ).fetchall()
         near_miss_buckets = conn.execute(
             """SELECT CAST(match_score * 10 AS INT) AS bucket, COUNT(*) AS n
@@ -164,7 +164,7 @@ class CueDetectionMixin:
         conn = self.get_connection()
         rows = conn.execute(
             f"""SELECT match_score, verdict FROM cue_detections
-               WHERE podcast_id = ? AND {_LABELED}""",
+               WHERE podcast_id = ? AND {_LABELED}""",  # noqa: S608
             (podcast_id,)).fetchall()
         return [(r['match_score'], r['verdict']) for r in rows]
 
@@ -207,7 +207,7 @@ class CueDetectionMixin:
                       {recent_hit_expr} AS recent_hit
                FROM cue_detections
                WHERE podcast_id = ? AND template_id IS NOT NULL
-               GROUP BY template_id""", params).fetchall()
+               GROUP BY template_id""", params).fetchall()  # noqa: S608
         out = []
         for r in rows:
             # No episodes recorded yet -> quiet stays False regardless of matched.
@@ -223,7 +223,7 @@ class CueDetectionMixin:
             f"""SELECT template_id, label, match_score, verdict
                FROM cue_detections
                WHERE podcast_id = ? AND template_id IS NOT NULL AND {_LABELED}
-               ORDER BY template_id""",
+               ORDER BY template_id""",  # noqa: S608
             (podcast_id,)).fetchall()
         grouped: dict[int, dict] = {}
         for r in rows:

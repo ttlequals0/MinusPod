@@ -129,6 +129,7 @@ __all__ = [
     "AdDetector",
     "WindowResult",
     "_resolve_parallel_windows",
+    "_resolve_max_failed_window_ratio",
     "_model_not_found_hint",
     # re-exported from .boundaries
     "EARLY_AD_SNAP_THRESHOLD",
@@ -205,6 +206,25 @@ def _resolve_parallel_windows() -> int:
         AD_DETECTION_PARALLEL_WINDOWS_MIN,
         min(AD_DETECTION_PARALLEL_WINDOWS_MAX, n),
     )
+
+
+def _resolve_max_failed_window_ratio() -> float:
+    """Resolve the failed-window ratio that fails a pass, same seam as
+    _resolve_parallel_windows: DB value wins, env-backed default otherwise,
+    clamped to [0.0, 1.0] so a bad row cannot disable or over-trigger it."""
+    try:
+        from llm_client import _get_cached_setting
+        db_val = _get_cached_setting('ad_detection_max_failed_window_ratio')
+    except Exception:
+        db_val = None
+
+    raw = db_val if db_val is not None else resolve_env_backed_default(
+        'ad_detection_max_failed_window_ratio')
+    try:
+        ratio = float(raw) if raw is not None else AD_DETECTION_MAX_FAILED_WINDOW_RATIO
+    except (ValueError, TypeError):
+        ratio = AD_DETECTION_MAX_FAILED_WINDOW_RATIO
+    return max(0.0, min(1.0, ratio))
 
 
 def _model_not_found_hint(last_error, model) -> str:
@@ -1143,7 +1163,7 @@ class AdDetector:
             )
         failure_ratio = failed_windows / len(windows) if windows else 0.0
         if failed_windows >= len(windows) or (
-                failure_ratio > AD_DETECTION_MAX_FAILED_WINDOW_RATIO):
+                failure_ratio > _resolve_max_failed_window_ratio()):
             failure = _windows_failed_response(
                 pass_label.lower(), failed_windows, len(windows),
                 last_error, model)

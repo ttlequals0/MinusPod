@@ -50,6 +50,22 @@ def check_resolved_ip(ip_str: str, *, allow_private: bool) -> None:
         raise SSRFError(f"Blocked reserved IP: {ip_str}")
 
 
+def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tuple]:
+    """Resolve ``host``:``port`` and run check_resolved_ip on every address.
+
+    Returns the addrinfo list. socket.gaierror propagates so each caller can
+    translate an unresolvable host its own way; an empty result is raised as
+    gaierror too, since it means the same thing.
+    """
+    infos = socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
+    if not infos:
+        raise socket.gaierror(
+            socket.EAI_NONAME, f"No addresses found for hostname: {host!r}")
+    for _family, _type, _proto, _canonname, sockaddr in infos:
+        check_resolved_ip(sockaddr[0], allow_private=allow_private)
+    return infos
+
+
 def validate_url(url: str) -> str:
     """Validate a URL for safe outbound requests.
 
@@ -92,15 +108,9 @@ def validate_url(url: str) -> str:
     # this check and connect time is closed by utils.pinned_transport, which
     # re-runs check_resolved_ip on the address it actually connects to.
     try:
-        addrinfos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
+        resolve_and_check(hostname, port, allow_private=False)
     except socket.gaierror:
         raise SSRFError(f"Cannot resolve hostname: {hostname!r}") from None
-
-    if not addrinfos:
-        raise SSRFError(f"No addresses found for hostname: {hostname!r}")
-
-    for _family, _type, _proto, _canonname, sockaddr in addrinfos:
-        check_resolved_ip(sockaddr[0], allow_private=False)
 
     return url
 
@@ -165,10 +175,9 @@ def validate_outbound_host(host: str, port: int = 0) -> str:
     if host in _CLOUD_METADATA_IPS:
         raise SSRFError(f"Blocked cloud metadata IP: {host}")
     try:
-        addrinfos = socket.getaddrinfo(host, port or None, proto=socket.IPPROTO_TCP)
+        resolve_and_check(host, port, allow_private=True)
     except socket.gaierror:
-        return host
-    for _family, _type, _proto, _canonname, sockaddr in addrinfos:
-        check_resolved_ip(sockaddr[0], allow_private=True)
+        # Unresolvable host reaches no internal IP, so it stays allowed.
+        pass
 
     return host

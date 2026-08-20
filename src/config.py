@@ -1703,8 +1703,12 @@ AD_DETECTION_PARALLEL_WINDOWS_MAX = 32
 
 # Above this failed-window ratio the whole detection pass fails (episode
 # retried later) instead of publishing with blind spots. 1.0 disables.
+# Parse-time default only: the runtime reads the DB-backed setting via
+# ad_detector._resolve_max_failed_window_ratio.
+AD_DETECTION_MAX_FAILED_WINDOW_RATIO_DEFAULT = '0.25'
 AD_DETECTION_MAX_FAILED_WINDOW_RATIO = float(
-    os.environ.get('AD_DETECTION_MAX_FAILED_WINDOW_RATIO', '0.25'))
+    os.environ.get('AD_DETECTION_MAX_FAILED_WINDOW_RATIO',
+                   AD_DETECTION_MAX_FAILED_WINDOW_RATIO_DEFAULT))
 
 
 # Ad-reviewer parallelism. Tracks the same shape as the detector knob but
@@ -1752,6 +1756,13 @@ def _validate_parallel_windows(value: str) -> bool:
     except (ValueError, TypeError):
         return False
     return AD_DETECTION_PARALLEL_WINDOWS_MIN <= n <= AD_DETECTION_PARALLEL_WINDOWS_MAX
+
+
+def _validate_failed_window_ratio(value: str) -> bool:
+    try:
+        return 0.0 <= float(value) <= 1.0
+    except (ValueError, TypeError):
+        return False
 
 
 def _validate_reviewer_parallel(value: str) -> bool:
@@ -1862,6 +1873,12 @@ ENV_BACKED_SETTINGS = (
         'AD_DETECTION_PARALLEL_WINDOWS',
         str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT),
         _validate_parallel_windows,
+    ),
+    (
+        'ad_detection_max_failed_window_ratio',
+        'AD_DETECTION_MAX_FAILED_WINDOW_RATIO',
+        AD_DETECTION_MAX_FAILED_WINDOW_RATIO_DEFAULT,
+        _validate_failed_window_ratio,
     ),
     (
         'ad_reviewer_parallel_ads',
