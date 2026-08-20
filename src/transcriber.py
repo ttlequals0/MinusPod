@@ -353,10 +353,10 @@ EXTRACT_PREFETCH_AHEAD = 2
 
 
 def _chunk_bounds_ahead(start, chunk_duration, duration, overlap, count):
-    """Next `count` (start, end_with_overlap) pairs the chunk loop will need.
+    """Next `count` (start, end_with_overlap) pairs of the chunked loop.
 
-    Mirrors the loop's own boundary math; a chunk-size change mid-run makes
-    previously computed pairs stale, which the prefetcher detects by key miss.
+    Single owner of the boundary math: the loop reads its current bounds
+    from element 0 and the prefetcher keys its queue on the same pairs.
     """
     bounds = []
     while start < duration and len(bounds) < count:
@@ -378,12 +378,12 @@ def _unlink_future_chunk(future):
 class _ChunkPrefetcher:
     """Runs chunk extractions ahead of the GPU during chunked transcription.
 
-    Futures are keyed by (start, end_with_overlap). The chunk loop asks for
-    exactly the bounds it computed; a miss means the chunk size changed since
-    the extraction was queued (OOM shrink, extraction-timeout shrink), so the
-    whole queue is stale and gets discarded. Discarded and leftover
-    extractions unlink their temp files on completion. Single-threaded
-    caller; no locking needed.
+    Futures are keyed by (start, end_with_overlap) from _chunk_bounds_ahead,
+    the same helper the chunk loop reads its own bounds from. When the chunk
+    size changes mid-run (OOM shrink, extraction-timeout shrink) the next
+    take() computes bounds the queue does not hold, and the whole stale
+    queue is discarded. Discarded and leftover extractions unlink their
+    temp files on completion. Single-threaded caller; no locking needed.
     """
 
     def __init__(self, audio_path):
@@ -401,39 +401,46 @@ class _ChunkPrefetcher:
                 self._audio_path, start, end, preprocess=True,
             )
 
-    def schedule_ahead(self, start, chunk_duration, duration, overlap):
-        for bounds in _chunk_bounds_ahead(
-            start, chunk_duration, duration, overlap, EXTRACT_PREFETCH_AHEAD,
-        ):
-            self._submit(bounds)
+    def _queue(self, start, chunk_duration, duration, overlap):
+        """Queue the chunk at `start` plus the lookahead; return its bounds.
 
-    def ensure(self, bounds):
-        """Make sure these exact bounds are queued, without blocking.
-
-        A miss means the queue was built for a different chunk size; it is
-        discarded wholesale before the fresh submit. Call before
-        schedule_ahead so a stale queue cannot swallow the new lookahead.
+        Returns None past the end of the audio (a zero-length file reaches
+        prime() this way); only prime() may pass such a start.
         """
-        if bounds not in self._pending:
-            self.discard_pending()
-            self._submit(bounds)
+        bounds = _chunk_bounds_ahead(
+            start, chunk_duration, duration, overlap, 1 + EXTRACT_PREFETCH_AHEAD,
+        )
+        if not bounds:
+            return None
+        if bounds[0] not in self._pending:
+            self._discard_pending()
+        for each in bounds:
+            self._submit(each)
+        return bounds[0]
 
-    def take(self, bounds):
-        """Blocking result for bounds previously passed to ensure().
+    def prime(self, start, chunk_duration, duration, overlap):
+        """Start extracting without blocking, so callers can overlap other
+        setup work (model load) with the first chunk's ffmpeg pass."""
+        self._queue(start, chunk_duration, duration, overlap)
+
+    def take(self, start, chunk_duration, duration, overlap):
+        """Blocking path for the chunk at `start`, extracting now if needed.
 
         Raises whatever the extraction raised (AudioExtractionTimeout
         included), exactly like calling extract_audio_chunk inline.
         """
-        return self._pending.pop(bounds).result()
+        return self._pending.pop(
+            self._queue(start, chunk_duration, duration, overlap)
+        ).result()
 
-    def discard_pending(self):
+    def _discard_pending(self):
         for future in self._pending.values():
             if not future.cancel():
                 future.add_done_callback(_unlink_future_chunk)
         self._pending.clear()
 
     def close(self):
-        self.discard_pending()
+        self._discard_pending()
         self._executor.shutdown(wait=False)
 
 
@@ -2214,15 +2221,23 @@ class Transcriber:
         # chunk file outlives the run.
         prefetcher = _ChunkPrefetcher(audio_path)
         try:
-            while chunk_start < duration:
-                # Calculate chunk end with overlap for next chunk
-                chunk_end = min(chunk_start + chunk_duration, duration)
+            # Start the first extractions now and load the model while they
+            # run; done in sequence these are the two longest serial waits
+            # of the pass. Load failures surface inside the loop, which
+            # keeps its OOM handling.
+            prefetcher.prime(chunk_start, chunk_duration, duration, overlap)
+            try:
+                WhisperModelSingleton.get_batched_pipeline()
+            except Exception as e:
+                logger.debug(f"Model warm-up deferred to first chunk: {e}")
 
-                # For all but the last chunk, add overlap
-                if chunk_end < duration:
-                    chunk_end_with_overlap = min(chunk_end + overlap, duration)
-                else:
-                    chunk_end_with_overlap = chunk_end
+            while chunk_start < duration:
+                chunk_end = min(chunk_start + chunk_duration, duration)
+                # Same helper the prefetcher keys on, so the lookup below
+                # cannot drift from the bounds computed here.
+                _, chunk_end_with_overlap = _chunk_bounds_ahead(
+                    chunk_start, chunk_duration, duration, overlap, 1,
+                )[0]
 
                 # Recalculate num_chunks with current chunk_duration (may have changed due to OOM)
                 remaining_duration = duration - chunk_start
@@ -2234,14 +2249,12 @@ class Transcriber:
                     f"(chunk_size={chunk_duration/60:.0f}min)"
                 )
 
-                # Take this chunk from the prefetcher, then queue the next
-                # chunks so their ffmpeg passes (preprocess filter folded in)
-                # run while the GPU transcribes this one.
-                bounds = (chunk_start, chunk_end_with_overlap)
-                prefetcher.ensure(bounds)
-                prefetcher.schedule_ahead(chunk_end, chunk_duration, duration, overlap)
+                # Take this chunk from the prefetcher; it queues the next
+                # chunks so their ffmpeg passes (preprocess filter folded
+                # in) run while the GPU transcribes this one.
                 try:
-                    chunk_path = prefetcher.take(bounds)
+                    chunk_path = prefetcher.take(
+                        chunk_start, chunk_duration, duration, overlap)
                 except AudioExtractionTimeout:
                     # Re-running the same call would time out again, so shrink the
                     # chunk once before giving up, mirroring the OOM path (#644).
