@@ -161,13 +161,18 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
               return (
                 <li
                   key={`${line.ts}-${i}`}
-                  className={`flex gap-3 border-l-2 pl-3 py-0.5 ${style.rail}`}
+                  className={`flex flex-col gap-0.5 border-l-2 pl-3 py-1 sm:flex-row sm:gap-3 sm:py-0.5 ${style.rail}`}
                 >
-                  <span className="text-muted-foreground shrink-0" title={line.ts}>
-                    {clockTime(line.ts)}
-                  </span>
-                  <span className={`w-16 shrink-0 uppercase ${style.tag}`}>{line.level}</span>
-                  <span className="whitespace-pre-wrap break-words">{line.msg}</span>
+                  {/* Narrow screens stack the stamp above its line; sm: drops
+                      this wrapper so time and level align as columns again. */}
+                  <div className="flex items-baseline gap-3 sm:contents">
+                    <span className="text-muted-foreground shrink-0" title={line.ts}>
+                      {clockTime(line.ts)}
+                    </span>
+                    <span className={`shrink-0 uppercase sm:w-16 ${style.tag}`}>{line.level}</span>
+                  </div>
+                  {/* min-w-0 lets a long URL wrap instead of widening the row. */}
+                  <span className="min-w-0 whitespace-pre-wrap break-words">{line.msg}</span>
                 </li>
               );
             })}

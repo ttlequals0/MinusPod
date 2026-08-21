@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Long log lines wrap in the run log viewer instead of pushing the row
+  sideways. On phones the time and level sit above the message, so a long
+  URL gets the full width.
+
 ## [2.89.3] - 2026-08-20
 
 ### Changed
