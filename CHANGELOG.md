@@ -16,6 +16,10 @@ release notes.
 - Long log lines wrap in the run log viewer instead of pushing the row
   sideways. On phones the time and level sit above the message, so a long
   URL gets the full width.
+- Silenced the HTTP transport chatter that openai 3.x reintroduced. That
+  release moved to httpx2 and httpcore2, which log under new names, so the
+  existing suppression missed them and per-request connection dumps went to
+  the server log at DEBUG. They were a quarter of every episode run log.
 
 ## [2.89.3] - 2026-08-20
 

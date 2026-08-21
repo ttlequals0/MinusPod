@@ -119,12 +119,17 @@ def setup_logging():
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
     # Third-party HTTP / LLM SDK loggers stay at WARNING even when
-    # LOG_LEVEL=DEBUG -- their DEBUG output is request/response dumps that
+    # LOG_LEVEL=DEBUG: their DEBUG output is request/response dumps that
     # bleed into Loki and bury real signal. The application's own
     # podcast.llm_io logger still emits prompt/response bodies at DEBUG when
     # the operator asks for it.
-    for noisy in ('openai', 'httpx', 'httpcore', 'anthropic',
-                  'asyncio', 'charset_normalizer', 'requests'):
+    #
+    # Names are matched exactly by the logging tree, so a transport that
+    # renames itself escapes this list. openai 3.x did exactly that: it
+    # moved to httpx2/httpcore2, whose records went unsuppressed until
+    # 2.89.4. Check this list when an SDK crosses a major version.
+    for noisy in ('openai', 'httpx', 'httpcore', 'httpx2', 'httpcore2',
+                  'anthropic', 'asyncio', 'charset_normalizer', 'requests'):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Create application loggers
