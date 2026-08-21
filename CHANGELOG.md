@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.89.4] - 2026-08-21
+
 ### Fixed
 
 - Long log lines wrap in the run log viewer instead of pushing the row
