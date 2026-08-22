@@ -97,6 +97,7 @@ from .boundaries import (
     validate_ad_timestamps,
     _unpack_region,
     get_uncovered_portions,
+    removal_coverage_regions,
     tighten_pattern_regions,
     merge_same_sponsor_ads,
     merge_ads_across_short_content_gaps,
@@ -1869,8 +1870,14 @@ class AdDetector:
                         )
                         updated_patterns.add(pid)
 
+        # Only remove-resolving regions may trim a detection: a keep-action
+        # region never cuts, so covering a sponsor detection with one left
+        # the ad in the audio with no marker to remove it (DTNS 5337).
+        coverage_regions = removal_coverage_regions(
+            pattern_matched_regions, action_map)
+
         for ad in claude_ads:
-            uncovered_portions = get_uncovered_portions(ad, pattern_matched_regions)
+            uncovered_portions = get_uncovered_portions(ad, coverage_regions)
 
             if not uncovered_portions:
                 # A covering pattern match rarely carries a category and
@@ -1993,7 +2000,10 @@ class AdDetector:
         pattern_matched_regions.append({
             'start': match.start,
             'end': match.end,
-            'pattern_id': match.pattern_id
+            'pattern_id': match.pattern_id,
+            # Lets removal_coverage_regions resolve the region's action so a
+            # keep-resolving match never shadows a remove-resolving detection.
+            'category': match.category,
         })
         if self.pattern_service and match.pattern_id:
             self.pattern_service.record_pattern_match(match.pattern_id, episode_id)

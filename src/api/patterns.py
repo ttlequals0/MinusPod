@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    MIN_AD_DURATION, count_pending_review, is_pending_review,
-    HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
+    MIN_AD_DURATION, SEGMENT_CATEGORIES, count_pending_review,
+    is_pending_review, HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
 )
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -298,9 +298,17 @@ def update_pattern(pattern_id):
     # Allowed fields. Clients still pass `sponsor` (text); we resolve to
     # sponsor_id via the helper so all sponsor writes flow through one place.
     allowed = {'text_template', 'sponsor', 'intro_variants', 'outro_variants',
-               'is_active', 'disabled_reason', 'scope'}
+               'is_active', 'disabled_reason', 'scope', 'category'}
 
     updates = {k: v for k, v in data.items() if k in allowed}
+
+    # Category decides the pattern's segment action at detection time
+    # (e.g. cross_promo resolving to keep); null clears it back to the
+    # default-remove path.
+    if 'category' in updates:
+        if updates['category'] is not None and \
+                updates['category'] not in SEGMENT_CATEGORIES:
+            return error_response('Invalid category', 400)
 
     if 'sponsor' in updates:
         sponsor_text = updates.pop('sponsor')
@@ -527,6 +535,7 @@ def _validate_create_correction_input(data):
     text_template = (data.get('text_template') or '').strip()
     reason = data.get('reason') or ''
     scope = data.get('scope') or 'podcast'
+    category = data.get('category')
 
     if start is None or end is None:
         return None, error_response('Missing start/end', 400)
@@ -543,6 +552,8 @@ def _validate_create_correction_input(data):
         return None, error_response('text_template must be at least 50 characters', 400)
     if scope not in ('podcast', 'global'):
         return None, error_response("scope must be 'podcast' or 'global'", 400)
+    if category is not None and category not in SEGMENT_CATEGORIES:
+        return None, error_response('Invalid category', 400)
 
     return {
         'start': start,
@@ -551,10 +562,12 @@ def _validate_create_correction_input(data):
         'text_template': text_template,
         'reason': reason,
         'scope': scope,
+        'category': category,
     }, None
 
 
-def _insert_manual_marker(episode, start, end, sponsor_name, reason):
+def _insert_manual_marker(episode, start, end, sponsor_name, reason,
+                          category=None):
     """Build the marker list with a new manual marker spliced in, sorted by
     start. Returns the full marker list; the new marker's pattern_id is
     None and must be backfilled by the caller after pattern creation.
@@ -584,6 +597,9 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason):
         'detection_stage': 'manual',
         'pattern_id': None,
     }
+    # Absent stays absent: an unset category is not a category.
+    if category is not None:
+        new_marker['category'] = category
     markers.append(new_marker)
     markers.sort(key=lambda m: m.get('start', 0))
     return markers
@@ -592,7 +608,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason):
 def _create_patterns_from_segments(
     db, segments, *, scope, podcast_id_str, network_id, episode_id,
     primary_sponsor, primary_sponsor_id=None, created_by=None,
-    pattern_service=None, log_context,
+    category=None, pattern_service=None, log_context,
 ):
     """Create (or dedupe-reuse) one ad_pattern per segment from
     split_template_text. Shared by the two manual-correction paths that
@@ -652,6 +668,7 @@ def _create_patterns_from_segments(
                 intro_variants=seg_intro,
                 outro_variants=seg_outro,
                 created_from_episode_id=episode_id,
+                category=category,
             )
             if created_by:
                 create_kwargs['created_by'] = created_by
@@ -692,6 +709,7 @@ def _submit_correction_create(db, slug, episode_id, data):
     text_template = parsed['text_template']
     reason = parsed['reason']
     scope = parsed['scope']
+    category = parsed['category']
 
     episode = db.get_episode(slug, episode_id)
     if not episode:
@@ -709,7 +727,8 @@ def _submit_correction_create(db, slug, episode_id, data):
     canonical_sponsor_name = sponsor_row['name'] if sponsor_row else sponsor_text
 
     markers = _insert_manual_marker(
-        episode, start, end, canonical_sponsor_name, reason
+        episode, start, end, canonical_sponsor_name, reason,
+        category=category,
     )
 
     # Create the pattern(s); figure out podcast scope params from the episode row.
@@ -735,6 +754,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             created_from_episode_id=episode_id,
             duration=end - start,
             created_by='user',
+            category=category,
         )
         pattern_ids = [new_pattern_id]
     else:
@@ -743,6 +763,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             network_id=network_id, episode_id=episode_id,
             primary_sponsor=canonical_sponsor_name, primary_sponsor_id=sponsor_id,
             created_by='user',
+            category=category,
             log_context=f"create correction in {slug}/{episode_id}",
         )
 
@@ -1536,6 +1557,14 @@ def _validate_import_items(patterns):
         if scope not in ('global', 'network', 'podcast', 'dai_platform'):
             return None, error_response(
                 f'patterns[{idx}] has missing or invalid scope',
+                400,
+            )
+        # Category resolves to a segment action at detection time; an
+        # unrecognized value would silently fall back to the default action.
+        category = pattern_data.get('category')
+        if category is not None and category not in SEGMENT_CATEGORIES:
+            return None, error_response(
+                f'patterns[{idx}] has invalid category',
                 400,
             )
         valid_patterns.append(pattern_data)

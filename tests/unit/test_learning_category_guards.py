@@ -559,6 +559,16 @@ class TestPatternMatchCategoryInheritance:
         loaded = fp._load_fingerprints_from_db()
         assert loaded == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
 
+    def test_disabled_pattern_fingerprint_not_loaded(self, temp_db):
+        """Disabling a pattern must silence its audio fingerprint too
+        (DTNS 5337: a disabled Morning Brew pattern kept matching via its
+        stored fingerprint because the loader never checked is_active)."""
+        pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
+        temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)
+        temp_db.update_ad_pattern(pid, is_active=False)
+
+        assert temp_db.get_all_fingerprints_with_sponsors() == []
+
     def test_fingerprint_pattern_with_no_category_stays_unset(self, temp_db):
         pid = temp_db.create_ad_pattern(scope='global', text_template='x' * 60)
         temp_db.create_audio_fingerprint(pattern_id=pid, fingerprint=b'AQAA', duration=12.0)

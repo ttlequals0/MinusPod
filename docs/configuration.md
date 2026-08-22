@@ -141,7 +141,7 @@ Every detected marker carries a category (what kind of content it is) that resol
 
 Opt-in, two ways: every category defaults to remove, so upgrading changes no feed's output on its own. Intro, outro, and recap markers are produced only for feeds where show-segments detection resolves to on (see below); a feed where it resolves to off has no intro/outro/recap markers to apply a keep or beep action to, no matter what its action map says. If a feed's action map was previously worked around by editing the global first-pass prompt override to force intro/outro removal, remove that override; it applies to every feed and will keep fighting a per-feed keep setting.
 
-A **defined** pattern (one you created, or one synced in from the community pattern list) always cuts its matched segment, overriding whatever action the category resolves to. Only auto-learned patterns respect segment actions. See [How It Works > Segment Categories](how-it-works.md#segment-categories).
+A **defined** pattern (one you created, or one synced in from the community pattern list) always cuts its matched segment, overriding whatever action the category resolves to. Only auto-learned patterns respect segment actions. A pattern's category can be set when creating it (the manual ad editor's Category select, or `category` on import) and edited on the pattern detail modal, so a miscategorized auto-learned pattern that keeps protecting an ad can be corrected in place. See [How It Works > Segment Categories](how-it-works.md#segment-categories).
 
 | Category | Covers | Detected by default |
 |---|---|---|

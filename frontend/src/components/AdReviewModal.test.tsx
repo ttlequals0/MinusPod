@@ -131,3 +131,37 @@ describe('AdReviewModal hideConfirm', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'confirm', sponsor: 'Acme' });
   });
 });
+
+describe('AdReviewModal create mode category', () => {
+  async function fillRequiredCreateFields(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Morning Brew');
+    await user.type(screen.getByLabelText(/Text template/), 'a'.repeat(60));
+  }
+
+  it('passes the chosen category to onCreate', async () => {
+    const onCreate = vi.fn();
+    renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+
+    await fillRequiredCreateFields(user);
+    await user.selectOptions(screen.getByLabelText(/Category/), 'cross_promo');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'cross_promo' }),
+    );
+  });
+
+  it('sends null category when left as Uncategorized', async () => {
+    const onCreate = vi.fn();
+    renderModal({ mode: 'create', onCreate });
+    const user = userEvent.setup();
+
+    await fillRequiredCreateFields(user);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ category: null }),
+    );
+  });
+});

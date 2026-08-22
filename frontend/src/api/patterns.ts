@@ -78,6 +78,7 @@ export interface PatternCorrection {
   text_template?: string;
   scope?: 'podcast' | 'global';
   reason?: string;
+  category?: string | null;
   // 'split' type fields: divider times inside original_ad, plus optional
   // per-piece sponsor overrides in piece order.
   split_points?: number[];
@@ -181,6 +182,8 @@ export async function updatePattern(
     is_active?: boolean;
     disabled_reason?: string;
     scope?: PatternScope;
+    // null clears the category (uncategorized resolves as Sponsor).
+    category?: SegmentCategory | null;
   }
 ): Promise<void> {
   await apiRequest(`/patterns/${id}`, {

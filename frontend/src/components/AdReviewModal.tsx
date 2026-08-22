@@ -26,7 +26,13 @@ import {
 } from '../utils/adReviewHelpers';
 import { btnGhost, btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
+import { focusRing, selectBase } from './fieldStyles';
+import {
+  SEGMENT_CATEGORIES,
+  SEGMENT_CATEGORY_DESCRIPTIONS,
+  SEGMENT_CATEGORY_LABELS,
+  type SegmentCategory,
+} from '../utils/segmentCategory';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -60,6 +66,8 @@ export interface AdCreateSubmit {
   textTemplate: string;
   scope: 'podcast' | 'global';
   reason: string;
+  // null means the user left it Uncategorized (resolves as Sponsor).
+  category: SegmentCategory | null;
 }
 
 interface Props {
@@ -255,6 +263,7 @@ function AdReviewModal({
   // Left empty here so the host can wire a transcript-span fetch into it.
   const [textTemplateInput, setTextTemplateInput] = useState('');
   const [scopeInput, setScopeInput] = useState<'podcast' | 'global'>('podcast');
+  const [categoryInput, setCategoryInput] = useState<SegmentCategory | ''>('');
   const [reasonInput, setReasonInput] = useState('');
   // 'audio' uses the waveform + pins, 'text' uses transcript selection.
   // adStart/adEnd are shared across modes so toggling preserves work.
@@ -1289,6 +1298,24 @@ function AdReviewModal({
               </div>
             </label>
             <label className="block text-sm font-medium text-foreground">
+              Category
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                (each feed's segment actions decide what happens to matches)
+              </span>
+              <select
+                value={categoryInput}
+                onChange={(e) => setCategoryInput(e.target.value as SegmentCategory | '')}
+                className={`mt-1 w-full ${selectBase}`}
+              >
+                <option value="">Uncategorized (counts as Sponsor)</option>
+                {SEGMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+                    {SEGMENT_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-foreground">
               Text template
               <span className="ml-2 text-xs font-normal text-muted-foreground">
                 (filled from the transcript; edit before save)
@@ -1371,6 +1398,7 @@ function AdReviewModal({
                       textTemplate: textTemplateInput.trim(),
                       scope: scopeInput,
                       reason: reasonInput,
+                      category: categoryInput === '' ? null : categoryInput,
                     });
                   }}
                   className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm ${focusRing}`}>

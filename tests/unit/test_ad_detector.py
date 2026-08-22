@@ -14,6 +14,7 @@ from ad_detector import (
     _extract_ad_keywords,
     validate_ad_timestamps,
     get_uncovered_portions,
+    removal_coverage_regions,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
 )
 
@@ -782,3 +783,83 @@ class TestDeduplicateWindowAdsActionGate:
         merged = deduplicate_window_ads(
             self._raw_llm_detections(), action_map=all_remove)
         assert len(merged) == 6
+
+
+class TestRemovalCoverageRegions:
+    """removal_coverage_regions gates which pattern-matched regions may
+    shadow (trim) a Claude detection (DTNS 5337): a keep-resolving pattern
+    region never cuts, so letting it cover a remove-resolving detection
+    leaves the ad in the audio with no marker responsible for removing it."""
+
+    ACTION_MAP = {'sponsor': 'remove', 'cross_promo': 'keep',
+                  'self_promo': 'keep', 'intro': 'keep', 'outro': 'keep',
+                  'interaction': 'remove', 'recap': 'keep'}
+
+    def test_keep_resolving_region_excluded(self):
+        regions = [{'start': 1686.7, 'end': 1781.6, 'pattern_id': 625,
+                    'category': 'cross_promo'}]
+        assert removal_coverage_regions(regions, self.ACTION_MAP) == []
+
+    def test_remove_resolving_and_uncategorized_regions_kept(self):
+        regions = [
+            {'start': 0.0, 'end': 170.0, 'pattern_id': 622,
+             'category': 'sponsor'},
+            {'start': 500.0, 'end': 530.0, 'pattern_id': 661,
+             'category': None},
+        ]
+        assert removal_coverage_regions(regions, self.ACTION_MAP) == regions
+
+    def test_tuple_regions_kept(self):
+        """Bare (start, end) tuples carry no category and stay eligible."""
+        regions = [(100.0, 130.0)]
+        assert removal_coverage_regions(regions, self.ACTION_MAP) == regions
+
+    def test_none_action_map_returns_all(self):
+        regions = [{'start': 10.0, 'end': 40.0, 'pattern_id': 1,
+                    'category': 'cross_promo'}]
+        assert removal_coverage_regions(regions, None) == regions
+
+    def test_dtns_5337_keep_pattern_does_not_trim_sponsor_detection(self):
+        """The DTNS 5337 shape: a cross_promo->keep pattern match covered
+        52% of a Morning Brew + Vanta sponsor detection; the trim left only
+        the Vanta half cut and the Morning Brew read in the audio."""
+        ad = {'start': 1752.4, 'end': 1808.6, 'confidence': 0.97,
+              'category': 'sponsor', 'reason': 'Morning Brew Daily + Vanta'}
+        regions = [{'start': 1686.7, 'end': 1781.64, 'pattern_id': 625,
+                    'category': 'cross_promo'}]
+        coverage = removal_coverage_regions(regions, self.ACTION_MAP)
+        portions = get_uncovered_portions(ad, coverage)
+        assert len(portions) == 1
+        assert portions[0]['start'] == 1752.4
+        assert portions[0]['end'] == 1808.6
+
+
+class TestAddPatternMatchRegionCategory:
+    """_add_pattern_match must record the match category on the coverage
+    region so removal_coverage_regions can resolve its action."""
+
+    def _match(self, category):
+        from types import SimpleNamespace
+        return SimpleNamespace(start=10.0, end=40.0, confidence=0.9,
+                               sponsor='Morning Brew', pattern_id=625,
+                               category=category, matched_text=None)
+
+    def test_region_carries_match_category(self):
+        from ad_detector import AdDetector
+        detector = AdDetector.__new__(AdDetector)
+        detector.pattern_service = None
+        all_ads, regions = [], []
+        detector._add_pattern_match(self._match('cross_promo'),
+                                    'text_pattern', 'content',
+                                    all_ads, regions, 'ep1')
+        assert regions[0]['category'] == 'cross_promo'
+
+    def test_region_category_none_when_pattern_uncategorized(self):
+        from ad_detector import AdDetector
+        detector = AdDetector.__new__(AdDetector)
+        detector.pattern_service = None
+        all_ads, regions = [], []
+        detector._add_pattern_match(self._match(None),
+                                    'text_pattern', 'content',
+                                    all_ads, regions, 'ep1')
+        assert regions[0].get('category') is None

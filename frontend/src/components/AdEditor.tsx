@@ -29,6 +29,7 @@ export interface AdCorrection {
   text_template?: string;
   scope?: 'podcast' | 'global';
   reason?: string;
+  category?: string | null;
 }
 
 interface AdEditorProps {
@@ -195,6 +196,7 @@ export function AdEditor({
       text_template: s.textTemplate,
       scope: s.scope,
       reason: s.reason,
+      category: s.category,
     });
     setInternalCreateMode(false);
     if (detectedAds.length === 0) onClose?.();

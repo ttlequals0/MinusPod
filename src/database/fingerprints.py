@@ -28,8 +28,9 @@ class FingerprintMixin:
             """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
                       ap.category AS category
                FROM audio_fingerprints af
-               LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id
-               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id"""
+               JOIN ad_patterns ap ON af.pattern_id = ap.id
+               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+               WHERE ap.is_active = 1"""
         )
         return [_row_with_category(dict(row)) for row in cursor.fetchall()]
 
