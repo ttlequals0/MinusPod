@@ -11,6 +11,28 @@ release notes.
 
 ## [Unreleased]
 
+## [2.89.5] - 2026-08-21
+
+### Added
+
+- A pattern's segment category can now be set everywhere a pattern is
+  made or edited: the pattern detail modal gains a Category select, the
+  manual ad editor classifies the new marker and its pattern at creation,
+  and `PUT /patterns/{id}` and `POST /patterns/import` accept a validated
+  `category` field (null clears it; unknown values are rejected).
+
+### Fixed
+
+- A keep-resolving pattern match no longer trims overlapping remove
+  detections. Coverage trimming counts only pattern regions whose
+  category resolves to remove, so a cross-promo pattern set to keep can
+  no longer clip an LLM sponsor detection down to its uncovered
+  remainder. Before, that left the ad in the audio with no marker
+  responsible for cutting it.
+- Disabling a pattern now silences its stored audio fingerprint too. The
+  fingerprint loader never checked is_active, so a disabled pattern kept
+  producing matches.
+
 ## [2.89.4] - 2026-08-21
 
 ### Fixed

@@ -706,6 +706,25 @@ def tighten_pattern_regions(claude_ads: list[dict], pattern_matched_regions: lis
 
 # --- Uncovered tail preservation (Fix 2) ---
 
+def removal_coverage_regions(pattern_matched_regions: list, action_map) -> list:
+    """Pattern regions eligible to shadow (trim) a Claude detection.
+
+    A keep-resolving pattern region never cuts, so letting it cover a
+    remove-resolving detection trims the only marker that could remove the
+    ad while the covering marker keeps the audio (DTNS 5337). Regions
+    without category information (bare tuples, uncategorized patterns)
+    resolve to the default remove action and stay eligible.
+    """
+    if action_map is None:
+        return pattern_matched_regions
+    return [
+        region for region in pattern_matched_regions
+        if not isinstance(region, dict)
+        or resolve_category_action(region.get('category'), action_map)
+        == DEFAULT_SEGMENT_ACTION
+    ]
+
+
 def get_uncovered_portions(ad: dict, covered_regions: list,
                            min_duration: float = None) -> list[dict]:
     """Find portions of an ad not covered by pattern-matched regions.

@@ -112,3 +112,39 @@ describe('Split button', () => {
     expect(screen.getByRole('button', { name: 'Split' })).toBeDefined();
   });
 });
+
+describe('Category editing', () => {
+  it('shows a category select preloaded with the stored category', async () => {
+    renderModal(makePattern({ category: 'cross_promo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const select = screen.getByLabelText('Category') as HTMLSelectElement;
+    expect(select.value).toBe('cross_promo');
+  });
+
+  it('saves a changed category through updatePattern', async () => {
+    mockUpdatePattern.mockResolvedValue(undefined);
+    renderModal(makePattern({ category: 'cross_promo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'sponsor');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
+      42, expect.objectContaining({ category: 'sponsor' }),
+    ));
+  });
+
+  it('clearing the category saves null so the backend unsets it', async () => {
+    mockUpdatePattern.mockResolvedValue(undefined);
+    renderModal(makePattern({ category: 'cross_promo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    await userEvent.selectOptions(screen.getByLabelText('Category'), '');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
+      42, expect.objectContaining({ category: null }),
+    ));
+  });
+});

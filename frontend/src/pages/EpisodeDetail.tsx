@@ -187,6 +187,7 @@ function EpisodeDetail() {
           text_template: correction.text_template,
           scope: correction.scope,
           reason: correction.reason,
+          category: correction.category,
         });
       }
       const oa = correction.originalAd!;

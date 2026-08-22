@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.89.4
+  version: 2.89.5
   contact:
     name: MinusPod
   license:
@@ -2092,7 +2092,7 @@ paths:
       tags:
         - Patterns
       summary: Update a pattern
-      description: Update pattern properties like active status, sponsor, or disabled reason
+      description: Update pattern properties like active status, sponsor, category, or disabled reason
       operationId: updatePattern
       parameters:
         - $ref: '#/components/parameters/pattern_id'
@@ -2112,6 +2112,17 @@ paths:
                 disabled_reason:
                   type: string
                   description: Reason for disabling the pattern
+                category:
+                  type:
+                    - string
+                    - 'null'
+                  enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+                  description: >-
+                    Segment category for this pattern's matches; each feed's
+                    segment actions map the category to remove, beep, or keep.
+                    Null clears the category, and an uncategorized pattern
+                    resolves as sponsor. An unrecognized value is rejected
+                    with 400.
       responses:
         '200':
           description: Pattern updated
@@ -9900,6 +9911,17 @@ components:
         sponsor:
           type: string
           description: Sponsor name to associate (for confirm/adjust/create)
+        category:
+          type:
+            - string
+            - 'null'
+          enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
+          description: >-
+            create type only (2.89.5+). Segment category stamped on both the
+            manual marker and the pattern(s) created from it; each feed's
+            segment actions decide what happens to future matches. Omit or
+            send null to leave the marker and pattern uncategorized
+            (resolves as sponsor).
         adjusted_start:
           type: number
           description: >-

@@ -8,7 +8,13 @@ import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { Modal } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
+import { focusRing, selectBase } from './fieldStyles';
+import {
+  SEGMENT_CATEGORIES,
+  SEGMENT_CATEGORY_DESCRIPTIONS,
+  SEGMENT_CATEGORY_LABELS,
+  type SegmentCategory,
+} from '../utils/segmentCategory';
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -23,6 +29,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   const [editedPattern, setEditedPattern] = useState({
     text_template: pattern.text_template || '',
     sponsor: pattern.sponsor || '',
+    category: (pattern.category || '') as SegmentCategory | '',
     is_active: pattern.is_active,
     disabled_reason: pattern.disabled_reason || '',
   });
@@ -68,6 +75,8 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     mutationFn: () => updatePattern(pattern.id, {
       text_template: editedPattern.text_template || undefined,
       sponsor: editedPattern.sponsor || undefined,
+      // '' means the user picked Uncategorized; null tells the API to clear.
+      category: editedPattern.category === '' ? null : editedPattern.category,
       is_active: editedPattern.is_active,
       disabled_reason: editedPattern.disabled_reason || undefined,
     }),
@@ -182,6 +191,31 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   "{editedPattern.sponsor}" is not in the sponsor list. Click "Add New" to add it.
                 </p>
               )}
+            </div>
+
+            <div>
+              <label htmlFor="pattern-category" className="block text-sm font-medium text-foreground mb-1">
+                Category
+              </label>
+              <select
+                id="pattern-category"
+                value={editedPattern.category}
+                onChange={(e) => setEditedPattern(prev => ({
+                  ...prev, category: e.target.value as SegmentCategory | '',
+                }))}
+                className={`w-full ${selectBase}`}
+              >
+                <option value="">Uncategorized</option>
+                {SEGMENT_CATEGORIES.map((c) => (
+                  <option key={c} value={c} title={SEGMENT_CATEGORY_DESCRIPTIONS[c]}>
+                    {SEGMENT_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Each feed's segment actions decide what happens to matches in
+                this category. Uncategorized patterns count as Sponsor.
+              </p>
             </div>
 
             <div>
