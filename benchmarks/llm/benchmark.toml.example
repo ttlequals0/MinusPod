@@ -396,6 +396,15 @@ id = "mistralai/mistral-7b-instruct-v0.1"
 provider = "openrouter"
 deprecated = true
 
+# Stealth / cloaked listings. Slugs are temporary by design: an unannounced
+# model published under a placeholder name, usually free while it is cloaked.
+# Expect tight rate limits and provider-side prompt logging, and expect the
+# slug to disappear when the model ships under its real name.
+
+[[models]]
+id = "stealth/ox-alpha"
+provider = "openrouter"
+
 [run]
 trials = 5
 temperature = 0.0

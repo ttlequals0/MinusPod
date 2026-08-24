@@ -50,7 +50,7 @@ Quick reference for the columns in every table below.
 
 ### Best Accuracy (F0.5 @ IoU >= 0.5)
 
-Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank.
+Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank. Cost includes free-tier models (shown at $0.00).
 
 | Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |
 |------|-------|------|--------|-----------|--------|----|----------------|-------------|-----------------|-------|
@@ -62,49 +62,50 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 | A | `openai/gpt-5.5` | 0.780 | +/-0.124 | 0.783 | 0.819 | 0.784 | $7.6842 | 5.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
 | A | `google/gemini-3.5-flash` | 0.774 | +/-0.124 | 0.771 | 0.838 | 0.787 | $3.4202 | 5.6s | 1.00 |  |
 | A | `google/gemini-3.5-flash-lite` | 0.774 | +/-0.110 | 0.786 | 0.813 | 0.776 | $0.3643 | 0.7s | 1.00 |  |
-| A | `openai/gpt-5.6-terra` | 0.767 | +/-0.126 | 0.772 | 0.808 | 0.768 | $1.1951 | 2.1s | 0.86 | (!) brittle JSON (!) fails no-ad control |
+| A | `openai/gpt-5.6-terra` | 0.767 | +/-0.126 | 0.772 | 0.808 | 0.768 | $2.3902 | 2.1s | 0.86 | (!) brittle JSON (!) fails no-ad control |
 | A | `x-ai/grok-4.3` | 0.767 | +/-0.122 | 0.755 | 0.847 | 0.789 | $1.6048 | 3.7s | 1.00 |  |
 | A | `x-ai/grok-4.6` | 0.760 | +/-0.119 | 0.751 | 0.852 | 0.783 | $3.7063 | 13.4s | 1.00 |  |
 | A | `qwen/qwen3.5-plus-02-15` | 0.756 | +/-0.115 | 0.745 | 0.844 | 0.779 | $1.0746 | 29.2s | 1.00 |  |
 | A | `claude-fable-5` | 0.752 | +/-0.112 | 0.740 | 0.878 | 0.783 | $10.7552 | 6.6s | 1.00 |  |
+| A | `stealth/ox-alpha` | 0.749 | +/-0.130 | 0.755 | 0.782 | 0.750 | $0.0000 | 66.6s | 0.94 |  |
 | A | `mistralai/mistral-medium-3-5` | 0.746 | +/-0.104 | 0.724 | 0.886 | 0.787 | $1.8393 | 1.1s | 1.00 |  |
 | A | `qwen/qwen3.6-flash` | 0.738 | +/-0.088 | 0.737 | 0.788 | 0.747 | $0.5435 | 7.6s | 0.96 |  |
-| A | `openai/gpt-5.6-luna` | 0.736 | +/-0.119 | 0.730 | 0.824 | 0.754 | $0.1402 | 3.5s | 0.83 | (!) brittle JSON |
+| A | `openai/gpt-5.6-luna` | 0.736 | +/-0.119 | 0.730 | 0.824 | 0.754 | $0.2804 | 3.5s | 0.83 | (!) brittle JSON |
 | A | `google/gemini-3.1-pro-preview` | 0.732 | +/-0.119 | 0.726 | 0.826 | 0.752 | $4.9160 | 8.3s | 1.00 |  |
 | A | `claude-opus-4-8` | 0.728 | +/-0.101 | 0.715 | 0.857 | 0.760 | $5.3661 | 7.8s | 1.00 |  |
 | A | `claude-opus-5` | 0.725 | +/-0.143 | 0.718 | 0.845 | 0.748 | $5.3761 | 3.7s | 1.00 |  |
-| B | `deepseek/deepseek-v4-flash` | 0.723 | +/-0.133 | 0.746 | 0.717 | 0.708 | $0.0981 | 6.3s | 0.82 | (!) brittle JSON |
+| B | `deepseek/deepseek-v4-flash` | 0.723 | +/-0.133 | 0.746 | 0.717 | 0.708 | $0.0715 | 6.3s | 0.82 | (!) brittle JSON |
 | B | `qwen/qwen3.7-max` | 0.718 | +/-0.121 | 0.706 | 0.826 | 0.746 | $2.8109 | 23.4s | 0.99 |  |
-| B | `openai/gpt-5.6-sol` | 0.716 | +/-0.135 | 0.709 | 0.816 | 0.738 | $6.2293 | 3.7s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| B | `openai/gpt-5.6-sol` | 0.716 | +/-0.135 | 0.709 | 0.816 | 0.738 | $2.4303 | 3.7s | 0.84 | (!) brittle JSON (!) fails no-ad control |
 | B | `claude-sonnet-5` | 0.708 | +/-0.128 | 0.698 | 0.812 | 0.732 | $2.1452 | 8.5s | 1.00 |  |
-| B | `deepseek/deepseek-v4-pro` | 0.708 | +/-0.133 | 0.739 | 0.665 | 0.680 | $1.7968 | 16.2s | 0.87 | (!) brittle JSON (!) fails no-ad control |
+| B | `deepseek/deepseek-v4-pro` | 0.708 | +/-0.133 | 0.739 | 0.665 | 0.680 | $0.6106 | 16.2s | 0.87 | (!) brittle JSON (!) fails no-ad control |
 | B | `claude-opus-4-7` | 0.704 | +/-0.129 | 0.693 | 0.816 | 0.731 | $5.3293 | 4.6s | 1.00 |  |
 | B | `qwen/qwen3.7-flash` | 0.701 | +/-0.093 | 0.702 | 0.740 | 0.706 | $0.0725 | 10.1s | 0.96 |  |
 | B | `moonshotai/kimi-k3` | 0.693 | +/-0.130 | 0.694 | 0.756 | 0.703 | $5.9242 | 13.8s | 0.81 | (!) brittle JSON (!) fails no-ad control |
-| B | `deepseek/deepseek-v3.2` | 0.687 | +/-0.118 | 0.792 | 0.552 | 0.599 | $0.3015 | 1.7s | 1.00 |  |
+| B | `deepseek/deepseek-v3.2` | 0.687 | +/-0.118 | 0.792 | 0.552 | 0.599 | $0.2914 | 1.7s | 1.00 |  |
 | B | `google/gemini-3.1-flash-lite` | 0.686 | +/-0.108 | 0.653 | 0.918 | 0.747 | $0.2988 | 0.8s | 0.94 | (!) fails no-ad control |
 | B | `meta/muse-spark-1.1` | 0.671 | +/-0.128 | 0.765 | 0.530 | 0.595 | $2.2536 | 4.3s | 0.93 |  |
 | B | `google/gemini-2.5-pro` | 0.669 | +/-0.132 | 0.656 | 0.794 | 0.700 | $4.1601 | 14.2s | 0.96 | (!) fails no-ad control |
 | B | `mistralai/mistral-medium-3.1` | 0.669 | +/-0.136 | 0.655 | 0.790 | 0.699 | $0.4847 | 0.7s | 1.00 |  |
 | B | `minimax/minimax-m3` | 0.665 | +/-0.083 | 0.720 | 0.612 | 0.626 | $0.3575 | 1.7s | 0.88 | (!) brittle JSON (!) fails no-ad control |
 | B | `google/gemma-4-31b-it` | 0.662 | +/-0.132 | 0.665 | 0.701 | 0.667 | $0.1181 | 2.4s | 0.87 | (!) brittle JSON (!) fails no-ad control |
-| C | `deepseek/deepseek-v4-flash-0731` | 0.656 | +/-0.148 | 0.720 | 0.557 | 0.601 | $0.2305 | 13.2s | 0.73 | (!) brittle JSON |
-| C | `openai/gpt-oss-120b` | 0.655 | +/-0.146 | 0.636 | 0.807 | 0.692 | $0.0559 | 6.5s | 0.88 | (!) brittle JSON (!) fails no-ad control |
+| C | `deepseek/deepseek-v4-flash-0731` | 0.656 | +/-0.148 | 0.720 | 0.557 | 0.601 | $0.1371 | 13.2s | 0.73 | (!) brittle JSON |
+| C | `openai/gpt-oss-120b` | 0.655 | +/-0.146 | 0.636 | 0.807 | 0.692 | $0.0634 | 6.5s | 0.88 | (!) brittle JSON (!) fails no-ad control |
 | C | `meta/muse-glimmer-30b` | 0.650 | +/-0.140 | 0.652 | 0.684 | 0.654 | $0.6965 | 10.8s | 0.89 | (!) brittle JSON |
 | C | `google/gemini-2.5-flash` | 0.641 | +/-0.156 | 0.612 | 0.859 | 0.694 | $0.3796 | 0.8s | 1.00 |  |
 | C | `qwen/qwen3.6-plus` | 0.622 | +/-0.166 | 0.645 | 0.619 | 0.607 | $1.1534 | 36.9s | 0.90 | (!) brittle JSON |
 | C | `qwen/qwen3.5-27b` | 0.607 | +/-0.096 | 0.675 | 0.563 | 0.567 | $0.8941 | 37.6s | 0.70 | (!) brittle JSON |
 | C | `nvidia/nemotron-3-super-120b-a12b` | 0.597 | +/-0.209 | 0.624 | 0.577 | 0.577 | $0.2194 | 22.3s | 0.79 | (!) brittle JSON (!) fails no-ad control |
 | C | `openai/gpt-5.4` | 0.592 | +/-0.116 | 0.574 | 0.776 | 0.634 | $2.7907 | 1.4s | 0.80 | (!) brittle JSON (!) fails no-ad control |
-| C | `qwen/qwen3.8-27b` | 0.571 | +/-0.220 | 0.653 | 0.467 | 0.510 | $1.5144 | 70.3s | 0.69 | (!) brittle JSON |
-| C | `z-ai/glm-5.2` | 0.568 | +/-0.121 | 0.555 | 0.769 | 0.606 | $0.6636 | 3.5s | 0.73 | (!) brittle JSON (!) fails no-ad control |
+| C | `qwen/qwen3.8-27b` | 0.571 | +/-0.220 | 0.653 | 0.467 | 0.510 | $1.3947 | 70.3s | 0.69 | (!) brittle JSON |
+| C | `z-ai/glm-5.2` | 0.568 | +/-0.121 | 0.555 | 0.769 | 0.606 | $1.3083 | 3.5s | 0.73 | (!) brittle JSON (!) fails no-ad control |
 | C | `google/gemini-2.5-flash-lite` | 0.566 | +/-0.153 | 0.540 | 0.854 | 0.623 | $0.1132 | 0.8s | 0.97 | (!) fails no-ad control |
 | C | `openai/o3` | 0.563 | +/-0.173 | 0.710 | 0.371 | 0.457 | $3.3100 | 6.7s | 0.93 |  |
 | C | `deepseek/deepseek-r1` | 0.552 | +/-0.151 | 0.546 | 0.674 | 0.574 | $1.4743 | 35.7s | 0.84 | (!) brittle JSON (!) fails no-ad control |
 | C | `tencent/hy3` | 0.548 | +/-0.221 | 0.615 | 0.441 | 0.489 | $0.3876 | 22.3s | 0.62 | (!) brittle JSON |
-| D | `google/gemma-4-26b-a4b-it` | 0.545 | +/-0.169 | 0.532 | 0.651 | 0.572 | $0.1401 | 1.4s | 0.84 | (!) brittle JSON (!) fails no-ad control |
+| D | `google/gemma-4-26b-a4b-it` | 0.545 | +/-0.169 | 0.532 | 0.651 | 0.572 | $0.0825 | 1.4s | 0.84 | (!) brittle JSON (!) fails no-ad control |
 | D | `openai/gpt-5.4-mini` | 0.537 | +/-0.176 | 0.516 | 0.748 | 0.582 | $0.8470 | 1.1s | 0.78 | (!) brittle JSON (!) fails no-ad control |
-| D | `deepseek/deepseek-v4-pro-0813` | 0.525 | +/-0.245 | 0.594 | 0.422 | 0.467 | $0.7982 | 26.6s | 0.73 | (!) brittle JSON |
+| D | `deepseek/deepseek-v4-pro-0813` | 0.525 | +/-0.245 | 0.594 | 0.422 | 0.467 | $2.4576 | 26.6s | 0.73 | (!) brittle JSON |
 | D | `openai/gpt-oss-20b` | 0.525 | +/-0.157 | 0.524 | 0.599 | 0.540 | $0.0620 | 9.2s | 0.80 | (!) brittle JSON (!) fails no-ad control |
 | D | `deepseek/deepseek-r1-0528` | 0.520 | +/-0.132 | 0.520 | 0.649 | 0.540 | $1.1645 | 29.4s | 0.84 | (!) brittle JSON (!) fails no-ad control |
 | D | `xiaomi/mimo-v2.5-pro` | 0.496 | +/-0.131 | 0.572 | 0.402 | 0.438 | $0.4954 | 2.2s | 0.90 | (!) fails no-ad control |
@@ -130,7 +131,7 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 | E | `qwen/qwen3.8-max` | 0.340 | +/-0.206 | 0.435 | 0.217 | 0.272 | $4.2714 | 29.7s | 0.73 | (!) brittle JSON |
 | E | `microsoft/phi-4` | 0.337 | +/-0.190 | 0.386 | 0.276 | 0.299 | $0.0792 | 0.5s | 0.98 |  |
 | E | `thinkingmachines/inkling` | 0.298 | +/-0.156 | 0.396 | 0.180 | 0.231 | $3.1580 | 65.6s | 0.35 | (!) brittle JSON (!) fails no-ad control |
-| E | `nvidia/nemotron-3.5-lightning` | 0.290 | +/-0.163 | 0.310 | 0.328 | 0.285 | $0.1509 | 1.2s | 0.79 | (!) brittle JSON (!) fails no-ad control |
+| E | `nvidia/nemotron-3.5-lightning` | 0.290 | +/-0.163 | 0.310 | 0.328 | 0.285 | $0.1207 | 1.2s | 0.79 | (!) brittle JSON (!) fails no-ad control |
 | E | `openai/gpt-3.5-turbo` | 0.275 | +/-0.140 | 0.260 | 0.484 | 0.310 | $0.5564 | 1.4s | 0.70 | (!) brittle JSON (!) fails no-ad control |
 | E | `meta-llama/llama-3.1-8b-instruct` | 0.246 | +/-0.118 | 0.243 | 0.325 | 0.259 | $0.0572 | 0.9s | 0.82 | (!) brittle JSON (!) fails no-ad control |
 | F | `openai/o4-mini` | 0.189 | +/-0.092 | 0.272 | 0.093 | 0.135 | $2.1179 | 7.3s | 0.07 | (!) brittle JSON |
@@ -140,32 +141,32 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 
 ### Best Value (F0.5 per dollar)
 
-Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is undefined (none in this campaign's roster came back at $0.00). No confidence tiers on this table, since a point ratio does not group cleanly, but the reliability flags still apply.
+Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is undefined; they are ranked separately under Best Free-Tier below. No confidence tiers on this table, since a point ratio does not group cleanly, but the reliability flags still apply.
 
 | Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |
 |------|-------|--------|------|----|----------------|-------|
-| 1 | `openai/gpt-oss-120b` | 11.71 | 0.655 | 0.692 | $0.0559 | (!) brittle JSON (!) fails no-ad control |
-| 2 | `qwen/qwen3.7-flash` | 9.66 | 0.701 | 0.706 | $0.0725 |  |
-| 3 | `openai/gpt-oss-20b` | 8.46 | 0.525 | 0.540 | $0.0620 | (!) brittle JSON (!) fails no-ad control |
-| 4 | `deepseek/deepseek-v4-flash` | 7.37 | 0.723 | 0.708 | $0.0981 | (!) brittle JSON |
-| 5 | `google/gemma-4-31b-it` | 5.60 | 0.662 | 0.667 | $0.1181 | (!) brittle JSON (!) fails no-ad control |
-| 6 | `openai/gpt-5.6-luna` | 5.25 | 0.736 | 0.754 | $0.1402 | (!) brittle JSON |
+| 1 | `openai/gpt-oss-120b` | 10.33 | 0.655 | 0.692 | $0.0634 | (!) brittle JSON (!) fails no-ad control |
+| 2 | `deepseek/deepseek-v4-flash` | 10.11 | 0.723 | 0.708 | $0.0715 | (!) brittle JSON |
+| 3 | `qwen/qwen3.7-flash` | 9.66 | 0.701 | 0.706 | $0.0725 |  |
+| 4 | `openai/gpt-oss-20b` | 8.46 | 0.525 | 0.540 | $0.0620 | (!) brittle JSON (!) fails no-ad control |
+| 5 | `google/gemma-4-26b-a4b-it` | 6.60 | 0.545 | 0.572 | $0.0825 | (!) brittle JSON (!) fails no-ad control |
+| 6 | `google/gemma-4-31b-it` | 5.60 | 0.662 | 0.667 | $0.1181 | (!) brittle JSON (!) fails no-ad control |
 | 7 | `google/gemini-2.5-flash-lite` | 5.00 | 0.566 | 0.623 | $0.1132 | (!) fails no-ad control |
-| 8 | `meta-llama/llama-3.3-70b-instruct` | 4.42 | 0.489 | 0.493 | $0.1107 | (!) brittle JSON |
-| 9 | `meta-llama/llama-3.1-8b-instruct` | 4.30 | 0.246 | 0.259 | $0.0572 | (!) brittle JSON (!) fails no-ad control |
-| 10 | `microsoft/phi-4` | 4.26 | 0.337 | 0.299 | $0.0792 |  |
-| 11 | `qwen/qwen3-235b-a22b-2507` | 4.25 | 0.458 | 0.499 | $0.1078 | (!) brittle JSON (!) fails no-ad control |
-| 12 | `meta-llama/llama-4-scout` | 4.17 | 0.463 | 0.442 | $0.1111 | (!) brittle JSON (!) fails no-ad control |
-| 13 | `google/gemma-4-26b-a4b-it` | 3.89 | 0.545 | 0.572 | $0.1401 | (!) brittle JSON (!) fails no-ad control |
-| 14 | `deepseek/deepseek-v4-flash-0731` | 2.85 | 0.656 | 0.601 | $0.2305 | (!) brittle JSON |
-| 15 | `nvidia/nemotron-3-super-120b-a12b` | 2.72 | 0.597 | 0.577 | $0.2194 | (!) brittle JSON (!) fails no-ad control |
-| 16 | `xiaomi/mimo-v2.5` | 2.64 | 0.447 | 0.471 | $0.1692 | (!) brittle JSON (!) fails no-ad control |
-| 17 | `google/gemini-3.1-flash-lite` | 2.29 | 0.686 | 0.747 | $0.2988 | (!) fails no-ad control |
-| 18 | `qwen/qwen3-14b` | 2.28 | 0.393 | 0.385 | $0.1724 | (!) brittle JSON (!) fails no-ad control |
-| 19 | `deepseek/deepseek-v3.2` | 2.28 | 0.687 | 0.599 | $0.3015 |  |
-| 20 | `meta-llama/llama-4-maverick` | 2.20 | 0.485 | 0.522 | $0.2206 | (!) brittle JSON (!) fails no-ad control |
-| 21 | `google/gemini-3.5-flash-lite` | 2.12 | 0.774 | 0.776 | $0.3643 |  |
-| 22 | `nvidia/nemotron-3.5-lightning` | 1.92 | 0.290 | 0.285 | $0.1509 | (!) brittle JSON (!) fails no-ad control |
+| 8 | `deepseek/deepseek-v4-flash-0731` | 4.79 | 0.656 | 0.601 | $0.1371 | (!) brittle JSON |
+| 9 | `meta-llama/llama-3.3-70b-instruct` | 4.42 | 0.489 | 0.493 | $0.1107 | (!) brittle JSON |
+| 10 | `meta-llama/llama-3.1-8b-instruct` | 4.30 | 0.246 | 0.259 | $0.0572 | (!) brittle JSON (!) fails no-ad control |
+| 11 | `microsoft/phi-4` | 4.26 | 0.337 | 0.299 | $0.0792 |  |
+| 12 | `qwen/qwen3-235b-a22b-2507` | 4.25 | 0.458 | 0.499 | $0.1078 | (!) brittle JSON (!) fails no-ad control |
+| 13 | `meta-llama/llama-4-scout` | 4.17 | 0.463 | 0.442 | $0.1111 | (!) brittle JSON (!) fails no-ad control |
+| 14 | `nvidia/nemotron-3-super-120b-a12b` | 2.72 | 0.597 | 0.577 | $0.2194 | (!) brittle JSON (!) fails no-ad control |
+| 15 | `xiaomi/mimo-v2.5` | 2.64 | 0.447 | 0.471 | $0.1692 | (!) brittle JSON (!) fails no-ad control |
+| 16 | `openai/gpt-5.6-luna` | 2.62 | 0.736 | 0.754 | $0.2804 | (!) brittle JSON |
+| 17 | `nvidia/nemotron-3.5-lightning` | 2.40 | 0.290 | 0.285 | $0.1207 | (!) brittle JSON (!) fails no-ad control |
+| 18 | `deepseek/deepseek-v3.2` | 2.36 | 0.687 | 0.599 | $0.2914 |  |
+| 19 | `google/gemini-3.1-flash-lite` | 2.29 | 0.686 | 0.747 | $0.2988 | (!) fails no-ad control |
+| 20 | `qwen/qwen3-14b` | 2.28 | 0.393 | 0.385 | $0.1724 | (!) brittle JSON (!) fails no-ad control |
+| 21 | `meta-llama/llama-4-maverick` | 2.20 | 0.485 | 0.522 | $0.2206 | (!) brittle JSON (!) fails no-ad control |
+| 22 | `google/gemini-3.5-flash-lite` | 2.12 | 0.774 | 0.776 | $0.3643 |  |
 | 23 | `minimax/minimax-m3` | 1.86 | 0.665 | 0.626 | $0.3575 | (!) brittle JSON (!) fails no-ad control |
 | 24 | `google/gemini-2.5-flash` | 1.69 | 0.641 | 0.694 | $0.3796 |  |
 | 25 | `inclusionai/ring-2.6-1t` | 1.56 | 0.385 | 0.337 | $0.2468 | (!) brittle JSON |
@@ -174,50 +175,50 @@ Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here be
 | 28 | `qwen/qwen3.6-flash` | 1.36 | 0.738 | 0.747 | $0.5435 |  |
 | 29 | `mistralai/codestral-2508` | 1.28 | 0.459 | 0.504 | $0.3585 | (!) fails no-ad control |
 | 30 | `google/gemini-3.7-flash` | 1.22 | 0.781 | 0.787 | $0.6411 |  |
-| 31 | `stepfun/step-3.7-flash` | 1.10 | 0.473 | 0.398 | $0.4302 | (!) brittle JSON (!!) moderation blocked 15.2% |
-| 32 | `xiaomi/mimo-v2.5-pro` | 1.00 | 0.496 | 0.438 | $0.4954 | (!) fails no-ad control |
-| 33 | `meta/muse-glimmer-30b` | 0.93 | 0.650 | 0.654 | $0.6965 | (!) brittle JSON |
-| 34 | `z-ai/glm-5.2` | 0.86 | 0.568 | 0.606 | $0.6636 | (!) brittle JSON (!) fails no-ad control |
+| 31 | `deepseek/deepseek-v4-pro` | 1.16 | 0.708 | 0.680 | $0.6106 | (!) brittle JSON (!) fails no-ad control |
+| 32 | `stepfun/step-3.7-flash` | 1.10 | 0.473 | 0.398 | $0.4302 | (!) brittle JSON (!!) moderation blocked 15.2% |
+| 33 | `xiaomi/mimo-v2.5-pro` | 1.00 | 0.496 | 0.438 | $0.4954 | (!) fails no-ad control |
+| 34 | `meta/muse-glimmer-30b` | 0.93 | 0.650 | 0.654 | $0.6965 | (!) brittle JSON |
 | 35 | `mistralai/mistral-large-2512` | 0.77 | 0.479 | 0.547 | $0.6184 | (!) fails no-ad control |
 | 36 | `meituan/longcat-2.0` | 0.77 | 0.431 | 0.390 | $0.5573 | (!) brittle JSON |
 | 37 | `claude-haiku-4-5-20251001` | 0.76 | 0.819 | 0.842 | $1.0820 |  |
 | 38 | `qwen/qwen3.5-plus-02-15` | 0.70 | 0.756 | 0.779 | $1.0746 |  |
 | 39 | `qwen/qwen3.5-27b` | 0.68 | 0.607 | 0.567 | $0.8941 | (!) brittle JSON |
-| 40 | `deepseek/deepseek-v4-pro-0813` | 0.66 | 0.525 | 0.467 | $0.7982 | (!) brittle JSON |
-| 41 | `openai/gpt-5.6-terra` | 0.64 | 0.767 | 0.768 | $1.1951 | (!) brittle JSON (!) fails no-ad control |
-| 42 | `openai/gpt-5.4-mini` | 0.63 | 0.537 | 0.582 | $0.8470 | (!) brittle JSON (!) fails no-ad control |
-| 43 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.62 | 0.485 | 0.453 | $0.7782 | (!) brittle JSON (!) fails no-ad control |
-| 44 | `qwen/qwen3.7-plus` | 0.62 | 0.447 | 0.506 | $0.7238 | (!) brittle JSON (!) fails no-ad control |
-| 45 | `deepseek/deepseek-r1-distill-llama-70b` | 0.60 | 0.414 | 0.387 | $0.6913 | (!) brittle JSON (!) fails no-ad control |
-| 46 | `google/gemini-3.6-flash` | 0.55 | 0.788 | 0.796 | $1.4431 |  |
-| 47 | `qwen/qwen3.6-plus` | 0.54 | 0.622 | 0.607 | $1.1534 | (!) brittle JSON |
-| 48 | `openai/gpt-3.5-turbo` | 0.49 | 0.275 | 0.310 | $0.5564 | (!) brittle JSON (!) fails no-ad control |
-| 49 | `x-ai/grok-4.3` | 0.48 | 0.767 | 0.789 | $1.6048 |  |
-| 50 | `deepseek/deepseek-r1-0528` | 0.45 | 0.520 | 0.540 | $1.1645 | (!) brittle JSON (!) fails no-ad control |
+| 40 | `openai/gpt-5.4-mini` | 0.63 | 0.537 | 0.582 | $0.8470 | (!) brittle JSON (!) fails no-ad control |
+| 41 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.62 | 0.485 | 0.453 | $0.7782 | (!) brittle JSON (!) fails no-ad control |
+| 42 | `qwen/qwen3.7-plus` | 0.62 | 0.447 | 0.506 | $0.7238 | (!) brittle JSON (!) fails no-ad control |
+| 43 | `deepseek/deepseek-r1-distill-llama-70b` | 0.60 | 0.414 | 0.387 | $0.6913 | (!) brittle JSON (!) fails no-ad control |
+| 44 | `google/gemini-3.6-flash` | 0.55 | 0.788 | 0.796 | $1.4431 |  |
+| 45 | `qwen/qwen3.6-plus` | 0.54 | 0.622 | 0.607 | $1.1534 | (!) brittle JSON |
+| 46 | `openai/gpt-3.5-turbo` | 0.49 | 0.275 | 0.310 | $0.5564 | (!) brittle JSON (!) fails no-ad control |
+| 47 | `x-ai/grok-4.3` | 0.48 | 0.767 | 0.789 | $1.6048 |  |
+| 48 | `deepseek/deepseek-r1-0528` | 0.45 | 0.520 | 0.540 | $1.1645 | (!) brittle JSON (!) fails no-ad control |
+| 49 | `z-ai/glm-5.2` | 0.43 | 0.568 | 0.606 | $1.3083 | (!) brittle JSON (!) fails no-ad control |
+| 50 | `qwen/qwen3.8-27b` | 0.41 | 0.571 | 0.510 | $1.3947 | (!) brittle JSON |
 | 51 | `mistralai/mistral-medium-3-5` | 0.41 | 0.746 | 0.787 | $1.8393 |  |
-| 52 | `deepseek/deepseek-v4-pro` | 0.39 | 0.708 | 0.680 | $1.7968 | (!) brittle JSON (!) fails no-ad control |
-| 53 | `qwen/qwen3.8-27b` | 0.38 | 0.571 | 0.510 | $1.5144 | (!) brittle JSON |
-| 54 | `deepseek/deepseek-r1` | 0.37 | 0.552 | 0.574 | $1.4743 | (!) brittle JSON (!) fails no-ad control |
-| 55 | `thinkingmachines/inkling-small` | 0.36 | 0.375 | 0.358 | $1.0333 | (!) brittle JSON (!) fails no-ad control |
-| 56 | `claude-sonnet-5` | 0.33 | 0.708 | 0.732 | $2.1452 |  |
-| 57 | `meta/muse-spark-1.1` | 0.30 | 0.671 | 0.595 | $2.2536 |  |
+| 52 | `deepseek/deepseek-r1` | 0.37 | 0.552 | 0.574 | $1.4743 | (!) brittle JSON (!) fails no-ad control |
+| 53 | `thinkingmachines/inkling-small` | 0.36 | 0.375 | 0.358 | $1.0333 | (!) brittle JSON (!) fails no-ad control |
+| 54 | `claude-sonnet-5` | 0.33 | 0.708 | 0.732 | $2.1452 |  |
+| 55 | `openai/gpt-5.6-terra` | 0.32 | 0.767 | 0.768 | $2.3902 | (!) brittle JSON (!) fails no-ad control |
+| 56 | `meta/muse-spark-1.1` | 0.30 | 0.671 | 0.595 | $2.2536 |  |
+| 57 | `openai/gpt-5.6-sol` | 0.29 | 0.716 | 0.738 | $2.4303 | (!) brittle JSON (!) fails no-ad control |
 | 58 | `qwen/qwen3.7-max` | 0.26 | 0.718 | 0.746 | $2.8109 |  |
 | 59 | `moonshotai/kimi-k2.6` | 0.25 | 0.448 | 0.401 | $1.7617 | (!) brittle JSON (!) fails no-ad control |
 | 60 | `claude-sonnet-4-6` | 0.24 | 0.791 | 0.799 | $3.2386 |  |
 | 61 | `x-ai/grok-4.5` | 0.23 | 0.781 | 0.797 | $3.3554 |  |
 | 62 | `google/gemini-3.5-flash` | 0.23 | 0.774 | 0.787 | $3.4202 |  |
-| 63 | `openai/gpt-5.4` | 0.21 | 0.592 | 0.634 | $2.7907 | (!) brittle JSON (!) fails no-ad control |
-| 64 | `x-ai/grok-4.6` | 0.21 | 0.760 | 0.783 | $3.7063 |  |
-| 65 | `openai/o3` | 0.17 | 0.563 | 0.457 | $3.3100 |  |
-| 66 | `google/gemini-2.5-pro` | 0.16 | 0.669 | 0.700 | $4.1601 | (!) fails no-ad control |
-| 67 | `cohere/command-r-plus-08-2024` | 0.16 | 0.448 | 0.381 | $2.8505 |  |
-| 68 | `google/gemini-3.1-pro-preview` | 0.15 | 0.732 | 0.752 | $4.9160 |  |
-| 69 | `claude-opus-4-8` | 0.14 | 0.728 | 0.760 | $5.3661 |  |
-| 70 | `claude-opus-5` | 0.13 | 0.725 | 0.748 | $5.3761 |  |
-| 71 | `claude-opus-4-7` | 0.13 | 0.704 | 0.731 | $5.3293 |  |
-| 72 | `cohere/command-a` | 0.13 | 0.379 | 0.425 | $2.9415 | (!) brittle JSON (!) fails no-ad control |
-| 73 | `moonshotai/kimi-k3` | 0.12 | 0.693 | 0.703 | $5.9242 | (!) brittle JSON (!) fails no-ad control |
-| 74 | `openai/gpt-5.6-sol` | 0.11 | 0.716 | 0.738 | $6.2293 | (!) brittle JSON (!) fails no-ad control |
+| 63 | `deepseek/deepseek-v4-pro-0813` | 0.21 | 0.525 | 0.467 | $2.4576 | (!) brittle JSON |
+| 64 | `openai/gpt-5.4` | 0.21 | 0.592 | 0.634 | $2.7907 | (!) brittle JSON (!) fails no-ad control |
+| 65 | `x-ai/grok-4.6` | 0.21 | 0.760 | 0.783 | $3.7063 |  |
+| 66 | `openai/o3` | 0.17 | 0.563 | 0.457 | $3.3100 |  |
+| 67 | `google/gemini-2.5-pro` | 0.16 | 0.669 | 0.700 | $4.1601 | (!) fails no-ad control |
+| 68 | `cohere/command-r-plus-08-2024` | 0.16 | 0.448 | 0.381 | $2.8505 |  |
+| 69 | `google/gemini-3.1-pro-preview` | 0.15 | 0.732 | 0.752 | $4.9160 |  |
+| 70 | `claude-opus-4-8` | 0.14 | 0.728 | 0.760 | $5.3661 |  |
+| 71 | `claude-opus-5` | 0.13 | 0.725 | 0.748 | $5.3761 |  |
+| 72 | `claude-opus-4-7` | 0.13 | 0.704 | 0.731 | $5.3293 |  |
+| 73 | `cohere/command-a` | 0.13 | 0.379 | 0.425 | $2.9415 | (!) brittle JSON (!) fails no-ad control |
+| 74 | `moonshotai/kimi-k3` | 0.12 | 0.693 | 0.703 | $5.9242 | (!) brittle JSON (!) fails no-ad control |
 | 75 | `qwen/qwen3.8-2.4t-a95b` | 0.11 | 0.489 | 0.435 | $4.2877 | (!) brittle JSON (!) fails no-ad control |
 | 76 | `mistralai/mistral-small-2603` | 0.11 | 0.020 | 0.019 | $0.1745 |  |
 | 77 | `openai/gpt-5.5` | 0.10 | 0.780 | 0.784 | $7.6842 | (!) brittle JSON (!) fails no-ad control |
@@ -228,6 +229,14 @@ Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here be
 | 82 | `bytedance-seed/seed-2-1-turbo` | 0.04 | 0.052 | 0.039 | $1.4469 | (!) brittle JSON (!) fails no-ad control |
 | 83 | `qwen/qwen3-8b` | 0.00 | 0.000 | 0.000 | $0.3256 | (!) brittle JSON |
 
+### Best Free-Tier (F0.5)
+
+Models that came back at $0.00 cost, ranked by F0.5 with the same CI and flags as Best Accuracy. Tiers are computed within the free-tier set against its own leader, so a tier letter here is not comparable to the same letter in Best Accuracy. Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark (`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing.
+
+| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | p50 latency | JSON compliance | Flags |
+|------|-------|------|--------|-----------|--------|----|-------------|-----------------|-------|
+| A | `stealth/ox-alpha` | 0.749 | +/-0.130 | 0.755 | 0.782 | 0.750 | 66.6s | 0.94 |  |
+
 ## Charts
 
 ### Cost vs F1 (Pareto)
@@ -236,7 +245,7 @@ Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate)
 
 ![Cost vs F1 by model](report_assets/pareto.svg)
 
-Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar)
+Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar), [Best Free-Tier](#best-free-tier-f05)
 
 ### Accuracy vs latency
 
@@ -361,7 +370,7 @@ Source data: [Parser stress test](#parser-stress-test) table
 
 ## Failures and provider issues
 
-**130 call(s) failed out of 70965 total (0.18%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
+**130 call(s) failed out of 71820 total (0.18%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
 
 ### By category
 
@@ -433,6 +442,7 @@ Reading the table: high precision + low recall means the model is cautious. It r
 | `claude-opus-4-8` | 0.715 | 0.857 | 211 | 86 | 44 |
 | `openai/gpt-5.6-luna` | 0.730 | 0.824 | 203 | 69 | 52 |
 | `google/gemini-3.1-pro-preview` | 0.726 | 0.826 | 207 | 80 | 48 |
+| `stealth/ox-alpha` | 0.755 | 0.782 | 186 | 68 | 69 |
 | `claude-opus-5` | 0.718 | 0.845 | 215 | 84 | 40 |
 | `google/gemini-3.1-flash-lite` | 0.653 | 0.918 | 229 | 136 | 26 |
 | `qwen/qwen3.6-flash` | 0.737 | 0.788 | 190 | 72 | 65 |
@@ -535,6 +545,7 @@ MAE is size of the miss; bias is its direction (mean of predicted minus truth). 
 | `qwen/qwen3.8-27b` | 5.01 | 4.52 | -4.98 | +4.50 |
 | `qwen/qwen3.6-flash` | 7.35 | 2.20 | -2.70 | -0.43 |
 | `deepseek/deepseek-v4-pro` | 5.25 | 4.32 | -1.25 | -0.36 |
+| `stealth/ox-alpha` | 6.11 | 3.50 | -2.43 | +1.25 |
 | `openai/gpt-5.6-terra` | 5.91 | 3.70 | -2.55 | +0.91 |
 | `qwen/qwen3.5-plus-02-15` | 7.39 | 2.24 | -3.71 | -0.51 |
 | `claude-sonnet-4-6` | 6.62 | 3.09 | -2.67 | +1.31 |
@@ -670,6 +681,7 @@ Models include a self-reported `confidence` on each detected ad. A well-calibrat
 | `qwen/qwen3.8-2.4t-a95b` | 0.00 (n=14) | 0.17 (n=12) | 0.00 (n=6) | 0.92 (n=92) | 1.00 (n=4) | 128 |
 | `qwen/qwen3.8-27b` | 0.00 (n=5) | 0.00 (n=11) | 0.20 (n=5) | 0.86 (n=123) | -- | 144 |
 | `qwen/qwen3.8-max` | -- | -- | -- | 0.71 (n=48) | 0.88 (n=16) | 64 |
+| `stealth/ox-alpha` | 0.00 (n=11) | 0.00 (n=18) | 0.44 (n=9) | 0.84 (n=210) | 1.00 (n=6) | 254 |
 | `stepfun/step-3.7-flash` | -- | -- | 0.80 (n=5) | 0.87 (n=62) | 1.00 (n=1) | 68 |
 | `tencent/hy3` | 0.11 (n=9) | 0.00 (n=6) | 0.00 (n=2) | 0.81 (n=125) | 1.00 (n=1) | 143 |
 | `thinkingmachines/inkling` | 0.00 (n=1) | 0.14 (n=7) | 0.00 (n=4) | 0.52 (n=29) | 0.81 (n=31) | 72 |
@@ -771,6 +783,7 @@ Median latency hides outliers. p99 and max are what determines queue depth and w
 | `qwen/qwen3-8b` | 39.80s | 133.65s | 170.51s | 252.88s | 1187.74s |
 | `moonshotai/kimi-k2.6` | 55.69s | 126.30s | 164.28s | 249.82s | 485.45s |
 | `thinkingmachines/inkling` | 65.63s | 226.27s | 324.79s | 505.49s | 1063.70s |
+| `stealth/ox-alpha` | 66.56s | 156.74s | 190.15s | 279.75s | 447.25s |
 | `qwen/qwen3.8-27b` | 70.26s | 292.36s | 337.40s | 459.64s | 774.26s |
 
 ## Output token efficiency
@@ -791,8 +804,8 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 | `claude-opus-5` | 38,844 | 547 | 71 | $0.0250 |
 | `mistralai/mistral-medium-3.1` | 51,122 | 705 | 73 | $0.0025 |
 | `openai/gpt-3.5-turbo` | 56,074 | 767 | 73 | $0.0050 |
-| `deepseek/deepseek-v3.2` | 31,971 | 432 | 74 | $0.0022 |
-| `google/gemma-4-26b-a4b-it` | 37,850 | 495 | 76 | $0.0009 |
+| `deepseek/deepseek-v3.2` | 31,971 | 432 | 74 | $0.0021 |
+| `google/gemma-4-26b-a4b-it` | 37,850 | 495 | 76 | $0.0005 |
 | `cohere/command-r-plus-08-2024` | 15,352 | 196 | 78 | $0.0324 |
 | `mistralai/mistral-medium-3-5` | 65,551 | 833 | 79 | $0.0083 |
 | `meta-llama/llama-4-maverick` | 38,620 | 476 | 81 | $0.0014 |
@@ -810,15 +823,15 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 | `mistralai/mistral-small-2603` | 3,207 | 20 | 160 | $0.0349 |
 | `xiaomi/mimo-v2.5-pro` | 67,712 | 274 | 247 | $0.0048 |
 | `minimax/minimax-m3` | 120,297 | 471 | 255 | $0.0023 |
-| `openai/gpt-5.6-terra` | 111,389 | 365 | 305 | $0.0060 |
-| `openai/gpt-5.6-sol` | 153,677 | 412 | 373 | $0.0304 |
+| `openai/gpt-5.6-terra` | 111,389 | 365 | 305 | $0.0120 |
+| `openai/gpt-5.6-sol` | 153,677 | 412 | 373 | $0.0119 |
 | `xiaomi/mimo-v2.5` | 223,313 | 587 | 380 | $0.0010 |
 | `microsoft/phi-4` | 113,671 | 298 | 381 | $0.0014 |
 | `nvidia/nemotron-3-ultra-550b-a55b` | 112,208 | 229 | 490 | $0.0076 |
 | `x-ai/grok-4.3` | 490,642 | 684 | 717 | $0.0075 |
-| `openai/gpt-5.6-luna` | 283,948 | 390 | 728 | $0.0007 |
-| `z-ai/glm-5.2` | 413,174 | 529 | 781 | $0.0035 |
-| `nvidia/nemotron-3.5-lightning` | 693,400 | 835 | 830 | $0.0020 |
+| `openai/gpt-5.6-luna` | 283,948 | 390 | 728 | $0.0014 |
+| `z-ai/glm-5.2` | 413,174 | 529 | 781 | $0.0069 |
+| `nvidia/nemotron-3.5-lightning` | 693,400 | 835 | 830 | $0.0016 |
 | `openai/gpt-oss-120b` | 698,041 | 701 | 996 | $0.0003 |
 | `openai/gpt-5.5` | 396,159 | 363 | 1091 | $0.0379 |
 | `google/gemini-3.7-flash` | 573,916 | 412 | 1393 | $0.0031 |
@@ -833,27 +846,28 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 | `deepseek/deepseek-r1-distill-llama-70b` | 888,615 | 385 | 2308 | $0.0073 |
 | `openai/gpt-oss-20b` | 1,149,006 | 490 | 2345 | $0.0005 |
 | `google/gemini-3.1-pro-preview` | 1,101,910 | 463 | 2380 | $0.0237 |
-| `deepseek/deepseek-v4-flash` | 879,110 | 362 | 2428 | $0.0006 |
+| `deepseek/deepseek-v4-flash` | 879,110 | 362 | 2428 | $0.0004 |
 | `qwen/qwen3-14b` | 792,165 | 318 | 2491 | $0.0019 |
 | `x-ai/grok-4.6` | 1,230,932 | 469 | 2625 | $0.0172 |
 | `google/gemini-2.5-pro` | 1,371,169 | 512 | 2678 | $0.0210 |
 | `meta/muse-glimmer-30b` | 1,068,404 | 397 | 2691 | $0.0043 |
+| `stealth/ox-alpha` | 1,241,235 | 363 | 3419 | $0.0000 |
 | `meituan/longcat-2.0` | 906,744 | 265 | 3422 | $0.0061 |
 | `qwen/qwen3.6-flash` | 1,468,826 | 420 | 3497 | $0.0029 |
 | `qwen/qwen3.5-plus-02-15` | 2,497,953 | 700 | 3569 | $0.0050 |
 | `qwen/qwen3.7-flash` | 1,477,726 | 388 | 3809 | $0.0004 |
-| `deepseek/deepseek-v4-pro` | 1,099,395 | 288 | 3817 | $0.0111 |
+| `deepseek/deepseek-v4-pro` | 1,099,395 | 288 | 3817 | $0.0038 |
 | `qwen/qwen3.6-plus` | 2,010,766 | 464 | 4334 | $0.0073 |
 | `meta/muse-spark-1.1` | 1,075,701 | 236 | 4558 | $0.0164 |
 | `nvidia/nemotron-3-super-120b-a12b` | 1,508,154 | 290 | 5201 | $0.0017 |
 | `openai/o3` | 741,947 | 140 | 5300 | $0.0352 |
-| `deepseek/deepseek-v4-flash-0731` | 1,339,909 | 218 | 6146 | $0.0018 |
+| `deepseek/deepseek-v4-flash-0731` | 1,339,909 | 218 | 6146 | $0.0011 |
 | `inclusionai/ring-2.6-1t` | 1,286,827 | 169 | 7614 | $0.0039 |
 | `qwen/qwen3.5-27b` | 2,155,828 | 273 | 7897 | $0.0066 |
 | `thinkingmachines/inkling-small` | 2,312,665 | 260 | 8895 | $0.0122 |
-| `qwen/qwen3.8-27b` | 1,563,261 | 172 | 9089 | $0.0142 |
+| `qwen/qwen3.8-27b` | 1,563,261 | 172 | 9089 | $0.0130 |
 | `qwen/qwen3.8-2.4t-a95b` | 1,669,886 | 165 | 10121 | $0.0471 |
-| `deepseek/deepseek-v4-pro-0813` | 1,776,997 | 164 | 10835 | $0.0083 |
+| `deepseek/deepseek-v4-pro-0813` | 1,776,997 | 164 | 10835 | $0.0256 |
 | `moonshotai/kimi-k2.6` | 2,581,920 | 202 | 12782 | $0.0196 |
 | `tencent/hy3` | 2,286,538 | 171 | 13372 | $0.0038 |
 | `qwen/qwen3.8-max` | 1,655,455 | 114 | 14522 | $0.0890 |
@@ -871,7 +885,6 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 |---|---:|---:|---:|---:|
 | `claude-fable-5` | $10.7552 | $10.3637 | $0.3915 | 4% |
 | `openai/gpt-5.5` | $7.6842 | $5.3073 | $2.3770 | 31% |
-| `openai/gpt-5.6-sol` | $6.2293 | $5.3073 | $0.9221 | 15% |
 | `moonshotai/kimi-k3` | $5.9242 | $3.2994 | $2.6248 | 44% |
 | `claude-opus-5` | $5.3761 | $5.1818 | $0.1942 | 4% |
 | `claude-opus-4-8` | $5.3661 | $5.1818 | $0.1843 | 3% |
@@ -890,18 +903,20 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 | `cohere/command-r-plus-08-2024` | $2.8505 | $2.8198 | $0.0307 | 1% |
 | `qwen/qwen3.7-max` | $2.8109 | $1.6755 | $1.1354 | 40% |
 | `openai/gpt-5.4` | $2.7907 | $2.6536 | $0.1371 | 5% |
+| `deepseek/deepseek-v4-pro-0813` | $2.4576 | $1.2613 | $1.1963 | 49% |
+| `openai/gpt-5.6-sol` | $2.4303 | $2.1229 | $0.3074 | 13% |
+| `openai/gpt-5.6-terra` | $2.3902 | $2.1229 | $0.2673 | 11% |
 | `meta/muse-spark-1.1` | $2.2536 | $1.3393 | $0.9143 | 41% |
 | `claude-sonnet-5` | $2.1452 | $2.0727 | $0.0724 | 3% |
 | `openai/o4-mini` | $2.1179 | $1.1676 | $0.9503 | 45% |
 | `mistralai/mistral-medium-3-5` | $1.8393 | $1.7410 | $0.0983 | 5% |
-| `deepseek/deepseek-v4-pro` | $1.7968 | $1.2832 | $0.5136 | 29% |
 | `moonshotai/kimi-k2.6` | $1.7617 | $0.5844 | $1.1774 | 67% |
 | `x-ai/grok-4.3` | $1.6048 | $1.3595 | $0.2453 | 15% |
-| `qwen/qwen3.8-27b` | $1.5144 | $0.5139 | $1.0005 | 66% |
 | `deepseek/deepseek-r1` | $1.4743 | $0.7753 | $0.6990 | 47% |
 | `bytedance-seed/seed-2-1-turbo` | $1.4469 | $0.5039 | $0.9429 | 65% |
 | `google/gemini-3.6-flash` | $1.4431 | $0.8518 | $0.5913 | 41% |
-| `openai/gpt-5.6-terra` | $1.1951 | $1.0615 | $0.1337 | 11% |
+| `qwen/qwen3.8-27b` | $1.3947 | $0.4568 | $0.9380 | 67% |
+| `z-ai/glm-5.2` | $1.3083 | $1.0574 | $0.2509 | 19% |
 | `deepseek/deepseek-r1-0528` | $1.1645 | $0.5538 | $0.6108 | 52% |
 | `qwen/qwen3.6-plus` | $1.1534 | $0.3692 | $0.7842 | 68% |
 | `claude-haiku-4-5-20251001` | $1.0820 | $1.0364 | $0.0456 | 4% |
@@ -909,14 +924,13 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 | `thinkingmachines/inkling-small` | $1.0333 | $0.4782 | $0.5550 | 54% |
 | `qwen/qwen3.5-27b` | $0.8941 | $0.2215 | $0.6726 | 75% |
 | `openai/gpt-5.4-mini` | $0.8470 | $0.7961 | $0.0509 | 6% |
-| `deepseek/deepseek-v4-pro-0813` | $0.7982 | $0.4890 | $0.3092 | 39% |
 | `nvidia/nemotron-3-ultra-550b-a55b` | $0.7782 | $0.6974 | $0.0808 | 10% |
 | `qwen/qwen3.7-plus` | $0.7238 | $0.3635 | $0.3603 | 50% |
 | `meta/muse-glimmer-30b` | $0.6965 | $0.3760 | $0.3205 | 46% |
 | `deepseek/deepseek-r1-distill-llama-70b` | $0.6913 | $0.5492 | $0.1422 | 21% |
-| `z-ai/glm-5.2` | $0.6636 | $0.5364 | $0.1273 | 19% |
 | `google/gemini-3.7-flash` | $0.6411 | $0.4259 | $0.2152 | 34% |
 | `mistralai/mistral-large-2512` | $0.6184 | $0.5803 | $0.0381 | 6% |
+| `deepseek/deepseek-v4-pro` | $0.6106 | $0.4360 | $0.1745 | 29% |
 | `meituan/longcat-2.0` | $0.5573 | $0.3396 | $0.2176 | 39% |
 | `openai/gpt-3.5-turbo` | $0.5564 | $0.5395 | $0.0168 | 3% |
 | `qwen/qwen3.6-flash` | $0.5435 | $0.2130 | $0.3305 | 61% |
@@ -929,29 +943,29 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 | `mistralai/codestral-2508` | $0.3585 | $0.3482 | $0.0103 | 3% |
 | `minimax/minimax-m3` | $0.3575 | $0.3287 | $0.0289 | 8% |
 | `qwen/qwen3-8b` | $0.3256 | $0.1310 | $0.1947 | 60% |
-| `deepseek/deepseek-v3.2` | $0.3015 | $0.2989 | $0.0026 | 1% |
 | `google/gemini-3.1-flash-lite` | $0.2988 | $0.2837 | $0.0151 | 5% |
+| `deepseek/deepseek-v3.2` | $0.2914 | $0.2889 | $0.0024 | 1% |
+| `openai/gpt-5.6-luna` | $0.2804 | $0.2123 | $0.0681 | 24% |
 | `inclusionai/ring-2.6-1t` | $0.2468 | $0.0860 | $0.1609 | 65% |
-| `deepseek/deepseek-v4-flash-0731` | $0.2305 | $0.1554 | $0.0750 | 33% |
 | `meta-llama/llama-4-maverick` | $0.2206 | $0.2144 | $0.0062 | 3% |
 | `nvidia/nemotron-3-super-120b-a12b` | $0.2194 | $0.0988 | $0.1207 | 55% |
 | `mistralai/mistral-small-2603` | $0.1745 | $0.1741 | $0.0004 | 0% |
 | `qwen/qwen3-14b` | $0.1724 | $0.1344 | $0.0380 | 22% |
 | `xiaomi/mimo-v2.5` | $0.1692 | $0.1567 | $0.0125 | 7% |
-| `nvidia/nemotron-3.5-lightning` | $0.1509 | $0.1163 | $0.0347 | 23% |
-| `openai/gpt-5.6-luna` | $0.1402 | $0.1061 | $0.0341 | 24% |
-| `google/gemma-4-26b-a4b-it` | $0.1401 | $0.1370 | $0.0030 | 2% |
+| `deepseek/deepseek-v4-flash-0731` | $0.1371 | $0.0888 | $0.0482 | 35% |
+| `nvidia/nemotron-3.5-lightning` | $0.1207 | $0.0930 | $0.0277 | 23% |
 | `google/gemma-4-31b-it` | $0.1181 | $0.1144 | $0.0037 | 3% |
 | `google/gemini-2.5-flash-lite` | $0.1132 | $0.1050 | $0.0082 | 7% |
 | `meta-llama/llama-4-scout` | $0.1111 | $0.1069 | $0.0042 | 4% |
 | `meta-llama/llama-3.3-70b-instruct` | $0.1107 | $0.1089 | $0.0018 | 2% |
 | `qwen/qwen3-235b-a22b-2507` | $0.1078 | $0.1005 | $0.0072 | 7% |
-| `deepseek/deepseek-v4-flash` | $0.0981 | $0.0745 | $0.0236 | 24% |
+| `google/gemma-4-26b-a4b-it` | $0.0825 | $0.0799 | $0.0026 | 3% |
 | `microsoft/phi-4` | $0.0792 | $0.0760 | $0.0032 | 4% |
 | `qwen/qwen3.7-flash` | $0.0725 | $0.0341 | $0.0384 | 53% |
+| `deepseek/deepseek-v4-flash` | $0.0715 | $0.0543 | $0.0172 | 24% |
+| `openai/gpt-oss-120b` | $0.0634 | $0.0397 | $0.0237 | 37% |
 | `openai/gpt-oss-20b` | $0.0620 | $0.0322 | $0.0299 | 48% |
 | `meta-llama/llama-3.1-8b-instruct` | $0.0572 | $0.0545 | $0.0027 | 5% |
-| `openai/gpt-oss-120b` | $0.0559 | $0.0322 | $0.0237 | 42% |
 
 ## Trial variance (determinism check)
 
@@ -976,6 +990,7 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 | `claude-opus-4-8` | 0.0372 | 0.1565 |
 | `openai/gpt-5.6-luna` | 0.0440 | 0.1571 |
 | `google/gemini-3.1-pro-preview` | 0.0254 | 0.1118 |
+| `stealth/ox-alpha` | 0.0316 | 0.1465 |
 | `claude-opus-5` | 0.0113 | 0.0943 |
 | `google/gemini-3.1-flash-lite` | 0.0278 | 0.1118 |
 | `qwen/qwen3.6-flash` | 0.0842 | 0.2300 |
@@ -1045,64 +1060,62 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 
 ## Cross-model agreement
 
-For each of the 171 (episode, window, trial-equivalent) entries, how many of the 83 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
+For each of the 171 (episode, window, trial-equivalent) entries, how many of the 84 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
 
 | Models predicting an ad | Window count | Share |
 |---:|---:|---:|
-| 5 of 83 | 1 | 0.6% |
-| 7 of 83 | 6 | 3.5% |
-| 8 of 83 | 4 | 2.3% |
-| 9 of 83 | 5 | 2.9% |
-| 10 of 83 | 8 | 4.7% |
-| 11 of 83 | 9 | 5.3% |
-| 12 of 83 | 4 | 2.3% |
-| 13 of 83 | 6 | 3.5% |
-| 14 of 83 | 9 | 5.3% |
-| 15 of 83 | 4 | 2.3% |
-| 16 of 83 | 9 | 5.3% |
-| 17 of 83 | 6 | 3.5% |
-| 18 of 83 | 5 | 2.9% |
-| 19 of 83 | 4 | 2.3% |
-| 20 of 83 | 1 | 0.6% |
-| 21 of 83 | 2 | 1.2% |
-| 23 of 83 | 2 | 1.2% |
-| 24 of 83 | 3 | 1.8% |
-| 26 of 83 | 1 | 0.6% |
-| 27 of 83 | 1 | 0.6% |
-| 28 of 83 | 1 | 0.6% |
-| 29 of 83 | 2 | 1.2% |
-| 34 of 83 | 1 | 0.6% |
-| 37 of 83 | 1 | 0.6% |
-| 43 of 83 | 1 | 0.6% |
-| 45 of 83 | 1 | 0.6% |
-| 46 of 83 | 1 | 0.6% |
-| 49 of 83 | 1 | 0.6% |
-| 52 of 83 | 1 | 0.6% |
-| 53 of 83 | 1 | 0.6% |
-| 59 of 83 | 1 | 0.6% |
-| 60 of 83 | 1 | 0.6% |
-| 64 of 83 | 1 | 0.6% |
-| 65 of 83 | 2 | 1.2% |
-| 66 of 83 | 1 | 0.6% |
-| 67 of 83 | 7 | 4.1% |
-| 68 of 83 | 1 | 0.6% |
-| 69 of 83 | 3 | 1.8% |
-| 70 of 83 | 3 | 1.8% |
-| 71 of 83 | 3 | 1.8% |
-| 72 of 83 | 13 | 7.6% |
-| 73 of 83 | 6 | 3.5% |
-| 74 of 83 | 8 | 4.7% |
-| 75 of 83 | 3 | 1.8% |
-| 76 of 83 | 7 | 4.1% |
-| 77 of 83 | 6 | 3.5% |
-| 78 of 83 | 3 | 1.8% |
-| 79 of 83 | 1 | 0.6% |
+| 5 of 84 | 1 | 0.6% |
+| 7 of 84 | 6 | 3.5% |
+| 8 of 84 | 4 | 2.3% |
+| 9 of 84 | 5 | 2.9% |
+| 10 of 84 | 8 | 4.7% |
+| 11 of 84 | 9 | 5.3% |
+| 12 of 84 | 4 | 2.3% |
+| 13 of 84 | 6 | 3.5% |
+| 14 of 84 | 9 | 5.3% |
+| 15 of 84 | 4 | 2.3% |
+| 16 of 84 | 9 | 5.3% |
+| 17 of 84 | 6 | 3.5% |
+| 18 of 84 | 5 | 2.9% |
+| 19 of 84 | 4 | 2.3% |
+| 20 of 84 | 1 | 0.6% |
+| 21 of 84 | 2 | 1.2% |
+| 23 of 84 | 2 | 1.2% |
+| 24 of 84 | 3 | 1.8% |
+| 26 of 84 | 1 | 0.6% |
+| 27 of 84 | 1 | 0.6% |
+| 28 of 84 | 1 | 0.6% |
+| 29 of 84 | 2 | 1.2% |
+| 34 of 84 | 1 | 0.6% |
+| 37 of 84 | 1 | 0.6% |
+| 44 of 84 | 1 | 0.6% |
+| 45 of 84 | 1 | 0.6% |
+| 46 of 84 | 1 | 0.6% |
+| 49 of 84 | 1 | 0.6% |
+| 53 of 84 | 2 | 1.2% |
+| 60 of 84 | 1 | 0.6% |
+| 61 of 84 | 1 | 0.6% |
+| 65 of 84 | 2 | 1.2% |
+| 66 of 84 | 1 | 0.6% |
+| 67 of 84 | 1 | 0.6% |
+| 68 of 84 | 8 | 4.7% |
+| 70 of 84 | 3 | 1.8% |
+| 71 of 84 | 3 | 1.8% |
+| 72 of 84 | 3 | 1.8% |
+| 73 of 84 | 13 | 7.6% |
+| 74 of 84 | 6 | 3.5% |
+| 75 of 84 | 8 | 4.7% |
+| 76 of 84 | 3 | 1.8% |
+| 77 of 84 | 7 | 4.1% |
+| 78 of 84 | 6 | 3.5% |
+| 79 of 84 | 3 | 1.8% |
+| 80 of 84 | 1 | 0.6% |
 
 Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).
 
 ### Per-model alignment with consensus
 
-Same data, viewed per model. For each window, the **majority** is whether more than half of the 83 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
+Same data, viewed per model. For each window, the **majority** is whether more than half of the 84 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
 
 - **with-yes**: this model voted yes, majority also voted yes (likely true positive)
 - **with-no**: this model voted no, majority also voted no (likely true negative)
@@ -1132,6 +1145,7 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 | `openai/gpt-oss-120b` | 76 | 89 | 6 | 0 | 96.5% |
 | `qwen/qwen3.5-27b` | 72 | 93 | 2 | 4 | 96.5% |
 | `qwen/qwen3.7-flash` | 72 | 93 | 2 | 4 | 96.5% |
+| `stealth/ox-alpha` | 70 | 95 | 0 | 6 | 96.5% |
 | `deepseek/deepseek-v4-flash` | 74 | 90 | 5 | 2 | 95.9% |
 | `moonshotai/kimi-k3` | 73 | 91 | 4 | 3 | 95.9% |
 | `x-ai/grok-4.5` | 70 | 94 | 1 | 6 | 95.9% |
@@ -1199,25 +1213,25 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 
 ### Windows flagged with no truth ad
 
-The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 83 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
+The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 84 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
 
 | Episode | Window | Span | Models flagging |
 |---|---:|---|---:|
-| `ep-it-s-a-thing-e339179dfad6` | 0 | 0-600s | 72 of 83 |
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 6 | 2520-3120s | 65 of 83 |
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 5 | 2100-2700s | 60 of 83 |
-| `ep-drink-champs-30c9a2d49f13` | 35 | 14700-15300s | 59 of 83 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 10 | 4200-4800s | 53 of 83 |
-| `ep-drink-champs-30c9a2d49f13` | 12 | 5040-5640s | 52 of 83 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 9 | 3780-4380s | 49 of 83 |
-| `ep-daily-gist-chicago-70a82fe93a5c` | 3 | 1260-1271s | 45 of 83 |
-| `ep-daily-gist-chicago-70a82fe93a5c` | 2 | 840-1271s | 43 of 83 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 14 | 5880-6480s | 34 of 83 |
-| `ep-ai-cloud-essentials-e8dc897fbd6b` (no-ad control) | 0 | 0-600s | 29 of 83 |
-| `ep-crime-junkie-8ce498f299d7` | 1 | 420-1020s | 29 of 83 |
-| `ep-security-now-audio-2850b24903b2` | 11 | 4620-5220s | 28 of 83 |
-| `ep-on-air-with-dan-and-alex2-574e4f303730` | 2 | 840-1440s | 27 of 83 |
-| `ep-the-brilliant-idiots-0bb9bf634c8e` | 3 | 1260-1860s | 26 of 83 |
+| `ep-it-s-a-thing-e339179dfad6` | 0 | 0-600s | 73 of 84 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 6 | 2520-3120s | 66 of 84 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 5 | 2100-2700s | 61 of 84 |
+| `ep-drink-champs-30c9a2d49f13` | 35 | 14700-15300s | 60 of 84 |
+| `ep-drink-champs-30c9a2d49f13` | 12 | 5040-5640s | 53 of 84 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 10 | 4200-4800s | 53 of 84 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 9 | 3780-4380s | 49 of 84 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 3 | 1260-1271s | 45 of 84 |
+| `ep-daily-gist-chicago-70a82fe93a5c` | 2 | 840-1271s | 44 of 84 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 14 | 5880-6480s | 34 of 84 |
+| `ep-ai-cloud-essentials-e8dc897fbd6b` (no-ad control) | 0 | 0-600s | 29 of 84 |
+| `ep-crime-junkie-8ce498f299d7` | 1 | 420-1020s | 29 of 84 |
+| `ep-security-now-audio-2850b24903b2` | 11 | 4620-5220s | 28 of 84 |
+| `ep-on-air-with-dan-and-alex2-574e4f303730` | 2 | 840-1440s | 27 of 84 |
+| `ep-the-brilliant-idiots-0bb9bf634c8e` | 3 | 1260-1860s | 26 of 84 |
 
 ... and 88 more with 2+ votes.
 
@@ -1304,6 +1318,7 @@ Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cel
 | `qwen/qwen3.8-2.4t-a95b` | 0.38 (n=140) | 0.37 (n=75) | 0.25 (n=40) |
 | `qwen/qwen3.8-27b` | 0.42 (n=140) | 0.45 (n=75) | 0.35 (n=40) |
 | `qwen/qwen3.8-max` | 0.17 (n=140) | 0.29 (n=75) | 0.05 (n=40) |
+| `stealth/ox-alpha` | 0.77 (n=140) | 0.75 (n=75) | 0.55 (n=40) |
 | `stepfun/step-3.7-flash` | 0.23 (n=95) | 0.35 (n=65) | 0.40 (n=35) |
 | `tencent/hy3` | 0.39 (n=140) | 0.47 (n=75) | 0.35 (n=40) |
 | `thinkingmachines/inkling` | 0.15 (n=140) | 0.21 (n=75) | 0.10 (n=40) |
@@ -1394,6 +1409,7 @@ Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-
 | `qwen/qwen3.8-2.4t-a95b` | 0.29 (n=75) | 0.41 (n=125) | 0.33 (n=55) |
 | `qwen/qwen3.8-27b` | 0.52 (n=75) | 0.43 (n=125) | 0.25 (n=55) |
 | `qwen/qwen3.8-max` | 0.27 (n=75) | 0.08 (n=125) | 0.33 (n=55) |
+| `stealth/ox-alpha` | 0.73 (n=75) | 0.76 (n=125) | 0.65 (n=55) |
 | `stepfun/step-3.7-flash` | 0.36 (n=55) | 0.32 (n=95) | 0.20 (n=45) |
 | `tencent/hy3` | 0.32 (n=75) | 0.47 (n=125) | 0.36 (n=55) |
 | `thinkingmachines/inkling` | 0.11 (n=75) | 0.17 (n=125) | 0.22 (n=55) |
@@ -1424,52 +1440,53 @@ One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`
 | `claude-fable-5` | 0.783 | $10.7552 | 6.6s | 0.933 | 0.700 | 0.978 | 0.529 | 0.770 | 0.857 | 0.667 | 0.960 | 0.667 | 0.667 | 0.800 | 0.864 | PASS | PASS | 0.046 | - |
 | `qwen/qwen3.5-plus-02-15` | 0.779 | $1.0746 | 29.2s | 1.000 | 0.500 | 0.889 | 0.545 | 0.967 | 0.857 | 0.667 | 0.960 | 0.686 | 0.800 | 0.748 | 0.727 | PASS | PASS | 0.030 | - |
 | `google/gemini-3.5-flash-lite` | 0.776 | $0.3643 | 0.7s | 0.876 | 1.000 | 0.892 | 0.502 | 0.959 | 0.531 | 0.667 | 0.933 | 0.695 | 0.700 | 0.825 | 0.727 | PASS | PASS | 0.074 | - |
-| `openai/gpt-5.6-terra` | 0.768 | $1.1951 | 2.1s | 1.000 | 0.400 | 0.950 | 0.653 | 0.774 | 0.857 | 0.600 | 0.960 | 0.716 | 0.791 | 0.800 | 0.711 | FAIL (2 FP) | FAIL (1 FP) | 0.056 | - |
+| `openai/gpt-5.6-terra` | 0.768 | $2.3902 | 2.1s | 1.000 | 0.400 | 0.950 | 0.653 | 0.774 | 0.857 | 0.600 | 0.960 | 0.716 | 0.791 | 0.800 | 0.711 | FAIL (2 FP) | FAIL (1 FP) | 0.056 | - |
 | `claude-opus-4-8` | 0.760 | $5.3661 | 7.8s | 0.889 | 0.800 | 0.956 | 0.527 | 0.870 | 0.743 | 0.667 | 0.800 | 0.695 | 0.556 | 0.800 | 0.822 | PASS | PASS | 0.037 | - |
-| `openai/gpt-5.6-luna` | 0.754 | $0.1402 | 3.5s | 0.933 | 0.400 | 1.000 | 0.609 | 0.778 | 0.949 | 0.667 | 0.693 | 0.758 | 0.793 | 0.800 | 0.667 | PASS | PASS | 0.044 | - |
+| `openai/gpt-5.6-luna` | 0.754 | $0.2804 | 3.5s | 0.933 | 0.400 | 1.000 | 0.609 | 0.778 | 0.949 | 0.667 | 0.693 | 0.758 | 0.793 | 0.800 | 0.667 | PASS | PASS | 0.044 | - |
 | `google/gemini-3.1-pro-preview` | 0.752 | $4.9160 | 8.3s | 1.000 | 0.500 | 0.950 | 0.578 | 0.834 | 0.857 | 0.633 | 0.667 | 0.667 | 0.857 | 0.800 | 0.676 | PASS | PASS | 0.025 | - |
+| `stealth/ox-alpha` | 0.750 | $0.0000 | 66.6s | 1.000 | 0.480 | 1.000 | 0.613 | 0.569 | 0.857 | 0.667 | 0.800 | 0.640 | 1.000 | 0.800 | 0.569 | PASS | PASS | 0.032 | - |
 | `claude-opus-5` | 0.748 | $5.3761 | 3.7s | 1.000 | 0.400 | 1.000 | 0.564 | 0.863 | 0.857 | 0.500 | 0.800 | 0.857 | 0.667 | 0.800 | 0.667 | PASS | PASS | 0.011 | - |
 | `google/gemini-3.1-flash-lite` | 0.747 | $0.2988 | 0.8s | 0.950 | 0.800 | 0.956 | 0.567 | 0.858 | 0.681 | 0.667 | 0.800 | 0.588 | 0.540 | 0.833 | 0.727 | FAIL (1 FP) | PASS | 0.028 | - |
 | `qwen/qwen3.6-flash` | 0.747 | $0.5435 | 7.6s | 1.000 | 0.500 | 0.921 | 0.602 | 0.641 | 0.755 | 0.733 | 0.840 | 0.714 | 0.810 | 0.720 | 0.723 | PASS | PASS | 0.084 | - |
 | `qwen/qwen3.7-max` | 0.746 | $2.8109 | 23.4s | 0.950 | 0.500 | 1.000 | 0.462 | 0.628 | 0.857 | 0.667 | 0.840 | 0.695 | 0.821 | 0.848 | 0.681 | PASS | PASS | 0.051 | - |
-| `openai/gpt-5.6-sol` | 0.738 | $6.2293 | 3.7s | 1.000 | 0.420 | 1.000 | 0.600 | 0.648 | 0.739 | 0.467 | 0.747 | 0.736 | 0.834 | 0.773 | 0.889 | FAIL (3 FP) | FAIL (2 FP) | 0.073 | - |
+| `openai/gpt-5.6-sol` | 0.738 | $2.4303 | 3.7s | 1.000 | 0.420 | 1.000 | 0.600 | 0.648 | 0.739 | 0.467 | 0.747 | 0.736 | 0.834 | 0.773 | 0.889 | FAIL (3 FP) | FAIL (2 FP) | 0.073 | - |
 | `claude-sonnet-5` | 0.732 | $2.1452 | 8.5s | 0.938 | 0.560 | 0.911 | 0.492 | 0.806 | 0.857 | 0.633 | 0.960 | 0.693 | 0.503 | 0.785 | 0.647 | PASS | PASS | 0.090 | - |
 | `claude-opus-4-7` | 0.731 | $5.3293 | 4.6s | 0.978 | 0.400 | 1.000 | 0.767 | 0.825 | 0.857 | 0.667 | 0.740 | 0.693 | 0.578 | 0.727 | 0.538 | PASS | PASS | 0.060 | - |
-| `deepseek/deepseek-v4-flash` | 0.708 | $0.0981 | 6.3s | 1.000 | 0.673 | 0.886 | 0.402 | 0.687 | 0.921 | 0.467 | 0.800 | 0.673 | 0.903 | 0.733 | 0.355 | PASS | PASS | 0.123 | - |
+| `deepseek/deepseek-v4-flash` | 0.708 | $0.0715 | 6.3s | 1.000 | 0.673 | 0.886 | 0.402 | 0.687 | 0.921 | 0.467 | 0.800 | 0.673 | 0.903 | 0.733 | 0.355 | PASS | PASS | 0.123 | - |
 | `qwen/qwen3.7-flash` | 0.706 | $0.0725 | 10.1s | 1.000 | 0.500 | 0.771 | 0.602 | 0.546 | 0.664 | 0.600 | 0.800 | 0.714 | 0.769 | 0.785 | 0.718 | PASS | PASS | 0.121 | - |
 | `moonshotai/kimi-k3` | 0.703 | $5.9242 | 13.8s | 0.933 | 0.480 | 0.943 | 0.578 | 0.422 | 0.886 | 0.533 | 0.667 | 0.728 | 0.864 | 0.800 | 0.599 | FAIL (1 FP) | PASS | 0.089 | - |
 | `google/gemini-2.5-pro` | 0.700 | $4.1601 | 14.2s | 0.933 | 0.400 | 0.943 | 0.490 | 0.829 | 0.750 | 0.733 | 0.800 | 0.658 | 0.633 | 0.800 | 0.432 | FAIL (1 FP) | FAIL (1 FP) | 0.051 | - |
 | `mistralai/mistral-medium-3.1` | 0.699 | $0.4847 | 0.7s | 0.978 | 0.747 | 0.444 | 0.429 | 0.821 | 0.711 | 0.500 | 1.000 | 0.514 | 0.681 | 0.833 | 0.727 | PASS | PASS | 0.046 | - |
 | `google/gemini-2.5-flash` | 0.694 | $0.3796 | 0.8s | 1.000 | 0.473 | 0.889 | 0.500 | 0.800 | 1.000 | 0.333 | 0.800 | 0.625 | 0.500 | 0.833 | 0.571 | PASS | PASS | 0.013 | - |
-| `openai/gpt-oss-120b` | 0.692 | $0.0559 | 6.5s | 0.943 | 0.820 | 0.855 | 0.475 | 0.305 | 0.956 | 0.393 | 0.728 | 0.668 | 0.762 | 0.662 | 0.743 | FAIL (1 FP) | FAIL (1 FP) | 0.126 | - |
-| `deepseek/deepseek-v4-pro` | 0.680 | $1.7968 | 16.2s | 0.851 | 0.280 | 0.876 | 0.581 | 0.532 | 0.857 | 0.867 | 0.700 | 0.764 | 0.597 | 0.800 | 0.456 | FAIL (1 FP) | PASS | 0.162 | - |
+| `openai/gpt-oss-120b` | 0.692 | $0.0634 | 6.5s | 0.943 | 0.820 | 0.855 | 0.475 | 0.305 | 0.956 | 0.393 | 0.728 | 0.668 | 0.762 | 0.662 | 0.743 | FAIL (1 FP) | FAIL (1 FP) | 0.126 | - |
+| `deepseek/deepseek-v4-pro` | 0.680 | $0.6106 | 16.2s | 0.851 | 0.280 | 0.876 | 0.581 | 0.532 | 0.857 | 0.867 | 0.700 | 0.764 | 0.597 | 0.800 | 0.456 | FAIL (1 FP) | PASS | 0.162 | - |
 | `google/gemma-4-31b-it` | 0.667 | $0.1181 | 2.4s | 0.876 | 0.400 | 0.893 | 0.476 | 0.668 | 0.828 | 0.533 | 0.960 | 0.667 | 0.550 | 0.675 | 0.476 | FAIL (1 FP) | PASS | 0.137 | - |
 | `meta/muse-glimmer-30b` | 0.654 | $0.6965 | 10.8s | 0.978 | 0.440 | 0.750 | 0.513 | 0.376 | 0.857 | 0.533 | 0.640 | 0.763 | 0.971 | 0.600 | 0.423 | PASS | PASS | 0.129 | - |
 | `openai/gpt-5.4` | 0.634 | $2.7907 | 1.4s | 0.818 | 0.420 | 0.878 | 0.653 | 0.706 | 0.565 | 0.333 | 0.674 | 0.589 | 0.670 | 0.785 | 0.520 | FAIL (1 FP) | FAIL (3 FP) | 0.091 | - |
 | `minimax/minimax-m3` | 0.626 | $0.3575 | 1.7s | 0.507 | 0.533 | 0.547 | 0.429 | 0.798 | 0.853 | 0.800 | 0.780 | 0.552 | 0.599 | 0.399 | 0.719 | FAIL (1 FP) | FAIL (1 FP) | 0.201 | - |
 | `google/gemini-2.5-flash-lite` | 0.623 | $0.1132 | 0.8s | 0.943 | 0.800 | 0.971 | 0.545 | 0.657 | 0.460 | 0.309 | 0.720 | 0.569 | 0.438 | 0.459 | 0.609 | FAIL (2 FP) | PASS | 0.070 | - |
 | `qwen/qwen3.6-plus` | 0.607 | $1.1534 | 36.9s | 0.971 | 0.433 | 0.686 | 0.336 | 0.470 | 0.844 | 0.000 | 0.800 | 0.592 | 0.886 | 0.691 | 0.579 | PASS | PASS | 0.148 | - |
-| `z-ai/glm-5.2` | 0.606 | $0.6636 | 3.5s | 0.910 | 0.320 | 0.813 | 0.508 | 0.543 | 0.555 | 0.547 | 0.603 | 0.601 | 0.527 | 0.678 | 0.670 | FAIL (2 FP) | FAIL (5 FP) | 0.117 | - |
-| `deepseek/deepseek-v4-flash-0731` | 0.601 | $0.2305 | 13.2s | 0.905 | 0.667 | 0.706 | 0.295 | 0.365 | 0.743 | 0.400 | 0.740 | 0.612 | 0.943 | 0.636 | 0.203 | PASS | PASS | 0.187 | - |
-| `deepseek/deepseek-v3.2` | 0.599 | $0.3015 | 1.7s | 0.857 | 0.633 | 0.667 | 0.616 | 0.859 | 0.613 | 0.473 | 0.667 | 0.303 | 0.500 | 0.476 | 0.527 | PASS | PASS | 0.072 | - |
+| `z-ai/glm-5.2` | 0.606 | $1.3083 | 3.5s | 0.910 | 0.320 | 0.813 | 0.508 | 0.543 | 0.555 | 0.547 | 0.603 | 0.601 | 0.527 | 0.678 | 0.670 | FAIL (2 FP) | FAIL (5 FP) | 0.117 | - |
+| `deepseek/deepseek-v4-flash-0731` | 0.601 | $0.1371 | 13.2s | 0.905 | 0.667 | 0.706 | 0.295 | 0.365 | 0.743 | 0.400 | 0.740 | 0.612 | 0.943 | 0.636 | 0.203 | PASS | PASS | 0.187 | - |
+| `deepseek/deepseek-v3.2` | 0.599 | $0.2914 | 1.7s | 0.857 | 0.633 | 0.667 | 0.616 | 0.859 | 0.613 | 0.473 | 0.667 | 0.303 | 0.500 | 0.476 | 0.527 | PASS | PASS | 0.072 | - |
 | `meta/muse-spark-1.1` | 0.595 | $2.2536 | 4.3s | 0.813 | 0.433 | 0.771 | 0.456 | 0.604 | 0.766 | 0.267 | 0.667 | 0.623 | 0.680 | 0.604 | 0.451 | PASS | PASS | 0.224 | - |
 | `openai/gpt-5.4-mini` | 0.582 | $0.8470 | 1.1s | 0.956 | 0.800 | 1.000 | 0.533 | 0.563 | 0.442 | 0.100 | 0.800 | 0.488 | 0.241 | 0.514 | 0.542 | FAIL (2 FP) | FAIL (3 FP) | 0.075 | - |
 | `nvidia/nemotron-3-super-120b-a12b` | 0.577 | $0.2194 | 22.3s | 0.971 | 0.760 | 0.785 | 0.417 | 0.029 | 0.892 | 0.000 | 0.800 | 0.736 | 0.754 | 0.462 | 0.319 | FAIL (1 FP) | PASS | 0.111 | - |
 | `deepseek/deepseek-r1` | 0.574 | $1.4743 | 35.7s | 0.857 | 0.360 | 0.848 | 0.352 | 0.365 | 0.746 | 0.267 | 0.800 | 0.543 | 0.462 | 0.620 | 0.669 | FAIL (1 FP) | FAIL (3 FP) | 0.140 | - |
-| `google/gemma-4-26b-a4b-it` | 0.572 | $0.1401 | 1.4s | 0.950 | 0.920 | 0.428 | 0.170 | 0.412 | 0.867 | 0.133 | 0.667 | 0.714 | 0.697 | 0.545 | 0.358 | FAIL (1 FP) | PASS | 0.136 | - |
+| `google/gemma-4-26b-a4b-it` | 0.572 | $0.0825 | 1.4s | 0.950 | 0.920 | 0.428 | 0.170 | 0.412 | 0.867 | 0.133 | 0.667 | 0.714 | 0.697 | 0.545 | 0.358 | FAIL (1 FP) | PASS | 0.136 | - |
 | `qwen/qwen3.5-27b` | 0.567 | $0.8941 | 37.6s | 0.373 | 0.640 | 0.598 | 0.417 | 0.625 | 0.800 | 0.600 | 0.693 | 0.751 | 0.586 | 0.373 | 0.350 | PASS | PASS | 0.214 | - |
 | `mistralai/mistral-large-2512` | 0.547 | $0.6184 | 3.3s | 0.933 | 0.407 | 0.893 | 0.545 | 0.574 | 0.400 | 0.320 | 0.800 | 0.333 | 0.239 | 0.449 | 0.667 | FAIL (1 FP) | PASS | 0.043 | - |
 | `deepseek/deepseek-r1-0528` | 0.540 | $1.1645 | 29.4s | 0.728 | 0.440 | 0.744 | 0.411 | 0.422 | 0.750 | 0.120 | 0.773 | 0.523 | 0.472 | 0.553 | 0.549 | FAIL (1 FP) | FAIL (8 FP) | 0.160 | - |
 | `openai/gpt-oss-20b` | 0.540 | $0.0620 | 9.2s | 0.943 | 0.780 | 0.421 | 0.279 | 0.147 | 0.692 | 0.300 | 0.560 | 0.678 | 0.825 | 0.483 | 0.375 | FAIL (1 FP) | FAIL (1 FP) | 0.163 | - |
 | `meta-llama/llama-4-maverick` | 0.522 | $0.2206 | 1.1s | 0.889 | 0.320 | 1.000 | 0.480 | 0.289 | 0.518 | 0.000 | 0.693 | 0.596 | 0.667 | 0.364 | 0.444 | FAIL (1 FP) | PASS | 0.033 | - |
-| `qwen/qwen3.8-27b` | 0.510 | $1.5144 | 70.3s | 0.886 | 0.340 | 0.545 | 0.419 | 0.067 | 0.857 | 0.133 | 0.840 | 0.671 | 0.660 | 0.707 | 0.000 | PASS | PASS | 0.131 | - |
+| `qwen/qwen3.8-27b` | 0.510 | $1.3947 | 70.3s | 0.886 | 0.340 | 0.545 | 0.419 | 0.067 | 0.857 | 0.133 | 0.840 | 0.671 | 0.660 | 0.707 | 0.000 | PASS | PASS | 0.131 | - |
 | `qwen/qwen3.7-plus` | 0.506 | $0.7238 | 23.7s | 0.744 | 0.400 | 0.667 | 0.468 | 0.394 | 0.455 | 0.393 | 0.514 | 0.459 | 0.270 | 0.580 | 0.728 | FAIL (2 FP) | FAIL (11 FP) | 0.063 | - |
 | `mistralai/codestral-2508` | 0.504 | $0.3585 | 0.9s | 0.800 | 0.400 | 0.800 | 0.307 | 0.452 | 0.371 | 0.400 | 0.610 | 0.487 | 0.300 | 0.401 | 0.727 | PASS | FAIL (1 FP) | 0.069 | - |
 | `qwen/qwen3-235b-a22b-2507` | 0.499 | $0.1078 | 2.5s | 0.731 | 0.480 | 0.709 | 0.436 | 0.186 | 0.372 | 0.233 | 0.701 | 0.652 | 0.359 | 0.597 | 0.529 | FAIL (1 FP) | FAIL (6 FP) | 0.150 | - |
 | `meta-llama/llama-3.3-70b-instruct` | 0.493 | $0.1107 | 1.3s | 0.800 | 0.567 | 0.774 | 0.295 | 0.040 | 0.659 | 0.267 | 0.480 | 0.769 | 0.571 | 0.329 | 0.363 | PASS | PASS | 0.117 | - |
 | `tencent/hy3` | 0.489 | $0.3876 | 22.3s | 0.781 | 0.100 | 0.743 | 0.229 | 0.033 | 0.848 | 0.000 | 0.753 | 0.664 | 0.836 | 0.346 | 0.539 | PASS | PASS | 0.124 | - |
 | `xiaomi/mimo-v2.5` | 0.471 | $0.1692 | 4.2s | 0.843 | 0.080 | 0.649 | 0.569 | 0.384 | 0.402 | 0.233 | 0.441 | 0.563 | 0.341 | 0.578 | 0.569 | FAIL (2 FP) | FAIL (7 FP) | 0.150 | - |
-| `deepseek/deepseek-v4-pro-0813` | 0.467 | $0.7982 | 26.6s | 0.914 | 0.100 | 0.667 | 0.124 | 0.132 | 0.819 | 0.000 | 0.800 | 0.422 | 0.960 | 0.613 | 0.057 | PASS | PASS | 0.108 | - |
+| `deepseek/deepseek-v4-pro-0813` | 0.467 | $2.4576 | 26.6s | 0.914 | 0.100 | 0.667 | 0.124 | 0.132 | 0.819 | 0.000 | 0.800 | 0.422 | 0.960 | 0.613 | 0.057 | PASS | PASS | 0.108 | - |
 | `openai/o3` | 0.457 | $3.3100 | 6.7s | 0.507 | 0.000 | 0.545 | 0.356 | 0.464 | 0.857 | 0.333 | 0.733 | 0.635 | 0.451 | 0.425 | 0.178 | PASS | PASS | 0.188 | - |
 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.453 | $0.7782 | 1.2s | 0.813 | 0.473 | 0.547 | 0.512 | 0.091 | 0.598 | 0.333 | 0.513 | 0.380 | 0.244 | 0.463 | 0.471 | FAIL (1 FP) | FAIL (4 FP) | 0.231 | - |
 | `meta-llama/llama-4-scout` | 0.442 | $0.1111 | 0.9s | 0.600 | 0.413 | 0.651 | 0.256 | 0.085 | 0.367 | 0.400 | 0.493 | 0.551 | 0.447 | 0.256 | 0.787 | FAIL (1 FP) | PASS | 0.224 | - |
@@ -1486,7 +1503,7 @@ One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`
 | `inclusionai/ring-2.6-1t` | 0.337 | $0.2468 | 10.8s | 0.507 | 0.867 | 0.522 | 0.057 | 0.031 | 0.537 | 0.000 | 0.400 | 0.547 | 0.350 | 0.094 | 0.129 | PASS | PASS | 0.140 | - |
 | `openai/gpt-3.5-turbo` | 0.310 | $0.5564 | 1.4s | 0.803 | 0.400 | 0.222 | 0.622 | 0.055 | 0.263 | 0.000 | 0.444 | 0.286 | 0.211 | 0.200 | 0.218 | FAIL (2 FP) | FAIL (11 FP) | 0.021 | - |
 | `microsoft/phi-4` | 0.299 | $0.0792 | 0.5s | 0.237 | 0.000 | 0.427 | 0.239 | 0.000 | 0.000 | 0.400 | 0.800 | 0.228 | 0.620 | 0.423 | 0.217 | PASS | PASS | 0.108 | - |
-| `nvidia/nemotron-3.5-lightning` | 0.285 | $0.1509 | 1.2s | 0.000 | 0.000 | 0.455 | 0.307 | 0.113 | 0.290 | 0.800 | 0.540 | 0.316 | 0.121 | 0.424 | 0.057 | PASS | FAIL (4 FP) | 0.104 | - |
+| `nvidia/nemotron-3.5-lightning` | 0.285 | $0.1207 | 1.2s | 0.000 | 0.000 | 0.455 | 0.307 | 0.113 | 0.290 | 0.800 | 0.540 | 0.316 | 0.121 | 0.424 | 0.057 | PASS | FAIL (4 FP) | 0.104 | - |
 | `qwen/qwen3.8-max` | 0.272 | $4.2714 | 29.7s | 0.280 | 0.000 | 0.320 | 0.231 | 0.000 | 0.373 | 0.000 | 0.900 | 0.050 | 0.460 | 0.646 | 0.000 | PASS | PASS | 0.112 | - |
 | `meta-llama/llama-3.1-8b-instruct` | 0.259 | $0.0572 | 0.9s | 0.200 | 0.593 | 0.274 | 0.133 | 0.167 | 0.203 | 0.700 | 0.263 | 0.124 | 0.090 | 0.140 | 0.216 | PASS | FAIL (2 FP) | 0.164 | - |
 | `thinkingmachines/inkling` | 0.231 | $3.1580 | 65.6s | 0.307 | 0.000 | 0.427 | 0.124 | 0.067 | 0.160 | 0.000 | 0.627 | 0.398 | 0.460 | 0.202 | 0.000 | PASS | FAIL (1 FP) | 0.156 | - |
@@ -1662,7 +1679,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `openai/gpt-5.6-terra`
 
 - F1 (avg across episodes): **0.768**
-- Total cost / episode: **$1.1951**
+- Total cost / episode: **$2.3902**
 - p50 / p95 latency: 2.10s / 6.71s
 - JSON compliance: 0.86
 - JSON mode: native (100% native, 855 calls)
@@ -1686,7 +1703,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `openai/gpt-5.6-luna`
 
 - F1 (avg across episodes): **0.754**
-- Total cost / episode: **$0.1402**
+- Total cost / episode: **$0.2804**
 - p50 / p95 latency: 3.46s / 11.35s
 - JSON compliance: 0.83
 - JSON mode: native (100% native, 855 calls)
@@ -1706,6 +1723,18 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Extraction methods: `json_array_direct`: 855
 - Verbosity: 397/855 calls over 1024 output tokens (46.4%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
 - Segment category named on 463/463 detections (100%); the rest stay uncategorized (resolver: production)
+
+#### `stealth/ox-alpha`
+
+- F1 (avg across episodes): **0.750**
+- Total cost / episode: **$0.0000**
+- p50 / p95 latency: 66.56s / 190.15s
+- JSON compliance: 0.94
+- JSON mode: native (100% native, 855 calls)
+- Parse failure rate: 5.7%
+- Extraction methods: `json_array_direct`: 793, `json_object_no_ads`: 1, `json_object_single_ad_truncated`: 8, `parse_failure`: 49, `regex_json_array`: 4
+- Verbosity: 397/855 calls over 1024 output tokens (46.4%); 55 hit max_tokens (6.4%); 8 salvaged from truncated JSON (0.9%)
+- Segment category named on 356/363 detections (98%); the rest stay uncategorized (resolver: production)
 
 #### `claude-opus-5`
 
@@ -1758,7 +1787,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `openai/gpt-5.6-sol`
 
 - F1 (avg across episodes): **0.738**
-- Total cost / episode: **$6.2293**
+- Total cost / episode: **$2.4303**
 - p50 / p95 latency: 3.72s / 11.86s
 - JSON compliance: 0.84
 - JSON mode: native (100% native, 855 calls)
@@ -1794,7 +1823,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v4-flash`
 
 - F1 (avg across episodes): **0.708**
-- Total cost / episode: **$0.0981**
+- Total cost / episode: **$0.0715**
 - p50 / p95 latency: 6.27s / 40.26s
 - JSON compliance: 0.82
 - JSON mode: native (100% native, 855 calls)
@@ -1866,7 +1895,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `openai/gpt-oss-120b`
 
 - F1 (avg across episodes): **0.692**
-- Total cost / episode: **$0.0559**
+- Total cost / episode: **$0.0634**
 - p50 / p95 latency: 6.54s / 44.55s
 - JSON compliance: 0.88
 - JSON mode: native (100% native, 855 calls)
@@ -1878,7 +1907,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v4-pro`
 
 - F1 (avg across episodes): **0.680**
-- Total cost / episode: **$1.7968**
+- Total cost / episode: **$0.6106**
 - p50 / p95 latency: 16.17s / 68.15s
 - JSON compliance: 0.87
 - JSON mode: native (100% native, 855 calls)
@@ -1962,7 +1991,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `z-ai/glm-5.2`
 
 - F1 (avg across episodes): **0.606**
-- Total cost / episode: **$0.6636**
+- Total cost / episode: **$1.3083**
 - p50 / p95 latency: 3.55s / 24.22s
 - JSON compliance: 0.73
 - JSON mode: native (100% native, 855 calls)
@@ -1974,7 +2003,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v4-flash-0731`
 
 - F1 (avg across episodes): **0.601**
-- Total cost / episode: **$0.2305**
+- Total cost / episode: **$0.1371**
 - p50 / p95 latency: 13.20s / 61.85s
 - JSON compliance: 0.73
 - JSON mode: native (100% native, 855 calls)
@@ -1986,7 +2015,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v3.2`
 
 - F1 (avg across episodes): **0.599**
-- Total cost / episode: **$0.3015**
+- Total cost / episode: **$0.2914**
 - p50 / p95 latency: 1.74s / 10.84s
 - JSON compliance: 1.00
 - JSON mode: native (100% native, 855 calls)
@@ -2046,7 +2075,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `google/gemma-4-26b-a4b-it`
 
 - F1 (avg across episodes): **0.572**
-- Total cost / episode: **$0.1401**
+- Total cost / episode: **$0.0825**
 - p50 / p95 latency: 1.40s / 6.52s
 - JSON compliance: 0.84
 - JSON mode: native (100% native, 855 calls)
@@ -2118,7 +2147,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `qwen/qwen3.8-27b`
 
 - F1 (avg across episodes): **0.510**
-- Total cost / episode: **$1.5144**
+- Total cost / episode: **$1.3947**
 - p50 / p95 latency: 70.26s / 337.40s
 - JSON compliance: 0.69
 - JSON mode: native (100% native, 855 calls)
@@ -2202,7 +2231,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v4-pro-0813`
 
 - F1 (avg across episodes): **0.467**
-- Total cost / episode: **$0.7982**
+- Total cost / episode: **$2.4576**
 - p50 / p95 latency: 26.59s / 74.56s
 - JSON compliance: 0.73
 - JSON mode: native (100% native, 855 calls)
@@ -2406,7 +2435,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `nvidia/nemotron-3.5-lightning`
 
 - F1 (avg across episodes): **0.285**
-- Total cost / episode: **$0.1509**
+- Total cost / episode: **$0.1207**
 - p50 / p95 latency: 1.16s / 14.47s
 - JSON compliance: 0.79
 - JSON mode: native (100% native, 855 calls)
@@ -2556,6 +2585,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.8-2.4t-a95b` | PASS | 0 |
 | `qwen/qwen3.8-27b` | PASS | 0 |
 | `qwen/qwen3.8-max` | PASS | 0 |
+| `stealth/ox-alpha` | PASS | 0 |
 | `stepfun/step-3.7-flash` | PASS | 0 |
 | `tencent/hy3` | PASS | 0 |
 | `thinkingmachines/inkling` | PASS | 0 |
@@ -2620,6 +2650,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.5-plus-02-15` | 1.000 | 0.000 |
 | `qwen/qwen3.6-flash` | 1.000 | 0.000 |
 | `qwen/qwen3.7-flash` | 1.000 | 0.000 |
+| `stealth/ox-alpha` | 1.000 | 0.000 |
 | `x-ai/grok-4.3` | 1.000 | 0.000 |
 | `claude-opus-4-7` | 0.978 | 0.050 |
 | `meta/muse-glimmer-30b` | 0.978 | 0.050 |
@@ -2734,6 +2765,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `x-ai/grok-4.6` | 0.500 | 0.000 |
 | `qwen/qwen3-235b-a22b-2507` | 0.480 | 0.179 |
 | `moonshotai/kimi-k3` | 0.480 | 0.045 |
+| `stealth/ox-alpha` | 0.480 | 0.045 |
 | `google/gemini-2.5-flash` | 0.473 | 0.116 |
 | `nvidia/nemotron-3-ultra-550b-a55b` | 0.473 | 0.306 |
 | `x-ai/grok-4.3` | 0.460 | 0.055 |
@@ -2802,6 +2834,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.6-luna` | 1.000 | 0.000 |
 | `openai/gpt-5.6-sol` | 1.000 | 0.000 |
 | `qwen/qwen3.7-max` | 1.000 | 0.000 |
+| `stealth/ox-alpha` | 1.000 | 0.000 |
 | `x-ai/grok-4.5` | 1.000 | 0.000 |
 | `x-ai/grok-4.6` | 1.000 | 0.000 |
 | `claude-fable-5` | 0.978 | 0.050 |
@@ -2886,6 +2919,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.6-terra` | 0.653 | 0.030 |
 | `openai/gpt-3.5-turbo` | 0.622 | 0.099 |
 | `deepseek/deepseek-v3.2` | 0.616 | 0.052 |
+| `stealth/ox-alpha` | 0.613 | 0.030 |
 | `openai/gpt-5.6-luna` | 0.609 | 0.096 |
 | `qwen/qwen3.6-flash` | 0.602 | 0.043 |
 | `qwen/qwen3.7-flash` | 0.602 | 0.043 |
@@ -3008,6 +3042,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.5-27b` | 0.625 | 0.089 |
 | `meta/muse-spark-1.1` | 0.604 | 0.230 |
 | `mistralai/mistral-large-2512` | 0.574 | 0.021 |
+| `stealth/ox-alpha` | 0.569 | 0.098 |
 | `openai/gpt-5.4-mini` | 0.563 | 0.123 |
 | `qwen/qwen3.7-flash` | 0.546 | 0.224 |
 | `z-ai/glm-5.2` | 0.543 | 0.069 |
@@ -3089,6 +3124,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.5-plus-02-15` | 0.857 | 0.000 |
 | `qwen/qwen3.7-max` | 0.857 | 0.000 |
 | `qwen/qwen3.8-27b` | 0.857 | 0.000 |
+| `stealth/ox-alpha` | 0.857 | 0.000 |
 | `x-ai/grok-4.5` | 0.857 | 0.000 |
 | `x-ai/grok-4.6` | 0.857 | 0.000 |
 | `minimax/minimax-m3` | 0.853 | 0.094 |
@@ -3176,6 +3212,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.6-luna` | 0.667 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
 | `qwen/qwen3.7-max` | 0.667 | 0.000 |
+| `stealth/ox-alpha` | 0.667 | 0.000 |
 | `x-ai/grok-4.3` | 0.667 | 0.000 |
 | `x-ai/grok-4.5` | 0.667 | 0.000 |
 | `claude-sonnet-5` | 0.633 | 0.075 |
@@ -3281,6 +3318,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.5` | 0.800 | 0.000 |
 | `qwen/qwen3.6-plus` | 0.800 | 0.000 |
 | `qwen/qwen3.7-flash` | 0.800 | 0.000 |
+| `stealth/ox-alpha` | 0.800 | 0.000 |
 | `minimax/minimax-m3` | 0.780 | 0.179 |
 | `claude-sonnet-4-6` | 0.773 | 0.060 |
 | `deepseek/deepseek-r1-0528` | 0.773 | 0.060 |
@@ -3390,6 +3428,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.7-max` | PASS | 0 |
 | `qwen/qwen3.8-27b` | PASS | 0 |
 | `qwen/qwen3.8-max` | PASS | 0 |
+| `stealth/ox-alpha` | PASS | 0 |
 | `stepfun/step-3.7-flash` | PASS | 0 |
 | `tencent/hy3` | PASS | 0 |
 | `x-ai/grok-4.3` | PASS | 0 |
@@ -3472,6 +3511,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `tencent/hy3` | 0.664 | 0.064 |
 | `google/gemini-2.5-pro` | 0.658 | 0.019 |
 | `qwen/qwen3-235b-a22b-2507` | 0.652 | 0.095 |
+| `stealth/ox-alpha` | 0.640 | 0.060 |
 | `qwen/qwen3.8-2.4t-a95b` | 0.640 | 0.037 |
 | `openai/o3` | 0.635 | 0.169 |
 | `google/gemini-2.5-flash` | 0.625 | 0.000 |
@@ -3528,6 +3568,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `google/gemini-3.5-flash` | 1.000 | 0.000 |
 | `google/gemini-3.6-flash` | 1.000 | 0.000 |
 | `google/gemini-3.7-flash` | 1.000 | 0.000 |
+| `stealth/ox-alpha` | 1.000 | 0.000 |
 | `meta/muse-glimmer-30b` | 0.971 | 0.064 |
 | `deepseek/deepseek-v4-pro-0813` | 0.960 | 0.089 |
 | `deepseek/deepseek-v4-flash-0731` | 0.943 | 0.078 |
@@ -3634,6 +3675,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/gpt-5.5` | 0.800 | 0.000 |
 | `openai/gpt-5.6-luna` | 0.800 | 0.000 |
 | `openai/gpt-5.6-terra` | 0.800 | 0.000 |
+| `stealth/ox-alpha` | 0.800 | 0.000 |
 | `x-ai/grok-4.5` | 0.800 | 0.000 |
 | `claude-sonnet-5` | 0.785 | 0.033 |
 | `openai/gpt-5.4` | 0.785 | 0.033 |
@@ -3745,6 +3787,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `qwen/qwen3.6-plus` | 0.579 | 0.363 |
 | `google/gemini-2.5-flash` | 0.571 | 0.000 |
 | `xiaomi/mimo-v2.5` | 0.569 | 0.179 |
+| `stealth/ox-alpha` | 0.569 | 0.147 |
 | `deepseek/deepseek-r1-0528` | 0.549 | 0.120 |
 | `openai/gpt-5.4-mini` | 0.542 | 0.114 |
 | `tencent/hy3` | 0.539 | 0.246 |
@@ -3855,6 +3898,7 @@ How each model's responses were actually parsed. Columns are extraction methods,
 | `qwen/qwen3.7-flash` | 0 | 810 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 | 33 | 0 |
 | `deepseek/deepseek-v4-pro` | 0 | 434 | 0 | 0 | 10 | 0 | 39 | 205 | 118 | 3 | 0 | 45 | 1 |
 | `deepseek/deepseek-v4-flash` | 0 | 93 | 0 | 0 | 175 | 0 | 266 | 6 | 268 | 0 | 0 | 47 | 0 |
+| `stealth/ox-alpha` | 0 | 793 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 8 | 0 | 49 | 4 |
 | `moonshotai/kimi-k3` | 0 | 361 | 0 | 0 | 181 | 0 | 27 | 0 | 6 | 122 | 0 | 50 | 108 |
 | `nvidia/nemotron-3.5-lightning` | 0 | 0 | 0 | 0 | 191 | 0 | 329 | 9 | 251 | 1 | 0 | 71 | 3 |
 | `deepseek/deepseek-r1` | 0 | 494 | 0 | 0 | 182 | 0 | 0 | 1 | 90 | 3 | 0 | 85 | 0 |
@@ -3889,7 +3933,7 @@ Reproducibility settings used for this run. The benchmark sends the same prompts
 - max_tokens: 4096 (matches MinusPod production)
 - response_format: json_object (with prompt-injection fallback when provider rejects native)
 - Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)
-- Pricing snapshot: 2026-08-15T11:31:48.168132Z
+- Pricing snapshot: 2026-08-23T20:34:27.481692Z
 - Corpus episodes: 14
 
 ## Transcript source
@@ -4121,13 +4165,13 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-08-15T19:10:02Z
-- Unique work units (current state, last-write-wins after retries): 70965
-- Raw rows in calls.jsonl: 78258 (7293 superseded by later retries; kept for audit)
-- Successful: 70835
+- Report generated: 2026-08-24T01:31:52Z
+- Unique work units (current state, last-write-wins after retries): 71820
+- Raw rows in calls.jsonl: 79113 (7293 superseded by later retries; kept for audit)
+- Successful: 71690
 - Failed: 130
 - Lifetime list-price cost (sum of at-runtime costs, includes superseded rows): $698.4264
-- Lifetime tokens (same basis): 455,177,283 in + 64,261,881 out = 519,439,164
+- Lifetime tokens (same basis): 460,766,578 in + 65,503,116 out = 526,269,694
 - Note: every input token is priced at list rate. Providers that serve a repeated prompt from cache bill less than this, and the harness does not record cache hits, so a real invoice for this run will come in under the figure above.
-- Active pricing snapshot: 2026-08-15T11:31:48.168132Z
+- Active pricing snapshot: 2026-08-23T20:34:27.481692Z
 - System prompt: snapshot:2026-08.txt (sha256:1030b29e)
