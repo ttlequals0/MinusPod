@@ -426,17 +426,41 @@ class AdValidator:
             ad['_matches_false_positive_correction'] = (
                 self._overlaps_false_positive(ad['start'], ad['end']))
             confirmed = self._matching_confirmed(ad['start'], ad['end'])
-            if confirmed is not None:
-                # A re-detection can split one user-approved span into
-                # multiple markers. Give the correction to the earliest
-                # matching marker and suppress the others below so action
-                # partitioning cannot render overlapping replacements.
-                ad['_has_confirmed_correction_candidate'] = True
-                existing = confirmed_candidates.get(id(confirmed))
-                if (existing is None
-                        or (ad['start'], ad['end']) < (
-                            existing[1]['start'], existing[1]['end'])):
-                    confirmed_candidates[id(confirmed)] = (confirmed, ad)
+            if confirmed is None:
+                continue
+            span = confirmed.get('confirmed_span')
+            if (span is not None
+                    and not (ad['start'] < span['end']
+                             and ad['end'] > span['start'])):
+                # Fragment lies wholly in trimmed-out (user-kept) content:
+                # it still needs normal validation and must not consume the
+                # approved-span match.
+                continue
+            # A re-detection can split one user-approved span into multiple
+            # markers. Give the correction to the earliest eligible marker
+            # and suppress the others below so action partitioning cannot
+            # render overlapping replacements.
+            ad['_has_confirmed_correction_candidate'] = True
+            # Judge false-positive overlap against the prospective restored
+            # DAI bounds: a fragment whose restoration would reach into
+            # audio the user rejected must not claim the approved span.
+            core_start, core_end = dai_core_bounds(ad)
+            restored_start = (
+                min(ad['start'], core_start)
+                if core_start is not None else ad['start'])
+            restored_end = (
+                max(ad['end'], core_end)
+                if core_end is not None else ad['end'])
+            restored_start = max(0.0, restored_start)
+            if self.episode_duration > 0:
+                restored_end = min(restored_end, self.episode_duration)
+            if self._overlaps_false_positive(restored_start, restored_end):
+                continue
+            existing = confirmed_candidates.get(id(confirmed))
+            if (existing is None
+                    or (ad['start'], ad['end']) < (
+                        existing[1]['start'], existing[1]['end'])):
+                confirmed_candidates[id(confirmed)] = (confirmed, ad)
 
         for confirmed, ad in confirmed_candidates.values():
             ad['_confirmed_correction'] = confirmed
@@ -454,45 +478,6 @@ class AdValidator:
             if (confirmed is not None
                     and (confirmed.get('confirmed_span') or dai_will_expand)):
                 ad['_pre_dai_restore_confirmed_correction'] = confirmed
-
-        # A single approved span can overlap several fragments from one DAI
-        # re-detection. Each would later restore to that exact same span, so
-        # retain only the first eligible overlapping fragment before merge
-        # protection keeps them separate. Judge false-positive overlap against
-        # the prospective restored DAI bounds: otherwise a retained fragment
-        # can expand into user-kept content and be rejected after consuming
-        # the approved span. Fragments in user-kept content or rejected as
-        # false positives still need normal validation and must not consume
-        # the approved-span match.
-        restored_corrections = set()
-        deduplicated_ads = []
-        for ad in ads:
-            confirmed = ad.get('_pre_dai_restore_confirmed_correction')
-            span = confirmed.get('confirmed_span') if confirmed else None
-            overlaps_approved = (span is not None
-                                 and ad['start'] < span['end']
-                                 and ad['end'] > span['start'])
-            core_start, core_end = dai_core_bounds(ad)
-            restored_start = (
-                min(ad['start'], core_start)
-                if core_start is not None else ad['start'])
-            restored_end = (
-                max(ad['end'], core_end)
-                if core_end is not None else ad['end'])
-            restored_start = max(0.0, restored_start)
-            if self.episode_duration > 0:
-                restored_end = min(restored_end, self.episode_duration)
-            correction_id = id(confirmed)
-            can_restore_approved_span = (
-                overlaps_approved
-                and not self._overlaps_false_positive(restored_start, restored_end))
-            if (can_restore_approved_span
-                    and correction_id in restored_corrections):
-                continue
-            if can_restore_approved_span:
-                restored_corrections.add(correction_id)
-            deduplicated_ads.append(ad)
-        ads = deduplicated_ads
 
         # Step 1: Auto-correct boundaries
         ads = self._clamp_boundaries(ads, result)

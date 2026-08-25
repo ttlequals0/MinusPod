@@ -2119,7 +2119,7 @@ def _snap_completed_cut_tails_to_splice(
         podcast_name=podcast_name,
     )
     changed = False
-    for old, new in zip(ads_to_remove, snapped):
+    for old, new in zip(ads_to_remove, snapped, strict=True):
         if new['end'] <= old['end']:
             continue
         changed = True

@@ -23,8 +23,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from unittest.mock import patch
 
-import pytest
-
 import main_app.processing as processing
 from api.patterns import _matches_held_marker
 from audio_processor import AudioProcessor

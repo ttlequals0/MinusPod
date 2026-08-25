@@ -862,10 +862,21 @@ class TestConfirmedCorrections:
             },
         ])
 
+        # The first fragment claims the approved span; the second stays in
+        # the output as an audit-trail rejection rather than vanishing.
         assert result.accepted == 1
-        assert len(result.ads) == 1
-        assert result.ads[0]['start'] == 120.0
-        assert result.ads[0]['end'] == 180.0
+        assert result.rejected == 1
+        assert len(result.ads) == 2
+        accepted = next(
+            ad for ad in result.ads
+            if ad['validation']['decision'] == Decision.ACCEPT.value)
+        assert accepted['start'] == 120.0
+        assert accepted['end'] == 180.0
+        rejected = next(
+            ad for ad in result.ads
+            if ad['validation']['decision'] == Decision.REJECT.value)
+        assert 'INFO: Duplicate of user-confirmed span' in (
+            rejected['validation']['flags'])
 
     def test_confirmed_span_dedup_ignores_kept_content_fragment(self):
         validator = AdValidator(
