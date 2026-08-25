@@ -11,6 +11,47 @@ release notes.
 
 ## [Unreleased]
 
+## [2.90.0] - 2026-08-25
+
+### Added
+
+- Per-category segment actions (keep, beep, remove) now apply in the
+  verification pass, not just pass 1. Kept spans become validator
+  barriers so merges and end-extension cannot cut through them,
+  overlapping beep and remove cuts are reconciled (beep wins contested
+  audio, removes split around it), and the audio recut honors the same
+  barriers. Ported from the kristofferR fork (#679).
+- DAI review safeguards: human review decisions (confirmed spans, trims,
+  false-positive rejections) survive automatic boundary mutation, and
+  measured DAI evidence (`dai_core_spans`) survives marker merges and
+  splits. Confirmed spans clamp exactly, the newest correction wins,
+  duplicate fragments of one approved span are rejected with an audit
+  flag, and untranscribed sonic tails after a recovered CTA are removed.
+  Ported from the kristofferR fork (#680).
+- VAD gap extension guardrails: adjacency-only gap extension is capped
+  at 60 seconds; larger untranscribed gaps without signoff or resume
+  context become held review markers with a `large_vad_gap_extension`
+  hold reason, surfaced in the episode detail view. Held markers are
+  never merged with other markers. Ported from the kristofferR fork
+  (#677).
+- Benchmark: stealth/ox-alpha added to the 2026-08 sweep and the
+  recommended models table, marked as promotional pricing (#674).
+
+### Fixed
+
+- Ollama reasoning effort is now sent as `reasoning_effort` through the
+  OpenAI-compatible API. The previous `options.think` form was silently
+  ignored, so the configured effort never reached the model (#678).
+
+### Changed
+
+- Dependency bumps: anthropic 1.0.0 (temperature now routed via
+  `extra_body`, since the 1.0 SDK removed sampling parameters from
+  `messages.create`), openai 3.3.1, gunicorn 26.1.0, huggingface-hub
+  1.28.0, idna 3.19 (#676); vite 8.2.2, lucide-react 1.33.0,
+  @tanstack/react-query 5.101.4, happy-dom 20.11.6, globals 17.11.0,
+  docker/setup-buildx-action 4.3.0 (#663-#670).
+
 ## [2.89.5] - 2026-08-21
 
 ### Added
