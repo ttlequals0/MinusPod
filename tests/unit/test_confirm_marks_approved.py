@@ -147,11 +147,13 @@ def test_newer_boundary_adjustment_overrides_older_trimmed_confirm(temp_db):
             'start': 120.0,
             'end': 180.0,
             'confirmed_span': {'start': 125.0, 'end': 175.0},
+            'correction_type': 'boundary_adjustment',
         },
         {
             'start': 100.0,
             'end': 200.0,
             'confirmed_span': {'start': 120.0, 'end': 180.0},
+            'correction_type': 'confirm',
         },
     ]
 

@@ -578,6 +578,7 @@ class PatternMixin:
                     continue
                 if confirmed_span:
                     bounds['confirmed_span'] = confirmed_span
+                bounds['correction_type'] = row['correction_type']
                 results.append(bounds)
         return results
 

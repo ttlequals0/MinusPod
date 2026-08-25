@@ -470,6 +470,36 @@ class AdValidator:
         for confirmed, ad in confirmed_candidates.values():
             ad['_confirmed_correction'] = confirmed
 
+        residue_ads = []
+        for confirmed, ad in confirmed_candidates.values():
+            if confirmed.get('confirmed_span') is None or '_orig_twin' in ad:
+                continue
+            # The clamp below discards audio outside the approved span. The
+            # part inside the reviewed bounds is user-trimmed-out and stays
+            # dropped, but audio beyond both the reviewed bounds and the
+            # approved span is new territory the human never saw: validate
+            # it as its own marker.
+            span = confirmed['confirmed_span']
+            seen_start = min(confirmed['start'], span['start'])
+            seen_end = max(confirmed['end'], span['end'])
+            for lo, hi in ((ad['start'], seen_start),
+                           (seen_end, ad['end'])):
+                if hi - lo < MIN_AD_DURATION:
+                    continue
+                residue = {k: v for k, v in ad.items() if k not in (
+                    '_confirmed_correction',
+                    '_has_confirmed_correction_candidate',
+                    '_matches_false_positive_correction')}
+                residue['start'] = lo
+                residue['end'] = hi
+                clip_dai_core_spans(residue, lo, hi)
+                residue['reason'] = (
+                    f"{ad.get('reason', 'ad')} (beyond reviewed bounds)")
+                residue_ads.append(residue)
+        if residue_ads:
+            ads.extend(residue_ads)
+            ads.sort(key=lambda a: a['start'])
+
         for ad in ads:
             confirmed = ad.get('_confirmed_correction')
             core_start, core_end = dai_core_bounds(ad)
@@ -642,12 +672,16 @@ class AdValidator:
                     'decision': Decision.ACCEPT.value,
                     'adjusted_confidence': 1.0,
                     'original_confidence': ad.get('confidence', 1.0),
-                    # Nested under the validator-owned result so an arbitrary
-                    # detector/model field cannot forge this trust signal.
-                    'user_confirmed': True,
                     'flags': flags,
                     'corrections': corrections
                 }
+                if confirmed.get('correction_type') != 'boundary_adjustment':
+                    # Nested under the validator-owned result so an arbitrary
+                    # detector/model field cannot forge this trust signal. An
+                    # adjustment clamps bounds but keeps the reviewer in the
+                    # loop: its stored bounds can go stale on a DAI feed
+                    # whose ad timing drifts between fetches.
+                    validation['user_confirmed'] = True
                 if span:
                     # Carry the exact approved bounds through late reviewer
                     # and tail mutations. Re-matching against a marker after

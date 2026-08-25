@@ -42,6 +42,20 @@ release notes.
 - Ollama reasoning effort is now sent as `reasoning_effort` through the
   OpenAI-compatible API. The previous `options.think` form was silently
   ignored, so the configured effort never reached the model (#678).
+- Review hardening of the ported changes: kept audio is barriered on
+  every render path (pass 1 and manual recut, not only the pass-2
+  recut); pattern-defined keeps never fuse with plain keeps before
+  action precedence applies; plain confirmations keep their
+  multi-fragment auto-accept; a false-positive rejection extending past
+  an adjusted span survives the adjustment; and pass-2 kept-span
+  conflicts are screened against false-positive corrections before
+  being held for review.
+- A boundary adjustment still clamps a re-detection to its approved
+  bounds and accepts it, but no longer bypasses the ad reviewer: stored
+  bounds can go stale on a DAI feed whose ad timing drifts between
+  fetches. Audio a re-detection covers beyond both the reviewed bounds
+  and the approved span now validates as its own marker instead of
+  being silently discarded by the clamp.
 
 ### Changed
 

@@ -2322,6 +2322,77 @@ class TestRegistryNeedsMoreThanOneMention:
         assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is True
 
 
+class TestAdjustmentClampWithoutBypass:
+    """A boundary adjustment clamps and accepts, but keeps the reviewer in
+    the loop: its stored bounds can go stale on a drifting DAI timeline."""
+
+    def test_adjustment_accepts_without_user_confirmed_flag(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0, 'end': 200.0,
+                'confirmed_span': {'start': 130.0, 'end': 200.0},
+                'correction_type': 'boundary_adjustment',
+            }],
+        )
+
+        out = validator.validate(
+            [{'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+              'reason': 'redetected ad'}]).ads[0]
+
+        assert out['start'] == 130.0
+        assert out['end'] == 200.0
+        assert out['validation']['decision'] == Decision.ACCEPT.value
+        assert 'user_confirmed' not in out['validation']
+
+    def test_confirm_still_grants_the_bypass(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0, 'end': 200.0,
+                'confirmed_span': {'start': 130.0, 'end': 200.0},
+                'correction_type': 'confirm',
+            }],
+        )
+
+        out = validator.validate(
+            [{'start': 100.0, 'end': 200.0, 'confidence': 0.9,
+              'reason': 'redetected ad'}]).ads[0]
+
+        assert out['validation']['user_confirmed'] is True
+
+
+class TestClampResidueValidatesSeparately:
+    """Audio beyond both the reviewed bounds and the approved span is new
+    territory: it validates as its own marker instead of vanishing."""
+
+    def test_new_territory_past_the_confirm_gets_its_own_marker(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{
+                'start': 100.0, 'end': 200.0,
+                'confirmed_span': {'start': 130.0, 'end': 200.0},
+            }],
+        )
+
+        result = validator.validate(
+            [{'start': 100.0, 'end': 240.0, 'confidence': 0.95,
+              'reason': 'redetected ad plus a new back-to-back ad'}])
+
+        spans = sorted((ad['start'], ad['end']) for ad in result.ads)
+        assert (130.0, 200.0) in spans
+        assert (200.0, 240.0) in spans
+        residue = next(ad for ad in result.ads if ad['start'] == 200.0)
+        assert 'beyond reviewed bounds' in residue['reason']
+        # High confidence: the new ad is cut on its own merits.
+        assert residue['validation']['decision'] == Decision.ACCEPT.value
+        # The trimmed-out region 100-130 stays dropped.
+        assert (100.0, 130.0) not in spans
+
+
 class TestPlainConfirmMultiFragment:
     """A plain confirmation (no confirmed_span) names no exact sub-span, so
     every fragment matching it auto-accepts; there is nothing to dedup."""
