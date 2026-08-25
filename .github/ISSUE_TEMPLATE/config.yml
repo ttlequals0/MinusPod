@@ -3,3 +3,6 @@ contact_links:
   - name: Community ad patterns
     url: https://github.com/ttlequals0/MinusPod/blob/main/patterns/README.md
     about: Contributing ad patterns has its own flow, documented here.
+  - name: LLM benchmark contributions
+    url: https://github.com/ttlequals0/MinusPod/blob/main/benchmarks/llm/CONTRIBUTING.md
+    about: Adding models or corpus episodes to the benchmark has its own flow, documented here.
