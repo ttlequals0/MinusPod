@@ -114,7 +114,7 @@ class TestAnthropicFallback:
         assert mock_sdk.messages.create.call_count == 2
         retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
         assert retry_kwargs["max_tokens"] == 4096  # default for ad_detection_pass_1
-        assert retry_kwargs["temperature"] == 0.0
+        assert retry_kwargs["extra_body"] == {"temperature": 0.0}
 
     def test_429_does_not_flip_flag(self):
         client = self._build_client()
@@ -191,7 +191,7 @@ class TestAnthropicFallback:
         kwargs = mock_sdk.messages.create.call_args.kwargs
         # Defaults are used directly on first attempt.
         assert kwargs["max_tokens"] == 4096
-        assert kwargs["temperature"] == 0.0
+        assert kwargs["extra_body"] == {"temperature": 0.0}
 
     def test_4xx_does_not_trip_circuit_breaker(self):
         # Per-pass fallback is a user-config retry, not a provider outage.
@@ -240,7 +240,7 @@ class TestAnthropicFallback:
         # ep2 call still used user tunables.
         ep2_kwargs = mock_sdk.messages.create.call_args_list[2].kwargs
         assert ep2_kwargs["max_tokens"] == 99999
-        assert ep2_kwargs["temperature"] == 0.9
+        assert ep2_kwargs["extra_body"] == {"temperature": 0.9}
 
 
 class TestOpenAIFallback:
@@ -333,7 +333,7 @@ class TestAnthropicTemperatureOmission:
         )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "temperature" not in kwargs
+        assert "extra_body" not in kwargs
 
     def test_keeps_temperature_for_older_model(self):
         from llm_client import AnthropicClient
@@ -351,7 +351,7 @@ class TestAnthropicTemperatureOmission:
         )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert kwargs["temperature"] == 0.2
+        assert kwargs["extra_body"] == {"temperature": 0.2}
 
 
 class TestAnthropicTemperatureRejectionRetry:
@@ -388,7 +388,7 @@ class TestAnthropicTemperatureRejectionRetry:
 
         assert mock_sdk.messages.create.call_count == 2
         retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
-        assert "temperature" not in retry_kwargs
+        assert "extra_body" not in retry_kwargs
 
     def test_retry_works_even_without_a_tracked_pass(self):
         # No episode_id/pass_name: the general tunables-fallback path is
@@ -412,7 +412,7 @@ class TestAnthropicTemperatureRejectionRetry:
 
         assert mock_sdk.messages.create.call_count == 2
         retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
-        assert "temperature" not in retry_kwargs
+        assert "extra_body" not in retry_kwargs
 
     def test_model_is_remembered_for_subsequent_calls(self):
         from llm_client import AnthropicClient
@@ -437,7 +437,7 @@ class TestAnthropicTemperatureRejectionRetry:
         assert mock_sdk.messages.create.call_count == 3
         # Third call (second messages_create, no retry needed) never sends temperature.
         third_call_kwargs = mock_sdk.messages.create.call_args_list[2].kwargs
-        assert "temperature" not in third_call_kwargs
+        assert "extra_body" not in third_call_kwargs
 
     def test_non_temperature_400_still_retries_with_defaults(self):
         # No regression: a plain tunable-rejection 400 (e.g. max_tokens too
@@ -464,7 +464,7 @@ class TestAnthropicTemperatureRejectionRetry:
         assert mock_sdk.messages.create.call_count == 2
         retry_kwargs = mock_sdk.messages.create.call_args_list[1].kwargs
         assert retry_kwargs["max_tokens"] == 4096
-        assert retry_kwargs["temperature"] == 0.0
+        assert retry_kwargs["extra_body"] == {"temperature": 0.0}
         # claude-unlisted-model was never marked as omitting temperature by
         # an unrelated max_tokens rejection.
         assert is_fallback_set("ep1", PASS_AD_DETECTION_1) is True

@@ -139,7 +139,7 @@ class TestOverrideOmitsTemperatureForAnthropicClient:
             )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "temperature" not in kwargs
+        assert "extra_body" not in kwargs
 
     def test_override_false_keeps_existing_behavior_for_unlisted_model(self):
         from llm_client import AnthropicClient
@@ -158,7 +158,7 @@ class TestOverrideOmitsTemperatureForAnthropicClient:
             )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert kwargs["temperature"] == 0.2
+        assert kwargs["extra_body"] == {"temperature": 0.2}
 
     def test_override_false_static_list_still_omits_temperature(self):
         from llm_client import AnthropicClient
@@ -177,7 +177,7 @@ class TestOverrideOmitsTemperatureForAnthropicClient:
             )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "temperature" not in kwargs
+        assert "extra_body" not in kwargs
 
     def test_override_false_learned_memo_still_omits_temperature(self):
         from llm_client import AnthropicClient
@@ -197,7 +197,7 @@ class TestOverrideOmitsTemperatureForAnthropicClient:
             )
 
         kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "temperature" not in kwargs
+        assert "extra_body" not in kwargs
 
 
 class TestOmitTemperatureOverrideReadsSetting:

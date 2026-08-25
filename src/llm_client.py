@@ -616,8 +616,11 @@ class AnthropicClient(LLMClient):
             # Anthropic's adaptive-thinking models reject temperature with a 400.
             # Re-consulted on every call (not hoisted) so a retry after
             # mark_model_omits_temperature() picks up the freshly-learned state.
+            # anthropic>=1.0 dropped temperature from messages.create's
+            # signature, so it goes on the wire via extra_body; the API-side
+            # 400 for no-sampling models is unchanged.
             if not model_omits_temperature(model, omit_temp_override):
-                kw["temperature"] = tmp
+                kw["extra_body"] = {"temperature": tmp}
             kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
             if tool_spec is not None:
                 kw["tools"] = [tool_spec]

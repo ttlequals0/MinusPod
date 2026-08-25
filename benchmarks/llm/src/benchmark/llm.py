@@ -110,7 +110,9 @@ async def _call_anthropic(
         messages=[{"role": "user", "content": user_prompt}],
     )
     if model_id not in _ANTHROPIC_TEMPERATURE_DEPRECATED:
-        kwargs["temperature"] = temperature
+        # anthropic>=1.0 removed temperature from messages.create's signature;
+        # extra_body puts it back on the wire for models that still accept it.
+        kwargs["extra_body"] = {"temperature": temperature}
     if model_id not in _ANTHROPIC_THINKING_REQUIRED:
         kwargs["thinking"] = {"type": "disabled"}
 
@@ -124,16 +126,24 @@ async def _call_anthropic(
             status = getattr(e, "status_code", 0)
             if 500 <= status < 600:
                 raise LLMTransientError(str(e)) from e
-            # Each pass pops a key, so this terminates.
+            # Each pass pops a key, so this terminates. temperature rides in
+            # extra_body (see above), so check and drop it there too.
             rejected = next(
                 (p for p in _ANTHROPIC_DROPPABLE_PARAMS
-                 if status == 400 and p in kwargs and p in str(e).lower()),
+                 if status == 400
+                 and (p in kwargs or p in kwargs.get("extra_body", {}))
+                 and p in str(e).lower()),
                 None,
             )
             if rejected is None:
                 raise LLMNonRetryableError(str(e)) from e
             _ANTHROPIC_DROPPABLE_PARAMS[rejected].add(model_id)
-            kwargs.pop(rejected)
+            kwargs.pop(rejected, None)
+            extra = kwargs.get("extra_body")
+            if extra and rejected in extra:
+                extra.pop(rejected)
+                if not extra:
+                    kwargs.pop("extra_body")
 
     text = "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
     return LLMResponse(
