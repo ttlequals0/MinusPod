@@ -15,6 +15,36 @@ def _version_key(version: str) -> tuple:
     return tuple(int(part) for part in version.split("."))
 
 
+def unwrap_lines(text: str) -> str:
+    """Join hard-wrapped continuation lines for GitHub release bodies.
+
+    Release bodies render every single newline as a hard line break, so
+    the changelog's 72-column wrapping displays as ragged short lines.
+    Two-space continuation lines are folded into the line above; headers,
+    blank lines, list items, and fenced code blocks are left alone.
+    """
+    out: list[str] = []
+    fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+            out.append(line)
+            continue
+        is_cont = (
+            not fence
+            and re.match(r"^  \S", line)
+            and not re.match(r"^\s*[-*] ", line)
+            and out and out[-1].strip()
+            and not out[-1].lstrip().startswith("#")
+            and not out[-1].lstrip().startswith("```")
+        )
+        if is_cont:
+            out[-1] += " " + line.strip()
+        else:
+            out.append(line)
+    return "\n".join(out) + "\n"
+
+
 def extract_section(text: str, version: str) -> str:
     pattern = re.compile(
         r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[|\Z)",
@@ -59,6 +89,7 @@ def main() -> int:
             section = extract_rollup(text, args.version, args.rollup_since)
         else:
             section = extract_section(text, args.version)
+        section = unwrap_lines(section)
     except KeyError:
         print(f"version {args.version} not found in {args.changelog}",
               file=sys.stderr)

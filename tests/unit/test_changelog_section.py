@@ -81,3 +81,43 @@ def test_rollup_target_missing_raises_keyerror():
     from changelog_section import extract_rollup
     with pytest.raises(KeyError):
         extract_rollup(ROLLUP_SAMPLE, "9.9.9", "2.75.0")
+
+
+class TestUnwrapLines:
+    """Release bodies render single newlines as hard breaks, so the
+    changelog's 72-column wrapping must be unwrapped on output."""
+
+    def test_joins_continuation_lines_into_the_bullet(self):
+        from changelog_section import unwrap_lines
+        wrapped = (
+            "### Fixed\n\n"
+            "- A long entry that the changelog wraps onto\n"
+            "  a second line and then onto\n"
+            "  a third line.\n"
+        )
+        assert unwrap_lines(wrapped) == (
+            "### Fixed\n\n"
+            "- A long entry that the changelog wraps onto"
+            " a second line and then onto a third line.\n"
+        )
+
+    def test_headers_blanks_and_new_bullets_stay_separate(self):
+        from changelog_section import unwrap_lines
+        text = "### Added\n\n- First entry.\n- Second entry.\n"
+        assert unwrap_lines(text) == text
+
+    def test_fenced_code_blocks_are_untouched(self):
+        from changelog_section import unwrap_lines
+        text = (
+            "- Entry with a snippet:\n"
+            "```\n"
+            "  indented code line\n"
+            "  another code line\n"
+            "```\n"
+        )
+        assert unwrap_lines(text) == text
+
+    def test_indented_sub_bullets_keep_their_own_lines(self):
+        from changelog_section import unwrap_lines
+        text = "- Parent entry.\n  - Sub item one.\n  - Sub item two.\n"
+        assert unwrap_lines(text) == text
