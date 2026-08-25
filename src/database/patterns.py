@@ -442,12 +442,18 @@ class PatternMixin:
                     parsed = json.loads(row['original_bounds'])
                     fp_start = float(parsed.get('start', 0))
                     fp_end = float(parsed.get('end', 0))
-                    # Check overlap (same 50% threshold as validator)
+                    # Same-span check, both directions (50% threshold, as
+                    # the validator): the rows conflict only when each span
+                    # mostly covers the other, so a rejection extending well
+                    # past the asserted span survives.
                     overlap_start = max(bounds_start, fp_start)
                     overlap_end = min(bounds_end, fp_end)
                     overlap = max(0, overlap_end - overlap_start)
                     segment_duration = bounds_end - bounds_start
-                    if segment_duration > 0 and overlap / segment_duration >= 0.5:
+                    row_duration = fp_end - fp_start
+                    if (segment_duration > 0 and row_duration > 0
+                            and overlap / segment_duration >= 0.5
+                            and overlap / row_duration >= 0.5):
                         conn.execute("DELETE FROM pattern_corrections WHERE id = ?", (row['id'],))
                         deleted += 1
                 except (json.JSONDecodeError, KeyError, ValueError):

@@ -2609,6 +2609,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_original,
             pass1_kept_markers,
             pass1_cuts,
+            false_positive_corrections=(
+                db.get_false_positive_corrections(episode_id) or []),
         )
 
         (verification_ads_processed,
@@ -3836,7 +3838,11 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
         # an earlier pass still renders as beep on recut, not a full remove.
         audio_segments = [dict(ad, beep=(ad.get('action_applied') == 'beep'))
                           for ad in ads_to_remove]
-        result = local_audio_processor.process_episode(work_path, audio_segments)
+        # Kept markers barrier the render so the <1s-gap merge and the
+        # end-of-episode extension cannot swallow kept audio (same
+        # protection the pass-2 recut threads through).
+        result = local_audio_processor.process_episode(
+            work_path, audio_segments, cut_barriers=keep_ads)
         if not result:
             raise Exception("FFMPEG processing failed during recut")
         processed_path, applied_cuts = result
@@ -4504,7 +4510,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # not stored, so persisted marker dicts never carry that flag.
             audio_segments = [dict(ad, beep=(ad['action_applied'] == 'beep'))
                               for ad in ads_to_remove]
-            result = local_audio_processor.process_episode(audio_path, audio_segments)
+            # keep_ads barrier the render for the same reason as on the
+            # pass-2 and manual recut paths.
+            result = local_audio_processor.process_episode(
+                audio_path, audio_segments, cut_barriers=keep_ads)
             if not result:
                 raise Exception(
                     f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "

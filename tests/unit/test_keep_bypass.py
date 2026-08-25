@@ -124,7 +124,8 @@ def _run_pipeline(first_pass_ads, segment_actions, late_synthesized_ad=None,
         audio_processor.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
-            lambda audio_path, ads_to_remove: ('/tmp/cut.mp3', list(ads_to_remove)))
+            lambda audio_path, ads_to_remove, cut_barriers=None:
+            ('/tmp/cut.mp3', list(ads_to_remove)))
         local_ap.get_audio_duration.return_value = 100.0
         storage.get_episode_path.return_value = '/tmp/final.mp3'
 
@@ -708,6 +709,27 @@ class TestExcludeKeptSpansFromVerification:
         assert out_proc is proc
         assert out_orig is orig
         assert conflicts == []
+
+    def test_false_positive_match_is_dropped_not_held(self, caplog):
+        """A span the user already rejected must not resurface in the
+        review queue as a kept-conflict (exclusion runs before validation,
+        so it screens corrections itself)."""
+        proc_overlap = {'start': 405.0, 'end': 415.0, 'confidence': 0.95,
+                        'validation': {'decision': 'ACCEPT', 'adjusted_confidence': 0.95}}
+        orig_overlap = {'start': 504.0, 'end': 514.0, 'confidence': 0.95,
+                        'sponsor': 'Acme'}
+
+        with patch.object(processing, 'get_replacement_duration', return_value=1.0), \
+                caplog.at_level(logging.DEBUG, logger='podcast.audio'):
+            out_proc, out_orig, conflicts = processing._exclude_kept_spans_from_verification(
+                [proc_overlap], [orig_overlap], [self.KEPT_MARKER], self.PASS1_CUTS,
+                false_positive_corrections=[{'start': 503.0, 'end': 515.0}])
+
+        assert out_proc == []
+        assert out_orig == []
+        assert conflicts == []
+        assert 'held_for_review' not in orig_overlap
+        assert any('false-positive rejection' in r.message for r in caplog.records)
 
 
 class TestStampPass2MarkerCategories:

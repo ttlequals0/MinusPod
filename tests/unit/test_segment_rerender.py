@@ -80,7 +80,7 @@ def _run_recut(ads_to_remove, all_ads, segment_actions, podcast_id=1):
         local_ap = local_ap_cls.return_value
         local_ap.get_audio_duration.return_value = 60.0
         local_ap.process_episode.side_effect = (
-            lambda work_path, segs: (
+            lambda work_path, segs, cut_barriers=None: (
                 '/tmp/segrerender-cut.mp3',
                 [{'start': s['start'], 'end': s['end']} for s in segs]))
 

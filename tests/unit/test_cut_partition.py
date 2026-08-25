@@ -184,7 +184,7 @@ def _run_pipeline(first_pass_ads, segment_actions):
         audio_processor_mod.get_audio_duration.return_value = 100.0
         local_ap = local_ap_cls.return_value
         local_ap.process_episode.side_effect = (
-            lambda audio_path, segs: ('/tmp/cutpart-cut.mp3', list(segs)))
+            lambda audio_path, segs, cut_barriers=None: ('/tmp/cutpart-cut.mp3', list(segs)))
         local_ap.get_audio_duration.return_value = 100.0
         storage.get_episode_path.return_value = '/tmp/cutpart-final.mp3'
 

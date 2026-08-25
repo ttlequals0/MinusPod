@@ -108,6 +108,7 @@ from .boundaries import (
     merge_ads_across_short_content_gaps,
     deduplicate_window_ads,
     split_conflicting_action_span,
+    effective_resolved_action,
     resolve_category_action,
 )
 from .prompts import (
@@ -2363,7 +2364,9 @@ class AdDetector:
                 current_action = (resolve_category_action(
                     current.get('category'), action_map) if action_map else None)
                 same_action = (
-                    action_map is None or last_action == current_action)
+                    action_map is None
+                    or effective_resolved_action(last, action_map)
+                    == effective_resolved_action(current, action_map))
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker
                     # into a remove-resolving one, and never let a shorter

@@ -421,6 +421,23 @@ class TestDeleteConflictingCorrections:
         corrections = temp_db.get_episode_corrections(episode_id)
         assert len(corrections) == 0
 
+    def test_adjustment_keeps_rejection_extending_past_asserted_span(self, temp_db):
+        """A rejection mostly outside the asserted-ad span survives: the
+        conflict check requires mutual coverage, not one-directional."""
+        episode_id = 'ep-conflict-partial-fp'
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 160.0},
+        )
+
+        # User asserts 90.0-125.0 is ad: only 25s of the 60s rejection.
+        deleted = temp_db.delete_conflicting_corrections(
+            episode_id, 'boundary_adjustment', 90.0, 125.0)
+
+        assert deleted == 0
+        assert len(temp_db.get_episode_corrections(episode_id)) == 1
+
     def test_boundary_adjustment_deletes_false_positive(self, temp_db):
         """A newer boundary edit supersedes an earlier rejection."""
         episode_id = 'ep-conflict-adjustment'

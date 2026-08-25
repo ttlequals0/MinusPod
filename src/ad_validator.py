@@ -429,9 +429,14 @@ class AdValidator:
             if confirmed is None:
                 continue
             span = confirmed.get('confirmed_span')
-            if (span is not None
-                    and not (ad['start'] < span['end']
-                             and ad['end'] > span['start'])):
+            if span is None:
+                # A plain confirmation names no exact sub-span, so there is
+                # nothing to deduplicate against: every matching fragment
+                # keeps its own auto-accept, as before span-bearing dedup.
+                ad['_confirmed_correction'] = confirmed
+                continue
+            if not (ad['start'] < span['end']
+                    and ad['end'] > span['start']):
                 # Fragment lies wholly in trimmed-out (user-kept) content:
                 # it still needs normal validation and must not consume the
                 # approved-span match.

@@ -1126,6 +1126,18 @@ def resolve_category_action(category, action_map: dict[str, str]) -> str:
     return action_map.get(normalize_segment_category(category), DEFAULT_SEGMENT_ACTION)
 
 
+def effective_resolved_action(marker: dict,
+                              action_map: dict[str, str] | None) -> str | None:
+    """Marker's resolved action with the pattern-overrides-keep rule applied,
+    matching split_conflicting_action_span's precedence input."""
+    if action_map is None:
+        return None
+    action = resolve_category_action(marker.get('category'), action_map)
+    if action == 'keep' and marker.get('pattern_defined'):
+        return 'remove'
+    return action
+
+
 def split_conflicting_action_span(last: dict, current: dict,
                                   last_action: str | None = None,
                                   current_action: str | None = None) -> tuple:
@@ -1180,12 +1192,19 @@ def split_conflicting_action_span(last: dict, current: dict,
     )
     if not current_wins:
         if current['end'] <= last['end']:
+            logger.info(
+                f"Dropping {current.get('category')!r} span "
+                f"{current['start']:.1f}s-{current['end']:.1f}s nested inside "
+                f"higher-priority {last.get('category')!r} span "
+                f"{last['start']:.1f}s-{last['end']:.1f}s"
+            )
             return last, []
         after = current.copy()
         for key in ('merged_distinct_ads', 'merged_protected_start',
                     'merged_protected_end'):
             after.pop(key, None)
         after['start'] = last['end']
+        clip_dai_core_spans(after, after['start'], after['end'])
         mark_trusted_fragment(after, current)
         return last, [after]
 
@@ -1268,7 +1287,9 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             current_action = (resolve_category_action(
                 current.get('category'), action_map) if action_map else None)
             same_action = (
-                action_map is None or last_action == current_action)
+                action_map is None
+                or effective_resolved_action(last, action_map)
+                == effective_resolved_action(current, action_map))
             if not same_action:
                 new_last, new_entries = split_conflicting_action_span(
                     last, current, last_action, current_action)

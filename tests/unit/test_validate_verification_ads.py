@@ -1036,7 +1036,7 @@ def _run_fold_branch(recut_result=True, recut_mutates=False):
         audio_processor_mod.get_audio_duration.return_value = 30.0
         ap = ap_cls.return_value
         ap.process_episode.side_effect = (
-            lambda audio_path, segs: ('/tmp/fold-cut.mp3', list(segs)))
+            lambda audio_path, segs, cut_barriers=None: ('/tmp/fold-cut.mp3', list(segs)))
         ap.get_audio_duration.return_value = 30.0
         storage.get_episode_path.return_value = '/tmp/fold-final.mp3'
 

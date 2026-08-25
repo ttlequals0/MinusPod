@@ -2320,3 +2320,27 @@ class TestRegistryNeedsMoreThanOneMention:
         v = self._validator('Acme protects you. Go to Acme dot com slash pod '
                             'for twenty percent off your first order')
         assert v._registry_confirms({'start': 0.0, 'end': 400.0}) is True
+
+
+class TestPlainConfirmMultiFragment:
+    """A plain confirmation (no confirmed_span) names no exact sub-span, so
+    every fragment matching it auto-accepts; there is nothing to dedup."""
+
+    def test_both_fragments_of_a_plain_confirm_auto_accept(self):
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[{'start': 100.0, 'end': 160.0}],
+        )
+
+        result = validator.validate([
+            {'start': 100.0, 'end': 118.0, 'confidence': 0.4,
+             'reason': 'First fragment'},
+            {'start': 125.0, 'end': 160.0, 'confidence': 0.4,
+             'reason': 'Second fragment'},
+        ])
+
+        assert result.accepted == 2
+        assert result.rejected == 0
+        assert all(ad['validation']['user_confirmed'] is True
+                   for ad in result.ads)

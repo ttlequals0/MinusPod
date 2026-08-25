@@ -657,3 +657,54 @@ class TestUnsetHasOneRepresentation:
 
         assert 'category' not in temp_db.get_ad_pattern_by_id(pid)
         assert 'category' not in marker
+
+
+class TestEffectiveActionMergeGate:
+    """Pattern-overrides-keep must gate merges the same way the split does."""
+
+    def test_pattern_keep_never_merges_with_plain_keep(self):
+        action_map = {'sponsor': 'remove', 'intro': 'keep'}
+        pattern_ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9,
+                      'category': 'intro', 'pattern_defined': True,
+                      'reason': 'pattern match'}
+        plain_ad = {'start': 125.0, 'end': 160.0, 'confidence': 0.8,
+                    'category': 'intro', 'reason': 'llm intro'}
+
+        merged = deduplicate_window_ads(
+            [pattern_ad, plain_ad], action_map=action_map)
+
+        # Effective actions differ (remove vs keep): the spans must stay
+        # separate so the plain keep's audio is never routed to remove.
+        assert len(merged) == 2
+
+    def test_two_plain_keeps_still_merge(self):
+        action_map = {'intro': 'keep'}
+        a = {'start': 100.0, 'end': 130.0, 'confidence': 0.9,
+             'category': 'intro', 'reason': 'a'}
+        b = {'start': 125.0, 'end': 160.0, 'confidence': 0.8,
+             'category': 'intro', 'reason': 'b'}
+
+        merged = deduplicate_window_ads([a, b], action_map=action_map)
+
+        assert len(merged) == 1
+        assert merged[0]['end'] == 160.0
+
+
+class TestNotCurrentWinsDaiClipping:
+    """The lower-priority survivor fragment must not keep DAI evidence
+    reaching back into the higher-priority span it was split away from."""
+
+    def test_after_fragment_clips_core_spans(self):
+        from ad_detector.boundaries import split_conflicting_action_span
+        keep_ad = {'start': 100.0, 'end': 140.0, 'category': 'intro'}
+        remove_ad = {'start': 130.0, 'end': 190.0, 'category': 'sponsor',
+                     'dai_core_spans': [{'start': 130.0, 'end': 190.0}]}
+
+        new_last, entries = split_conflicting_action_span(
+            keep_ad, remove_ad, 'keep', 'remove')
+
+        assert new_last is keep_ad
+        assert len(entries) == 1
+        assert entries[0]['start'] == 140.0
+        assert entries[0]['dai_core_spans'] == [
+            {'start': 140.0, 'end': 190.0}]

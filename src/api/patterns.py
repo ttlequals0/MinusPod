@@ -1368,8 +1368,11 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             original_ad, label='adjusted',
         )
 
+    # Judge conflicts against the adjusted bounds: they are the span the
+    # user is asserting is ad. The pre-adjustment bounds can cover an
+    # unrelated overlapping span whose rejection must survive.
     deleted = db.delete_conflicting_corrections(
-        episode_id, 'boundary_adjustment', original_start, original_end)
+        episode_id, 'boundary_adjustment', adjusted_start, adjusted_end)
     if deleted:
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "

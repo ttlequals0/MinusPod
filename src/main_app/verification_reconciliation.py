@@ -4,6 +4,7 @@ import logging
 
 from audio_processor import get_replacement_duration
 from config import (
+    CORRECTION_MATCH_MIN_COVERAGE,
     HOLD_REASON_VERIFICATION_KEPT_CONFLICT,
     HOLD_REASON_VERIFICATION_MISS,
     PASS2_AUTOAPPROVE_HOLD_REASONS,
@@ -130,9 +131,22 @@ def _pass2_keep_barriers_processed(pass1_kept_markers, pass1_cuts,
     return [*pass1_processed, *(category_kept_processed or [])]
 
 
+def _matches_false_positive_correction(orig_ad, false_positive_corrections):
+    """Same >=50%-of-segment rule as AdValidator._overlaps_false_positive."""
+    duration = orig_ad['end'] - orig_ad['start']
+    if duration < 0.001:
+        return False
+    return any(
+        overlap_ratio(corr['start'], corr['end'],
+                      orig_ad['start'], orig_ad['end'])
+        >= CORRECTION_MATCH_MIN_COVERAGE
+        for corr in false_positive_corrections or [])
+
+
 def _exclude_kept_spans_from_verification(verification_ads_processed,
                                            verification_ads_original,
-                                           pass1_kept_markers, pass1_cuts):
+                                           pass1_kept_markers, pass1_cuts,
+                                           false_positive_corrections=None):
     """Divert pass-2 findings that overlap a kept pass-1 span into review
     rather than cutting them.
 
@@ -166,6 +180,17 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
              if ranges_overlap(ad['start'], ad['end'], span[0], span[1])),
             None)
         if overlap is not None:
+            # This runs before validation, so screen against the user's
+            # false-positive rejections here: a span the user already ruled
+            # out must not resurface in the review queue as a kept-conflict.
+            if _matches_false_positive_correction(
+                    orig_ad, false_positive_corrections):
+                audio_logger.info(
+                    f"Pass-2 finding {orig_ad['start']:.1f}s-"
+                    f"{orig_ad['end']:.1f}s overlaps a kept span but matches "
+                    f"a user false-positive rejection; dropping it"
+                )
+                continue
             audio_logger.info(
                 f"Pass-2 finding {ad['start']:.1f}s-{ad['end']:.1f}s "
                 f"(processed) contradicts kept span {overlap[0]:.1f}s-"

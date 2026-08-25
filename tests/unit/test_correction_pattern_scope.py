@@ -103,7 +103,7 @@ def test_adjust_correction_supersedes_false_positive(client):
 
     assert resp.status_code == 200, resp.data
     db.delete_conflicting_corrections.assert_called_once_with(
-        EPISODE_ID, 'boundary_adjustment', 0.0, 60.0)
+        EPISODE_ID, 'boundary_adjustment', 5.0, 55.0)
 
 
 def test_confirm_correction_dedup_lookup_uses_slug(client):
