@@ -585,7 +585,7 @@ class Storage:
             return None
 
         for ext, content_type in _ARTWORK_EXTENSIONS:
-            path = art_dir / f"{episode_id}{ext}"
+            path = _safe_join_under(art_dir, f"{episode_id}{ext}")
             if path.exists():
                 with open(path, 'rb') as f:
                     data = f.read()
@@ -700,7 +700,7 @@ class Storage:
         os.replace(tmp_path, artwork_path)
 
         for old_ext, _ in _ARTWORK_EXTENSIONS:
-            old_path = art_dir / f"{episode_id}{old_ext}"
+            old_path = _safe_join_under(art_dir, f"{episode_id}{old_ext}")
             if old_path.exists() and old_path != artwork_path:
                 old_path.unlink()
 
@@ -1008,7 +1008,11 @@ class Storage:
 
     def cleanup_podcast_dir(self, slug: str) -> bool:
         """Delete podcast directory and all files."""
-        podcast_dir = self.podcasts_dir / slug
+        try:
+            podcast_dir = _safe_join_under(self.podcasts_dir, slug)
+        except PathContainmentError:
+            logger.warning(f"Refusing to delete non-contained path for slug {slug!r}")
+            return False
 
         if podcast_dir.exists():
             try:

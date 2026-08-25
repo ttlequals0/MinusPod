@@ -57,6 +57,15 @@ release notes.
   and the approved span now validates as its own marker instead of
   being silently discarded by the clamp.
 
+### Security
+
+- Episode artwork reads, stale artwork cleanup, and feed-directory
+  deletion now join paths through the containment helper
+  (resolve-and-verify) instead of raw path concatenation, closing the
+  open CodeQL path-injection findings on storage.py. All three sites
+  were already guarded by input validation; this makes the containment
+  provable and adds traversal regression tests.
+
 ### Changed
 
 - Dependency bumps: anthropic 1.0.0 (temperature now routed via

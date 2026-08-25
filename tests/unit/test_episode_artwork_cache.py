@@ -115,3 +115,19 @@ def test_cache_stays_under_the_cap(storage, monkeypatch):
     art_dir = storage._episode_artwork_dir(SLUG)
     total = sum(p.stat().st_size for p in art_dir.iterdir() if p.is_file())
     assert total <= 250
+
+
+def test_traversal_episode_id_never_reaches_the_filesystem(storage):
+    # Invalid shape is rejected before any path join; a hostile id that
+    # somehow got past shape validation is stopped by path containment.
+    storage._save_episode_artwork(SLUG, EP, JPEG, 'image/jpeg')
+    assert storage.get_episode_artwork(SLUG, '../../secrets') is None
+
+
+def test_cleanup_podcast_dir_refuses_traversal_slug(storage, tmp_path):
+    victim = tmp_path / 'victim'
+    victim.mkdir()
+    (victim / 'data.txt').write_text('keep me')
+
+    assert storage.cleanup_podcast_dir('../victim') is False
+    assert (victim / 'data.txt').exists()
