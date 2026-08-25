@@ -345,9 +345,10 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
                                      verification_ads_original, strict=True)}
     # Action reconciliation can replace a candidate with split copies after
     # validation. Prefer the final cut/UI pairing so a short split fragment
-    # filtered by AudioProcessor also removes its exact UI marker.
+    # filtered by AudioProcessor also removes its exact UI marker. Not
+    # strict: a cut can legitimately lack a UI twin (e.g. merged spans).
     twin.update({id(p): o for p, o in zip(v_ads_to_cut, v_ads_for_ui,
-                                          strict=True)})
+                                          strict=False)})
     for ad in [a for a in v_ads_to_cut
                if not _covered_by_cuts(a, recut_applied, total_duration)]:
         v_ads_to_cut.remove(ad)

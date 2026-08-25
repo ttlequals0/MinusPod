@@ -1335,7 +1335,7 @@ def _partition_pass2_category_actions(processed_ads, original_ads, actions_map):
     if len(processed_ads) != len(original_ads):
         raise ValueError(
             'Pass-2 processed/original marker lists must stay paired')
-    for processed, original in zip(processed_ads, original_ads):
+    for processed, original in zip(processed_ads, original_ads, strict=True):
         category = normalize_segment_category(
             processed.get('category', original.get('category')))
         action = actions_map.get(category, DEFAULT_SEGMENT_ACTION)
@@ -1382,7 +1382,7 @@ def _split_pass2_candidates_around_spans(processed_ads, original_ads,
     surviving_processed = []
     surviving_original = []
 
-    for processed, original in zip(processed_ads, original_ads):
+    for processed, original in zip(processed_ads, original_ads, strict=True):
         fragments = [(processed['start'], processed['end'])]
         for barrier_start, barrier_end in barriers:
             next_fragments = []
@@ -1475,14 +1475,14 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts):
 
     beep_pairs = [
         (processed, original)
-        for processed, original in zip(processed_cuts, original_cuts)
+        for processed, original in zip(processed_cuts, original_cuts, strict=True)
         if processed.get('action_applied') == 'beep'
     ]
     if not beep_pairs:
         return processed_cuts, original_cuts
     remove_pairs = [
         (processed, original)
-        for processed, original in zip(processed_cuts, original_cuts)
+        for processed, original in zip(processed_cuts, original_cuts, strict=True)
         if processed.get('action_applied') != 'beep'
     ]
     remove_processed, remove_original = (
@@ -1506,7 +1506,7 @@ def _reconcile_pass2_cut_actions(processed_cuts, original_cuts, pass1_cuts):
         pass1_cuts,
         'beep-replacement audio',
     )
-    reconciled = [*beep_pairs, *zip(remove_processed, remove_original)]
+    reconciled = [*beep_pairs, *zip(remove_processed, remove_original, strict=True)]
     reconciled.sort(key=lambda pair: pair[0]['start'])
     return ([pair[0] for pair in reconciled],
             [pair[1] for pair in reconciled])

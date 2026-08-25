@@ -1047,7 +1047,7 @@ class AdValidator:
         sorted_ads = sorted(ads, key=lambda x: x['start'])
         merged = [sorted_ads[0].copy()]
 
-        def merge_original_twins(last: Dict, current: Dict) -> None:
+        def merge_original_twins(last: dict, current: dict) -> None:
             """Keep a pass-two marker's persisted twin aligned with its merge."""
             original = last.get('_orig_twin')
             current_original = current.get('_orig_twin')
