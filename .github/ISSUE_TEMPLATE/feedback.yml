@@ -1,0 +1,13 @@
+name: General feedback
+description: Questions, usage reports, docs gaps, or anything that is not a bug or feature request
+labels: [feedback]
+body:
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback
+      description: >
+        What is on your mind? Detection quality reports are especially
+        useful; keep the measurements and leave out private feed details.
+    validations:
+      required: true

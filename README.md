@@ -111,6 +111,10 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 Or browse the [full docs index](docs/README.md).
 
+## Contributing
+
+Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Ad patterns have their own contribution flow, described in [Community Patterns](patterns/README.md).
+
 ## Disclaimer
 
 This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.

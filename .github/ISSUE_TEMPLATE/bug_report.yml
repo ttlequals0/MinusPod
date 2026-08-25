@@ -1,0 +1,46 @@
+name: Bug report
+description: Something is broken or behaving wrong
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag you are running (shown in the web UI footer and /api/v1/health).
+      placeholder: "2.90.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Image variant
+      options:
+        - GPU (ttlequals0/minuspod)
+        - CPU (ttlequals0/minuspod cpu tag)
+        - Built from source
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        Relevant container log lines or an episode run log. Scrub anything
+        private before pasting: API keys, feed auth keys, your domain, and
+        private feed URLs.
+      render: text
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup details
+      description: >
+        Anything unusual about your deployment that could matter: LLM
+        provider and model, Whisper backend, reverse proxy, storage, compose
+        overrides.

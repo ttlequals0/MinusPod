@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Community ad patterns
+    url: https://github.com/ttlequals0/MinusPod/blob/main/patterns/README.md
+    about: Contributing ad patterns has its own flow, documented here.
