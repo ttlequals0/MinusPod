@@ -113,7 +113,7 @@ Or browse the [full docs index](docs/README.md).
 
 ## Contributing
 
-Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Two areas have their own contribution flows: ad patterns ([Community Patterns](patterns/README.md)) and benchmark results ([Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md)). External contributions that shipped in releases are credited in [CONTRIBUTORS.md](CONTRIBUTORS.md).
+Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Two areas have their own contribution flows: ad patterns ([Community Patterns](patterns/README.md)) and benchmark results ([Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md)). Fork-derived features and community bug reports are credited in the CHANGELOG.md entry that ships them; merged commits are credited automatically on the repo's contributors graph.
 
 ## Disclaimer
 

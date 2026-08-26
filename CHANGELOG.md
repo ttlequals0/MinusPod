@@ -34,10 +34,10 @@ release notes.
 
 ### Documentation
 
-- CONTRIBUTORS.md added. The skip-FLAC toggle, ENV_BACKED_SETTINGS registry,
-  and parallel detection windows shipped in 2.5.23-2.5.25 were first
-  implemented in the leboff/MinusPod fork; the changelog entries and the
-  2.5.27 release notes now say so.
+- Retroactive attribution: the skip-FLAC toggle, ENV_BACKED_SETTINGS
+  registry, and parallel detection windows shipped in 2.5.23-2.5.25 were
+  first implemented in the leboff/MinusPod fork. The 2.5.23 and 2.5.25
+  entries now say so, and the README points at where credit lives.
 
 
 ## [2.91.0] - 2026-08-26
