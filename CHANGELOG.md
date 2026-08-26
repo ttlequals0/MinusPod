@@ -11,6 +11,18 @@ release notes.
 
 ## [Unreleased]
 
+## [2.91.2] - 2026-08-26
+
+### Fixed
+
+- API keys saved after the container starts now take effect without a
+  restart. `AdDetector` and `ChaptersGenerator` are built once at import,
+  so a worker that booted before a key was configured cached `None` and
+  kept skipping ad detection and chapter generation. Both now resolve the
+  key through a property on each access, matching how the LLM client
+  already reads through. An explicit key passed to the constructor still
+  wins. Reported and fixed by Bryan Leboff (#686).
+
 ## [2.91.1] - 2026-08-26
 
 ### Added
