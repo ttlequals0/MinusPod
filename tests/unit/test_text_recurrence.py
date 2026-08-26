@@ -68,3 +68,20 @@ def test_hint_filters_to_window_and_empty_cases():
     assert 'intro spiel' in hint and 'credits roll' not in hint
     assert format_recurrence_hint(spans, 100.0, 400.0) == ""
     assert format_recurrence_hint([], 0.0, 60.0) == ""
+
+
+def test_cross_segment_shingles_short_segment_full_coverage():
+    # Regression: verify cross-segment shingles work for boilerplate split
+    # across multiple short segments. 12-word intro split into three 4-word
+    # segments; short segments require 100% coverage to avoid false positives
+    # from connector phrases. dur=4.0 makes total span 12s, passing MIN_SPAN_SECONDS.
+    seg1 = "welcome to the weekly"
+    seg2 = "show where we discuss"
+    seg3 = "science and nothing else"
+    current = _segs(seg1, seg2, seg3, "unique outro section", dur=4.0)
+    priors = [_segs(seg1, seg2, seg3, "different outro one", dur=4.0),
+              _segs(seg1, seg2, seg3, "different outro two", dur=4.0)]
+    spans = find_recurring_spans(current, priors)
+    assert len(spans) == 1
+    assert spans[0]['start'] == 0.0
+    assert spans[0]['end'] == 12.0

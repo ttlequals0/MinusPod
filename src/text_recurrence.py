@@ -55,24 +55,32 @@ def find_recurring_spans(segments, prior_segment_lists):
     words = [w for w, _ in tokens]
     recurring = [False] * len(tokens)
     for i in range(len(tokens) - SHINGLE_SIZE + 1):
-        # Only mark shingles entirely within a single segment as recurring
-        seg_indices = [seg_idx for _, seg_idx in tokens[i:i + SHINGLE_SIZE]]
-        if len(set(seg_indices)) == 1:  # All words from the same segment
-            shingle = ' '.join(words[i:i + SHINGLE_SIZE])
-            hits = sum(1 for ps in prior_shingles if shingle in ps)
-            if hits >= MIN_PRIOR_EPISODES:
-                for j in range(i, i + SHINGLE_SIZE):
-                    recurring[j] = True
+        shingle = ' '.join(words[i:i + SHINGLE_SIZE])
+        hits = sum(1 for ps in prior_shingles if shingle in ps)
+        if hits >= MIN_PRIOR_EPISODES:
+            for j in range(i, i + SHINGLE_SIZE):
+                recurring[j] = True
 
     # Roll token marks up to segments by word coverage.
+    # Short segments (< SHINGLE_SIZE words) require 100% coverage to avoid
+    # false positives from connector-phrase bleed across segment boundaries.
+    # Longer segments use standard SEGMENT_COVERAGE threshold.
     total = [0] * len(segments)
     hit = [0] * len(segments)
     for (_, seg_idx), is_rec in zip(tokens, recurring, strict=True):
         total[seg_idx] += 1
         if is_rec:
             hit[seg_idx] += 1
-    seg_recurring = [t > 0 and h / t >= SEGMENT_COVERAGE
-                     for t, h in zip(total, hit, strict=True)]
+    seg_recurring = []
+    for seg_idx, (t, h) in enumerate(zip(total, hit, strict=True)):
+        if t == 0:
+            seg_recurring.append(False)
+        elif t < SHINGLE_SIZE:
+            # Short segment: must be 100% covered
+            seg_recurring.append(h == t)
+        else:
+            # Long segment: standard coverage threshold
+            seg_recurring.append(h / t >= SEGMENT_COVERAGE)
 
     # Merge adjacent recurring segments, bridging small gaps.
     spans = []
