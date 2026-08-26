@@ -72,7 +72,7 @@ def find_recurring_spans(segments, prior_segment_lists):
         if is_rec:
             hit[seg_idx] += 1
     seg_recurring = []
-    for seg_idx, (t, h) in enumerate(zip(total, hit, strict=True)):
+    for t, h in zip(total, hit, strict=True):
         if t == 0:
             seg_recurring.append(False)
         elif t < SHINGLE_SIZE:

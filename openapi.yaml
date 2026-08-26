@@ -3918,6 +3918,25 @@ paths:
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
+                seedSponsorsDetection:
+                  type: boolean
+                  description: Whether the detection pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
+                seedSponsorsVerification:
+                  type: boolean
+                  description: Whether the verification pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
+                seedSponsorsReviewer:
+                  type: boolean
+                  description: Whether the reviewer pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
+                seedSponsorsResurrect:
+                  type: boolean
+                  description: Whether the resurrect pass prompt is rendered with the seed sponsor list. Off renders that prompt with an empty sponsor block. Default true.
+                textRecurrenceHints:
+                  type: boolean
+                  description: Hints the detection prompt with transcript spans whose wording recurs near-verbatim across prior episodes of the same show (intros, disclaimers, credits). Off by default.
+                adAddressingMode:
+                  type: string
+                  enum: [timestamps, segment_ids]
+                  description: How the LLM addresses detected segments. 'timestamps' (default) reports absolute start/end seconds. 'segment_ids' reports transcript line ids instead, which the server maps to exact segment times.
                 processNewEpisodesFirst:
                   type: boolean
                   description: Whether episodes published within the last 48 hours get an automatic queue-priority boost ahead of the rest of the auto-process backlog. On by default.
@@ -9310,6 +9329,55 @@ components:
               description: Global default for detecting intro, outro, and recap/housekeeping segments (per-feed detectShowSegments overrides when set)
             isDefault:
               type: boolean
+        seedSponsorsDetection:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether the detection pass prompt is rendered with the seed sponsor list. Default true.
+            isDefault:
+              type: boolean
+        seedSponsorsVerification:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether the verification pass prompt is rendered with the seed sponsor list. Default true.
+            isDefault:
+              type: boolean
+        seedSponsorsReviewer:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether the reviewer pass prompt is rendered with the seed sponsor list. Default true.
+            isDefault:
+              type: boolean
+        seedSponsorsResurrect:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether the resurrect pass prompt is rendered with the seed sponsor list. Default true.
+            isDefault:
+              type: boolean
+        textRecurrenceHints:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Hints the detection prompt with transcript spans whose wording recurs near-verbatim across prior episodes of the same show. Off by default.
+            isDefault:
+              type: boolean
+        adAddressingMode:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [timestamps, segment_ids]
+              description: How the LLM addresses detected segments. 'timestamps' (default) or 'segment_ids'.
+            isDefault:
+              type: boolean
         processNewEpisodesFirst:
           type: object
           properties:
@@ -9601,6 +9669,19 @@ components:
               type: boolean
             detectShowSegments:
               type: boolean
+            seedSponsorsDetection:
+              type: boolean
+            seedSponsorsVerification:
+              type: boolean
+            seedSponsorsReviewer:
+              type: boolean
+            seedSponsorsResurrect:
+              type: boolean
+            textRecurrenceHints:
+              type: boolean
+            adAddressingMode:
+              type: string
+              enum: [timestamps, segment_ids]
             processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:

@@ -38,6 +38,15 @@ def test_system_section_mentions_ids_not_timestamps():
     assert 'end_id' in SEGMENT_ID_SYSTEM_SECTION
 
 
+def test_system_section_supersedes_timestamp_instructions():
+    # The base system prompts (user-editable, stored in DB) still tell the
+    # model to read [Xs] markers and emit numeric start/end; this section
+    # must explicitly override that so ID mode and the base prompt don't
+    # conflict.
+    assert '[Xs]' in SEGMENT_ID_SYSTEM_SECTION
+    assert 'Ignore any earlier instruction' in SEGMENT_ID_SYSTEM_SECTION
+
+
 def _window_kwargs():
     return dict(
         podcast_name='Test', episode_title='Ep1',
@@ -104,3 +113,35 @@ def test_start_id_never_misread_as_seconds():
     assert all('start' not in ad for ad in ads)
     resolved = resolve_segment_id_ads(ads, SEGS)
     assert resolved[0]['start'] == 20.0  # not 2.0
+
+
+def test_malformed_confidence_drops_one_ad_not_the_whole_pass():
+    # A malformed confidence value used to raise ValueError out of
+    # _normalize_ad, escaping resolve_segment_id_ads and failing the whole
+    # window instead of just the one bad ad.
+    ads, used = parse_id_ads_from_response(
+        '[{"start_id": 0, "end_id": 1, "confidence": "certain", '
+        '"category": "sponsor", "reason": "bad ad"},'
+        '{"start_id": 2, "end_id": 4, "confidence": 0.9, '
+        '"category": "sponsor", "reason": "promo code read"}]')
+    assert used is True
+    resolved = resolve_segment_id_ads(ads, SEGS)
+    assert len(resolved) == 1
+    assert resolved[0]['start'] == 20.0
+    assert resolved[0]['end'] == 50.0
+
+
+def test_mixed_id_and_timestamp_objects_keeps_id_ad():
+    # Some models mix formats in one response: one object with ids, one with
+    # timestamps instead. The id-less object is skipped (surfaced via a
+    # logged warning); used_ids stays True and the id ad still resolves.
+    ads, used = parse_id_ads_from_response(
+        '[{"start_id": 2, "end_id": 4, "confidence": 0.9, '
+        '"category": "sponsor", "reason": "promo code read"},'
+        '{"start": 45.0, "end": 82.0, "confidence": 0.9, '
+        '"category": "sponsor", "reason": "x"}]')
+    assert used is True
+    assert len(ads) == 1
+    resolved = resolve_segment_id_ads(ads, SEGS)
+    assert resolved[0]['start'] == 20.0
+    assert resolved[0]['end'] == 50.0

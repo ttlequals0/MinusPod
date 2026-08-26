@@ -155,7 +155,7 @@ def format_window_prompt(
         f"{window_start/60:.1f}-{window_end/60:.1f} minutes ==="
     )
     if addressing_mode == "segment_ids":
-        rules = SEGMENT_ID_WINDOW_RULES(window_end)
+        rules = SEGMENT_ID_WINDOW_RULES
     else:
         rules = (
             "\n- Use absolute timestamps from transcript (as shown in brackets)"
@@ -179,18 +179,23 @@ detection you report, replace the "start" and "end" timestamp fields with
 integer "start_id" and "end_id" fields: the ids of the FIRST and LAST
 transcript lines of the ad, inclusive. Refer to lines ONLY by the ids shown.
 Never output timestamps and never invent ids that do not appear in the
-transcript. All other rules (categories, confidence, reason) are unchanged."""
+transcript. All other rules (categories, confidence, reason) are unchanged.
+
+Ignore any earlier instruction to read [Xs] timestamp markers or to output
+numeric "start"/"end" seconds: in this mode the transcript lines carry [id]
+numbers only, and the JSON fields "start"/"end" are replaced by integer
+"start_id"/"end_id". All other rules (categories, confidence, reason) still
+apply."""
 
 
-def SEGMENT_ID_WINDOW_RULES(window_end: float) -> str:
-    return (
-        "\n- Report start_id/end_id integers from the [id] brackets, "
-        "never timestamps"
-        "\n- If an ad starts before this window, use this window's first id "
-        "with note \"continues from previous\""
-        "\n- If an ad extends past this window, use this window's last id "
-        "with note \"continues in next\"\n"
-    )
+SEGMENT_ID_WINDOW_RULES = (
+    "\n- Report start_id/end_id integers from the [id] brackets, "
+    "never timestamps"
+    "\n- If an ad starts before this window, use this window's first id "
+    "with note \"continues from previous\""
+    "\n- If an ad extends past this window, use this window's last id "
+    "with note \"continues in next\"\n"
+)
 
 
 def get_static_system_prompt() -> str:
@@ -596,7 +601,8 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
     """
     try:
         raw, _extraction_method = extract_json_ads_array(response_text, slug, episode_id)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[{slug}:{episode_id}] Failed to extract ID-mode ads: {e}")
         return [], False
     if raw is None or not isinstance(raw, list):
         return [], False
@@ -606,12 +612,14 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
 
     ads = []
     any_ids = False
+    skipped_no_id = 0
     for obj in raw:
         if not isinstance(obj, dict):
             continue
         sid_lo = _int_field(obj, ('start_id', 'startid', 'start_segment_id'))
         sid_hi = _int_field(obj, ('end_id', 'endid', 'end_segment_id'))
         if sid_lo is None or sid_hi is None:
+            skipped_no_id += 1
             continue
         any_ids = True
         ad = dict(obj)
@@ -622,6 +630,14 @@ def parse_id_ads_from_response(response_text: str, slug: str = None,
         ad.pop('start', None)
         ad.pop('end', None)
         ads.append(ad)
+    if any_ids and skipped_no_id:
+        # Mixed response: some objects used the id contract, others didn't
+        # (likely timestamp-mode ads in the same response). The id-less
+        # objects are silently dropped below -- surface the count so a lost
+        # detection is diagnosable instead of invisible.
+        logger.warning(
+            f"[{slug}:{episode_id}] ID-mode response mixed formats: "
+            f"skipped {skipped_no_id} object(s) without id fields")
     return (ads, True) if any_ids else ([], False)
 
 
@@ -651,7 +667,13 @@ def resolve_segment_id_ads(ads: list[dict], window_segments: list[dict],
         raw = {k: v for k, v in ad.items() if k not in ('start_id', 'end_id')}
         start = seg_lo['start']
         end = seg_hi['end']
-        ad_entry = _normalize_ad(raw, start, end, slug, episode_id, sponsor_service)
+        try:
+            ad_entry = _normalize_ad(raw, start, end, slug, episode_id, sponsor_service)
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                f"[{slug}:{episode_id}] Skipping ad with invalid field "
+                f"(ids {lo}-{hi}): {e}")
+            continue
         if ad_entry is not None:
             resolved.append(ad_entry)
     return resolved
