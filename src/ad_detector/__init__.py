@@ -66,6 +66,7 @@ from config import (
     KEEP_CONTENT_MIN_AD_SECONDS,
     KEEP_CONTENT_MAX_SINGLE_AD_FRACTION,
     KEEP_CONTENT_MAX_SINGLE_AD_SECONDS,
+    coerce_bool_setting,
 )
 from ad_detector.cue_boundary_snap import _cue_role
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
@@ -716,7 +717,7 @@ class AdDetector:
             from utils.constants import DEFAULT_SYSTEM_PROMPT
             prompt = DEFAULT_SYSTEM_PROMPT
         return self._apply_pass_override(
-            self._render_with_sponsors(prompt), 'system_prompt_override')
+            self._render_with_sponsors(prompt, 'seed_sponsors_detection'), 'system_prompt_override')
 
     def get_verification_prompt(self) -> str:
         """Get verification prompt from database or default, with dynamic sponsors substituted."""
@@ -730,7 +731,7 @@ class AdDetector:
             from database import DEFAULT_VERIFICATION_PROMPT
             prompt = DEFAULT_VERIFICATION_PROMPT
         return self._apply_pass_override(
-            self._render_with_sponsors(prompt), 'verification_prompt_override')
+            self._render_with_sponsors(prompt, 'seed_sponsors_verification'), 'verification_prompt_override')
 
     def _get_sponsor_list_safely(self) -> str:
         """Pull the dynamic sponsor list, returning empty string on any error."""
@@ -742,13 +743,30 @@ class AdDetector:
             logger.warning(f"Could not load dynamic sponsor list: {e}")
             return ""
 
-    def _render_with_sponsors(self, prompt: str) -> str:
-        """Substitute ``{sponsor_database}`` in a prompt with the dynamic sponsor block.
+    def _seed_sponsors_enabled(self, toggle_key: str) -> bool:
+        """Whether the given seed-sponsors toggle is on. Fails open (True):
+        a missing or unreadable setting must not silently strip the block."""
+        try:
+            value = self.db.get_setting(toggle_key)
+        except Exception as e:
+            logger.warning(f"Could not read {toggle_key}: {e}")
+            return True
+        if value is None:
+            return True
+        return coerce_bool_setting(value)
+
+    def _render_with_sponsors(self, prompt: str, toggle_key: str) -> str:
+        """Substitute ``{sponsor_database}`` in a prompt with the dynamic
+        sponsor block, or with an empty string when the pass's seed-sponsors
+        toggle is off.
 
         Prompts without the placeholder get no sponsor content (the user
         opted out by editing the placeholder away).
         """
-        sponsor_block = format_sponsor_block(self._get_sponsor_list_safely())
+        if self._seed_sponsors_enabled(toggle_key):
+            sponsor_block = format_sponsor_block(self._get_sponsor_list_safely())
+        else:
+            sponsor_block = ""
         return render_prompt(prompt, sponsor_database=sponsor_block)
 
     def _podcast_wants_show_segments(self, slug: str) -> bool:

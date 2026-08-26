@@ -78,18 +78,24 @@ def test_get_static_system_prompt_substitutes_seed_sponsors():
 def test_render_with_sponsors_empty_list_drops_block():
     """When the dynamic sponsor list is empty, no header should appear."""
     from ad_detector import AdDetector
+    from unittest.mock import MagicMock
     detector = AdDetector.__new__(AdDetector)
     # Bypass the sponsor_service property by stubbing the helper directly
     detector._get_sponsor_list_safely = lambda: ''
-    out = detector._render_with_sponsors('Body{sponsor_database}END')
+    detector.db = MagicMock()
+    detector.db.get_setting.return_value = 'true'
+    out = detector._render_with_sponsors('Body{sponsor_database}END', 'seed_sponsors_detection')
     assert out == 'BodyEND'
 
 
 def test_render_with_sponsors_non_empty_list_inserts_block():
     from ad_detector import AdDetector
+    from unittest.mock import MagicMock
     detector = AdDetector.__new__(AdDetector)
     detector._get_sponsor_list_safely = lambda: 'AG1, Squarespace'
-    out = detector._render_with_sponsors('Body{sponsor_database}END')
+    detector.db = MagicMock()
+    detector.db.get_setting.return_value = 'true'
+    out = detector._render_with_sponsors('Body{sponsor_database}END', 'seed_sponsors_detection')
     assert 'DYNAMIC SPONSOR DATABASE' in out
     assert 'AG1, Squarespace' in out
     assert 'Body' in out and 'END' in out
