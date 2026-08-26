@@ -58,6 +58,7 @@ SEED_SNAPSHOT = {
     'seed_sponsors_verification': 'true',
     'seed_sponsors_reviewer': 'true',
     'seed_sponsors_resurrect': 'true',
+    'text_recurrence_hints': 'false',
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
     'differential_hold_min_seconds': '10',
@@ -417,11 +418,12 @@ class TestGetDefaults:
         # episodeLogRetentionDays + episodeLogLevel added after that (87 -> 89).
         # seed_sponsors_detection + seed_sponsors_verification +
         # seed_sponsors_reviewer + seed_sponsors_resurrect added after that (89 -> 93).
+        # textRecurrenceHints added after that (93 -> 94).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 93
+        assert len(payload_keys) == 94
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys
         assert 'audioCuePairMaxBreakFraction' in payload_keys
 

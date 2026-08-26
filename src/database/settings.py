@@ -301,6 +301,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'seed_sponsors_resurrect': SettingSpec(
         default='true', seeded=True, resettable=False,
         payload_key='seedSponsorsResurrect', payload_kind='bool'),
+    # Cross-episode text recurrence hint (off until benchmarked; see
+    # docs/superpowers/specs/2026-08-25-hushpod-adoption-design.md).
+    'text_recurrence_hints': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        payload_key='textRecurrenceHints', payload_kind='bool'),
     # Whether the RSS-refresh enqueue path boosts episodes published within
     # FRESH_WINDOW_HOURS ahead of the rest of the auto-process queue.
     'process_new_episodes_first': SettingSpec(

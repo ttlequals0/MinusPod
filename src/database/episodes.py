@@ -823,7 +823,8 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json'})
+    _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
+                                    'original_segments_json'})
 
     def _get_recent_episode_json_col(self, slug: str, col: str,
                                      exclude_episode_id: str | None = None,
@@ -872,6 +873,15 @@ class EpisodeMixin:
         """
         return self._get_recent_episode_json_col(
             slug, 'audio_analysis_json', exclude_episode_id, limit, min_duration)
+
+    def get_recent_original_segments(self, slug: str,
+                                     exclude_episode_id: str | None = None,
+                                     limit: int = 5) -> list[list[dict]]:
+        """Original (pre-cut) Whisper segments of the feed's most recent
+        processed episodes, newest first, for text recurrence."""
+        rows = self._get_recent_episode_json_col(
+            slug, 'original_segments_json', exclude_episode_id, limit)
+        return [json.loads(r['original_segments_json']) for r in rows]
 
     def get_episodes_by_ids(self, slug: str, episode_ids: list[str]) -> list[dict]:
         """Get multiple episodes by slug and episode_ids in a single query."""

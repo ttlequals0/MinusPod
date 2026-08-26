@@ -74,6 +74,7 @@ from ad_detector.keep_content import CONTENT_SYSTEM_PROMPT, invert_content_to_ad
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2, supports_json_schema
 from sponsor_service import SponsorService
 from text_pattern_matcher import is_defined_pattern
+from text_recurrence import format_recurrence_hint
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
     KNOWN_SHORT_BRANDS, canonical_sponsor,
@@ -890,13 +891,18 @@ class AdDetector:
                                 audio_enforcer, audio_analysis,
                                 llm_timeout, max_retries,
                                 slug, episode_id, pass_name,
-                                window_label_prefix, validate_timestamps):
+                                window_label_prefix, validate_timestamps,
+                                recurrence_spans=None):
         """Run one window through prompt-build + LLM call + parse + filter.
 
         Returns a ``WindowResult``. Thread-safe: writes nothing to shared
         instance state. The DB / token-accumulator side effects happen
         through ``_call_llm_for_window`` which uses lock-protected helpers
         downstream.
+
+        ``recurrence_spans``: optional pass-1-only text-recurrence spans
+        (issue: hushpod adoption); rendered into a hint appended after
+        ``audio_context`` when it overlaps this window.
         """
         window_segments = window['segments']
         window_start = window['start']
@@ -909,6 +915,8 @@ class AdDetector:
         audio_context = audio_enforcer.format_for_window(
             audio_analysis, window_start, window_end
         ) if audio_enforcer else ""
+        recurrence_context = format_recurrence_hint(
+            recurrence_spans or [], window_start, window_end)
 
         prompt = format_window_prompt(
             podcast_name=podcast_name,
@@ -919,7 +927,7 @@ class AdDetector:
             total_windows=total_windows,
             window_start=window_start,
             window_end=window_end,
-            audio_context=audio_context,
+            audio_context=audio_context + recurrence_context,
         )
 
         window_label = f"{window_label_prefix} {window_idx + 1}"
@@ -1091,7 +1099,8 @@ class AdDetector:
                             audio_analysis, progress_callback,
                             progress_base, progress_range, slug, episode_id,
                             pass_name, window_label_prefix, validate_timestamps,
-                            action_map=None, category_repair_enabled=False):
+                            action_map=None, category_repair_enabled=False,
+                            recurrence_spans=None):
         """Shared window orchestration for the detection and verification passes.
 
         Runs every window through ``_run_windows``, merges results in window
@@ -1111,6 +1120,10 @@ class AdDetector:
         "category" gets one follow-up LLM call for just those categories (see
         ``_repair_window_categories``). False skips repair and makes no extra
         calls.
+
+        ``recurrence_spans``: optional pass-1-only text-recurrence spans,
+        forwarded to ``_process_single_window``. Callers other than pass 1
+        (e.g. verification) leave this None.
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
         failure_response, category_missing, category_total,
@@ -1161,6 +1174,7 @@ class AdDetector:
             pass_name=pass_name,
             window_label_prefix=window_label_prefix,
             validate_timestamps=validate_timestamps,
+            recurrence_spans=recurrence_spans,
         )
 
         category_repaired = 0
@@ -1289,7 +1303,8 @@ class AdDetector:
                    podcast_description: str = None,
                    progress_callback=None,
                    audio_analysis=None,
-                   positional_prior_hint: str = "") -> dict | None:
+                   positional_prior_hint: str = "",
+                   recurrence_spans: list | None = None) -> dict | None:
         """Detect ad segments using Claude API with sliding window approach.
 
         Processes transcript in overlapping windows to ensure ads at chunk
@@ -1300,6 +1315,8 @@ class AdDetector:
             progress_callback: Optional callback(stage, percent) to report progress
             positional_prior_hint: Pre-rendered learned ad-position scrutiny
                                    hint for the per-window prompt (issue #360)
+            recurrence_spans: Optional cross-episode text-recurrence spans
+                                   (hushpod adoption); rendered per-window.
         """
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -1394,6 +1411,7 @@ class AdDetector:
                 validate_timestamps=True,
                 action_map=action_map,
                 category_repair_enabled=segment_categories_configured,
+                recurrence_spans=recurrence_spans,
             )
             if failure is not None:
                 return failure
@@ -1598,6 +1616,7 @@ class AdDetector:
                           *,
                           ctx=None,
                           positional_prior_hint: str = "",
+                          recurrence_spans: list | None = None,
                           keep_content: bool | None = None,
                           skip_llm: bool = False) -> dict:
         """Process transcript for ad detection using three-stage pipeline.
@@ -1629,6 +1648,9 @@ class AdDetector:
                  callers that do not run inside the pipeline.
             skip_llm: cue_only preset. When True, stage 3 never runs (no
                  keep-content, no blacklist Claude call).
+            recurrence_spans: Optional cross-episode text-recurrence spans
+                 (hushpod adoption), forwarded to the blacklist detect_ads()
+                 call only; keep-content mode does not receive it.
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -1856,7 +1878,8 @@ class AdDetector:
                     podcast_description=podcast_description,
                     progress_callback=progress_callback,
                     audio_analysis=audio_analysis,
-                    positional_prior_hint=positional_prior_hint
+                    positional_prior_hint=positional_prior_hint,
+                    recurrence_spans=recurrence_spans,
                 )
 
         if result is None:

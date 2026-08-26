@@ -84,6 +84,7 @@ from config import (
     TERMINAL_SNAP_WINDOW_SECONDS,
     VETO_MIN_CUT_SECONDS,
     ModelNotConfiguredError,
+    coerce_bool_setting,
 )
 from database.settings import registry_get_default
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
@@ -101,6 +102,7 @@ from llm_client import (
 from offline_queue import is_offline_queue_enabled
 from utils.circuit_breaker import CircuitBreakerOpen
 from positional_prior import format_prior_hint, load_positional_prior
+from text_recurrence import find_recurring_spans
 import run_log
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, clear_episode_for_mode,
@@ -725,7 +727,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                             keep_content=None, skip_llm=False,
                             force_create_from_pairs=False,
                             strict_pair_roles=False, episode_duration=0.0,
-                            run_stats=None):
+                            run_stats=None, recurrence_spans=None):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     ``keep_content``: None lets the detector resolve the per-feed mode from
@@ -737,6 +739,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     guard when transcription (and its segment list) is skipped.
     ``run_stats``: caller's run_stats dict; stamped with detection_degraded
     when pass 1 fails but publishes on pattern/cross-fetch markers alone.
+    ``recurrence_spans``: optional cross-episode text-recurrence spans
+    (hushpod adoption); rendered per-window, pass-1 only.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
@@ -755,6 +759,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         cancel_event=cancel_event,
         ctx=ctx,
         positional_prior_hint=positional_prior_hint,
+        recurrence_spans=recurrence_spans,
         keep_content=keep_content,
         skip_llm=skip_llm,
     )
@@ -4320,6 +4325,24 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 positional_prior = load_positional_prior(db, slug, episode_id,
                                                          episode_duration)
 
+                # Cross-episode text recurrence hint (off until benchmarked;
+                # see docs/superpowers/specs/2026-08-25-hushpod-adoption-design.md).
+                recurrence_spans = None
+                if coerce_bool_setting(db.get_setting('text_recurrence_hints') or 'false'):
+                    try:
+                        priors = db.get_recent_original_segments(
+                            slug, exclude_episode_id=episode_id, limit=5)
+                        recurrence_spans = find_recurring_spans(segments, priors)
+                        if recurrence_spans:
+                            audio_logger.info(
+                                f"[{slug}:{episode_id}] Text recurrence: "
+                                f"{len(recurrence_spans)} recurring span(s) "
+                                f"from {len(priors)} prior episode(s)")
+                    except Exception as e:
+                        audio_logger.warning(
+                            f"[{slug}:{episode_id}] Text recurrence failed, "
+                            f"continuing without hint: {e}")
+
                 # Stage 3: First-pass detection
                 first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
                     ctx, segments, audio_path,
@@ -4328,6 +4351,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     cancel_event=cancel_event,
                     positional_prior_hint=format_prior_hint(positional_prior,
                                                             episode_duration),
+                    recurrence_spans=recurrence_spans,
                     dai_differential=dai_differential,
                     # None = resolve fresh from the DB at detection time, so a
                     # detection_mode toggle during download/transcription is honored.
