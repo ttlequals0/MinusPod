@@ -73,6 +73,18 @@ def test_stamp_id_windows_rejects_boundaries_stale_vs_windows_json(tmp_path, wri
         corpus.stamp_id_windows(ep)
 
 
+def test_stamp_id_windows_rejects_mismatched_index_even_with_matching_boundaries(tmp_path, write_corpus_episode):
+    """A stored windows.json entry with the right start/end but the wrong
+    index (reordered or corrupted) must still fail: a positional zip of
+    (recomputed windows, stored windows) alone cannot catch this since it
+    only compares by position, not by the stored index value."""
+    ep = _load(tmp_path, write_corpus_episode)
+    correct = ep.windows[0]
+    ep.windows[0] = Window(index=5, start=correct.start, end=correct.end, transcript_lines=correct.transcript_lines)
+    with pytest.raises(CorpusError, match="regenerate-windows"):
+        corpus.stamp_id_windows(ep)
+
+
 # --- ID prompt build ---------------------------------------------------------
 
 def test_id_mode_transcript_lines_are_sid_bracketed(tmp_path, write_corpus_episode):

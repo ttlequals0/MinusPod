@@ -407,16 +407,25 @@ def _parse_id_response(text: str, id_segments: list[dict] | None) -> tuple[list[
     extraction_method, id_contract_miss). ``id_contract_miss`` is True when
     the model ignored the id contract entirely and the harness fell back to
     timestamp parsing for this window (approximate boundaries for that
-    window; counted so it's visible per model in the report)."""
+    window; counted so it's visible per model in the report).
+
+    Does not call ``extract_json_ads_array`` itself: ``parse_id_ads_from_response``
+    already extracts the JSON internally, and calling it again here just to
+    recover a method label would re-parse the same text for no benefit. The
+    success path (``used_ids``) reports the fixed 'segment_id_direct' method
+    (see metrics.EXACT_METHOD_SCORES); the fallback path delegates to
+    ``_parse_response`` so it reports the exact extraction_method -- and
+    therefore the exact compliance score -- a plain timestamps-mode call
+    would report for the same text.
+    """
     if not text:
         return [], None, False
-    _, method = parsing.extract_json_ads_array(text)
     ads, used_ids = parsing.parse_id_ads_from_response(text)
     if used_ids:
         resolved = parsing.resolve_segment_id_ads(ads, id_segments or [])
-        return resolved, method, False
-    parsed = parsing.parse_ads_from_response(text) or []
-    return list(parsed), method, True
+        return resolved, "segment_id_direct", False
+    parsed, method = _parse_response(text)
+    return parsed, method, True
 
 
 def _call_id(unit: WorkUnit, prompt_hash: str) -> str:

@@ -85,26 +85,30 @@ def compute_windows(segments: list[dict]) -> list[Window]:
 
 
 def stamp_id_windows(episode: Episode) -> list[list[dict]]:
-    """ID-addressing mode: stamp a global sequential ``sid`` onto
-    ``episode.segments`` (mutates in place -- matches production's
-    convention of assigning sid before ``create_windows`` so every window's
-    segment dicts inherit it; see ``AdDetector._resolve_addressing_mode`` /
-    ``detect_ads`` in ``ad_detector/__init__.py``), then re-runs
-    ``create_windows`` over the stamped segments.
+    """ID-addressing mode: validate the corpus is fresh, then stamp a global
+    sequential ``sid`` onto ``episode.segments``.
 
-    Asserts the recomputed window count and each window's [start, end)
-    exactly match the episode's stored ``windows.json`` (``episode.windows``).
-    A mismatch means the window_size/overlap tunables have drifted since
-    windows.json was generated, so ID-mode transcript lines would no longer
-    line up with what show-prompt/report scoring expects. windows.json is
-    never rewritten here; run `benchmark regenerate-windows --force` for
-    that.
+    Re-runs ``create_windows`` over the (still unstamped) segments and
+    asserts the recomputed windows exactly match the episode's stored
+    ``windows.json`` (``episode.windows``): same count, each window's index,
+    and each window's [start, end). A mismatch means the
+    window_size/overlap tunables have drifted since windows.json was
+    generated, so ID-mode transcript lines would no longer line up with what
+    show-prompt/report scoring expects. windows.json is never rewritten
+    here; run `benchmark regenerate-windows --force` for that.
+
+    Only once that check passes does this mutate ``episode.segments`` in
+    place, stamping ``sid`` (matches production's convention of assigning
+    sid before ``create_windows`` so every window's segment dicts inherit
+    it; see ``AdDetector._resolve_addressing_mode`` / ``detect_ads`` in
+    ``ad_detector/__init__.py``) -- so a validation failure never leaves the
+    episode partially stamped. ``create_windows`` appends references to the
+    original segment dicts (not copies), so stamping ``episode.segments``
+    after computing ``raw`` still stamps every dict inside ``raw``.
 
     Returns one list of sid-stamped segment dicts per window, index-aligned
     with ``episode.windows``.
     """
-    for sid, seg in enumerate(episode.segments):
-        seg["sid"] = sid
     raw = create_windows(episode.segments)
     if len(raw) != len(episode.windows):
         raise CorpusError(
@@ -112,14 +116,16 @@ def stamp_id_windows(episode: Episode) -> list[list[dict]]:
             f"stored windows.json ({len(episode.windows)}); run "
             "`benchmark regenerate-windows --force` for this episode"
         )
-    for w, stored in zip(raw, episode.windows):
-        if w["start"] != stored.start or w["end"] != stored.end:
+    for i, (w, stored) in enumerate(zip(raw, episode.windows, strict=True)):
+        if stored.index != i or w["start"] != stored.start or w["end"] != stored.end:
             raise CorpusError(
-                f"{episode.ep_id}: segment-id window {stored.index} boundaries "
-                f"({w['start']}-{w['end']}) do not match stored windows.json "
-                f"({stored.start}-{stored.end}); run "
+                f"{episode.ep_id}: segment-id window {i} (index={stored.index}, "
+                f"{w['start']}-{w['end']}) does not match stored windows.json "
+                f"(index={i}, {stored.start}-{stored.end}); run "
                 "`benchmark regenerate-windows --force` for this episode"
             )
+    for sid, seg in enumerate(episode.segments):
+        seg["sid"] = sid
     return [w["segments"] for w in raw]
 
 
