@@ -116,6 +116,10 @@ class ModelStats:
     json_format_total: int = 0
     json_format_primary: str = "n/a"
     parse_failure_rate: float = 0.0
+    # ID-addressing mode only: calls where the model ignored the segment-id
+    # contract and the harness fell back to timestamp parsing for that window
+    # (0 for a timestamps-mode report; see runner._parse_id_response).
+    id_contract_misses: int = 0
     extraction_method_counts: dict[str, int] = field(default_factory=dict)
     schema_violations_total: int = 0
     extra_key_names: set[str] = field(default_factory=set)
@@ -234,6 +238,7 @@ def _aggregate(
     compliance_values_per_model: dict[str, list[float]] = defaultdict(list)
     parse_failures_per_model: dict[str, int] = defaultdict(int)
     parse_total_per_model: dict[str, int] = defaultdict(int)
+    id_contract_miss_per_model: dict[str, int] = defaultdict(int)
     schema_totals_per_model: dict[str, int] = defaultdict(int)
     category_present_per_model: dict[str, int] = defaultdict(int)
     category_missing_per_model: dict[str, int] = defaultdict(int)
@@ -267,6 +272,8 @@ def _aggregate(
             parse_failures_per_model[rec["model"]] += 1
         method_counts[rec["model"]][method or "parse_failure"] += 1
         parse_total_per_model[rec["model"]] += 1
+        if rec.get("id_contract_miss"):
+            id_contract_miss_per_model[rec["model"]] += 1
         compliance_values_per_model[rec["model"]].append(float(rec.get("compliance_score", 0.0)))
         sv = rec.get("schema_violations") or {}
         schema_totals_per_model[rec["model"]] += int(sv.get("missing_required", 0)) + int(sv.get("wrong_type", 0)) + int(sv.get("extra_keys", 0)) + int(sv.get("out_of_range", 0))
@@ -426,6 +433,7 @@ def _aggregate(
         ms.json_compliance_mean = statistics.fmean(comps) if comps else 0.0
         if parse_total_per_model[model]:
             ms.parse_failure_rate = parse_failures_per_model[model] / parse_total_per_model[model]
+        ms.id_contract_misses = id_contract_miss_per_model[model]
         ms.extraction_method_counts = dict(method_counts[model])
         ms.schema_violations_total = schema_totals_per_model[model]
         ms.category_present_total = category_present_per_model[model]

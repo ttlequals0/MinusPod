@@ -389,6 +389,8 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
             f"{s.json_format_total} calls)"
         )
         lines.append(f"- Parse failure rate: {s.parse_failure_rate * 100:.1f}%")
+        if s.id_contract_misses:
+            lines.append(f"- ID-contract misses (fell back to timestamp parse): {s.id_contract_misses}")
         if s.extraction_method_counts:
             counts = ", ".join(f"`{k}`: {v}" for k, v in sorted(s.extraction_method_counts.items()))
             lines.append(f"- Extraction methods: {counts}")
@@ -665,6 +667,7 @@ def _render_run_metadata(
     pricing_snapshot: pricing.PricingSnapshot,
     raw_calls: list[dict] | None = None,
     prompt_source: str = "live",
+    addressing_mode: str = "timestamps",
 ) -> str:
     total_calls = len(calls)
     successful = sum(1 for c in calls if not c.get("error"))
@@ -694,6 +697,7 @@ def _render_run_metadata(
         " cache bill less than this, and the harness does not record cache hits, so a real invoice for"
         " this run will come in under the figure above.",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
+        f"- Addressing mode: {addressing_mode}",
         f"- System prompt: {prompt_source}",
     ]
     return "\n".join(lines)

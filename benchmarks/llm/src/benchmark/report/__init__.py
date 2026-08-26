@@ -70,10 +70,27 @@ def render(
     output_path: Path,
     assets_dir: Path,
     prompt_source: str = "live",
+    addressing_mode: str = "timestamps",
 ) -> None:
-    raw_calls = list(read_jsonl(calls_path))
+    """Render results/report.md from calls.jsonl.
+
+    ``addressing_mode`` isolates the report to one addressing scheme: calls
+    are filtered to records whose ``addressing_mode`` field (missing on every
+    call written before this field existed, which defaults to 'timestamps')
+    matches. A store holding both timestamps- and segment_ids-mode calls
+    never blends them into one set of numbers; run twice with each mode to
+    get two separate reports.
+    """
+    title = "# MinusPod LLM Benchmark Report"
+    if addressing_mode != "timestamps":
+        title += f" (addressing mode: {addressing_mode})"
+
+    all_calls = list(read_jsonl(calls_path))
+    raw_calls = [r for r in all_calls if r.get("addressing_mode", "timestamps") == addressing_mode]
     if not raw_calls:
-        output_path.write_text("# MinusPod LLM Benchmark Report\n\nNo benchmark data yet. Run `benchmark run` first.\n")
+        run_hint = "benchmark run" + ("" if addressing_mode == "timestamps" else f" --addressing-mode {addressing_mode}")
+        mode_note = "" if addressing_mode == "timestamps" else f" for addressing mode '{addressing_mode}'"
+        output_path.write_text(f"{title}\n\nNo benchmark data yet{mode_note}. Run `{run_hint}` first.\n")
         return
     mixed = campaign_mixing(raw_calls)
     if mixed:
@@ -128,12 +145,15 @@ def render(
     sections += [
         _render_methodology(cfg, episodes, pricing_snapshot=pricing_snapshot),
         _render_transcript_source(),
-        _render_run_metadata(calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls, prompt_source=prompt_source),
+        _render_run_metadata(
+            calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls,
+            prompt_source=prompt_source, addressing_mode=addressing_mode,
+        ),
     ]
 
     body = "\n\n".join(s for s in sections if s) + "\n"
     toc = _build_toc(body)
-    output_path.write_text("# MinusPod LLM Benchmark Report\n\n" + toc + "\n\n" + body)
+    output_path.write_text(title + "\n\n" + toc + "\n\n" + body)
 
     assets_dir.mkdir(parents=True, exist_ok=True)
     _render_pareto(active, assets_dir / "pareto.svg")

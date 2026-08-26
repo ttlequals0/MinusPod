@@ -12,7 +12,7 @@ from utils.time import utc_now_iso
 
 from . import llm, parsing, pricing
 from .config import BenchmarkConfig
-from .corpus import Episode, load_episode
+from .corpus import Episode, load_episode, stamp_id_windows
 from .metrics import compliance_score, schema_audit
 from .storage import (
     SCHEMA_VERSION,
@@ -99,11 +99,20 @@ def build_work_list(
     return units, skipped
 
 
+def _id_windows_for_episodes(episodes: list[Episode], addressing_mode: str) -> dict[str, list[list[dict]]]:
+    """Per-episode sid-stamped segment lists, index-aligned with
+    ``episode.windows``. Empty for 'timestamps' mode, which never touches sid."""
+    if addressing_mode != "segment_ids":
+        return {}
+    return {ep.ep_id: stamp_id_windows(ep) for ep in episodes}
+
+
 def precompute_prompt_hashes(
     cfg: BenchmarkConfig,
     episodes: list[Episode],
     *,
     system_prompt: str,
+    addressing_mode: str = "timestamps",
 ) -> dict[tuple[str, str, int, int], str]:
     """User prompt is identical across (model, trial); cache once per (episode, window).
 
@@ -111,10 +120,16 @@ def precompute_prompt_hashes(
     every (model, episode, trial, window_index) tuple in the result so callers
     have a flat lookup.
     """
-    user_prompts: dict[tuple[str, int], str] = {
-        (ep.ep_id, w.index): _build_user_prompt(ep, w, total_windows=len(ep.windows))
-        for ep in episodes for w in ep.windows
-    }
+    id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
+    user_prompts: dict[tuple[str, int], str] = {}
+    for ep in episodes:
+        id_windows = id_windows_by_ep.get(ep.ep_id)
+        for w in ep.windows:
+            id_segments = id_windows[w.index] if id_windows is not None else None
+            user_prompts[(ep.ep_id, w.index)] = _build_user_prompt(
+                ep, w, total_windows=len(ep.windows),
+                addressing_mode=addressing_mode, id_segments=id_segments,
+            )
     active_models = [m for m in cfg.models if not m.deprecated]
     hash_by_model_window: dict[tuple[str, str, int], str] = {
         (model.id, ep_id, w_idx): hash_prompt(
@@ -136,8 +151,10 @@ def precompute_prompt_hashes(
 def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
     """Rebuild the exact user prompt for a calls.jsonl record from the corpus.
 
-    Deterministic as long as the episode's windows.json is unchanged since the
-    call ran; callers verify via prompt_hash.
+    Uses the record's own ``addressing_mode`` (records written before this
+    field existed default to 'timestamps'). Deterministic as long as the
+    episode's windows.json is unchanged since the call ran; callers verify
+    via prompt_hash.
     """
     episode = load_episode(corpus_dir / record["episode_id"])
     window_index = int(record["window_index"])
@@ -147,21 +164,35 @@ def reconstruct_user_prompt(record: dict, *, corpus_dir: Path) -> str:
             f"({len(episode.windows)} windows); windows.json may have been regenerated"
         )
     window = episode.windows[window_index]
-    return _build_user_prompt(episode, window, total_windows=len(episode.windows))
+    addressing_mode = record.get("addressing_mode", "timestamps")
+    id_segments = stamp_id_windows(episode)[window_index] if addressing_mode == "segment_ids" else None
+    return _build_user_prompt(
+        episode, window, total_windows=len(episode.windows),
+        addressing_mode=addressing_mode, id_segments=id_segments,
+    )
 
 
-def _build_user_prompt(episode: Episode, window, *, total_windows: int) -> str:
+def _build_user_prompt(
+    episode: Episode, window, *, total_windows: int,
+    addressing_mode: str = "timestamps",
+    id_segments: list[dict] | None = None,
+) -> str:
     description = (episode.metadata.description or "").strip()
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
+    if addressing_mode == "segment_ids":
+        transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
+    else:
+        transcript_lines = window.transcript_lines
     return parsing.format_window_prompt(
         podcast_name=episode.metadata.podcast_name,
         episode_title=episode.metadata.title,
         description_section=description_section,
-        transcript_lines=window.transcript_lines,
+        transcript_lines=transcript_lines,
         window_index=window.index,
         total_windows=total_windows,
         window_start=window.start,
         window_end=window.end,
+        addressing_mode=addressing_mode,
     )
 
 
@@ -173,8 +204,12 @@ async def run(
     pricing_snapshot: pricing.PricingSnapshot,
     system_prompt: str,
     include_errored: bool = False,
+    addressing_mode: str = "timestamps",
 ) -> RunStats:
-    prompt_hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
+    prompt_hashes = precompute_prompt_hashes(
+        cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode,
+    )
+    id_windows_by_ep = _id_windows_for_episodes(episodes, addressing_mode)
 
     completed, err_keys = scan_calls(paths.calls_jsonl)
     units, skipped = build_work_list(
@@ -199,7 +234,12 @@ async def run(
         provider_cfg = cfg.providers[unit.provider_name]
         episode = episodes_by_id[unit.episode_id]
         window = episode.windows[unit.window_index]
-        user_prompt = _build_user_prompt(episode, window, total_windows=len(episode.windows))
+        id_windows = id_windows_by_ep.get(unit.episode_id)
+        id_segments = id_windows[unit.window_index] if id_windows is not None else None
+        user_prompt = _build_user_prompt(
+            episode, window, total_windows=len(episode.windows),
+            addressing_mode=addressing_mode, id_segments=id_segments,
+        )
         ph = prompt_hashes[(unit.model_id, unit.episode_id, unit.trial, unit.window_index)]
 
         async with global_sema, per_provider_sema[unit.provider_name]:
@@ -239,8 +279,12 @@ async def run(
                 error_payload = sanitize_error(e)
 
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            id_contract_miss = False
             try:
-                parsed_ads, extraction_method = _parse_response(response_text)
+                if addressing_mode == "segment_ids":
+                    parsed_ads, extraction_method, id_contract_miss = _parse_id_response(response_text, id_segments)
+                else:
+                    parsed_ads, extraction_method = _parse_response(response_text)
                 comp = compliance_score(extraction_method)
                 cost_lookup = pricing_snapshot.lookup(unit.model_id)
                 if cost_lookup is not None:
@@ -266,6 +310,7 @@ async def run(
                 "trial": unit.trial,
                 "window_index": unit.window_index,
                 "temperature": cfg.run.temperature,
+                "addressing_mode": addressing_mode,
                 "prompt_hash": ph,
                 "response_time_ms": elapsed_ms,
                 "input_tokens": input_tokens,
@@ -288,6 +333,7 @@ async def run(
                 "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
                 "extraction_method": extraction_method,
                 "compliance_score": comp,
+                "id_contract_miss": id_contract_miss,
                 "parsed_ads": parsed_ads,
                 "schema_violations": asdict(violations),
                 "windows_stale": False,
@@ -354,6 +400,23 @@ def _parse_response(text: str) -> tuple[list[dict], str | None]:
     _, method = parsing.extract_json_ads_array(text)
     parsed = parsing.parse_ads_from_response(text) or []
     return list(parsed), method
+
+
+def _parse_id_response(text: str, id_segments: list[dict] | None) -> tuple[list[dict], str | None, bool]:
+    """ID-addressing mode response parse. Returns (ads_in_seconds,
+    extraction_method, id_contract_miss). ``id_contract_miss`` is True when
+    the model ignored the id contract entirely and the harness fell back to
+    timestamp parsing for this window (approximate boundaries for that
+    window; counted so it's visible per model in the report)."""
+    if not text:
+        return [], None, False
+    _, method = parsing.extract_json_ads_array(text)
+    ads, used_ids = parsing.parse_id_ads_from_response(text)
+    if used_ids:
+        resolved = parsing.resolve_segment_id_ads(ads, id_segments or [])
+        return resolved, method, False
+    parsed = parsing.parse_ads_from_response(text) or []
+    return list(parsed), method, True
 
 
 def _call_id(unit: WorkUnit, prompt_hash: str) -> str:

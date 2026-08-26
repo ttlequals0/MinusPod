@@ -12,18 +12,24 @@ from pathlib import Path
 from ad_detector import (  # type: ignore[import-not-found]
     extract_json_ads_array,
     parse_ads_from_response,
+    parse_id_ads_from_response,
+    resolve_segment_id_ads,
     get_static_system_prompt,
     format_window_prompt,
     deduplicate_window_ads,
+    SEGMENT_ID_SYSTEM_SECTION,
 )
 
 __all__ = [
     "extract_json_ads_array",
     "parse_ads_from_response",
+    "parse_id_ads_from_response",
+    "resolve_segment_id_ads",
     "get_static_system_prompt",
     "format_window_prompt",
     "deduplicate_window_ads",
     "resolve_system_prompt",
+    "SEGMENT_ID_SYSTEM_SECTION",
 ]
 
 

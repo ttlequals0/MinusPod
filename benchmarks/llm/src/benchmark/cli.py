@@ -26,6 +26,22 @@ app = typer.Typer(
     help="Offline LLM ad-detection benchmark for MinusPod.",
 )
 
+ADDRESSING_MODES = ("timestamps", "segment_ids")
+
+
+def _validate_addressing_mode(mode: str) -> None:
+    if mode not in ADDRESSING_MODES:
+        typer.echo(f"error: --addressing-mode must be one of {ADDRESSING_MODES}, got {mode!r}", err=True)
+        raise typer.Exit(2)
+
+
+def _with_id_mode_section(system_prompt: str, addressing_mode: str) -> str:
+    """Append SEGMENT_ID_SYSTEM_SECTION after the live/snapshot prompt is
+    resolved, so a frozen snapshot file stays mode-agnostic."""
+    if addressing_mode == "segment_ids":
+        return system_prompt + parsing.SEGMENT_ID_SYSTEM_SECTION
+    return system_prompt
+
 
 def _setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -165,11 +181,20 @@ def run(
         None, "--snapshot",
         help="Frozen system-prompt file to use instead of the live prompt (decouples the corpus from SEED_SPONSORS edits).",
     ),
+    addressing_mode: str = typer.Option(
+        "timestamps", "--addressing-mode",
+        help="Prompt addressing scheme: 'timestamps' (default) or 'segment_ids' "
+        "(experimental; transcript lines are numbered [id] instead of timestamped, "
+        "and the model reports start_id/end_id). Lets an A/B run be a single command "
+        "per side: `benchmark run` then `benchmark run --addressing-mode segment_ids`.",
+    ),
 ) -> None:
     """Auto-fill all gaps in calls.jsonl, then regenerate report."""
     _setup_logging()
+    _validate_addressing_mode(addressing_mode)
     cfg = _load(config_path)
     system_prompt, prompt_source = _resolve_prompt(snapshot)
+    system_prompt = _with_id_mode_section(system_prompt, addressing_mode)
     episodes = [corpus_mod.load_episode(cfg.corpus.path / e) for e in corpus_mod.list_episodes(cfg.corpus.path)]
     if not episodes:
         typer.echo("no corpus episodes; run `benchmark capture` first", err=True)
@@ -187,11 +212,17 @@ def run(
             paths.calls_jsonl.unlink()
 
     if dry_run:
-        units, skipped = _preview(cfg, episodes, paths=paths, system_prompt=system_prompt, include_errored=retry_errors)
+        units, skipped = _preview(
+            cfg, episodes, paths=paths, system_prompt=system_prompt,
+            include_errored=retry_errors, addressing_mode=addressing_mode,
+        )
         typer.echo(f"dry-run: {len(units)} calls would execute, {skipped} skipped (already done)")
         raise typer.Exit(0)
 
-    stats = asyncio.run(runner_mod.run(cfg, episodes, paths=paths, pricing_snapshot=snap, system_prompt=system_prompt, include_errored=retry_errors))
+    stats = asyncio.run(runner_mod.run(
+        cfg, episodes, paths=paths, pricing_snapshot=snap, system_prompt=system_prompt,
+        include_errored=retry_errors, addressing_mode=addressing_mode,
+    ))
     typer.echo(f"run complete: total={stats.total_units} skipped={stats.skipped} completed={stats.completed} errored={stats.errored}")
 
     if stats.errored and no_report_on_failure:
@@ -209,6 +240,7 @@ def run(
         output_path=output,
         assets_dir=assets,
         prompt_source=prompt_source,
+        addressing_mode=addressing_mode,
     )
     typer.echo(f"report written: {output}")
 
@@ -220,9 +252,16 @@ def report(
         None, "--snapshot",
         help="Label the report with this prompt file; pass the same snapshot used for `run` so the footer matches the stored calls.",
     ),
+    addressing_mode: str = typer.Option(
+        "timestamps", "--addressing-mode",
+        help="Regenerate the report from only the calls.jsonl rows recorded under this "
+        "addressing mode (records without the field are 'timestamps'). A report never "
+        "mixes modes; run this twice to get both sides of an A/B.",
+    ),
 ) -> None:
     """Regenerate results/report.md from existing calls.jsonl."""
     _setup_logging()
+    _validate_addressing_mode(addressing_mode)
     cfg = _load(config_path)
     _, prompt_source = _resolve_prompt(snapshot)
     episodes = [corpus_mod.load_episode(cfg.corpus.path / e) for e in corpus_mod.list_episodes(cfg.corpus.path)]
@@ -239,6 +278,7 @@ def report(
         output_path=output,
         assets_dir=assets,
         prompt_source=prompt_source,
+        addressing_mode=addressing_mode,
     )
     typer.echo(f"report written: {output}")
 
@@ -296,22 +336,38 @@ def show_prompt_cmd(
         None, "--snapshot",
         help="System-prompt file the run used; needed for prompt_hash verification when the run was not on the live prompt.",
     ),
+    addressing_mode: Optional[str] = typer.Option(
+        None, "--addressing-mode",
+        help="Must match the call record's stored addressing_mode if given; omit to trust "
+        "the record (records without the field are 'timestamps').",
+    ),
 ) -> None:
     """Reconstruct the exact user prompt for a call from the corpus and verify it against prompt_hash.
 
     Prompts are not stored on disk (schema v2); this rebuilds them
     deterministically from windows.json + metadata and proves fidelity by
-    recomputing the hash recorded at call time.
+    recomputing the hash recorded at call time. The addressing mode used is
+    the one stored on the call record, not a global default.
     """
     cfg = _load(config_path)
     paths = runner_mod.RunPaths.for_root(_root() / "results")
     rec = _find_call_or_exit(paths, call_id)
+    record_mode = rec.get("addressing_mode", "timestamps")
+    if addressing_mode is not None:
+        _validate_addressing_mode(addressing_mode)
+        if addressing_mode != record_mode:
+            typer.echo(
+                f"error: --addressing-mode {addressing_mode} does not match this call's "
+                f"stored addressing_mode {record_mode}", err=True,
+            )
+            raise typer.Exit(1)
     try:
         user_prompt = runner_mod.reconstruct_user_prompt(rec, corpus_dir=cfg.corpus.path)
     except Exception as e:
         typer.echo(f"error reconstructing prompt: {e}", err=True)
         raise typer.Exit(1)
     system_prompt, prompt_source = _resolve_prompt(snapshot)
+    system_prompt = _with_id_mode_section(system_prompt, record_mode)
     recomputed = hash_prompt(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
@@ -395,8 +451,8 @@ def rotate_raw_cmd(
     typer.echo(f"rotated {size_mb:.0f} MB to {dst}" + (" (original kept)" if keep else ""))
 
 
-def _preview(cfg, episodes, *, paths, system_prompt, include_errored=False):
-    hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
+def _preview(cfg, episodes, *, paths, system_prompt, include_errored=False, addressing_mode="timestamps"):
+    hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt, addressing_mode=addressing_mode)
     completed, err_keys = scan_calls(paths.calls_jsonl)
     units, skipped = build_work_list(
         cfg, episodes, completed=completed, prompt_hashes=hashes,

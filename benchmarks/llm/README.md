@@ -150,6 +150,34 @@ MinusPod uses Flask sessions. `benchmark capture` reads the password from `MINUS
 
 Every `(model, episode, trial, window_index)` combination computes a `prompt_hash` over the system prompt, user prompt, model id, and temperature. The runner skips any tuple whose hash already appears in `calls.jsonl`. Editing windows (via `regenerate-windows --force`) changes the hash and forces a re-run for affected windows.
 
+## Addressing-mode A/B
+
+MinusPod 2.91.0 added an experimental segment-ID addressing mode alongside the
+default timestamps mode: instead of `[12.3s - 18.0s] text` transcript lines
+and timestamp fields in the model's JSON, the transcript is a numbered list
+(`[7] text`) and the model reports integer `start_id`/`end_id`. The benchmark
+can run either mode, or both, so the two can be compared.
+
+```sh
+benchmark run                                    # timestamps mode (default)
+benchmark run --addressing-mode segment_ids       # segment-ID mode
+```
+
+Both commands append to the same `calls.jsonl`; each call record carries the
+`addressing_mode` it ran under (records written before this field existed are
+treated as `timestamps`). `benchmark report` and `benchmark run` both accept
+`--addressing-mode` and only render calls recorded under that mode, so a
+report never blends the two: run `benchmark report --addressing-mode
+segment_ids` to see the segment-ID side, and plain `benchmark report` for the
+timestamps side. If a model ignores the segment-ID contract on a given
+window, the harness falls back to timestamp parsing for that window and
+counts it under "ID-contract misses" in that model's per-model detail
+section, so a fallback-heavy model is visible rather than silently scored on
+approximate boundaries.
+
+`benchmark show-prompt` reconstructs a call's prompt using the mode stored on
+that call's record, so it works unmodified for either mode.
+
 ## Adding a new model or episode
 
 - New model: append `[[models]]` to `benchmark.toml`. `benchmark run` will fill the gaps (existing models stay cached).
