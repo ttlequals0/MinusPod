@@ -39,6 +39,7 @@ import AudioSection from './settings/AudioSection';
 import CoverArtSection from './settings/CoverArtSection';
 import { refreshAllArtwork } from '../api/feeds';
 import AdDetectionSection from './settings/AdDetectionSection';
+import SeedSponsorsSection from './settings/SeedSponsorsSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import SegmentActionsSection from './settings/SegmentActionsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
@@ -1027,6 +1028,14 @@ function Settings() {
         onDifferentialMeasuredCorrMaxChange={setDifferentialMeasuredCorrMax}
         differentialHoldMinSeconds={differentialHoldMinSeconds}
         onDifferentialHoldMinSecondsChange={setDifferentialHoldMinSeconds}
+      />
+
+      <SeedSponsorsSection
+        detection={settings?.seedSponsorsDetection?.value ?? settings?.defaults?.seedSponsorsDetection ?? true}
+        verification={settings?.seedSponsorsVerification?.value ?? settings?.defaults?.seedSponsorsVerification ?? true}
+        reviewer={settings?.seedSponsorsReviewer?.value ?? settings?.defaults?.seedSponsorsReviewer ?? true}
+        resurrect={settings?.seedSponsorsResurrect?.value ?? settings?.defaults?.seedSponsorsResurrect ?? true}
+        onChange={(key, v) => tunableMutation.mutate({ [key]: v })}
       />
 
       <PromptsSection

@@ -452,6 +452,10 @@ export interface Settings {
   onlyExposeProcessedDefault: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
   processNewEpisodesFirst: SettingValueBoolean;
+  seedSponsorsDetection: SettingValueBoolean;
+  seedSponsorsVerification: SettingValueBoolean;
+  seedSponsorsReviewer: SettingValueBoolean;
+  seedSponsorsResurrect: SettingValueBoolean;
   artworkWatermarkEnabled: SettingValueBoolean;
   artworkBadgePosition: SettingValue;
   lowAdYieldAction: SettingValue;
@@ -548,6 +552,10 @@ export interface Settings {
     onlyExposeProcessedDefault: boolean;
     detectShowSegments: boolean;
     processNewEpisodesFirst: boolean;
+    seedSponsorsDetection: boolean;
+    seedSponsorsVerification: boolean;
+    seedSponsorsReviewer: boolean;
+    seedSponsorsResurrect: boolean;
     artworkWatermarkEnabled: boolean;
     artworkBadgePosition: string;
     lowAdYieldAction: string;
@@ -642,6 +650,10 @@ export interface UpdateSettingsPayload {
   onlyExposeProcessedDefault?: boolean;
   detectShowSegments?: boolean;
   processNewEpisodesFirst?: boolean;
+  seedSponsorsDetection?: boolean;
+  seedSponsorsVerification?: boolean;
+  seedSponsorsReviewer?: boolean;
+  seedSponsorsResurrect?: boolean;
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
   lowAdYieldAction?: LowAdYieldAction;
