@@ -538,9 +538,7 @@ class AdDetector:
     """
 
     def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or get_api_key()
-        if not self.api_key:
-            logger.warning("No LLM API key found")
+        self._api_key_override: str | None = api_key
         self._llm_client_override: LLMClient | None = None
 
         # Dependency attributes. Previously these were lazy @property
@@ -557,6 +555,17 @@ class AdDetector:
         self.text_pattern_matcher = None
         self.pattern_service = None
         self.sponsor_service = None
+
+    @property
+    def api_key(self) -> str | None:
+        """Active API key. Resolves dynamically via get_api_key() unless overridden."""
+        if self._api_key_override is not None:
+            return self._api_key_override
+        return get_api_key()
+
+    @api_key.setter
+    def api_key(self, value: str | None) -> None:
+        self._api_key_override = value
 
     @property
     def _llm_client(self) -> LLMClient | None:

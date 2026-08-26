@@ -192,7 +192,18 @@ class ChaptersGenerator:
         Args:
             api_key: LLM API key (defaults to environment configuration)
         """
-        self.api_key = api_key or get_api_key()
+        self._api_key_override: str | None = api_key
+
+    @property
+    def api_key(self) -> str | None:
+        """Active API key. Resolves dynamically via get_api_key() unless overridden."""
+        if self._api_key_override is not None:
+            return self._api_key_override
+        return get_api_key()
+
+    @api_key.setter
+    def api_key(self, value: str | None) -> None:
+        self._api_key_override = value
         self._llm_client_override: LLMClient | None = None
         self._episode_id: str | None = None
         # (template, override), read once per run rather than per window.
