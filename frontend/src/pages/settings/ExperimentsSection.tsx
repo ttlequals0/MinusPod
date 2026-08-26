@@ -4,6 +4,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
 import NumberInput from '../../components/NumberInput';
 import { selectBase } from '../../components/fieldStyles';
+import ExperimentalBadge from '../../components/ExperimentalBadge';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -30,6 +31,8 @@ interface ExperimentsSectionProps {
   resurrectPromptIsDefault?: boolean;
   onResetReviewPrompt?: () => void;
   onResetResurrectPrompt?: () => void;
+  addressingMode: string;
+  onAddressingModeChange: (v: string) => void;
 }
 
 function ExperimentsSection({
@@ -42,6 +45,8 @@ function ExperimentsSection({
   resurrectPromptIsDefault,
   onResetReviewPrompt,
   onResetResurrectPrompt,
+  addressingMode,
+  onAddressingModeChange,
 }: ExperimentsSectionProps) {
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
@@ -50,10 +55,37 @@ function ExperimentsSection({
   // Save (the backend rejects them). maxShift stays out: it has weaker semantics
   // and leans on the native min/max only.
   return (
-    <CollapsibleSection
-      title="Ad Reviewer"
-      subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
-    >
+    <>
+      <CollapsibleSection
+        title="Ad Addressing Mode"
+        subtitle="Experimental: how the detector points at ads in the transcript."
+      >
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <label htmlFor="adAddressingMode" className="text-sm font-medium text-foreground">
+              Ad addressing mode
+            </label>
+            <ExperimentalBadge title="Experimental: segment IDs are still being benchmarked against timestamps" />
+          </div>
+          <select
+            id="adAddressingMode"
+            value={addressingMode}
+            onChange={(e) => onAddressingModeChange(e.target.value)}
+            className={`w-full ${selectBase}`}
+          >
+            <option value="timestamps">Timestamps (default)</option>
+            <option value="segment_ids">Segment IDs</option>
+          </select>
+          <p className="mt-2 text-sm text-muted-foreground">
+            How the detector points at ads in the transcript. Timestamps asks the model for start and end times; segment IDs asks it to name numbered transcript lines instead, which removes made-up timestamps but is still being evaluated. Benchmark results decide the future default.
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Ad Reviewer"
+        subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
+      >
       <div className="space-y-6">
         {/* Reviewer behavior */}
         <div className="space-y-6">
@@ -241,7 +273,8 @@ function ExperimentsSection({
           />
         </div>
       </div>
-    </CollapsibleSection>
+      </CollapsibleSection>
+    </>
   );
 }
 

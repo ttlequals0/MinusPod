@@ -209,6 +209,8 @@ def get_settings():
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
     text_recurrence_hints = coerce_bool_setting(_setting_value(
         settings, 'text_recurrence_hints', registry_default('text_recurrence_hints')))
+    ad_addressing_mode = _setting_value(
+        settings, 'ad_addressing_mode', registry_default('ad_addressing_mode'))
     seed_sponsors = {
         key: coerce_bool_setting(_setting_value(
             settings, key, registry_default(key)))
@@ -539,6 +541,8 @@ def get_settings():
             'detect_show_segments', detect_show_segments_default),
         'textRecurrenceHints': _sv(
             'text_recurrence_hints', text_recurrence_hints),
+        'adAddressingMode': _sv(
+            'ad_addressing_mode', ad_addressing_mode),
         'seedSponsorsDetection': _sv(
             'seed_sponsors_detection', seed_sponsors['seed_sponsors_detection']),
         'seedSponsorsVerification': _sv(
@@ -669,6 +673,14 @@ def update_ad_detection_settings():
         return error_response('Request body required', 400)
 
     db = get_database()
+
+    if 'adAddressingMode' in data:
+        value = str(data['adAddressingMode'] or '').strip().lower()
+        if value not in ('timestamps', 'segment_ids'):
+            return error_response(
+                'adAddressingMode must be "timestamps" or "segment_ids"', 400)
+        db.set_setting('ad_addressing_mode', value, is_default=False)
+        logger.info(f"Updated ad_addressing_mode to: {value}")
 
     phases = (
         _apply_prompt_fields,

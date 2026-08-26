@@ -35,6 +35,8 @@ describe('ExperimentsSection: per-prompt reset', () => {
         resurrectPromptIsDefault
         onResetReviewPrompt={vi.fn()}
         onResetResurrectPrompt={vi.fn()}
+        addressingMode="timestamps"
+        onAddressingModeChange={vi.fn()}
       />,
     );
     const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
@@ -57,6 +59,8 @@ describe('ExperimentsSection: per-prompt reset', () => {
         resurrectPromptIsDefault
         onResetReviewPrompt={onResetReviewPrompt}
         onResetResurrectPrompt={onResetResurrectPrompt}
+        addressingMode="timestamps"
+        onAddressingModeChange={vi.fn()}
       />,
     );
     const [resetBtn] = screen.getAllByRole('button', { name: 'Reset' });
@@ -80,6 +84,8 @@ describe('ExperimentsSection: per-prompt reset', () => {
         resurrectPromptIsDefault={false}
         onResetReviewPrompt={onResetReviewPrompt}
         onResetResurrectPrompt={onResetResurrectPrompt}
+        addressingMode="timestamps"
+        onAddressingModeChange={vi.fn()}
       />,
     );
     const resetBtn = screen.getAllByRole('button', { name: 'Reset' })[1];
@@ -87,5 +93,42 @@ describe('ExperimentsSection: per-prompt reset', () => {
     await user.click(screen.getByRole('button', { name: 'Click again to confirm' }));
     expect(onResetResurrectPrompt).toHaveBeenCalledTimes(1);
     expect(onResetReviewPrompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('ExperimentsSection: addressing mode', () => {
+  it('renders the addressing mode select with the current value', () => {
+    render(
+      <ExperimentsSection
+        reviewer={baseReviewer()}
+        onChange={vi.fn()}
+        onResetPrompts={vi.fn()}
+        resetIsPending={false}
+        addressingMode="segment_ids"
+        onAddressingModeChange={vi.fn()}
+      />,
+    );
+    const select = screen.getByLabelText('Ad addressing mode') as HTMLSelectElement;
+    expect(select.value).toBe('segment_ids');
+    expect(screen.getByRole('option', { name: 'Timestamps (default)' })).toBeDefined();
+    expect(screen.getByRole('option', { name: 'Segment IDs' })).toBeDefined();
+  });
+
+  it('fires onAddressingModeChange when the select changes', async () => {
+    const onAddressingModeChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ExperimentsSection
+        reviewer={baseReviewer()}
+        onChange={vi.fn()}
+        onResetPrompts={vi.fn()}
+        resetIsPending={false}
+        addressingMode="timestamps"
+        onAddressingModeChange={onAddressingModeChange}
+      />,
+    );
+    const select = screen.getByLabelText('Ad addressing mode');
+    await user.selectOptions(select, 'segment_ids');
+    expect(onAddressingModeChange).toHaveBeenCalledWith('segment_ids');
   });
 });

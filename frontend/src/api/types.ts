@@ -452,6 +452,7 @@ export interface Settings {
   onlyExposeProcessedDefault: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
+  adAddressingMode: SettingValue;
   processNewEpisodesFirst: SettingValueBoolean;
   seedSponsorsDetection: SettingValueBoolean;
   seedSponsorsVerification: SettingValueBoolean;
@@ -553,6 +554,7 @@ export interface Settings {
     onlyExposeProcessedDefault: boolean;
     detectShowSegments: boolean;
     textRecurrenceHints: boolean;
+    adAddressingMode: string;
     processNewEpisodesFirst: boolean;
     seedSponsorsDetection: boolean;
     seedSponsorsVerification: boolean;
@@ -652,6 +654,7 @@ export interface UpdateSettingsPayload {
   onlyExposeProcessedDefault?: boolean;
   detectShowSegments?: boolean;
   textRecurrenceHints?: boolean;
+  adAddressingMode?: string;
   processNewEpisodesFirst?: boolean;
   seedSponsorsDetection?: boolean;
   seedSponsorsVerification?: boolean;

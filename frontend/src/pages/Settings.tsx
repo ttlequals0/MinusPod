@@ -1077,6 +1077,8 @@ function Settings() {
         resurrectPromptIsDefault={settings?.resurrectPrompt.isDefault}
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
         onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
+        addressingMode={settings?.adAddressingMode?.value ?? settings?.defaults?.adAddressingMode ?? 'timestamps'}
+        onAddressingModeChange={(v) => tunableMutation.mutate({ adAddressingMode: v })}
       />
 
       <AudioCueDetectionSection audioCue={audioCue} onChange={setAudioCue} />
