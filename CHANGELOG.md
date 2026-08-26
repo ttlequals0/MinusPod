@@ -11,6 +11,40 @@ release notes.
 
 ## [Unreleased]
 
+## [2.91.0] - 2026-08-26
+
+### Added
+
+- Seed-sponsors toggles: four global settings control which LLM prompts
+  receive the known-sponsor list (pass 1 detection, pass 2 verification,
+  reviewer review, reviewer resurrect). All default on. Turning the
+  reviewer toggle off makes that pass an independent second opinion
+  instead of one primed with the same sponsor hints as the detector.
+  Exposed in the settings API and a new Seed sponsors section in the
+  settings UI (#683).
+- Cross-episode text recurrence hints (off by default): spans of the
+  transcript whose wording repeats near-verbatim across the feed's
+  recent episodes are fed to pass-1 detection as a hint for intros,
+  credits, and other boilerplate. Text evidence is a hint only and
+  never cuts audio on its own. Complements the audio fingerprinter,
+  which misses re-recorded boilerplate that is verbatim in words but
+  acoustically different each week (#683).
+- Experimental segment-ID addressing mode (timestamps remains the
+  default): the detector can ask the model for numbered transcript
+  line IDs instead of absolute timestamps, then map the IDs back to
+  exact Whisper segment times. An invented timestamp is undetectable;
+  an invented ID is provably out of range, so bad references are
+  dropped instead of cutting the wrong audio. Falls back to timestamp
+  parsing when a model ignores the ID contract. Selectable under
+  Experiments in the settings UI; benchmark results decide whether the
+  default ever changes (#683).
+
+### Documentation
+
+- New glossary entries and configuration sections for seed sponsors,
+  text recurrence hints, and the addressing mode; openapi.yaml covers
+  the six new settings keys (#683).
+
 ## [2.90.1] - 2026-08-25
 
 ### Added
