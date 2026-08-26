@@ -8,6 +8,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
+**Addressing mode** - An experimental detector setting. In Segment IDs mode, the LLM names numbered transcript lines instead of inventing start and end timestamps, and MinusPod maps those line numbers back to exact Whisper times. Timestamps stays the default while benchmark results decide whether that changes. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+
 **Audio analysis** - A pre-detection pass over the audio itself (volume shifts, transitions, silence) whose signals feed the detector and validator. [How It Works > Audio Analysis](how-it-works.md#audio-analysis)
 
 **Audio cue** - A short, repeated sound a show plays around its ad breaks (a sting, a jingle). MinusPod can learn one as a template and use matches as hard evidence for ad boundaries. [Audio Cue Detection](audio-cues.md)
@@ -110,6 +112,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Second scan** - See Verification pass.
 
+**Seed sponsors** - Four toggles, one per LLM pass (detection, verification, reviewer, resurrect), that control whether that pass is handed the known-sponsor list. All on by default; turning one off lets that pass judge each candidate without a prior nudge from sponsors seen before. [Configuration > Seed sponsors](configuration.md#seed-sponsors)
+
 **Segment category** - What kind of content a detected marker spans: sponsor, cross-promo, self-promo, interaction, intro, outro, or recap. Each category resolves to an action (remove, beep, or keep), set per feed or globally on the **Segment actions** card and defaulting to remove until changed. Intro, outro, and recap are only detected on feeds where show-segments detection resolves to on (a per-feed Inherit/On/Off choice, falling back to the global default); the other four categories are always detected. A defined pattern's match always cuts regardless of the resolved action. [How It Works > Segment Categories](how-it-works.md#segment-categories)
   - Sponsor - Paid ads, including dynamically inserted ones
   - Cross-promo - Promos for other shows and the network
@@ -128,6 +132,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 ## T
 
 **Text pattern** - A learned chunk of ad transcript matched against new episodes by similarity. Deterministic: if the same ad copy appears, it hits. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+
+**Text recurrence hint** - An optional signal that flags transcript spans repeating near-verbatim across a show's last two or more episodes (intros, credits, boilerplate) and passes them to pass 1 detection as a hint. Off by default, and never enough by itself to cut anything. [Configuration > Text recurrence hints](configuration.md#text-recurrence-hints)
 
 **Title blacklist** - A per-feed list of case-insensitive glob patterns (e.g. `Bonus Episode *`) that skip processing for matching episode titles. A per-feed choice serves a skipped episode unmodified or hides it from the feed. Manual reprocess overrides it. [Configuration > Title blacklist](configuration.md#title-blacklist)
 

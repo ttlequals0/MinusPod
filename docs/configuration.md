@@ -29,6 +29,18 @@ Customize ad detection in Settings:
 
 Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under Experiments) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
+### Seed sponsors
+
+Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it just stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.
+
+All four default on to match prior behavior. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
+
+### Text recurrence hints
+
+Settings > AI & Processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
+
+Off by default. API: `PUT /api/v1/settings/ad-detection` with `textRecurrenceHints` (boolean).
+
 ### Detection Tuning
 
 Settings > Ad Detection has two grouped subsections for tuning how aggressively the verification pass and the cross-fetch differential stage act on what they find. All six controls are database settings; API: `PUT /api/v1/settings/ad-detection` (see `openapi.yaml`).
@@ -201,6 +213,12 @@ API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detec
 ## Experiments
 
 The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
+
+### Ad Addressing Mode
+
+Settings > Experiments has an Ad addressing mode select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
+
+Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps` or `segment_ids`).
 
 ### Ad Reviewer
 
