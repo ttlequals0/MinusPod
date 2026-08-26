@@ -3726,8 +3726,8 @@ paths:
                   example: 4
                 transcribeChunkOverlapSeconds:
                   type: integer
-                  minimum: 0
-                  maximum: 120
+                  minimum: 1
+                  maximum: 600
                   description: Overlap, in seconds, between consecutive transcription chunks.
                   example: 30
                 whisperComputeType:
