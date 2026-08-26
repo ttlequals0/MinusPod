@@ -126,7 +126,6 @@ from .prompts import (
     format_category_repair_prompt,
     parse_category_repair_response,
     SEGMENT_ID_SYSTEM_SECTION,
-    SEGMENT_ID_WINDOW_RULES,
 )
 # Source the JSON-array scanner directly from utils.llm_response instead of
 # laundering it through prompts.py; re-exported below for backward-compat
@@ -930,8 +929,9 @@ class AdDetector:
 
         ``addressing_mode``: 'timestamps' (default, unchanged rendering) or
         'segment_ids' (issue: hushpod adoption) -- switches the transcript
-        line format and appends SEGMENT_ID_WINDOW_RULES via
-        ``format_window_prompt``'s ``extra_rules``.
+        line format and passes ``addressing_mode`` through to
+        ``format_window_prompt``, which swaps the window-context rules
+        instead of appending a second, conflicting set.
         """
         window_segments = window['segments']
         window_start = window['start']
@@ -943,10 +943,6 @@ class AdDetector:
         ) if audio_enforcer else ""
         recurrence_context = format_recurrence_hint(
             recurrence_spans or [], window_start, window_end)
-        extra_rules = (
-            SEGMENT_ID_WINDOW_RULES(window_end)
-            if addressing_mode == 'segment_ids' else ""
-        )
 
         prompt = format_window_prompt(
             podcast_name=podcast_name,
@@ -958,7 +954,7 @@ class AdDetector:
             window_start=window_start,
             window_end=window_end,
             audio_context=audio_context + recurrence_context,
-            extra_rules=extra_rules,
+            addressing_mode=addressing_mode,
         )
 
         window_label = f"{window_label_prefix} {window_idx + 1}"

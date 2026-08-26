@@ -132,7 +132,7 @@ def format_window_prompt(
     window_start: float,
     window_end: float,
     audio_context: str = "",
-    extra_rules: str = "",
+    addressing_mode: str = "timestamps",
 ) -> str:
     """Build the user prompt for a single ad-detection window.
 
@@ -140,25 +140,35 @@ def format_window_prompt(
     benchmark can call this without DB or audio-analysis state. Production
     callers assemble both then pass them in.
 
-    `extra_rules` is appended last (after the window context); it carries
-    mode-specific window rules (e.g. segment-id addressing, issue: hushpod
-    adoption) without disturbing the benchmark's existing calls, which never
-    pass it and get "".
+    `addressing_mode` selects the window-context rules appended after the
+    header: 'timestamps' (default) emits the original three bullets telling
+    the model to use absolute timestamps, byte-identical to before this
+    parameter existed; 'segment_ids' (issue: hushpod adoption) emits
+    SEGMENT_ID_WINDOW_RULES instead of those bullets -- never both, so the
+    prompt never tells the model to use and never use timestamps in the same
+    message. Callers that never pass it (benchmark, keep-content windows)
+    get 'timestamps' behavior unchanged.
     """
     transcript = "\n".join(transcript_lines)
-    window_context = f"""
-
-=== WINDOW {window_index + 1}/{total_windows}: {window_start/60:.1f}-{window_end/60:.1f} minutes ===
-- Use absolute timestamps from transcript (as shown in brackets)
-- If an ad starts before this window, use the first timestamp with note "continues from previous"
-- If an ad extends past this window, use {window_end:.1f} with note "continues in next"
-"""
+    header = (
+        f"\n\n=== WINDOW {window_index + 1}/{total_windows}: "
+        f"{window_start/60:.1f}-{window_end/60:.1f} minutes ==="
+    )
+    if addressing_mode == "segment_ids":
+        rules = SEGMENT_ID_WINDOW_RULES(window_end)
+    else:
+        rules = (
+            "\n- Use absolute timestamps from transcript (as shown in brackets)"
+            "\n- If an ad starts before this window, use the first timestamp with note \"continues from previous\""
+            f"\n- If an ad extends past this window, use {window_end:.1f} with note \"continues in next\"\n"
+        )
+    window_context = header + rules
     return USER_PROMPT_TEMPLATE.format(
         podcast_name=podcast_name,
         episode_title=episode_title,
         description_section=description_section,
         transcript=transcript,
-    ) + audio_context + window_context + extra_rules
+    ) + audio_context + window_context
 
 
 SEGMENT_ID_SYSTEM_SECTION = """
