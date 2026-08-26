@@ -73,6 +73,16 @@ def test_ad_addressing_mode_roundtrip(app_client):
     assert data['adAddressingMode']['value'] == 'segment_ids'
 
 
+def test_ad_addressing_mode_accepts_random(app_client):
+    _authed(app_client)
+    resp = app_client.put('/api/v1/settings/ad-detection',
+                          json={'adAddressingMode': 'random'},
+                          headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    data = app_client.get('/api/v1/settings').get_json()
+    assert data['adAddressingMode']['value'] == 'random'
+
+
 def test_ad_addressing_mode_rejects_bogus_value(app_client):
     _authed(app_client)
     before = app_client.get('/api/v1/settings').get_json()['adAddressingMode']['value']

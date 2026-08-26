@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
-import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats } from '../api/stats';
+import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats } from '../api/stats';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
@@ -113,6 +113,13 @@ export default function StatsPage() {
   const { data: byPodcast, isLoading: podLoading } = useQuery({
     queryKey: ['stats-by-podcast'],
     queryFn: getStatsByPodcast,
+  });
+
+  // Same defer-until-dashboard pattern as the reviewer query above.
+  const { data: addressing } = useQuery({
+    queryKey: ['stats', 'addressing', podcastFilter],
+    queryFn: () => getAddressingStats(podcastFilter || undefined),
+    enabled: !!dashboard,
   });
 
   // Global cue telemetry (thresholds tuning). Deferred behind the dashboard so
@@ -349,6 +356,43 @@ export default function StatsPage() {
             <ReviewerStatCard label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
             <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
             <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
+          </div>
+        </div>
+      )}
+
+      {/* Addressing modes. Renders whenever the query has loaded; all-zero
+          counts are the visible signal that neither mode has run yet. */}
+      {addressing && (
+        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-1">Addressing modes</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            How often the model honors each addressing contract. Random-mode runs count toward whichever mode was drawn.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {(['timestamps', 'segment_ids'] as const).map((mode) => {
+              const stats = addressing.modes[mode];
+              return (
+                <div key={mode} className="bg-secondary/50 rounded-md p-4">
+                  <p className="text-sm font-medium text-foreground mb-3">
+                    {mode === 'timestamps' ? 'Timestamps' : 'Segment IDs'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Runs</p>
+                      <p className="text-lg font-semibold text-foreground">{stats.runs}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Windows judged</p>
+                      <p className="text-lg font-semibold text-foreground">{stats.windowsJudged}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Compliance</p>
+                      <p className="text-lg font-semibold text-foreground">{stats.compliancePct.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

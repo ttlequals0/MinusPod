@@ -834,3 +834,68 @@ class StatsMixin:
             'resurrectionCount': counts.get('resurrect', 0),
             'failureCount': counts.get('failure', 0),
         }
+
+    def record_addressing_log(self, podcast_slug: str, episode_id: str,
+                               pass_name: str, configured_mode: str,
+                               effective_mode: str, windows_judged: int,
+                               windows_compliant: int) -> None:
+        """Record one addressing-mode compliance sample to addressing_log
+        (random addressing mode A/B tracking).
+
+        One row per detection/verification pass that judged at least one
+        window. Callers wrap this in try/except -- stats must never fail a
+        detection pass.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO addressing_log
+               (podcast_slug, episode_id, pass_name, configured_mode,
+                effective_mode, windows_judged, windows_compliant)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (podcast_slug, episode_id, pass_name, configured_mode,
+             effective_mode, windows_judged, windows_compliant),
+        )
+        conn.commit()
+
+    def get_addressing_stats(self, podcast_slug: str = None) -> dict:
+        """Aggregate per-effective-mode LLM contract compliance from
+        addressing_log.
+
+        Always includes both 'timestamps' and 'segment_ids' keys, zeroed
+        when a mode has no rows, so the UI never has to guess whether a
+        mode is unconfigured vs simply unused.
+        """
+        conn = self.get_connection()
+        where_clause = ""
+        params: list = []
+        if podcast_slug:
+            where_clause = "WHERE podcast_slug = ?"
+            params.append(podcast_slug)
+
+        rows = conn.execute(
+            f"""
+            SELECT effective_mode,
+                   COUNT(*) AS runs,
+                   SUM(windows_judged) AS windows_judged,
+                   SUM(windows_compliant) AS windows_compliant
+            FROM addressing_log
+            {where_clause}
+            GROUP BY effective_mode
+            """,  # noqa: S608
+            params,
+        ).fetchall()
+
+        modes = {
+            mode: {'runs': 0, 'windowsJudged': 0, 'windowsCompliant': 0, 'compliancePct': 0.0}
+            for mode in ('timestamps', 'segment_ids')
+        }
+        for r in rows:
+            judged = r['windows_judged'] or 0
+            compliant = r['windows_compliant'] or 0
+            modes[r['effective_mode']] = {
+                'runs': r['runs'],
+                'windowsJudged': judged,
+                'windowsCompliant': compliant,
+                'compliancePct': round(100.0 * compliant / judged, 1) if judged else 0.0,
+            }
+        return {'modes': modes}

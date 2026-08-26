@@ -107,7 +107,7 @@ class SchemaMixin:
     # ALTER-based migrations in _run_schema_migrations bring tables created
     # by older builds up to the same shape, so the later column ALTERs are
     # no-ops for tables created here. Order preserved from the historical
-    # inline copies; ad_reviewer_log stays last (it is the sentinel below).
+    # inline copies; addressing_log stays last (it is the sentinel below).
     _MIGRATION_CREATED_TABLES = (
         'ad_patterns',
         'audio_cue_templates',
@@ -120,14 +120,15 @@ class SchemaMixin:
         'token_usage',
         'ad_reviewer_log',
         'podping_hosts',
+        'addressing_log',
     )
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
-        # Sentinel: podping_hosts is the last table created in this block.
+        # Sentinel: addressing_log is the last table created in this block.
         # If it already exists, every other CREATE IF NOT EXISTS below is a
         # no-op too, so we can skip the boot "Created new tables..." log.
-        sentinel_existed = self._table_exists(conn, 'podping_hosts')
+        sentinel_existed = self._table_exists(conn, 'addressing_log')
         for table in self._MIGRATION_CREATED_TABLES:
             conn.execute(TABLE_DDL[table])
 
@@ -147,6 +148,14 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen "
             "ON podping_hosts(last_seen_at DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_addressing_log_episode "
+            "ON addressing_log(episode_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_addressing_log_podcast "
+            "ON addressing_log(podcast_slug)"
         )
 
         conn.commit()

@@ -7,6 +7,7 @@ Package layout:
   external callers (production and tests) imported from the pre-split module
 """
 import logging
+import random
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import NamedTuple
@@ -193,6 +194,13 @@ class WindowResult(NamedTuple):
     # pass to send context without rebuilding it. Left at the default ''
     # by failed windows and callers that don't populate it.
     transcript_excerpt: str = ''
+    # Addressing-mode compliance stats (random addressing mode A/B tracking).
+    # ``addressing_mode`` is the effective mode this window was rendered
+    # under. ``compliant`` is True/False for a judged window, or None when
+    # the window is excluded from compliance stats (LLM call failed, or a
+    # worker that doesn't track compliance -- e.g. the keep-content pass).
+    addressing_mode: str = 'timestamps'
+    compliant: bool | None = None
 
 
 def _resolve_parallel_windows() -> int:
@@ -805,13 +813,33 @@ class AdDetector:
             return None
 
     def _resolve_addressing_mode(self) -> str:
-        """'segment_ids' or 'timestamps'. Unknown values coerce to
+        """'segment_ids', 'random', or 'timestamps'. Unknown values coerce to
         'timestamps' (validated at point of use; env/DB can bypass the API)."""
         try:
             value = (self.db.get_setting('ad_addressing_mode') or '')
         except Exception:
             value = ''
-        return 'segment_ids' if value.strip().lower() == 'segment_ids' else 'timestamps'
+        value = value.strip().lower()
+        return value if value in ('segment_ids', 'random') else 'timestamps'
+
+    def _effective_addressing_mode(self, slug: str = None, episode_id: str = None) -> tuple[str, str]:
+        """Resolve the configured addressing mode and this run's effective mode.
+
+        Returns ``(configured_mode, effective_mode)``. ``configured_mode`` is
+        exactly what ``_resolve_addressing_mode()`` returns. For
+        configured_mode 'random', ``effective_mode`` is a single
+        ``random.choice(('timestamps', 'segment_ids'))`` draw made HERE, once
+        per call -- ``detect_ads`` and ``run_verification_detection`` each
+        call this once per pass, so pass 1 and verification are independent
+        samples of the random draw, not the same choice reused. Otherwise
+        effective_mode == configured_mode.
+        """
+        configured_mode = self._resolve_addressing_mode()
+        if configured_mode != 'random':
+            return configured_mode, configured_mode
+        effective_mode = random.choice(('timestamps', 'segment_ids'))
+        logger.info(f"[{slug}:{episode_id}] Addressing mode: random -> {effective_mode}")
+        return configured_mode, effective_mode
 
     @staticmethod
     def _format_transcript_lines(window_segments, addressing_mode):
@@ -933,7 +961,11 @@ class AdDetector:
         'segment_ids' (issue: hushpod adoption) -- switches the transcript
         line format and passes ``addressing_mode`` through to
         ``format_window_prompt``, which swaps the window-context rules
-        instead of appending a second, conflicting set.
+        instead of appending a second, conflicting set. This is the
+        *effective* mode for the run (random addressing mode already
+        resolved by the caller); it is stamped onto the returned
+        WindowResult along with whether the window complied with its
+        contract, for the addressing-mode compliance stats.
         """
         window_segments = window['segments']
         window_start = window['start']
@@ -986,6 +1018,8 @@ class AdDetector:
                 raw_response=None,
                 failed=True,
                 last_error=last_error,
+                addressing_mode=addressing_mode,
+                compliant=None,
             )
 
         response_text = response.content
@@ -999,10 +1033,18 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} LLM response ({len(response_text)} chars): {preview}"
         )
 
+        # Compliance (random addressing mode A/B tracking): whether this
+        # window's response honored the effective mode's contract. segment_ids
+        # compliance is used_ids (the model returned id fields at all, even if
+        # some individual ads later get dropped by resolution); timestamps
+        # compliance is "extraction produced a parseable ads array", including
+        # a valid empty array -- only a totally unparseable response is
+        # non-compliant. See parse_ads_from_response's compliance_meta doc.
         if addressing_mode == 'segment_ids':
             id_ads, used_ids = parse_id_ads_from_response(
                 response_text, slug, episode_id,
                 sponsor_service=self.sponsor_service)
+            compliant = used_ids
             if used_ids:
                 window_ads = resolve_segment_id_ads(
                     id_ads, window_segments, slug, episode_id,
@@ -1018,9 +1060,12 @@ class AdDetector:
                     window_ads = validate_ad_timestamps(
                         window_ads, window_segments, window_start, window_end)
         else:
+            compliance_meta = {}
             window_ads = parse_ads_from_response(
                 response_text, slug, episode_id,
-                sponsor_service=self.sponsor_service)
+                sponsor_service=self.sponsor_service,
+                compliance_meta=compliance_meta)
+            compliant = not compliance_meta['extraction_failed']
             if validate_timestamps:
                 window_ads = validate_ad_timestamps(
                     window_ads, window_segments, window_start, window_end)
@@ -1054,6 +1099,8 @@ class AdDetector:
             failed=False,
             last_error=None,
             transcript_excerpt='\n'.join(transcript_lines),
+            addressing_mode=addressing_mode,
+            compliant=compliant,
         )
 
     def _run_windows(self, windows, *, max_workers, progress_callback,
@@ -1177,11 +1224,16 @@ class AdDetector:
 
         Returns ``(final_ads, all_raw_responses, failed_windows,
         failure_response, category_missing, category_total,
-        category_repaired)`` where ``failure_response`` is the
-        all-windows-failed envelope the caller must return as-is, or None.
-        ``category_missing``/``category_total`` count raw LLM markers still
-        missing "category" across non-failed windows before dedup, after
-        repair ran. ``category_repaired`` is how many repair resolved.
+        category_repaired, windows_judged, windows_compliant)`` where
+        ``failure_response`` is the all-windows-failed envelope the caller
+        must return as-is, or None. ``category_missing``/``category_total``
+        count raw LLM markers still missing "category" across non-failed
+        windows before dedup, after repair ran. ``category_repaired`` is how
+        many repair resolved. ``windows_judged``/``windows_compliant`` are
+        the addressing-mode compliance counts (random addressing mode A/B
+        tracking): windows_judged excludes failed windows (nothing to judge);
+        windows_compliant is how many of those honored their addressing
+        contract (see WindowResult.compliant / _process_single_window).
         """
         all_raw_responses = []
         all_window_ads = []
@@ -1229,11 +1281,17 @@ class AdDetector:
         )
 
         category_repaired = 0
+        windows_judged = 0
+        windows_compliant = 0
         for result in window_results:
             if result.failed:
                 failed_windows += 1
                 last_error = result.last_error
                 continue
+            if result.compliant is not None:
+                windows_judged += 1
+                if result.compliant:
+                    windows_compliant += 1
             if category_repair_enabled:
                 # _repair_window_categories no-ops when nothing here is
                 # missing a category; checking first would just scan `ads`
@@ -1264,7 +1322,7 @@ class AdDetector:
             failure = _windows_failed_response(
                 pass_label.lower(), failed_windows, len(windows),
                 last_error, model)
-            return [], all_raw_responses, failed_windows, failure, 0, 0, 0
+            return [], all_raw_responses, failed_windows, failure, 0, 0, 0, 0, 0
 
         # Raw LLM markers with no "category": the merge seam leaves these
         # unset, so this counts what stays uncategorized end to end.
@@ -1274,7 +1332,8 @@ class AdDetector:
         # Deduplicate ads across windows
         final_ads = deduplicate_window_ads(all_window_ads, action_map=action_map)
         return (final_ads, all_raw_responses, failed_windows, None,
-                category_missing, category_total, category_repaired)
+                category_missing, category_total, category_repaired,
+                windows_judged, windows_compliant)
 
     def _repair_window_categories(self, *, ads, transcript_excerpt, model,
                                    llm_timeout, max_retries, slug, episode_id,
@@ -1388,8 +1447,12 @@ class AdDetector:
 
             # Resolved once per run, before windowing: 'segment_ids' stamps a
             # global index onto every segment so create_windows' per-window
-            # references keep it (issue: hushpod adoption).
-            addressing_mode = self._resolve_addressing_mode()
+            # references keep it (issue: hushpod adoption). 'random' draws
+            # its effective mode here too (once per run, per _effective_
+            # addressing_mode), so a random-mode run stamps segment ids only
+            # when that draw landed on segment_ids.
+            configured_mode, addressing_mode = self._effective_addressing_mode(
+                slug=slug, episode_id=episode_id)
             if addressing_mode == 'segment_ids':
                 for sid, seg in enumerate(segments):
                     seg['sid'] = sid
@@ -1450,8 +1513,8 @@ class AdDetector:
             )
 
             (final_ads, all_raw_responses, failed_windows, failure,
-             category_missing, category_total,
-             category_repaired) = self._run_detection_pass(
+             category_missing, category_total, category_repaired,
+             windows_judged, windows_compliant) = self._run_detection_pass(
                 windows,
                 pass_label='Detection',
                 model=model,
@@ -1509,6 +1572,17 @@ class AdDetector:
             for ad in final_ads:
                 logger.info(f"[{slug}:{episode_id}] Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
                            f"({ad['end']-ad['start']:.0f}s) end_text='{(ad.get('end_text') or '')[:50]}'")
+
+            # Addressing-mode compliance sample (random addressing mode A/B
+            # tracking). Only recorded when at least one window was judged;
+            # never allowed to fail the pass.
+            if windows_judged > 0:
+                try:
+                    self.db.record_addressing_log(
+                        slug, episode_id, 'detection', configured_mode,
+                        addressing_mode, windows_judged, windows_compliant)
+                except Exception as e:
+                    logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
 
             return {
                 "ads": final_ads,
@@ -2780,7 +2854,10 @@ class AdDetector:
             # Verification re-transcribes processed audio into a fresh
             # segment list, so ids are stamped independently of pass 1's
             # (issue: hushpod adoption); kept consistent with detect_ads.
-            addressing_mode = self._resolve_addressing_mode()
+            # 'random' draws its own independent effective mode here too --
+            # verification is a separate sample from pass 1's draw.
+            configured_mode, addressing_mode = self._effective_addressing_mode(
+                slug=slug, episode_id=episode_id)
             if addressing_mode == 'segment_ids':
                 for sid, seg in enumerate(segments):
                     seg['sid'] = sid
@@ -2826,8 +2903,8 @@ class AdDetector:
             # Verification stamps every surviving ad so the merge downstream
             # can distinguish first-pass from verification.
             (final_ads, all_raw_responses, _failed_windows, failure,
-             category_missing, category_total,
-             category_repaired) = self._run_detection_pass(
+             category_missing, category_total, category_repaired,
+             windows_judged, windows_compliant) = self._run_detection_pass(
                 windows,
                 pass_label='Verification',
                 model=model,
@@ -2876,6 +2953,14 @@ class AdDetector:
                            f"({total_ad_time/60:.1f} min)")
             else:
                 logger.info(f"[{slug}:{episode_id}] Verification: No additional ads found")
+
+            if windows_judged > 0:
+                try:
+                    self.db.record_addressing_log(
+                        slug, episode_id, 'verification', configured_mode,
+                        addressing_mode, windows_judged, windows_compliant)
+                except Exception as e:
+                    logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
 
             return {
                 "ads": final_ads,

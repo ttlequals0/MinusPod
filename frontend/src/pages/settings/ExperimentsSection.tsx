@@ -75,9 +75,10 @@ function ExperimentsSection({
           >
             <option value="timestamps">Timestamps (default)</option>
             <option value="segment_ids">Segment IDs</option>
+            <option value="random">Random (A/B test)</option>
           </select>
           <p className="mt-2 text-sm text-muted-foreground">
-            How the detector points at ads in the transcript. Timestamps asks the model for start and end times; segment IDs asks it to name numbered transcript lines instead, which removes made-up timestamps but is still being evaluated. Benchmark results decide the future default.
+            How the detector points at ads in the transcript. Timestamps asks the model for start and end times; segment IDs asks it to name numbered transcript lines instead, which removes made-up timestamps but is still being evaluated. Benchmark results decide the future default. Random picks one of the two per run and records which one, so the stats page can compare them over time.
           </p>
         </div>
       </CollapsibleSection>

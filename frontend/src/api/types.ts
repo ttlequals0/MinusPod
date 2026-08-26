@@ -1009,6 +1009,22 @@ export interface ReviewerStats {
   failureCount: number;
 }
 
+// Per-addressing-mode LLM contract compliance stats, from addressing_log.
+// Always has both keys; a mode with no recorded runs is all zeros.
+export interface AddressingModeStats {
+  runs: number;
+  windowsJudged: number;
+  windowsCompliant: number;
+  compliancePct: number;
+}
+
+export interface AddressingStats {
+  modes: {
+    timestamps: AddressingModeStats;
+    segment_ids: AddressingModeStats;
+  };
+}
+
 export interface ReleaseInfo {
   version: string;
   releaseDate: string | null;

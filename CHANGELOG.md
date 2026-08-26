@@ -13,6 +13,16 @@ release notes.
 
 ## [2.91.1] - 2026-08-26
 
+### Added
+
+- Third addressing mode `random`: draws timestamps or segment IDs once per
+  detection run (and again, independently, for verification), so production
+  traffic accumulates an unbiased comparison between the two over time.
+- Per-addressing-mode LLM contract compliance stats: runs, windows judged,
+  and compliance percentage for each mode, recorded to a new
+  `addressing_log` table and exposed via `GET /api/v1/stats/addressing`.
+- Addressing modes section on the Stats page showing the above per mode.
+
 ### Fixed
 
 - Reviewer prompts now fetch the known-sponsor list once per review pass

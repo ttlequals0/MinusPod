@@ -464,6 +464,24 @@ TABLE_DDL['podping_hosts'] = """CREATE TABLE IF NOT EXISTS podping_hosts (
     ping_count INTEGER NOT NULL DEFAULT 0
 )"""
 
+# addressing_log: one row per detection/verification pass that judged at
+# least one window, recording whether the effective addressing mode's
+# contract was honored (random addressing mode A/B tracking). No FK on
+# podcast_slug -- same reasoning as ad_reviewer_log (see delete_podcast):
+# it's an analytics trail, not something that should vanish or get
+# reassigned to a different show when a slug is reused.
+TABLE_DDL['addressing_log'] = """CREATE TABLE IF NOT EXISTS addressing_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    podcast_slug TEXT NOT NULL,
+    episode_id TEXT NOT NULL,
+    pass_name TEXT NOT NULL,
+    configured_mode TEXT NOT NULL,
+    effective_mode TEXT NOT NULL,
+    windows_judged INTEGER NOT NULL,
+    windows_compliant INTEGER NOT NULL
+)"""
+
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -605,4 +623,11 @@ CREATE INDEX IF NOT EXISTS idx_cue_dismissals_podcast
 """ + TABLE_DDL['podping_hosts'] + """;
 CREATE INDEX IF NOT EXISTS idx_podping_hosts_last_seen
     ON podping_hosts(last_seen_at DESC);
+
+-- addressing_log: per-pass addressing-mode compliance samples (random
+-- addressing mode A/B tracking). Aggregated per effective_mode by
+-- Database.get_addressing_stats for the Stats page.
+""" + TABLE_DDL['addressing_log'] + """;
+CREATE INDEX IF NOT EXISTS idx_addressing_log_episode ON addressing_log(episode_id);
+CREATE INDEX IF NOT EXISTS idx_addressing_log_podcast ON addressing_log(podcast_slug);
 """

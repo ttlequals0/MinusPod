@@ -1,0 +1,110 @@
+import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, expect, it, vi } from 'vitest';
+import StatsPage from './StatsPage';
+import type { AddressingStats, DashboardStats, ReviewerStats } from '../api/types';
+
+// vi.mock factories are hoisted above module-scope const declarations, so
+// fixture data referenced inside them has to be built via vi.hoisted too.
+const { DASHBOARD, REVIEWER_STATS, mockGetAddressingStats } = vi.hoisted(() => {
+  const dashboard: DashboardStats = {
+    totalEpisodesProcessed: 0,
+    avgTimeSavedSeconds: 0,
+    minTimeSavedSeconds: 0,
+    maxTimeSavedSeconds: 0,
+    totalTimeSavedSeconds: 0,
+    avgAdsRemoved: 0,
+    minAdsRemoved: 0,
+    maxAdsRemoved: 0,
+    totalAdsRemoved: 0,
+    avgCostPerEpisode: 0,
+    minCostPerEpisode: 0,
+    maxCostPerEpisode: 0,
+    avgProcessingTimeSeconds: 0,
+    minProcessingTimeSeconds: 0,
+    maxProcessingTimeSeconds: 0,
+    avgEpisodeLengthSeconds: 0,
+    minEpisodeLengthSeconds: 0,
+    maxEpisodeLengthSeconds: 0,
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalLlmCost: 0,
+    avgInputTokens: 0,
+    avgOutputTokens: 0,
+    avgAudioCuesDetected: 0,
+    minAudioCuesDetected: 0,
+    maxAudioCuesDetected: 0,
+    totalAudioCuesDetected: 0,
+  };
+  const reviewerStats: ReviewerStats = {
+    totalReviews: 0,
+    verdictCounts: { confirmed: 0, adjust: 0, reject: 0, resurrect: 0, failure: 0 },
+    pass1AdjustmentCount: 0,
+    pass2AdjustmentCount: 0,
+    avgBoundaryShiftSeconds: 0,
+    resurrectionCount: 0,
+    failureCount: 0,
+  };
+  const addressingStats: AddressingStats = {
+    modes: {
+      timestamps: { runs: 4, windowsJudged: 20, windowsCompliant: 18, compliancePct: 90.0 },
+      segment_ids: { runs: 2, windowsJudged: 10, windowsCompliant: 6, compliancePct: 60.0 },
+    },
+  };
+  return {
+    DASHBOARD: dashboard,
+    REVIEWER_STATS: reviewerStats,
+    mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
+  };
+});
+
+vi.mock('../api/stats', () => ({
+  getDashboardStats: vi.fn().mockResolvedValue(DASHBOARD),
+  getStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
+  getStatsByPodcast: vi.fn().mockResolvedValue({ podcasts: [] }),
+  getReviewerStats: vi.fn().mockResolvedValue(REVIEWER_STATS),
+  getAddressingStats: (...args: unknown[]) => mockGetAddressingStats(...args),
+}));
+vi.mock('../api/cueDetections', () => ({
+  getCueAggregateStats: vi.fn().mockResolvedValue({
+    total: 0, snapped: 0, paired: 0, unused: 0, confirmed: 0, rejected: 0,
+    pending: 0, avgScore: null, minScore: null, maxScore: null, confirmRate: null,
+    scoreHistogram: [], nearMissHistogram: [], nearMissTotal: 0, unusedReasons: {},
+  }),
+}));
+vi.mock('../api/feeds', () => ({
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [] }) },
+}));
+
+function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <StatsPage />
+    </QueryClientProvider>
+  );
+}
+
+describe('StatsPage addressing modes section', () => {
+  it('renders both mode cards with fetched runs/judged/compliance values', async () => {
+    renderPage();
+
+    expect(await screen.findByText('Addressing modes')).toBeTruthy();
+    expect(screen.getByText('Timestamps')).toBeTruthy();
+    expect(screen.getByText('Segment IDs')).toBeTruthy();
+    expect(screen.getByText('90.0%')).toBeTruthy();
+    expect(screen.getByText('60.0%')).toBeTruthy();
+    // Runs and windows-judged values per mode.
+    expect(screen.getByText('4')).toBeTruthy();
+    expect(screen.getByText('20')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('10')).toBeTruthy();
+  });
+
+  it('passes the podcast filter through to getAddressingStats', async () => {
+    renderPage();
+    await screen.findByText('Addressing modes');
+    // Initial mount: no filter selected yet.
+    expect(mockGetAddressingStats).toHaveBeenCalledWith(undefined);
+  });
+});

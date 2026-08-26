@@ -676,9 +676,9 @@ def update_ad_detection_settings():
 
     if 'adAddressingMode' in data:
         value = str(data['adAddressingMode'] or '').strip().lower()
-        if value not in ('timestamps', 'segment_ids'):
+        if value not in ('timestamps', 'segment_ids', 'random'):
             return error_response(
-                'adAddressingMode must be "timestamps" or "segment_ids"', 400)
+                'adAddressingMode must be "timestamps", "segment_ids", or "random"', 400)
 
     phases = (
         _apply_prompt_fields,

@@ -1,5 +1,5 @@
 import { apiRequest, buildQueryString } from './client';
-import { DashboardStats, DayStats, PodcastStats, ReviewerStats } from './types';
+import { AddressingStats, DashboardStats, DayStats, PodcastStats, ReviewerStats } from './types';
 
 export async function getDashboardStats(
   podcastSlug?: string
@@ -25,4 +25,11 @@ export async function getReviewerStats(
 ): Promise<ReviewerStats> {
   const qs = buildQueryString({ podcast_slug: podcastSlug, episode_id: episodeId });
   return apiRequest<ReviewerStats>(`/stats/reviewer${qs}`);
+}
+
+export async function getAddressingStats(
+  podcastSlug?: string,
+): Promise<AddressingStats> {
+  const qs = buildQueryString({ podcast_slug: podcastSlug });
+  return apiRequest<AddressingStats>(`/stats/addressing${qs}`);
 }

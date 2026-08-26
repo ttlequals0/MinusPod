@@ -101,7 +101,7 @@ def test_verification_wires_category_actions_into_repair_and_dedup():
     action_map = dict(_all_remove_map(), self_promo='keep', outro='beep')
     detector = AdDetector(api_key='test-key')
     detector.db = _FakeDb(segment_actions=action_map)
-    run_pass = MagicMock(return_value=([], [], 0, None, 0, 0, 0))
+    run_pass = MagicMock(return_value=([], [], 0, None, 0, 0, 0, 0, 0))
 
     with patch.object(detector, 'initialize_client'), \
          patch.object(detector, 'get_verification_prompt', return_value='verification'), \

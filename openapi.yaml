@@ -2033,6 +2033,38 @@ paths:
                   failureCount:
                     type: integer
 
+  /stats/addressing:
+    get:
+      tags:
+        - Stats
+      summary: Get per-addressing-mode compliance stats
+      description: |
+        Aggregate counts from the addressing_log table, grouped by effective
+        addressing mode (timestamps / segment_ids). A 'random'-configured run
+        records under whichever mode was drawn for that pass. Always returns
+        both modes, zeroed when a mode has no rows.
+      parameters:
+        - name: podcast_slug
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Addressing-mode compliance stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  modes:
+                    type: object
+                    properties:
+                      timestamps:
+                        $ref: '#/components/schemas/AddressingModeStats'
+                      segment_ids:
+                        $ref: '#/components/schemas/AddressingModeStats'
+
   /patterns:
     get:
       tags:
@@ -3957,8 +3989,8 @@ paths:
                   description: Hints the detection prompt with transcript spans whose wording recurs near-verbatim across prior episodes of the same show (intros, disclaimers, credits). Off by default.
                 adAddressingMode:
                   type: string
-                  enum: [timestamps, segment_ids]
-                  description: How the LLM addresses detected segments. 'timestamps' (default) reports absolute start/end seconds. 'segment_ids' reports transcript line ids instead, which the server maps to exact segment times.
+                  enum: [timestamps, segment_ids, random]
+                  description: How the LLM addresses detected segments. 'timestamps' (default) reports absolute start/end seconds. 'segment_ids' reports transcript line ids instead, which the server maps to exact segment times. 'random' draws one of the two per detection run and records which, for the /stats/addressing compliance comparison.
                 processNewEpisodesFirst:
                   type: boolean
                   description: Whether episodes published within the last 48 hours get an automatic queue-priority boost ahead of the rest of the auto-process backlog. On by default.
@@ -7617,6 +7649,22 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    AddressingModeStats:
+      type: object
+      description: Compliance aggregate for one addressing mode (from addressing_log)
+      properties:
+        runs:
+          type: integer
+          description: Number of detection/verification passes recorded for this effective mode
+        windowsJudged:
+          type: integer
+          description: Windows with an LLM response usable enough to judge contract compliance (excludes windows whose LLM call failed outright)
+        windowsCompliant:
+          type: integer
+          description: Of windowsJudged, how many honored the addressing contract for this mode
+        compliancePct:
+          type: number
+          description: 100 * windowsCompliant / windowsJudged, rounded to 1 decimal. 0.0 when windowsJudged is 0.
     ConnectionTestResult:
       type: object
       properties:
@@ -9445,8 +9493,8 @@ components:
           properties:
             value:
               type: string
-              enum: [timestamps, segment_ids]
-              description: How the LLM addresses detected segments. 'timestamps' (default) or 'segment_ids'.
+              enum: [timestamps, segment_ids, random]
+              description: How the LLM addresses detected segments. 'timestamps' (default), 'segment_ids', or 'random' (draws one of the two per run).
             isDefault:
               type: boolean
         processNewEpisodesFirst:
@@ -9785,7 +9833,7 @@ components:
               type: boolean
             adAddressingMode:
               type: string
-              enum: [timestamps, segment_ids]
+              enum: [timestamps, segment_ids, random]
             processNewEpisodesFirst:
               type: boolean
             rssRefreshIntervalMinutes:

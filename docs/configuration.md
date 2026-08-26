@@ -216,9 +216,11 @@ The Experiments section in Settings holds opt-in features that are still being e
 
 ### Ad Addressing Mode
 
-Settings > Experiments has an Ad addressing mode select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
+Settings > Experiments has an Ad addressing mode select, marked experimental. Timestamps, the default, asks the model for a start and end time for each ad. Segment IDs asks the model to name numbered transcript lines instead; MinusPod then maps those line numbers back to the exact Whisper times, so the model never has to guess a timestamp. Random draws one of the two per detection run (and independently again for the verification pass), so production traffic accumulates an unbiased comparison over time. Segment IDs is still being benchmarked against Timestamps, and the results decide whether the default ever changes.
 
-Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps` or `segment_ids`).
+How often each mode's LLM contract is actually honored shows up on the Stats page, under Addressing modes: runs, windows judged, and compliance percentage per mode. Random-mode runs count toward whichever mode was drawn for that pass.
+
+Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
 ### Ad Reviewer
 

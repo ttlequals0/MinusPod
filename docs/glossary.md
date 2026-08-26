@@ -8,7 +8,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Ad Reviewer** - An optional second LLM that double-checks each planned cut before it happens and can confirm, adjust, reject, or resurrect a detection. Off by default. [Configuration > Ad Reviewer](configuration.md#ad-reviewer)
 
-**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines instead of inventing start and end timestamps, and MinusPod maps those line numbers back to exact Whisper times. Timestamps stays the default while benchmark results decide whether that changes. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
+**Addressing mode** - An experimental detector setting where the LLM names numbered transcript lines (`segment_ids`) instead of inventing start and end timestamps (`timestamps`), or where `random` draws one of the two per run so the Stats page can compare their compliance percentage over time. Timestamps stays the default while benchmark results decide whether that changes. [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode)
 
 **Audio analysis** - A pre-detection pass over the audio itself (volume shifts, transitions, silence) whose signals feed the detector and validator. [How It Works > Audio Analysis](how-it-works.md#audio-analysis)
 

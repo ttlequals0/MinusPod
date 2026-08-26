@@ -54,3 +54,12 @@ def get_reviewer_stats():
     return json_response(db.get_reviewer_stats(
         podcast_slug=podcast_slug, episode_id=episode_id
     ))
+
+
+@api.route('/stats/addressing', methods=['GET'])
+@log_request
+def get_addressing_stats():
+    """Per-addressing-mode LLM contract compliance aggregates."""
+    db = get_database()
+    podcast_slug = request.args.get('podcast_slug')
+    return json_response(db.get_addressing_stats(podcast_slug=podcast_slug))

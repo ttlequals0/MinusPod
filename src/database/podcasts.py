@@ -394,14 +394,14 @@ class PodcastMixin:
     def delete_podcast(self, slug: str) -> bool:
         """Delete podcast and all associated data.
 
-        Child tables keyed on ``podcasts(id)`` cascade. Three do not:
-        ``ad_patterns`` and ``ad_reviewer_log`` hold the slug as plain TEXT
-        with no foreign key, and ``pattern_corrections`` hangs off
-        ``ad_patterns`` without one. ``audio_fingerprints`` does cascade, but
-        only when the connection has foreign_keys on, so it stays explicit.
-        Slugs are reused when a feed is re-added, so a surviving
-        podcast-scoped pattern would be inherited by whatever feed takes the
-        slug next, applying one show's learning to another.
+        Child tables keyed on ``podcasts(id)`` cascade. Four do not:
+        ``ad_patterns``, ``ad_reviewer_log``, and ``addressing_log`` hold the
+        slug as plain TEXT with no foreign key, and ``pattern_corrections``
+        hangs off ``ad_patterns`` without one. ``audio_fingerprints`` does
+        cascade, but only when the connection has foreign_keys on, so it
+        stays explicit. Slugs are reused when a feed is re-added, so a
+        surviving podcast-scoped pattern would be inherited by whatever feed
+        takes the slug next, applying one show's learning to another.
 
         Patterns at wider scope keep their rows: their ``podcast_id`` only
         records where the pattern was first seen, and the learning still
@@ -426,6 +426,8 @@ class PodcastMixin:
             (slug,))
         conn.execute(
             "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
+        conn.execute(
+            "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
 
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)

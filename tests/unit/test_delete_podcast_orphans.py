@@ -1,11 +1,12 @@
 """Deleting a feed leaves nothing behind that points at its slug.
 
-Most child tables cascade from podcasts(id). ad_patterns and ad_reviewer_log
-hold the slug as plain TEXT with no foreign key, and audio_fingerprints and
-pattern_corrections hang off ad_patterns without one either, so they have to
-be cleaned up by hand. Slugs get reused when a feed is re-added, which is what
-makes a surviving podcast-scoped pattern a correctness problem and not just
-clutter: the next feed to take the slug inherits another show's learning.
+Most child tables cascade from podcasts(id). ad_patterns, ad_reviewer_log,
+and addressing_log hold the slug as plain TEXT with no foreign key, and
+audio_fingerprints and pattern_corrections hang off ad_patterns without one
+either, so they have to be cleaned up by hand. Slugs get reused when a feed
+is re-added, which is what makes a surviving podcast-scoped pattern a
+correctness problem and not just clutter: the next feed to take the slug
+inherits another show's learning.
 """
 import os
 import sys
@@ -60,6 +61,15 @@ def _add_reviewer_log(db, slug):
     conn.commit()
 
 
+def _add_addressing_log(db, slug):
+    conn = db.get_connection()
+    conn.execute(
+        "INSERT INTO addressing_log (podcast_slug, episode_id, pass_name, "
+        "configured_mode, effective_mode, windows_judged, windows_compliant) "
+        "VALUES (?, 'ep1', 'detection', 'random', 'timestamps', 3, 2)", (slug,))
+    conn.commit()
+
+
 def _count(db, sql, params=()):
     return db.get_connection().execute(sql, params).fetchone()[0]
 
@@ -95,6 +105,16 @@ def test_reviewer_log_rows_do_not_survive_the_feed(db):
                   (SLUG,)) == 0
 
 
+def test_addressing_log_rows_do_not_survive_the_feed(db):
+    _add_feed(db)
+    _add_addressing_log(db, SLUG)
+
+    db.delete_podcast(SLUG)
+
+    assert _count(db, "SELECT COUNT(*) FROM addressing_log WHERE podcast_slug = ?",
+                  (SLUG,)) == 0
+
+
 def test_a_re_added_feed_does_not_inherit_the_old_one_s_patterns(db):
     _add_feed(db)
     _add_pattern(db, SLUG)
@@ -126,6 +146,7 @@ def test_another_feeds_patterns_are_untouched(db):
     _add_pattern(db, SLUG)
     keeper = _add_pattern(db, 'other-feed')
     _add_reviewer_log(db, 'other-feed')
+    _add_addressing_log(db, 'other-feed')
 
     db.delete_podcast(SLUG)
 
@@ -133,6 +154,8 @@ def test_another_feeds_patterns_are_untouched(db):
     assert _count(db, "SELECT COUNT(*) FROM audio_fingerprints WHERE pattern_id = ?",
                   (keeper,)) == 1
     assert _count(db, "SELECT COUNT(*) FROM ad_reviewer_log WHERE podcast_id = ?",
+                  ('other-feed',)) == 1
+    assert _count(db, "SELECT COUNT(*) FROM addressing_log WHERE podcast_slug = ?",
                   ('other-feed',)) == 1
 
 

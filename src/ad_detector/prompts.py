@@ -502,8 +502,18 @@ def _normalize_ad(ad: dict, start: float, end: float, slug: str = None,
 
 def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
-                              sponsor_service=None) -> list[dict]:
+                              sponsor_service=None,
+                              compliance_meta: dict | None = None) -> list[dict]:
     """Parse ad segments from Claude's JSON response.
+
+    ``compliance_meta``: optional out-param dict (same pattern as
+    ``run_stats`` elsewhere in the codebase). When given, this sets
+    ``compliance_meta['extraction_failed']`` to True when no JSON ads array
+    could be located or parsed at all, and False when a JSON array was
+    successfully parsed -- including a valid, empty ``[]`` answer. Used by
+    the addressing-mode compliance stats (timestamps effective mode) to
+    distinguish "the model answered with no ads" from "the response wasn't
+    parseable".
 
     Returns:
         List of validated ad dicts with start, end, confidence, reason, end_text
@@ -513,7 +523,11 @@ def parse_ads_from_response(response_text: str, slug: str = None,
 
         if ads is None or not isinstance(ads, list):
             logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
+            if compliance_meta is not None:
+                compliance_meta['extraction_failed'] = True
             return []
+        if compliance_meta is not None:
+            compliance_meta['extraction_failed'] = False
 
         # Flatten any {"ad_break_index": N, "ads": [...]} envelopes the model
         # sometimes emits, so the per-ad parser below sees the inner ad objects.
@@ -568,6 +582,8 @@ def parse_ads_from_response(response_text: str, slug: str = None,
 
     except json.JSONDecodeError as e:
         logger.error(f"[{slug}:{episode_id}] Failed to parse JSON: {e}")
+        if compliance_meta is not None:
+            compliance_meta['extraction_failed'] = True
         return []
 
 
