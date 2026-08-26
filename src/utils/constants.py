@@ -109,7 +109,7 @@ def is_sponsor_reasoning_rationale(text) -> bool:
     that should hold a brand name or ad description.
 
     Single source of truth for the 2.5.11 sponsor-field guard
-    (ad_detector/prompts.py:get_valid_value), the 2.5.13 verification-miss
+    (ad_detector/prompts.py:_get_valid_sponsor_value), the 2.5.13 verification-miss
     `reason` filter (pattern_service.record_verification_misses), and the
     `_cleanup_low_mention_patterns` migration.
     """

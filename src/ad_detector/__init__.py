@@ -119,6 +119,8 @@ from .prompts import (
     format_window_prompt,
     get_static_system_prompt,
     parse_ads_from_response,
+    parse_id_ads_from_response,
+    resolve_segment_id_ads,
     extract_json_ads_array,
     CATEGORY_REPAIR_SYSTEM_PROMPT,
     CATEGORY_REPAIR_JSON_SCHEMA,
@@ -997,14 +999,31 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} LLM response ({len(response_text)} chars): {preview}"
         )
 
-        window_ads = parse_ads_from_response(
-            response_text, slug, episode_id, sponsor_service=self.sponsor_service
-        )
-
-        if validate_timestamps:
-            window_ads = validate_ad_timestamps(
-                window_ads, window_segments, window_start, window_end
-            )
+        if addressing_mode == 'segment_ids':
+            id_ads, used_ids = parse_id_ads_from_response(
+                response_text, slug, episode_id,
+                sponsor_service=self.sponsor_service)
+            if used_ids:
+                window_ads = resolve_segment_id_ads(
+                    id_ads, window_segments, slug, episode_id,
+                    sponsor_service=self.sponsor_service)
+            else:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label}: model ignored "
+                    f"segment-id contract, falling back to timestamp parsing")
+                window_ads = parse_ads_from_response(
+                    response_text, slug, episode_id,
+                    sponsor_service=self.sponsor_service)
+                if validate_timestamps:
+                    window_ads = validate_ad_timestamps(
+                        window_ads, window_segments, window_start, window_end)
+        else:
+            window_ads = parse_ads_from_response(
+                response_text, slug, episode_id,
+                sponsor_service=self.sponsor_service)
+            if validate_timestamps:
+                window_ads = validate_ad_timestamps(
+                    window_ads, window_segments, window_start, window_end)
 
         valid_window_ads = []
         for ad in window_ads:
