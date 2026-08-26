@@ -207,6 +207,12 @@ def get_settings():
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
     detect_show_segments_default = coerce_bool_setting(_setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
+    seed_sponsors = {
+        key: coerce_bool_setting(_setting_value(
+            settings, key, registry_default(key)))
+        for key in ('seed_sponsors_detection', 'seed_sponsors_verification',
+                    'seed_sponsors_reviewer', 'seed_sponsors_resurrect')
+    }
     process_new_episodes_first = coerce_bool_setting(_setting_value(
         settings, 'process_new_episodes_first',
         registry_default('process_new_episodes_first')))
@@ -529,6 +535,14 @@ def get_settings():
             'only_expose_processed_default', only_expose_processed_default),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
+        'seedSponsorsDetection': _sv(
+            'seed_sponsors_detection', seed_sponsors['seed_sponsors_detection']),
+        'seedSponsorsVerification': _sv(
+            'seed_sponsors_verification', seed_sponsors['seed_sponsors_verification']),
+        'seedSponsorsReviewer': _sv(
+            'seed_sponsors_reviewer', seed_sponsors['seed_sponsors_reviewer']),
+        'seedSponsorsResurrect': _sv(
+            'seed_sponsors_resurrect', seed_sponsors['seed_sponsors_resurrect']),
         'processNewEpisodesFirst': _sv(
             'process_new_episodes_first', process_new_episodes_first),
         'artworkWatermarkEnabled': _sv(
@@ -831,6 +845,17 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['detectShowSegments'] else 'false'
         db.set_setting('detect_show_segments', value, is_default=False)
         logger.info(f"Updated detect-show-segments default to: {value}")
+
+    for payload_key, db_key in (
+        ('seedSponsorsDetection', 'seed_sponsors_detection'),
+        ('seedSponsorsVerification', 'seed_sponsors_verification'),
+        ('seedSponsorsReviewer', 'seed_sponsors_reviewer'),
+        ('seedSponsorsResurrect', 'seed_sponsors_resurrect'),
+    ):
+        if payload_key in data:
+            value = 'true' if data[payload_key] else 'false'
+            db.set_setting(db_key, value, is_default=False)
+            logger.info(f"Updated {db_key} to: {value}")
 
     if 'processNewEpisodesFirst' in data:
         value = 'true' if data['processNewEpisodesFirst'] else 'false'
