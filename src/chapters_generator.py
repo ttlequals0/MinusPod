@@ -193,17 +193,6 @@ class ChaptersGenerator:
             api_key: LLM API key (defaults to environment configuration)
         """
         self._api_key_override: str | None = api_key
-
-    @property
-    def api_key(self) -> str | None:
-        """Active API key. Resolves dynamically via get_api_key() unless overridden."""
-        if self._api_key_override is not None:
-            return self._api_key_override
-        return get_api_key()
-
-    @api_key.setter
-    def api_key(self, value: str | None) -> None:
-        self._api_key_override = value
         self._llm_client_override: LLMClient | None = None
         self._episode_id: str | None = None
         # (template, override), read once per run rather than per window.
@@ -218,6 +207,17 @@ class ChaptersGenerator:
         self._model_not_configured_message: str | None = None
         self.chapters_degraded: bool = False
         self.chapters_degradation_reason: str | None = None
+
+    @property
+    def api_key(self) -> str | None:
+        """Active API key. Resolves dynamically via get_api_key() unless overridden."""
+        if self._api_key_override is not None:
+            return self._api_key_override
+        return get_api_key()
+
+    @api_key.setter
+    def api_key(self, value: str | None) -> None:
+        self._api_key_override = value
 
     @property
     def _llm_client(self) -> LLMClient | None:
