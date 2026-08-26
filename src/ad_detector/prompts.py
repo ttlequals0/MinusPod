@@ -132,12 +132,18 @@ def format_window_prompt(
     window_start: float,
     window_end: float,
     audio_context: str = "",
+    extra_rules: str = "",
 ) -> str:
     """Build the user prompt for a single ad-detection window.
 
     `description_section` and `audio_context` are pre-built strings so the
     benchmark can call this without DB or audio-analysis state. Production
     callers assemble both then pass them in.
+
+    `extra_rules` is appended last (after the window context); it carries
+    mode-specific window rules (e.g. segment-id addressing, issue: hushpod
+    adoption) without disturbing the benchmark's existing calls, which never
+    pass it and get "".
     """
     transcript = "\n".join(transcript_lines)
     window_context = f"""
@@ -152,7 +158,29 @@ def format_window_prompt(
         episode_title=episode_title,
         description_section=description_section,
         transcript=transcript,
-    ) + audio_context + window_context
+    ) + audio_context + window_context + extra_rules
+
+
+SEGMENT_ID_SYSTEM_SECTION = """
+
+ADDRESSING MODE: SEGMENT IDS
+The transcript is a numbered list; each line starts with its [id]. For every
+detection you report, replace the "start" and "end" timestamp fields with
+integer "start_id" and "end_id" fields: the ids of the FIRST and LAST
+transcript lines of the ad, inclusive. Refer to lines ONLY by the ids shown.
+Never output timestamps and never invent ids that do not appear in the
+transcript. All other rules (categories, confidence, reason) are unchanged."""
+
+
+def SEGMENT_ID_WINDOW_RULES(window_end: float) -> str:
+    return (
+        "\n- Report start_id/end_id integers from the [id] brackets, "
+        "never timestamps"
+        "\n- If an ad starts before this window, use this window's first id "
+        "with note \"continues from previous\""
+        "\n- If an ad extends past this window, use this window's last id "
+        "with note \"continues in next\"\n"
+    )
 
 
 def get_static_system_prompt() -> str:

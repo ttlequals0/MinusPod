@@ -306,6 +306,12 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'text_recurrence_hints': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='textRecurrenceHints', payload_kind='bool'),
+    # Experimental: LLM addresses ads by transcript segment id instead of
+    # absolute timestamps. Default preserves current behavior; the benchmark
+    # A/B (F0.5) decides whether the default ever flips.
+    'ad_addressing_mode': SettingSpec(
+        default='timestamps', seeded=True, resettable=False,
+        payload_key='adAddressingMode'),
     # Whether the RSS-refresh enqueue path boosts episodes published within
     # FRESH_WINDOW_HOURS ahead of the rest of the auto-process queue.
     'process_new_episodes_first': SettingSpec(
