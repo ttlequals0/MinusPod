@@ -207,6 +207,8 @@ def get_settings():
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
     detect_show_segments_default = coerce_bool_setting(_setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
+    text_recurrence_hints = coerce_bool_setting(_setting_value(
+        settings, 'text_recurrence_hints', registry_default('text_recurrence_hints')))
     seed_sponsors = {
         key: coerce_bool_setting(_setting_value(
             settings, key, registry_default(key)))
@@ -535,6 +537,8 @@ def get_settings():
             'only_expose_processed_default', only_expose_processed_default),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
+        'textRecurrenceHints': _sv(
+            'text_recurrence_hints', text_recurrence_hints),
         'seedSponsorsDetection': _sv(
             'seed_sponsors_detection', seed_sponsors['seed_sponsors_detection']),
         'seedSponsorsVerification': _sv(
@@ -845,6 +849,11 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['detectShowSegments'] else 'false'
         db.set_setting('detect_show_segments', value, is_default=False)
         logger.info(f"Updated detect-show-segments default to: {value}")
+
+    if 'textRecurrenceHints' in data:
+        value = 'true' if data['textRecurrenceHints'] else 'false'
+        db.set_setting('text_recurrence_hints', value, is_default=False)
+        logger.info(f"Updated text-recurrence-hints to: {value}")
 
     for payload_key, db_key in (
         ('seedSponsorsDetection', 'seed_sponsors_detection'),

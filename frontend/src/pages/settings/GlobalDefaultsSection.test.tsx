@@ -36,6 +36,8 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
         onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -69,6 +71,8 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
         onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
       />
       <button onClick={() => onCommit({ podpingEnabled })}>Commit</button>
     </>
@@ -102,6 +106,8 @@ function ProcessNewFirstHarness({ onCommit }: { onCommit: (payload: ProcessNewFi
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
         onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
       />
       <button onClick={() => onCommit({ processNewEpisodesFirst })}>Commit</button>
     </>
@@ -250,6 +256,8 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
         onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
       />
       <button onClick={() => onCommit({ lowAdYieldAction })}>Commit</button>
     </>
@@ -311,6 +319,8 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onEpisodeLogRetentionDaysChange={setRetentionDays}
         episodeLogLevel={level}
         onEpisodeLogLevelChange={setLevel}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
       />
       <button onClick={() => onCommit({ retentionDays, level })}>Commit</button>
     </>
@@ -345,5 +355,59 @@ describe('GlobalDefaultsSection: episode run logs', () => {
     await user.selectOptions(screen.getByLabelText('Detail kept in a run log'), 'info');
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed!.level).toBe('info');
+  });
+});
+
+interface TextRecurrenceHintsState {
+  textRecurrenceHints: boolean;
+}
+
+function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecurrenceHintsState) => void }) {
+  const [textRecurrenceHints, setTextRecurrenceHints] = useState(false);
+  return (
+    <>
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
+        rssRefreshIntervalMinutes={15}
+        onRssRefreshIntervalMinutesChange={() => {}}
+        podpingEnabled={false}
+        onPodpingEnabledChange={() => {}}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
+        processNewEpisodesFirst
+        onProcessNewEpisodesFirstChange={() => {}}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
+        episodeLogRetentionDays={30}
+        onEpisodeLogRetentionDaysChange={() => {}}
+        episodeLogLevel="debug"
+        onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={textRecurrenceHints}
+        onTextRecurrenceHintsChange={setTextRecurrenceHints}
+      />
+      <button onClick={() => onCommit({ textRecurrenceHints })}>Commit</button>
+    </>
+  );
+}
+
+describe('GlobalDefaultsSection: Text recurrence hints toggle', () => {
+  it('renders off by default', () => {
+    render(<TextRecurrenceHintsHarness onCommit={() => {}} />);
+    const toggle = screen.getByRole('switch', { name: 'Text recurrence hints' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('commits { textRecurrenceHints: true } after switching on', async () => {
+    let committed: TextRecurrenceHintsState | null = null;
+    render(<TextRecurrenceHintsHarness onCommit={(payload) => { committed = payload; }} />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('switch', { name: 'Text recurrence hints' }));
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+
+    expect(committed).toEqual({ textRecurrenceHints: true });
   });
 });

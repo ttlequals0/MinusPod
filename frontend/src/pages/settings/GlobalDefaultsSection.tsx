@@ -24,6 +24,8 @@ interface GlobalDefaultsSectionProps {
   onEpisodeLogRetentionDaysChange: (days: number) => void;
   episodeLogLevel: EpisodeLogLevel;
   onEpisodeLogLevelChange: (level: EpisodeLogLevel) => void;
+  textRecurrenceHints: boolean;
+  onTextRecurrenceHintsChange: (enabled: boolean) => void;
 }
 
 function GlobalDefaultsSection({
@@ -45,6 +47,8 @@ function GlobalDefaultsSection({
   onEpisodeLogRetentionDaysChange,
   episodeLogLevel,
   onEpisodeLogLevelChange,
+  textRecurrenceHints,
+  onTextRecurrenceHintsChange,
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
@@ -229,6 +233,23 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             Hides upstream episodes that haven't finished processing from served RSS feeds, so podcast apps don't auto-download an episode that would 503. Per-feed override is available on each feed's settings.
+          </p>
+        </div>
+
+        {/* Text recurrence hints */}
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={textRecurrenceHints}
+              onChange={onTextRecurrenceHintsChange}
+              ariaLabel="Text recurrence hints"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Text recurrence hints
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Looks for wording that repeats across a show's recent episodes and treats it as a hint for intros, credits, and other boilerplate. Experimental; off by default.
           </p>
         </div>
       </div>

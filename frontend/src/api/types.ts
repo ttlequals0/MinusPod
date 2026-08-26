@@ -451,6 +451,7 @@ export interface Settings {
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
+  textRecurrenceHints: SettingValueBoolean;
   processNewEpisodesFirst: SettingValueBoolean;
   seedSponsorsDetection: SettingValueBoolean;
   seedSponsorsVerification: SettingValueBoolean;
@@ -551,6 +552,7 @@ export interface Settings {
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
     detectShowSegments: boolean;
+    textRecurrenceHints: boolean;
     processNewEpisodesFirst: boolean;
     seedSponsorsDetection: boolean;
     seedSponsorsVerification: boolean;
@@ -649,6 +651,7 @@ export interface UpdateSettingsPayload {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
   detectShowSegments?: boolean;
+  textRecurrenceHints?: boolean;
   processNewEpisodesFirst?: boolean;
   seedSponsorsDetection?: boolean;
   seedSponsorsVerification?: boolean;

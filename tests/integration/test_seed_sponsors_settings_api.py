@@ -39,3 +39,19 @@ def test_seed_sponsors_roundtrip(app_client):
     data = app_client.get('/api/v1/settings').get_json()
     assert data['seedSponsorsReviewer']['value'] is False
     assert data['seedSponsorsDetection']['value'] is True
+
+
+def test_text_recurrence_hints_default_false(app_client):
+    _authed(app_client)
+    data = app_client.get('/api/v1/settings').get_json()
+    assert data['textRecurrenceHints']['value'] is False
+
+
+def test_text_recurrence_hints_roundtrip(app_client):
+    _authed(app_client)
+    resp = app_client.put('/api/v1/settings/ad-detection',
+                          json={'textRecurrenceHints': True},
+                          headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    data = app_client.get('/api/v1/settings').get_json()
+    assert data['textRecurrenceHints']['value'] is True

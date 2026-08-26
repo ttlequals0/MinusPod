@@ -904,6 +904,8 @@ function Settings() {
         onEpisodeLogRetentionDaysChange={setEpisodeLogRetentionDays}
         episodeLogLevel={episodeLogLevel}
         onEpisodeLogLevelChange={setEpisodeLogLevel}
+        textRecurrenceHints={settings?.textRecurrenceHints?.value ?? settings?.defaults?.textRecurrenceHints ?? false}
+        onTextRecurrenceHintsChange={(v) => tunableMutation.mutate({ textRecurrenceHints: v })}
       />
 
       <SegmentActionsSection
