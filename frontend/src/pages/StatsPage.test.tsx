@@ -1,12 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import StatsPage from './StatsPage';
-import type { AddressingStats, DashboardStats, ReviewerStats } from '../api/types';
+import type { AddressingStats, DashboardStats, Feed, ReviewerStats } from '../api/types';
 
 // vi.mock factories are hoisted above module-scope const declarations, so
 // fixture data referenced inside them has to be built via vi.hoisted too.
-const { DASHBOARD, REVIEWER_STATS, mockGetAddressingStats } = vi.hoisted(() => {
+const { DASHBOARD, REVIEWER_STATS, FEED, mockGetAddressingStats } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
     avgTimeSavedSeconds: 0,
@@ -51,9 +52,14 @@ const { DASHBOARD, REVIEWER_STATS, mockGetAddressingStats } = vi.hoisted(() => {
       segment_ids: { runs: 2, windowsJudged: 10, windowsCompliant: 6, compliancePct: 60.0 },
     },
   };
+  const feed: Feed = {
+    slug: 'a-show', title: 'A Show', sourceUrl: 'https://example.com/feed.xml',
+    feedUrl: 'https://example.com/feed.xml', episodeCount: 3,
+  };
   return {
     DASHBOARD: dashboard,
     REVIEWER_STATS: reviewerStats,
+    FEED: feed,
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
   };
 });
@@ -73,7 +79,7 @@ vi.mock('../api/cueDetections', () => ({
   }),
 }));
 vi.mock('../api/feeds', () => ({
-  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [] }) },
+  feedsQueryOptions: { queryKey: ['feeds'], queryFn: () => Promise.resolve({ feeds: [FEED] }) },
 }));
 
 function renderPage() {
@@ -102,9 +108,16 @@ describe('StatsPage addressing modes section', () => {
   });
 
   it('passes the podcast filter through to getAddressingStats', async () => {
+    const user = userEvent.setup();
     renderPage();
     await screen.findByText('Addressing modes');
     // Initial mount: no filter selected yet.
     expect(mockGetAddressingStats).toHaveBeenCalledWith(undefined);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'a-show');
+
+    await waitFor(() => {
+      expect(mockGetAddressingStats).toHaveBeenCalledWith('a-show');
+    });
   });
 });

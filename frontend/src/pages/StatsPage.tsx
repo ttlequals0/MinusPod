@@ -58,6 +58,18 @@ function ReviewerStatCard({ label, value }: { label: string; value: number | str
   );
 }
 
+// Label + value only, no background -- used inside an already-shaded parent
+// (e.g. the addressing-mode card), where a second background would nest a
+// card inside a card.
+function Metric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
 function generateChartColors(primary: string, count: number): string[] {
   const match = primary.match(/hsl\((\d[\d.]*)\s*[ ,]\s*(\d[\d.]*)%?\s*[ ,]\s*(\d[\d.]*)%?\)/);
   if (!match) return Array(count).fill(primary);
@@ -377,18 +389,9 @@ export default function StatsPage() {
                     {mode === 'timestamps' ? 'Timestamps' : 'Segment IDs'}
                   </p>
                   <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Runs</p>
-                      <p className="text-lg font-semibold text-foreground">{stats.runs}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Windows judged</p>
-                      <p className="text-lg font-semibold text-foreground">{stats.windowsJudged}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Compliance</p>
-                      <p className="text-lg font-semibold text-foreground">{stats.compliancePct.toFixed(1)}%</p>
-                    </div>
+                    <Metric label="Runs" value={stats.runs} />
+                    <Metric label="Windows judged" value={stats.windowsJudged} />
+                    <Metric label="Compliance" value={`${stats.compliancePct.toFixed(1)}%`} />
                   </div>
                 </div>
               );
