@@ -876,11 +876,17 @@ class EpisodeMixin:
 
     def get_recent_original_segments(self, slug: str,
                                      exclude_episode_id: str | None = None,
-                                     limit: int = 5) -> list[list[dict]]:
+                                     limit: int = 5,
+                                     min_duration: float = 60) -> list[list[dict]]:
         """Original (pre-cut) Whisper segments of the feed's most recent
-        processed episodes, newest first, for text recurrence."""
+        processed episodes, newest first, for text recurrence.
+
+        Episodes at or under min_duration seconds (trailers/bonus clips)
+        are excluded from the prior pool.
+        """
         rows = self._get_recent_episode_json_col(
-            slug, 'original_segments_json', exclude_episode_id, limit)
+            slug, 'original_segments_json', exclude_episode_id, limit,
+            min_duration)
         return [json.loads(r['original_segments_json']) for r in rows]
 
     def get_episodes_by_ids(self, slug: str, episode_ids: list[str]) -> list[dict]:

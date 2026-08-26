@@ -679,8 +679,6 @@ def update_ad_detection_settings():
         if value not in ('timestamps', 'segment_ids'):
             return error_response(
                 'adAddressingMode must be "timestamps" or "segment_ids"', 400)
-        db.set_setting('ad_addressing_mode', value, is_default=False)
-        logger.info(f"Updated ad_addressing_mode to: {value}")
 
     phases = (
         _apply_prompt_fields,
@@ -866,6 +864,14 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['textRecurrenceHints'] else 'false'
         db.set_setting('text_recurrence_hints', value, is_default=False)
         logger.info(f"Updated text-recurrence-hints to: {value}")
+
+    if 'adAddressingMode' in data:
+        # Already validated (400 on reject) by the route before any phase
+        # runs; this only persists, so it lands in the same phase order as
+        # its sibling flags instead of ahead of the rest of the payload.
+        value = str(data['adAddressingMode'] or '').strip().lower()
+        db.set_setting('ad_addressing_mode', value, is_default=False)
+        logger.info(f"Updated ad_addressing_mode to: {value}")
 
     for payload_key, db_key in (
         ('seedSponsorsDetection', 'seed_sponsors_detection'),

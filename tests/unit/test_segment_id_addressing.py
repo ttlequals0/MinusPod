@@ -131,6 +131,26 @@ def test_malformed_confidence_drops_one_ad_not_the_whole_pass():
     assert resolved[0]['end'] == 50.0
 
 
+def test_startid_endid_key_variant_resolves():
+    ads, used = parse_id_ads_from_response(
+        '[{"startid": 2, "endid": 4, "confidence": 0.9, '
+        '"category": "sponsor", "reason": "promo code read"}]')
+    assert used is True
+    resolved = resolve_segment_id_ads(ads, SEGS)
+    assert resolved[0]['start'] == 20.0
+    assert resolved[0]['end'] == 50.0
+
+
+def test_start_segment_id_end_segment_id_key_variant_resolves():
+    ads, used = parse_id_ads_from_response(
+        '[{"start_segment_id": 2, "end_segment_id": 4, "confidence": 0.9, '
+        '"category": "sponsor", "reason": "promo code read"}]')
+    assert used is True
+    resolved = resolve_segment_id_ads(ads, SEGS)
+    assert resolved[0]['start'] == 20.0
+    assert resolved[0]['end'] == 50.0
+
+
 def test_mixed_id_and_timestamp_objects_keeps_id_ad():
     # Some models mix formats in one response: one object with ids, one with
     # timestamps instead. The id-less object is skipped (surfaced via a

@@ -82,3 +82,24 @@ def test_ad_addressing_mode_rejects_bogus_value(app_client):
     assert resp.status_code == 400
     data = app_client.get('/api/v1/settings').get_json()
     assert data['adAddressingMode']['value'] == before
+
+
+def test_ad_addressing_mode_persists_via_apply_processing_flags():
+    # adAddressingMode's 400 validation stays in the route, ahead of every
+    # phase, but persistence itself now happens inside _apply_processing_flags
+    # alongside its sibling flags (item 8). There is no second route-level
+    # validated field to combine with adAddressingMode in one payload for an
+    # end-to-end "reject leaves it unpersisted" check, so this unit-tests the
+    # phase helper directly against a fake db.
+    from api.settings import _apply_processing_flags
+
+    calls = []
+
+    class FakeDB:
+        def set_setting(self, key, value, is_default=False):
+            calls.append((key, value, is_default))
+
+    err = _apply_processing_flags(FakeDB(), {'adAddressingMode': 'segment_ids'})
+    assert err is None
+    assert ('ad_addressing_mode', 'segment_ids', False) in calls
+    assert calls.count(('ad_addressing_mode', 'segment_ids', False)) == 1

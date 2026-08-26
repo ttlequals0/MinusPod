@@ -3718,6 +3718,18 @@ paths:
                     raise it or lower transcribeMaxChunkSeconds. A proxy in front
                     of the backend may cut the request sooner than this value.
                   example: 600
+                transcribeConcurrentChunks:
+                  type: integer
+                  minimum: 1
+                  maximum: 32
+                  description: Number of transcription chunks sent to the Whisper backend concurrently.
+                  example: 4
+                transcribeChunkOverlapSeconds:
+                  type: integer
+                  minimum: 0
+                  maximum: 120
+                  description: Overlap, in seconds, between consecutive transcription chunks.
+                  example: 30
                 whisperComputeType:
                   type: string
                   enum: [auto, float16, int8_float16, int8, float32]
@@ -3793,6 +3805,16 @@ paths:
                   description: Longest cue a user may bracket (default 4s).
                   minimum: 0.05
                   maximum: 30
+                audioCueCaptureMaxIntroSeconds:
+                  type: number
+                  description: Longest show-intro stinger a user may bracket (default 60s).
+                  minimum: 0.05
+                  maximum: 120
+                audioCueCaptureMaxOutroSeconds:
+                  type: number
+                  description: Longest show-outro stinger a user may bracket (default 60s).
+                  minimum: 0.05
+                  maximum: 120
                 audioCuePairConfidence:
                   type: number
                   description: Min cue confidence to synthesize an ad from a cue pair (default 0.85).
@@ -4007,6 +4029,14 @@ paths:
                   maximum: 0.95
                   description: Minimum confidence threshold to cut an ad from audio. Lower = more aggressive (removes more potential ads), higher = more conservative
                   example: 0.80
+                vttTranscriptsEnabled:
+                  type: boolean
+                  description: Generate a VTT transcript sidecar for each processed episode.
+                  example: true
+                chaptersEnabled:
+                  type: boolean
+                  description: Generate podcast:chapters JSON for each processed episode.
+                  example: true
                 audioBitrate:
                   type: string
                   enum: ['64k', '96k', '128k', '192k', '256k']
@@ -4018,6 +4048,15 @@ paths:
                     When true, skip the FLAC encode pass before uploading audio
                     to the Whisper API. Send the preprocessed WAV directly.
                   example: false
+                audioNormalizeEnabled:
+                  type: boolean
+                  description: Loudness-normalize processed audio output.
+                  example: false
+                audioNormalizeIntensity:
+                  type: string
+                  enum: [gentle, normal, aggressive, extreme, maximum]
+                  description: Loudness normalization intensity, applied when audioNormalizeEnabled is true.
+                  example: normal
                 adDetectionParallelWindows:
                   type: integer
                   minimum: 1
@@ -8959,6 +8998,22 @@ components:
               description: Seconds to wait for each remote Whisper transcription request.
             isDefault:
               type: boolean
+        transcribeConcurrentChunks:
+          type: object
+          description: Number of transcription chunks sent to the Whisper backend concurrently.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        transcribeChunkOverlapSeconds:
+          type: object
+          description: Overlap, in seconds, between consecutive transcription chunks.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
         whisperComputeType:
           type: object
           properties:
@@ -9062,6 +9117,22 @@ components:
         audioCueCaptureMaxSeconds:
           type: object
           description: Longest cue a user may bracket, seconds (default 4).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueCaptureMaxIntroSeconds:
+          type: object
+          description: Longest show-intro stinger a user may bracket, seconds (default 60).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueCaptureMaxOutroSeconds:
+          type: object
+          description: Longest show-outro stinger a user may bracket, seconds (default 60).
           properties:
             value:
               type: number
@@ -9516,6 +9587,39 @@ components:
               type: number
               format: float
               description: Minimum confidence threshold to cut an ad from audio (0.50-0.95)
+            isDefault:
+              type: boolean
+        vttTranscriptsEnabled:
+          type: object
+          description: Generate a VTT transcript sidecar for each processed episode.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        chaptersEnabled:
+          type: object
+          description: Generate podcast:chapters JSON for each processed episode.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioNormalizeEnabled:
+          type: object
+          description: Loudness-normalize processed audio output.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioNormalizeIntensity:
+          type: object
+          description: Loudness normalization intensity, applied when audioNormalizeEnabled is true.
+          properties:
+            value:
+              type: string
+              enum: [gentle, normal, aggressive, extreme, maximum]
             isDefault:
               type: boolean
         llmProvider:

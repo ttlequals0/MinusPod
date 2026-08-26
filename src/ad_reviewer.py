@@ -739,10 +739,9 @@ class AdReviewer:
 
         max_shift = self._read_max_boundary_shift()
         model = self._resolve_model(pass_model)
-        review_prompt = self._render_review_prompt(
-            max_shift, self._sponsor_block_for('seed_sponsors_reviewer'))
-        resurrect_prompt = self._render_resurrect_prompt(
-            self._sponsor_block_for('seed_sponsors_resurrect'))
+        review_sponsor_block, resurrect_sponsor_block = self._sponsor_blocks()
+        review_prompt = self._render_review_prompt(max_shift, review_sponsor_block)
+        resurrect_prompt = self._render_resurrect_prompt(resurrect_sponsor_block)
 
         result = ReviewResult(verdicts=[])
 
@@ -1512,11 +1511,15 @@ class AdReviewer:
             return True
         return coerce_bool_setting(value)
 
-    def _sponsor_block_for(self, toggle_key: str) -> str:
-        """Sponsor block for one reviewer prompt, honoring its toggle."""
-        if not self._seed_sponsors_enabled(toggle_key):
-            return ""
-        return format_sponsor_block(self._sponsor_list_or_empty())
+    def _sponsor_blocks(self) -> tuple[str, str]:
+        """(review_block, resurrect_block), fetching the sponsor list at
+        most once. A prompt whose toggle is off gets an empty block."""
+        review_on = self._seed_sponsors_enabled('seed_sponsors_reviewer')
+        resurrect_on = self._seed_sponsors_enabled('seed_sponsors_resurrect')
+        sponsor_list = (self._sponsor_list_or_empty()
+                        if (review_on or resurrect_on) else "")
+        block = format_sponsor_block(sponsor_list)
+        return (block if review_on else "", block if resurrect_on else "")
 
     def _read_setting(self, key: str) -> str | None:
         try:

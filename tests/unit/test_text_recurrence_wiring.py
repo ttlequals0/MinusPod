@@ -25,6 +25,21 @@ def test_get_recent_original_segments_parses_json(temp_db):
         slug, exclude_episode_id='ep-2')) == 1
 
 
+def test_get_recent_original_segments_min_duration_excludes_short_episodes(temp_db):
+    slug = 'recur-pod-short'
+    temp_db.create_podcast(slug, 'https://example.com/feed2.xml', 'Recur Pod Short')
+    temp_db.upsert_episode(slug, 'ep-short', title='Trailer',
+                           status='processed', original_duration=30.0,
+                           published_at='2026-08-20T00:00:00Z')
+    temp_db.save_original_segments(slug, 'ep-short', [
+        {'start': 0.0, 'end': 5.0, 'text': 'trailer text'}])
+    # Default min_duration=60 excludes a 30s episode.
+    assert temp_db.get_recent_original_segments(slug, limit=5) == []
+    # min_duration=0 includes it.
+    assert len(temp_db.get_recent_original_segments(
+        slug, limit=5, min_duration=0)) == 1
+
+
 def test_window_prompt_contains_hint_only_for_overlapping_window():
     spans = [{'start': 0.0, 'end': 12.0, 'text': 'welcome to the show'}]
     assert 'welcome to the show' in format_recurrence_hint(spans, 0.0, 600.0)

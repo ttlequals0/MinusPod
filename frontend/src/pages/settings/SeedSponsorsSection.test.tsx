@@ -71,6 +71,16 @@ describe('SeedSponsorsSection: rendering', () => {
       screen.getByText('Choose which prompts see the known-sponsor list. All on by default.'),
     ).toBeTruthy();
   });
+
+  it('does not call onChange on initial render or on expanding the section', async () => {
+    const calls: Array<[SeedSponsorsKey, boolean]> = [];
+    render(<Harness onChange={(key, value) => calls.push([key, value])} />);
+    expect(calls).toEqual([]);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Seed sponsors'));
+    expect(calls).toEqual([]);
+  });
 });
 
 describe('SeedSponsorsSection: reviewer toggle', () => {

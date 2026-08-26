@@ -2,6 +2,8 @@
 independently gated by its setting; missing/unreadable settings fail open."""
 from unittest.mock import MagicMock
 
+import pytest
+
 from ad_detector import AdDetector
 
 
@@ -56,6 +58,14 @@ def test_removed_placeholder_still_yields_no_block():
     assert "Acme" not in out
 
 
+@pytest.mark.parametrize("false_value", ['False', 'FALSE', '0'])
+def test_detection_toggle_mixed_case_and_zero_are_falsy(false_value):
+    d = _detector({'seed_sponsors_detection': false_value})
+    out = d._render_with_sponsors("X {sponsor_database} Y", 'seed_sponsors_detection')
+    assert "Acme" not in out
+    assert out == "X  Y"
+
+
 # Reviewer tests
 
 from ad_reviewer import AdReviewer
@@ -73,17 +83,51 @@ def _reviewer(settings: dict) -> AdReviewer:
 def test_reviewer_block_empty_when_toggle_off():
     r = _reviewer({'seed_sponsors_reviewer': 'false',
                    'seed_sponsors_resurrect': 'true'})
-    assert r._sponsor_block_for('seed_sponsors_reviewer') == ""
-    assert "Acme" in r._sponsor_block_for('seed_sponsors_resurrect')
+    review_block, resurrect_block = r._sponsor_blocks()
+    assert review_block == ""
+    assert "Acme" in resurrect_block
 
 
 def test_resurrect_block_empty_when_toggle_off():
     r = _reviewer({'seed_sponsors_reviewer': 'true',
                    'seed_sponsors_resurrect': 'false'})
-    assert "Acme" in r._sponsor_block_for('seed_sponsors_reviewer')
-    assert r._sponsor_block_for('seed_sponsors_resurrect') == ""
+    review_block, resurrect_block = r._sponsor_blocks()
+    assert "Acme" in review_block
+    assert resurrect_block == ""
 
 
 def test_reviewer_toggles_fail_open():
     r = _reviewer({})
-    assert "Acme" in r._sponsor_block_for('seed_sponsors_reviewer')
+    review_block, _resurrect_block = r._sponsor_blocks()
+    assert "Acme" in review_block
+
+
+@pytest.mark.parametrize("false_value", ['False', 'FALSE', '0'])
+def test_reviewer_toggle_mixed_case_and_zero_are_falsy(false_value):
+    r = _reviewer({'seed_sponsors_reviewer': false_value,
+                   'seed_sponsors_resurrect': 'true'})
+    review_block, resurrect_block = r._sponsor_blocks()
+    assert review_block == ""
+    assert "Acme" in resurrect_block
+
+
+def test_reviewer_db_error_fails_open_sponsor_block_populated():
+    r = _reviewer({})
+    r.db.get_setting.side_effect = RuntimeError("db down")
+    review_block, resurrect_block = r._sponsor_blocks()
+    assert "Acme" in review_block
+    assert "Acme" in resurrect_block
+
+
+def test_sponsor_blocks_fetches_list_once_when_both_toggles_on():
+    r = _reviewer({'seed_sponsors_reviewer': 'true',
+                   'seed_sponsors_resurrect': 'true'})
+    r._sponsor_blocks()
+    assert r.sponsor_service.get_claude_sponsor_list.call_count == 1
+
+
+def test_sponsor_blocks_skips_fetch_when_both_toggles_off():
+    r = _reviewer({'seed_sponsors_reviewer': 'false',
+                   'seed_sponsors_resurrect': 'false'})
+    r._sponsor_blocks()
+    assert r.sponsor_service.get_claude_sponsor_list.call_count == 0

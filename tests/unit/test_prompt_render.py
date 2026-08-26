@@ -1,5 +1,6 @@
 """Tests for the prompt placeholder substitution refactor."""
 import sqlite3
+from unittest.mock import MagicMock
 
 
 from ad_detector import get_static_system_prompt
@@ -78,7 +79,6 @@ def test_get_static_system_prompt_substitutes_seed_sponsors():
 def test_render_with_sponsors_empty_list_drops_block():
     """When the dynamic sponsor list is empty, no header should appear."""
     from ad_detector import AdDetector
-    from unittest.mock import MagicMock
     detector = AdDetector.__new__(AdDetector)
     # Bypass the sponsor_service property by stubbing the helper directly
     detector._get_sponsor_list_safely = lambda: ''
@@ -90,7 +90,6 @@ def test_render_with_sponsors_empty_list_drops_block():
 
 def test_render_with_sponsors_non_empty_list_inserts_block():
     from ad_detector import AdDetector
-    from unittest.mock import MagicMock
     detector = AdDetector.__new__(AdDetector)
     detector._get_sponsor_list_safely = lambda: 'AG1, Squarespace'
     detector.db = MagicMock()

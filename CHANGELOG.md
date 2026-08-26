@@ -11,6 +11,17 @@ release notes.
 
 ## [Unreleased]
 
+## [2.91.1] - 2026-08-26
+
+### Fixed
+
+- Reviewer prompts now fetch the known-sponsor list once per review pass
+  instead of once per prompt.
+- The addressing-mode setting persists in the same order as its sibling
+  settings during a settings update, instead of ahead of validation of
+  the rest of the payload.
+- Clearer settings copy for the text recurrence hints toggle.
+
 ## [2.91.0] - 2026-08-26
 
 ### Added

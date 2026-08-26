@@ -249,7 +249,7 @@ function GlobalDefaultsSection({
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Looks for wording that repeats across a show's recent episodes and treats it as a hint for intros, credits, and other boilerplate. Experimental; off by default.
+            Tells the ad detector which wording repeats across a show's recent episodes, as a hint for intros, credits, and other boilerplate. A hint only; nothing is cut from text matches alone. Experimental; off by default.
           </p>
         </div>
       </div>
