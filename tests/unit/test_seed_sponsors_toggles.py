@@ -54,3 +54,36 @@ def test_removed_placeholder_still_yields_no_block():
     d = _detector({'seed_sponsors_detection': 'true'})
     out = d._render_with_sponsors("no placeholder here", 'seed_sponsors_detection')
     assert "Acme" not in out
+
+
+# Reviewer tests
+
+from ad_reviewer import AdReviewer
+
+
+def _reviewer(settings: dict) -> AdReviewer:
+    r = AdReviewer.__new__(AdReviewer)
+    r.db = MagicMock()
+    r.db.get_setting.side_effect = lambda key: settings.get(key)
+    r.sponsor_service = MagicMock()
+    r.sponsor_service.get_claude_sponsor_list.return_value = "Acme, BetterHelp"
+    return r
+
+
+def test_reviewer_block_empty_when_toggle_off():
+    r = _reviewer({'seed_sponsors_reviewer': 'false',
+                   'seed_sponsors_resurrect': 'true'})
+    assert r._sponsor_block_for('seed_sponsors_reviewer') == ""
+    assert "Acme" in r._sponsor_block_for('seed_sponsors_resurrect')
+
+
+def test_resurrect_block_empty_when_toggle_off():
+    r = _reviewer({'seed_sponsors_reviewer': 'true',
+                   'seed_sponsors_resurrect': 'false'})
+    assert "Acme" in r._sponsor_block_for('seed_sponsors_reviewer')
+    assert r._sponsor_block_for('seed_sponsors_resurrect') == ""
+
+
+def test_reviewer_toggles_fail_open():
+    r = _reviewer({})
+    assert "Acme" in r._sponsor_block_for('seed_sponsors_reviewer')

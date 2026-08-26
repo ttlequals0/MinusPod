@@ -20,6 +20,7 @@ from config import (
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
     is_template_cue,
     MIN_AD_DURATION_FOR_REMOVAL,
+    coerce_bool_setting,
 )
 from audio_enforcer import content_anchors
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
@@ -738,9 +739,10 @@ class AdReviewer:
 
         max_shift = self._read_max_boundary_shift()
         model = self._resolve_model(pass_model)
-        sponsor_block = format_sponsor_block(self._sponsor_list_or_empty())
-        review_prompt = self._render_review_prompt(max_shift, sponsor_block)
-        resurrect_prompt = self._render_resurrect_prompt(sponsor_block)
+        review_prompt = self._render_review_prompt(
+            max_shift, self._sponsor_block_for('seed_sponsors_reviewer'))
+        resurrect_prompt = self._render_resurrect_prompt(
+            self._sponsor_block_for('seed_sponsors_resurrect'))
 
         result = ReviewResult(verdicts=[])
 
@@ -1497,6 +1499,24 @@ class AdReviewer:
         except Exception as e:
             logger.warning(f"reviewer sponsor list lookup failed: {e}")
             return ""
+
+    def _seed_sponsors_enabled(self, toggle_key: str) -> bool:
+        """Fails open (True): a missing or unreadable setting must not
+        silently strip the sponsor block."""
+        try:
+            value = self.db.get_setting(toggle_key)
+        except Exception as e:
+            logger.warning(f"Could not read {toggle_key}: {e}")
+            return True
+        if value is None:
+            return True
+        return coerce_bool_setting(value)
+
+    def _sponsor_block_for(self, toggle_key: str) -> str:
+        """Sponsor block for one reviewer prompt, honoring its toggle."""
+        if not self._seed_sponsors_enabled(toggle_key):
+            return ""
+        return format_sponsor_block(self._sponsor_list_or_empty())
 
     def _read_setting(self, key: str) -> str | None:
         try:
