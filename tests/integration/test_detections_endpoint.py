@@ -1,5 +1,12 @@
 """Integration tests for GET /api/v1/detections."""
+import os
+import sys
+import tempfile
+
 import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='detections-api-test-'))
 
 from api import get_database
 
